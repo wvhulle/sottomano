@@ -1,4 +1,4 @@
-use sottomano_config::screen_edges::Position;
+use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::group_menus::group_menu_state::GroupMenuTopic;
 
 use self::{

@@ -8,7 +8,7 @@ use iced::{
     },
     mouse::Cursor,
 };
-use sottomano_config::screen_edges::Position;
+use sottomano_toml_config::screen_edges::Position;
 
 use crate::widgets::{
     configured_theme::ThemedColor,

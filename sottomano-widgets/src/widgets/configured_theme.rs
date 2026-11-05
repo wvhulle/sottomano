@@ -5,7 +5,7 @@ use iced::{
         palette::{Extended, Pair},
     },
 };
-use sottomano_config::theme::palette::Palette;
+use sottomano_toml_config::theme::palette::Palette;
 
 const THEME_NAME: &str = "sottomano";
 

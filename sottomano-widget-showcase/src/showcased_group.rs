@@ -5,14 +5,14 @@ use iced::{
 };
 use iced_controller_diagram::ControllerArtwork;
 use niri_ipc::state::EventStreamState;
-use sottomano_config::{
-    Config,
-    screen_edges::Position,
-    widget_groups::{caldav_account::CaldavAccountConfig, gamepad_bindings::GamepadBindingsConfig},
-};
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::NotificationData,
     desktop_windows_apps::{niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot::Snapshot},
+};
+use sottomano_toml_config::{
+    Config,
+    screen_edges::Position,
+    widget_groups::{caldav_account::CaldavAccountConfig, gamepad_bindings::GamepadBindingsConfig},
 };
 use sottomano_widgets::{
     clock::Clock,

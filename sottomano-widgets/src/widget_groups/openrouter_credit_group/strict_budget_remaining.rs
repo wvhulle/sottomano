@@ -1,9 +1,9 @@
 use chrono::Locale;
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::ai_usage_spend::{
     openrouter_credits::{KeyLimit, LimitReset, OpenRouterStrictBudget},
     spend_money::Money,
 };
+use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,

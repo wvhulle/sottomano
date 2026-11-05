@@ -2,7 +2,6 @@ mod board_firmware_face;
 mod memory_usage_gauge;
 
 use iced::{Subscription, Task};
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::{
@@ -12,6 +11,7 @@ use sottomano_desktop_sources::{
     host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
+use sottomano_toml_config::Config;
 
 use crate::{
     background_work::{first_delivery, snapshot_subscription},

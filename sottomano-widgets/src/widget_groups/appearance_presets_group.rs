@@ -1,5 +1,5 @@
 use iced::{Element, border::Radius};
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 
 use crate::{
     group_items::{

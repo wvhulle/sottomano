@@ -11,7 +11,7 @@ use iced::{
     widget::{Column, Space, Text, button, container, row, text, text::Wrapping},
 };
 use iced_controller_diagram::{Style as DiagramStyle, controller_diagram};
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,

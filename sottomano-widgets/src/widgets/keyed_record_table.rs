@@ -5,7 +5,7 @@ use iced::{
     alignment::{Horizontal, Vertical},
     widget::{Space, rule},
 };
-use sottomano_config::{severity::Severity, theme::font::ResolvedFont};
+use sottomano_toml_config::{severity::Severity, theme::font::ResolvedFont};
 
 use crate::{
     group_items::reading_display_state::ReadingDisplayState,

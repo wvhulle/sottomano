@@ -5,7 +5,7 @@ use iced::{
     border::Radius,
     widget::{Row, button, container, mouse_area, text::Wrapping},
 };
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 
 use crate::{
     group_items::group_item::MenuParts,
@@ -151,7 +151,7 @@ pub(crate) fn menu_row_background(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_config::theme::palette::Palette;
+    use sottomano_toml_config::theme::palette::Palette;
 
     use super::{MenuRowEmphasis, menu_row_background};
     use crate::widgets::configured_theme::{

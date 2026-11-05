@@ -4,13 +4,13 @@ mod sun_follow_toggle;
 use std::ops::RangeInclusive;
 
 use iced::{Subscription, Task};
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     screen_brightness_color::gammarelay_color_temperature::{self, ColorTemperature},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope, unit_active_state::UnitChange},
 };
+use sottomano_toml_config::Config;
 use sun_follow_toggle::SUN_FOLLOW;
 use uom::si::thermodynamic_temperature::kelvin;
 

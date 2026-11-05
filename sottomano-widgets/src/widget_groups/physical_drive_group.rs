@@ -6,7 +6,6 @@ use std::collections::BTreeMap;
 
 use disk_space_gauge::{DiskMarking, MarkedDiskSpace};
 use iced::{Subscription, Task};
-use sottomano_config::widget_groups::temperature_sensors::SensorConfig;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     disk_storage::{
@@ -16,6 +15,7 @@ use sottomano_desktop_sources::{
         whole_disk_space_occupancy::{DiskOccupancyInputs, DiskSpaceOccupancy},
     },
 };
+use sottomano_toml_config::widget_groups::temperature_sensors::SensorConfig;
 
 use crate::{
     background_work::{first_delivery, snapshot_subscription},

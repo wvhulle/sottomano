@@ -11,7 +11,7 @@ use iced::{
     mouse::{self, Cursor, ScrollDelta},
     widget::{Slider, mouse_area, slider, stack},
 };
-use sottomano_config::{Config, severity::Severity};
+use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
     group_items::reading_display_state::ReadingDisplayState,

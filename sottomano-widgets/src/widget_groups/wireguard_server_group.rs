@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 
 use iced::{Subscription, Task};
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::wireguard_tunnels::{
@@ -10,6 +9,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
+use sottomano_toml_config::Config;
 
 use crate::{
     background_work::{first_delivery, snapshot_subscription},

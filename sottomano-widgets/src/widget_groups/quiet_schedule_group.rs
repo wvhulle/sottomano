@@ -8,11 +8,11 @@ use std::{ops::RangeInclusive, time::Duration};
 
 use chrono::{DateTime, Local, Locale, Utc, Weekday, WeekdaySet};
 use iced::{Function, Subscription, Task, task};
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     login_session_presence::logind_manager,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
+use sottomano_toml_config::Config;
 use tokio::time::sleep;
 
 use self::{

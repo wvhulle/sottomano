@@ -1,10 +1,10 @@
 use chrono::Weekday;
 use rust_decimal::Decimal;
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::ai_usage_spend::{
     spend_money::{Money, usd},
     working_time_forecast::{SpendBudget, SpendPacing},
 };
+use sottomano_toml_config::severity::Severity;
 
 use crate::{
     hover_cards::hover_card_body::Section,

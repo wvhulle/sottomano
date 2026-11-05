@@ -1,5 +1,5 @@
 use iced::{Element, border::Radius, time::Duration};
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 
 use crate::{
     desktop_panels::panel_frame::LayerFrameStyle,

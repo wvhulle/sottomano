@@ -1,11 +1,11 @@
 use bytesize::ByteSize;
 use chrono::Locale;
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::disk_storage::{
     bcachefs_filesystem_space::{BcachefsSpace, SnapshotDeletion},
     btrfs_filesystem_space::BtrfsSpace,
     mounted_filesystem_usage::{Filesystem, FilesystemUsage},
 };
+use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 
 use crate::{

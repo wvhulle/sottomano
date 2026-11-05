@@ -2,11 +2,11 @@ use std::borrow::Cow;
 
 use chrono::{DateTime, Utc};
 use iced::alignment::Horizontal;
-use sottomano_config::{Config, severity::Severity};
 use sottomano_desktop_sources::systemd_units_journal::{
     SystemdUnitScope,
     slow_running_jobs::{SlowJob, SlowJobs},
 };
+use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
     clock::Clock,

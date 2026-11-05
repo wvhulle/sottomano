@@ -8,7 +8,7 @@ use std::{
 use futures::{Stream, StreamExt};
 use libc::{c_int, pid_t};
 use serde::Deserialize;
-use sottomano_config::severity::Severity;
+use sottomano_toml_config::severity::Severity;
 use systemd::journal::{Journal, OpenOptions};
 
 use crate::{

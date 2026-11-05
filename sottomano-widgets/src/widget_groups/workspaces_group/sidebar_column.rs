@@ -1,8 +1,8 @@
 use iced::{Alignment, Element, border::Radius, widget::Column};
-use sottomano_config::screen_edges::Position;
 use sottomano_desktop_sources::desktop_windows_apps::{
     niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot,
 };
+use sottomano_toml_config::screen_edges::Position;
 
 use super::{
     EmptyWorkspaceFolding, WorkspacesMessage, dragged, empty_workspaces_toggle, order_restore,

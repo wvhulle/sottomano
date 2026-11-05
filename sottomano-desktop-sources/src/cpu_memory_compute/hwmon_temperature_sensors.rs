@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use sottomano_config::widget_groups::temperature_sensors::{SensorChoice, SensorLabel};
+use sottomano_toml_config::widget_groups::temperature_sensors::{SensorChoice, SensorLabel};
 use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius};
 
 use crate::system_protocol_clients::sysfs_attribute_reads::{list_dir, read_i64, read_trimmed};

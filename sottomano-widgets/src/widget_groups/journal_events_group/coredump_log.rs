@@ -1,6 +1,6 @@
 use iced::alignment::Horizontal;
-use sottomano_config::Config;
 use sottomano_desktop_sources::systemd_units_journal::journal_coredumps::CoredumpEntry;
+use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,

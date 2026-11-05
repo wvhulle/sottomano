@@ -1,7 +1,7 @@
 use std::iter::once;
 
 use iced::{Point, Rectangle, Size};
-use sottomano_config::{
+use sottomano_toml_config::{
     Config,
     screen_edges::{HEdge, VEdge},
 };

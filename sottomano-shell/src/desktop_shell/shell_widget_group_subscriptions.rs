@@ -1,9 +1,9 @@
 use iced::Subscription;
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
+use sottomano_toml_config::Config;
 use sottomano_widgets::{
     background_work::snapshot_subscription,
     group_menus::group_source_demand::GroupSourceDemand,

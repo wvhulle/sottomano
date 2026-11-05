@@ -9,7 +9,6 @@ use std::collections::HashMap;
 
 use iced::{Element, Subscription, Task};
 use niri_ipc::state::EventStreamState;
-use sottomano_config::{Config, widget_groups::WindowAgentsConfig};
 use sottomano_desktop_sources::{
     desktop_windows_apps::{
         kitty_terminal_windows::WindowProcesses, niri_window_snapshot,
@@ -18,6 +17,7 @@ use sottomano_desktop_sources::{
     media_playback_audio::pipewire_audio::WindowAudio,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
+use sottomano_toml_config::{Config, widget_groups::WindowAgentsConfig};
 use window_list::{WindowList, WindowListMessage};
 
 use crate::{

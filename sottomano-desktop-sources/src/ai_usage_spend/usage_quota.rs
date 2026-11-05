@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use chrono::{DateTime, Datelike, Days, Months, NaiveTime, TimeDelta, Utc};
-use sottomano_config::severity::Severity;
+use sottomano_toml_config::severity::Severity;
 use uom::si::{
     f64::Ratio,
     ratio::{percent, ratio},

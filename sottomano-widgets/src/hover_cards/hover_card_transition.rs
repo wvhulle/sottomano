@@ -1,5 +1,5 @@
 use iced::time::Instant;
-use sottomano_config::screen_edges::Position;
+use sottomano_toml_config::screen_edges::Position;
 
 use crate::hover_cards::{
     HoverAnnouncement, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,

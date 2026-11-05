@@ -1,8 +1,8 @@
 use chrono::Locale;
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::cpu_memory_compute::{
     pci_gpu_readings::GpuTemperatureLimits, temperature_thresholds::celsius_text,
 };
+use sottomano_toml_config::severity::Severity;
 use uom::si::f64::ThermodynamicTemperature;
 
 use crate::{

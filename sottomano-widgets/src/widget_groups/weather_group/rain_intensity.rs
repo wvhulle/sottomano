@@ -5,11 +5,11 @@ use std::{
 
 use chrono::{DateTime, Local, Locale, NaiveDate, TimeDelta, Timelike, Utc};
 use iced::alignment::Horizontal;
-use sottomano_config::{severity::Severity, widget_groups::rain_alerts::RainAlertsConfig};
 use sottomano_desktop_sources::weather::{
     buienradar_rain::{Downpour, Rain, RainOutlook, precipitation::millimeter_per_hour},
     open_meteo_precipitation_model::{ModelQuarterHour, PrecipitationModel},
 };
+use sottomano_toml_config::{severity::Severity, widget_groups::rain_alerts::RainAlertsConfig};
 use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
 
 use crate::{

@@ -1,7 +1,7 @@
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::network_connectivity::tailscale_status::{
     ExitNodeOffer, ExitOfferControl, Tailnet,
 };
+use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,

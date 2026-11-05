@@ -7,7 +7,6 @@ use std::{ops::RangeInclusive, time::Duration};
 
 use chrono::{DateTime, Utc};
 use iced::{Function, Subscription, Task, task};
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
@@ -19,6 +18,7 @@ use sottomano_desktop_sources::{
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     weather::situo_location_fix::Location,
 };
+use sottomano_toml_config::Config;
 use tokio::time::sleep;
 
 use self::{

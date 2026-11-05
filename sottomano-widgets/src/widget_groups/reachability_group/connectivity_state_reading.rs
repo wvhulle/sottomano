@@ -1,7 +1,7 @@
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::network_connectivity::{
     network_manager_proxies::Connectivity, nm_uplink_connectivity::UplinkConnectivity,
 };
+use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,

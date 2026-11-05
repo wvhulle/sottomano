@@ -1,8 +1,8 @@
 use iced::Task;
-use sottomano_config::theme::palette::Palette;
 use sottomano_desktop_sources::sqlite_state_store::{
     Columns, StoreError, flag, upsert_column, with_table,
 };
+use sottomano_toml_config::theme::palette::Palette;
 
 use crate::{
     group_items::toggle_control::{IconToggle, SwitchPresses},

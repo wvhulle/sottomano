@@ -1,4 +1,4 @@
-use sottomano_config::{Config, screen_edges::Position};
+use sottomano_toml_config::{Config, screen_edges::Position};
 
 use crate::{
     clock::Clock,

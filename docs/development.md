@@ -8,9 +8,9 @@ Setup and workflow for working on sottomano. The rules the code follows are in
 Work inside the Nix devshell (`nix develop`). The repository is a cargo
 workspace:
 
-- `sottomano-config/` holds the TOML config types and their loading.
-- `sottomano-desktop-sources/` holds the data sources and sinks the shell reads and
-  writes.
+- `sottomano-toml-config/` holds the TOML config types and their loading.
+- `sottomano-desktop-sources/` holds the data sources and sinks the shell reads
+  and writes.
 - `sottomano-widgets/` holds the panels, group menus, widget groups, group items
   and hover cards, one module per level of the hierarchy in `CONTRIBUTING.md`.
   Each widget group restores and persists its own state.
@@ -38,7 +38,7 @@ flowchart TB
     snapshot_sources["snapshot sources"]
   end
 
-  subgraph config_crate [sottomano-config]
+  subgraph config_crate [sottomano-toml-config]
     config_file[("$XDG_CONFIG_HOME/sottomano.toml")]
     config_loading["config loading"]
     config_file --> config_loading

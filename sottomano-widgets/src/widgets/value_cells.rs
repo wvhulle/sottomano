@@ -15,7 +15,7 @@ use iced::{
         text::{Span, Style as TextStyle, Wrapping},
     },
 };
-use sottomano_config::{severity::Severity, theme::font::ResolvedFont};
+use sottomano_toml_config::{severity::Severity, theme::font::ResolvedFont};
 
 use crate::widgets::{
     configured_theme::AccentShades,

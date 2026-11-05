@@ -1,5 +1,5 @@
 use iced_controller_diagram::{DiagramAnchor, DiagramButton, DiagramStick};
-use sottomano_config::widget_groups::gamepad_bindings::{GamepadButton, GamepadStick};
+use sottomano_toml_config::widget_groups::gamepad_bindings::{GamepadButton, GamepadStick};
 
 pub(super) const fn button_anchor(button: GamepadButton) -> DiagramAnchor {
     DiagramAnchor::Button(match button {

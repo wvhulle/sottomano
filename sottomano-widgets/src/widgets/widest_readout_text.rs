@@ -14,7 +14,7 @@ use iced::{
     mouse::{Cursor, Interaction},
     widget::text::{Shaping, Wrapping},
 };
-use sottomano_config::theme::font::ResolvedFont;
+use sottomano_toml_config::theme::font::ResolvedFont;
 
 use crate::widgets::text::{FontFaces, LINE_HEIGHT};
 

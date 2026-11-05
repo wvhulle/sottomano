@@ -1,4 +1,4 @@
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 use sottomano_widget_showcase::showcase_program::ShowcaseProgram;
 
 #[test]

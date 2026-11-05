@@ -3,7 +3,6 @@ use std::time::Duration;
 use chrono::{DateTime, TimeDelta, Utc};
 use iced::futures::{Stream, StreamExt, stream};
 use niri_ipc::state::EventStreamState;
-use sottomano_config::widget_groups::session_focus::SessionFocusConfig;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::kitty_terminal_windows::WindowProcesses,
@@ -14,6 +13,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
+use sottomano_toml_config::widget_groups::session_focus::SessionFocusConfig;
 
 use crate::widget_groups::session_focus_group::sqlite_focus_spans;
 

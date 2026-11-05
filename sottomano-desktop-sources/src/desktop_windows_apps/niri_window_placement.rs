@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use niri_ipc::{Window, WindowLayout, state::EventStreamState};
-use sottomano_config::screen_edges::{HEdge, VEdge};
+use sottomano_toml_config::screen_edges::{HEdge, VEdge};
 
 #[derive(Debug, Clone)]
 pub struct WindowEdge {

@@ -1,8 +1,8 @@
 use iced::Task;
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking, desktop_windows_apps::niri_action_requests,
 };
+use sottomano_toml_config::Config;
 
 #[derive(Debug, Clone)]
 pub struct TerminalCommand {

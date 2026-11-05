@@ -10,7 +10,7 @@ use iced::{
     border::Radius,
     widget::canvas::{Frame, Path, Stroke},
 };
-use sottomano_config::screen_edges::Position;
+use sottomano_toml_config::screen_edges::Position;
 
 use crate::desktop_panels::panel_frame::LayerFrameStyle;
 

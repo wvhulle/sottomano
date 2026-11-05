@@ -1,10 +1,10 @@
 use bytesize::ByteSize;
 use chrono::{DateTime, TimeDelta, Utc};
 use iced::alignment::Horizontal;
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::network_connectivity::tailscale_status::{
     ADMIN_CONSOLE_URL, KeyExpiry, Peer, PeerPath, Tailnet, Tailscale,
 };
+use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,

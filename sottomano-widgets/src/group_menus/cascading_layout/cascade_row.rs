@@ -10,7 +10,7 @@ use iced::{
     },
     mouse::{Cursor, Interaction},
 };
-use sottomano_config::screen_edges::Position;
+use sottomano_toml_config::screen_edges::Position;
 
 use crate::{
     group_menus::cascading_layout::notched_panel::{PanelGrowth, ScreenRoom},

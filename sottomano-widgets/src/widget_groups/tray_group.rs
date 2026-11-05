@@ -7,7 +7,6 @@ use iced::{
     border::Radius,
     widget::{Column, mouse_area},
 };
-use sottomano_config::{Config, widget_groups::tray::ClickAction};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
@@ -15,6 +14,7 @@ use sottomano_desktop_sources::{
         status_notifier_tray::{self, Status, TrayCommand, TrayItem, TrayUpdate},
     },
 };
+use sottomano_toml_config::{Config, widget_groups::tray::ClickAction};
 use system_tray::error;
 use tokio::sync::mpsc;
 

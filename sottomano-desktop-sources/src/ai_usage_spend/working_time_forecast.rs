@@ -4,7 +4,7 @@ use chrono::{
     DateTime, Datelike, Local, NaiveDate, NaiveTime, TimeDelta, TimeZone, Utc, WeekdaySet,
 };
 use rust_decimal::{Decimal, prelude::FromPrimitive};
-use sottomano_config::{Config, calendar::WorkingHours};
+use sottomano_toml_config::{Config, calendar::WorkingHours};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::ai_usage_spend::{spend_money::Money, usage_quota::Quota};
@@ -208,7 +208,7 @@ fn count_working_days(since: NaiveDate, until: NaiveDate, working_days: WeekdayS
 
 #[cfg(test)]
 mod tests {
-    use sottomano_config::severity::Severity;
+    use sottomano_toml_config::severity::Severity;
 
     use super::*;
     use crate::ai_usage_spend::spend_money::usd;

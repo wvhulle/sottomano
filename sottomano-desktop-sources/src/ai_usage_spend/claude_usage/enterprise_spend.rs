@@ -202,7 +202,7 @@ impl ClaudeEnterpriseSpend {
 #[cfg(test)]
 mod tests {
     use chrono::WeekdaySet;
-    use sottomano_config::calendar::WorkingHours;
+    use sottomano_toml_config::calendar::WorkingHours;
 
     use super::*;
 

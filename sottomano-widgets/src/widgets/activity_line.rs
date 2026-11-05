@@ -2,7 +2,7 @@ use iced::{
     Color, Element, Theme,
     widget::rule::{self, FillMode},
 };
-use sottomano_config::screen_edges::Position;
+use sottomano_toml_config::screen_edges::Position;
 
 #[must_use]
 pub fn activity_line<'a, Message: 'a>(

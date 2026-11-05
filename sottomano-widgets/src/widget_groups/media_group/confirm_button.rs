@@ -1,5 +1,5 @@
 use iced::{Alignment, Element, Theme, widget::row};
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 
 use crate::{
     group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},

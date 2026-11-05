@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt, stream};
-use sottomano_config::severity::Severity;
+use sottomano_toml_config::severity::Severity;
 use zbus::proxy;
 
 use crate::{

@@ -1,9 +1,9 @@
 use chrono::{DateTime, Utc};
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::{
     gamepad_controller_input::accelerometer_report_timing::{DeviceClock, ReportTiming},
     systemd_units_journal::journal_device_kernel_errors::DeviceKernelError,
 };
+use sottomano_toml_config::severity::Severity;
 use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{

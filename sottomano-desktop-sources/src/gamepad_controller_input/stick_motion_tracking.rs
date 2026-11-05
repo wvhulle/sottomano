@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use sottomano_config::widget_groups::gamepad_bindings::StickDirection;
+use sottomano_toml_config::widget_groups::gamepad_bindings::StickDirection;
 
 const FLICK_ENGAGE: f32 = 0.7;
 const FLICK_RELEASE: f32 = 0.35;

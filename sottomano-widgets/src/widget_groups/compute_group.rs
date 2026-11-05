@@ -12,7 +12,6 @@ mod x3d_cache_preference_toggle;
 use chiplet_live_state::ChipletLiveState;
 use cpu_clock_limit_causes::ClockLimitCauses;
 use iced::{Subscription, Task};
-use sottomano_config::{Config, widget_groups::temperature_sensors::SensorConfig};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::{
@@ -26,6 +25,7 @@ use sottomano_desktop_sources::{
     },
     host_machine_identity::udev_hardware_identity::{HostHardware, HostHardwareError},
 };
+use sottomano_toml_config::{Config, widget_groups::temperature_sensors::SensorConfig};
 use x3d_cache_preference_toggle::ChipletRoles;
 
 use crate::{
@@ -340,7 +340,7 @@ impl ComputeGroup {
 #[cfg(test)]
 mod tests {
     use iced::advanced::subscription::into_recipes;
-    use sottomano_config::widget_groups::temperature_sensors::SensorConfig;
+    use sottomano_toml_config::widget_groups::temperature_sensors::SensorConfig;
 
     use super::{ComputeGroup, GroupSourceDemand, WidgetGroupExpansionMessage};
     use crate::{

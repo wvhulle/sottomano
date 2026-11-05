@@ -295,7 +295,7 @@ async fn report(agent: Agent, period: &'static str, since: &str) -> Result<Strin
 #[cfg(test)]
 mod tests {
     use chrono::{TimeDelta, Weekday, WeekdaySet};
-    use sottomano_config::calendar::WorkingHours;
+    use sottomano_toml_config::calendar::WorkingHours;
 
     use super::*;
     use crate::ai_usage_spend::working_time_forecast::{SpendPacing, WorkingTime};

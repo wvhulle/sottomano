@@ -4,7 +4,7 @@ mod switch_heat_borders;
 use std::io;
 
 use iced::Task;
-use sottomano_config::{Config, severity::Severity};
+use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
     clock::Clock,

@@ -5,7 +5,7 @@ use futures::{
     future::{join_all, ready},
     stream,
 };
-use sottomano_config::severity::Severity;
+use sottomano_toml_config::severity::Severity;
 use uom::si::{
     f64::{Ratio, Time},
     ratio::{percent, ratio},

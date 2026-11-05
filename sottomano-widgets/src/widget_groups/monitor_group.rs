@@ -9,7 +9,6 @@ use std::{
 
 use iced::{Subscription, Task, mouse::ScrollDelta};
 use output_details::ConnectedOutput;
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
@@ -20,6 +19,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
+use sottomano_toml_config::Config;
 
 use crate::{
     background_work::{first_delivery, snapshot_subscription},

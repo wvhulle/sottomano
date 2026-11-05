@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::network_connectivity::icmp_echo_probes::{
     LatencyProbeError, ProbeOutcome, ProbeWindow,
 };
+use sottomano_toml_config::severity::Severity;
 use uom::si::ratio::percent;
 
 use crate::{

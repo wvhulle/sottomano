@@ -4,11 +4,11 @@ use crate::{widget_groups::widget_group_identity::WidgetGroupFamily, widgets::ph
 
 mod firmware_upgrade_list;
 
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     SnapshotDelivery, host_machine_identity::fwupd_firmware_upgrades::FirmwareUpgrade,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
+use sottomano_toml_config::Config;
 
 use crate::{
     background_work::snapshot_subscription,

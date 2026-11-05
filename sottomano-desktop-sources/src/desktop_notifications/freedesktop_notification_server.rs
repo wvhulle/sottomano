@@ -7,7 +7,7 @@ use std::{
 };
 
 use image::RgbaImage;
-use sottomano_config::severity::Severity;
+use sottomano_toml_config::severity::Severity;
 use tokio::sync::mpsc;
 use uom::si::{f64::Ratio, ratio::percent};
 use zbus::{

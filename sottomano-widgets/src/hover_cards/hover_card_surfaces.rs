@@ -7,7 +7,7 @@ use iced::{
     window::Id,
 };
 use iced_exwlshell::reexport::KeyboardInteractivity;
-use sottomano_config::{Config, screen_edges::Position};
+use sottomano_toml_config::{Config, screen_edges::Position};
 use tokio::time::sleep;
 
 use crate::{
@@ -579,7 +579,7 @@ mod tests {
         time::{Duration, Instant},
         window::Id,
     };
-    use sottomano_config::screen_edges::Position;
+    use sottomano_toml_config::screen_edges::Position;
 
     use super::{HIDE_GRACE, HoverCardHost};
     use crate::{

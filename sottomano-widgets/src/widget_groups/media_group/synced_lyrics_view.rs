@@ -1,11 +1,11 @@
 use std::time::{Duration, Instant};
 
 use iced::alignment::Horizontal;
-use sottomano_config::Config;
 use sottomano_desktop_sources::media_playback_audio::{
     lrclib_synced_lyrics::{TimedLyricLine, TrackLyrics},
     mpris_players::Media,
 };
+use sottomano_toml_config::Config;
 
 use super::{MediaMessage, MediaTarget, PlayerTarget};
 use crate::{

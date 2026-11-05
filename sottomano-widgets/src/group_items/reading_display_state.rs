@@ -1,5 +1,5 @@
 use iced::{Color, Theme, widget::text};
-use sottomano_config::severity::Severity;
+use sottomano_toml_config::severity::Severity;
 
 use crate::widgets::{
     configured_theme::{
@@ -121,7 +121,7 @@ impl From<Severity> for ReadingDisplayState {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_config::theme::palette::Palette;
+    use sottomano_toml_config::theme::palette::Palette;
 
     use super::*;
     use crate::widgets::configured_theme::configured_theme;

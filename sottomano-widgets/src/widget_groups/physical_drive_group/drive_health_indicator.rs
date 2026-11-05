@@ -1,5 +1,4 @@
 use chrono::Locale;
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::{
     cpu_memory_compute::temperature_thresholds::celsius_text,
     disk_storage::{
@@ -7,6 +6,7 @@ use sottomano_desktop_sources::{
         filesystem_device_errors::DeviceErrors,
     },
 };
+use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,

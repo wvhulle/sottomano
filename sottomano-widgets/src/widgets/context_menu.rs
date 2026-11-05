@@ -4,7 +4,7 @@ use iced::{
     border::Radius,
     widget::{Row, button, container, space, text},
 };
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 
 use crate::widgets::{
     activity_line::activity_line,

@@ -1,7 +1,7 @@
 use iced::Task;
 use niri_ipc::state::EventStreamState;
-use sottomano_config::{Config, SecretPaths};
 use sottomano_desktop_sources::desktop_windows_apps::desktop_entry_app_icons::DesktopEntries;
+use sottomano_toml_config::{Config, SecretPaths};
 use sottomano_widgets::{
     clock::Clock,
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuState},

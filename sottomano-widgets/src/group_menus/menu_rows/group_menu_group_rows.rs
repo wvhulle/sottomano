@@ -5,7 +5,7 @@ use iced::{
     border::Radius,
     widget::{Space, mouse_area},
 };
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 
 use crate::{
     group_items::{group_item::MenuParts, group_item_gestures::GroupItemGesture},

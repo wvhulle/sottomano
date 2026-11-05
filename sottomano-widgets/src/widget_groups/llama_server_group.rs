@@ -7,7 +7,6 @@ mod slot_occupancy_gauge;
 
 use iced::{Subscription, Task};
 use scoped_servers::{ScopedLlamaServers, ScopedServersMessage};
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     ai_usage_spend::{gguf_header_model_card::GgufModelCard, llama_server_slots::LlamaModelProps},
@@ -15,6 +14,7 @@ use sottomano_desktop_sources::{
     systemd_units_journal::SystemdUnitScope,
     voice_dictation_input::huggingface_model_card::HuggingFaceModelCard,
 };
+use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,

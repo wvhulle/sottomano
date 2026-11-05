@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use chrono::{NaiveDateTime, TimeDelta, Timelike};
-use sottomano_config::SecretPaths;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     caldav_tasks_events::{
@@ -14,6 +13,7 @@ use sottomano_desktop_sources::{
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
+use sottomano_toml_config::SecretPaths;
 use sottomano_widgets::{
     clock::Clock,
     widget_groups::caldav_group::{CaldavGroup, CaldavMessage},

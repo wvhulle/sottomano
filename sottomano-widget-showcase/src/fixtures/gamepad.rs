@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use sottomano_config::widget_groups::gamepad_bindings::GamepadBindingsConfig;
 use sottomano_desktop_sources::gamepad_controller_input::{
     accelerometer_report_timing::{DeviceClock, ReportTiming, SentReports},
     evdev_gamepad_devices::{
@@ -10,6 +9,7 @@ use sottomano_desktop_sources::gamepad_controller_input::{
     gamepad_input_machine::GamepadInput,
     player_indicator_leds::{LitPlayer, PlayerIndicator},
 };
+use sottomano_toml_config::widget_groups::gamepad_bindings::GamepadBindingsConfig;
 use sottomano_widgets::{
     clock::Clock,
     widget_groups::gamepad_group::{GamepadGroup, GamepadMessage, GamepadWindowClaim},

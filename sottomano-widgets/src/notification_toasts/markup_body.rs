@@ -9,7 +9,7 @@ use iced::{
     },
 };
 use quick_xml::{Reader, escape::resolve_xml_entity, events::Event, name::LocalName};
-use sottomano_config::theme::font::ResolvedFont;
+use sottomano_toml_config::theme::font::ResolvedFont;
 
 use crate::widgets::{
     content_sized_table::content_sized_grid,
@@ -303,7 +303,7 @@ fn lowercase_name(name: &LocalName) -> String {
 mod tests {
     use std::sync::Arc;
 
-    use sottomano_config::theme::font::FontRole;
+    use sottomano_toml_config::theme::font::FontRole;
 
     use super::*;
 

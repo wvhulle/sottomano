@@ -2,10 +2,10 @@ use std::{iter::once, time::Duration};
 
 use chrono::Locale;
 use iced::alignment::Horizontal;
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::systemd_units_journal::boot_timeline::{
     BootTimeline, DurationComparison, RankedActivations,
 };
+use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,

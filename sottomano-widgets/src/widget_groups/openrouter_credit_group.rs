@@ -5,7 +5,6 @@ mod strict_budget_remaining;
 use std::path::PathBuf;
 
 use iced::{Subscription, Task};
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     ai_usage_spend::{
@@ -16,6 +15,7 @@ use sottomano_desktop_sources::{
     network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
+use sottomano_toml_config::Config;
 
 use crate::{
     background_work::{first_delivery, snapshot_subscription},

@@ -3,7 +3,6 @@ mod channel_level_control;
 use std::{collections::HashMap, env, ops::RangeInclusive, thread, time::Duration};
 
 use iced::{Function, Subscription, Task};
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
@@ -11,6 +10,7 @@ use sottomano_desktop_sources::{
         self, AudioConnectError, AudioEvent, AudioState, Commands, Peaks, Target, WindowAudio,
     },
 };
+use sottomano_toml_config::Config;
 
 use self::channel_level_control::{audio_output_icon, feed, input_glyph};
 use crate::{

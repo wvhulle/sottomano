@@ -3,7 +3,7 @@ use iced::{
     alignment::Vertical,
     widget::{Column, Row, Space, container},
 };
-use sottomano_config::{Config, screen_edges::Position};
+use sottomano_toml_config::{Config, screen_edges::Position};
 
 use crate::widgets::shared_metrics::ACCENT_STROKE_PX;
 

@@ -1,7 +1,7 @@
 use std::mem::take;
 
 use iced::Element;
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 
 use crate::{
     group_menus::{

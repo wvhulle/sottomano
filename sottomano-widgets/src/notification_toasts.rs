@@ -16,7 +16,6 @@ use iced::{
     time::Instant,
 };
 use niri_ipc::state::EventStreamState;
-use sottomano_config::{Config, severity::Severity};
 use sottomano_desktop_sources::{
     desktop_notifications::{
         alert_sound_player::SoundTheme,
@@ -27,6 +26,7 @@ use sottomano_desktop_sources::{
         niri_window_placement::Placement,
     },
 };
+use sottomano_toml_config::{Config, severity::Severity};
 use toast_card::ToastCard;
 pub use toast_lifecycle::Notification;
 use toast_lifecycle::{BodyClick, Countdown, ToastKind};

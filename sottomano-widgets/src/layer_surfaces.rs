@@ -2,7 +2,7 @@ use iced::{Rectangle, window::Id};
 use iced_exwlshell::reexport::{
     ActivationTokenSink, KeyboardInteractivity, NewLayerShellSettings, OutputOption,
 };
-use sottomano_config::screen_edges::Position;
+use sottomano_toml_config::screen_edges::Position;
 
 #[derive(Debug, Clone)]
 pub struct PanelEdge {

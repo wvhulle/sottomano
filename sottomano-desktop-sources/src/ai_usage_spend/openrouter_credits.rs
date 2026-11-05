@@ -9,7 +9,7 @@ use futures::Stream;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Deserializer, de};
 use serde_json::json;
-use sottomano_config::severity::Severity;
+use sottomano_toml_config::severity::Severity;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,

@@ -7,7 +7,6 @@ use iced::{
 };
 use iced_exwlshell::reexport::{ActivationTokenSink, XdgActivationTokenV1State};
 use quick_xml::escape::escape;
-use sottomano_config::{Config, LoadError, severity::Severity};
 use sottomano_desktop_sources::{
     desktop_notifications::{
         alert_sound_player::{self, SoundTheme},
@@ -15,6 +14,7 @@ use sottomano_desktop_sources::{
     },
     desktop_windows_apps::{niri_action_requests, niri_window_placement::Placement},
 };
+use sottomano_toml_config::{Config, LoadError, severity::Severity};
 use tokio::{sync::mpsc, time::timeout};
 
 use super::{

@@ -10,7 +10,6 @@ mod window_usage;
 use chrono::{DateTime, TimeDelta, Utc};
 use iced::{Subscription, Task};
 use niri_ipc::state::EventStreamState;
-use sottomano_config::{Config, widget_groups::session_focus::SessionFocusConfig};
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_notifications::notification_data::ActionTint,
@@ -21,6 +20,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
+use sottomano_toml_config::{Config, widget_groups::session_focus::SessionFocusConfig};
 
 use crate::{
     clock::Clock,

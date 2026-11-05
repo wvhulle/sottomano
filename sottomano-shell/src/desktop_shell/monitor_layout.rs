@@ -3,7 +3,7 @@ use iced::{
     widget::{column, container, stack},
     window::Id,
 };
-use sottomano_config::screen_edges::Position;
+use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     hover_cards::{HoverCardMessage, WidgetAnchor},
     widget_groups::{window_group::WindowGroupMessage, workspaces_group},

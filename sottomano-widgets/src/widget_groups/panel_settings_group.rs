@@ -1,7 +1,7 @@
 mod sqlite_panel_layout;
 
 use iced::Task;
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,

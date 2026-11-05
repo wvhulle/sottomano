@@ -1,7 +1,6 @@
 use std::{iter::once, thread, time::Duration};
 
 use iced::{Element, Task, border::Radius};
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     login_session_presence::{
@@ -9,6 +8,7 @@ use sottomano_desktop_sources::{
         session_power_actions::SessionAction,
     },
 };
+use sottomano_toml_config::Config;
 
 use crate::{
     group_items::{

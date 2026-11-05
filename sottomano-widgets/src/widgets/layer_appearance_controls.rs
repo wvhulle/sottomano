@@ -1,7 +1,7 @@
 mod sqlite_layer_appearance;
 
 use iced::Task;
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 
 use self::sqlite_layer_appearance::{AppearanceSetting, AppearanceValue};
 use crate::{

@@ -1,7 +1,7 @@
 use std::{error::Error, path::Path};
 
 use clap::{Parser, Subcommand};
-use sottomano_config::{SecretPaths, default_config_toml, secrets::SecretFile};
+use sottomano_toml_config::{SecretPaths, default_config_toml, secrets::SecretFile};
 
 #[derive(Debug, Parser)]
 #[command(

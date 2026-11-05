@@ -9,7 +9,6 @@ use std::collections::BTreeMap;
 use gpu_clock_label::GpuClockLabel;
 use gpu_temperature_label::GpuTemperatureLabel;
 use iced::{Subscription, Task};
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::pci_gpu_readings::{
@@ -17,6 +16,7 @@ use sottomano_desktop_sources::{
         GpuProcesses, GpuRuntimePower, GpuSnapshot, PciBusId,
     },
 };
+use sottomano_toml_config::Config;
 
 use crate::{
     background_work::{first_delivery, snapshot_subscription},

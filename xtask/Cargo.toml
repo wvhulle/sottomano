@@ -9,7 +9,7 @@ publish = false
 workspace = true
 
 [dependencies]
-sottomano-config = { path = "../sottomano-config" }
+sottomano-toml-config = { path = "../sottomano-toml-config" }
 clap.workspace = true
 image.workspace = true
 git2.workspace = true

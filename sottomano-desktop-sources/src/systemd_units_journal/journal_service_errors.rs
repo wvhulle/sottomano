@@ -2,7 +2,7 @@ use std::{collections::HashMap, io, time::SystemTime};
 
 use futures::{Stream, StreamExt};
 use serde::Deserialize;
-use sottomano_config::severity::Severity;
+use sottomano_toml_config::severity::Severity;
 use systemd::journal::Journal;
 
 use crate::{

@@ -2,7 +2,7 @@ use iced::{
     Border, Color, Element, Length,
     widget::{Row, container, progress_bar},
 };
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 use uom::si::ratio::ratio;
 
 use crate::{

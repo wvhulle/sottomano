@@ -11,7 +11,7 @@ use iced::{
     time::Duration,
     window,
 };
-use sottomano_config::{Config, screen_edges::Position};
+use sottomano_toml_config::{Config, screen_edges::Position};
 
 use crate::{
     desktop_panels::{
@@ -650,7 +650,7 @@ mod tests {
         window,
     };
     use iced_test::Simulator;
-    use sottomano_config::{Config, screen_edges::Position};
+    use sottomano_toml_config::{Config, screen_edges::Position};
 
     use super::{
         CardBackgroundFade, OutsidePress, PopupAppearances, PopupFraming, PopupMorph, Rendering,

@@ -1,5 +1,5 @@
 use iced_controller_diagram::ControllerModel;
-use sottomano_config::widget_groups::gamepad_bindings::GamepadButton;
+use sottomano_toml_config::widget_groups::gamepad_bindings::GamepadButton;
 
 use crate::widgets::{
     icon_glyph::IconGlyph,

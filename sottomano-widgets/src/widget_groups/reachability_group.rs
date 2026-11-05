@@ -9,7 +9,6 @@ mod network_throughput_gauge;
 mod sqlite_metered_volume;
 mod tcp_retransmit_reading;
 
-use sottomano_config::widget_groups::reachability::ReachabilityConfig;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
@@ -20,6 +19,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
+use sottomano_toml_config::widget_groups::reachability::ReachabilityConfig;
 
 use crate::{
     background_work::{first_delivery, snapshot_subscription},

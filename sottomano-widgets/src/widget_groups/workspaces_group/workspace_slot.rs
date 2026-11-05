@@ -3,8 +3,8 @@ use iced::{
     border::Radius,
     widget::{Text, column, container, progress_bar, row, text},
 };
-use sottomano_config::screen_edges::Position;
 use sottomano_desktop_sources::desktop_windows_apps::niri_window_snapshot;
+use sottomano_toml_config::screen_edges::Position;
 
 use super::{WorkspacesMessage, dragged};
 use crate::{

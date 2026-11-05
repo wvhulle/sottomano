@@ -1,7 +1,7 @@
 use std::slice;
 
 use iced::Element;
-use sottomano_config::{screen_edges::Position, severity::Severity};
+use sottomano_toml_config::{screen_edges::Position, severity::Severity};
 
 use crate::{
     clock::Clock,
@@ -36,7 +36,7 @@ impl<'a, M: Clone + 'a> FixedPanelGroup<'a, M> {
     #[must_use]
     pub fn view(
         self,
-        config: &'a sottomano_config::Config,
+        config: &'a sottomano_toml_config::Config,
         panel_position: Position,
         open_trigger: GroupMenuOpenTrigger,
         handle_indicator: MenuHandleIndicator,

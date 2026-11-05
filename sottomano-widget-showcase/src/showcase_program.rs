@@ -15,8 +15,8 @@ use iced::{
 use iced_controller_diagram::ControllerArtwork;
 use iced_test::program::{Preset, Program};
 use niri_ipc::state::EventStreamState;
-use sottomano_config::{Config, Palette, screen_edges::Position};
 use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::ColorMode;
+use sottomano_toml_config::{Config, Palette, screen_edges::Position};
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,

@@ -1,7 +1,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use chrono::{DateTime, TimeDelta, Utc};
-use sottomano_config::widget_groups::session_focus::SessionFocusConfig;
+use sottomano_toml_config::widget_groups::session_focus::SessionFocusConfig;
 
 use super::{
     FocusLedger, FocusSignal, away_reasons::ScreenEdge, focus_identity::Focused,

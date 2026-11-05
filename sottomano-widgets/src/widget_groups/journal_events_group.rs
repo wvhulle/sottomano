@@ -7,7 +7,6 @@ mod kernel_error_log;
 mod oom_kill_log;
 mod service_error_log;
 
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     system_protocol_clients::journal_follow::JournalFollowError,
@@ -16,6 +15,7 @@ use sottomano_desktop_sources::{
         journal_oom_kills::OomKillEntry, journal_service_errors::ServiceErrors,
     },
 };
+use sottomano_toml_config::Config;
 
 use crate::{
     background_work::snapshot_subscription,

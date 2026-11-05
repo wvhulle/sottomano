@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use sottomano_config::widget_groups::temperature_sensors::ThresholdOverrides;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::{
@@ -15,6 +14,7 @@ use sottomano_desktop_sources::{
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
+use sottomano_toml_config::widget_groups::temperature_sensors::ThresholdOverrides;
 use sottomano_widgets::{
     clock::Clock,
     group_items::toggle_control::ToggleMessage,

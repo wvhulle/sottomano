@@ -1,9 +1,9 @@
 use iced::alignment::Horizontal;
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::network_connectivity::wireguard_tunnels::{
     Peer, PeerEndpoint, PeerTraffic, StatisticsAccess, Tunnel, TunnelAddress, TunnelRole,
     Wireguard, WireguardSwitch,
 };
+use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,

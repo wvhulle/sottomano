@@ -1,5 +1,5 @@
 use iced::{Subscription, Task};
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 
 use crate::widget_groups::widget_group_identity::WidgetGroupFamily;
 

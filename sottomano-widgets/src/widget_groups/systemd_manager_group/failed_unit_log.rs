@@ -3,7 +3,6 @@ use std::{borrow::Cow, cmp::Reverse};
 use chrono::{DateTime, Locale, Utc};
 use iced::alignment::Horizontal;
 use quick_xml::escape::escape;
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::ActionTint,
     systemd_units_journal::{
@@ -14,6 +13,7 @@ use sottomano_desktop_sources::{
         journal_coredumps::{CoredumpEntry, CoredumpInspection},
     },
 };
+use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,

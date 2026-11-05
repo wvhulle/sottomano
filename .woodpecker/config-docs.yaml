@@ -3,7 +3,7 @@ when:
     event: [push, manual]
     branch: main
     path:
-      include: ["sottomano-config/**", "xtask/**", "docs/configuration.md"]
+      include: ["sottomano-toml-config/**", "xtask/**", "docs/configuration.md"]
     evaluate: 'not (CI_COMMIT_MESSAGE contains "update default config")'
 
 labels:

@@ -7,11 +7,11 @@ use iced::{
     time::{Duration, Instant},
 };
 use niri_ipc::state::EventStreamState;
-use sottomano_config::overlay_surfaces::OverlaySurfacesConfig;
 use sottomano_desktop_sources::{
     desktop_windows_apps::niri_window_placement::Placement,
     login_session_presence::wayland_idle_notify::{IdleEdge, input_idle_edges},
 };
+use sottomano_toml_config::overlay_surfaces::OverlaySurfacesConfig;
 use tokio::time::sleep_until;
 
 const POINTER_SETTLE_IDLE_DELAYS: u32 = 2;
@@ -199,8 +199,8 @@ mod tests {
         Point, Rectangle, Size,
         time::{Duration, Instant},
     };
-    use sottomano_config::overlay_surfaces::OverlaySurfacesConfig;
     use sottomano_desktop_sources::login_session_presence::wayland_idle_notify::IdleEdge;
+    use sottomano_toml_config::overlay_surfaces::OverlaySurfacesConfig;
 
     use super::{CardBackgroundFade, TypingSignal, TypingUnderCards};
     use crate::clock::Clock;
