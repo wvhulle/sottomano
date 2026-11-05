@@ -2,19 +2,21 @@ use std::borrow::Cow;
 
 use iced::{Subscription, Task};
 
-use crate::widget_groups::widget_group_identity::WidgetGroupFamily;
+use crate::widget_groups::{
+    widget_group_identity::WidgetGroupFamily, wireguard_tunnel_hover_card::wireguard_tunnel_item,
+};
 
 mod network_manager_vpn_hover_card;
-mod tailscale_mesh_hover_card;
-mod wireguard_tunnel_hover_card;
+mod tailscale_exit_node_hover_card;
 
 use sottomano_config::Config;
 use sottomano_sources::{
     SnapshotDelivery,
     network_connectivity::{
         network_manager_vpn_connections::{NetworkManagerVpns, VpnSwitch, switch_vpn},
-        tailscale_status::{
-            self, ExitRouting, Tailscale, TailscaleSwitch, open_admin, switch_tailscale,
+        tailscale_exit_nodes::{
+            ExitNodeChoices, ExitNodeControl, ExitNodeLanAccess, ExitNodeOption, ExitRoutingSwitch,
+            TailscaleExitNodes, switch_exit_routing,
         },
         wireguard_tunnels::{
             Tunnel, TunnelAddress, TunnelOnBus, TunnelRole, Wireguard, WireguardSwitch,
@@ -29,12 +31,12 @@ use crate::{
     clock::Clock,
     group_items::group_item::GroupItem,
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
-    },
-    widget_groups::widget_group_content::{
-        WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    widget_groups::{
+        vpn_group::tailscale_exit_node_hover_card::{ExitNodeLanAccessRow, ExitNodeRow},
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+        },
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
@@ -47,13 +49,9 @@ use crate::{
 pub enum VpnTarget {
     NetworkManagerVpn(Cow<'static, str>),
     Wireguard(Cow<'static, str>),
-    Tailscale,
-}
-
-impl From<tailscale_status::Error> for Section {
-    fn from(error: tailscale_status::Error) -> Self {
-        Section::error(error)
-    }
+    TailscaleExitNode(Cow<'static, str>),
+    TailscaleLanAccess,
+    TailscaleExitNodesFailure,
 }
 
 impl From<VpnTarget> for HoverTarget {
@@ -66,7 +64,7 @@ impl From<VpnTarget> for HoverTarget {
 pub struct VpnGroup {
     network_manager_vpns: LatestSnapshot<NetworkManagerVpns>,
     wireguard: LatestSnapshot<Wireguard>,
-    tailscale: LatestSnapshot<Tailscale>,
+    tailscale_exit_nodes: LatestSnapshot<TailscaleExitNodes>,
     tunnel_address: HoverFetchedSnapshot<TunnelAddress>,
     expansion: WidgetGroupExpansion,
 }
@@ -76,12 +74,11 @@ pub enum VpnMessage {
     NetworkManagerVpns(SnapshotDelivery<NetworkManagerVpns>),
     Wireguard(SnapshotDelivery<Wireguard>),
     TunnelAddressFetched(SnapshotDelivery<TunnelAddress>),
-    Tailscale(SnapshotDelivery<Tailscale>),
+    TailscaleExitNodes(SnapshotDelivery<TailscaleExitNodes>),
     Expansion(WidgetGroupExpansionMessage),
     SwitchVpn(VpnSwitch),
     SwitchWireguard(WireguardSwitch),
-    SwitchTailscale(TailscaleSwitch),
-    OpenTailscale,
+    SwitchExitRouting(ExitRoutingSwitch),
 }
 
 impl VpnGroup {
@@ -103,7 +100,7 @@ impl VpnGroup {
                 snapshot_subscription::<Wireguard>(buses.clone()).map(VpnMessage::Wireguard),
             ),
             demand.while_face_shown(
-                snapshot_subscription::<Tailscale>(()).map(VpnMessage::Tailscale),
+                snapshot_subscription::<TailscaleExitNodes>(()).map(VpnMessage::TailscaleExitNodes),
             ),
         ])
     }
@@ -115,12 +112,15 @@ impl VpnGroup {
             VpnTarget::Wireguard(_) => {
                 first_delivery::<Wireguard>(buses.clone()).map(VpnMessage::Wireguard)
             }
-            VpnTarget::Tailscale => first_delivery::<Tailscale>(()).map(VpnMessage::Tailscale),
+            VpnTarget::TailscaleExitNode(_)
+            | VpnTarget::TailscaleLanAccess
+            | VpnTarget::TailscaleExitNodesFailure => {
+                first_delivery::<TailscaleExitNodes>(()).map(VpnMessage::TailscaleExitNodes)
+            }
         }
     }
 
     pub fn update(&mut self, msg: VpnMessage, clock: Clock) -> Task<VpnMessage> {
-        use sottomano_sources::blocking_background_work::blocking;
         match msg {
             VpnMessage::NetworkManagerVpns(delivery) => {
                 self.network_manager_vpns.receive(delivery, clock);
@@ -129,7 +129,9 @@ impl VpnGroup {
             VpnMessage::TunnelAddressFetched(fetched) => {
                 self.tunnel_address.receive(fetched, clock);
             }
-            VpnMessage::Tailscale(reading) => self.tailscale.receive(reading, clock),
+            VpnMessage::TailscaleExitNodes(reading) => {
+                self.tailscale_exit_nodes.receive(reading, clock);
+            }
             VpnMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -139,12 +141,10 @@ impl VpnGroup {
             VpnMessage::SwitchWireguard(wireguard_switch) => {
                 return Task::future(switch_wireguard(wireguard_switch)).discard();
             }
-            VpnMessage::SwitchTailscale(tailscale_switch) => {
-                return Task::future(switch_tailscale(tailscale_switch))
-                    .then(|()| first_delivery::<Tailscale>(()).map(VpnMessage::Tailscale));
-            }
-            VpnMessage::OpenTailscale => {
-                return Task::future(blocking("tailscale admin", open_admin)).discard();
+            VpnMessage::SwitchExitRouting(exit_routing_switch) => {
+                return Task::future(switch_exit_routing(exit_routing_switch)).then(|()| {
+                    first_delivery::<TailscaleExitNodes>(()).map(VpnMessage::TailscaleExitNodes)
+                });
             }
         }
         Task::none()
@@ -202,7 +202,21 @@ impl VpnGroup {
                         .with_groups(self.tunnel_address.sections(clock)),
                 )
             }
-            VpnTarget::Tailscale => self.tailscale.hover_card(clock),
+            VpnTarget::TailscaleExitNode(exit_node_ip) => {
+                let choices = self.exit_node_choices()?;
+                let option = choices
+                    .options
+                    .iter()
+                    .find(|option| option.ip == exit_node_ip.as_ref())?;
+                self.tailscale_exit_nodes
+                    .hover_card_with(ExitNodeRow { option, choices }.hover_card(clock))
+            }
+            VpnTarget::TailscaleLanAccess => {
+                let choices = self.exit_node_choices()?;
+                self.tailscale_exit_nodes
+                    .hover_card_with(ExitNodeLanAccessRow { choices }.hover_card(clock))
+            }
+            VpnTarget::TailscaleExitNodesFailure => self.tailscale_exit_nodes.hover_card(clock),
         }
     }
 
@@ -229,32 +243,77 @@ impl VpnGroup {
     }
 
     fn tunnel_item(tunnel: &Tunnel, previewed: bool) -> GroupItem<'_, VpnMessage> {
-        let item = GroupItem::reading(
+        wireguard_tunnel_item(
             tunnel,
             VpnTarget::Wireguard(Cow::Owned(tunnel.interface.clone())),
+            VpnMessage::SwitchWireguard,
         )
-        .previewed_on_handle_if(previewed);
-        match tunnel.switch() {
-            Some(wireguard_switch @ WireguardSwitch::Connect(_)) => item.on_switch_press(
-                false,
-                "connect the tunnel",
-                VpnMessage::SwitchWireguard(wireguard_switch),
-            ),
-            Some(wireguard_switch @ WireguardSwitch::Disconnect(_)) => item.on_switch_press(
-                true,
-                "disconnect the tunnel",
-                VpnMessage::SwitchWireguard(wireguard_switch),
-            ),
-            None => item,
+        .previewed_on_handle_if(previewed)
+    }
+
+    fn exit_node_choices(&self) -> Option<&ExitNodeChoices> {
+        match self.tailscale_exit_nodes.get()? {
+            TailscaleExitNodes::Running(choices) => Some(choices),
+            TailscaleExitNodes::NotRunning => None,
         }
     }
 
-    fn tailscale_routes_traffic(&self) -> bool {
-        matches!(
-            self.tailscale.get(),
-            Some(Tailscale::Running(tailnet))
-                if matches!(tailnet.exit_routing, ExitRouting::ThroughPeer { .. })
+    fn exit_node_item<'a>(
+        option: &'a ExitNodeOption,
+        choices: &'a ExitNodeChoices,
+        previewed: bool,
+    ) -> GroupItem<'a, VpnMessage> {
+        let item = GroupItem::reading(
+            ExitNodeRow { option, choices },
+            VpnTarget::TailscaleExitNode(Cow::Owned(option.ip.clone())),
         )
+        .previewed_on_handle_if(previewed);
+        match choices.control_for_option(option) {
+            ExitNodeControl::Switchable(exit_routing_switch) if option.in_use => item
+                .on_switch_press(
+                    true,
+                    "stop using the exit node",
+                    VpnMessage::SwitchExitRouting(exit_routing_switch),
+                ),
+            ExitNodeControl::Switchable(exit_routing_switch) => item.on_switch_press(
+                false,
+                "use the exit node",
+                VpnMessage::SwitchExitRouting(exit_routing_switch),
+            ),
+            ExitNodeControl::BlockedByOffering | ExitNodeControl::Offline => item,
+        }
+    }
+
+    fn exit_node_lan_access_item(choices: &ExitNodeChoices) -> GroupItem<'_, VpnMessage> {
+        let item = GroupItem::reading(
+            ExitNodeLanAccessRow { choices },
+            VpnTarget::TailscaleLanAccess,
+        );
+        let switch_message = VpnMessage::SwitchExitRouting(choices.lan_access_switch());
+        match choices.lan_access {
+            ExitNodeLanAccess::Allowed => item.on_switch_press(
+                true,
+                "cut local network access through exit nodes",
+                switch_message,
+            ),
+            ExitNodeLanAccess::Blocked => item.on_switch_press(
+                false,
+                "keep local network access through exit nodes",
+                switch_message,
+            ),
+        }
+    }
+
+    fn exit_routing_items(&self, preview_allowed: bool) -> Vec<GroupItem<'_, VpnMessage>> {
+        let Some(choices) = self.exit_node_choices() else {
+            return Vec::new();
+        };
+        choices
+            .options
+            .iter()
+            .map(|option| Self::exit_node_item(option, choices, preview_allowed && option.in_use))
+            .chain((!choices.options.is_empty()).then(|| Self::exit_node_lan_access_item(choices)))
+            .collect()
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, VpnMessage> {
@@ -262,10 +321,10 @@ impl VpnGroup {
             .network_manager_vpns
             .get()
             .map_or(&[][..], |vpns| &vpns.connections);
-        let (client_tunnels, serving_tunnels): (Vec<&Tunnel>, Vec<&Tunnel>) = self
+        let outgoing_tunnels = self
             .tunnels()
             .iter()
-            .partition(|tunnel| tunnel.role == TunnelRole::Client);
+            .filter(|tunnel| !matches!(tunnel.role, TunnelRole::Server { .. }));
         let previewed_vpn_name = self.previewed_vpn_name();
         let previewed_tunnel_interface = previewed_vpn_name
             .is_none()
@@ -294,42 +353,81 @@ impl VpnGroup {
                         previewed_vpn_name == Some(vpn_connection.name.as_str()),
                     )
                 })
-                .chain(client_tunnels.into_iter().map(move |tunnel| {
+                .chain(outgoing_tunnels.map(move |tunnel| {
                     Self::tunnel_item(
                         tunnel,
                         previewed_tunnel_interface == Some(tunnel.interface.as_str()),
                     )
                 }))
-                .chain(self.tailscale.display().map(|tailscale| {
-                    let mut item = GroupItem::reading(tailscale, VpnTarget::Tailscale)
-                        .on_right_press(
-                            "open the Tailscale admin console",
-                            VpnMessage::OpenTailscale,
-                        );
-                    if let Some(tailscale_switch) = self.tailscale.get().map(Tailscale::switch) {
-                        item = item.on_switch_press(
-                            matches!(tailscale_switch, TailscaleSwitch::Down),
-                            match tailscale_switch {
-                                TailscaleSwitch::Up => "turn Tailscale on",
-                                TailscaleSwitch::Down => "turn Tailscale off",
-                            },
-                            VpnMessage::SwitchTailscale(tailscale_switch),
-                        );
-                    }
-                    item.previewed_on_handle_if(
-                        previewed_vpn_name.is_none()
-                            && previewed_tunnel_interface.is_none()
-                            && self.tailscale_routes_traffic(),
-                    )
-                }))
-                .chain(
-                    serving_tunnels
-                        .into_iter()
-                        .map(|tunnel| Self::tunnel_item(tunnel, false)),
-                ),
+                .chain(self.exit_routing_items(
+                    previewed_vpn_name.is_none() && previewed_tunnel_interface.is_none(),
+                ))
+                .chain(self.tailscale_exit_nodes.failure().map(|failure_reading| {
+                    GroupItem::reading(failure_reading, VpnTarget::TailscaleExitNodesFailure)
+                })),
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::ShieldCheck(Weight::Regular).into(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sottomano_sources::network_connectivity::{
+        tailscale_exit_nodes::ExitNodeReachability, tailscale_status::ExitNodeOffer,
+    };
+
+    use super::*;
+    use crate::group_items::group_item_gestures::GroupItemGesture;
+
+    fn exit_node_option(reachability: ExitNodeReachability) -> ExitNodeOption {
+        ExitNodeOption {
+            name: "zbook".to_owned(),
+            ip: "100.1.1.1".to_owned(),
+            reachability,
+            in_use: false,
+        }
+    }
+
+    fn exit_node_choices(offer: ExitNodeOffer) -> ExitNodeChoices {
+        ExitNodeChoices {
+            options: Vec::new(),
+            offer,
+            lan_access: ExitNodeLanAccess::Blocked,
+        }
+    }
+
+    fn press_is_inert(option: &ExitNodeOption, choices: &ExitNodeChoices) -> bool {
+        matches!(
+            VpnGroup::exit_node_item(option, choices, false)
+                .gestures()
+                .left,
+            GroupItemGesture::Inert
+        )
+    }
+
+    #[test]
+    fn an_online_exit_node_row_can_be_pressed() {
+        assert!(!press_is_inert(
+            &exit_node_option(ExitNodeReachability::Online),
+            &exit_node_choices(ExitNodeOffer::NotOffered),
+        ));
+    }
+
+    #[test]
+    fn an_exit_node_row_is_inert_while_this_machine_advertises() {
+        assert!(press_is_inert(
+            &exit_node_option(ExitNodeReachability::Online),
+            &exit_node_choices(ExitNodeOffer::Approved),
+        ));
+    }
+
+    #[test]
+    fn an_offline_exit_node_row_is_inert() {
+        assert!(press_is_inert(
+            &exit_node_option(ExitNodeReachability::OfflineNeverSeen),
+            &exit_node_choices(ExitNodeOffer::NotOffered),
+        ));
     }
 }

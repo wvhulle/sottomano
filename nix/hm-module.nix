@@ -117,6 +117,17 @@ in
         '';
       };
 
+      "tailscale-api-token" = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to a file holding a Tailscale API access token as plain text. The
+          Tailscale access hover card reads the tailnet policy file with it.
+          Symlinked into ~/.config/sottomano/. When unset, the hover card shows
+          only what the local client knows.
+        '';
+      };
+
       "artificial-analysis-api-key" = lib.mkOption {
         type = lib.types.nullOr lib.types.path;
         default = null;
@@ -223,6 +234,10 @@ in
           {
             source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."artificial-analysis-api-key";
           };
+
+      "sottomano/tailscale-api-token" = lib.mkIf (cfg.secretFiles."tailscale-api-token" != null) {
+        source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."tailscale-api-token";
+      };
 
       "sottomano/caldav-password" = lib.mkIf (cfg.secretFiles."caldav-password" != null) {
         source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."caldav-password";

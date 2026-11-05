@@ -14,10 +14,12 @@ pub mod memory_board;
 pub mod niri_session;
 pub mod notification_toasts;
 pub mod shell_settings;
+pub mod tailnet;
 pub mod voice_dictation;
 pub mod vpn;
 pub mod wallpaper;
 pub mod weather;
+pub mod wireguard_server;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 

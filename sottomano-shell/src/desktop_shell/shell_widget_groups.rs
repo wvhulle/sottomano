@@ -45,6 +45,7 @@ use sottomano_widgets::{
         sidebar_settings_group::{SidebarSettingsGroup, SidebarSettingsMessage},
         storage_space_group::StorageSpaceGroup,
         systemd_manager_group::SystemdManagerGroup,
+        tailnet_group::TailnetGroup,
         tray_group::TrayGroup,
         voice_dictation_group::VoiceDictationGroup,
         vpn_group::VpnGroup,
@@ -52,6 +53,7 @@ use sottomano_widgets::{
         weather_group::WeatherGroup,
         wifi_adapters_group::WifiAdaptersGroup,
         window_group::WindowGroup,
+        wireguard_server_group::WireguardServerGroup,
     },
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
@@ -85,6 +87,8 @@ pub struct ShellWidgetGroups {
     pub journal_events_group: JournalEventsGroup,
     pub pending_upgrades_group: PendingUpgradesGroup,
     pub reachability_group: ReachabilityGroup,
+    pub tailnet_group: TailnetGroup,
+    pub wireguard_server_group: WireguardServerGroup,
     pub vpn_group: VpnGroup,
     pub wifi_adapters_group: WifiAdaptersGroup,
     pub mobile_modems_group: MobileModemsGroup,
@@ -140,6 +144,11 @@ impl ShellWidgetGroups {
             journal_events_group: JournalEventsGroup::default(),
             pending_upgrades_group: PendingUpgradesGroup::default(),
             reachability_group: ReachabilityGroup::default(),
+            tailnet_group: secrets.tailscale_api_token.map_or_else(
+                TailnetGroup::without_policy_file,
+                TailnetGroup::with_policy_file,
+            ),
+            wireguard_server_group: WireguardServerGroup::default(),
             vpn_group: VpnGroup::default(),
             wifi_adapters_group: WifiAdaptersGroup::default(),
             mobile_modems_group: MobileModemsGroup::default(),
@@ -261,6 +270,11 @@ impl ShellWidgetGroups {
                 .reachability_group
                 .update(msg, &config.widget_groups.reachability, clock)
                 .map(Message::Reachability),
+            Message::Tailnet(msg) => self.tailnet_group.update(msg, clock).map(Message::Tailnet),
+            Message::WireguardServer(msg) => self
+                .wireguard_server_group
+                .update(msg, clock)
+                .map(Message::WireguardServer),
             Message::Vpn(msg) => self.vpn_group.update(msg, clock).map(Message::Vpn),
             Message::Monitor(msg) => self.monitor_group.update(msg, clock).map(Message::Monitor),
             Message::ColorTemperature(msg) => self
@@ -433,6 +447,8 @@ impl ShellWidgetGroups {
         self.physical_drive_group.collapse();
         self.media_group.collapse();
         self.reachability_group.collapse();
+        self.tailnet_group.collapse();
+        self.wireguard_server_group.collapse();
         self.vpn_group.collapse();
         self.wifi_adapters_group.collapse();
         self.mobile_modems_group.collapse();

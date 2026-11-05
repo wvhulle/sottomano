@@ -41,6 +41,7 @@ pub mod sidebar_settings_group;
 mod sqlite_singleton_flag;
 pub mod storage_space_group;
 pub mod systemd_manager_group;
+pub mod tailnet_group;
 pub mod terminal_command;
 pub mod tray_group;
 pub mod voice_dictation_group;
@@ -51,6 +52,8 @@ pub mod widget_group_content;
 pub mod widget_group_identity;
 pub mod wifi_adapters_group;
 pub mod window_group;
+pub mod wireguard_server_group;
+mod wireguard_tunnel_hover_card;
 pub mod workspaces_group;
 
 use sottomano_sources::{

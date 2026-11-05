@@ -1,15 +1,20 @@
 use iced::alignment::Horizontal;
 use sottomano_config::severity::Severity;
 use sottomano_sources::network_connectivity::wireguard_tunnels::{
-    Peer, PeerEndpoint, PeerTraffic, StatisticsAccess, Tunnel, TunnelAddress, TunnelRole, Wireguard,
+    Peer, PeerEndpoint, PeerTraffic, StatisticsAccess, Tunnel, TunnelAddress, TunnelRole,
+    Wireguard, WireguardSwitch,
 };
 
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        group_item::GroupItem, group_item_reading::GroupItemReading,
+        reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section},
+    hover_cards::{
+        HoverTarget,
+        hover_card_body::{HoverCardBody, ReadingSections, Section},
+    },
     widgets::{
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
@@ -19,6 +24,23 @@ use crate::{
         value_cells::{LabeledValue, ValueCell},
     },
 };
+
+pub(super) fn wireguard_tunnel_item<Message: Clone + 'static>(
+    tunnel: &Tunnel,
+    target: impl Into<HoverTarget>,
+    on_switch: fn(WireguardSwitch) -> Message,
+) -> GroupItem<'_, Message> {
+    let item = GroupItem::reading(tunnel, target);
+    match tunnel.switch() {
+        Some(wireguard_switch @ WireguardSwitch::Connect(_)) => {
+            item.on_switch_press(false, "connect the tunnel", on_switch(wireguard_switch))
+        }
+        Some(wireguard_switch @ WireguardSwitch::Disconnect(_)) => {
+            item.on_switch_press(true, "disconnect the tunnel", on_switch(wireguard_switch))
+        }
+        None => item,
+    }
+}
 
 impl GroupItemReading for Wireguard {
     fn name(&self) -> &'static str {

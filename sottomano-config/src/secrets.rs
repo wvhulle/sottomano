@@ -8,16 +8,18 @@ pub enum SecretFile {
     UnsplashAccessKey,
     CaldavPassword,
     ArtificialAnalysisApi,
+    TailscaleApiToken,
 }
 
 impl SecretFile {
-    pub const ALL: [SecretFile; 6] = [
+    pub const ALL: [SecretFile; 7] = [
         SecretFile::OpenrouterManagement,
         SecretFile::ClaudeCodeOauth,
         SecretFile::GhAuthToken,
         SecretFile::UnsplashAccessKey,
         SecretFile::CaldavPassword,
         SecretFile::ArtificialAnalysisApi,
+        SecretFile::TailscaleApiToken,
     ];
 
     #[must_use]
@@ -29,6 +31,7 @@ impl SecretFile {
             SecretFile::UnsplashAccessKey => "unsplash-access-key",
             SecretFile::CaldavPassword => "caldav-password",
             SecretFile::ArtificialAnalysisApi => "artificial-analysis-api-key",
+            SecretFile::TailscaleApiToken => "tailscale-api-token",
         }
     }
 
@@ -59,6 +62,10 @@ impl SecretFile {
                  for agentic coding by Terminal-Bench 4.0 score, within \
                  widget_groups.openrouter_credit.max_blended_usd_per_million."
             }
+            SecretFile::TailscaleApiToken => {
+                "Tailscale API access token, plain text. Shows the tailnet policy file in the \
+                 Tailscale access hover card."
+            }
         }
     }
 
@@ -81,6 +88,7 @@ pub struct SecretPaths {
     pub unsplash_access_key: Option<PathBuf>,
     pub caldav_password: Option<PathBuf>,
     pub artificial_analysis_api: Option<PathBuf>,
+    pub tailscale_api_token: Option<PathBuf>,
 }
 
 impl SecretPaths {
@@ -93,6 +101,7 @@ impl SecretPaths {
             unsplash_access_key: SecretFile::UnsplashAccessKey.present_in(config_home),
             caldav_password: SecretFile::CaldavPassword.present_in(config_home),
             artificial_analysis_api: SecretFile::ArtificialAnalysisApi.present_in(config_home),
+            tailscale_api_token: SecretFile::TailscaleApiToken.present_in(config_home),
         }
     }
 
@@ -105,6 +114,7 @@ impl SecretPaths {
             SecretFile::UnsplashAccessKey => self.unsplash_access_key.is_some(),
             SecretFile::CaldavPassword => self.caldav_password.is_some(),
             SecretFile::ArtificialAnalysisApi => self.artificial_analysis_api.is_some(),
+            SecretFile::TailscaleApiToken => self.tailscale_api_token.is_some(),
         }
     }
 }

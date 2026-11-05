@@ -10,7 +10,11 @@ use sottomano_sources::{
         network_manager_vpn_connections::{
             ActiveTunnel, NetworkManagerVpns, VpnActivity, VpnConnection, VpnState,
         },
-        tailscale_status::{ExitRouting, KeyExpiry, Peer, PeerPath, Tailnet, Tailscale},
+        tailscale_exit_nodes::{
+            ExitNodeChoices, ExitNodeLanAccess, ExitNodeOption, ExitNodeReachability,
+            TailscaleExitNodes,
+        },
+        tailscale_status::ExitNodeOffer,
         wireguard_tunnels::{
             self, PeerEndpoint, PeerStatistics, PeerTraffic, StatisticsAccess, Tunnel,
             TunnelActivity, TunnelAddress, TunnelOrigin, TunnelRole, Wireguard,
@@ -25,9 +29,9 @@ use zbus::zvariant::OwnedObjectPath;
 
 use crate::showcased_group::ShowcasedGroup;
 
-const KEY_EXPIRY_DAYS: i64 = 9;
+const OFFLINE_EXIT_NODE_DAYS: i64 = 14;
+pub const HOME_EXIT_NODE_IP: &str = "100.88.40.2";
 pub const LAB_TUNNEL_NAME: &str = "wg-lab";
-pub const HOME_SERVER_TUNNEL_NAME: &str = "wg-home";
 
 pub const COMPANY_VPN_NAME: &str = "Company VPN";
 
@@ -46,24 +50,28 @@ fn vpn_readings(clock: Clock) -> [VpnMessage; 3] {
         VpnMessage::NetworkManagerVpns(SnapshotDelivery::live_push(Ok(NetworkManagerVpns {
             connections: vec![company_globalprotect_vpn()],
         }))),
-        VpnMessage::Tailscale(SnapshotDelivery::fixture_delivered(
-            Ok(Tailscale::Running(Box::new(home_tailnet(clock)))),
+        VpnMessage::TailscaleExitNodes(SnapshotDelivery::fixture_delivered(
+            Ok(TailscaleExitNodes::Running(home_exit_nodes(clock))),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(10))),
         )),
         VpnMessage::Wireguard(SnapshotDelivery::fixture_delivered(
             Ok(Wireguard {
-                tunnels: vec![lab_wireguard_tunnel(), home_wireguard_server()],
+                tunnels: vec![lab_wireguard_tunnel()],
             }),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
         )),
     ]
 }
 
-fn object_path(path: &str) -> OwnedObjectPath {
+pub(super) fn object_path(path: &str) -> OwnedObjectPath {
     OwnedObjectPath::try_from(path).expect("static object path")
 }
 
-fn exchanged_traffic(handshake_seconds: u64, received: ByteSize, sent: ByteSize) -> PeerTraffic {
+pub(super) fn exchanged_traffic(
+    handshake_seconds: u64,
+    received: ByteSize,
+    sent: ByteSize,
+) -> PeerTraffic {
     PeerTraffic::Exchanged(PeerStatistics {
         handshake_ago: Duration::from_secs(handshake_seconds),
         received,
@@ -94,37 +102,6 @@ fn lab_wireguard_tunnel() -> Tunnel {
     }
 }
 
-fn home_wireguard_server() -> Tunnel {
-    Tunnel {
-        name: HOME_SERVER_TUNNEL_NAME.to_owned(),
-        interface: HOME_SERVER_TUNNEL_NAME.to_owned(),
-        role: TunnelRole::Server { listen_port: 51820 },
-        origin: TunnelOrigin::NetworkManager {
-            settings_connection: object_path("/org/freedesktop/NetworkManager/Settings/15"),
-            activity: TunnelActivity::Active {
-                active_connection: object_path(
-                    "/org/freedesktop/NetworkManager/ActiveConnection/10",
-                ),
-            },
-        },
-        statistics_access: StatisticsAccess::Read,
-        peers: vec![
-            wireguard_tunnels::Peer {
-                public_key: "laptop-key".to_owned(),
-                endpoint: PeerEndpoint::At("198.51.100.7:40211".to_owned()),
-                allowed_ips: vec!["10.8.0.2/32".to_owned()],
-                traffic: exchanged_traffic(42, ByteSize::mib(12), ByteSize::mib(3)),
-            },
-            wireguard_tunnels::Peer {
-                public_key: "phone-key".to_owned(),
-                endpoint: PeerEndpoint::Roaming,
-                allowed_ips: vec!["10.8.0.3/32".to_owned()],
-                traffic: PeerTraffic::NeverHandshaken,
-            },
-        ],
-    }
-}
-
 fn company_globalprotect_vpn() -> VpnConnection {
     VpnConnection {
         name: COMPANY_VPN_NAME.to_owned(),
@@ -147,40 +124,26 @@ fn company_globalprotect_vpn() -> VpnConnection {
     }
 }
 
-fn tailnet_peer(name: &str, ip: &str, os: &str, path: PeerPath, mebibytes: u64) -> Peer {
-    Peer {
-        name: name.to_owned(),
-        ip: ip.to_owned(),
-        os: os.to_owned(),
-        path,
-        received_bytes: mebibytes * 1024 * 1024,
-        sent_bytes: mebibytes * 300 * 1024,
-    }
-}
-
-fn home_tailnet(clock: Clock) -> Tailnet {
-    Tailnet {
-        tailnet_name: "example.ts.net".to_owned(),
-        own_node: tailnet_peer("workstation", "100.101.12.4", "linux", PeerPath::Idle, 0),
-        online: vec![
-            tailnet_peer("home-server", "100.88.40.2", "linux", PeerPath::Direct, 412),
-            tailnet_peer(
-                "pixel-9",
-                "100.92.7.31",
-                "android",
-                PeerPath::Relayed {
-                    region: "ams".to_owned(),
-                },
-                18,
-            ),
-            tailnet_peer("office-laptop", "100.70.3.9", "macOS", PeerPath::Idle, 0),
+fn home_exit_nodes(clock: Clock) -> ExitNodeChoices {
+    ExitNodeChoices {
+        options: vec![
+            ExitNodeOption {
+                name: "home-server".to_owned(),
+                ip: HOME_EXIT_NODE_IP.to_owned(),
+                reachability: ExitNodeReachability::Online,
+                in_use: true,
+            },
+            ExitNodeOption {
+                name: "office-laptop".to_owned(),
+                ip: "100.70.3.9".to_owned(),
+                reachability: ExitNodeReachability::OfflineSince(
+                    clock.utc() - TimeDelta::days(OFFLINE_EXIT_NODE_DAYS),
+                ),
+                in_use: false,
+            },
         ],
-        total_peers: 5,
-        exit_routing: ExitRouting::ThroughPeer {
-            peer_name: "home-server".to_owned(),
-        },
-        key_expiry: KeyExpiry::At(clock.utc() + TimeDelta::days(KEY_EXPIRY_DAYS)),
-        health_warnings: Vec::new(),
+        offer: ExitNodeOffer::NotOffered,
+        lan_access: ExitNodeLanAccess::Allowed,
     }
 }
 
@@ -193,15 +156,10 @@ pub fn on_hover(target: &VpnTarget) -> Vec<VpnMessage> {
                 })),
             )]
         }
-        VpnTarget::Wireguard(tunnel) if tunnel.as_ref() == HOME_SERVER_TUNNEL_NAME => {
-            vec![VpnMessage::TunnelAddressFetched(
-                SnapshotDelivery::single_read(Ok(TunnelAddress {
-                    ip: Some("10.8.0.1/24".to_owned()),
-                })),
-            )]
-        }
-        VpnTarget::Wireguard(_) | VpnTarget::NetworkManagerVpn(_) | VpnTarget::Tailscale => {
-            Vec::new()
-        }
+        VpnTarget::Wireguard(_)
+        | VpnTarget::NetworkManagerVpn(_)
+        | VpnTarget::TailscaleExitNode(_)
+        | VpnTarget::TailscaleLanAccess
+        | VpnTarget::TailscaleExitNodesFailure => Vec::new(),
     }
 }
