@@ -49,10 +49,10 @@ pub enum UngroupedHighlightLook {
     AccentTile(SlotTileInset),
 }
 
-pub fn slot_pager<'a, Message: 'a, Key: Copy + Eq + Hash + 'static>(
-    slots: impl IntoIterator<Item = (Key, Element<'a, Message>)>,
+pub fn slot_pager<'a, Message: 'a, SlotKey: Copy + Eq + Hash + 'static>(
+    slots: impl IntoIterator<Item = (SlotKey, Element<'a, Message>)>,
     edge: PagerEdge,
-) -> SlotPager<'a, Message, Key> {
+) -> SlotPager<'a, Message, SlotKey> {
     let (keys, slots) = slots.into_iter().unzip();
     SlotPager {
         keys,
@@ -76,19 +76,19 @@ pub struct SlotAlarm<'a> {
     pub color: ThemedColor<'a>,
 }
 
-struct SlotHighlight<'a, Key> {
-    key: Key,
+struct SlotHighlight<'a, SlotKey> {
+    key: SlotKey,
     color: ThemedColor<'a>,
 }
 
-pub struct SlotPager<'a, Message, Key> {
-    keys: Vec<Key>,
+pub struct SlotPager<'a, Message, SlotKey> {
+    keys: Vec<SlotKey>,
     slots: Vec<Element<'a, Message>>,
     edge: PagerEdge,
     spacing: f32,
     motion: Duration,
     indicator_thickness: f32,
-    highlight: Option<SlotHighlight<'a, Key>>,
+    highlight: Option<SlotHighlight<'a, SlotKey>>,
     ungrouped_highlight_look: UngroupedHighlightLook,
     alarms: Vec<SlotAlarm<'a>>,
     groups: Vec<SlotGroup<'a, Message>>,
@@ -97,7 +97,7 @@ pub struct SlotPager<'a, Message, Key> {
     left_list_message: Option<Message>,
 }
 
-impl<'a, Message, Key> SlotPager<'a, Message, Key> {
+impl<'a, Message, SlotKey> SlotPager<'a, Message, SlotKey> {
     #[must_use]
     pub fn indicator_motion(self, motion: Duration) -> Self {
         Self { motion, ..self }
@@ -117,7 +117,7 @@ impl<'a, Message, Key> SlotPager<'a, Message, Key> {
     #[must_use]
     pub fn highlight(
         mut self,
-        highlighted_key: Option<Key>,
+        highlighted_key: Option<SlotKey>,
         color: impl Fn(&Theme) -> Color + 'a,
     ) -> Self {
         self.highlight = highlighted_key.map(|key| SlotHighlight {
@@ -152,26 +152,26 @@ impl<'a, Message, Key> SlotPager<'a, Message, Key> {
     }
 
     #[must_use]
-    pub fn draggable<Item: Copy + PartialEq, List, Click>(
+    pub fn draggable<SlotId: Copy + PartialEq, ListId, ClickPayload>(
         mut self,
-        list: List,
-        drag: &DragView<Item>,
-        on_drag: impl Fn(DragEvent<Item, List, Click>) -> Message,
+        list: ListId,
+        drag: &DragView<SlotId>,
+        on_drag: impl Fn(DragEvent<SlotId, ListId, ClickPayload>) -> Message,
     ) -> Self {
         self.left_list_message = drag.is_active().then(|| on_drag(DragEvent::LeftList(list)));
         self
     }
 }
 
-struct State<Key> {
-    keys: Vec<Key>,
-    slot_starts: HashMap<Key, Animation<f32>>,
+struct State<SlotKey> {
+    keys: Vec<SlotKey>,
+    slot_starts: HashMap<SlotKey, Animation<f32>>,
     highlight_travel: Option<HighlightTravel>,
     cursor_over_list: bool,
     frame: Option<Instant>,
 }
 
-impl<Key: Copy + Eq + Hash> State<Key> {
+impl<SlotKey: Copy + Eq + Hash> State<SlotKey> {
     fn is_sliding(&self, now: Instant) -> bool {
         self.slot_starts
             .values()
@@ -286,12 +286,12 @@ fn edge_backdrop(edge: PagerEdge, slots: Rectangle, slot: Rectangle) -> Rectangl
     }
 }
 
-impl<Message, Key: Copy + Eq + Hash + 'static> SlotPager<'_, Message, Key> {
+impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKey> {
     fn along_vertical_edge(&self) -> bool {
         self.edge.is_vertical()
     }
 
-    fn sliding_start(&self, state: &mut State<Key>, key: Key, target: f32) -> f32 {
+    fn sliding_start(&self, state: &mut State<SlotKey>, key: SlotKey, target: f32) -> f32 {
         let Some(now) = state.frame else {
             return target;
         };
@@ -421,12 +421,12 @@ impl<Message, Key: Copy + Eq + Hash + 'static> SlotPager<'_, Message, Key> {
 
     fn travelled_highlight(&self, tree: &Tree, layout: Layout<'_>) -> Option<Rectangle> {
         let slot = self.highlighted_slot(layout)?;
-        let state = tree.state.downcast_ref::<State<Key>>();
+        let state = tree.state.downcast_ref::<State<SlotKey>>();
         let travelled = state.highlight_travel.as_ref()?.travelled(state.frame?);
         Some(self.travelled_slot(slot, travelled))
     }
 
-    fn aim_highlight(&self, state: &mut State<Key>, layout: Layout<'_>, now: Instant) -> bool {
+    fn aim_highlight(&self, state: &mut State<SlotKey>, layout: Layout<'_>, now: Instant) -> bool {
         let Some(slot) = self.highlighted_slot(layout) else {
             return false;
         };
@@ -527,11 +527,11 @@ impl<Message, Key: Copy + Eq + Hash + 'static> SlotPager<'_, Message, Key> {
     }
 }
 
-impl<Message: Clone, Key: Copy + Eq + Hash + 'static> Widget<Message, Theme, iced::Renderer>
-    for SlotPager<'_, Message, Key>
+impl<Message: Clone, SlotKey: Copy + Eq + Hash + 'static> Widget<Message, Theme, iced::Renderer>
+    for SlotPager<'_, Message, SlotKey>
 {
     fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<State<Key>>()
+        tree::Tag::of::<State<SlotKey>>()
     }
 
     fn state(&self) -> tree::State {
@@ -556,11 +556,11 @@ impl<Message: Clone, Key: Copy + Eq + Hash + 'static> Widget<Message, Theme, ice
         let Tree {
             state, children, ..
         } = tree;
-        let state = state.downcast_mut::<State<Key>>();
+        let state = state.downcast_mut::<State<SlotKey>>();
         let mut previous_headings = children
             .split_off(state.keys.len().min(children.len()))
             .into_iter();
-        let mut previous: HashMap<Key, Tree> = mem::take(&mut state.keys)
+        let mut previous: HashMap<SlotKey, Tree> = mem::take(&mut state.keys)
             .into_iter()
             .zip(mem::take(children))
             .collect();
@@ -603,7 +603,7 @@ impl<Message: Clone, Key: Copy + Eq + Hash + 'static> Widget<Message, Theme, ice
         let (slot_trees, heading_trees) = tree.children.split_at_mut(self.slots.len());
         let nodes = self.laid_out_slots(slot_trees, renderer, limits);
         let heading_nodes = self.laid_out_headings(heading_trees, renderer, limits);
-        let state = tree.state.downcast_mut::<State<Key>>();
+        let state = tree.state.downcast_mut::<State<SlotKey>>();
         let mut placed = Vec::with_capacity(nodes.len() + heading_nodes.len());
         let mut heading_starts = Vec::with_capacity(heading_nodes.len());
         let mut target = 0.0;
@@ -657,7 +657,7 @@ impl<Message: Clone, Key: Copy + Eq + Hash + 'static> Widget<Message, Theme, ice
         viewport: &Rectangle,
     ) {
         if let Event::Window(window::Event::RedrawRequested(now)) = event {
-            let state = tree.state.downcast_mut::<State<Key>>();
+            let state = tree.state.downcast_mut::<State<SlotKey>>();
             state.frame = Some(*now);
             if state.is_sliding(*now) {
                 shell.invalidate_layout();
@@ -680,7 +680,7 @@ impl<Message: Clone, Key: Copy + Eq + Hash + 'static> Widget<Message, Theme, ice
         if shell.is_event_captured() {
             return;
         }
-        let state = tree.state.downcast_mut::<State<Key>>();
+        let state = tree.state.downcast_mut::<State<SlotKey>>();
         let was_over_list =
             mem::replace(&mut state.cursor_over_list, cursor.is_over(layout.bounds()));
         if was_over_list
@@ -852,10 +852,10 @@ impl<Message: Clone, Key: Copy + Eq + Hash + 'static> Widget<Message, Theme, ice
     }
 }
 
-impl<'a, Message: Clone + 'a, Key: Copy + Eq + Hash + 'static> From<SlotPager<'a, Message, Key>>
-    for Element<'a, Message>
+impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
+    From<SlotPager<'a, Message, SlotKey>> for Element<'a, Message>
 {
-    fn from(pager: SlotPager<'a, Message, Key>) -> Self {
+    fn from(pager: SlotPager<'a, Message, SlotKey>) -> Self {
         Element::new(pager)
     }
 }

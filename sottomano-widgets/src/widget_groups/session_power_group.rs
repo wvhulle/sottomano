@@ -31,7 +31,7 @@ use crate::{
     widgets::{
         configured_theme::text_color,
         context_menu::{
-            ContextMenuLine, ContextMenuRow, ContextMenuRowPress, Trailing, context_menu,
+            ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing, context_menu,
         },
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
@@ -51,15 +51,15 @@ struct SessionMenuEntry {
 impl SessionMenuEntry {
     fn menu_row<'a>(self, config: &Config) -> ContextMenuLine<'a, SessionMessage> {
         let note = match self.idle {
-            ScheduledAfterIdle::After(after) => Trailing::Note(format!(
+            ScheduledAfterIdle::After(after) => ContextMenuTrailing::Note(format!(
                 "after {} idle",
                 duration_text(after, config.calendar.locale)
             )),
-            ScheduledAfterIdle::Disabled => Trailing::Note("idle: disabled".to_owned()),
+            ScheduledAfterIdle::Disabled => ContextMenuTrailing::Note("idle: disabled".to_owned()),
             ScheduledAfterIdle::Never if self.needs_authorisation => {
-                Trailing::Note("asks for authorisation".to_owned())
+                ContextMenuTrailing::Note("asks for authorisation".to_owned())
             }
-            ScheduledAfterIdle::Never => Trailing::Nothing,
+            ScheduledAfterIdle::Never => ContextMenuTrailing::Nothing,
         };
         ContextMenuLine::Row(ContextMenuRow {
             leading: Some(

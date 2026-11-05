@@ -1,6 +1,8 @@
 use chrono::{Weekday, WeekdaySet};
 use corredo::{
-    context_menu::{ContextMenuLine, ContextMenuRow, ContextMenuRowPress, Trailing, context_menu},
+    context_menu::{
+        ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing, context_menu,
+    },
     fill_gauge::FillGauge,
     inline_slider::inline_slider,
     popup_trigger::popup_trigger,
@@ -80,7 +82,7 @@ impl WidgetGallery {
         let menu = context_menu([ContextMenuLine::Row(ContextMenuRow {
             leading: None,
             label: Some(format!("Pressed {} times", self.menu_presses)),
-            trailing: Trailing::Nothing,
+            trailing: ContextMenuTrailing::Nothing,
             depth: 0,
             press: ContextMenuRowPress::Enabled(GalleryMessage::MenuEntryPressed),
         })]);

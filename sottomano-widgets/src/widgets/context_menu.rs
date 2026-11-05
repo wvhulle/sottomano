@@ -1,4 +1,6 @@
-pub use corredo::context_menu::{ContextMenuLine, ContextMenuRow, ContextMenuRowPress, Trailing};
+pub use corredo::context_menu::{
+    ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing,
+};
 use corredo::context_menu::{ContextMenuMetrics, context_menu as themed_context_menu};
 use iced::{Color, Element, Theme, border::Radius};
 use sottomano_toml_config::Config;
@@ -9,11 +11,11 @@ use crate::widgets::{
     text::text_face_of,
 };
 
-pub fn context_menu<'a, M: Clone + 'a>(
+pub fn context_menu<'a, Message: Clone + 'a>(
     config: &Config,
     popup_corners: Radius,
-    lines: impl IntoIterator<Item = ContextMenuLine<'a, M>>,
-) -> Element<'a, M> {
+    lines: impl IntoIterator<Item = ContextMenuLine<'a, Message>>,
+) -> Element<'a, Message> {
     let icon_size_px = config.theme.font.icon_size_px;
     themed_context_menu(lines)
         .corners(popup_corners)

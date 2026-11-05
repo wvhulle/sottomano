@@ -1,6 +1,8 @@
 use chrono::{Weekday, WeekdaySet};
 use corredo::{
-    context_menu::{ContextMenuLine, ContextMenuRow, ContextMenuRowPress, Trailing, context_menu},
+    context_menu::{
+        ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing, context_menu,
+    },
     fill_gauge::FillGauge,
     inline_slider::inline_slider,
     popup_trigger::popup_trigger,
@@ -31,7 +33,7 @@ fn plain_context_menu<'a>() -> Element<'a, GalleryMessage> {
     context_menu([ContextMenuLine::Row(ContextMenuRow {
         leading: None,
         label: Some("menu entry".to_owned()),
-        trailing: Trailing::Submenu { open: false },
+        trailing: ContextMenuTrailing::Submenu { open: false },
         depth: 0,
         press: ContextMenuRowPress::Enabled(GalleryMessage::Pressed),
     })])

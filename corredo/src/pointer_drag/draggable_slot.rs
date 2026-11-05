@@ -5,12 +5,18 @@ use iced::{
 
 use crate::pointer_drag::{DragEvent, DragView, SlotPress};
 
-pub fn draggable_slot<'a, Message: Clone + 'a, Item: Copy + PartialEq, List, Click: Copy>(
+pub fn draggable_slot<
+    'a,
+    Message: Clone + 'a,
+    SlotId: Copy + PartialEq,
+    ListId,
+    ClickPayload: Copy,
+>(
     content: impl Into<Element<'a, Message>>,
-    press: SlotPress<Item, Click>,
+    press: SlotPress<SlotId, ClickPayload>,
     reorders_on_hover: bool,
-    drag: &DragView<Item>,
-    on_drag: impl Fn(DragEvent<Item, List, Click>) -> Message,
+    drag: &DragView<SlotId>,
+    on_drag: impl Fn(DragEvent<SlotId, ListId, ClickPayload>) -> Message,
 ) -> MouseArea<'a, Message> {
     let area = mouse_area(content)
         .interaction(if drag.is_active() {

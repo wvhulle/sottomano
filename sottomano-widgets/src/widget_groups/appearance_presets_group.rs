@@ -20,7 +20,7 @@ use crate::{
         appearance_presets::{AppearancePreset, ShellAppearance},
         configured_theme::text_color,
         context_menu::{
-            ContextMenuLine, ContextMenuRow, ContextMenuRowPress, Trailing, context_menu,
+            ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing, context_menu,
         },
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -54,9 +54,9 @@ fn preset_menu_row<'a>(
         ),
         label: Some(preset.name().to_owned()),
         trailing: if preset.is_shown_by(current) {
-            Trailing::Note("current".to_owned())
+            ContextMenuTrailing::Note("current".to_owned())
         } else {
-            Trailing::Nothing
+            ContextMenuTrailing::Nothing
         },
         depth: 0,
         press: ContextMenuRowPress::Enabled(AppearancePresetsMessage::Apply(preset)),

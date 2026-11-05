@@ -2,7 +2,7 @@ pub mod primitives;
 
 use primitives::{
     activity_line, child_view, edge_alpha_fade, ellipsis_rule, fair_widths, flat_button,
-    list_end_corners, popup_cascade, popup_connector, rectangle_morph, reveal, rounded_quads,
+    list_end_corners, popup_cascade, popup_connector, rectangle_morph, reveal_clip, rounded_quads,
     scroll_steps, shared_metrics, uniform_width_column,
 };
 

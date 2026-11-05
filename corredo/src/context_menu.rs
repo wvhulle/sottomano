@@ -16,27 +16,27 @@ use crate::{
     uniform_width_column::uniform_width_column,
 };
 
-pub enum Trailing {
+pub enum ContextMenuTrailing {
     Nothing,
     Note(String),
     Submenu { open: bool },
 }
 
-pub enum ContextMenuRowPress<M> {
-    Enabled(M),
+pub enum ContextMenuRowPress<Message> {
+    Enabled(Message),
     Disabled,
 }
 
-pub struct ContextMenuRow<'a, M> {
-    pub leading: Option<Element<'a, M>>,
+pub struct ContextMenuRow<'a, Message> {
+    pub leading: Option<Element<'a, Message>>,
     pub label: Option<String>,
-    pub trailing: Trailing,
+    pub trailing: ContextMenuTrailing,
     pub depth: usize,
-    pub press: ContextMenuRowPress<M>,
+    pub press: ContextMenuRowPress<Message>,
 }
 
-pub enum ContextMenuLine<'a, M> {
-    Row(ContextMenuRow<'a, M>),
+pub enum ContextMenuLine<'a, Message> {
+    Row(ContextMenuRow<'a, Message>),
     Divider,
 }
 
@@ -61,20 +61,21 @@ impl Default for ContextMenuMetrics {
     }
 }
 
-type SubmenuChevron<'a, M> = Box<dyn Fn(bool, fn(&Theme) -> Color) -> Element<'a, M> + 'a>;
+type SubmenuChevron<'a, Message> =
+    Box<dyn Fn(bool, fn(&Theme) -> Color) -> Element<'a, Message> + 'a>;
 
-pub struct ContextMenu<'a, M> {
-    lines: Vec<ContextMenuLine<'a, M>>,
+pub struct ContextMenu<'a, Message> {
+    lines: Vec<ContextMenuLine<'a, Message>>,
     corners: Radius,
     metrics: ContextMenuMetrics,
-    submenu_chevron: SubmenuChevron<'a, M>,
+    submenu_chevron: SubmenuChevron<'a, Message>,
 }
 
 const CONTEXT_MENU_MAX_WIDTH_PX: f32 = 400.0;
 
-pub fn context_menu<'a, M: Clone + 'a>(
-    lines: impl IntoIterator<Item = ContextMenuLine<'a, M>>,
-) -> ContextMenu<'a, M> {
+pub fn context_menu<'a, Message: Clone + 'a>(
+    lines: impl IntoIterator<Item = ContextMenuLine<'a, Message>>,
+) -> ContextMenu<'a, Message> {
     ContextMenu {
         lines: lines.into_iter().collect(),
         corners: Radius::default(),
@@ -90,7 +91,7 @@ pub fn context_menu<'a, M: Clone + 'a>(
     }
 }
 
-impl<'a, M> ContextMenu<'a, M> {
+impl<'a, Message> ContextMenu<'a, Message> {
     #[must_use]
     pub fn corners(self, corners: Radius) -> Self {
         Self { corners, ..self }
@@ -104,7 +105,7 @@ impl<'a, M> ContextMenu<'a, M> {
     #[must_use]
     pub fn submenu_chevron(
         self,
-        submenu_chevron: impl Fn(bool, fn(&Theme) -> Color) -> Element<'a, M> + 'a,
+        submenu_chevron: impl Fn(bool, fn(&Theme) -> Color) -> Element<'a, Message> + 'a,
     ) -> Self {
         Self {
             submenu_chevron: Box::new(submenu_chevron),
@@ -113,8 +114,8 @@ impl<'a, M> ContextMenu<'a, M> {
     }
 }
 
-impl<'a, M: Clone + 'a> From<ContextMenu<'a, M>> for Element<'a, M> {
-    fn from(menu: ContextMenu<'a, M>) -> Self {
+impl<'a, Message: Clone + 'a> From<ContextMenu<'a, Message>> for Element<'a, Message> {
+    fn from(menu: ContextMenu<'a, Message>) -> Self {
         let ContextMenu {
             lines,
             corners,
@@ -142,12 +143,12 @@ impl<'a, M: Clone + 'a> From<ContextMenu<'a, M>> for Element<'a, M> {
     }
 }
 
-fn entry<'a, M: Clone + 'a>(
+fn entry<'a, Message: Clone + 'a>(
     style: &ContextMenuMetrics,
-    submenu_chevron: &(dyn Fn(bool, fn(&Theme) -> Color) -> Element<'a, M> + 'a),
-    row: ContextMenuRow<'a, M>,
+    submenu_chevron: &(dyn Fn(bool, fn(&Theme) -> Color) -> Element<'a, Message> + 'a),
+    row: ContextMenuRow<'a, Message>,
     highlight_radius: Radius,
-) -> Element<'a, M> {
+) -> Element<'a, Message> {
     let icon_size = style.icon_size_px;
     let row_spacing = style.item_gap_px;
     let color: fn(&Theme) -> Color = match row.press {
@@ -168,8 +169,8 @@ fn entry<'a, M: Clone + 'a>(
         }));
     }
     match row.trailing {
-        Trailing::Nothing => {}
-        Trailing::Note(note) => {
+        ContextMenuTrailing::Nothing => {}
+        ContextMenuTrailing::Note(note) => {
             content = content.push(space::horizontal()).push(
                 style
                     .face
@@ -180,7 +181,7 @@ fn entry<'a, M: Clone + 'a>(
                     }),
             );
         }
-        Trailing::Submenu { open } => {
+        ContextMenuTrailing::Submenu { open } => {
             content = content
                 .push(space::horizontal())
                 .push(submenu_chevron(open, color));
@@ -228,9 +229,9 @@ fn divider<'a, Message: 'a>() -> Element<'a, Message> {
     activity_line(background_weak_color, 1.0, OUTLINE_WIDTH_PX)
 }
 
-fn without_redundant_dividers<M>(
-    lines: Vec<ContextMenuLine<'_, M>>,
-) -> Vec<ContextMenuLine<'_, M>> {
+fn without_redundant_dividers<Message>(
+    lines: Vec<ContextMenuLine<'_, Message>>,
+) -> Vec<ContextMenuLine<'_, Message>> {
     let mut kept = lines.into_iter().fold(Vec::new(), |mut kept, line| {
         let leading_divider = matches!(line, ContextMenuLine::Divider)
             && kept

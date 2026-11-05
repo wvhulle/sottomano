@@ -17,10 +17,11 @@ use iced::{
 
 pub use self::scroll_motion::ScrollPacing;
 use self::scroll_motion::{ScrollFrame, ScrollMotion};
+pub use crate::edge_alpha_fade::ScrollEdgeFade;
 use crate::{
-    edge_alpha_fade::{FadedEdge, HiddenScrollEdges, ScrollEdgeFade},
+    edge_alpha_fade::{FadedEdge, HiddenScrollEdges},
     frame_style::FrameStyle,
-    reveal::clip_cursor,
+    reveal_clip::clip_cursor,
     shared_metrics::SCROLL_LINE_STEP_PX,
 };
 

@@ -1,5 +1,5 @@
 use corredo::anchored_popup::{AnchoredPopup, PopupRegions, PopupSide};
-pub use corredo::anchored_popup::{OutsidePress, PopupFraming, Rendering};
+pub use corredo::anchored_popup::{OutsidePress, PopupFraming, PopupRendering};
 use iced::{
     Element, Point, Rectangle, Size, advanced::widget::Operation, border::Radius, time::Duration,
 };
@@ -56,7 +56,7 @@ fn report_shell_regions(regions: &PopupRegions, blurred: bool, operation: &mut d
 
 #[must_use]
 pub fn anchored_popup<'a, Message: Clone + 'a>(
-    renderings: Vec<Rendering<'a, Message>>,
+    renderings: Vec<PopupRendering<'a, Message>>,
     anchor: Rectangle,
     position: Position,
     morph: PopupMorph,
@@ -66,7 +66,7 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
 ) -> Element<'a, Message> {
     let shows_menu = renderings
         .iter()
-        .any(Rendering::is_incoming_leading_surface);
+        .any(PopupRendering::is_incoming_leading_surface);
     let appearance = if shows_menu {
         appearances.menu
     } else {
@@ -111,8 +111,8 @@ mod tests {
     use sottomano_toml_config::{Config, screen_edges::Position};
 
     use super::{
-        CardBackgroundFade, OutsidePress, PopupAppearances, PopupFraming, PopupMorph, Rendering,
-        anchored_popup,
+        CardBackgroundFade, OutsidePress, PopupAppearances, PopupFraming, PopupMorph,
+        PopupRendering, anchored_popup,
     };
     use crate::{
         clock::Clock,
@@ -185,7 +185,7 @@ mod tests {
         let satellite = satellite_panels.beside_row(config, text("satellite").into(), 0.0);
         anchored_popup(
             vec![
-                Rendering::incoming(cascade_row(
+                PopupRendering::incoming(cascade_row(
                     text("primary").into(),
                     [satellite],
                     ORIENTATION,
@@ -351,7 +351,7 @@ mod tests {
         let config = Config::default();
         let appearance = ShellLayer::Overlays.default_appearance();
         let popup = anchored_popup(
-            vec![Rendering::incoming(text("card").into())],
+            vec![PopupRendering::incoming(text("card").into())],
             Rectangle::new(Point::new(20.0, 0.0), Size::new(20.0, 20.0)),
             Position::Top,
             workspace_morph(),

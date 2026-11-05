@@ -16,24 +16,24 @@ use crate::frame_style::FrameStyle;
 pub const DRAG_START_DISTANCE_PX: f32 = 6.0;
 
 #[derive(Debug, Clone, Copy)]
-pub struct SlotPress<Item, Click> {
-    pub item: Item,
+pub struct SlotPress<SlotId, ClickPayload> {
+    pub item: SlotId,
     pub position: usize,
-    pub click: Click,
+    pub click: ClickPayload,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum PointerDrag<Item, Click> {
+pub enum PointerDrag<SlotId, ClickPayload> {
     Idle,
-    Pressed(SlotPress<Item, Click>),
+    Pressed(SlotPress<SlotId, ClickPayload>),
     Held {
-        press: SlotPress<Item, Click>,
+        press: SlotPress<SlotId, ClickPayload>,
         origin: Point,
     },
-    Dragging(ActiveDrag<Item>),
+    Dragging(ActiveDrag<SlotId>),
 }
 
-impl<Item, Click> PointerDrag<Item, Click> {
+impl<SlotId, ClickPayload> PointerDrag<SlotId, ClickPayload> {
     pub fn is_idle(&self) -> bool {
         matches!(self, PointerDrag::Idle)
     }
@@ -44,22 +44,22 @@ impl<Item, Click> PointerDrag<Item, Click> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ActiveDrag<Item> {
-    pub item: Item,
+pub struct ActiveDrag<SlotId> {
+    pub item: SlotId,
     pub surface: window::Id,
     pub cursor: Point,
     pub from: usize,
-    pub target: DragTarget<Item>,
+    pub target: DragTarget<SlotId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DragTarget<Item> {
+pub enum DragTarget<SlotId> {
     OwnList(usize),
-    ForeignSlot(ForeignHover<Item>),
+    ForeignSlot(ForeignHover<SlotId>),
     Outside,
 }
 
-impl<Item: Copy> ActiveDrag<Item> {
+impl<SlotId: Copy> ActiveDrag<SlotId> {
     #[must_use]
     pub fn reordered_to(&self) -> Option<usize> {
         match self.target {
@@ -69,14 +69,14 @@ impl<Item: Copy> ActiveDrag<Item> {
     }
 
     #[must_use]
-    pub fn hovered(&self) -> Option<ForeignHover<Item>> {
+    pub fn hovered(&self) -> Option<ForeignHover<SlotId>> {
         match self.target {
             DragTarget::ForeignSlot(hover) => Some(hover),
             DragTarget::OwnList(_) | DragTarget::Outside => None,
         }
     }
 
-    fn left<List: PartialEq>(self, list: &List, list_of: &impl Fn(Item) -> List) -> Self {
+    fn left<ListId: PartialEq>(self, list: &ListId, list_of: &impl Fn(SlotId) -> ListId) -> Self {
         let target = match self.target {
             DragTarget::OwnList(_) if list_of(self.item) == *list => DragTarget::Outside,
             DragTarget::ForeignSlot(hover) if list_of(hover.item) == *list => DragTarget::Outside,
@@ -87,42 +87,44 @@ impl<Item: Copy> ActiveDrag<Item> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ForeignHover<Item> {
-    pub item: Item,
+pub struct ForeignHover<SlotId> {
+    pub item: SlotId,
     pub since: Instant,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum DragEvent<Item, List, Click> {
-    Pressed(SlotPress<Item, Click>),
+pub enum DragEvent<SlotId, ListId, ClickPayload> {
+    Pressed(SlotPress<SlotId, ClickPayload>),
     PointerMoved {
         surface: window::Id,
         position: Point,
     },
     Released,
     EnteredSlot {
-        item: Item,
+        item: SlotId,
         position: usize,
     },
-    LeftList(List),
+    LeftList(ListId),
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum DragOutcome<Item, Click> {
+pub enum DragOutcome<SlotId, ClickPayload> {
     Unchanged,
     Started,
-    Clicked(Click),
-    Dropped(ActiveDrag<Item>),
-    HoveringForeign(ForeignHover<Item>),
+    Clicked(ClickPayload),
+    Dropped(ActiveDrag<SlotId>),
+    HoveringForeign(ForeignHover<SlotId>),
 }
 
-pub struct DragTransition<Item, Click> {
-    pub drag: PointerDrag<Item, Click>,
-    pub outcome: DragOutcome<Item, Click>,
+pub struct DragTransition<SlotId, ClickPayload> {
+    pub drag: PointerDrag<SlotId, ClickPayload>,
+    pub outcome: DragOutcome<SlotId, ClickPayload>,
 }
 
-impl<Item, Click> From<PointerDrag<Item, Click>> for DragTransition<Item, Click> {
-    fn from(drag: PointerDrag<Item, Click>) -> Self {
+impl<SlotId, ClickPayload> From<PointerDrag<SlotId, ClickPayload>>
+    for DragTransition<SlotId, ClickPayload>
+{
+    fn from(drag: PointerDrag<SlotId, ClickPayload>) -> Self {
         Self {
             drag,
             outcome: DragOutcome::Unchanged,
@@ -130,12 +132,12 @@ impl<Item, Click> From<PointerDrag<Item, Click>> for DragTransition<Item, Click>
     }
 }
 
-pub fn advance<Item: Copy + PartialEq, List: PartialEq, Click: Copy>(
-    drag: PointerDrag<Item, Click>,
-    event: DragEvent<Item, List, Click>,
+pub fn advance<SlotId: Copy + PartialEq, ListId: PartialEq, ClickPayload: Copy>(
+    drag: PointerDrag<SlotId, ClickPayload>,
+    event: DragEvent<SlotId, ListId, ClickPayload>,
     now: Instant,
-    list_of: impl Fn(Item) -> List,
-) -> DragTransition<Item, Click> {
+    list_of: impl Fn(SlotId) -> ListId,
+) -> DragTransition<SlotId, ClickPayload> {
     match event {
         DragEvent::Pressed(press) => PointerDrag::Pressed(press).into(),
         DragEvent::PointerMoved { surface, position } => pointer_moved(drag, surface, position),
@@ -161,19 +163,19 @@ pub fn advance<Item: Copy + PartialEq, List: PartialEq, Click: Copy>(
     }
 }
 
-pub fn advance_within_one_list<Item: Copy + PartialEq, Click: Copy>(
-    drag: PointerDrag<Item, Click>,
-    event: DragEvent<Item, (), Click>,
+pub fn advance_within_one_list<SlotId: Copy + PartialEq, ClickPayload: Copy>(
+    drag: PointerDrag<SlotId, ClickPayload>,
+    event: DragEvent<SlotId, (), ClickPayload>,
     now: Instant,
-) -> DragTransition<Item, Click> {
+) -> DragTransition<SlotId, ClickPayload> {
     advance(drag, event, now, |_| ())
 }
 
-fn pointer_moved<Item: Copy, Click: Copy>(
-    drag: PointerDrag<Item, Click>,
+fn pointer_moved<SlotId: Copy, ClickPayload: Copy>(
+    drag: PointerDrag<SlotId, ClickPayload>,
     surface: window::Id,
     position: Point,
-) -> DragTransition<Item, Click> {
+) -> DragTransition<SlotId, ClickPayload> {
     match drag {
         PointerDrag::Pressed(press) => PointerDrag::Held {
             press,
@@ -203,13 +205,13 @@ fn pointer_moved<Item: Copy, Click: Copy>(
     }
 }
 
-fn entered_slot<Item: Copy + PartialEq, List: PartialEq, Click: Copy>(
-    drag: PointerDrag<Item, Click>,
-    item: Item,
+fn entered_slot<SlotId: Copy + PartialEq, ListId: PartialEq, ClickPayload: Copy>(
+    drag: PointerDrag<SlotId, ClickPayload>,
+    item: SlotId,
     position: usize,
     now: Instant,
-    list_of: &impl Fn(Item) -> List,
-) -> DragTransition<Item, Click> {
+    list_of: &impl Fn(SlotId) -> ListId,
+) -> DragTransition<SlotId, ClickPayload> {
     let PointerDrag::Dragging(active) = drag else {
         return drag.into();
     };
@@ -233,9 +235,13 @@ fn entered_slot<Item: Copy + PartialEq, List: PartialEq, Click: Copy>(
     }
 }
 
-pub fn pointer_events<Item: Send + 'static, List: Send + 'static, Click: Copy + Send + 'static>(
+pub fn pointer_events<
+    SlotId: Send + 'static,
+    ListId: Send + 'static,
+    ClickPayload: Copy + Send + 'static,
+>(
     tracks_moves: bool,
-) -> Subscription<DragEvent<Item, List, Click>> {
+) -> Subscription<DragEvent<SlotId, ListId, ClickPayload>> {
     let releases = listen_with(|event, _status, _surface| match event {
         Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
             Some(DragEvent::Released)
@@ -255,13 +261,16 @@ pub fn pointer_events<Item: Send + 'static, List: Send + 'static, Click: Copy + 
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct DragView<Item> {
-    pub drag: Option<ActiveDrag<Item>>,
+pub struct DragView<SlotId> {
+    pub drag: Option<ActiveDrag<SlotId>>,
     pub ghost_frame: FrameStyle,
 }
 
-impl<Item: Copy + PartialEq> DragView<Item> {
-    pub fn new<Click>(drag: &PointerDrag<Item, Click>, ghost_frame: FrameStyle) -> Self {
+impl<SlotId: Copy + PartialEq> DragView<SlotId> {
+    pub fn new<ClickPayload>(
+        drag: &PointerDrag<SlotId, ClickPayload>,
+        ghost_frame: FrameStyle,
+    ) -> Self {
         Self {
             drag: match drag {
                 PointerDrag::Dragging(active) => Some(*active),
@@ -277,7 +286,7 @@ impl<Item: Copy + PartialEq> DragView<Item> {
     }
 
     #[must_use]
-    pub fn is_dragging(&self, item: Item) -> bool {
+    pub fn is_dragging(&self, item: SlotId) -> bool {
         self.drag.is_some_and(|drag| drag.item == item)
     }
 
@@ -288,18 +297,18 @@ impl<Item: Copy + PartialEq> DragView<Item> {
     }
 
     #[must_use]
-    pub fn hovers(&self, item: Item) -> Option<ForeignHover<Item>> {
+    pub fn hovers(&self, item: SlotId) -> Option<ForeignHover<SlotId>> {
         self.drag?.hovered().filter(|hover| hover.item == item)
     }
 
     #[must_use]
-    pub fn hover_charge(&self, item: Item, full_after: Duration, now: Instant) -> Option<f32> {
+    pub fn hover_charge(&self, item: SlotId, full_after: Duration, now: Instant) -> Option<f32> {
         let hover = self.hovers(item)?;
         let held = now.saturating_duration_since(hover.since);
         Some((held.as_secs_f32() / full_after.as_secs_f32().max(f32::EPSILON)).min(1.0))
     }
 
-    pub fn previewed<'s, T>(&self, items: &'s [T], identity: impl Fn(&T) -> Item) -> Vec<&'s T> {
+    pub fn previewed<'s, T>(&self, items: &'s [T], identity: impl Fn(&T) -> SlotId) -> Vec<&'s T> {
         let mut order: Vec<&T> = items.iter().collect();
         let Some(drag) = self.drag else {
             return order;

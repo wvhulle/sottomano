@@ -36,7 +36,7 @@ use crate::{
         hoverable,
     },
     widget_groups::{
-        media_group::confirm_button::{ConfirmButton, Press},
+        media_group::confirm_button::{ConfirmButton, ConfirmPress},
         widget_group_content::{
             GroupEvent, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -379,8 +379,8 @@ impl MediaGroup {
                 Task::none()
             }
             PlayerMessage::Quit => match session.quit_button.press() {
-                Press::Armed => Task::none(),
-                Press::Fire => send(&media, Command::Quit),
+                ConfirmPress::Armed => Task::none(),
+                ConfirmPress::Fire => send(&media, Command::Quit),
             },
         };
         Action::Run(task)

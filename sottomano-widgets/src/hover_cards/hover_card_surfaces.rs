@@ -17,7 +17,8 @@ use crate::{
         HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator, PopupMessage,
         WidgetAnchor,
         anchored_popup::{
-            OutsidePress, PopupAppearances, PopupFraming, PopupMorph, Rendering, anchored_popup,
+            OutsidePress, PopupAppearances, PopupFraming, PopupMorph, PopupRendering,
+            anchored_popup,
         },
         hover_card_body::hover_card_source_delivery::HoverCard,
         hover_card_content::HoverCardContent,
@@ -452,12 +453,12 @@ impl HoverCardHost {
                 DepartedContent::Interactive => content_of(&previous.target),
             };
             let Rendered { element, framing } = render(departed);
-            renderings.push(Rendering::outgoing(element).framing(framing));
+            renderings.push(PopupRendering::outgoing(element).framing(framing));
         }
         if let Some(current) = self.transition.current() {
             let Rendered { element, framing } =
                 render(content_of(&current.target).with_announcement(current.announcement.clone()));
-            renderings.push(Rendering::incoming(hoverable_content(element)).framing(framing));
+            renderings.push(PopupRendering::incoming(hoverable_content(element)).framing(framing));
         }
         let shown_presence = self.transition.current().and_then(|current| {
             self.laid_out_anchors

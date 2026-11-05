@@ -20,14 +20,18 @@ const DEFAULT_COLUMN_GAP_PX: f32 = 12.0;
 const DEFAULT_ROW_SPACING_PX: f32 = 4.0;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Record<Cell, Level = ()> {
-    key: Cell,
-    cells: Vec<Cell>,
-    level: Level,
+pub struct RecordCells<CellValue, RowLevel = ()> {
+    key: CellValue,
+    cells: Vec<CellValue>,
+    level: RowLevel,
 }
 
-impl<Cell, Level> Record<Cell, Level> {
-    pub fn new(key: Cell, cells: impl IntoIterator<Item = Cell>, level: Level) -> Self {
+impl<CellValue, RowLevel> RecordCells<CellValue, RowLevel> {
+    pub fn new(
+        key: CellValue,
+        cells: impl IntoIterator<Item = CellValue>,
+        level: RowLevel,
+    ) -> Self {
         Self {
             key,
             cells: cells.into_iter().collect(),
@@ -36,25 +40,25 @@ impl<Cell, Level> Record<Cell, Level> {
     }
 
     #[must_use]
-    pub fn key(&self) -> &Cell {
+    pub fn key(&self) -> &CellValue {
         &self.key
     }
 
     #[must_use]
-    pub fn cell(&self, position: usize) -> Option<&Cell> {
+    pub fn cell(&self, position: usize) -> Option<&CellValue> {
         self.cells.get(position)
     }
 
     #[must_use]
-    pub fn level(&self) -> &Level {
+    pub fn level(&self) -> &RowLevel {
         &self.level
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ColumnHeading {
+pub enum ColumnHeading<'label> {
     Titled {
-        label: &'static str,
+        label: &'label str,
         align_x: Horizontal,
     },
     Untitled {
@@ -62,9 +66,9 @@ pub enum ColumnHeading {
     },
 }
 
-impl ColumnHeading {
+impl<'label> ColumnHeading<'label> {
     #[must_use]
-    pub const fn titled(label: &'static str) -> Self {
+    pub const fn titled(label: &'label str) -> Self {
         ColumnHeading::Titled {
             label,
             align_x: Horizontal::Right,
@@ -95,13 +99,13 @@ impl ColumnHeading {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TableColumns {
-    Headed(Vec<ColumnHeading>),
+pub enum TableColumns<'label> {
+    Headed(Vec<ColumnHeading<'label>>),
     Unheaded(Vec<Horizontal>),
 }
 
-impl TableColumns {
-    fn headings(&self) -> Vec<ColumnHeading> {
+impl<'label> TableColumns<'label> {
+    fn headings(&self) -> Vec<ColumnHeading<'label>> {
         match self {
             TableColumns::Headed(headings) => headings.clone(),
             TableColumns::Unheaded(alignments) => alignments
@@ -113,16 +117,16 @@ impl TableColumns {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TableRow<Cell, Level = ()> {
-    Record(Record<Cell, Level>),
+pub enum TableRow<CellValue, RowLevel = ()> {
+    Record(RecordCells<CellValue, RowLevel>),
     GroupSeparator,
-    TotalRecord(Record<Cell, Level>),
+    TotalRecord(RecordCells<CellValue, RowLevel>),
     ContinuationMarker,
     OmittedRecordCount(NonZeroUsize),
 }
 
-impl<Cell, Level> TableRow<Cell, Level> {
-    fn filled_cells(&self) -> Option<&Record<Cell, Level>> {
+impl<CellValue, RowLevel> TableRow<CellValue, RowLevel> {
+    fn filled_cells(&self) -> Option<&RecordCells<CellValue, RowLevel>> {
         match self {
             TableRow::Record(record) | TableRow::TotalRecord(record) => Some(record),
             TableRow::GroupSeparator
@@ -131,7 +135,7 @@ impl<Cell, Level> TableRow<Cell, Level> {
         }
     }
 
-    fn record(&self) -> Option<&Record<Cell, Level>> {
+    fn record(&self) -> Option<&RecordCells<CellValue, RowLevel>> {
         match self {
             TableRow::Record(record) => Some(record),
             TableRow::GroupSeparator
@@ -143,9 +147,9 @@ impl<Cell, Level> TableRow<Cell, Level> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RecordTable<Cell, Level = ()> {
-    columns: TableColumns,
-    rows: Vec<TableRow<Cell, Level>>,
+pub struct RecordTable<'label, CellValue, RowLevel = ()> {
+    columns: TableColumns<'label>,
+    rows: Vec<TableRow<CellValue, RowLevel>>,
 }
 
 fn retain_filled_columns<Column>(columns: &mut Vec<Column>, filled_columns: &[bool]) {
@@ -153,10 +157,10 @@ fn retain_filled_columns<Column>(columns: &mut Vec<Column>, filled_columns: &[bo
     columns.retain(|_| filled_flags.next().copied().unwrap_or(true));
 }
 
-impl<Cell, Level> RecordTable<Cell, Level> {
+impl<'label, CellValue, RowLevel> RecordTable<'label, CellValue, RowLevel> {
     pub fn new(
-        columns: TableColumns,
-        records: impl IntoIterator<Item = Record<Cell, Level>>,
+        columns: TableColumns<'label>,
+        records: impl IntoIterator<Item = RecordCells<CellValue, RowLevel>>,
     ) -> Self {
         Self {
             columns,
@@ -165,8 +169,8 @@ impl<Cell, Level> RecordTable<Cell, Level> {
     }
 
     pub fn grouped(
-        columns: TableColumns,
-        groups: impl IntoIterator<Item = Vec<Record<Cell, Level>>>,
+        columns: TableColumns<'label>,
+        groups: impl IntoIterator<Item = Vec<RecordCells<CellValue, RowLevel>>>,
     ) -> Self {
         let rows = groups.into_iter().filter(|group| !group.is_empty()).fold(
             Vec::new(),
@@ -207,7 +211,7 @@ impl<Cell, Level> RecordTable<Cell, Level> {
     }
 
     #[must_use]
-    pub fn without_blank_columns(mut self, is_blank: impl Fn(&Cell) -> bool) -> Self {
+    pub fn without_blank_columns(mut self, is_blank: impl Fn(&CellValue) -> bool) -> Self {
         let filled_columns: Vec<bool> = (0..self.columns.headings().len())
             .map(|position| {
                 self.rows
@@ -237,7 +241,7 @@ impl<Cell, Level> RecordTable<Cell, Level> {
     }
 
     #[must_use]
-    pub fn with_total_record(mut self, total: Record<Cell, Level>) -> Self {
+    pub fn with_total_record(mut self, total: RecordCells<CellValue, RowLevel>) -> Self {
         self.rows.push(TableRow::TotalRecord(total));
         self
     }
@@ -245,23 +249,23 @@ impl<Cell, Level> RecordTable<Cell, Level> {
     #[must_use]
     pub fn with_appended_records(
         mut self,
-        records: impl IntoIterator<Item = Record<Cell, Level>>,
+        records: impl IntoIterator<Item = RecordCells<CellValue, RowLevel>>,
     ) -> Self {
         self.rows.extend(records.into_iter().map(TableRow::Record));
         self
     }
 
-    pub fn records(&self) -> impl Iterator<Item = &Record<Cell, Level>> {
+    pub fn records(&self) -> impl Iterator<Item = &RecordCells<CellValue, RowLevel>> {
         self.rows.iter().filter_map(TableRow::record)
     }
 
     #[must_use]
-    pub fn rows(&self) -> &[TableRow<Cell, Level>] {
+    pub fn rows(&self) -> &[TableRow<CellValue, RowLevel>] {
         &self.rows
     }
 
     #[must_use]
-    pub fn columns(&self) -> &TableColumns {
+    pub fn columns(&self) -> &TableColumns<'label> {
         &self.columns
     }
 
@@ -271,22 +275,25 @@ impl<Cell, Level> RecordTable<Cell, Level> {
     }
 }
 
-type RecordKeyView<Cell, Level, Message> =
-    Rc<dyn Fn(&Record<Cell, Level>) -> Element<'static, Message>>;
-type RecordValueView<Cell, Level, Message> =
-    Rc<dyn Fn(&Record<Cell, Level>, usize) -> Element<'static, Message>>;
+type RecordKeyView<CellValue, RowLevel, Message> =
+    Rc<dyn Fn(&RecordCells<CellValue, RowLevel>) -> Element<'static, Message>>;
+type RecordValueView<CellValue, RowLevel, Message> =
+    Rc<dyn Fn(&RecordCells<CellValue, RowLevel>, usize) -> Element<'static, Message>>;
 
-pub struct RecordTableStyle<Cell, Level, Message> {
-    pub key_cell: RecordKeyView<Cell, Level, Message>,
-    pub value_cell: RecordValueView<Cell, Level, Message>,
-    pub omitted_count: Rc<dyn Fn(NonZeroUsize) -> Element<'static, Message>>,
-    pub heading: Rc<dyn Fn(&'static str) -> Element<'static, Message>>,
+type OmittedCountView<Message> = Rc<dyn Fn(NonZeroUsize) -> Element<'static, Message>>;
+type HeadingView<Message> = Rc<dyn Fn(&str) -> Element<'static, Message>>;
+
+pub struct RecordTableStyle<CellValue, RowLevel, Message> {
+    pub key_cell: RecordKeyView<CellValue, RowLevel, Message>,
+    pub value_cell: RecordValueView<CellValue, RowLevel, Message>,
+    pub omitted_count: OmittedCountView<Message>,
+    pub heading: HeadingView<Message>,
     pub text_size_px: f32,
     pub column_gap_px: f32,
     pub row_spacing_px: f32,
 }
 
-impl<Level: 'static, Message: 'static> RecordTableStyle<String, Level, Message> {
+impl<RowLevel: 'static, Message: 'static> RecordTableStyle<String, RowLevel, Message> {
     #[must_use]
     pub fn of_text(face: TextFace) -> Self {
         Self {
@@ -298,7 +305,7 @@ impl<Level: 'static, Message: 'static> RecordTableStyle<String, Level, Message> 
             omitted_count: Rc::new(move |omitted_count| {
                 face.text(format!("{omitted_count} more")).into()
             }),
-            heading: Rc::new(move |label| face.text(label).into()),
+            heading: Rc::new(move |label| face.text(label.to_owned()).into()),
             text_size_px: face.size_px,
             column_gap_px: DEFAULT_COLUMN_GAP_PX,
             row_spacing_px: DEFAULT_ROW_SPACING_PX,
@@ -306,13 +313,13 @@ impl<Level: 'static, Message: 'static> RecordTableStyle<String, Level, Message> 
     }
 }
 
-enum ColumnedRow<Cell, Level> {
-    Record(Rc<Record<Cell, Level>>),
+enum ColumnedRow<CellValue, RowLevel> {
+    Record(Rc<RecordCells<CellValue, RowLevel>>),
     OmittedRecordCount(NonZeroUsize),
     ContinuationMarker,
 }
 
-impl<Cell, Level> Clone for ColumnedRow<Cell, Level> {
+impl<CellValue, RowLevel> Clone for ColumnedRow<CellValue, RowLevel> {
     fn clone(&self) -> Self {
         match self {
             ColumnedRow::Record(record) => ColumnedRow::Record(Rc::clone(record)),
@@ -330,11 +337,11 @@ pub fn separator_rule<'a, Message: 'a>() -> Element<'a, Message> {
         .into()
 }
 
-impl<Cell: Clone + 'static, Level: Clone + 'static> RecordTable<Cell, Level> {
+impl<CellValue: Clone + 'static, RowLevel: Clone + 'static> RecordTable<'_, CellValue, RowLevel> {
     #[must_use]
     pub fn view<Message: 'static>(
         &self,
-        style: &RecordTableStyle<Cell, Level, Message>,
+        style: &RecordTableStyle<CellValue, RowLevel, Message>,
     ) -> Element<'static, Message> {
         let line_height_px = LINE_HEIGHT.to_absolute(Pixels(style.text_size_px)).0;
         let value_columns = self
@@ -353,10 +360,10 @@ impl<Cell: Clone + 'static, Level: Clone + 'static> RecordTable<Cell, Level> {
     }
 }
 
-fn key_column<Cell: 'static, Level: 'static, Message: 'static>(
-    style: &RecordTableStyle<Cell, Level, Message>,
+fn key_column<CellValue: 'static, RowLevel: 'static, Message: 'static>(
+    style: &RecordTableStyle<CellValue, RowLevel, Message>,
     line_height_px: f32,
-) -> ContentSizedColumn<'static, ColumnedRow<Cell, Level>, Message> {
+) -> ContentSizedColumn<'static, ColumnedRow<CellValue, RowLevel>, Message> {
     let key_cell = Rc::clone(&style.key_cell);
     let omitted_count = Rc::clone(&style.omitted_count);
     content_sized_column(Space::new(), move |content| match content {
@@ -370,12 +377,12 @@ fn key_column<Cell: 'static, Level: 'static, Message: 'static>(
     .align_y(Vertical::Top)
 }
 
-fn value_column<Cell: 'static, Level: 'static, Message: 'static>(
-    style: &RecordTableStyle<Cell, Level, Message>,
+fn value_column<CellValue: 'static, RowLevel: 'static, Message: 'static>(
+    style: &RecordTableStyle<CellValue, RowLevel, Message>,
     position: usize,
-    heading: ColumnHeading,
+    heading: ColumnHeading<'_>,
     line_height_px: f32,
-) -> ContentSizedColumn<'static, ColumnedRow<Cell, Level>, Message> {
+) -> ContentSizedColumn<'static, ColumnedRow<CellValue, RowLevel>, Message> {
     let heading_view: Element<'static, Message> = match heading {
         ColumnHeading::Titled { label, .. } => (style.heading)(label),
         ColumnHeading::Untitled { .. } => Space::new().into(),
@@ -391,9 +398,9 @@ fn value_column<Cell: 'static, Level: 'static, Message: 'static>(
     .align_y(Vertical::Top)
 }
 
-fn spannable_rows<Cell: Clone + 'static, Level: Clone + 'static, Message: 'static>(
-    row: &TableRow<Cell, Level>,
-) -> Vec<SpannableRow<'static, ColumnedRow<Cell, Level>, Message>> {
+fn spannable_rows<CellValue: Clone + 'static, RowLevel: Clone + 'static, Message: 'static>(
+    row: &TableRow<CellValue, RowLevel>,
+) -> Vec<SpannableRow<'static, ColumnedRow<CellValue, RowLevel>, Message>> {
     match row {
         TableRow::Record(record) => {
             vec![SpannableRow::Columned(ColumnedRow::Record(Rc::new(
@@ -414,15 +421,15 @@ fn spannable_rows<Cell: Clone + 'static, Level: Clone + 'static, Message: 'stati
     }
 }
 
-pub fn text_record_table<Message: 'static>(
-    headings: impl IntoIterator<Item = &'static str>,
+pub fn text_record_table<'label, Message: 'static>(
+    headings: impl IntoIterator<Item = &'label str>,
     rows: impl IntoIterator<Item = (String, Vec<String>)>,
 ) -> Element<'static, Message> {
     let columns = TableColumns::Headed(headings.into_iter().map(ColumnHeading::titled).collect());
     RecordTable::new(
         columns,
         rows.into_iter()
-            .map(|(key, cells)| Record::new(key, cells, ())),
+            .map(|(key, cells)| RecordCells::new(key, cells, ())),
     )
     .view(&RecordTableStyle::of_text(TextFace::default()))
 }
@@ -434,11 +441,11 @@ mod tests {
 
     use super::*;
 
-    fn planet(name: &str, moons: &str) -> Record<String> {
-        Record::new(name.to_owned(), [moons.to_owned(), String::new()], ())
+    fn planet(name: &str, moons: &str) -> RecordCells<String> {
+        RecordCells::new(name.to_owned(), [moons.to_owned(), String::new()], ())
     }
 
-    fn moon_columns() -> TableColumns {
+    fn moon_columns() -> TableColumns<'static> {
         TableColumns::Headed(vec![
             ColumnHeading::titled("Moons"),
             ColumnHeading::untitled(),
@@ -490,6 +497,18 @@ mod tests {
         assert_eq!(table.records().count(), 2);
         assert!(matches!(table.rows()[1], TableRow::GroupSeparator));
         assert_eq!(table.rows().len(), 3);
+    }
+
+    #[test]
+    fn a_heading_can_be_built_at_runtime() {
+        let runtime_title = format!("Moons of {}", "Mars");
+        let table = text_record_table::<()>(
+            [runtime_title.as_str()],
+            [("Phobos".to_owned(), vec!["1".to_owned()])],
+        );
+        let mut simulator =
+            Simulator::with_size(Settings::default(), Size::new(300.0, 200.0), table);
+        assert!(simulator.find("Moons of Mars").is_ok());
     }
 
     #[test]
