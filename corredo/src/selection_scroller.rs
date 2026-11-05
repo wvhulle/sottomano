@@ -17,7 +17,7 @@ use iced::{
 
 pub use self::scroll_motion::ScrollPacing;
 use self::scroll_motion::{ScrollFrame, ScrollMotion};
-use crate::widgets::{
+use crate::{
     edge_alpha_fade::{FadedEdge, HiddenScrollEdges, ScrollEdgeFade},
     reveal::clip_cursor,
     shared_metrics::SCROLL_LINE_STEP_PX,
@@ -541,12 +541,13 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for SelectionScroller
 }
 
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)]
 mod tests {
     use iced::{
         Element, Event, Point, Settings, Size,
         advanced::widget::Tree,
         mouse::{Cursor, Event as MouseEvent, ScrollDelta},
-        time::Duration,
+        time::{Duration, Instant},
         widget::{Column, Row, text},
         window,
     };
@@ -556,21 +557,14 @@ mod tests {
         ScrollAxis, ScrollPacing, ScrollerState, SelectedSpan, SelectionScroller,
         selection_scroller,
     };
-    use crate::{
-        clock::Clock,
-        desktop_panels::panel_frame::LayerFrameStyle,
-        widgets::{edge_alpha_fade::ScrollEdgeFade, shell_layer_appearance::ShellLayer},
-    };
+    use crate::{edge_alpha_fade::ScrollEdgeFade, frame_style::FrameStyle};
 
     const VISIBLE_SIZE: Size = Size::new(200.0, 100.0);
     const ENTRY_COUNT: usize = 40;
     const FADE_EXTENT_PX: f32 = 20.0;
 
     fn edge_fade() -> ScrollEdgeFade {
-        ScrollEdgeFade::away_from_frame(
-            LayerFrameStyle::new(&ShellLayer::Panels.default_appearance()),
-            FADE_EXTENT_PX,
-        )
+        ScrollEdgeFade::away_from_frame(FrameStyle::default(), FADE_EXTENT_PX)
     }
 
     fn entry_label(position: usize) -> String {
@@ -603,7 +597,7 @@ mod tests {
             position: Point::new(5.0, 5.0),
         })]);
         let _wheeled = simulator.simulate([Event::Mouse(MouseEvent::WheelScrolled { delta })]);
-        let now = Clock::real().instant;
+        let now = Instant::now();
         let _redrawn = simulator.simulate([
             Event::Window(window::Event::RedrawRequested(now)),
             Event::Window(window::Event::RedrawRequested(now + Duration::from_secs(1))),
@@ -687,7 +681,7 @@ mod tests {
             VISIBLE_SIZE,
             scroller_over(axis).selected(Some(selected_position)),
         );
-        let now = Clock::real().instant;
+        let now = Instant::now();
         let _redrawn = simulator.simulate([
             Event::Window(window::Event::RedrawRequested(now)),
             Event::Window(window::Event::RedrawRequested(now + Duration::from_secs(1))),
@@ -744,7 +738,7 @@ mod tests {
         let mut tree = Tree::new(&scroller);
         let state = tree.state.downcast_mut::<ScrollerState>();
         let pointer = Cursor::Available(Point::new(50.0, 5.0));
-        let start = Clock::real().instant;
+        let start = Instant::now();
         let frame = |now| super::ScrollFrame {
             now,
             max_offset: 1000.0,

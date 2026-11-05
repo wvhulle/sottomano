@@ -21,7 +21,6 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{Notification, toast_card_backdrop::ToastCardBackdrop, toast_lifecycle::ToastKind};
 use crate::{
-    desktop_panels::panel_frame::LayerFrameStyle,
     notification_toasts::markup_body::MarkupBody,
     toast_messages::{NotificationMessage, ReplyMessage},
     widgets::{
@@ -274,7 +273,7 @@ impl<Routed> ToastCard<'_, Routed> {
         } else {
             self.overlay_appearance.opacity
         };
-        let shadow = LayerFrameStyle::new(&self.overlay_appearance).drop_shadow();
+        let shadow = self.overlay_appearance.frame_style().drop_shadow();
         container::Style::default()
             .background(urgency.color.scale_alpha(opacity * self.reveal))
             .border(

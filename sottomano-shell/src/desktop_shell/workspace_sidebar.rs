@@ -6,7 +6,7 @@ use iced::{
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     desktop_panels::{
-        panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
+        panel_frame::{outlined_sides_inward_of, panel_frame},
         region_reporter::{RegionRoles, region_reporter},
     },
     widget_groups::{
@@ -26,8 +26,8 @@ impl DesktopShell {
             .widget_groups
             .sidebar_settings_group
             .sidebar_appearance();
-        let frame_style = LayerFrameStyle::new(&sidebar);
-        let outlined_sides = OutlinedSides::inward_of(Position::Left)
+        let frame_style = sidebar.frame_style();
+        let outlined_sides = outlined_sides_inward_of(Position::Left)
             .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
         let framed_workspaces = (self
             .widget_groups

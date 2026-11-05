@@ -1,7 +1,8 @@
 use core::slice;
 
+pub use corredo::frame_style::{FrameStyle, OutlinedSides};
 use iced::{
-    Border, Color, Element, Event, Length, Padding, Rectangle, Shadow, Size, Theme, Vector,
+    Border, Color, Element, Event, Length, Rectangle, Size, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -15,177 +16,21 @@ use iced::{
 use iced_exwlshell::BlurRegions;
 use sottomano_toml_config::screen_edges::Position;
 
-use crate::{
-    desktop_panels::region_reporter::{replacing_blur_regions, rounded_blur_rows},
-    widgets::{
-        configured_theme::{
-            background_color, background_strong_color, background_weak_color, text_color,
-        },
-        shared_metrics::OUTLINE_WIDTH_PX,
-        shell_layer_appearance::{LayerAppearance, LayerBackground},
-    },
-};
+use crate::desktop_panels::region_reporter::{replacing_blur_regions, rounded_blur_rows};
 
-const SHADOW_DROP_PER_SOFTNESS: f32 = 0.25;
-
-#[derive(Debug, Clone, Copy)]
-pub struct LayerFrameStyle {
-    appearance: LayerAppearance,
-    outline_width: f32,
-}
-
-impl LayerFrameStyle {
-    #[must_use]
-    pub fn new(appearance: &LayerAppearance) -> Self {
-        Self {
-            appearance: *appearance,
-            outline_width: OUTLINE_WIDTH_PX,
-        }
-    }
-
-    #[must_use]
-    pub fn with_corner_radius(mut self, corner_radius_px: f32) -> Self {
-        self.appearance.corner_radius_px = corner_radius_px;
-        self
-    }
-
-    #[must_use]
-    pub fn corner_radius(self) -> Radius {
-        Radius::from(self.appearance.corner_radius_px)
-    }
-
-    #[must_use]
-    pub fn drawn_corners(self, outlined_sides: OutlinedSides) -> Radius {
-        outlined_sides.square_unoutlined_corners(self.corner_radius())
-    }
-
-    #[must_use]
-    pub fn container_style(self, theme: &Theme) -> container::Style {
-        container::Style::default()
-            .background(self.fill_color(theme))
-            .border(Border {
-                radius: self.corner_radius(),
-                ..self.outline_border(theme)
-            })
-            .shadow(self.drop_shadow())
-            .color(text_color(theme))
-    }
-
-    #[must_use]
-    pub fn fill_color(self, theme: &Theme) -> Color {
-        let background = match self.appearance.background {
-            LayerBackground::Base => background_color(theme),
-            LayerBackground::Weak => background_weak_color(theme),
-        };
-        background.scale_alpha(self.appearance.opacity)
-    }
-
-    #[must_use]
-    pub fn outline_border(self, theme: &Theme) -> Border {
-        if !self.appearance.outline.drawn {
-            return Border::default();
-        }
-        Border {
-            color: background_strong_color(theme).scale_alpha(self.appearance.outline.opacity),
-            width: self.outline_width,
-            radius: Radius::default(),
-        }
-    }
-
-    #[must_use]
-    pub fn outline_width(self) -> f32 {
-        if self.appearance.outline.drawn {
-            self.outline_width
-        } else {
-            0.0
-        }
-    }
-
-    #[must_use]
-    pub fn drop_shadow(self) -> Shadow {
-        let shadow = &self.appearance.shadow;
-        if !shadow.cast {
-            return Shadow::default();
-        }
-        Shadow {
-            color: Color::BLACK.scale_alpha(shadow.opacity),
-            offset: Vector::ZERO,
-            blur_radius: shadow.softness_px,
-        }
-    }
-
-    #[must_use]
-    pub fn lifted_drop_shadow(self) -> Shadow {
-        let centered_shadow = self.drop_shadow();
-        Shadow {
-            offset: Vector::new(0.0, centered_shadow.blur_radius * SHADOW_DROP_PER_SOFTNESS),
-            ..centered_shadow
-        }
-    }
-}
-
-#[allow(clippy::struct_excessive_bools)]
-#[derive(Debug, Clone, Copy)]
-pub struct OutlinedSides {
-    pub top: bool,
-    pub right: bool,
-    pub bottom: bool,
-    pub left: bool,
-}
-
-impl OutlinedSides {
-    pub const ALL: Self = Self {
-        top: true,
+#[must_use]
+pub fn outlined_sides_inward_of(panel_position: Position) -> OutlinedSides {
+    OutlinedSides {
+        top: panel_position != Position::Top,
         right: true,
-        bottom: true,
-        left: true,
-    };
-
-    #[must_use]
-    pub fn inward_of(panel_position: Position) -> Self {
-        Self {
-            top: panel_position != Position::Top,
-            right: true,
-            bottom: panel_position != Position::Bottom,
-            left: panel_position != Position::Left,
-        }
-    }
-
-    #[must_use]
-    pub fn all_when_floating(self, float_offset_px: f32) -> Self {
-        if float_offset_px > 0.0 {
-            Self::ALL
-        } else {
-            self
-        }
-    }
-
-    fn square_unoutlined_corners(self, radius: Radius) -> Radius {
-        let rounded_between = |first: bool, second: bool, corner: f32| {
-            if first && second { corner } else { 0.0 }
-        };
-        Radius {
-            top_left: rounded_between(self.top, self.left, radius.top_left),
-            top_right: rounded_between(self.top, self.right, radius.top_right),
-            bottom_right: rounded_between(self.bottom, self.right, radius.bottom_right),
-            bottom_left: rounded_between(self.bottom, self.left, radius.bottom_left),
-        }
-    }
-
-    fn push_unoutlined_past(self, bounds: Rectangle, outline_width: f32) -> Rectangle {
-        let beyond_antialiasing = |outlined: bool| if outlined { 0.0 } else { 2.0 * outline_width };
-        bounds.expand(Padding {
-            top: beyond_antialiasing(self.top),
-            right: beyond_antialiasing(self.right),
-            bottom: beyond_antialiasing(self.bottom),
-            left: beyond_antialiasing(self.left),
-        })
+        bottom: panel_position != Position::Bottom,
+        left: panel_position != Position::Left,
     }
 }
 
 pub fn panel_frame<'a, Message>(
     content: impl Into<Element<'a, Message>>,
-    frame: LayerFrameStyle,
+    frame: FrameStyle,
 ) -> PanelFrame<'a, Message> {
     PanelFrame {
         content: content.into(),
@@ -197,7 +42,7 @@ pub fn panel_frame<'a, Message>(
 
 pub struct PanelFrame<'a, Message> {
     content: Element<'a, Message>,
-    frame: LayerFrameStyle,
+    frame: FrameStyle,
     outlined_sides: OutlinedSides,
     blurred: bool,
 }
@@ -401,7 +246,7 @@ mod tests {
     use iced::{Rectangle, widget::space};
     use sottomano_toml_config::screen_edges::Position;
 
-    use super::{LayerFrameStyle, OutlinedSides, panel_frame};
+    use super::{outlined_sides_inward_of, panel_frame};
     use crate::widgets::shell_layer_appearance::LayerAppearance;
 
     #[test]
@@ -410,8 +255,8 @@ mod tests {
             corner_radius_px: 8.0,
             ..LayerAppearance::default()
         };
-        let frame = panel_frame::<()>(space(), LayerFrameStyle::new(&appearance))
-            .outlined_sides(OutlinedSides::inward_of(Position::Top))
+        let frame = panel_frame::<()>(space(), appearance.frame_style())
+            .outlined_sides(outlined_sides_inward_of(Position::Top))
             .blurred(true);
         let pill = Rectangle {
             x: 10.0,

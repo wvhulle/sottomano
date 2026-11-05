@@ -1,12 +1,17 @@
 pub mod child_view;
+#[cfg(feature = "wgpu")]
+pub mod edge_alpha_fade;
 pub mod ellipsis_rule;
 pub mod expand_animation;
+pub mod frame_style;
 pub mod list_end_corners;
 pub mod pressable_text;
 pub mod rectangle_morph;
 pub mod refresh_dial;
 pub mod reveal;
 pub mod rounded_quads;
+#[cfg(feature = "wgpu")]
+pub mod selection_scroller;
 pub mod shared_metrics;
 pub mod steady_label_width;
 pub mod svg_icon;

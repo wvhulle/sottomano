@@ -13,7 +13,7 @@ use iced::{
     window,
 };
 
-use crate::desktop_panels::panel_frame::LayerFrameStyle;
+use crate::desktop_panels::panel_frame::FrameStyle;
 
 const DRAG_START_DISTANCE_PX: f32 = 6.0;
 
@@ -266,11 +266,11 @@ pub fn pointer_events<Click: Copy + Send + 'static>(
 #[derive(Debug, Clone, Copy)]
 pub struct DragView {
     pub drag: Option<ActiveDrag>,
-    pub ghost_frame: LayerFrameStyle,
+    pub ghost_frame: FrameStyle,
 }
 
 impl DragView {
-    pub fn new<Click>(drag: &PointerDrag<Click>, ghost_frame: LayerFrameStyle) -> Self {
+    pub fn new<Click>(drag: &PointerDrag<Click>, ghost_frame: FrameStyle) -> Self {
         Self {
             drag: match drag {
                 PointerDrag::Dragging(active) => Some(*active),
