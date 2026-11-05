@@ -1,6 +1,5 @@
 pub mod activity_line;
 pub mod child_view;
-#[cfg(feature = "wgpu")]
 pub mod edge_alpha_fade;
 pub mod ellipsis_rule;
 pub mod expand_animation;
