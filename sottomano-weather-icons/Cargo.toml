@@ -1,0 +1,8 @@
+[package]
+name = "sottomano-weather-icons"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

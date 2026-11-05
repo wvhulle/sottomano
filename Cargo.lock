@@ -6808,11 +6808,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "sottomano-icon-sets"
+name = "sottomano-phosphor-icons"
 version = "0.0.1"
-dependencies = [
- "serde_json",
-]
 
 [[package]]
 name = "sottomano-shell"
@@ -6840,6 +6837,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sottomano-simple-icons"
+version = "0.0.1"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "sottomano-toml-config"
 version = "0.0.1"
 dependencies = [
@@ -6852,6 +6856,10 @@ dependencies = [
  "toml",
  "ttf-parser",
 ]
+
+[[package]]
+name = "sottomano-weather-icons"
+version = "0.0.1"
 
 [[package]]
 name = "sottomano-widget-showcase"
@@ -6913,8 +6921,10 @@ dependencies = [
  "rusty-money",
  "situo-client",
  "sottomano-desktop-sources",
- "sottomano-icon-sets",
+ "sottomano-phosphor-icons",
+ "sottomano-simple-icons",
  "sottomano-toml-config",
+ "sottomano-weather-icons",
  "strum",
  "system-tray",
  "tokio",

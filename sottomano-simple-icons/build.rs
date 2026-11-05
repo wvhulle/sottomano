@@ -1,16 +1,22 @@
 use std::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    env,
     fmt::Write,
     fs,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use serde_json::Value;
 
-use crate::{capitalized, pascal_case, svg_slugs};
-
 const SYMBOL_WORDS: [(char, &str); 4] = [('+', "Plus"), ('.', "Dot"), ('&', "And"), ('#', "Sharp")];
+
+fn main() {
+    println!("cargo:rerun-if-changed=build.rs");
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let generated = generate(&assets_dir("SIMPLE_ICONS_SVG"));
+    fs::write(out_dir.join("icons.rs"), generated).unwrap();
+}
 
 fn svg_title(svg: &str) -> &str {
     let (_, after_open) = svg.split_once("<title>").unwrap();
@@ -103,7 +109,7 @@ fn titled_arms(
         .collect()
 }
 
-pub fn generate(icons_dir: &Path) -> String {
+fn generate(icons_dir: &Path) -> String {
     let mut taken_names = HashSet::new();
     let mut variants = String::new();
     let mut svg_arms = String::new();
@@ -136,8 +142,7 @@ pub fn generate(icons_dir: &Path) -> String {
     let data_path = icons_dir.parent().unwrap().join("data/simple-icons.json");
     let titled_arms = titled_arms(&data_path, &variant_of_slug, &variants_of_title);
     format!(
-        r"
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        r"#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub enum SimpleIcon {{
 {variants}}}
@@ -160,4 +165,33 @@ impl SimpleIcon {{
 }}
 "
     )
+}
+
+fn assets_dir(variable: &str) -> PathBuf {
+    println!("cargo:rerun-if-env-changed={variable}");
+    env::var_os(variable)
+        .unwrap_or_else(|| panic!("{variable} is set by the flake dev shell"))
+        .into()
+}
+
+fn svg_slugs(directory: &Path) -> Vec<String> {
+    let mut slugs: Vec<String> = fs::read_dir(directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "svg"))
+        .map(|path| path.file_stem().unwrap().to_str().unwrap().to_owned())
+        .collect();
+    slugs.sort_unstable();
+    slugs
+}
+
+fn pascal_case(slug: &str) -> String {
+    slug.split(['-', '_']).map(capitalized).collect()
+}
+
+fn capitalized(segment: &str) -> String {
+    let mut chars = segment.chars();
+    chars.next().map_or_else(String::new, |first| {
+        first.to_ascii_uppercase().to_string() + chars.as_str()
+    })
 }

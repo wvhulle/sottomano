@@ -1,5 +1,5 @@
 use iced::{Color, Element, Theme};
-pub use sottomano_icon_sets::{Phosphor, Weight};
+pub use sottomano_phosphor_icons::{Phosphor, Weight};
 
 use crate::widgets::{icon_glyph::IconGlyph, svg_icon};
 
