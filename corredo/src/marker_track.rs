@@ -8,26 +8,31 @@ use iced::{
     },
     mouse::Cursor,
 };
-use sottomano_toml_config::screen_edges::Position;
 
-use crate::widgets::{
-    configured_theme::ThemedColor,
+use crate::{
     rounded_quads::{CircleQuad, QuadOutline},
+    theme_colors::ThemedColor,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrackAxis {
+    Horizontal,
+    Vertical,
+}
 
 pub struct MarkerTrack {
     markers: Vec<ThemedColor<'static>>,
     max_diameter: f32,
-    along_vertical_edge: bool,
+    axis: TrackAxis,
 }
 
 impl MarkerTrack {
     #[must_use]
-    pub fn new(markers: Vec<ThemedColor<'static>>, max_diameter: f32, edge: Position) -> Self {
+    pub fn new(markers: Vec<ThemedColor<'static>>, max_diameter: f32, axis: TrackAxis) -> Self {
         Self {
             markers,
             max_diameter,
-            along_vertical_edge: edge.is_vertical(),
+            axis,
         }
     }
 
@@ -38,10 +43,9 @@ impl MarkerTrack {
 
     fn track_size(&self) -> Size<Length> {
         let thickness = Length::Fixed(self.max_diameter);
-        if self.along_vertical_edge {
-            Size::new(thickness, Length::Fill)
-        } else {
-            Size::new(Length::Fill, thickness)
+        match self.axis {
+            TrackAxis::Vertical => Size::new(thickness, Length::Fill),
+            TrackAxis::Horizontal => Size::new(Length::Fill, thickness),
         }
     }
 
@@ -57,7 +61,8 @@ impl MarkerTrack {
     fn marker_centres(&self, track_length: f32) -> impl Iterator<Item = f32> {
         let diameter = self.marker_diameter(track_length);
         let leading = (track_length - self.marker_and_gap_slots() * diameter) / 2.0;
-        (0..self.markers.len()).map(move |i| leading + diameter * (2.0 * i as f32 + 0.5))
+        (0..self.markers.len())
+            .map(move |position| leading + diameter * (2.0 * position as f32 + 0.5))
     }
 }
 
@@ -85,19 +90,17 @@ impl<Message> Widget<Message, Theme, iced::Renderer> for MarkerTrack {
             return;
         }
         let bounds = layout.bounds();
-        let (track_length, cross) = if self.along_vertical_edge {
-            (bounds.height, bounds.width / 2.0)
-        } else {
-            (bounds.width, bounds.height / 2.0)
+        let (track_length, cross) = match self.axis {
+            TrackAxis::Vertical => (bounds.height, bounds.width / 2.0),
+            TrackAxis::Horizontal => (bounds.width, bounds.height / 2.0),
         };
         let radius = self.marker_diameter(track_length) / 2.0;
         self.marker_centres(track_length)
             .zip(&self.markers)
             .for_each(|(along, color)| {
-                let offset_centre = if self.along_vertical_edge {
-                    Point::new(cross, along)
-                } else {
-                    Point::new(along, cross)
+                let offset_centre = match self.axis {
+                    TrackAxis::Vertical => Point::new(cross, along),
+                    TrackAxis::Horizontal => Point::new(along, cross),
                 };
                 CircleQuad {
                     centre: offset_centre + (bounds.position() - Point::ORIGIN),

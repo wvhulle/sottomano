@@ -1,11 +1,18 @@
+pub mod activity_line;
 pub mod child_view;
+pub mod confirm_button;
+pub mod context_menu;
 #[cfg(feature = "wgpu")]
 pub mod edge_alpha_fade;
 pub mod ellipsis_rule;
 pub mod expand_animation;
+pub mod fill_gauge;
+pub mod flat_button;
 pub mod font_faces;
 pub mod frame_style;
+pub mod inline_slider;
 pub mod list_end_corners;
+pub mod marker_track;
 pub mod pressable_text;
 pub mod rectangle_morph;
 pub mod refresh_dial;
@@ -18,5 +25,6 @@ pub mod steady_label_width;
 pub mod svg_icon;
 pub mod text_effects;
 pub mod theme_colors;
+pub mod toggle_switch;
 pub mod transitioning_text;
 pub mod uniform_width_column;

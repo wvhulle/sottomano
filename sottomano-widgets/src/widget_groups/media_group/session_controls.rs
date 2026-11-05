@@ -5,7 +5,10 @@ use sottomano_toml_config::Config;
 use crate::{
     group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
     hover_cards::{HoverCardMessage, PressHints, hoverable},
-    widget_groups::media_group::{MediaTarget, PlayerTarget, confirm_button::ConfirmButton},
+    widget_groups::media_group::{
+        MediaTarget, PlayerTarget,
+        confirm_button::{ConfirmButton, configured_confirm_button},
+    },
     widgets::{
         glyph_button,
         phosphor::{Phosphor, Weight},
@@ -83,7 +86,8 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
     {
         self.media.capabilities.quit.then(|| {
             hoverable(
-                self.quit_button.view(
+                configured_confirm_button(
+                    self.quit_button,
                     self.config,
                     self.reveal,
                     false,
