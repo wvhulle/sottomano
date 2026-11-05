@@ -22,6 +22,7 @@ use crate::{
             slot_group::{SlotGroup, SlotTileInset},
             slot_pager::UngroupedHighlightLook,
         },
+        shared_metrics::ACCENT_STROKE_PX,
         text::{LINE_HEIGHT, font_faces_of},
         window_icon::{WindowAssets, window_icon},
     },
@@ -128,6 +129,7 @@ pub(super) fn arranged_location_groups<'a>(
         })
         .collect();
     let group_positions = location_group_positions(&group_identities);
+    let tile_inset_thickness = ACCENT_STROKE_PX;
     let groups = group_positions
         .iter()
         .filter_map(|positions| {
@@ -141,7 +143,7 @@ pub(super) fn arranged_location_groups<'a>(
                 enclosure_color: Box::new(background_weak_color),
                 inner_color: Box::new(background_color),
                 highlight_color: Box::new(primary_color),
-                enclosure_thickness: slot_context.config.theme.spacing.item_gap,
+                enclosure_thickness: tile_inset_thickness,
                 enclosure_radius: slot_context.panel_corner_radius_px,
             })
         })
@@ -150,7 +152,7 @@ pub(super) fn arranged_location_groups<'a>(
         groups,
         presentations: slot_presentations(&group_positions, order.len()),
         ungrouped_highlight_look: UngroupedHighlightLook::AccentTile(SlotTileInset {
-            thickness: slot_context.config.theme.spacing.item_gap,
+            thickness: tile_inset_thickness,
             enclosure_radius: slot_context.panel_corner_radius_px,
         }),
     }

@@ -96,7 +96,7 @@ impl Default for WindowGroupConfig {
             progress: true,
             count_badge: true,
             nixpkgs_branch: "nixpkgs-unstable".to_owned(),
-            maximum_window_title_width: Spacing::Px(160.0),
+            maximum_window_title_width: Spacing::Px(200.0),
             agents: WindowAgentsConfig::default(),
         }
     }
@@ -136,7 +136,7 @@ mod window_title_width_tests {
     fn maximum_window_title_width_defaults_to_pixels() {
         let window_group = WindowGroupConfig::default();
         assert!(
-            (window_group.resolved_maximum_window_title_width(14.0) - 160.0).abs() < f32::EPSILON
+            (window_group.resolved_maximum_window_title_width(14.0) - 180.0).abs() < f32::EPSILON
         );
     }
 
