@@ -58,6 +58,7 @@ impl GroupSourceDemand {
     pub fn while_any_reading_shown<M>(self, subscription: Subscription<M>) -> Subscription<M> {
         subscription_when(self.shows_face_reading(), subscription)
     }
+
 }
 
 fn subscription_when<M>(wanted: bool, subscription: Subscription<M>) -> Subscription<M> {

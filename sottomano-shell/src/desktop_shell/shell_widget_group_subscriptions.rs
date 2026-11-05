@@ -129,13 +129,7 @@ impl ShellWidgetGroups {
                         .source_demand(WidgetGroupFamily::WifiAdapters),
                 )
                 .map(Message::WifiAdapters),
-            MobileModemsGroup::subscription(
-                buses,
-                &self
-                    .group_menus
-                    .source_demand(WidgetGroupFamily::MobileModems),
-            )
-            .map(Message::MobileModems),
+            MobileModemsGroup::subscription(buses).map(Message::MobileModems),
             self.ethernet_ports_group
                 .subscription(
                     buses,
