@@ -192,17 +192,23 @@ pub(crate) fn item_row<'a, M: Clone + 'a>(
     item: GroupMenuItemRow<'a, M>,
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
-    let item_pin = match item.pin {
-        GroupItemPin::Unpinnable => None,
-        GroupItemPin::Pinnable(item_key) => Some(glyph_button(
-            Phosphor::PushPin(Weight::Regular),
+    let pin_button = |pin_weight, pin_color: fn(&iced::Theme) -> iced::Color, item_key| {
+        glyph_button(
+            Phosphor::PushPin(pin_weight),
             layout.config.theme.font.icon_size_px,
-            secondary_text_color,
+            pin_color,
             layout.menu.toggle_pin(GroupMenuPin::Item {
                 group: group.clone(),
                 item_key,
             }),
-        )),
+        )
+    };
+    let item_pin = match item.pin {
+        GroupItemPin::Unpinnable => None,
+        GroupItemPin::Unpinned(item_key) => {
+            Some(pin_button(Weight::Regular, secondary_text_color, item_key))
+        }
+        GroupItemPin::Pinned(item_key) => Some(pin_button(Weight::Fill, text_color, item_key)),
     };
     let info_icon = card_info_icon(layout, item.inspected_target);
     let (leading, trailing) = match (layout.presentation.layout, layout.direction) {

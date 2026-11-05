@@ -231,7 +231,8 @@ pub(crate) struct GroupMenuRowParts<'a, M> {
 
 pub(crate) enum GroupItemPin {
     Unpinnable,
-    Pinnable(String),
+    Unpinned(String),
+    Pinned(String),
 }
 
 pub(crate) struct GroupMenuItemRow<'a, M> {
@@ -516,17 +517,17 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         });
         let item_rows: Vec<_> = items
             .iter()
-            .filter(|item| {
-                item.alignment() == ItemAlignment::Unaligned
-                    && item
-                        .pinned_item_key(&group_identity, group_menus, menu)
-                        .is_none()
-            })
+            .filter(|item| item.alignment() == ItemAlignment::Unaligned)
             .map(|item| GroupMenuItemRow {
                 name: item.menu_name(),
-                pin: item
-                    .pinnable_key()
-                    .map_or(GroupItemPin::Unpinnable, GroupItemPin::Pinnable),
+                pin: match (
+                    item.pinned_item_key(&group_identity, group_menus, menu),
+                    item.pinnable_key(),
+                ) {
+                    (Some(pinned_key), _) => GroupItemPin::Pinned(pinned_key),
+                    (None, Some(unpinned_key)) => GroupItemPin::Unpinned(unpinned_key),
+                    (None, None) => GroupItemPin::Unpinnable,
+                },
                 inspected_target: item.inspected_target().clone(),
                 gestures: item.gestures(),
                 parts: item.item_row_parts(config, clock),
