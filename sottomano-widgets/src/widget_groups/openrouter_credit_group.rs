@@ -67,7 +67,6 @@ pub struct OpenRouterCreditGroup {
     strict_budget: LatestSnapshot<OpenRouterStrictBudget>,
     model_rankings: LatestSnapshot<OpenRouterModelRankings>,
     management_key: Option<PathBuf>,
-    analysis_key: Option<PathBuf>,
     expansion: WidgetGroupExpansion,
 }
 
@@ -85,13 +84,12 @@ impl OpenRouterCreditGroup {
     }
 
     #[must_use]
-    pub fn new(management_key: Option<PathBuf>, analysis_key: Option<PathBuf>) -> Self {
+    pub fn new(management_key: Option<PathBuf>) -> Self {
         Self {
             spend: LatestSnapshot::default(),
             strict_budget: LatestSnapshot::default(),
             model_rankings: LatestSnapshot::default(),
             management_key,
-            analysis_key,
             expansion: WidgetGroupExpansion::default(),
         }
     }
@@ -121,16 +119,10 @@ impl OpenRouterCreditGroup {
                 })
             }
             OpenRouterCreditTarget::BestModelsWithinCap => {
-                self.analysis_key
-                    .clone()
-                    .map_or_else(Task::none, |analysis_key| {
-                        first_delivery::<OpenRouterModelRankings>(ranking_inputs(
-                            analysis_key,
-                            config,
-                            buses,
-                        ))
+                self.management_key.clone().map_or_else(Task::none, |key| {
+                    first_delivery::<OpenRouterModelRankings>(ranking_inputs(key, config, buses))
                         .map(OpenRouterCreditMessage::ModelRankings)
-                    })
+                })
             }
         }
     }
@@ -143,31 +135,18 @@ impl OpenRouterCreditGroup {
         let Some(buses) = buses else {
             return Subscription::none();
         };
-        Subscription::batch(
-            self.management_key
-                .clone()
-                .into_iter()
-                .flat_map(|key| {
-                    [
-                        snapshot_subscription::<OpenRouterSpend>(account(
-                            key.clone(),
-                            config,
-                            buses,
-                        ))
-                        .map(OpenRouterCreditMessage::SoftBudget),
-                        snapshot_subscription::<OpenRouterStrictBudget>(online(key, buses))
-                            .map(OpenRouterCreditMessage::StrictBudget),
-                    ]
-                })
-                .chain(self.analysis_key.clone().map(|analysis_key| {
-                    snapshot_subscription::<OpenRouterModelRankings>(ranking_inputs(
-                        analysis_key,
-                        config,
-                        buses,
-                    ))
-                    .map(OpenRouterCreditMessage::ModelRankings)
-                })),
-        )
+        Subscription::batch(self.management_key.clone().into_iter().flat_map(|key| {
+            [
+                snapshot_subscription::<OpenRouterSpend>(account(key.clone(), config, buses))
+                    .map(OpenRouterCreditMessage::SoftBudget),
+                snapshot_subscription::<OpenRouterStrictBudget>(online(key.clone(), buses))
+                    .map(OpenRouterCreditMessage::StrictBudget),
+                snapshot_subscription::<OpenRouterModelRankings>(ranking_inputs(
+                    key, config, buses,
+                ))
+                .map(OpenRouterCreditMessage::ModelRankings),
+            ]
+        }))
     }
 
     pub fn update(
@@ -297,13 +276,13 @@ fn account(
 }
 
 fn ranking_inputs(
-    analysis_key: PathBuf,
+    management_key: PathBuf,
     config: &Config,
     buses: &DesktopBuses,
 ) -> OnlineSourceInputs<ModelRankingInputs> {
     online(
         ModelRankingInputs {
-            analysis_key,
+            management_key,
             max_blended_per_million: config
                 .widget_groups
                 .openrouter_credit
