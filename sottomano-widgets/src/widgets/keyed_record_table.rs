@@ -1,27 +1,21 @@
-use std::{iter::once, num::NonZeroUsize};
+use std::{num::NonZeroUsize, rc::Rc};
 
-use iced::{
-    Color, Element, Pixels, Theme,
-    alignment::{Horizontal, Vertical},
-    widget::{Space, rule},
-};
+pub use corredo::record_table::{ColumnHeading, TableColumns, separator_rule};
+use corredo::record_table::{Record, RecordTable, RecordTableStyle, TableRow};
+use iced::{Color, Element, Theme, alignment::Horizontal};
 use sottomano_toml_config::{severity::Severity, theme::font::ResolvedFont};
 
 use crate::{
     group_items::reading_display_state::ReadingDisplayState,
     widgets::{
         configured_theme::background_strong_color,
-        content_sized_table::{
-            ContentSizedColumn, SpannableRow, content_sized_column, content_sized_spanning_table,
-        },
-        ellipsis_rule::ellipsis_rule,
-        shared_metrics::OUTLINE_WIDTH_PX,
-        text::{LINE_HEIGHT, column_heading},
+        text::column_heading,
         value_cells::{LabeledValue, ValueCell, ValueCellView},
     },
 };
 
-static BLANK_CELL: ValueCell = ValueCell::Blank;
+pub type RecordCells = Record<ValueCell, Severity>;
+pub type KeyedTableRow = TableRow<ValueCell, Severity>;
 
 pub trait IntoTableRecord<const COLUMNS: usize> {
     fn into_table_record(self) -> TableRecord<COLUMNS>;
@@ -61,149 +55,23 @@ impl<const COLUMNS: usize> TableRecord<COLUMNS> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RecordCells {
-    key: ValueCell,
-    cells: Vec<ValueCell>,
-    level: Severity,
-}
-
-impl RecordCells {
-    #[must_use]
-    pub fn key(&self) -> &ValueCell {
-        &self.key
-    }
-
-    #[must_use]
-    pub fn cell(&self, position: usize) -> &ValueCell {
-        self.cells.get(position).unwrap_or(&BLANK_CELL)
-    }
-
-    #[must_use]
-    pub fn severity(&self) -> Severity {
-        self.level
-    }
-}
-
 impl<const COLUMNS: usize> From<TableRecord<COLUMNS>> for RecordCells {
     fn from(record: TableRecord<COLUMNS>) -> Self {
-        Self {
-            key: record.key,
-            cells: record.cells.into(),
-            level: record.level,
-        }
+        Record::new(record.key, record.cells, record.level)
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ColumnHeading {
-    Titled {
-        label: &'static str,
-        align_x: Horizontal,
-    },
-    Untitled {
-        align_x: Horizontal,
-    },
-}
-
-impl ColumnHeading {
-    #[must_use]
-    pub const fn titled(label: &'static str) -> Self {
-        ColumnHeading::Titled {
-            label,
-            align_x: Horizontal::Right,
-        }
-    }
-
-    #[must_use]
-    pub const fn untitled() -> Self {
-        ColumnHeading::Untitled {
-            align_x: Horizontal::Right,
-        }
-    }
-
-    #[must_use]
-    pub const fn align_x(self, align_x: Horizontal) -> Self {
-        match self {
-            ColumnHeading::Titled { label, .. } => ColumnHeading::Titled { label, align_x },
-            ColumnHeading::Untitled { .. } => ColumnHeading::Untitled { align_x },
-        }
-    }
-
-    #[must_use]
-    pub const fn alignment(&self) -> Horizontal {
-        match self {
-            ColumnHeading::Titled { align_x, .. } | ColumnHeading::Untitled { align_x } => *align_x,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TableColumns {
-    Headed(Vec<ColumnHeading>),
-    Unheaded(Vec<Horizontal>),
-}
-
-impl TableColumns {
-    fn headings(&self) -> Vec<ColumnHeading> {
-        match self {
-            TableColumns::Headed(headings) => headings.clone(),
-            TableColumns::Unheaded(alignments) => alignments
-                .iter()
-                .map(|alignment| ColumnHeading::untitled().align_x(*alignment))
-                .collect(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum KeyedTableRow {
-    Record(RecordCells),
-    GroupSeparator,
-    TotalRecord(RecordCells),
-    ContinuationMarker,
-    OmittedRecordCount(NonZeroUsize),
-}
-
-impl KeyedTableRow {
-    fn filled_cells(&self) -> Option<&RecordCells> {
-        match self {
-            KeyedTableRow::Record(record) | KeyedTableRow::TotalRecord(record) => Some(record),
-            KeyedTableRow::GroupSeparator
-            | KeyedTableRow::ContinuationMarker
-            | KeyedTableRow::OmittedRecordCount(_) => None,
-        }
-    }
-
-    fn record(&self) -> Option<&RecordCells> {
-        match self {
-            KeyedTableRow::Record(record) => Some(record),
-            KeyedTableRow::GroupSeparator
-            | KeyedTableRow::TotalRecord(_)
-            | KeyedTableRow::ContinuationMarker
-            | KeyedTableRow::OmittedRecordCount(_) => None,
-        }
-    }
+fn record_cells<const COLUMNS: usize>(
+    records: impl IntoIterator<Item: IntoTableRecord<COLUMNS>>,
+) -> impl Iterator<Item = RecordCells> {
+    records
+        .into_iter()
+        .map(|record| RecordCells::from(record.into_table_record()))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyedRecordTable {
-    columns: TableColumns,
-    rows: Vec<KeyedTableRow>,
-}
-
-fn record_rows<const COLUMNS: usize>(
-    records: impl IntoIterator<Item: IntoTableRecord<COLUMNS>>,
-) -> Vec<KeyedTableRow> {
-    records
-        .into_iter()
-        .map(|record| KeyedTableRow::Record(RecordCells::from(record.into_table_record())))
-        .collect()
-}
-
-fn retain_filled_columns<Column>(columns: &mut Vec<Column>, filled_columns: &[bool]) {
-    let mut filled_flags = filled_columns.iter();
-    columns.retain(|_| filled_flags.next().copied().unwrap_or(true));
+    table: RecordTable<ValueCell, Severity>,
 }
 
 impl KeyedRecordTable {
@@ -212,8 +80,7 @@ impl KeyedRecordTable {
         records: impl IntoIterator<Item: IntoTableRecord<COLUMNS>>,
     ) -> Self {
         Self {
-            columns,
-            rows: record_rows(records),
+            table: RecordTable::new(columns, record_cells(records)),
         }
     }
 
@@ -225,112 +92,78 @@ impl KeyedRecordTable {
         columns: TableColumns,
         groups: impl IntoIterator<Item: IntoIterator<Item: IntoTableRecord<COLUMNS>>>,
     ) -> Self {
-        let rows = groups
-            .into_iter()
-            .map(record_rows)
-            .filter(|group_rows| !group_rows.is_empty())
-            .fold(Vec::new(), |mut rows, group_rows| {
-                if !rows.is_empty() {
-                    rows.push(KeyedTableRow::GroupSeparator);
-                }
-                rows.extend(group_rows);
-                rows
-            });
-        Self { columns, rows }
+        Self {
+            table: RecordTable::grouped(
+                columns,
+                groups
+                    .into_iter()
+                    .map(|group| record_cells(group).collect()),
+            ),
+        }
     }
 
     #[must_use]
     pub fn truncated_to(self, row_limit: NonZeroUsize) -> Self {
-        let record_count = self.records().count();
-        let Some(omitted_count) = NonZeroUsize::new(record_count.saturating_sub(row_limit.get()))
-        else {
-            return self;
-        };
-        let rows = self
-            .rows
-            .into_iter()
-            .scan(0, |kept_records, row| {
-                let within_limit = match row {
-                    KeyedTableRow::Record(_) => {
-                        *kept_records += 1;
-                        *kept_records <= row_limit.get()
-                    }
-                    _ => *kept_records < row_limit.get(),
-                };
-                within_limit.then_some(row)
-            })
-            .chain(once(KeyedTableRow::OmittedRecordCount(omitted_count)))
-            .collect();
-        Self { rows, ..self }
-    }
-
-    #[must_use]
-    pub fn without_blank_columns(mut self) -> Self {
-        let filled_columns: Vec<bool> = (0..self.columns.headings().len())
-            .map(|position| {
-                self.rows
-                    .iter()
-                    .filter_map(KeyedTableRow::filled_cells)
-                    .any(|record| !matches!(record.cell(position), ValueCell::Blank))
-            })
-            .collect();
-        match &mut self.columns {
-            TableColumns::Headed(headings) => retain_filled_columns(headings, &filled_columns),
-            TableColumns::Unheaded(alignments) => {
-                retain_filled_columns(alignments, &filled_columns);
-            }
+        Self {
+            table: self.table.truncated_to(row_limit),
         }
-        self.rows.iter_mut().for_each(|row| {
-            if let KeyedTableRow::Record(record) | KeyedTableRow::TotalRecord(record) = row {
-                retain_filled_columns(&mut record.cells, &filled_columns);
-            }
-        });
-        self
     }
 
     #[must_use]
-    pub fn marked_as_continuing(mut self) -> Self {
-        self.rows.push(KeyedTableRow::ContinuationMarker);
-        self
+    pub fn without_blank_columns(self) -> Self {
+        Self {
+            table: self
+                .table
+                .without_blank_columns(|cell| matches!(cell, ValueCell::Blank)),
+        }
+    }
+
+    #[must_use]
+    pub fn marked_as_continuing(self) -> Self {
+        Self {
+            table: self.table.marked_as_continuing(),
+        }
     }
 
     #[must_use]
     pub fn with_total_record<const COLUMNS: usize>(
-        mut self,
+        self,
         total: impl IntoTableRecord<COLUMNS>,
     ) -> Self {
-        self.rows.push(KeyedTableRow::TotalRecord(RecordCells::from(
-            total.into_table_record(),
-        )));
-        self
+        Self {
+            table: self
+                .table
+                .with_total_record(RecordCells::from(total.into_table_record())),
+        }
     }
 
     #[must_use]
     pub fn with_appended_records<const COLUMNS: usize>(
-        mut self,
+        self,
         records: impl IntoIterator<Item: IntoTableRecord<COLUMNS>>,
     ) -> Self {
-        self.rows.extend(record_rows(records));
-        self
+        Self {
+            table: self.table.with_appended_records(record_cells(records)),
+        }
     }
 
     pub fn records(&self) -> impl Iterator<Item = &RecordCells> {
-        self.rows.iter().filter_map(KeyedTableRow::record)
+        self.table.records()
     }
 
     #[must_use]
     pub fn rows(&self) -> &[KeyedTableRow] {
-        &self.rows
+        self.table.rows()
     }
 
     #[must_use]
     pub fn columns(&self) -> &TableColumns {
-        &self.columns
+        self.table.columns()
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.records().next().is_none()
+        self.table.is_empty()
     }
 
     #[must_use]
@@ -338,22 +171,7 @@ impl KeyedRecordTable {
         &self,
         style: &KeyedRecordTableStyle<Message>,
     ) -> Element<'static, Message> {
-        let line_height_px = LINE_HEIGHT
-            .to_absolute(Pixels(style.heading_font.text_size_px))
-            .0;
-        let value_columns = self
-            .columns
-            .headings()
-            .into_iter()
-            .enumerate()
-            .map(|(position, heading)| style.value_column(position, heading, line_height_px));
-        content_sized_spanning_table(
-            once(style.key_column(line_height_px)).chain(value_columns),
-            self.rows.iter().flat_map(spannable_rows),
-        )
-        .column_gap(style.column_gap)
-        .row_gap(style.row_spacing)
-        .into()
+        self.table.view(&style.record_table_style())
     }
 }
 
@@ -365,91 +183,34 @@ pub struct KeyedRecordTableStyle<Message> {
     pub row_spacing: f32,
 }
 
-#[derive(Clone)]
-enum ColumnedRowContent {
-    Record(RecordCells),
-    OmittedRecordCount(NonZeroUsize),
-    ContinuationMarker,
-}
-
 impl<Message: 'static> KeyedRecordTableStyle<Message> {
-    fn key_column(
-        &self,
-        line_height_px: f32,
-    ) -> ContentSizedColumn<'static, ColumnedRowContent, Message> {
+    fn record_table_style(&self) -> RecordTableStyle<ValueCell, Severity, Message> {
         let key_view = self.cell_view.key_view();
+        let omitted_key_view = key_view.clone();
         let key_color = self.key_color;
-        content_sized_column(Space::new(), move |content| match content {
-            ColumnedRowContent::Record(record) => key_view.key(record.key().clone(), key_color),
-            ColumnedRowContent::OmittedRecordCount(omitted_count) => key_view.key(
-                ValueCell::from(format!("{omitted_count} more")),
-                background_strong_color,
-            ),
-            ColumnedRowContent::ContinuationMarker => {
-                ellipsis_rule(background_strong_color, line_height_px).into()
-            }
-        })
-        .align_x(Horizontal::Right)
-        .align_y(Vertical::Top)
-    }
-
-    fn value_column(
-        &self,
-        position: usize,
-        heading: ColumnHeading,
-        line_height_px: f32,
-    ) -> ContentSizedColumn<'static, ColumnedRowContent, Message> {
-        let heading_view: Element<'static, Message> = match heading {
-            ColumnHeading::Titled { label, .. } => column_heading(&self.heading_font, label).into(),
-            ColumnHeading::Untitled { .. } => Space::new().into(),
-        };
         let cell_view = self.cell_view.clone();
-        content_sized_column(heading_view, move |content| match content {
-            ColumnedRowContent::Record(record) => {
-                let state = ReadingDisplayState::from(record.severity());
+        let heading_font = self.heading_font.clone();
+        RecordTableStyle {
+            key_cell: Rc::new(move |record| key_view.key(record.key().clone(), key_color)),
+            value_cell: Rc::new(move |record, position| {
+                let state = ReadingDisplayState::from(*record.level());
                 cell_view.value(
-                    record.cell(position).clone(),
+                    record.cell(position).cloned().unwrap_or(ValueCell::Blank),
                     move |theme| state.color(theme),
                     record.key(),
                 )
-            }
-            ColumnedRowContent::OmittedRecordCount(_) | ColumnedRowContent::ContinuationMarker => {
-                ellipsis_rule(background_strong_color, line_height_px).into()
-            }
-        })
-        .align_x(heading.alignment())
-        .align_y(Vertical::Top)
-    }
-}
-
-pub fn separator_rule<'a, Message: 'a>() -> Element<'a, Message> {
-    rule::horizontal(OUTLINE_WIDTH_PX)
-        .style(rule::default)
-        .into()
-}
-
-fn spannable_rows<Message: 'static>(
-    row: &KeyedTableRow,
-) -> Vec<SpannableRow<'static, ColumnedRowContent, Message>> {
-    match row {
-        KeyedTableRow::Record(record) => {
-            vec![SpannableRow::Columned(ColumnedRowContent::Record(
-                record.clone(),
-            ))]
+            }),
+            omitted_count: Rc::new(move |omitted_count| {
+                omitted_key_view.key(
+                    ValueCell::from(format!("{omitted_count} more")),
+                    background_strong_color,
+                )
+            }),
+            heading: Rc::new(move |label| column_heading(&heading_font, label).into()),
+            text_size_px: self.heading_font.text_size_px,
+            column_gap_px: self.column_gap,
+            row_spacing_px: self.row_spacing,
         }
-        KeyedTableRow::GroupSeparator => vec![SpannableRow::FullWidth(separator_rule())],
-        KeyedTableRow::TotalRecord(record) => vec![
-            SpannableRow::FullWidth(separator_rule()),
-            SpannableRow::Columned(ColumnedRowContent::Record(record.clone())),
-        ],
-        KeyedTableRow::ContinuationMarker => {
-            vec![SpannableRow::Columned(
-                ColumnedRowContent::ContinuationMarker,
-            )]
-        }
-        KeyedTableRow::OmittedRecordCount(omitted_count) => vec![SpannableRow::Columned(
-            ColumnedRowContent::OmittedRecordCount(*omitted_count),
-        )],
     }
 }
 
@@ -632,8 +393,8 @@ mod tests {
         );
         let record = table.records().next().unwrap();
         assert_eq!(record.key(), &ValueCell::from("Error"));
-        assert_eq!(record.cell(0), &ValueCell::from("offline"));
-        assert_eq!(record.cell(1), &ValueCell::Blank);
-        assert_eq!(record.severity(), Severity::Critical);
+        assert_eq!(record.cell(0), Some(&ValueCell::from("offline")));
+        assert_eq!(record.cell(1), None);
+        assert_eq!(record.level(), &Severity::Critical);
     }
 }

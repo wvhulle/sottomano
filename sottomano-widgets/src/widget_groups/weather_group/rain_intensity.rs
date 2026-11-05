@@ -948,16 +948,19 @@ mod tests {
         };
         let wet = row(&rain.forecast[0]);
         assert_eq!(
-            match wet.cell(0) {
+            match wet.cell(0).unwrap() {
                 ValueCell::Quantity(quantity) => quantity.localized_text(Locale::en_US),
                 _ => String::new(),
             },
             "2.0 mm/h"
         );
-        assert_eq!(wet.cell(1), &ValueCell::IconGlyph(WeatherIcon::Rain.into()));
-        assert_eq!(wet.cell(2), &ValueCell::Blank);
+        assert_eq!(
+            wet.cell(1),
+            Some(&ValueCell::IconGlyph(WeatherIcon::Rain.into()))
+        );
+        assert_eq!(wet.cell(2), Some(&ValueCell::Blank));
         let dry = row(&rain.forecast[1]);
-        assert_eq!(dry.cell(0), &ValueCell::from("–"));
+        assert_eq!(dry.cell(0), Some(&ValueCell::from("–")));
     }
 
     #[test]
@@ -970,7 +973,12 @@ mod tests {
         let timeline = rain_timeline(&rain.forecast, &quarters, default_scale());
         let model_texts: Vec<_> = timeline
             .iter()
-            .map(|row| RecordCells::from(row.into_table_record()).cell(2).clone())
+            .map(|row| {
+                RecordCells::from(row.into_table_record())
+                    .cell(2)
+                    .cloned()
+                    .unwrap()
+            })
             .collect();
         assert_eq!(
             model_texts,
