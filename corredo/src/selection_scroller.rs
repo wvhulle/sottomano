@@ -19,11 +19,13 @@ pub use self::scroll_motion::ScrollPacing;
 use self::scroll_motion::{ScrollFrame, ScrollMotion};
 use crate::{
     edge_alpha_fade::{FadedEdge, HiddenScrollEdges, ScrollEdgeFade},
+    frame_style::FrameStyle,
     reveal::clip_cursor,
     shared_metrics::SCROLL_LINE_STEP_PX,
 };
 
 const NEGLIGIBLE_SCROLL_PX: f32 = 0.5;
+const DEFAULT_FADE_EXTENT_PX: f32 = 20.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScrollAxis {
@@ -150,12 +152,11 @@ pub struct SelectionScroller<'a, Message> {
 pub fn selection_scroller<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     axis: ScrollAxis,
-    edge_fade: ScrollEdgeFade,
 ) -> SelectionScroller<'a, Message> {
     SelectionScroller {
         content: content.into(),
         axis,
-        edge_fade,
+        edge_fade: ScrollEdgeFade::away_from_frame(FrameStyle::default(), DEFAULT_FADE_EXTENT_PX),
         pacing: ScrollPacing::Instant,
         ownership: ScrollOwnership::SelfOwned,
         selected_position: None,
@@ -164,6 +165,11 @@ pub fn selection_scroller<'a, Message: 'a>(
 }
 
 impl<'a, Message: 'a> SelectionScroller<'a, Message> {
+    #[must_use]
+    pub fn edge_fade(self, edge_fade: ScrollEdgeFade) -> Self {
+        Self { edge_fade, ..self }
+    }
+
     #[must_use]
     pub fn paced(self, pacing: ScrollPacing) -> Self {
         Self { pacing, ..self }
@@ -580,7 +586,7 @@ mod tests {
     }
 
     fn scroller_over<'a>(axis: ScrollAxis) -> SelectionScroller<'a, ()> {
-        selection_scroller(long_content(axis), axis, edge_fade())
+        selection_scroller(long_content(axis), axis).edge_fade(edge_fade())
     }
 
     fn first_entry_position(simulator: &mut Simulator<'_, ()>, axis: ScrollAxis) -> f32 {
@@ -657,11 +663,13 @@ mod tests {
         let axis = ScrollAxis::Vertical;
         let side_by_side: Element<'_, ()> = Row::new()
             .push(scroller_over(axis))
-            .push(selection_scroller(
-                Column::with_children([text("sibling").into(), text("other").into()]),
-                axis,
-                edge_fade(),
-            ))
+            .push(
+                selection_scroller(
+                    Column::with_children([text("sibling").into(), text("other").into()]),
+                    axis,
+                )
+                .edge_fade(edge_fade()),
+            )
             .into();
         let mut simulator = Simulator::with_size(Settings::default(), VISIBLE_SIZE, side_by_side);
         let sibling_before = simulator.find("sibling").expect("laid out").bounds();

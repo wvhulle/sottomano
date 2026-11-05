@@ -1,8 +1,8 @@
 use std::ops::RangeInclusive;
 
 use chrono::Locale;
-use corredo::expand_animation::expand_animation;
-pub use corredo::scroll_steps::scroll_direction;
+use corredo::primitives::expand_animation::expand_animation;
+pub use corredo::primitives::scroll_steps::scroll_direction;
 use iced::{
     Alignment, Element, Length, Padding, Task,
     alignment::Horizontal,

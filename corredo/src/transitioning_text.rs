@@ -1,6 +1,7 @@
 use std::{
     f32::consts::{FRAC_PI_2, TAU},
     hash::{DefaultHasher, Hash, Hasher},
+    rc::Rc,
     slice,
 };
 
@@ -19,6 +20,7 @@ use iced::{
     gradient::Linear,
     mouse::Cursor,
     time::{Duration, Instant},
+    widget::text,
     window,
 };
 
@@ -26,7 +28,7 @@ use crate::{
     font_faces::TextFace,
     shared_metrics::LINE_HEIGHT,
     text_effects::{IntroEffect, PlaceholderEffect, ReplaceEffect, TextEffects},
-    theme_colors::ThemedColor,
+    theme_colors::{ThemedColor, primary_color, text_color},
 };
 
 const NOISE_GLYPHS: &[u8] =
@@ -91,6 +93,97 @@ impl<'a, Message> TransitioningText<'a, Message> {
             identity: hasher.finish(),
             ..self
         }
+    }
+}
+
+pub struct AnimatedText<'a> {
+    text: String,
+    identity: u64,
+    style: TransitionStyle,
+    face: TextFace,
+    color: Rc<dyn Fn(&iced::Theme) -> Color + 'a>,
+}
+
+pub fn animated_text<'a>(text: impl Into<String>) -> AnimatedText<'a> {
+    AnimatedText {
+        text: text.into(),
+        identity: 0,
+        style: TransitionStyle {
+            effects: TextEffects::default(),
+            presence: TextPresence::Shown,
+            highlight: primary_color,
+        },
+        face: TextFace::default(),
+        color: Rc::new(text_color),
+    }
+}
+
+impl<'a> AnimatedText<'a> {
+    #[must_use]
+    pub fn effects(mut self, effects: TextEffects) -> Self {
+        self.style.effects = effects;
+        self
+    }
+
+    #[must_use]
+    pub fn loading(mut self, is_loading: bool) -> Self {
+        self.style.presence = if is_loading {
+            TextPresence::Placeholder
+        } else {
+            TextPresence::Shown
+        };
+        self
+    }
+
+    #[must_use]
+    pub fn highlight(mut self, highlight: fn(&iced::Theme) -> Color) -> Self {
+        self.style.highlight = highlight;
+        self
+    }
+
+    #[must_use]
+    pub fn face(self, face: TextFace) -> Self {
+        Self { face, ..self }
+    }
+
+    #[must_use]
+    pub fn color(self, color: impl Fn(&iced::Theme) -> Color + 'a) -> Self {
+        Self {
+            color: Rc::new(color),
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn identified_by(self, identity: &impl Hash) -> Self {
+        let mut hasher = DefaultHasher::new();
+        identity.hash(&mut hasher);
+        Self {
+            identity: hasher.finish(),
+            ..self
+        }
+    }
+}
+
+impl<'a, Message: 'a> From<AnimatedText<'a>> for Element<'a, Message> {
+    fn from(animated: AnimatedText<'a>) -> Self {
+        let settled_color = Rc::clone(&animated.color);
+        let settled = animated
+            .face
+            .text(animated.text.clone())
+            .style(move |theme| text::Style {
+                color: Some(settled_color(theme)),
+            });
+        let transition_color = animated.color;
+        TransitioningText::new(
+            settled,
+            animated.text,
+            animated.style,
+            animated.face,
+            move |theme| transition_color(theme),
+        )
+        .identified_by(&animated.identity)
+        .into()
     }
 }
 

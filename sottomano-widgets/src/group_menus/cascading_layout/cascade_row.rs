@@ -1,6 +1,6 @@
 use std::iter::once;
 
-pub use corredo::popup_cascade::{CascadeDirection, CascadeOrientation};
+pub use corredo::primitives::popup_cascade::{CascadeDirection, CascadeOrientation};
 use iced::{
     Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{

@@ -362,7 +362,8 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         match (table, cascade) {
             (None, None) => None,
             (Some(table), None) => Some(GroupMenuCascadeSurfaces {
-                primary: selection_scroller(table, ScrollAxis::Vertical, table_edge_fade)
+                primary: selection_scroller(table, ScrollAxis::Vertical)
+                    .edge_fade(table_edge_fade)
                     .controlled(scrolled_px, move |scrolled_px| {
                         M::from(scroll_message(scrolled_px))
                     })

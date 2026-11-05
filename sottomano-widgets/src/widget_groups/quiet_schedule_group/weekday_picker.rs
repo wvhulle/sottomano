@@ -1,6 +1,6 @@
 use chrono::{Weekday, WeekdaySet};
 pub use corredo::weekday_picker::weekday_name;
-use corredo::weekday_picker::{WeekdayPickerStyle, weekday_picker as themed_weekday_picker};
+use corredo::weekday_picker::weekday_picker as themed_weekday_picker;
 use iced::Element;
 use sottomano_toml_config::Config;
 
@@ -52,23 +52,18 @@ impl<'a, Message: 'a + Clone> From<WeekdayPicker<'_, Message>> for Element<'a, M
         let reveal = picker.reveal;
         let presses = picker.presses;
         let messages = picker.messages;
-        themed_weekday_picker(
-            picker.chosen,
-            &WeekdayPickerStyle {
-                face: text_face_of(font),
-                faces: font_faces_of(font),
-                spacing_px: picker.config.theme.spacing.item_gap,
-                locale: picker.config.calendar.locale,
-            },
-            move |chosen, theme| {
+        themed_weekday_picker(picker.chosen, messages.on_toggle)
+            .typeface(text_face_of(font), font_faces_of(font))
+            .spacing(picker.config.theme.spacing.item_gap)
+            .locale(picker.config.calendar.locale)
+            .day_color(move |chosen, theme| {
                 ReadingStateTint {
                     state: ReadingDisplayState::of_toggle(chosen),
                     opacity: reveal,
                 }
                 .color(theme)
-            },
-            messages.on_toggle,
-            |day, chosen, day_button| {
+            })
+            .wrap_day(move |day, chosen, day_button| {
                 hoverable(
                     day_button,
                     (messages.target)(day),
@@ -82,7 +77,7 @@ impl<'a, Message: 'a + Clone> From<WeekdayPicker<'_, Message>> for Element<'a, M
                     },
                     messages.on_hover_card,
                 )
-            },
-        )
+            })
+            .into()
     }
 }

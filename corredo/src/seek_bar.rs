@@ -2,10 +2,7 @@ use std::time::Duration;
 
 use iced::{Element, mouse::ScrollDelta};
 
-use crate::{
-    inline_slider::{SliderAccents, inline_slider},
-    scroll_steps::scroll_direction,
-};
+use crate::{inline_slider::inline_slider, scroll_steps::scroll_direction};
 
 const SCROLL_SEEK_STEP: Duration = Duration::from_secs(5);
 const DRAG_STEP_SECONDS: f32 = 1.0;
@@ -156,18 +153,22 @@ impl<Session: Clone + PartialEq> SeekBar<Session> {
         let length = timeline.length?;
         let played = timeline.played?;
         let shown = self.request.requested_position().unwrap_or(played);
-        Some(inline_slider(
-            icon_size_px,
-            0.0..=length.as_secs_f32(),
-            shown.as_secs_f32(),
-            self.lagging_position(played)
-                .map(|lagging| lagging.as_secs_f32()),
-            DRAG_STEP_SECONDS,
-            SliderAccents::default(),
-            SeekMessage::Drag,
-            SeekMessage::Release,
-            SeekMessage::Scroll,
-        ))
+        Some(
+            inline_slider(
+                0.0..=length.as_secs_f32(),
+                shown.as_secs_f32(),
+                SeekMessage::Drag,
+            )
+            .icon_size(icon_size_px)
+            .lagging_behind(
+                self.lagging_position(played)
+                    .map(|lagging| lagging.as_secs_f32()),
+            )
+            .step(DRAG_STEP_SECONDS)
+            .on_release(SeekMessage::Release)
+            .on_scroll(SeekMessage::Scroll)
+            .into(),
+        )
     }
 }
 

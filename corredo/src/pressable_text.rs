@@ -17,28 +17,55 @@ use iced::{
 
 use crate::{
     shared_metrics::{OUTLINE_WIDTH_PX, PRESSABLE_OUTLINE_PADDING, SMALL_CORNER_RADIUS_PX},
-    theme_colors::AccentShades,
+    theme_colors::{AccentShades, primary_shades},
 };
+
+const DEFAULT_HOLD: Duration = Duration::from_millis(700);
 
 pub fn pressable_text<'a, Payload: Clone + 'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     payload: Payload,
     on_press: impl Fn(Payload) -> Message + 'a,
-    accent: fn(&Theme) -> AccentShades,
-    hold: Duration,
-    interaction: Interaction,
-) -> Element<'a, Message> {
-    Element::new(PressableText {
+) -> PressableText<'a, Payload, Message> {
+    PressableText {
         content: container(content).padding(PRESSABLE_OUTLINE_PADDING).into(),
         payload,
         on_press: Box::new(on_press),
-        accent,
-        hold,
-        interaction,
-    })
+        accent: primary_shades,
+        hold: DEFAULT_HOLD,
+        interaction: Interaction::Pointer,
+    }
 }
 
-struct PressableText<'a, Payload, Message> {
+impl<Payload, Message> PressableText<'_, Payload, Message> {
+    #[must_use]
+    pub fn accent(self, accent: fn(&Theme) -> AccentShades) -> Self {
+        Self { accent, ..self }
+    }
+
+    #[must_use]
+    pub fn hold(self, hold: Duration) -> Self {
+        Self { hold, ..self }
+    }
+
+    #[must_use]
+    pub fn interaction(self, interaction: Interaction) -> Self {
+        Self {
+            interaction,
+            ..self
+        }
+    }
+}
+
+impl<'a, Payload: Clone + 'a, Message: 'a> From<PressableText<'a, Payload, Message>>
+    for Element<'a, Message>
+{
+    fn from(pressable: PressableText<'a, Payload, Message>) -> Self {
+        Element::new(pressable)
+    }
+}
+
+pub struct PressableText<'a, Payload, Message> {
     content: Element<'a, Message>,
     payload: Payload,
     on_press: Box<dyn Fn(Payload) -> Message + 'a>,
