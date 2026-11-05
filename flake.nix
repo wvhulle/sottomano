@@ -54,8 +54,23 @@
         hash = "sha256-RTQ3d3deMJQ8ToZVtoIT9jG47S32yp2ZDu/8BjMN5dg=";
       };
 
+      vendoredCargoDeps = craneLib.vendorCargoDeps {
+        inherit src;
+        overrideVendorGitCheckout =
+          checkoutPackages: checkoutDrv:
+          if builtins.any (checkoutPackage: checkoutPackage.name == "niri-ipc") checkoutPackages then
+            checkoutDrv.overrideAttrs (previousAttrs: {
+              postPatch = (previousAttrs.postPatch or "") + ''
+                rm -rf docs/wiki
+              '';
+            })
+          else
+            checkoutDrv;
+      };
+
       commonArgs = {
         inherit src;
+        cargoVendorDir = vendoredCargoDeps;
         version = (pkgs.lib.importTOML ./Cargo.toml).workspace.package.version;
         strictDeps = true;
         nativeBuildInputs = [
