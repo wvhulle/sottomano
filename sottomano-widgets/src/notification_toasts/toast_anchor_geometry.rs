@@ -1,4 +1,4 @@
-use std::iter::successors;
+use std::iter::once;
 
 use iced::{Point, Rectangle, Size};
 use sottomano_config::{
@@ -41,10 +41,10 @@ pub fn card_origins(
             let stacking = StackingDirection::of_anchor(anchor);
             let free_card = [stacking, stacking.opposite()]
                 .into_iter()
-                .map(|direction| {
-                    slid_clear_of_cards(wanted_card, direction, &settled_cards, spacing.card_gap)
+                .filter_map(|direction| {
+                    nearest_free_card(wanted_card, direction, &settled_cards, spacing.card_gap)
                 })
-                .find(|slid_card| fits_free_area(*slid_card, free_area, spacing))
+                .find(|free_card| fits_free_area(*free_card, free_area, spacing))
                 .unwrap_or(wanted_card);
             settled_cards.push(free_card);
             settled_cards
@@ -77,32 +77,82 @@ impl StackingDirection {
         }
     }
 
-    fn card_past_blocker(self, card: Rectangle, blocker: Rectangle, card_gap: f32) -> Rectangle {
-        let slid_top = match self {
-            Self::Downward => blocker.y + blocker.height + card_gap,
-            Self::Upward => blocker.y - card_gap - card.height,
-        };
-        Rectangle {
-            y: slid_top,
-            ..card
+    fn clearing_top(self, blocked_range: BlockedTopRange) -> f32 {
+        match self {
+            Self::Downward => blocked_range.first_top_below,
+            Self::Upward => blocked_range.last_top_above,
+        }
+    }
+
+    fn top_lies_ahead(self, wanted_top: f32, candidate_top: f32) -> bool {
+        match self {
+            Self::Downward => candidate_top >= wanted_top,
+            Self::Upward => candidate_top <= wanted_top,
+        }
+    }
+
+    fn nearest_top(self, candidate_tops: impl Iterator<Item = f32>) -> Option<f32> {
+        match self {
+            Self::Downward => candidate_tops.min_by(f32::total_cmp),
+            Self::Upward => candidate_tops.max_by(f32::total_cmp),
         }
     }
 }
 
-fn slid_clear_of_cards(
+#[derive(Clone, Copy)]
+struct BlockedTopRange {
+    last_top_above: f32,
+    first_top_below: f32,
+}
+
+impl BlockedTopRange {
+    fn around_settled_card(settled_card: Rectangle, card_height: f32, card_gap: f32) -> Self {
+        Self {
+            last_top_above: settled_card.y - card_gap - card_height,
+            first_top_below: settled_card.y + settled_card.height + card_gap,
+        }
+    }
+
+    fn admits_top(self, card_top: f32) -> bool {
+        card_top <= self.last_top_above || card_top >= self.first_top_below
+    }
+}
+
+fn nearest_free_card(
     wanted_card: Rectangle,
     direction: StackingDirection,
     settled_cards: &[Rectangle],
     card_gap: f32,
-) -> Rectangle {
-    successors(Some(wanted_card), |card| {
-        settled_cards
+) -> Option<Rectangle> {
+    let blocked_ranges: Vec<_> = settled_cards
+        .iter()
+        .filter(|settled_card| shares_column(wanted_card, **settled_card, card_gap))
+        .map(|settled_card| {
+            BlockedTopRange::around_settled_card(*settled_card, wanted_card.height, card_gap)
+        })
+        .collect();
+    let candidate_tops = once(wanted_card.y).chain(
+        blocked_ranges
             .iter()
-            .find(|settled_card| card.expand(card_gap).intersects(settled_card))
-            .map(|blocker| direction.card_past_blocker(*card, *blocker, card_gap))
+            .map(|blocked_range| direction.clearing_top(*blocked_range)),
+    );
+    let free_tops = candidate_tops
+        .filter(|candidate_top| direction.top_lies_ahead(wanted_card.y, *candidate_top))
+        .filter(|candidate_top| {
+            blocked_ranges
+                .iter()
+                .all(|blocked_range| blocked_range.admits_top(*candidate_top))
+        });
+    direction.nearest_top(free_tops).map(|free_top| Rectangle {
+        y: free_top,
+        ..wanted_card
     })
-    .last()
-    .unwrap_or(wanted_card)
+}
+
+fn shares_column(card: Rectangle, settled_card: Rectangle, card_gap: f32) -> bool {
+    let overlap_left = (card.x - card_gap).max(settled_card.x);
+    let overlap_right = (card.x + card.width + card_gap).min(settled_card.x + settled_card.width);
+    overlap_right > overlap_left
 }
 
 fn fits_free_area(card: Rectangle, free_area: Rectangle, spacing: &ToastAnchorSpacing) -> bool {
@@ -322,6 +372,43 @@ mod tests {
         assert_eq!(
             card_positions[1],
             Point::new(card_positions[0].x, stacked_y)
+        );
+    }
+
+    #[test]
+    fn a_card_under_a_card_of_fractional_height_settles_below_it() {
+        let fractional_card = Size::new(380.0, 90.4);
+        let card_positions = card_origins(
+            &[top_right_corner(), top_right_corner()],
+            &[fractional_card, fractional_card],
+            Rectangle::with_size(SURFACE),
+            &DEFAULT_ANCHOR_SPACING,
+        );
+        let first_card_bottom = card_positions[0].y + fractional_card.height;
+        assert_eq!(
+            card_positions[1],
+            Point::new(
+                card_positions[0].x,
+                first_card_bottom + DEFAULT_ANCHOR_SPACING.card_gap
+            )
+        );
+    }
+
+    #[test]
+    fn a_card_over_a_card_of_fractional_height_settles_above_it() {
+        let fractional_card = Size::new(380.0, 60.16);
+        let card_positions = card_origins(
+            &[bottom_right_corner(), bottom_right_corner()],
+            &[fractional_card, fractional_card],
+            Rectangle::with_size(SURFACE),
+            &DEFAULT_ANCHOR_SPACING,
+        );
+        assert_eq!(
+            card_positions[1],
+            Point::new(
+                card_positions[0].x,
+                card_positions[0].y - DEFAULT_ANCHOR_SPACING.card_gap - fractional_card.height
+            )
         );
     }
 
