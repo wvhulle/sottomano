@@ -1,20 +1,45 @@
-mod phosphor;
-mod simple_icons;
-
 use std::{
-    env, fs,
+    env,
+    fmt::Write,
+    fs,
     path::{Path, PathBuf},
 };
 
 fn main() {
-    println!("cargo:rerun-if-changed=build");
+    println!("cargo:rerun-if-changed=build.rs");
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let generated = [
-        phosphor::generate(&assets_dir("PHOSPHOR_SVG")),
-        simple_icons::generate(&assets_dir("SIMPLE_ICONS_SVG")),
-    ]
-    .concat();
+    let generated = generate(&assets_dir("WEATHER_ICONS_SVG"));
     fs::write(out_dir.join("icons.rs"), generated).unwrap();
+}
+
+fn generate(assets_dir: &Path) -> String {
+    let mut variants = String::new();
+    let mut svg_arms = String::new();
+    for slug in svg_slugs(assets_dir) {
+        let variant = pascal_case(slug.strip_prefix("wi-").unwrap_or(&slug));
+        writeln!(variants, "    {variant},").unwrap();
+        writeln!(
+            svg_arms,
+            "            WeatherSvg::{variant} => include_bytes!(\"{}\"),",
+            assets_dir.join(format!("{slug}.svg")).display()
+        )
+        .unwrap();
+    }
+    format!(
+        r"#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WeatherSvg {{
+{variants}}}
+
+impl WeatherSvg {{
+    #[must_use]
+    #[allow(clippy::too_many_lines)]
+    pub const fn svg_data(self) -> &'static [u8] {{
+        match self {{
+{svg_arms}        }}
+    }}
+}}
+"
+    )
 }
 
 fn assets_dir(variable: &str) -> PathBuf {

@@ -1,5 +1,5 @@
 use iced::{Color, Element, Theme, widget::svg};
-pub use sottomano_icon_sets::SimpleIcon;
+pub use sottomano_simple_icons::SimpleIcon;
 
 use crate::widgets::icon_glyph::IconGlyph;
 
