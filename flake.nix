@@ -152,6 +152,8 @@
 
       runtimeLibraryPath = "${pkgs.lib.makeLibraryPath commonArgs.buildInputs}:${pkgs.addDriverRunpath.driverLink}/lib";
 
+      devShellLibraryPath = "${pkgs.lib.makeLibraryPath (pkgs.lib.remove pkgs.openssl commonArgs.buildInputs)}:${pkgs.addDriverRunpath.driverLink}/lib";
+
       allocatorEnv = {
         MALLOC_ARENA_MAX = "2";
       };
@@ -271,7 +273,7 @@
           ++ formatters
           ++ runtimeDeps;
         env = allocatorEnv // {
-          LD_LIBRARY_PATH = runtimeLibraryPath;
+          LD_LIBRARY_PATH = devShellLibraryPath;
           WEATHER_ICONS_SVG = "${pkgs.weather-icons.src}/svg";
           PHOSPHOR_SVG = "${phosphorCore}/assets";
           SIMPLE_ICONS_SVG = "${simpleIcons}/icons";
