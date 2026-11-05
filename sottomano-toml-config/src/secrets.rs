@@ -58,8 +58,8 @@ impl SecretFile {
                  → Security). Shows tasks and upcoming events of widget_groups.caldav."
             }
             SecretFile::ArtificialAnalysisApi => {
-                "Artificial Analysis free API key (artificialanalysis.ai). Ranks OpenRouter models \
-                 for agentic coding by Terminal-Bench 4.0 score, within \
+                "Artificial Analysis free API key (artificialanalysis.ai). Ranks tool-capable \
+                 OpenRouter models by Engineering Index, within \
                  widget_groups.openrouter_credit.max_blended_usd_per_million."
             }
             SecretFile::TailscaleApiToken => {

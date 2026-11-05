@@ -2,7 +2,6 @@ use chrono::Locale;
 use sottomano_desktop_sources::ai_usage_spend::openrouter_model_rankings::{
     OpenRouterModelRankings, ScoredModel,
 };
-use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
     clock::Clock,
@@ -14,19 +13,20 @@ use crate::{
         amount_text::spend_text,
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
-        localized_quantities::Quantity,
+        localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
 };
 
 const LISTED_MODELS: usize = 16;
+const ENGINEERING_INDEX_DECIMALS: u8 = 1;
 const ANALYSIS_LEADERBOARD_URL: &str = "https://artificialanalysis.ai/models";
 const OPENROUTER_TOOL_MODELS_URL: &str = "https://openrouter.ai/models?supported_parameters=tools";
 
 impl GroupItemReading for OpenRouterModelRankings {
     fn name(&self) -> &'static str {
-        "Best coding models within price cap"
+        "Best models within price cap"
     }
 
     fn icon(&self) -> IconGlyph {
@@ -48,9 +48,7 @@ impl GroupItemReading for OpenRouterModelRankings {
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let ranking_table = Section::column_table(
             [
-                ColumnHeading::titled("TB 4.0"),
-                ColumnHeading::titled("TB 2.1"),
-                ColumnHeading::titled("SciCode"),
+                ColumnHeading::titled("Engineering"),
                 ColumnHeading::titled("In/Mtok"),
                 ColumnHeading::titled("Out/Mtok"),
                 ColumnHeading::titled("Context"),
@@ -62,14 +60,14 @@ impl GroupItemReading for OpenRouterModelRankings {
         )
         .titled((
             format!(
-                "Agentic Coding Models ≤ {} Blended",
+                "Tool-Capable Models ≤ {} Blended",
                 spend_text(&self.max_blended_per_million)
             ),
-            "Terminal-Bench 4.0, then 2.1, then SciCode via Artificial Analysis; OpenRouter prices",
+            "Engineering Index via Artificial Analysis; OpenRouter prices",
         ));
         let unscored_note = (self.unscored_count > 0).then(|| {
             Section::note(format!(
-                "{} affordable models have no coding benchmark on Artificial Analysis",
+                "{} affordable models have no Engineering Index on Artificial Analysis",
                 self.unscored_count
             ))
         });
@@ -103,7 +101,7 @@ impl GroupItemReading for OpenRouterModelRankings {
     }
 }
 
-impl From<&ScoredModel> for TableRecord<6> {
+impl From<&ScoredModel> for TableRecord<4> {
     fn from(scored: &ScoredModel) -> Self {
         TableRecord::new(
             ValueCell::Link {
@@ -111,19 +109,16 @@ impl From<&ScoredModel> for TableRecord<6> {
                 url: scored.openrouter_page(),
             },
             [
-                benchmark_cell(scored.benchmarks.terminal_bench_v4),
-                benchmark_cell(scored.benchmarks.terminal_bench_v2),
-                benchmark_cell(scored.benchmarks.scicode),
+                Quantity::measured(
+                    scored.engineering_index,
+                    DisplayUnit::Unitless,
+                    ENGINEERING_INDEX_DECIMALS,
+                )
+                .into(),
                 Quantity::spend(scored.input_per_million).into(),
                 Quantity::spend(scored.output_per_million).into(),
                 Quantity::compact_count(scored.context_tokens).into(),
             ],
         )
     }
-}
-
-fn benchmark_cell(score: Option<f64>) -> ValueCell {
-    score.map_or(ValueCell::Blank, |score| {
-        Quantity::share(Ratio::new::<ratio>(score)).into()
-    })
 }
