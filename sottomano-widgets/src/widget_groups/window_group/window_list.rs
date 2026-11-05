@@ -724,14 +724,11 @@ mod tests {
     use crate::{
         clock::Clock,
         desktop_index::DesktopIndex,
-        desktop_panels::{
-            panel_frame::LayerFrameStyle,
-            panel_slot_drag::{
-                DragMessage, PanelSlotContext,
-                pager_drag_simulation::{
-                    SIMULATED_OUTPUT, SIMULATED_WINDOW_IDS, SIMULATED_WORKSPACE_IDS,
-                    dragging_from_start, sweep_across_panel, three_workspaces_three_windows,
-                },
+        desktop_panels::panel_slot_drag::{
+            DragMessage, PanelSlotContext,
+            pager_drag_simulation::{
+                SIMULATED_OUTPUT, SIMULATED_WINDOW_IDS, SIMULATED_WORKSPACE_IDS,
+                dragging_from_start, sweep_across_panel, three_workspaces_three_windows,
             },
         },
         widget_groups::window_group::WindowRowLayout,
@@ -784,7 +781,7 @@ mod tests {
             drag: drag_view,
             clock: Clock::real(),
             panel_corner_radius_px: 0.0,
-            panel_frame_style: LayerFrameStyle::new(&ShellLayer::Panels.default_appearance()),
+            panel_frame_style: ShellLayer::Panels.default_appearance().frame_style(),
             window_row_layout: WindowRowLayout::default(),
         };
         let pager_element = window_list

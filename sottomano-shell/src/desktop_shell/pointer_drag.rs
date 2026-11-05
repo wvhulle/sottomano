@@ -6,10 +6,7 @@ use sottomano_desktop_sources::desktop_windows_apps::niri_window_snapshot;
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     background_work::niri_action,
-    desktop_panels::{
-        panel_frame::LayerFrameStyle,
-        panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick},
-    },
+    desktop_panels::panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick},
     widget_groups::{
         sidebar_settings_group::WorkspacesPlacement, workspaces_group::shown_workspaces,
     },
@@ -48,7 +45,7 @@ impl DesktopShell {
         } else {
             self.widget_groups.panel_settings_group.panel_appearance()
         };
-        DragView::new(&self.pointer_drag, LayerFrameStyle::new(&ghost_layer))
+        DragView::new(&self.pointer_drag, ghost_layer.frame_style())
     }
 
     #[must_use]
@@ -60,7 +57,7 @@ impl DesktopShell {
             drag: self.drag_view(),
             clock: self.clock,
             panel_corner_radius_px: panel_appearance.corner_radius_px,
-            panel_frame_style: LayerFrameStyle::new(&panel_appearance),
+            panel_frame_style: panel_appearance.frame_style(),
             window_row_layout: self.widget_groups.panel_settings_group.window_row_layout(),
         }
     }

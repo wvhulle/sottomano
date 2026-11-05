@@ -6,7 +6,7 @@ use iced::{
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     desktop_panels::{
-        panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
+        panel_frame::{OutlinedSides, outlined_sides_inward_of, panel_frame},
         region_reporter::{RegionRoles, region_reporter},
     },
     hover_cards::HoverTarget,
@@ -130,10 +130,10 @@ impl DesktopShell {
         let outlined_sides = OutlinedSides {
             left: false,
             right: false,
-            ..OutlinedSides::inward_of(position)
+            ..outlined_sides_inward_of(position)
         }
         .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
-        let strip = panel_frame(band, LayerFrameStyle::new(&panels))
+        let strip = panel_frame(band, panels.frame_style())
             .outlined_sides(outlined_sides)
             .blurred(panels.blurred);
         let roles = RegionRoles {
@@ -154,8 +154,8 @@ impl DesktopShell {
             .widget_groups
             .panel_settings_group
             .groups_disconnected();
-        let frame_style = LayerFrameStyle::new(&panels);
-        let outlined_sides = OutlinedSides::inward_of(position)
+        let frame_style = panels.frame_style();
+        let outlined_sides = outlined_sides_inward_of(position)
             .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
         let framed = groups.into_iter().map(|group| {
             if !groups_disconnected {

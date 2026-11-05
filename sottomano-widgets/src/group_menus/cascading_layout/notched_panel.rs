@@ -15,7 +15,7 @@ use iced::{
 };
 
 use crate::{
-    desktop_panels::{panel_frame::LayerFrameStyle, region_reporter::RegionRoles},
+    desktop_panels::{panel_frame::FrameStyle, region_reporter::RegionRoles},
     hover_cards::popup_connector::{ConnectorSide, ConnectorTriangle, FramedSurface},
     widgets::rectangle_morph::RectangleMorph,
 };
@@ -97,7 +97,7 @@ pub struct NotchPlacement {
 
 pub struct NotchedPanel<'a, Message> {
     content: Element<'a, Message>,
-    frame: LayerFrameStyle,
+    frame: FrameStyle,
     corner_radius: f32,
     blurred: bool,
     placement: NotchPlacement,
@@ -108,7 +108,7 @@ pub struct NotchedPanel<'a, Message> {
 #[must_use]
 pub fn notched_panel<'a, Message: 'a>(
     content: Element<'a, Message>,
-    frame: LayerFrameStyle,
+    frame: FrameStyle,
     blurred: bool,
     placement: NotchPlacement,
     morph: Duration,

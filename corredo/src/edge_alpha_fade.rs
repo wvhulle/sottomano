@@ -10,7 +10,7 @@ use iced::{
 };
 use iced_wgpu::primitive::Renderer as _;
 
-use crate::desktop_panels::panel_frame::LayerFrameStyle;
+use crate::frame_style::FrameStyle;
 
 const OVERFLOW_TOLERANCE_PX: f32 = 0.5;
 const RADIUS_FRACTION_SCALE: f32 = 65535.0;
@@ -157,7 +157,7 @@ impl FadedEdge {
 
 #[derive(Debug, Clone, Copy)]
 pub struct ScrollEdgeFade {
-    frame: LayerFrameStyle,
+    frame: FrameStyle,
     extent_px: f32,
     corner_radius_px: f32,
     outline_inset_px: f32,
@@ -165,7 +165,7 @@ pub struct ScrollEdgeFade {
 
 impl ScrollEdgeFade {
     #[must_use]
-    pub fn within_frame(frame: LayerFrameStyle, extent_px: f32) -> Self {
+    pub fn within_frame(frame: FrameStyle, extent_px: f32) -> Self {
         let outline_inset_px = frame.outline_width();
         Self {
             frame,
@@ -176,7 +176,7 @@ impl ScrollEdgeFade {
     }
 
     #[must_use]
-    pub fn away_from_frame(frame: LayerFrameStyle, extent_px: f32) -> Self {
+    pub fn away_from_frame(frame: FrameStyle, extent_px: f32) -> Self {
         Self {
             frame,
             extent_px,
@@ -384,9 +384,7 @@ mod tests {
     use iced::{Color, Rectangle, Size};
 
     use super::{FadedEdge, HiddenScrollEdges, ScrollEdgeFade, premultiplied_blend_constant};
-    use crate::{
-        desktop_panels::panel_frame::LayerFrameStyle, widgets::shell_layer_appearance::ShellLayer,
-    };
+    use crate::frame_style::FrameStyle;
 
     #[test]
     fn restored_fill_is_premultiplied_by_its_alpha() {
@@ -423,7 +421,7 @@ mod tests {
 
     #[test]
     fn a_band_inside_a_frame_keeps_clear_of_the_outline() {
-        let frame = LayerFrameStyle::new(&ShellLayer::Menus.default_appearance());
+        let frame = FrameStyle::default();
         let outline = frame.outline_width();
         assert!(outline > 0.0);
         let bounds = Rectangle::with_size(Size::new(200.0, 300.0));
@@ -446,7 +444,7 @@ mod tests {
 
     #[test]
     fn opposite_bands_never_overlap() {
-        let frame = LayerFrameStyle::new(&ShellLayer::Panels.default_appearance());
+        let frame = FrameStyle::default();
         let bounds = Rectangle::with_size(Size::new(40.0, 24.0));
         let fade = ScrollEdgeFade::away_from_frame(frame, 28.0);
         let left = fade.band_along(FadedEdge::Left, bounds);

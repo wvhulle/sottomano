@@ -1,6 +1,7 @@
 pub use corredo::{
-    child_view, ellipsis_rule, list_end_corners, pressable_text, rectangle_morph, refresh_dial,
-    reveal, rounded_quads, shared_metrics, steady_label_width, svg_icon, uniform_width_column,
+    child_view, edge_alpha_fade, ellipsis_rule, list_end_corners, pressable_text, rectangle_morph,
+    refresh_dial, reveal, rounded_quads, selection_scroller, shared_metrics, steady_label_width,
+    svg_icon, uniform_width_column,
 };
 
 pub mod activity_line;
@@ -11,7 +12,6 @@ pub mod appearance_presets;
 pub mod configured_theme;
 pub mod content_sized_table;
 pub mod context_menu;
-pub mod edge_alpha_fade;
 pub mod fair_widths;
 pub mod favicon;
 pub mod hardware_section;
@@ -32,7 +32,6 @@ pub mod most_used_model;
 pub mod ongoing_toast;
 pub mod phosphor;
 pub mod pointer_drag;
-pub mod selection_scroller;
 pub mod shell_layer_appearance;
 pub mod simple_icons;
 pub mod spend_forecast_basis;

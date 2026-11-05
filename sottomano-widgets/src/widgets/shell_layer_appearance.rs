@@ -1,5 +1,7 @@
 use core::f32::consts::FRAC_1_SQRT_2;
 
+pub use corredo::frame_style::{FrameBackground, FrameStyle, OutlineStyle, ShadowStyle};
+
 const LOOK_MATCH_TOLERANCE: f32 = 0.005;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,23 +32,16 @@ impl ShellLayer {
                 ..LayerAppearance::default()
             },
             Self::Menus => LayerAppearance {
-                background: LayerBackground::Weak,
+                background: FrameBackground::Weak,
                 ..Self::Overlays.default_appearance()
             },
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum LayerBackground {
-    #[default]
-    Base,
-    Weak,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LayerAppearance {
-    pub background: LayerBackground,
+    pub background: FrameBackground,
     pub opacity: f32,
     pub corner_radius_px: f32,
     pub blurred: bool,
@@ -57,7 +52,7 @@ pub struct LayerAppearance {
 impl Default for LayerAppearance {
     fn default() -> Self {
         Self {
-            background: LayerBackground::Base,
+            background: FrameBackground::Base,
             opacity: 0.8,
             corner_radius_px: 8.0,
             blurred: true,
@@ -68,6 +63,18 @@ impl Default for LayerAppearance {
 }
 
 impl LayerAppearance {
+    #[must_use]
+    pub fn frame_style(&self) -> FrameStyle {
+        FrameStyle {
+            background: self.background,
+            opacity: self.opacity,
+            corner_radius_px: self.corner_radius_px,
+            shadow: self.shadow,
+            outline: self.outline,
+            ..FrameStyle::default()
+        }
+    }
+
     #[must_use]
     pub fn with_background_faded(self, fade_level: f32) -> Self {
         let remaining = 1.0 - fade_level;
@@ -98,38 +105,6 @@ impl LayerAppearance {
             && close(self.shadow.opacity, other.shadow.opacity)
             && self.outline.drawn == other.outline.drawn
             && close(self.outline.opacity, other.outline.opacity)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ShadowStyle {
-    pub cast: bool,
-    pub softness_px: f32,
-    pub opacity: f32,
-}
-
-impl Default for ShadowStyle {
-    fn default() -> Self {
-        Self {
-            cast: true,
-            softness_px: 20.0,
-            opacity: 0.3,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct OutlineStyle {
-    pub drawn: bool,
-    pub opacity: f32,
-}
-
-impl Default for OutlineStyle {
-    fn default() -> Self {
-        Self {
-            drawn: true,
-            opacity: 1.0,
-        }
     }
 }
 

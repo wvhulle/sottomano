@@ -14,10 +14,7 @@ use iced::{
 use sottomano_toml_config::{Config, screen_edges::Position};
 
 use crate::{
-    desktop_panels::{
-        panel_frame::LayerFrameStyle,
-        region_reporter::{RegionRoles, report_input_across},
-    },
+    desktop_panels::region_reporter::{RegionRoles, report_input_across},
     group_menus::cascading_layout::{
         cascade_row::{CascadeDirection, CascadeOrientation},
         notched_panel::PanelGrowth,
@@ -484,7 +481,7 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPo
         if box_bounds.width <= 0.0 || box_bounds.height <= 0.0 {
             return;
         }
-        let frame = LayerFrameStyle::new(&self.appearance_over(box_bounds));
+        let frame = self.appearance_over(box_bounds).frame_style();
         state.connector.translated(origin).draw_framed_surface(
             renderer,
             theme,

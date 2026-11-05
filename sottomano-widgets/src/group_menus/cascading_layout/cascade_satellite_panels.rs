@@ -2,7 +2,7 @@ use iced::{Element, border::Radius, time::Duration};
 use sottomano_toml_config::Config;
 
 use crate::{
-    desktop_panels::panel_frame::LayerFrameStyle,
+    desktop_panels::panel_frame::FrameStyle,
     group_menus::{
         cascading_layout::{
             cascade_row::{CascadeDirection, CascadeOrientation},
@@ -18,16 +18,16 @@ use crate::{
 
 #[derive(Clone, Copy)]
 struct PanelSurface {
-    frame: LayerFrameStyle,
+    frame: FrameStyle,
     blurred: bool,
 }
 
 pub(crate) struct CascadeSatellitePanels {
     notch_side: NotchSide,
     pub growth: PanelGrowth,
-    list_frame: LayerFrameStyle,
+    list_frame: FrameStyle,
     list_blurred: bool,
-    card_frame: LayerFrameStyle,
+    card_frame: FrameStyle,
     card_blurred: bool,
     morph: Duration,
     pub frame_corners: Radius,
@@ -47,9 +47,9 @@ impl CascadeSatellitePanels {
                 CascadeDirection::Rightward => NotchSide::Left,
                 CascadeDirection::Leftward => NotchSide::Right,
             },
-            list_frame: LayerFrameStyle::new(menu_appearance),
+            list_frame: menu_appearance.frame_style(),
             list_blurred: menu_appearance.blurred,
-            card_frame: LayerFrameStyle::new(card_appearance),
+            card_frame: card_appearance.frame_style(),
             card_blurred: card_appearance.blurred,
             morph: config.overlay_surfaces.surface_morph_duration,
             frame_corners: Radius::from(menu_appearance.corner_radius_px),

@@ -8,12 +8,9 @@ use sottomano_desktop_sources::desktop_windows_apps::{
     kitty_terminal_windows::WindowProcesses, niri_window_snapshot::Snapshot,
 };
 
-use crate::{
-    desktop_panels::panel_frame::LayerFrameStyle,
-    widgets::{
-        pointer_drag::{ActiveDrag, DragTarget, DragView, DraggedPanelSlot},
-        shell_layer_appearance::ShellLayer,
-    },
+use crate::widgets::{
+    pointer_drag::{ActiveDrag, DragTarget, DragView, DraggedPanelSlot},
+    shell_layer_appearance::ShellLayer,
 };
 
 pub(crate) const SIMULATED_OUTPUT: &str = "simulated-output";
@@ -93,7 +90,7 @@ pub(crate) fn dragging_from_start(dragged_item: DraggedPanelSlot) -> DragView {
             from: 0,
             target: DragTarget::OwnList(0),
         }),
-        ghost_frame: LayerFrameStyle::new(&ShellLayer::Panels.default_appearance()),
+        ghost_frame: ShellLayer::Panels.default_appearance().frame_style(),
     }
 }
 

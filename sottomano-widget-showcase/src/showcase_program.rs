@@ -20,7 +20,7 @@ use sottomano_toml_config::{Config, Palette, screen_edges::Position};
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
-    desktop_panels::panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
+    desktop_panels::panel_frame::{outlined_sides_inward_of, panel_frame},
     group_menus::{
         cascading_layout::cascade_row::CascadeOrientation,
         group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
@@ -494,9 +494,9 @@ impl ShowcaseState {
             Position::Left => self.appearance.sidebar,
             Position::Top | Position::Bottom => self.appearance.panels,
         };
-        let frame_style = LayerFrameStyle::new(&layer);
+        let frame_style = layer.frame_style();
         let outlined_sides =
-            OutlinedSides::inward_of(position).all_when_floating(SHOWCASE_FLOAT_OFFSET_PX);
+            outlined_sides_inward_of(position).all_when_floating(SHOWCASE_FLOAT_OFFSET_PX);
         let framed = self.strip_groups().into_iter().map(|group| {
             let content = match position {
                 Position::Left => container(group),

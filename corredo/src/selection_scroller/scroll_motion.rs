@@ -122,11 +122,11 @@ impl ScrollMotion {
 }
 
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)]
 mod tests {
     use iced::time::{Duration, Instant};
 
     use super::{ScrollFrame, ScrollMotion, ScrollPacing};
-    use crate::clock::Clock;
 
     const TRAVEL_DURATION: Duration = Duration::from_millis(160);
     const EASED: ScrollPacing = ScrollPacing::Eased(TRAVEL_DURATION);
@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn a_new_offset_is_reached_gradually() {
-        let start = Clock::real().instant;
+        let start = Instant::now();
         let mut motion = ScrollMotion::resting_at(0.0, EASED);
         motion.set_target(100.0);
         let _started = motion.advance(frame_at(start));
@@ -160,13 +160,13 @@ mod tests {
     #[test]
     fn a_resting_list_reports_no_movement() {
         let mut motion = ScrollMotion::resting_at(40.0, EASED);
-        assert!(!motion.advance(frame_at(Clock::real().instant)));
+        assert!(!motion.advance(frame_at(Instant::now())));
     }
 
     #[test]
     fn instant_and_zero_length_pacing_apply_at_once() {
         for pacing in [ScrollPacing::Instant, ScrollPacing::Eased(Duration::ZERO)] {
-            let now = Clock::real().instant;
+            let now = Instant::now();
             let mut motion = ScrollMotion::resting_at(0.0, pacing);
             motion.set_target(70.0);
             assert!(motion.advance(frame_at(now)));
@@ -180,12 +180,12 @@ mod tests {
         let mut motion = ScrollMotion::resting_at(0.0, EASED);
         motion.jump_to(70.0);
         assert!(close_to(motion.drawn_offset(), 70.0));
-        assert!(!motion.advance(frame_at(Clock::real().instant)));
+        assert!(!motion.advance(frame_at(Instant::now())));
     }
 
     #[test]
     fn hover_stays_on_the_same_content_until_the_scroll_settles() {
-        let start = Clock::real().instant;
+        let start = Instant::now();
         let mut motion = ScrollMotion::resting_at(0.0, EASED);
         motion.set_target(100.0);
         let _started = motion.advance(frame_at(start));
@@ -197,7 +197,7 @@ mod tests {
 
     #[test]
     fn retargeting_mid_scroll_keeps_holding_the_first_content() {
-        let start = Clock::real().instant;
+        let start = Instant::now();
         let midway = start + TRAVEL_DURATION / 2;
         let mut motion = ScrollMotion::resting_at(0.0, EASED);
         motion.set_target(100.0);
@@ -210,7 +210,7 @@ mod tests {
 
     #[test]
     fn a_pointer_outside_when_motion_starts_holds_nothing() {
-        let start = Clock::real().instant;
+        let start = Instant::now();
         let mut motion = ScrollMotion::resting_at(0.0, EASED);
         motion.set_target(100.0);
         let _started = motion.advance(ScrollFrame {
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn a_pointer_leaving_mid_scroll_releases_the_hold() {
-        let start = Clock::real().instant;
+        let start = Instant::now();
         let mut motion = ScrollMotion::resting_at(0.0, EASED);
         motion.set_target(100.0);
         let _started = motion.advance(frame_at(start));
@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn a_shrinking_list_clamps_target_drawn_and_held_offsets() {
-        let start = Clock::real().instant;
+        let start = Instant::now();
         let mut motion = ScrollMotion::resting_at(500.0, EASED);
         motion.set_target(800.0);
         let _started = motion.advance(frame_at(start));

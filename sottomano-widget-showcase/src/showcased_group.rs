@@ -17,10 +17,7 @@ use sottomano_toml_config::{
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
-    desktop_panels::{
-        panel_frame::{LayerFrameStyle, OutlinedSides},
-        panel_slot_drag::PanelSlotContext,
-    },
+    desktop_panels::{panel_frame::outlined_sides_inward_of, panel_slot_drag::PanelSlotContext},
     group_menus::{
         group_menu_presentation::GroupMenuOpenTrigger, group_menu_state::GroupMenuState,
     },
@@ -100,11 +97,11 @@ fn undragged_slot_context(
         edge,
         drag: DragView {
             drag: None,
-            ghost_frame: LayerFrameStyle::new(&panel_appearance),
+            ghost_frame: panel_appearance.frame_style(),
         },
         clock,
         panel_corner_radius_px: panel_appearance.corner_radius_px,
-        panel_frame_style: LayerFrameStyle::new(&panel_appearance),
+        panel_frame_style: panel_appearance.frame_style(),
         window_row_layout,
     }
 }
@@ -315,10 +312,13 @@ impl ShowcasedNiriSession {
             SHOWCASE_OUTPUT,
             Some(&configured_in_fixture_order(&self.snapshot)),
             &EmptyWorkspaceFolding::new(EmptyWorkspaces::Shown),
-            LayerFrameStyle::new(&ShellLayer::Sidebar.default_appearance()).drawn_corners(
-                OutlinedSides::inward_of(Position::Left)
-                    .all_when_floating(SHOWCASE_FLOAT_OFFSET_PX),
-            ),
+            ShellLayer::Sidebar
+                .default_appearance()
+                .frame_style()
+                .drawn_corners(
+                    outlined_sides_inward_of(Position::Left)
+                        .all_when_floating(SHOWCASE_FLOAT_OFFSET_PX),
+                ),
             undragged_slot_context(config, Position::Left, clock, self.window_row_layout),
         )
         .map(|workspaces| workspaces.map(ShowcaseMessage::from))

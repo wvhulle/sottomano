@@ -388,7 +388,7 @@ mod tests {
         hover_cards::HoverTarget,
         widget_groups::panel_settings_group::PanelSettingsTarget,
         widgets::shell_layer_appearance::{
-            LayerAppearance, LayerBackground, OutlineStyle, ShadowStyle, ShellLayer,
+            FrameBackground, LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer,
         },
     };
 
@@ -417,13 +417,13 @@ mod tests {
         let _ = menus.update(AppearanceMessage::Loaded(
             ShellLayer::Overlays.default_appearance(),
         ));
-        assert_eq!(menus.appearance().background, LayerBackground::Weak);
+        assert_eq!(menus.appearance().background, FrameBackground::Weak);
     }
 
     #[test]
     fn a_loaded_appearance_reads_back_unchanged() {
         let loaded = LayerAppearance {
-            background: LayerBackground::Base,
+            background: FrameBackground::Base,
             opacity: 0.5,
             corner_radius_px: 3.0,
             blurred: false,

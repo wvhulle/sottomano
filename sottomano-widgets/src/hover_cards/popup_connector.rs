@@ -12,7 +12,7 @@ use iced::{
 };
 use sottomano_toml_config::screen_edges::Position;
 
-use crate::desktop_panels::panel_frame::LayerFrameStyle;
+use crate::desktop_panels::panel_frame::FrameStyle;
 
 const BASE_HALF_WIDTH_PX: f32 = 4.0;
 const SHOULDER_PX: f32 = BASE_HALF_WIDTH_PX;
@@ -26,7 +26,7 @@ const CORNER_ARC_SHARE_FOR_SHOULDER: f32 = 0.3;
 
 #[derive(Debug, Clone, Copy)]
 pub struct FramedSurface {
-    pub frame: LayerFrameStyle,
+    pub frame: FrameStyle,
     pub bounds: Rectangle,
     pub corners: Radius,
     pub shadow: Shadow,
