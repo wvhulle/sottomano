@@ -4,6 +4,7 @@ use iced::{
     Color, Element, Rectangle,
     advanced::{Renderer as _, renderer},
     border,
+    border::{Border, Radius},
 };
 
 use crate::theme_colors::ThemedColor;
@@ -22,6 +23,24 @@ pub struct SlotGroup<'a, Message> {
 pub struct SlotTileInset {
     pub thickness: f32,
     pub enclosure_radius: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(super) struct TileNeighbours {
+    pub(super) leading: bool,
+    pub(super) trailing: bool,
+}
+
+fn tile_quad(bounds: Rectangle, corners: Radius) -> renderer::Quad {
+    renderer::Quad {
+        bounds,
+        border: Border {
+            radius: corners,
+            ..Border::default()
+        },
+        snap: true,
+        ..renderer::Quad::default()
+    }
 }
 
 impl SlotTileInset {
@@ -45,17 +64,34 @@ impl SlotTileInset {
         (self.enclosure_radius - self.thickness).max(0.0)
     }
 
-    fn tile_quad(self, bounds: Rectangle) -> renderer::Quad {
-        renderer::Quad {
-            bounds,
-            border: border::rounded(self.inner_radius()),
-            snap: true,
-            ..renderer::Quad::default()
+    fn joined_tile_corners(
+        self,
+        along_vertical_edge: bool,
+        tile_neighbours: TileNeighbours,
+    ) -> Radius {
+        let rounded = Radius::from(self.inner_radius());
+        let leading_joined = match (tile_neighbours.leading, along_vertical_edge) {
+            (false, _) => rounded,
+            (true, false) => rounded.left(0.0),
+            (true, true) => rounded.top(0.0),
+        };
+        match (tile_neighbours.trailing, along_vertical_edge) {
+            (false, _) => leading_joined,
+            (true, false) => leading_joined.right(0.0),
+            (true, true) => leading_joined.bottom(0.0),
         }
     }
 
-    pub(super) fn tile_on_slot(self, along_vertical_edge: bool, slot: Rectangle) -> renderer::Quad {
-        self.tile_quad(self.inner_surface(along_vertical_edge, slot))
+    pub(super) fn tile_on_slot(
+        self,
+        along_vertical_edge: bool,
+        slot: Rectangle,
+        tile_neighbours: TileNeighbours,
+    ) -> renderer::Quad {
+        tile_quad(
+            self.inner_surface(along_vertical_edge, slot),
+            self.joined_tile_corners(along_vertical_edge, tile_neighbours),
+        )
     }
 }
 
@@ -114,23 +150,34 @@ impl SlotGroupFrame {
             },
             enclosure_color,
         );
-        renderer.fill_quad(self.tile_inset.tile_quad(self.inner_surface), inner_color);
+        renderer.fill_quad(
+            tile_quad(self.inner_surface, self.tile_inset.inner_radius().into()),
+            inner_color,
+        );
     }
 
-    pub(super) fn highlight_inside(&self, slot: Rectangle) -> renderer::Quad {
+    pub(super) fn highlight_inside(
+        &self,
+        slot: Rectangle,
+        tile_neighbours: TileNeighbours,
+    ) -> renderer::Quad {
         let bounds = self
             .inner_surface
             .intersection(&slot)
             .unwrap_or(self.inner_surface);
-        self.tile_inset.tile_quad(bounds)
+        tile_quad(
+            bounds,
+            self.tile_inset
+                .joined_tile_corners(self.along_vertical_edge, tile_neighbours),
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use iced::Rectangle;
+    use iced::{Rectangle, border::Radius};
 
-    use super::{SlotGroupFrame, SlotTileInset};
+    use super::{SlotGroupFrame, SlotTileInset, TileNeighbours};
 
     const TILE_INSET: SlotTileInset = SlotTileInset {
         thickness: 3.0,
@@ -150,8 +197,9 @@ mod tests {
             WINDOW_SLOT,
             TILE_INSET,
         );
-        let grouped_tile = frame.highlight_inside(WINDOW_SLOT);
-        let ungrouped_tile = TILE_INSET.tile_on_slot(along_vertical_edge, WINDOW_SLOT);
+        let grouped_tile = frame.highlight_inside(WINDOW_SLOT, TileNeighbours::default());
+        let ungrouped_tile =
+            TILE_INSET.tile_on_slot(along_vertical_edge, WINDOW_SLOT, TileNeighbours::default());
         assert_eq!(ungrouped_tile.bounds, grouped_tile.bounds);
         assert_eq!(ungrouped_tile.border, grouped_tile.border);
         assert_eq!(ungrouped_tile.snap, grouped_tile.snap);
@@ -165,5 +213,63 @@ mod tests {
     #[test]
     fn ungrouped_tile_matches_grouped_tile_on_vertical_panels() {
         assert_tiles_match_across_grouping(true);
+    }
+
+    #[test]
+    fn tile_without_neighbours_keeps_every_inner_corner() {
+        let corners = TILE_INSET.joined_tile_corners(false, TileNeighbours::default());
+        assert_eq!(corners, Radius::from(5.0));
+    }
+
+    #[test]
+    fn horizontal_tile_squares_the_side_facing_each_neighbour() {
+        let leading_only = TileNeighbours {
+            leading: true,
+            trailing: false,
+        };
+        let trailing_only = TileNeighbours {
+            leading: false,
+            trailing: true,
+        };
+        assert_eq!(
+            TILE_INSET.joined_tile_corners(false, leading_only),
+            Radius::default().right(5.0)
+        );
+        assert_eq!(
+            TILE_INSET.joined_tile_corners(false, trailing_only),
+            Radius::default().left(5.0)
+        );
+    }
+
+    #[test]
+    fn vertical_tile_squares_the_side_facing_each_neighbour() {
+        let leading_only = TileNeighbours {
+            leading: true,
+            trailing: false,
+        };
+        let trailing_only = TileNeighbours {
+            leading: false,
+            trailing: true,
+        };
+        assert_eq!(
+            TILE_INSET.joined_tile_corners(true, leading_only),
+            Radius::default().bottom(5.0)
+        );
+        assert_eq!(
+            TILE_INSET.joined_tile_corners(true, trailing_only),
+            Radius::default().top(5.0)
+        );
+    }
+
+    #[test]
+    fn tile_between_two_neighbours_has_no_rounded_corners() {
+        let both_sides = TileNeighbours {
+            leading: true,
+            trailing: true,
+        };
+        assert_eq!(
+            TILE_INSET.joined_tile_corners(false, both_sides),
+            Radius::default()
+        );
     }
 }
