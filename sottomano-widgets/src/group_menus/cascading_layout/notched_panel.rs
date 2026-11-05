@@ -1,5 +1,6 @@
 use std::{cell::Cell, rc::Rc, slice};
 
+pub use corredo::popup_cascade::PanelGrowth;
 use iced::{
     Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{
@@ -24,12 +25,6 @@ use crate::{
 pub enum NotchSide {
     Left,
     Right,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PanelGrowth {
-    Downward,
-    Upward,
 }
 
 #[derive(Debug, Clone, Default)]

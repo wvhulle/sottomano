@@ -10,9 +10,8 @@ use iced::{
     border::Radius,
     widget::canvas::{Frame, Path, Stroke},
 };
-use sottomano_toml_config::screen_edges::Position;
 
-use crate::desktop_panels::panel_frame::FrameStyle;
+use crate::frame_style::FrameStyle;
 
 const BASE_HALF_WIDTH_PX: f32 = 4.0;
 const SHOULDER_PX: f32 = BASE_HALF_WIDTH_PX;
@@ -38,16 +37,6 @@ pub enum ConnectorSide {
     Bottom,
     Left,
     Right,
-}
-
-impl From<Position> for ConnectorSide {
-    fn from(position: Position) -> Self {
-        match position {
-            Position::Top => ConnectorSide::Top,
-            Position::Bottom => ConnectorSide::Bottom,
-            Position::Left => ConnectorSide::Left,
-        }
-    }
 }
 
 pub struct ConnectorTriangle {
