@@ -1,7 +1,5 @@
-use iced::{
-    Color, Element, Theme,
-    widget::{progress_bar, stack},
-};
+use corredo::fill_gauge::FillGauge;
+use iced::{Element, Theme};
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{
@@ -10,13 +8,7 @@ use uom::{
     },
 };
 
-use crate::{
-    group_items::reading_display_state::ReadingStateTint,
-    widgets::{
-        configured_theme::{background_strong_color, secondary_text_color},
-        shared_metrics::{ACCENT_STROKE_PX, pill_corners},
-    },
-};
+use crate::group_items::reading_display_state::ReadingStateTint;
 
 #[allow(clippy::cast_precision_loss)]
 #[must_use]
@@ -52,24 +44,6 @@ impl Gauge {
         self.live = live;
         self
     }
-
-    fn vertical_bar<'a, Message: 'a>(
-        &self,
-        reach: f32,
-        track_color: impl Fn(&Theme) -> Color + 'a,
-        bar_color: impl Fn(&Theme) -> Color + 'a,
-    ) -> Element<'a, Message> {
-        progress_bar(0.0..=1.0, reach)
-            .vertical()
-            .length(self.height)
-            .girth(ACCENT_STROKE_PX)
-            .style(move |theme: &Theme| progress_bar::Style {
-                background: track_color(theme).into(),
-                bar: bar_color(theme).into(),
-                border: pill_corners(ACCENT_STROKE_PX),
-            })
-            .into()
-    }
 }
 
 #[allow(clippy::cast_possible_truncation)]
@@ -79,17 +53,13 @@ fn bar_reach(fill: Ratio) -> f32 {
 
 impl<'a, Message: 'a> From<Gauge> for Element<'a, Message> {
     fn from(gauge: Gauge) -> Self {
-        let reach = bar_reach(gauge.fill);
-        let live_reach = bar_reach(gauge.live).min(reach);
         let tint = gauge.tint;
-        stack![
-            gauge.vertical_bar(reach, background_strong_color, secondary_text_color),
-            gauge.vertical_bar(
-                live_reach,
-                |_: &Theme| Color::TRANSPARENT,
-                move |theme: &Theme| tint.color(theme),
-            ),
-        ]
+        FillGauge::new(
+            bar_reach(gauge.fill),
+            move |theme: &Theme| tint.color(theme),
+            gauge.height,
+        )
+        .live(bar_reach(gauge.live))
         .into()
     }
 }

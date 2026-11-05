@@ -1,4 +1,4 @@
-use iced::{Border, Padding, border};
+use iced::{Border, Padding, advanced::text::LineHeight, border};
 
 pub const OUTLINE_WIDTH_PX: f32 = 1.0;
 pub const ACCENT_STROKE_PX: f32 = 2.0;
@@ -15,5 +15,4 @@ pub const PRESSABLE_OUTLINE_PADDING: Padding = Padding {
 pub fn pill_corners(thickness: f32) -> Border {
     border::rounded(thickness / 2.0)
 }
-pub const LINE_HEIGHT: iced::advanced::text::LineHeight =
-    iced::advanced::text::LineHeight::Relative(1.1);
+pub const LINE_HEIGHT: LineHeight = LineHeight::Relative(1.1);

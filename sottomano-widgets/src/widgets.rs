@@ -47,19 +47,10 @@ pub mod window_title;
 
 pub const DISABLED_ALPHA: f32 = 0.4;
 
+pub use corredo::flat_button::flat_button;
 use iced::{Color, Element, Theme, widget::button};
 
 use crate::widgets::icon_glyph::IconGlyph;
-
-pub fn flat_button<'a>(
-    text_color: impl Fn(&Theme) -> Color + 'a,
-) -> impl Fn(&Theme, button::Status) -> button::Style + 'a {
-    move |theme, _| button::Style {
-        background: None,
-        text_color: text_color(theme),
-        ..button::Style::default()
-    }
-}
 
 pub fn glyph_button<'a, Message: Clone + 'a>(
     glyph: impl Into<IconGlyph>,

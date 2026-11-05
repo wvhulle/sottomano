@@ -1,3 +1,4 @@
+use corredo::marker_track::{MarkerTrack, TrackAxis};
 use iced::{
     Alignment, Border, Color, Element, Length, Theme,
     border::Radius,
@@ -13,7 +14,6 @@ use crate::{
         panel_slot_drag::{PanelSlotContext, SlotClick, SlotPress},
     },
     hover_cards::{HoverTarget, PressHints, hoverable},
-    widget_groups::workspaces_group::marker_track::MarkerTrack,
     widgets::{
         activity_line::edge_activity_line,
         configured_theme::{
@@ -239,7 +239,15 @@ impl<'s> WorkspaceSlot<'s> {
             })
             .chain(incoming)
             .collect();
-        MarkerTrack::new(colors, ACCENT_STROKE_PX, marker_edge)
+        MarkerTrack::new(
+            colors,
+            ACCENT_STROKE_PX,
+            if marker_edge.is_vertical() {
+                TrackAxis::Vertical
+            } else {
+                TrackAxis::Horizontal
+            },
+        )
     }
 
     fn hit_area<'a>(
