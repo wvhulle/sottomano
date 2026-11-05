@@ -1,8 +1,7 @@
-use chrono::{Locale, NaiveDate, TimeDelta, Weekday, WeekdaySet};
-use iced::{
-    Alignment, Element,
-    widget::{Row, button},
-};
+use chrono::{Weekday, WeekdaySet};
+pub use corredo::weekday_picker::weekday_name;
+use corredo::weekday_picker::{WeekdayPickerStyle, weekday_picker as themed_weekday_picker};
+use iced::Element;
 use sottomano_toml_config::Config;
 
 use crate::{
@@ -11,13 +10,8 @@ use crate::{
         toggle_control::SwitchPresses,
     },
     hover_cards::{HoverCardMessage, HoverTarget, PressHints, hoverable},
-    widgets::{
-        flat_button,
-        text::{font_faces_of, panel_text},
-    },
+    widgets::text::{font_faces_of, text_face_of},
 };
-
-const A_MONDAY: NaiveDate = NaiveDate::from_ymd_opt(2024, 1, 1).expect("valid date");
 
 pub struct WeekdayPicker<'c, Message> {
     config: &'c Config,
@@ -50,89 +44,45 @@ impl<'c, Message: Clone> WeekdayPicker<'c, Message> {
             messages,
         }
     }
-
-    fn day<'a>(&self, day: Weekday) -> Element<'a, Message>
-    where
-        Message: 'a,
-    {
-        let chosen = self.chosen.contains(day);
-        let tint = ReadingStateTint {
-            state: ReadingDisplayState::of_toggle(chosen),
-            opacity: self.reveal,
-        };
-        let faces = font_faces_of(&self.config.theme.font);
-        let initial = panel_text(
-            &self.config.theme.font,
-            weekday_initial(day, self.config.calendar.locale),
-        )
-        .font(if chosen { faces.bold } else { faces.regular })
-        .style(tint.text_style());
-        hoverable(
-            button(initial)
-                .padding(0)
-                .style(flat_button(move |theme| tint.color(theme)))
-                .on_press((self.messages.on_toggle)(day))
-                .into(),
-            (self.messages.target)(day),
-            PressHints {
-                left: Some(if chosen {
-                    self.presses.turning_off
-                } else {
-                    self.presses.turning_on
-                }),
-                ..PressHints::default()
-            },
-            self.messages.on_hover_card,
-        )
-    }
 }
 
 impl<'a, Message: 'a + Clone> From<WeekdayPicker<'_, Message>> for Element<'a, Message> {
     fn from(picker: WeekdayPicker<'_, Message>) -> Self {
-        Row::with_children(
-            WeekdaySet::ALL
-                .iter(Weekday::Mon)
-                .map(|day| picker.day(day)),
+        let font = &picker.config.theme.font;
+        let reveal = picker.reveal;
+        let presses = picker.presses;
+        let messages = picker.messages;
+        themed_weekday_picker(
+            picker.chosen,
+            &WeekdayPickerStyle {
+                face: text_face_of(font),
+                faces: font_faces_of(font),
+                spacing_px: picker.config.theme.spacing.item_gap,
+                locale: picker.config.calendar.locale,
+            },
+            move |chosen, theme| {
+                ReadingStateTint {
+                    state: ReadingDisplayState::of_toggle(chosen),
+                    opacity: reveal,
+                }
+                .color(theme)
+            },
+            messages.on_toggle,
+            |day, chosen, day_button| {
+                hoverable(
+                    day_button,
+                    (messages.target)(day),
+                    PressHints {
+                        left: Some(if chosen {
+                            presses.turning_off
+                        } else {
+                            presses.turning_on
+                        }),
+                        ..PressHints::default()
+                    },
+                    messages.on_hover_card,
+                )
+            },
         )
-        .spacing(picker.config.theme.spacing.item_gap)
-        .align_y(Alignment::Center)
-        .into()
-    }
-}
-
-#[must_use]
-pub fn weekday_name(day: Weekday, locale: Locale) -> String {
-    a_date_on(day).format_localized("%A", locale).to_string()
-}
-
-fn weekday_initial(day: Weekday, locale: Locale) -> String {
-    a_date_on(day)
-        .format_localized("%a", locale)
-        .to_string()
-        .chars()
-        .take(1)
-        .flat_map(char::to_uppercase)
-        .collect()
-}
-
-fn a_date_on(day: Weekday) -> NaiveDate {
-    A_MONDAY + TimeDelta::days(i64::from(day.num_days_from_monday()))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn initials_follow_the_locale() {
-        assert_eq!(weekday_initial(Weekday::Wed, Locale::en_US), "W");
-        assert_eq!(weekday_initial(Weekday::Wed, Locale::nl_BE), "W");
-        assert_eq!(weekday_initial(Weekday::Thu, Locale::nl_BE), "D");
-    }
-
-    #[test]
-    fn names_follow_the_locale() {
-        assert_eq!(weekday_name(Weekday::Mon, Locale::en_US), "Monday");
-        assert_eq!(weekday_name(Weekday::Mon, Locale::nl_BE), "maandag");
     }
 }

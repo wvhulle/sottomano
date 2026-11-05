@@ -1287,10 +1287,12 @@ dependencies = [
 name = "corredo"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "iced",
  "iced_test",
  "iced_wgpu",
  "quick-xml 0.42.0",
+ "unicode-segmentation",
 ]
 
 [[package]]

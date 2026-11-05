@@ -13,6 +13,8 @@ pub mod flat_button;
 pub mod font_faces;
 pub mod frame_style;
 pub mod inline_slider;
+#[cfg(feature = "karaoke")]
+pub mod karaoke_line;
 pub mod list_end_corners;
 pub mod marker_track;
 #[cfg(feature = "markup")]
@@ -22,6 +24,8 @@ pub mod rectangle_morph;
 pub mod refresh_dial;
 pub mod reveal;
 pub mod rounded_quads;
+pub mod scroll_steps;
+pub mod seek_bar;
 #[cfg(feature = "wgpu")]
 pub mod selection_scroller;
 pub mod shared_metrics;
@@ -32,4 +36,6 @@ pub mod theme_colors;
 pub mod toggle_switch;
 pub mod transitioning_text;
 pub mod uniform_width_column;
+#[cfg(feature = "chrono")]
+pub mod weekday_picker;
 pub mod widest_readout_text;

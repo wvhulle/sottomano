@@ -1,4 +1,5 @@
 #[allow(clippy::cast_precision_loss)]
+#[must_use]
 pub fn fair_widths(natural_widths: &[f32], room: f32) -> Vec<f32> {
     let mut narrowest_first: Vec<usize> = (0..natural_widths.len()).collect();
     narrowest_first.sort_by(|left, right| natural_widths[*left].total_cmp(&natural_widths[*right]));
