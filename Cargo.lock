@@ -1290,6 +1290,7 @@ dependencies = [
  "iced",
  "iced_test",
  "iced_wgpu",
+ "quick-xml 0.42.0",
 ]
 
 [[package]]

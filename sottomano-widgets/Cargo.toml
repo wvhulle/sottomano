@@ -8,7 +8,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-corredo = { path = "../corredo", features = ["wgpu"] }
+corredo = { path = "../corredo", features = ["markup", "wgpu"] }
 strum.workspace = true
 sottomano-toml-config = { path = "../sottomano-toml-config" }
 sottomano-phosphor-icons = { path = "../sottomano-phosphor-icons" }

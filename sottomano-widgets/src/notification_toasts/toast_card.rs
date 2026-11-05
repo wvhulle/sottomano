@@ -29,7 +29,7 @@ use crate::{
         localized_durations::relative_moment_text,
         shared_metrics::{ACCENT_STROKE_PX, OUTLINE_WIDTH_PX, pill_corners},
         shell_layer_appearance::LayerAppearance,
-        text::{font_faces_of, panel_text},
+        text::{font_faces_of, panel_text, text_face_of},
         typing_under_cards::CardBackgroundFade,
     },
 };
@@ -292,7 +292,7 @@ impl<Routed> ToastCard<'_, Routed> {
 impl<Routed> ToastCard<'_, Routed> {
     fn body(&self, body: &str) -> Element<'static, NotificationMessage> {
         let font = &self.config.theme.font;
-        MarkupBody::new(body, font)
+        MarkupBody::new(body, text_face_of(font))
             .size(font.small_text_size_px)
             .block_spacing(self.config.theme.spacing.item_gap)
             .column_gap(self.config.theme.spacing.group_gap)
