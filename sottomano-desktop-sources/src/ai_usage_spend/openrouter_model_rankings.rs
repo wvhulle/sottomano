@@ -17,34 +17,20 @@ use crate::{
 };
 
 const OPENROUTER_MODELS_URL: &str = "https://openrouter.ai/api/v1/models";
-const ANALYSIS_MODELS_URL: &str = "https://artificialanalysis.ai/api/v2/language/models/free";
+const OPENROUTER_BENCHMARKS_URL: &str = "https://openrouter.ai/api/v1/benchmarks?source=artificial-analysis&task_type=intelligence&max_results=100";
 const OPENROUTER_SITE_URL: &str = "https://openrouter.ai";
 const TOOL_CALLING_PARAMETER: &str = "tools";
 const AGENTIC_MINIMUM_CONTEXT_TOKENS: u64 = 131_072;
-const DATE_SUFFIX_LENGTHS: [usize; 3] = [4, 6, 8];
-const REASONING_EFFORT_VARIANTS: [&str; 10] = [
-    "reasoning",
-    "non-reasoning",
-    "thinking",
-    "minimal",
-    "low",
-    "medium",
-    "high",
-    "xhigh",
-    "max",
-    "adaptive",
-];
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ModelRankingInputs {
-    pub analysis_key: PathBuf,
+    pub management_key: PathBuf,
     pub max_blended_per_million: Decimal,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScoredModel {
     pub model: String,
-    pub engineering_index: f64,
+    pub intelligence_index: f64,
     pub input_per_million: Money,
     pub output_per_million: Money,
     pub context_tokens: u64,
@@ -58,24 +44,15 @@ pub struct OpenRouterModelRankings {
 }
 
 #[derive(Deserialize)]
-struct OpenRouterListing {
-    data: Vec<OpenRouterModel>,
-}
-
-#[derive(Deserialize)]
-struct AnalysisModelPage {
-    pagination: AnalysisPagination,
-    data: Vec<AnalysisModel>,
-}
-
-#[derive(Deserialize)]
-struct AnalysisPagination {
-    has_more: bool,
+struct ModelListing<T> {
+    data: Vec<T>,
 }
 
 #[derive(Deserialize)]
 struct OpenRouterModel {
     id: String,
+    #[serde(default)]
+    canonical_slug: String,
     #[serde(default)]
     context_length: u64,
     pricing: TokenPricing,
@@ -96,16 +73,9 @@ struct TokenPricing {
 }
 
 #[derive(Deserialize)]
-struct AnalysisModel {
-    #[serde(deserialize_with = "comparable_model_name")]
-    slug: String,
-    evaluations: AnalysisEvaluations,
-}
-
-#[derive(Deserialize)]
-struct AnalysisEvaluations {
-    #[serde(rename = "artificial_analysis_engineering_index")]
-    engineering_index: Option<f64>,
+struct ModelBenchmarkRow {
+    model_permaslug: String,
+    intelligence_index: Option<f64>,
 }
 
 impl TokenPricing {
@@ -128,18 +98,14 @@ impl OpenRouterModel {
             && self.context_length >= AGENTIC_MINIMUM_CONTEXT_TOKENS
     }
 
-    fn scored(self, analysis_models: &[AnalysisModel]) -> Option<ScoredModel> {
-        let model_without_provider = self
-            .id
-            .split_once('/')
-            .map_or(self.id.as_str(), |(_, model)| model);
-        let comparable_model = normalized_model_name(model_without_provider);
-        let undated_model = without_trailing_date(&comparable_model);
-        let engineering_index = [comparable_model.as_str(), undated_model]
-            .into_iter()
-            .find_map(|candidate_name| engineering_index_named(candidate_name, analysis_models))?;
+    fn scored(self, benchmark_rows: &[ModelBenchmarkRow]) -> Option<ScoredModel> {
+        let intelligence_index = benchmark_rows
+            .iter()
+            .filter(|benchmark_row| benchmark_row.model_permaslug == self.canonical_slug)
+            .filter_map(|benchmark_row| benchmark_row.intelligence_index)
+            .reduce(f64::max)?;
         Some(ScoredModel {
-            engineering_index,
+            intelligence_index,
             input_per_million: self.pricing.input_per_million,
             output_per_million: self.pricing.output_per_million,
             context_tokens: self.context_length,
@@ -158,7 +124,7 @@ impl ScoredModel {
 impl OpenRouterModelRankings {
     fn ranked(
         openrouter_models: Vec<OpenRouterModel>,
-        analysis_models: &[AnalysisModel],
+        benchmark_rows: &[ModelBenchmarkRow],
         max_blended_per_million: Decimal,
     ) -> Self {
         let mut affordable: Vec<OpenRouterModel> = openrouter_models
@@ -171,10 +137,10 @@ impl OpenRouterModelRankings {
         let affordable_count = affordable.len();
         let mut best_first: Vec<ScoredModel> = affordable
             .into_iter()
-            .filter_map(|model| model.scored(analysis_models))
+            .filter_map(|model| model.scored(benchmark_rows))
             .collect();
         best_first
-            .sort_by(|left, right| right.engineering_index.total_cmp(&left.engineering_index));
+            .sort_by(|left, right| right.intelligence_index.total_cmp(&left.intelligence_index));
         Self {
             max_blended_per_million: usd(max_blended_per_million),
             unscored_count: affordable_count - best_first.len(),
@@ -183,14 +149,19 @@ impl OpenRouterModelRankings {
     }
 
     async fn poll(inputs: ModelRankingInputs) -> Result<Self, Error> {
-        let analysis_key = read_secret(&inputs.analysis_key).ok_or(Error::Secret)?;
-        let (openrouter_listing, analysis_models) = try_join!(
-            http_json_client::get_json::<OpenRouterListing>(OPENROUTER_MODELS_URL, &[]),
-            fetch_all_analysis_models(&analysis_key),
+        let management_key = read_secret(&inputs.management_key).ok_or(Error::Secret)?;
+        let authorization = format!("Bearer {management_key}");
+        let benchmark_headers = [("Authorization", authorization.as_str())];
+        let (openrouter_listing, benchmark_listing) = try_join!(
+            http_json_client::get_json::<ModelListing<OpenRouterModel>>(OPENROUTER_MODELS_URL, &[]),
+            http_json_client::get_json::<ModelListing<ModelBenchmarkRow>>(
+                OPENROUTER_BENCHMARKS_URL,
+                &benchmark_headers,
+            ),
         )?;
         Ok(Self::ranked(
             openrouter_listing.data,
-            &analysis_models,
+            &benchmark_listing.data,
             inputs.max_blended_per_million,
         ))
     }
@@ -216,59 +187,6 @@ impl SnapshotSource for OpenRouterModelRankings {
     }
 }
 
-async fn fetch_all_analysis_models(
-    analysis_key: &str,
-) -> Result<Vec<AnalysisModel>, http_json_client::Error> {
-    let analysis_headers = [("x-api-key", analysis_key)];
-    let mut analysis_models = Vec::new();
-    let mut page_number = 1_u32;
-    loop {
-        let page_url = format!("{ANALYSIS_MODELS_URL}?page={page_number}");
-        let model_page =
-            http_json_client::get_json::<AnalysisModelPage>(&page_url, &analysis_headers).await?;
-        analysis_models.extend(model_page.data);
-        if !model_page.pagination.has_more {
-            return Ok(analysis_models);
-        }
-        page_number += 1;
-    }
-}
-
-fn engineering_index_named(candidate_name: &str, analysis_models: &[AnalysisModel]) -> Option<f64> {
-    analysis_models
-        .iter()
-        .filter(|analysis| {
-            analysis.slug == candidate_name
-                || analysis
-                    .slug
-                    .strip_prefix(candidate_name)
-                    .and_then(|variant| variant.strip_prefix('-'))
-                    .is_some_and(|effort| REASONING_EFFORT_VARIANTS.contains(&effort))
-        })
-        .filter_map(|analysis| analysis.evaluations.engineering_index)
-        .reduce(f64::max)
-}
-
-fn without_trailing_date(model_name: &str) -> &str {
-    match model_name.rsplit_once('-') {
-        Some((undated, date_digits))
-            if DATE_SUFFIX_LENGTHS.contains(&date_digits.len())
-                && date_digits.bytes().all(|byte| byte.is_ascii_digit()) =>
-        {
-            undated
-        }
-        _ => model_name,
-    }
-}
-
-fn normalized_model_name(name: &str) -> String {
-    name.to_lowercase().replace(['.', '_'], "-")
-}
-
-fn comparable_model_name<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
-    String::deserialize(deserializer).map(|name| normalized_model_name(&name))
-}
-
 fn lists_tool_calling<'de, D: Deserializer<'de>>(deserializer: D) -> Result<bool, D::Error> {
     Vec::<String>::deserialize(deserializer).map(|parameters| {
         parameters
@@ -289,67 +207,78 @@ mod tests {
     use super::*;
 
     const OPENROUTER_FIXTURE: &str = r#"{"data":[
-        {"id":"deepseek/deepseek-v4.1-flash","context_length":1048576,
+        {"id":"deepseek/deepseek-v4.1-flash","canonical_slug":"deepseek/deepseek-v4.1-flash-20260601",
+         "context_length":1048576,
          "pricing":{"prompt":"0.0000002","completion":"0.0000008"},
          "supported_parameters":["tools","temperature"]},
-        {"id":"z-ai/glm-5.2","context_length":200000,
+        {"id":"z-ai/glm-5.2","canonical_slug":"z-ai/glm-5.2-20260701","context_length":200000,
          "pricing":{"prompt":"0.0000004","completion":"0.0000016"},
          "supported_parameters":["tools"]},
-        {"id":"tiny/no-tools","context_length":8192,
+        {"id":"tiny/no-tools","canonical_slug":"tiny/no-tools-20260101","context_length":8192,
          "pricing":{"prompt":"0.00000001","completion":"0.00000002"},
          "supported_parameters":["temperature"]},
-        {"id":"deepseek/deepseek-v4.1-flash:free","context_length":1048576,
+        {"id":"deepseek/deepseek-v4.1-flash:free","canonical_slug":"deepseek/deepseek-v4.1-flash-20260601",
+         "context_length":1048576,
          "pricing":{"prompt":"0","completion":"0"},
          "supported_parameters":["tools"]},
-        {"id":"openrouter/auto","context_length":2000000,
+        {"id":"openrouter/auto","canonical_slug":"openrouter/auto","context_length":2000000,
          "pricing":{"prompt":"-1","completion":"-1"},
          "supported_parameters":["tools"]},
-        {"id":"openai/gpt-6.1-terra-pro","context_length":400000,
+        {"id":"openai/gpt-6.1-terra-pro","canonical_slug":"openai/gpt-6.1-terra-pro-20261026",
+         "context_length":400000,
          "pricing":{"prompt":"0.00002","completion":"0.00008"},
          "supported_parameters":["tools"]},
-        {"id":"~z-ai/glm-latest","context_length":200000,
+        {"id":"~z-ai/glm-latest","canonical_slug":"z-ai/glm-5.2-20260701","context_length":200000,
          "pricing":{"prompt":"0.0000004","completion":"0.0000016"},
          "supported_parameters":["tools"]},
-        {"id":"tiny/short-context","context_length":32768,
+        {"id":"tiny/short-context","canonical_slug":"tiny/short-context-20260101","context_length":32768,
          "pricing":{"prompt":"0.0000001","completion":"0.0000001"},
          "supported_parameters":["tools"]},
-        {"id":"deepseek/deepseek-v4-pro-0813","context_length":1048576,
+        {"id":"deepseek/deepseek-v4-pro-0813","canonical_slug":"deepseek/deepseek-v4-pro-20260813",
+         "context_length":1048576,
          "pricing":{"prompt":"0.00000066","completion":"0.00000198"},
          "supported_parameters":["tools"]},
-        {"id":"deepseek/deepseek-v4.1-flash-1017","context_length":1048576,
+        {"id":"deepseek/deepseek-v4.1-flash-1017","canonical_slug":"deepseek/deepseek-v4.1-flash-20261017",
+         "context_length":1048576,
          "pricing":{"prompt":"0.00000015","completion":"0.0000006"},
          "supported_parameters":["tools"]},
-        {"id":"obscure/never-evaluated","context_length":262144,
+        {"id":"obscure/low-scoring","canonical_slug":"obscure/low-scoring-20260101","context_length":262144,
          "pricing":{"prompt":"0.0000001","completion":"0.0000001"},
          "supported_parameters":["tools"]},
-        {"id":"obscure/low-scoring","context_length":262144,
+        {"id":"obscure/similar-slug","canonical_slug":"obscure/similar-slug-20260101","context_length":262144,
          "pricing":{"prompt":"0.0000001","completion":"0.0000001"},
          "supported_parameters":["tools"]},
-        {"id":"obscure/null-index","context_length":262144,
+        {"id":"obscure/no-canonical-slug","context_length":262144,
+         "pricing":{"prompt":"0.0000001","completion":"0.0000001"},
+         "supported_parameters":["tools"]},
+        {"id":"obscure/null-index","canonical_slug":"obscure/null-index-20260101","context_length":262144,
+         "pricing":{"prompt":"0.0000001","completion":"0.0000001"},
+         "supported_parameters":["tools"]},
+        {"id":"obscure/no-benchmark-row","canonical_slug":"obscure/no-benchmark-row-20260101","context_length":262144,
          "pricing":{"prompt":"0.0000001","completion":"0.0000001"},
          "supported_parameters":["tools"]}
     ]}"#;
 
-    const ANALYSIS_FIXTURE: &str = r#"{"tier":"free","pagination":{"page":1,"page_size":200,"total_pages":1,"has_more":false},"data":[
-        {"slug":"deepseek-v4-1-flash-reasoning","evaluations":{"artificial_analysis_engineering_index":61.5}},
-        {"slug":"deepseek-v4-1-flash-non-reasoning","evaluations":{"artificial_analysis_engineering_index":48.0}},
-        {"slug":"deepseek-v4-pro","evaluations":{"artificial_analysis_engineering_index":14.0}},
-        {"slug":"deepseek-v4-pro-0424","evaluations":{"artificial_analysis_engineering_index":50.0}},
-        {"slug":"deepseek-v4-1-flash-1017","evaluations":{"artificial_analysis_engineering_index":33.8}},
-        {"slug":"glm-5-2","evaluations":{"artificial_analysis_engineering_index":64.2}},
-        {"slug":"glm-5-2-1-pro","evaluations":{"artificial_analysis_engineering_index":90.0}},
-        {"slug":"gpt-6-1-terra-pro","evaluations":{"artificial_analysis_engineering_index":80.0}},
-        {"slug":"low-scoring","evaluations":{"artificial_analysis_engineering_index":3.1}},
-        {"slug":"null-index","evaluations":{"artificial_analysis_engineering_index":null}}
-    ]}"#;
+    const BENCHMARK_FIXTURE: &str = r#"{"data":[
+        {"source":"artificial-analysis","model_permaslug":"deepseek/deepseek-v4.1-flash-20260601","intelligence_index":48.0},
+        {"source":"artificial-analysis","model_permaslug":"deepseek/deepseek-v4.1-flash-20260601","intelligence_index":61.5},
+        {"source":"artificial-analysis","model_permaslug":"deepseek/deepseek-v4.1-flash-20261017","intelligence_index":33.8},
+        {"source":"artificial-analysis","model_permaslug":"deepseek/deepseek-v4-pro-20260813","intelligence_index":14.0},
+        {"source":"artificial-analysis","model_permaslug":"z-ai/glm-5.2-20260701","intelligence_index":64.2},
+        {"source":"artificial-analysis","model_permaslug":"openai/gpt-6.1-terra-pro-20261026","intelligence_index":80.0},
+        {"source":"artificial-analysis","model_permaslug":"obscure/low-scoring-20260101","intelligence_index":3.1},
+        {"source":"artificial-analysis","model_permaslug":"obscure/similar-slug-20260102","intelligence_index":90.0},
+        {"source":"artificial-analysis","model_permaslug":"obscure/null-index-20260101","intelligence_index":null}
+    ],"meta":{"model_count":9,"version":"v1"}}"#;
 
     fn fixture_rankings(max_blended_per_million: Decimal) -> OpenRouterModelRankings {
-        let openrouter_listing: OpenRouterListing =
+        let openrouter_listing: ModelListing<OpenRouterModel> =
             serde_json::from_str(OPENROUTER_FIXTURE).unwrap();
-        let analysis_page: AnalysisModelPage = serde_json::from_str(ANALYSIS_FIXTURE).unwrap();
+        let benchmark_listing: ModelListing<ModelBenchmarkRow> =
+            serde_json::from_str(BENCHMARK_FIXTURE).unwrap();
         OpenRouterModelRankings::ranked(
             openrouter_listing.data,
-            &analysis_page.data,
+            &benchmark_listing.data,
             max_blended_per_million,
         )
     }
@@ -370,12 +299,12 @@ mod tests {
             .unwrap()
     }
 
-    fn assert_engineering_index(scored: &ScoredModel, expected_index: f64) {
-        assert!(scored.engineering_index.total_cmp(&expected_index).is_eq());
+    fn assert_intelligence_index(scored: &ScoredModel, expected_index: f64) {
+        assert!(scored.intelligence_index.total_cmp(&expected_index).is_eq());
     }
 
     #[test]
-    fn models_rank_by_engineering_index_and_null_counts_as_unscored() {
+    fn models_rank_by_intelligence_index_within_the_agentic_filter() {
         let rankings = fixture_rankings(Decimal::from(2));
         assert_eq!(
             ranked_names(&rankings),
@@ -387,41 +316,40 @@ mod tests {
                 "obscure/low-scoring"
             ]
         );
-        assert_eq!(rankings.unscored_count, 2);
     }
 
     #[test]
-    fn reasoning_variant_scores_its_base_model() {
+    fn models_without_a_usable_benchmark_count_as_unscored() {
+        let rankings = fixture_rankings(Decimal::from(2));
+        assert_eq!(rankings.unscored_count, 4);
+        let ranked = ranked_names(&rankings);
+        assert!(!ranked.contains(&"obscure/similar-slug"));
+        assert!(!ranked.contains(&"obscure/no-canonical-slug"));
+        assert!(!ranked.contains(&"obscure/null-index"));
+        assert!(!ranked.contains(&"obscure/no-benchmark-row"));
+    }
+
+    #[test]
+    fn highest_row_wins_when_a_slug_has_several() {
         let rankings = fixture_rankings(Decimal::from(2));
         let flash = scored_model(&rankings, "deepseek/deepseek-v4.1-flash");
-        assert_engineering_index(flash, 61.5);
+        assert_intelligence_index(flash, 61.5);
         assert_eq!(flash.input_per_million, usd(Decimal::new(2, 1)));
         assert_eq!(flash.output_per_million, usd(Decimal::new(8, 1)));
         assert_eq!(flash.context_tokens, 1_048_576);
-        let glm = scored_model(&rankings, "z-ai/glm-5.2");
-        assert_engineering_index(glm, 64.2);
     }
 
     #[test]
-    fn dated_snapshot_prefers_its_own_entry_then_the_undated_one() {
+    fn dated_canonical_slug_selects_its_own_snapshot() {
         let rankings = fixture_rankings(Decimal::from(2));
         let flash_snapshot = scored_model(&rankings, "deepseek/deepseek-v4.1-flash-1017");
-        assert_engineering_index(flash_snapshot, 33.8);
+        assert_intelligence_index(flash_snapshot, 33.8);
         let pro_snapshot = scored_model(&rankings, "deepseek/deepseek-v4-pro-0813");
-        assert_engineering_index(pro_snapshot, 14.0);
+        assert_intelligence_index(pro_snapshot, 14.0);
         assert_eq!(
             pro_snapshot.openrouter_page(),
             "https://openrouter.ai/deepseek/deepseek-v4-pro-0813"
         );
-    }
-
-    #[test]
-    fn analysis_page_reports_whether_more_pages_follow() {
-        let continuing_page: AnalysisModelPage =
-            serde_json::from_str(r#"{"pagination":{"has_more":true},"data":[]}"#).unwrap();
-        assert!(continuing_page.pagination.has_more);
-        let final_page: AnalysisModelPage = serde_json::from_str(ANALYSIS_FIXTURE).unwrap();
-        assert!(!final_page.pagination.has_more);
     }
 
     #[test]

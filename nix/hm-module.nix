@@ -68,8 +68,12 @@ in
         description = ''
           Path to a file containing an OpenRouter **management** key as plain
           text. A regular API key is not enough: the usage widget calls
-          `/analytics/query`, which only management keys may access. Symlinked
-          into ~/.config/sottomano/, where the bar looks for it. When unset, the
+          `/analytics/query`, which only management keys may access. The same key
+          ranks the OpenRouter models with tool calls and at least 128k context
+          that cost at most
+          `settings.widget_groups.openrouter_credit.max_blended_usd_per_million`
+          by their Intelligence Index from OpenRouter's benchmarks. Symlinked into
+          ~/.config/sottomano/, where the bar looks for it. When unset, the
           OpenRouter pill is hidden.
         '';
       };
@@ -125,20 +129,6 @@ in
           Tailscale access hover card reads the tailnet policy file with it.
           Symlinked into ~/.config/sottomano/. When unset, the hover card shows
           only what the local client knows.
-        '';
-      };
-
-      "artificial-analysis-api-key" = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
-        default = null;
-        description = ''
-          Path to a file holding a free Artificial Analysis API key
-          (https://artificialanalysis.ai) as plain text. The OpenRouter group
-          ranks the OpenRouter models with tool calls and at least 128k context
-          that cost at most
-          `settings.widget_groups.openrouter_credit.max_blended_usd_per_million`
-          by their Engineering Index from Artificial Analysis. Symlinked into
-          ~/.config/sottomano/. When unset, the ranking pill is hidden.
         '';
       };
 
@@ -228,12 +218,6 @@ in
       "sottomano/unsplash-access-key" = lib.mkIf (cfg.secretFiles."unsplash-access-key" != null) {
         source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."unsplash-access-key";
       };
-
-      "sottomano/artificial-analysis-api-key" =
-        lib.mkIf (cfg.secretFiles."artificial-analysis-api-key" != null)
-          {
-            source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."artificial-analysis-api-key";
-          };
 
       "sottomano/tailscale-api-token" = lib.mkIf (cfg.secretFiles."tailscale-api-token" != null) {
         source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."tailscale-api-token";

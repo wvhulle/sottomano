@@ -20,8 +20,8 @@ use crate::{
 };
 
 const LISTED_MODELS: usize = 16;
-const ENGINEERING_INDEX_DECIMALS: u8 = 1;
-const ANALYSIS_LEADERBOARD_URL: &str = "https://artificialanalysis.ai/models";
+const INTELLIGENCE_INDEX_DECIMALS: u8 = 1;
+const OPENROUTER_RANKINGS_URL: &str = "https://openrouter.ai/rankings";
 const OPENROUTER_TOOL_MODELS_URL: &str = "https://openrouter.ai/models?supported_parameters=tools";
 
 impl GroupItemReading for OpenRouterModelRankings {
@@ -48,7 +48,7 @@ impl GroupItemReading for OpenRouterModelRankings {
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let ranking_table = Section::column_table(
             [
-                ColumnHeading::titled("Engineering"),
+                ColumnHeading::titled("Intelligence"),
                 ColumnHeading::titled("In/Mtok"),
                 ColumnHeading::titled("Out/Mtok"),
                 ColumnHeading::titled("Context"),
@@ -63,11 +63,11 @@ impl GroupItemReading for OpenRouterModelRankings {
                 "Tool-Capable Models ≤ {} Blended",
                 spend_text(&self.max_blended_per_million)
             ),
-            "Engineering Index via Artificial Analysis; OpenRouter prices",
+            "Intelligence Index from Artificial Analysis via OpenRouter; OpenRouter prices",
         ));
         let unscored_note = (self.unscored_count > 0).then(|| {
             Section::note(format!(
-                "{} affordable models have no Engineering Index on Artificial Analysis",
+                "{} affordable models have no Intelligence Index on OpenRouter",
                 self.unscored_count
             ))
         });
@@ -75,8 +75,8 @@ impl GroupItemReading for OpenRouterModelRankings {
             LabeledValue::new(
                 "Benchmarks",
                 ValueCell::Link {
-                    label: "Artificial Analysis".to_owned(),
-                    url: ANALYSIS_LEADERBOARD_URL.to_owned(),
+                    label: "OpenRouter rankings".to_owned(),
+                    url: OPENROUTER_RANKINGS_URL.to_owned(),
                 },
             ),
             LabeledValue::new(
@@ -110,9 +110,9 @@ impl From<&ScoredModel> for TableRecord<4> {
             },
             [
                 Quantity::measured(
-                    scored.engineering_index,
+                    scored.intelligence_index,
                     DisplayUnit::Unitless,
-                    ENGINEERING_INDEX_DECIMALS,
+                    INTELLIGENCE_INDEX_DECIMALS,
                 )
                 .into(),
                 Quantity::spend(scored.input_per_million).into(),
