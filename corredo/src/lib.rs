@@ -1,4 +1,5 @@
 pub mod activity_line;
+pub mod anchored_popup;
 pub mod child_view;
 pub mod confirm_button;
 pub mod content_sized_table;
@@ -19,6 +20,9 @@ pub mod list_end_corners;
 pub mod marker_track;
 #[cfg(feature = "markup")]
 pub mod markup_body;
+pub mod popup_cascade;
+pub mod popup_connector;
+pub mod popup_trigger;
 pub mod pressable_text;
 pub mod rectangle_morph;
 pub mod refresh_dial;

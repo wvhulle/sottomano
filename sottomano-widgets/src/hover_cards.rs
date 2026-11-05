@@ -6,8 +6,7 @@ pub mod hover_card_content;
 pub mod hover_card_surfaces;
 pub mod hover_card_transition;
 pub mod laid_out_anchors;
-pub mod popup_connector;
-
+pub use corredo::popup_connector;
 use iced::window::Id;
 use sottomano_desktop_sources::login_session_presence::idle_session_actions::IdleAction;
 use sottomano_toml_config::screen_edges::Position;

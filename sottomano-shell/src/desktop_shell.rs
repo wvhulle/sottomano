@@ -46,7 +46,7 @@ use sottomano_widgets::{
     desktop_index::DesktopIndex,
     group_menus::{
         cascading_layout::{
-            cascade_row::{CascadeDirection, CascadeOrientation},
+            cascade_row::{CascadeDirection, CascadeOrientation, growth_away_from},
             notched_panel::PanelGrowth,
         },
         group_menu_state::{GroupMenuMessage, GroupMenuTopic},
@@ -470,7 +470,7 @@ impl DesktopShell {
             .outputs
             .get(&placement.output)
             .map_or(0.0, |output| output.logical_width as f32);
-        CascadeOrientation::toward_room(anchor, placement.position, output_width)
+        CascadeOrientation::toward_room(anchor, growth_away_from(placement.position), output_width)
     }
 
     pub(super) fn hovered_output(&self) -> &str {

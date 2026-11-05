@@ -1,5 +1,6 @@
 use std::iter::once;
 
+pub use corredo::popup_cascade::{CascadeDirection, CascadeOrientation};
 use iced::{
     Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{
@@ -17,31 +18,11 @@ use crate::{
     widgets::fair_widths::fair_widths,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CascadeDirection {
-    Rightward,
-    Leftward,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CascadeOrientation {
-    pub direction: CascadeDirection,
-    pub growth: PanelGrowth,
-}
-
-impl CascadeOrientation {
-    #[must_use]
-    pub fn toward_room(anchor: Rectangle, bar: Position, surface_width: f32) -> Self {
-        let direction = if anchor.center_x() > surface_width / 2.0 {
-            CascadeDirection::Leftward
-        } else {
-            CascadeDirection::Rightward
-        };
-        let growth = match bar {
-            Position::Bottom => PanelGrowth::Upward,
-            Position::Top | Position::Left => PanelGrowth::Downward,
-        };
-        CascadeOrientation { direction, growth }
+#[must_use]
+pub fn growth_away_from(bar: Position) -> PanelGrowth {
+    match bar {
+        Position::Bottom => PanelGrowth::Upward,
+        Position::Top | Position::Left => PanelGrowth::Downward,
     }
 }
 

@@ -22,7 +22,7 @@ use sottomano_widgets::{
     desktop_index::DesktopIndex,
     desktop_panels::panel_frame::{outlined_sides_inward_of, panel_frame},
     group_menus::{
-        cascading_layout::cascade_row::CascadeOrientation,
+        cascading_layout::cascade_row::{CascadeOrientation, growth_away_from},
         group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
         group_menu_view::{GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard},
     },
@@ -372,8 +372,11 @@ impl ShowcaseState {
             })
             .unwrap_or_else(HoverCard::empty);
         let anchor = self.hover_card.shown_anchor().unwrap_or_default();
-        let orientation =
-            CascadeOrientation::toward_room(anchor, self.group.position(), CANVAS.width);
+        let orientation = CascadeOrientation::toward_room(
+            anchor,
+            growth_away_from(self.group.position()),
+            CANVAS.width,
+        );
         let surfaces = group_menu.surfaces(
             &self.config,
             &self.appearance.menus,
