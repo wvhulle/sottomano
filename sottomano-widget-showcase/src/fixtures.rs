@@ -1,26 +1,3 @@
-pub mod app_launcher;
-pub mod appearance_presets;
-pub mod audio;
-pub mod caldav;
-pub mod claude_usage;
-pub mod compute;
-pub mod gamepad;
-pub mod group_menu_members;
-pub mod host_hardware;
-pub mod idle_lock;
-pub mod login_session;
-pub mod media;
-pub mod memory_board;
-pub mod niri_session;
-pub mod notification_toasts;
-pub mod shell_settings;
-pub mod tailnet;
-pub mod voice_dictation;
-pub mod vpn;
-pub mod wallpaper;
-pub mod weather;
-pub mod wireguard_server;
-
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use sottomano_widgets::clock::Clock;
@@ -51,3 +28,27 @@ pub fn cycled<T: Copy>(values: &[T], tick: u32) -> T {
 pub fn unchanging(_clock: Clock) -> Vec<ShowcaseMessage> {
     Vec::new()
 }
+pub mod app_launcher;
+pub mod appearance_presets;
+pub mod audio;
+pub mod caldav;
+pub mod ci_runner_tasks;
+pub mod claude_usage;
+pub mod compute;
+pub mod gamepad;
+pub mod group_menu_members;
+pub mod host_hardware;
+pub mod idle_lock;
+pub mod login_session;
+pub mod media;
+pub mod memory_board;
+pub mod niri_session;
+pub mod notification_toasts;
+pub mod podman_engines;
+pub mod shell_settings;
+pub mod tailnet;
+pub mod voice_dictation;
+pub mod vpn;
+pub mod wallpaper;
+pub mod weather;
+pub mod wireguard_server;

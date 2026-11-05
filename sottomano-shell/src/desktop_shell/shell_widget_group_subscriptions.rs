@@ -10,13 +10,15 @@ use sottomano_widgets::{
     widget_groups::{
         audio_group::AudioGroup, bluetooth_adapters_group::BluetoothAdaptersGroup,
         copilot_usage_group::CopilotUsageGroup, dark_mode_group::DarkModeGroup,
-        gamepad_group::GamepadWindowClaim, idle_pause_groups::IdlePauseGroups,
-        journal_events_group::JournalEventsGroup, login_session_group::LoginSessionGroup,
-        memory_board_group::MemoryBoardGroup, mobile_modems_group::MobileModemsGroup,
-        monitor_group::MonitorGroup, pending_upgrades_group::PendingUpgradesGroup,
+        forgejo_tasks_group::forgejo_tasks_subscription, gamepad_group::GamepadWindowClaim,
+        idle_pause_groups::IdlePauseGroups, journal_events_group::JournalEventsGroup,
+        login_session_group::LoginSessionGroup, memory_board_group::MemoryBoardGroup,
+        mobile_modems_group::MobileModemsGroup, monitor_group::MonitorGroup,
+        pending_upgrades_group::PendingUpgradesGroup, podman_engines_group::PodmanEnginesGroup,
         power_group::PowerGroup, quiet_schedule_group::QuietScheduleGroup,
         session_focus_group::SessionFocusGroup, systemd_manager_group::SystemdManagerGroup,
         tray_group::TrayGroup, widget_group_identity::WidgetGroupFamily, window_group::WindowGroup,
+        woodpecker_tasks_group::woodpecker_tasks_subscription,
     },
 };
 
@@ -75,6 +77,11 @@ impl ShellWidgetGroups {
                 .subscription(config, working_days, buses)
                 .map(Message::ClaudeUsage),
             CopilotUsageGroup::subscription(config, working_days).map(Message::CopilotUsage),
+            PodmanEnginesGroup::subscription(&config.widget_groups.podman_engines)
+                .map(Message::PodmanEngines),
+            woodpecker_tasks_subscription(&config.widget_groups.ci_runners)
+                .map(Message::WoodpeckerTasks),
+            forgejo_tasks_subscription(&config.widget_groups.ci_runners).map(Message::ForgejoTasks),
             self.openrouter_credit_group
                 .subscription(config, buses)
                 .map(Message::OpenRouterCredit),

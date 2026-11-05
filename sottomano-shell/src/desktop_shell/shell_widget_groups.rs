@@ -20,6 +20,7 @@ use sottomano_widgets::{
         copilot_usage_group::CopilotUsageGroup,
         dark_mode_group::{DarkModeGroup, DarkModeMessage},
         ethernet_ports_group::EthernetPortsGroup,
+        forgejo_tasks_group::ForgejoTasksGroup,
         gamepad_group::GamepadGroup,
         gpu_group::GpuGroup,
         idle_pause_groups::IdlePauseGroups,
@@ -37,6 +38,7 @@ use sottomano_widgets::{
         panel_settings_group::{PanelSettingsGroup, PanelSettingsMessage},
         pending_upgrades_group::PendingUpgradesGroup,
         physical_drive_group::PhysicalDriveGroup,
+        podman_engines_group::PodmanEnginesGroup,
         power_group::PowerGroup,
         quiet_schedule_group::QuietScheduleGroup,
         reachability_group::ReachabilityGroup,
@@ -54,6 +56,7 @@ use sottomano_widgets::{
         wifi_adapters_group::WifiAdaptersGroup,
         window_group::WindowGroup,
         wireguard_server_group::WireguardServerGroup,
+        woodpecker_tasks_group::WoodpeckerTasksGroup,
     },
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
@@ -107,6 +110,9 @@ pub struct ShellWidgetGroups {
     pub copilot_usage_group: CopilotUsageGroup,
     pub openrouter_credit_group: OpenRouterCreditGroup,
     pub llama_server_group: LlamaServerGroup,
+    pub podman_engines_group: PodmanEnginesGroup,
+    pub woodpecker_tasks_group: WoodpeckerTasksGroup,
+    pub forgejo_tasks_group: ForgejoTasksGroup,
     pub session_focus_group: SessionFocusGroup,
     pub login_session_group: LoginSessionGroup,
     pub tray_group: TrayGroup,
@@ -169,6 +175,9 @@ impl ShellWidgetGroups {
             copilot_usage_group: CopilotUsageGroup::new(secrets.gh_auth_token),
             openrouter_credit_group: OpenRouterCreditGroup::new(secrets.openrouter_management),
             llama_server_group: LlamaServerGroup::default(),
+            podman_engines_group: PodmanEnginesGroup::default(),
+            woodpecker_tasks_group: WoodpeckerTasksGroup::default(),
+            forgejo_tasks_group: ForgejoTasksGroup::default(),
             session_focus_group: SessionFocusGroup::started_at(
                 &config.widget_groups.session_focus,
                 clock.utc(),
@@ -303,6 +312,18 @@ impl ShellWidgetGroups {
                 .llama_server_group
                 .update(msg, config, clock)
                 .map(Message::LlamaServer),
+            Message::PodmanEngines(msg) => {
+                self.podman_engines_group.update(msg, clock);
+                Task::none()
+            }
+            Message::WoodpeckerTasks(msg) => {
+                self.woodpecker_tasks_group.update(msg, clock);
+                Task::none()
+            }
+            Message::ForgejoTasks(msg) => {
+                self.forgejo_tasks_group.update(msg, clock);
+                Task::none()
+            }
             Message::SessionFocus(msg) => self
                 .session_focus_group
                 .update(msg, &config.widget_groups.session_focus, clock)
@@ -457,6 +478,9 @@ impl ShellWidgetGroups {
         self.copilot_usage_group.collapse();
         self.openrouter_credit_group.collapse();
         self.llama_server_group.collapse();
+        self.podman_engines_group.collapse();
+        self.woodpecker_tasks_group.collapse();
+        self.forgejo_tasks_group.collapse();
         self.session_focus_group.collapse();
         self.login_session_group.collapse();
         self.notification_group.collapse();

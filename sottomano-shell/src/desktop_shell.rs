@@ -406,6 +406,9 @@ impl DesktopShell {
             | Message::CopilotUsage(_)
             | Message::OpenRouterCredit(_)
             | Message::LlamaServer(_)
+            | Message::PodmanEngines(_)
+            | Message::WoodpeckerTasks(_)
+            | Message::ForgejoTasks(_)
             | Message::SessionFocus(_)
             | Message::LoginSession(_)
             | Message::DarkMode(_)) => {

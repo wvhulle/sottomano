@@ -1,7 +1,7 @@
 use sottomano_widgets::clock::Clock;
 
 use crate::{
-    fixtures::{audio, compute, gamepad, media, memory_board, voice_dictation},
+    fixtures::{audio, ci_runner_tasks, compute, gamepad, media, memory_board, voice_dictation},
     showcase_message::ShowcaseMessage,
     showcased_group::ShowcasedGroup,
 };
@@ -12,6 +12,13 @@ pub fn media_group_menu(clock: Clock) -> ShowcasedGroup {
         audio::group(clock),
         voice_dictation::group(clock),
         gamepad::group(clock),
+    ])
+}
+
+pub fn continuous_integration_group_menu(clock: Clock) -> ShowcasedGroup {
+    ShowcasedGroup::MenuMembers(vec![
+        ci_runner_tasks::woodpecker_group(clock),
+        ci_runner_tasks::forgejo_group(clock),
     ])
 }
 

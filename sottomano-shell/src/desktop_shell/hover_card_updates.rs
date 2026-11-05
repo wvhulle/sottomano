@@ -14,6 +14,7 @@ use sottomano_widgets::{
     layer_surfaces::PanelEdge,
     widget_groups::{
         bluetooth_adapters_group::BluetoothTarget,
+        ci_task_group_item::CiRunnerKind,
         window_group::{WindowGroup, WindowTarget},
         workspaces_group::workspace_hover_card,
     },
@@ -435,6 +436,20 @@ impl DesktopShell {
                 .widget_groups
                 .llama_server_group
                 .hover_card_for(target, self.clock),
+            HoverTarget::PodmanEngine(target) => self
+                .widget_groups
+                .podman_engines_group
+                .hover_card_for(target, self.clock),
+            HoverTarget::CiRunner(target) => match target.kind() {
+                CiRunnerKind::Woodpecker => self
+                    .widget_groups
+                    .woodpecker_tasks_group
+                    .hover_card_for(target, self.clock),
+                CiRunnerKind::Forgejo => self
+                    .widget_groups
+                    .forgejo_tasks_group
+                    .hover_card_for(target, self.clock),
+            },
             HoverTarget::SessionFocus(target) => {
                 Some(self.widget_groups.session_focus_group.hover_card_for(
                     *target,

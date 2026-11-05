@@ -3,6 +3,7 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     iter::successors,
     net::SocketAddr,
+    path::Path,
     time::Duration,
 };
 
@@ -174,6 +175,44 @@ pub async fn get_json<T: DeserializeOwned>(
         return Err(Error::status(response.status, response.body));
     }
     decode(response.body)
+}
+
+pub async fn get_json_over_unix_socket<T: DeserializeOwned>(
+    socket_path: &Path,
+    url: &str,
+) -> Result<T, Error> {
+    let socket_label = socket_path.display().to_string();
+    let client = ClientBuilder::new()
+        .connect_timeout(CONNECT_TIMEOUT)
+        .unix_socket(socket_path)
+        .build()
+        .map_err(|error| Error::Client(error.to_string()))?;
+    let answered = async {
+        let response = client
+            .get(url)
+            .send()
+            .await
+            .map_err(|failure| Error::Unreachable {
+                host: socket_label.clone(),
+                detail: innermost_cause(&failure),
+            })?;
+        let status = response.status().as_u16();
+        let body_bytes = response
+            .bytes()
+            .await
+            .map_err(|error| Error::Body(innermost_cause(&error)))?;
+        let body = serde_json::from_slice(&body_bytes).ok();
+        if status != 200 {
+            return Err(Error::status(status, body));
+        }
+        decode(body)
+    };
+    timeout(REQUEST_TIMEOUT, answered)
+        .await
+        .map_err(|_| Error::TimedOut {
+            host: socket_label.clone(),
+            after: REQUEST_TIMEOUT,
+        })?
 }
 
 pub fn decode<T: DeserializeOwned>(body: Option<Value>) -> Result<T, Error> {
