@@ -28,3 +28,7 @@ chrono = ["dep:chrono"]
 karaoke = ["dep:unicode-segmentation"]
 markup = ["dep:quick-xml"]
 wgpu = ["iced/wgpu", "dep:iced_wgpu"]
+
+[[test]]
+name = "default_widgets"
+required-features = ["chrono", "wgpu"]

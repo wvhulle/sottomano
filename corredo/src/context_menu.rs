@@ -2,7 +2,7 @@ use iced::{
     Background, Border, Color, Element, Length, Padding, Theme,
     alignment::Vertical,
     border::Radius,
-    widget::{Row, button, container, space, text},
+    widget::{Row, button, container, space, text, text::Shaping},
 };
 
 use crate::{
@@ -40,39 +40,111 @@ pub enum ContextMenuLine<'a, M> {
     Divider,
 }
 
-pub struct ContextMenuStyle<'style, 'a, M> {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ContextMenuMetrics {
     pub face: TextFace,
     pub note_size_px: f32,
     pub icon_size_px: f32,
     pub item_gap_px: f32,
     pub surface_inset_px: f32,
-    pub submenu_chevron: &'style dyn Fn(bool, fn(&Theme) -> Color) -> Element<'a, M>,
+}
+
+impl Default for ContextMenuMetrics {
+    fn default() -> Self {
+        Self {
+            face: TextFace::default(),
+            note_size_px: 12.0,
+            icon_size_px: 14.0,
+            item_gap_px: 4.0,
+            surface_inset_px: 8.0,
+        }
+    }
+}
+
+type SubmenuChevron<'a, M> = Box<dyn Fn(bool, fn(&Theme) -> Color) -> Element<'a, M> + 'a>;
+
+pub struct ContextMenu<'a, M> {
+    lines: Vec<ContextMenuLine<'a, M>>,
+    corners: Radius,
+    metrics: ContextMenuMetrics,
+    submenu_chevron: SubmenuChevron<'a, M>,
 }
 
 const CONTEXT_MENU_MAX_WIDTH_PX: f32 = 400.0;
 
 pub fn context_menu<'a, M: Clone + 'a>(
-    style: &ContextMenuStyle<'_, 'a, M>,
-    popup_corners: Radius,
     lines: impl IntoIterator<Item = ContextMenuLine<'a, M>>,
-) -> Element<'a, M> {
-    let kept_lines = without_redundant_dividers(lines.into_iter().collect());
-    let end_corners = ListEndCorners::new(kept_lines.len(), popup_corners);
-    container(
-        uniform_width_column(kept_lines.into_iter().enumerate().map(
-            |(position, line)| match line {
-                ContextMenuLine::Row(row) => entry(style, row, end_corners.radius_at(position)),
-                ContextMenuLine::Divider => divider(),
-            },
-        ))
-        .spacing(style.item_gap_px),
-    )
-    .max_width(CONTEXT_MENU_MAX_WIDTH_PX)
-    .into()
+) -> ContextMenu<'a, M> {
+    ContextMenu {
+        lines: lines.into_iter().collect(),
+        corners: Radius::default(),
+        metrics: ContextMenuMetrics::default(),
+        submenu_chevron: Box::new(|open, color| {
+            text(if open { "\u{25be}" } else { "\u{25b8}" })
+                .shaping(Shaping::Advanced)
+                .style(move |theme| text::Style {
+                    color: Some(color(theme)),
+                })
+                .into()
+        }),
+    }
+}
+
+impl<'a, M> ContextMenu<'a, M> {
+    #[must_use]
+    pub fn corners(self, corners: Radius) -> Self {
+        Self { corners, ..self }
+    }
+
+    #[must_use]
+    pub fn metrics(self, metrics: ContextMenuMetrics) -> Self {
+        Self { metrics, ..self }
+    }
+
+    #[must_use]
+    pub fn submenu_chevron(
+        self,
+        submenu_chevron: impl Fn(bool, fn(&Theme) -> Color) -> Element<'a, M> + 'a,
+    ) -> Self {
+        Self {
+            submenu_chevron: Box::new(submenu_chevron),
+            ..self
+        }
+    }
+}
+
+impl<'a, M: Clone + 'a> From<ContextMenu<'a, M>> for Element<'a, M> {
+    fn from(menu: ContextMenu<'a, M>) -> Self {
+        let ContextMenu {
+            lines,
+            corners,
+            metrics,
+            submenu_chevron,
+        } = menu;
+        let kept_lines = without_redundant_dividers(lines);
+        let end_corners = ListEndCorners::new(kept_lines.len(), corners);
+        container(
+            uniform_width_column(kept_lines.into_iter().enumerate().map(|(position, line)| {
+                match line {
+                    ContextMenuLine::Row(row) => entry(
+                        &metrics,
+                        &*submenu_chevron,
+                        row,
+                        end_corners.radius_at(position),
+                    ),
+                    ContextMenuLine::Divider => divider(),
+                }
+            }))
+            .spacing(metrics.item_gap_px),
+        )
+        .max_width(CONTEXT_MENU_MAX_WIDTH_PX)
+        .into()
+    }
 }
 
 fn entry<'a, M: Clone + 'a>(
-    style: &ContextMenuStyle<'_, 'a, M>,
+    style: &ContextMenuMetrics,
+    submenu_chevron: &(dyn Fn(bool, fn(&Theme) -> Color) -> Element<'a, M> + 'a),
     row: ContextMenuRow<'a, M>,
     highlight_radius: Radius,
 ) -> Element<'a, M> {
@@ -111,7 +183,7 @@ fn entry<'a, M: Clone + 'a>(
         Trailing::Submenu { open } => {
             content = content
                 .push(space::horizontal())
-                .push((style.submenu_chevron)(open, color));
+                .push(submenu_chevron(open, color));
         }
     }
 

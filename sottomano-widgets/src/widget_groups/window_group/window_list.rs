@@ -321,20 +321,17 @@ impl WindowList {
             .groups(groups)
             .draggable(PanelSlotList::Windows, &drag, dragged);
         Some(
-            selection_scroller(
-                pager,
-                ScrollAxis::Horizontal,
-                ScrollEdgeFade::away_from_frame(
+            selection_scroller(pager, ScrollAxis::Horizontal)
+                .edge_fade(ScrollEdgeFade::away_from_frame(
                     slot_context.panel_frame_style,
                     maximum_window_title_width_px(config),
-                ),
-            )
-            .paced(ScrollPacing::Eased(
-                config.desktop_panels.slot_drag.focus_indicator_duration,
-            ))
-            .selected(focused_position)
-            .showing(workspace)
-            .into(),
+                ))
+                .paced(ScrollPacing::Eased(
+                    config.desktop_panels.slot_drag.focus_indicator_duration,
+                ))
+                .selected(focused_position)
+                .showing(workspace)
+                .into(),
         )
     }
 

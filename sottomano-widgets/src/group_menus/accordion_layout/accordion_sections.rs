@@ -135,16 +135,16 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
         })
         .collect();
     let scroll_message = layout.menu.scroll_message();
-    let rows_scroller = selection_scroller(
-        uniform_width_column(section_views),
-        ScrollAxis::Vertical,
-        layout
-            .cascade_satellite_panels
-            .rows_edge_fade(layout.config),
-    )
-    .controlled(scrolled_px, move |scrolled_px| {
-        M::from(scroll_message(scrolled_px))
-    });
+    let rows_scroller =
+        selection_scroller(uniform_width_column(section_views), ScrollAxis::Vertical)
+            .edge_fade(
+                layout
+                    .cascade_satellite_panels
+                    .rows_edge_fade(layout.config),
+            )
+            .controlled(scrolled_px, move |scrolled_px| {
+                M::from(scroll_message(scrolled_px))
+            });
     let primary = pointer_held_height(rows_scroller.into(), growth);
     let satellites = beside_card
         .map(|inspected| {

@@ -193,13 +193,11 @@ impl<'a> ProcessTree<'a> {
                                     caret_size,
                                     severity_tint(level, secondary_text_color),
                                 ))
-                                .push(pressable_text(
-                                    cell,
-                                    listing.name,
-                                    PopupMessage::CopyText,
-                                    success_shades,
-                                    copy_flash,
-                                    Interaction::Copy,
+                                .push(Element::from(
+                                    pressable_text(cell, listing.name, PopupMessage::CopyText)
+                                        .accent(success_shades)
+                                        .hold(copy_flash)
+                                        .interaction(Interaction::Copy),
                                 ))
                         }
                         Entry::Elided { hidden } => Row::new().push(blank(caret_size)).push(
@@ -252,13 +250,11 @@ impl<'a> ProcessTree<'a> {
                 color,
             )
             .identified_by(&listing.pid);
-            pressable_text(
-                cell,
-                text,
-                PopupMessage::CopyText,
-                success_shades,
-                copy_flash,
-                Interaction::Copy,
+            Element::from(
+                pressable_text(cell, text, PopupMessage::CopyText)
+                    .accent(success_shades)
+                    .hold(copy_flash)
+                    .interaction(Interaction::Copy),
             )
         })
         .align_x(Horizontal::Right)

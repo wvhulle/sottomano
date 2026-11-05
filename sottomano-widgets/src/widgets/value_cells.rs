@@ -356,13 +356,11 @@ impl<Message: 'static> ValueCellView<Message> {
             color,
         )
         .identified_by(row);
-        pressable_text(
-            value,
-            text,
-            self.press_messages.copy_text,
-            self.flash,
-            self.copy_flash,
-            Interaction::Copy,
+        Element::from(
+            pressable_text(value, text, self.press_messages.copy_text)
+                .accent(self.flash)
+                .hold(self.copy_flash)
+                .interaction(Interaction::Copy),
         )
     }
 
@@ -397,13 +395,11 @@ impl<Message: 'static> ValueCellView<Message> {
     }
 
     fn openable(&self, label: Element<'static, Message>, url: String) -> Element<'static, Message> {
-        pressable_text(
-            label,
-            url,
-            self.press_messages.open_url,
-            self.link,
-            self.copy_flash,
-            Interaction::Pointer,
+        Element::from(
+            pressable_text(label, url, self.press_messages.open_url)
+                .accent(self.link)
+                .hold(self.copy_flash)
+                .interaction(Interaction::Pointer),
         )
     }
 
@@ -435,13 +431,11 @@ impl<Message: 'static> ValueCellView<Message> {
         if text.trim().is_empty() {
             return value;
         }
-        pressable_text(
-            value,
-            text,
-            self.press_messages.copy_text,
-            self.flash,
-            self.copy_flash,
-            Interaction::Copy,
+        Element::from(
+            pressable_text(value, text, self.press_messages.copy_text)
+                .accent(self.flash)
+                .hold(self.copy_flash)
+                .interaction(Interaction::Copy),
         )
     }
 }

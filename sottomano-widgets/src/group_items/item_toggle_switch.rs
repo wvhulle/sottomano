@@ -8,5 +8,8 @@ pub fn item_toggle_switch<'a, Message: 'a>(
     switched_on: bool,
     opacity: f32,
 ) -> Element<'a, Message> {
-    toggle_switch(config.theme.font.icon_size_px, switched_on, opacity)
+    toggle_switch(switched_on)
+        .size(config.theme.font.icon_size_px)
+        .opacity(opacity)
+        .into()
 }

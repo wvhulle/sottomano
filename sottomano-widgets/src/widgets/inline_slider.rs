@@ -28,18 +28,15 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
     on_release: Message,
     on_scroll: impl Fn(ScrollDelta) -> Message + 'a,
 ) -> Element<'a, Message> {
-    themed_inline_slider(
-        config.theme.font.icon_size_px,
-        range,
-        value,
-        lagging_value,
-        step,
-        SliderAccents {
+    themed_inline_slider(range, value, on_change)
+        .icon_size(config.theme.font.icon_size_px)
+        .lagging_behind(lagging_value)
+        .step(step)
+        .accents(SliderAccents {
             resting: accent_for_level(level, text_color),
             engaged: accent_for_level(level, primary_color),
-        },
-        on_change,
-        on_release,
-        on_scroll,
-    )
+        })
+        .on_release(on_release)
+        .on_scroll(on_scroll)
+        .into()
 }

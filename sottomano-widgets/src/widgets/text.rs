@@ -1,4 +1,4 @@
-pub use corredo::shared_metrics::LINE_HEIGHT;
+pub use corredo::primitives::shared_metrics::LINE_HEIGHT;
 use corredo::{
     font_faces::{FontFaces, TextFace},
     text_effects::{IntroEffect, PlaceholderEffect, ReplaceEffect, TextEffects},

@@ -1,8 +1,10 @@
 pub use corredo::{
-    child_view, content_sized_table, edge_alpha_fade, ellipsis_rule, fair_widths, list_end_corners,
-    pressable_text, rectangle_morph, refresh_dial, reveal, rounded_quads, selection_scroller,
-    shared_metrics, steady_label_width, svg_icon, transitioning_text, uniform_width_column,
-    widest_readout_text,
+    content_sized_table, pressable_text,
+    primitives::{
+        child_view, edge_alpha_fade, ellipsis_rule, fair_widths, list_end_corners, rectangle_morph,
+        reveal, rounded_quads, shared_metrics, steady_label_width, svg_icon, uniform_width_column,
+    },
+    refresh_dial, selection_scroller, transitioning_text, widest_readout_text,
 };
 
 pub mod activity_line;
@@ -45,7 +47,7 @@ pub mod window_title;
 
 pub const DISABLED_ALPHA: f32 = 0.4;
 
-pub use corredo::flat_button::flat_button;
+pub use corredo::primitives::flat_button::flat_button;
 use iced::{Color, Element, Theme, widget::button};
 
 use crate::widgets::icon_glyph::IconGlyph;

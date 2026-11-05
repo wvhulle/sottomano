@@ -32,7 +32,7 @@ fn popup_side_of(position: Position) -> PopupSide {
     }
 }
 
-fn report_shell_regions(regions: PopupRegions, blurred: bool, operation: &mut dyn Operation) {
+fn report_shell_regions(regions: &PopupRegions, blurred: bool, operation: &mut dyn Operation) {
     let roles = RegionRoles {
         takes_input: regions.takes_input,
         blurred,
@@ -92,7 +92,7 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
         .outside_press(outside_press)
         .report_regions(move |regions, operation| {
             let blurred = appearance_over(regions.popup_bounds).blurred;
-            report_shell_regions(regions, blurred, operation);
+            report_shell_regions(&regions, blurred, operation);
         })
         .identified_by(shown)
         .into()

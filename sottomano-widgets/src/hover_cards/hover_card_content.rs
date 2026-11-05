@@ -394,27 +394,29 @@ impl<'a> HoverCardContent<'a> {
         delivered_at: SystemTime,
     ) -> Element<'static, PopupMessage> {
         let glyph_size = self.config.theme.font.small_text_size_px;
-        pressable_text(
-            row([
-                self.small_dim_text(label_text).into(),
-                RefreshDial::new(
-                    self.clock
-                        .wall
-                        .duration_since(delivered_at)
-                        .unwrap_or(Duration::ZERO),
-                    refresh_period,
-                    self.clock.instant,
-                    glyph_size,
-                )
-                .view(),
-            ])
-            .spacing(self.config.theme.spacing.item_gap)
-            .align_y(Vertical::Center),
-            (),
-            |()| PopupMessage::RefreshHoveredReading,
-            success_shades,
-            self.config.hover_cards.copy_flash_duration,
-            Interaction::Pointer,
+        Element::from(
+            pressable_text(
+                row([
+                    self.small_dim_text(label_text).into(),
+                    RefreshDial::new(
+                        self.clock
+                            .wall
+                            .duration_since(delivered_at)
+                            .unwrap_or(Duration::ZERO),
+                        refresh_period,
+                        self.clock.instant,
+                        glyph_size,
+                    )
+                    .view(),
+                ])
+                .spacing(self.config.theme.spacing.item_gap)
+                .align_y(Vertical::Center),
+                (),
+                |()| PopupMessage::RefreshHoveredReading,
+            )
+            .accent(success_shades)
+            .hold(self.config.hover_cards.copy_flash_duration)
+            .interaction(Interaction::Pointer),
         )
     }
 

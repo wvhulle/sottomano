@@ -1,7 +1,7 @@
 use std::{borrow::Cow, collections::BTreeMap, rc::Rc, slice};
 
 use chrono::Locale;
-use corredo::expand_animation::expand_animation;
+use corredo::primitives::expand_animation::expand_animation;
 use iced::{
     Alignment, Element, Length, Padding,
     mouse::ScrollDelta,

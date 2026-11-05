@@ -1,6 +1,6 @@
 use std::{cell::Cell, rc::Rc, slice};
 
-pub use corredo::popup_cascade::PanelGrowth;
+pub use corredo::primitives::popup_cascade::PanelGrowth;
 use iced::{
     Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{

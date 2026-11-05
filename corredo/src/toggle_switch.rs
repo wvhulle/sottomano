@@ -5,16 +5,48 @@ use iced::{
 
 use crate::theme_colors::{background_color, primary_color, secondary_text_color};
 
-#[must_use]
-pub fn toggle_switch<'a, Message: 'a>(
-    size_px: f32,
+const DEFAULT_SWITCH_SIZE_PX: f32 = 16.0;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ToggleSwitch {
     switched_on: bool,
+    size_px: f32,
     opacity: f32,
-) -> Element<'a, Message> {
-    toggler(switched_on)
-        .size(size_px)
-        .style(move |theme, _status| switch_style(theme, switched_on, opacity))
-        .into()
+}
+
+#[must_use]
+pub fn toggle_switch(switched_on: bool) -> ToggleSwitch {
+    ToggleSwitch {
+        switched_on,
+        size_px: DEFAULT_SWITCH_SIZE_PX,
+        opacity: 1.0,
+    }
+}
+
+impl ToggleSwitch {
+    #[must_use]
+    pub fn size(self, size_px: f32) -> Self {
+        Self { size_px, ..self }
+    }
+
+    #[must_use]
+    pub fn opacity(self, opacity: f32) -> Self {
+        Self { opacity, ..self }
+    }
+}
+
+impl<'a, Message: 'a> From<ToggleSwitch> for Element<'a, Message> {
+    fn from(switch: ToggleSwitch) -> Self {
+        let ToggleSwitch {
+            switched_on,
+            size_px,
+            opacity,
+        } = switch;
+        toggler(switched_on)
+            .size(size_px)
+            .style(move |theme, _status| switch_style(theme, switched_on, opacity))
+            .into()
+    }
 }
 
 fn switch_style(theme: &Theme, switched_on: bool, opacity: f32) -> toggler::Style {
@@ -49,14 +81,10 @@ mod tests {
 
     use super::*;
 
-    const SWITCH_SIZE_PX: f32 = 16.0;
-
     #[test]
     fn a_press_on_the_switch_reaches_the_enclosing_item_button() {
-        let pressable_switch: Element<'_, ()> = button(toggle_switch(SWITCH_SIZE_PX, true, 1.0))
-            .padding(0)
-            .on_press(())
-            .into();
+        let pressable_switch: Element<'_, ()> =
+            button(toggle_switch(true)).padding(0).on_press(()).into();
         let mut panel = Simulator::with_size(
             Settings::default(),
             Size::new(100.0, 100.0),

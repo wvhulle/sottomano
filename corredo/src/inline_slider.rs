@@ -24,33 +24,108 @@ const SLIDER_WIDTH_PX: f32 = 60.0;
 const RESTING_KNOB_PER_GLYPH: f32 = 0.17;
 const ENGAGED_KNOB_GROWTH: f32 = 1.25;
 
-#[allow(clippy::too_many_arguments)]
-pub fn inline_slider<'a, Message: Clone + 'a>(
-    icon_size_px: f32,
+const DEFAULT_ICON_SIZE_PX: f32 = 14.0;
+const DEFAULT_STEP: f32 = 1.0;
+
+pub struct InlineSlider<'a, Message> {
     range: RangeInclusive<f32>,
     value: f32,
+    on_change: Box<dyn Fn(f32) -> Message + 'a>,
+    icon_size_px: f32,
     lagging_value: Option<f32>,
     step: f32,
     accents: SliderAccents<'a>,
+    on_release: Option<Message>,
+    on_scroll: Option<Box<dyn Fn(ScrollDelta) -> Message + 'a>>,
+}
+
+pub fn inline_slider<'a, Message: Clone + 'a>(
+    range: RangeInclusive<f32>,
+    value: f32,
     on_change: impl Fn(f32) -> Message + 'a,
-    on_release: Message,
-    on_scroll: impl Fn(ScrollDelta) -> Message + 'a,
-) -> Element<'a, Message> {
-    let geometry = FaceGeometry::from_sizes(icon_size_px, ACCENT_STROKE_PX);
-    let face = SliderFace {
-        range: range.clone(),
+) -> InlineSlider<'a, Message> {
+    InlineSlider {
+        range,
         value,
-        lagging_value,
-        accents,
-        geometry,
-        face_size: Size::new(SLIDER_WIDTH_PX, Slider::<f32, Message>::DEFAULT_HEIGHT),
-    };
-    mouse_area(stack![
-        interaction_slider(geometry, range, value, step, on_change, on_release),
-        Element::new(face)
-    ])
-    .on_scroll(on_scroll)
-    .into()
+        on_change: Box::new(on_change),
+        icon_size_px: DEFAULT_ICON_SIZE_PX,
+        lagging_value: None,
+        step: DEFAULT_STEP,
+        accents: SliderAccents::default(),
+        on_release: None,
+        on_scroll: None,
+    }
+}
+
+impl<'a, Message> InlineSlider<'a, Message> {
+    #[must_use]
+    pub fn icon_size(self, icon_size_px: f32) -> Self {
+        Self {
+            icon_size_px,
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn lagging_behind(self, lagging_value: Option<f32>) -> Self {
+        Self {
+            lagging_value,
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn step(self, step: f32) -> Self {
+        Self { step, ..self }
+    }
+
+    #[must_use]
+    pub fn accents(self, accents: SliderAccents<'a>) -> Self {
+        Self { accents, ..self }
+    }
+
+    #[must_use]
+    pub fn on_release(self, on_release: Message) -> Self {
+        Self {
+            on_release: Some(on_release),
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn on_scroll(self, on_scroll: impl Fn(ScrollDelta) -> Message + 'a) -> Self {
+        Self {
+            on_scroll: Some(Box::new(on_scroll)),
+            ..self
+        }
+    }
+}
+
+impl<'a, Message: Clone + 'a> From<InlineSlider<'a, Message>> for Element<'a, Message> {
+    fn from(inline: InlineSlider<'a, Message>) -> Self {
+        let geometry = FaceGeometry::from_sizes(inline.icon_size_px, ACCENT_STROKE_PX);
+        let face = SliderFace {
+            range: inline.range.clone(),
+            value: inline.value,
+            lagging_value: inline.lagging_value,
+            accents: inline.accents,
+            geometry,
+            face_size: Size::new(SLIDER_WIDTH_PX, Slider::<f32, Message>::DEFAULT_HEIGHT),
+        };
+        let interaction = interaction_slider(
+            geometry,
+            inline.range,
+            inline.value,
+            inline.step,
+            inline.on_change,
+            inline.on_release,
+        );
+        let stacked = mouse_area(stack![interaction, Element::new(face)]);
+        match inline.on_scroll {
+            Some(on_scroll) => stacked.on_scroll(on_scroll).into(),
+            None => stacked.into(),
+        }
+    }
 }
 
 fn interaction_slider<'a, Message: Clone + 'a>(
@@ -59,11 +134,10 @@ fn interaction_slider<'a, Message: Clone + 'a>(
     value: f32,
     step: f32,
     on_change: impl Fn(f32) -> Message + 'a,
-    on_release: Message,
+    on_release: Option<Message>,
 ) -> Slider<'a, f32, Message> {
-    slider(range, value, on_change)
+    let styled = slider(range, value, on_change)
         .step(step)
-        .on_release(on_release)
         .width(SLIDER_WIDTH_PX)
         .style(move |_theme, _status| slider::Style {
             rail: slider::Rail {
@@ -79,7 +153,11 @@ fn interaction_slider<'a, Message: Clone + 'a>(
                 border_color: Color::TRANSPARENT,
                 border_width: 0.0,
             },
-        })
+        });
+    match on_release {
+        Some(on_release) => styled.on_release(on_release),
+        None => styled,
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

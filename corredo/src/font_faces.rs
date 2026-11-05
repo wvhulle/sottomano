@@ -9,6 +9,8 @@ use iced::{
 
 use crate::shared_metrics::LINE_HEIGHT;
 
+const DEFAULT_TEXT_SIZE_PX: f32 = 14.0;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FontFaces {
     pub regular: Font,
@@ -41,6 +43,15 @@ impl FontFaces {
 pub struct TextFace {
     pub font: Font,
     pub size_px: f32,
+}
+
+impl Default for TextFace {
+    fn default() -> Self {
+        Self {
+            font: Font::DEFAULT,
+            size_px: DEFAULT_TEXT_SIZE_PX,
+        }
+    }
 }
 
 impl TextFace {

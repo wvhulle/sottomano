@@ -66,6 +66,8 @@ pub(crate) fn cascading_columns<'a, M: Clone + From<GroupEvent<M>> + From<PopupM
         primary: selection_scroller(
             Element::from(uniform_width_column(group_rows)).map(M::from),
             ScrollAxis::Vertical,
+        )
+        .edge_fade(
             layout
                 .cascade_satellite_panels
                 .rows_edge_fade(layout.config),
@@ -105,17 +107,16 @@ fn open_group_satellites<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage>
     );
     let item_list_scrolled_px = layout.group_menus.item_list_scrolled_px(layout.menu.topic);
     let item_list_scroll_message = layout.menu.item_list_scroll_message();
-    let item_list_viewport = selection_scroller(
-        item_list,
-        ScrollAxis::Vertical,
-        layout
-            .cascade_satellite_panels
-            .rows_edge_fade(layout.config),
-    )
-    .controlled(item_list_scrolled_px, move |scrolled_px| {
-        M::from(item_list_scroll_message(scrolled_px))
-    })
-    .into();
+    let item_list_viewport = selection_scroller(item_list, ScrollAxis::Vertical)
+        .edge_fade(
+            layout
+                .cascade_satellite_panels
+                .rows_edge_fade(layout.config),
+        )
+        .controlled(item_list_scrolled_px, move |scrolled_px| {
+            M::from(item_list_scroll_message(scrolled_px))
+        })
+        .into();
     let item_list_top = ResolvedPanelTop::default();
     let item_satellite = layout.cascade_satellite_panels.item_list_beside_row(
         layout.config,
