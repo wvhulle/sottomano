@@ -1,11 +1,9 @@
 pub mod primitives;
 
-#[cfg(feature = "wgpu")]
-use primitives::edge_alpha_fade;
 use primitives::{
-    activity_line, child_view, ellipsis_rule, fair_widths, flat_button, list_end_corners,
-    popup_cascade, popup_connector, rectangle_morph, reveal, rounded_quads, scroll_steps,
-    shared_metrics, uniform_width_column,
+    activity_line, child_view, edge_alpha_fade, ellipsis_rule, fair_widths, flat_button,
+    list_end_corners, popup_cascade, popup_connector, rectangle_morph, reveal, rounded_quads,
+    scroll_steps, shared_metrics, uniform_width_column,
 };
 
 pub mod anchored_popup;
@@ -27,7 +25,6 @@ pub mod pressable_text;
 pub mod record_table;
 pub mod refresh_dial;
 pub mod seek_bar;
-#[cfg(feature = "wgpu")]
 pub mod selection_scroller;
 pub mod text_effects;
 pub mod theme_colors;
