@@ -11,10 +11,10 @@ use sottomano_widgets::{
         compute_group::ComputeMessage, gamepad_group::GamepadMessage,
         idle_pause_groups::IdlePauseMessage, login_session_group::LoginSessionMessage,
         media_group::MediaMessage, memory_board_group::MemoryBoardMessage,
-        voice_dictation_group::VoiceDictationMessage, vpn_group::VpnMessage,
-        wallpaper_group::WallpaperMessage, weather_group::WeatherMessage,
+        tailnet_group::TailnetMessage, voice_dictation_group::VoiceDictationMessage,
+        vpn_group::VpnMessage, wallpaper_group::WallpaperMessage, weather_group::WeatherMessage,
         widget_group_content::GroupEvent, window_group::WindowGroupMessage,
-        workspaces_group::WorkspacesMessage,
+        wireguard_server_group::WireguardServerMessage, workspaces_group::WorkspacesMessage,
     },
 };
 
@@ -32,6 +32,8 @@ pub enum ShowcaseMessage {
     Gamepad(GamepadMessage),
     VoiceDictation(VoiceDictationMessage),
     Caldav(CaldavMessage),
+    Tailnet(TailnetMessage),
+    WireguardServer(WireguardServerMessage),
     Vpn(VpnMessage),
     LoginSession(LoginSessionMessage),
     WindowGroup(WindowGroupMessage),

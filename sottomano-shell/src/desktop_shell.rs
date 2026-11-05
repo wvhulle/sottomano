@@ -395,6 +395,8 @@ impl DesktopShell {
             | Message::EthernetPorts(_)
             | Message::BluetoothAdapters(_)
             | Message::Reachability(_)
+            | Message::Tailnet(_)
+            | Message::WireguardServer(_)
             | Message::Vpn(_)
             | Message::Monitor(_)
             | Message::ColorTemperature(_)

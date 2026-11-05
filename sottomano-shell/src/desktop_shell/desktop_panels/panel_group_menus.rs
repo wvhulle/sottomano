@@ -148,6 +148,14 @@ impl DesktopShell {
                     .group_content()
                     .map(Message::Reachability),
                 self.widget_groups
+                    .tailnet_group
+                    .group_content()
+                    .map(Message::Tailnet),
+                self.widget_groups
+                    .wireguard_server_group
+                    .group_content()
+                    .map(Message::WireguardServer),
+                self.widget_groups
                     .vpn_group
                     .group_content()
                     .map(Message::Vpn),

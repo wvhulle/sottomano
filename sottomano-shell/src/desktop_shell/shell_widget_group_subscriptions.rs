@@ -105,6 +105,17 @@ impl ShellWidgetGroups {
                         .source_demand(WidgetGroupFamily::Reachability),
                 )
                 .map(Message::Reachability),
+            self.tailnet_group
+                .subscription(&self.group_menus.source_demand(WidgetGroupFamily::Tailnet))
+                .map(Message::Tailnet),
+            self.wireguard_server_group
+                .subscription(
+                    buses,
+                    &self
+                        .group_menus
+                        .source_demand(WidgetGroupFamily::WireguardServer),
+                )
+                .map(Message::WireguardServer),
             self.vpn_group
                 .subscription(
                     buses,

@@ -382,6 +382,14 @@ impl DesktopShell {
                 .widget_groups
                 .reachability_group
                 .hover_card_for(target, self.clock),
+            HoverTarget::Tailnet(target) => self
+                .widget_groups
+                .tailnet_group
+                .hover_card_for(*target, self.clock),
+            HoverTarget::WireguardServer(target) => self
+                .widget_groups
+                .wireguard_server_group
+                .hover_card_for(target, self.clock),
             HoverTarget::Vpn(target) => self
                 .widget_groups
                 .vpn_group
@@ -512,6 +520,14 @@ impl DesktopShell {
                         .hover(hovered, &self.config, buses, self.clock)
                         .map(Message::EthernetPorts)
                 }),
+            self.widget_groups
+                .tailnet_group
+                .hover(hovered, &self.config, buses, self.clock)
+                .map(Message::Tailnet),
+            self.widget_groups
+                .wireguard_server_group
+                .hover(hovered, &self.config, buses, self.clock)
+                .map(Message::WireguardServer),
             self.widget_groups
                 .vpn_group
                 .hover(hovered, &self.config, buses, self.clock)

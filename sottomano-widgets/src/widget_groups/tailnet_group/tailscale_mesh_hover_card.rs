@@ -3,7 +3,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use iced::alignment::Horizontal;
 use sottomano_config::severity::Severity;
 use sottomano_sources::network_connectivity::tailscale_status::{
-    ADMIN_CONSOLE_URL, ExitRouting, KeyExpiry, Peer, PeerPath, Tailnet, Tailscale,
+    ADMIN_CONSOLE_URL, KeyExpiry, Peer, PeerPath, Tailnet, Tailscale,
 };
 
 use crate::{
@@ -49,15 +49,6 @@ fn key_expiry_entry(key_expiry: KeyExpiry, now: DateTime<Utc>) -> LabeledValue {
     }
 }
 
-fn exit_node_entry(exit_routing: &ExitRouting) -> Option<LabeledValue> {
-    match exit_routing {
-        ExitRouting::Local => None,
-        ExitRouting::ThroughPeer { peer_name } => {
-            Some(LabeledValue::new("Exit node", peer_name.as_str()))
-        }
-    }
-}
-
 fn peer_path_text(path: &PeerPath) -> &'static str {
     match path {
         PeerPath::Direct => "direct",
@@ -80,13 +71,14 @@ fn transferred_bytes_cell(byte_count: u64) -> ValueCell {
     Quantity::size(ByteSize::b(byte_count)).into()
 }
 
-impl IntoTableRecord<6> for &Peer {
-    fn into_table_record(self) -> TableRecord<6> {
+impl IntoTableRecord<7> for &Peer {
+    fn into_table_record(self) -> TableRecord<7> {
         TableRecord::new(
             self.name.as_str(),
             [
                 self.ip.as_str().into(),
                 self.os.as_str().into(),
+                self.tags.join(", ").into(),
                 peer_path_text(&self.path).into(),
                 relay_region_cell(&self.path),
                 transferred_bytes_cell(self.received_bytes),
@@ -159,7 +151,6 @@ impl GroupItemReading for Tailscale {
                 ),
             ]
             .into_iter()
-            .chain(exit_node_entry(&tailnet.exit_routing))
             .chain([key_expiry_entry(tailnet.key_expiry, clock.utc())])
             .chain(health_entries),
         );
@@ -167,13 +158,15 @@ impl GroupItemReading for Tailscale {
             [
                 ColumnHeading::titled("IP").align_x(Horizontal::Left),
                 ColumnHeading::titled("OS").align_x(Horizontal::Left),
+                ColumnHeading::titled("Tags").align_x(Horizontal::Left),
                 ColumnHeading::titled("Path").align_x(Horizontal::Left),
                 ColumnHeading::titled("Relay").align_x(Horizontal::Left),
                 ColumnHeading::titled("Received"),
                 ColumnHeading::titled("Sent"),
             ],
             &tailnet.online,
-        );
+        )
+        .without_blank_columns();
         HoverCardBody::sections([summary_section, peer_table])
     }
 }

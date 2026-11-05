@@ -8,14 +8,16 @@ use sottomano_widgets::{
         compute_group::ComputeGroup, dark_mode_group::DarkModeGroup,
         login_session_group::LoginSessionGroup, memory_board_group::MemoryBoardGroup,
         monitor_group::MonitorGroup, power_group::PowerGroup,
-        reachability_group::ReachabilityGroup, voice_dictation_group::VoiceDictationGroup,
-        vpn_group::VpnGroup,
+        reachability_group::ReachabilityGroup, tailnet_group::TailnetGroup,
+        voice_dictation_group::VoiceDictationGroup, vpn_group::VpnGroup,
+        wireguard_server_group::WireguardServerGroup,
     },
 };
 
 use crate::{desktop_shell::shell_widget_groups::ShellWidgetGroups, shell_message::Message};
 
 impl ShellWidgetGroups {
+    #[allow(clippy::too_many_lines)]
     pub fn refresh_reading(
         &self,
         target: &HoverTarget,
@@ -77,6 +79,10 @@ impl ShellWidgetGroups {
             HoverTarget::Reachability(_) => {
                 on_buses(&|buses| ReachabilityGroup::refresh(buses).map(Message::Reachability))
             }
+            HoverTarget::Tailnet(_) => TailnetGroup::refresh().map(Message::Tailnet),
+            HoverTarget::WireguardServer(_) => on_buses(&|buses| {
+                WireguardServerGroup::refresh(buses).map(Message::WireguardServer)
+            }),
             HoverTarget::Vpn(target) => {
                 on_buses(&|buses| VpnGroup::refresh(target, buses).map(Message::Vpn))
             }

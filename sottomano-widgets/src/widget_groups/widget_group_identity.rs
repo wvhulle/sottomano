@@ -44,12 +44,14 @@ pub enum WidgetGroupFamily {
     SidebarSettings,
     StorageSpace,
     SystemdManager,
+    Tailnet,
     Tray,
     VoiceDictation,
     Vpn,
     Wallpaper,
     Weather,
     WifiAdapters,
+    WireguardServer,
 }
 
 impl WidgetGroupFamily {
@@ -92,12 +94,14 @@ impl WidgetGroupFamily {
             WidgetGroupFamily::SidebarSettings => "Sidebar",
             WidgetGroupFamily::StorageSpace => "Filesystem",
             WidgetGroupFamily::SystemdManager => "Systemd",
+            WidgetGroupFamily::Tailnet => "Tailscale",
             WidgetGroupFamily::Tray => "Tray",
             WidgetGroupFamily::VoiceDictation => "Voice dictation",
             WidgetGroupFamily::Vpn => "VPN",
             WidgetGroupFamily::Wallpaper => "Wallpaper",
             WidgetGroupFamily::Weather => "Weather",
             WidgetGroupFamily::WifiAdapters => "Wi-Fi",
+            WidgetGroupFamily::WireguardServer => "WireGuard server",
         }
     }
 

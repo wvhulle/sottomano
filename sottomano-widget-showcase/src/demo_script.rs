@@ -20,12 +20,14 @@ use sottomano_widgets::{
         login_session_group::LoginSessionTarget,
         media_group::{MediaTarget, PlayerTarget},
         memory_board_group::MemoryBoardTarget,
+        tailnet_group::TailnetTarget,
         voice_dictation_group::VoiceDictationTarget,
         vpn_group::VpnTarget,
         wallpaper_group::WallpaperTarget,
         weather_group::WeatherTarget,
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         window_group::WindowTarget,
+        wireguard_server_group::WireguardServerTarget,
     },
 };
 
@@ -33,7 +35,8 @@ use crate::{
     fixtures::{
         app_launcher, appearance_presets, audio, caldav, claude_usage, compute, gamepad,
         group_menu_members, idle_lock, login_session, media, memory_board, niri_session,
-        notification_toasts, shell_settings, unchanging, voice_dictation, vpn, wallpaper, weather,
+        notification_toasts, shell_settings, tailnet, unchanging, voice_dictation, vpn, wallpaper,
+        weather, wireguard_server,
     },
     showcase_message::ShowcaseMessage,
     showcased_group::ShowcasedGroup,
@@ -136,7 +139,33 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
             Step::PressText("VPN"),
-            Step::Hover(HoverTarget::Vpn(VpnTarget::Tailscale)),
+            Step::Hover(HoverTarget::Vpn(VpnTarget::TailscaleExitNode(
+                Cow::Borrowed(vpn::HOME_EXIT_NODE_IP),
+            ))),
+        ],
+    },
+    Demo {
+        name: "wireguard_server",
+        group: wireguard_server::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Network),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
+            Step::PressText("WireGuard server"),
+            Step::Hover(HoverTarget::WireguardServer(WireguardServerTarget {
+                interface: Cow::Borrowed(wireguard_server::HOME_SERVER_TUNNEL_NAME),
+            })),
+        ],
+    },
+    Demo {
+        name: "tailnet_access",
+        group: tailnet::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Network),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
+            Step::PressText("Tailscale"),
+            Step::Hover(HoverTarget::Tailnet(TailnetTarget::InboundAccess)),
         ],
     },
     Demo {

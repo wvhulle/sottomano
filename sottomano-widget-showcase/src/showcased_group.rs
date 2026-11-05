@@ -43,12 +43,14 @@ use sottomano_widgets::{
         overlay_settings_group::OverlaySettingsGroup,
         panel_settings_group::PanelSettingsGroup,
         sidebar_settings_group::SidebarSettingsGroup,
+        tailnet_group::TailnetGroup,
         voice_dictation_group::VoiceDictationGroup,
         vpn_group::VpnGroup,
         wallpaper_group::WallpaperGroup,
         weather_group::WeatherGroup,
         widget_group_content::WidgetGroupContent,
         window_group::{WindowGroup, WindowRowLayout, WindowTarget},
+        wireguard_server_group::WireguardServerGroup,
         workspaces_group::{
             EmptyWorkspaceFolding, EmptyWorkspaces, inline_strip, sidebar_column,
             workspace_hover_card,
@@ -66,7 +68,8 @@ use sottomano_widgets::{
 
 use crate::{
     fixtures::{
-        claude_usage, compute, login_session, memory_board, niri_session, voice_dictation, vpn,
+        claude_usage, compute, login_session, memory_board, niri_session, tailnet, voice_dictation,
+        vpn, wireguard_server,
     },
     showcase_message::ShowcaseMessage,
     showcase_program::SHOWCASE_FLOAT_OFFSET_PX,
@@ -120,6 +123,8 @@ pub enum ShowcasedGroup {
     Gamepad(Box<ShowcasedGamepad>),
     VoiceDictation(Box<VoiceDictationGroup>),
     Caldav(Box<CaldavGroup>),
+    Tailnet(Box<TailnetGroup>),
+    WireguardServer(Box<WireguardServerGroup>),
     Vpn(Box<VpnGroup>),
     LoginSession(Box<LoginSessionGroup>),
     BottomPanel(Box<ShowcasedNiriSession>),
@@ -393,6 +398,8 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::VoiceDictation(_)
             | ShowcasedGroup::Caldav(_)
+            | ShowcasedGroup::Tailnet(_)
+            | ShowcasedGroup::WireguardServer(_)
             | ShowcasedGroup::Vpn(_)
             | ShowcasedGroup::Toasts(_) => Position::Top,
             ShowcasedGroup::MenuMembers(groups) => groups
@@ -456,6 +463,12 @@ impl ShowcasedGroup {
                         .group_content(&config.widget_groups.caldav)
                         .map(ShowcaseMessage::Caldav),
                 ]
+            }
+            ShowcasedGroup::Tailnet(group) => {
+                vec![group.group_content().map(ShowcaseMessage::Tailnet)]
+            }
+            ShowcasedGroup::WireguardServer(group) => {
+                vec![group.group_content().map(ShowcaseMessage::WireguardServer)]
             }
             ShowcasedGroup::Vpn(group) => vec![group.group_content().map(ShowcaseMessage::Vpn)],
             ShowcasedGroup::LoginSession(group) => {
@@ -559,6 +572,16 @@ impl ShowcasedGroup {
                     let _ = group.update(message, clock);
                 }
             }
+            ShowcasedGroup::WireguardServer(group) => {
+                if let ShowcaseMessage::WireguardServer(message) = message {
+                    let _ = group.update(message, clock);
+                }
+            }
+            ShowcasedGroup::Tailnet(group) => {
+                if let ShowcaseMessage::Tailnet(message) = message {
+                    let _ = group.update(message, clock);
+                }
+            }
             ShowcasedGroup::Vpn(group) => {
                 if let ShowcaseMessage::Vpn(message) = message {
                     let _ = group.update(message, clock);
@@ -586,6 +609,7 @@ impl ShowcasedGroup {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     pub fn hover(
         &mut self,
         target: &HoverTarget,
@@ -631,6 +655,23 @@ impl ShowcasedGroup {
                 voice_dictation::on_hover(*target)
                     .into_iter()
                     .map(ShowcaseMessage::VoiceDictation)
+                    .collect()
+            }
+            ShowcasedGroup::WireguardServer(group) => {
+                let _ = group.hover(Some(target), config, None, clock);
+                wireguard_server::on_hover()
+                    .into_iter()
+                    .map(ShowcaseMessage::WireguardServer)
+                    .collect()
+            }
+            ShowcasedGroup::Tailnet(group) => {
+                let _ = group.hover(Some(target), config, None, clock);
+                let HoverTarget::Tailnet(target) = target else {
+                    return Vec::new();
+                };
+                tailnet::on_hover(*target)
+                    .into_iter()
+                    .map(ShowcaseMessage::Tailnet)
                     .collect()
             }
             ShowcasedGroup::Vpn(group) => {
@@ -763,6 +804,18 @@ impl ShowcasedGroup {
                 };
                 group.hover_card_for(*target, &CaldavAccountConfig::default(), clock)
             }
+            ShowcasedGroup::WireguardServer(group) => {
+                let HoverTarget::WireguardServer(target) = target else {
+                    return None;
+                };
+                group.hover_card_for(target, clock)
+            }
+            ShowcasedGroup::Tailnet(group) => {
+                let HoverTarget::Tailnet(target) = target else {
+                    return None;
+                };
+                group.hover_card_for(*target, clock)
+            }
             ShowcasedGroup::Vpn(group) => {
                 let HoverTarget::Vpn(target) = target else {
                     return None;
@@ -832,6 +885,8 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::VoiceDictation(_)
             | ShowcasedGroup::Caldav(_)
+            | ShowcasedGroup::Tailnet(_)
+            | ShowcasedGroup::WireguardServer(_)
             | ShowcasedGroup::Vpn(_)
             | ShowcasedGroup::LoginSession(_)
             | ShowcasedGroup::MenuMembers(_)
