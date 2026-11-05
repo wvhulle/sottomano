@@ -113,7 +113,11 @@ mod tests {
                 .collect::<Vec<_>>()
         );
         assert_eq!(
-            table.records().nth(2).map(|record| record.cell(0)).unwrap(),
+            table
+                .records()
+                .nth(2)
+                .and_then(|record| record.cell(0))
+                .unwrap(),
             &hugging_face_link(
                 "Qwen Qwen3.6 27B".to_owned(),
                 "https://huggingface.co/Qwen/Qwen3.6-27B"
