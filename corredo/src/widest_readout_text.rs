@@ -1,6 +1,5 @@
 use std::{ops::RangeInclusive, slice::from_ref};
 
-use chrono::Locale;
 use iced::{
     Element, Event, Font, Length, Rectangle, Size,
     advanced::{
@@ -14,73 +13,72 @@ use iced::{
     mouse::{Cursor, Interaction},
     widget::text::{Shaping, Wrapping},
 };
-use sottomano_toml_config::theme::font::ResolvedFont;
 
-use crate::widgets::text::{LINE_HEIGHT, font_faces_of};
+use crate::{font_faces::TextFace, shared_metrics::LINE_HEIGHT};
 
 type MeasuredParagraph = <iced::Renderer as advanced_text::Renderer>::Paragraph;
 
-pub struct ReadoutLabels<Owner> {
+pub struct ReadoutLabels<Owner, FormatContext> {
     pub owner: Owner,
     pub range: RangeInclusive<f32>,
     pub step: f32,
-    pub format: fn(f32, Locale) -> String,
-    pub locale: Locale,
+    pub format: fn(f32, FormatContext) -> String,
+    pub context: FormatContext,
 }
 
 #[derive(Clone, PartialEq)]
-struct MeasuredLabels<Owner> {
+struct MeasuredLabels<Owner, FormatContext> {
     owner: Owner,
     range: RangeInclusive<f32>,
     step: f32,
-    locale: Locale,
+    context: FormatContext,
     font: Font,
     text_size_px: f32,
 }
 
-struct WidestLabel<Owner> {
-    measured: MeasuredLabels<Owner>,
+struct WidestLabel<Owner, FormatContext> {
+    measured: MeasuredLabels<Owner, FormatContext>,
     width: f32,
 }
 
-struct State<Owner> {
-    widest: Option<WidestLabel<Owner>>,
+struct State<Owner, FormatContext> {
+    widest: Option<WidestLabel<Owner, FormatContext>>,
 }
 
-pub struct WidestReadoutText<'a, Message, Owner> {
+pub struct WidestReadoutText<'a, Message, Owner, FormatContext> {
     current: Element<'a, Message>,
-    measured: MeasuredLabels<Owner>,
-    format: fn(f32, Locale) -> String,
+    measured: MeasuredLabels<Owner, FormatContext>,
+    format: fn(f32, FormatContext) -> String,
 }
 
-pub fn widest_readout_text<'a, Message, Owner>(
-    labels: ReadoutLabels<Owner>,
-    font: &ResolvedFont,
+pub fn widest_readout_text<'a, Message, Owner, FormatContext>(
+    labels: ReadoutLabels<Owner, FormatContext>,
+    face: TextFace,
     current: impl Into<Element<'a, Message>>,
-) -> WidestReadoutText<'a, Message, Owner> {
+) -> WidestReadoutText<'a, Message, Owner, FormatContext> {
     WidestReadoutText {
         current: current.into(),
         measured: MeasuredLabels {
             owner: labels.owner,
             range: labels.range,
             step: labels.step,
-            locale: labels.locale,
-            font: font_faces_of(font).regular,
-            text_size_px: font.text_size_px,
+            context: labels.context,
+            font: face.font,
+            text_size_px: face.size_px,
         },
         format: labels.format,
     }
 }
 
-impl<'a, Message: 'a, Owner: Clone + PartialEq + 'static>
-    From<WidestReadoutText<'a, Message, Owner>> for Element<'a, Message>
+impl<'a, Message: 'a, Owner: Clone + PartialEq + 'static, FormatContext: Copy + PartialEq + 'static>
+    From<WidestReadoutText<'a, Message, Owner, FormatContext>> for Element<'a, Message>
 {
-    fn from(readout: WidestReadoutText<'a, Message, Owner>) -> Self {
+    fn from(readout: WidestReadoutText<'a, Message, Owner, FormatContext>) -> Self {
         Element::new(readout)
     }
 }
 
-impl<Owner> MeasuredLabels<Owner> {
+impl<Owner, FormatContext: Copy> MeasuredLabels<Owner, FormatContext> {
     fn values(&self) -> impl Iterator<Item = f32> {
         let start = *self.range.start();
         let end = *self.range.end();
@@ -98,11 +96,11 @@ impl<Owner> MeasuredLabels<Owner> {
             .chain([end])
     }
 
-    fn widest_width(&self, format: fn(f32, Locale) -> String) -> f32 {
+    fn widest_width(&self, format: fn(f32, FormatContext) -> String) -> f32 {
         self.values()
             .map(|value| {
                 MeasuredParagraph::with_text(advanced_text::Text {
-                    content: format(value, self.locale).as_str(),
+                    content: format(value, self.context).as_str(),
                     bounds: Size::INFINITE,
                     size: self.text_size_px.into(),
                     line_height: LINE_HEIGHT,
@@ -119,15 +117,16 @@ impl<Owner> MeasuredLabels<Owner> {
     }
 }
 
-impl<Message, Owner: Clone + PartialEq + 'static> Widget<Message, iced::Theme, iced::Renderer>
-    for WidestReadoutText<'_, Message, Owner>
+impl<Message, Owner: Clone + PartialEq + 'static, FormatContext: Copy + PartialEq + 'static>
+    Widget<Message, iced::Theme, iced::Renderer>
+    for WidestReadoutText<'_, Message, Owner, FormatContext>
 {
     fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<State<Owner>>()
+        tree::Tag::of::<State<Owner, FormatContext>>()
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(State::<Owner> { widest: None })
+        tree::State::new(State::<Owner, FormatContext> { widest: None })
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -143,7 +142,7 @@ impl<Message, Owner: Clone + PartialEq + 'static> Widget<Message, iced::Theme, i
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
-        let state = tree.state.downcast_mut::<State<Owner>>();
+        let state = tree.state.downcast_mut::<State<Owner, FormatContext>>();
         let width = match &state.widest {
             Some(widest) if widest.measured == self.measured => widest.width,
             _ => {

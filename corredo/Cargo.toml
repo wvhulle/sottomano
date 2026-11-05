@@ -15,9 +15,11 @@ workspace = true
 [dependencies]
 iced = { version = "0.14.0", default-features = false, features = ["advanced", "svg", "canvas"] }
 iced_wgpu = { version = "0.14.0", optional = true }
+quick-xml = { version = "0.42", optional = true }
 
 [dev-dependencies]
 iced_test = "0.14.0"
 
 [features]
+markup = ["dep:quick-xml"]
 wgpu = ["iced/wgpu", "dep:iced_wgpu"]

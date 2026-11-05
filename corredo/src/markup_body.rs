@@ -9,16 +9,14 @@ use iced::{
     },
 };
 use quick_xml::{Reader, escape::resolve_xml_entity, events::Event, name::LocalName};
-use sottomano_toml_config::theme::font::ResolvedFont;
 
-use crate::widgets::{
-    content_sized_table::content_sized_grid,
-    text::{LINE_HEIGHT, font_faces_of},
+use crate::{
+    content_sized_table::content_sized_grid, font_faces::TextFace, shared_metrics::LINE_HEIGHT,
 };
 
 pub struct MarkupBody<'a> {
     markup: &'a str,
-    font: &'a ResolvedFont,
+    upright: Font,
     size: f32,
     monospace: Font,
     block_spacing: f32,
@@ -28,11 +26,11 @@ pub struct MarkupBody<'a> {
 
 impl<'a> MarkupBody<'a> {
     #[must_use]
-    pub fn new(markup: &'a str, font: &'a ResolvedFont) -> Self {
+    pub fn new(markup: &'a str, face: TextFace) -> Self {
         Self {
             markup,
-            font,
-            size: font.text_size_px,
+            upright: face.font,
+            size: face.size_px,
             monospace: Font::MONOSPACE,
             block_spacing: 0.0,
             column_gap: 0.0,
@@ -73,7 +71,7 @@ impl<'a> MarkupBody<'a> {
 
     #[must_use]
     pub fn view<Message: 'static>(self) -> Element<'static, Message> {
-        let blocks = parse_blocks(self.markup, self.size, self.font, self.monospace);
+        let blocks = parse_blocks(self.markup, self.size, self.upright, self.monospace);
         Column::with_children(blocks.into_iter().map(|block| match block {
             Block::Paragraph {
                 spans,
@@ -109,7 +107,7 @@ impl<'a> MarkupBody<'a> {
     }
 
     fn rows_table<Message: 'static>(&self, rows: Vec<Row<'static>>) -> Element<'static, Message> {
-        let upright_face = font_faces_of(self.font).regular;
+        let upright_face = self.upright;
         content_sized_grid(
             vec![Horizontal::Right, Horizontal::Left],
             rows.into_iter().map(|row| {
@@ -235,7 +233,7 @@ impl<'a> BlockBuilder<'a> {
     }
 }
 
-fn parse_blocks<'a>(markup: &str, size: f32, font: &ResolvedFont, mono: Font) -> Vec<Block<'a>> {
+fn parse_blocks<'a>(markup: &str, size: f32, upright: Font, mono: Font) -> Vec<Block<'a>> {
     let mut reader = Reader::from_str(markup);
     let config = reader.config_mut();
     config.allow_dangling_amp = true;
@@ -245,7 +243,7 @@ fn parse_blocks<'a>(markup: &str, size: f32, font: &ResolvedFont, mono: Font) ->
     let mut stack: Vec<String> = Vec::new();
     let mut builder = BlockBuilder { blocks: Vec::new() };
     let styled = |text: String, stack: &[String]| {
-        let emphasis = Emphasis::from_stack(stack, font_faces_of(font).regular, mono);
+        let emphasis = Emphasis::from_stack(stack, upright, mono);
         span(text)
             .font(emphasis.font)
             .size(size)
@@ -301,22 +299,16 @@ fn lowercase_name(name: &LocalName) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use sottomano_toml_config::theme::font::FontRole;
+    use iced::font::Family;
 
     use super::*;
 
     fn blocks(markup: &str) -> Vec<Block<'static>> {
-        let font = ResolvedFont {
-            role: FontRole::Text,
-            family: String::from("sans-serif"),
-            text_size_px: 14.0,
-            small_text_size_px: 12.0,
-            icon_size_px: 14.0,
-            data: Arc::from([].as_slice()),
+        let upright = Font {
+            family: Family::SansSerif,
+            ..Font::DEFAULT
         };
-        parse_blocks(markup, font.text_size_px, &font, Font::MONOSPACE)
+        parse_blocks(markup, 14.0, upright, Font::MONOSPACE)
     }
 
     fn joined(spans: &[Span<'_>]) -> String {

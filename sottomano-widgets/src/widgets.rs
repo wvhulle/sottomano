@@ -1,7 +1,8 @@
 pub use corredo::{
-    child_view, edge_alpha_fade, ellipsis_rule, list_end_corners, pressable_text, rectangle_morph,
-    refresh_dial, reveal, rounded_quads, selection_scroller, shared_metrics, steady_label_width,
-    svg_icon, transitioning_text, uniform_width_column,
+    child_view, content_sized_table, edge_alpha_fade, ellipsis_rule, fair_widths, list_end_corners,
+    pressable_text, rectangle_morph, refresh_dial, reveal, rounded_quads, selection_scroller,
+    shared_metrics, steady_label_width, svg_icon, transitioning_text, uniform_width_column,
+    widest_readout_text,
 };
 
 pub mod activity_line;
@@ -10,9 +11,7 @@ pub mod announced_level;
 pub mod app_window_focus;
 pub mod appearance_presets;
 pub mod configured_theme;
-pub mod content_sized_table;
 pub mod context_menu;
-pub mod fair_widths;
 pub mod favicon;
 pub mod hardware_section;
 pub mod hover_fetched_snapshot;
@@ -41,7 +40,6 @@ pub mod typing_under_cards;
 pub mod value_cells;
 pub mod vendor_logo;
 pub mod weather_icons;
-pub mod widest_readout_text;
 pub mod window_icon;
 pub mod window_title;
 

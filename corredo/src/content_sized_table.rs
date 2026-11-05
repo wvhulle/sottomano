@@ -13,7 +13,7 @@ use iced::{
     widget::Space,
 };
 
-use crate::widgets::fair_widths::fair_widths;
+use crate::fair_widths::fair_widths;
 
 pub struct ContentSizedColumn<'a, Row, Message> {
     header: Element<'a, Message>,
