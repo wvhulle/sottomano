@@ -204,24 +204,29 @@ pub(crate) fn item_row<'a, M: Clone + 'a>(
             }),
         )),
     };
-    let leading = match layout.presentation.layout {
-        GroupMenuLayout::Cascading => Vec::new(),
-        GroupMenuLayout::Accordion => {
+    let info_icon = card_info_icon(layout, item.inspected_target);
+    let (leading, trailing) = match (layout.presentation.layout, layout.direction) {
+        (GroupMenuLayout::Accordion, _) => (
             vec![
                 Space::new()
                     .width(layout.config.theme.font.icon_size_px)
                     .into(),
-            ]
+            ],
+            item_pin.into_iter().chain(once(info_icon)).collect(),
+        ),
+        (GroupMenuLayout::Cascading, CascadeDirection::Rightward) => (
+            Vec::new(),
+            item_pin.into_iter().chain(once(info_icon)).collect(),
+        ),
+        (GroupMenuLayout::Cascading, CascadeDirection::Leftward) => {
+            (vec![info_icon], item_pin.into_iter().collect())
         }
     };
     let content = MenuRowContent {
         leading,
         parts: item.parts,
         name: item.name,
-        trailing: item_pin
-            .into_iter()
-            .chain(once(card_info_icon(layout, item.inspected_target)))
-            .collect(),
+        trailing,
     };
     let press = match item.gestures.left {
         GroupItemGesture::Performs { message, .. } => {

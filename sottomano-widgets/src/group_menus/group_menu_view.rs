@@ -1006,6 +1006,67 @@ mod tests {
         );
     }
 
+    fn info_icon_precedes_row_name(direction: CascadeDirection) -> bool {
+        let config = Config::default();
+        let expansion = WidgetGroupExpansion::default();
+        let group_menus = opened_menu_state(GroupMenuPresentation::default());
+        let hover_card = HoverCard::empty();
+        let (entries, favicons, controller_artwork) = (
+            DesktopIndex::default(),
+            Favicons::default(),
+            ControllerArtwork::decoded(),
+        );
+        let group = WidgetGroupContent::expandable(
+            WidgetGroupFamily::Gpu,
+            &expansion,
+            |_| RowPointerMessage::Unrelated,
+            [GroupItem::reading(SmokeReading, POINTED_ROW)],
+        );
+        let surfaces = GroupMenuView::new(
+            GroupMenuTopic::Hardware,
+            &group_menus,
+            |_| RowPointerMessage::Unrelated,
+            [group],
+        )
+        .surfaces(
+            &config,
+            &ShellLayer::Overlays.default_appearance(),
+            &InspectionCard {
+                hover_card: &hover_card,
+                card_appearance: ShellLayer::Overlays.default_appearance(),
+                assets: WindowAssets {
+                    entries: &entries,
+                    favicons: &favicons,
+                    controller_artwork: &controller_artwork,
+                },
+                clock: Clock::real(),
+            },
+            CascadeOrientation {
+                direction,
+                growth: PanelGrowth::Downward,
+            },
+        )
+        .expect("an opened menu has a surface");
+        let item_list = surfaces
+            .satellites
+            .into_iter()
+            .next()
+            .expect("the open group has an item list");
+        let mut simulator =
+            Simulator::with_size(Settings::default(), Size::new(1200.0, 800.0), item_list);
+        info_icon_center(&mut simulator).x < row_name_center(&mut simulator).x
+    }
+
+    #[test]
+    fn a_rightward_cascade_shows_the_info_icon_after_the_row_name() {
+        assert!(!info_icon_precedes_row_name(CascadeDirection::Rightward));
+    }
+
+    #[test]
+    fn a_leftward_cascade_shows_the_info_icon_before_the_row_name() {
+        assert!(info_icon_precedes_row_name(CascadeDirection::Leftward));
+    }
+
     #[test]
     fn a_pinned_composed_item_draws_its_value_on_the_panel() {
         let config = Config::default();
