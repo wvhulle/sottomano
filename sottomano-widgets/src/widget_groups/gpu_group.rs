@@ -10,7 +10,7 @@ use gpu_clock_label::GpuClockLabel;
 use gpu_temperature_label::GpuTemperatureLabel;
 use iced::{Subscription, Task};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::pci_gpu_readings::{
         self, GpuClocks, GpuDiscovery, GpuHandle, GpuMemory, GpuModel, GpuNames, GpuPowerDraw,

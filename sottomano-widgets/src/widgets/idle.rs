@@ -3,7 +3,7 @@ pub mod timer;
 use std::time::Duration;
 
 use iced::futures::{Stream, StreamExt, stream};
-use sottomano_sources::login_session_presence::{
+use sottomano_desktop_sources::login_session_presence::{
     idle_session_actions::IdleAction,
     wayland_idle_notify::{
         IdleEdge, IdleNotifier, IdleTrigger, InputOrInhibitors, TaggedEdge, WaylandError,

@@ -4,7 +4,7 @@ use std::{collections::HashMap, env, ops::RangeInclusive, thread, time::Duration
 
 use iced::{Function, Subscription, Task};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
     media_playback_audio::pipewire_audio::{

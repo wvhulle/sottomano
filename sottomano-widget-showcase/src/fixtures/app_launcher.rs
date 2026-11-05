@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::Path};
 
-use sottomano_sources::desktop_windows_apps::desktop_entry_app_catalog::{
+use sottomano_desktop_sources::desktop_windows_apps::desktop_entry_app_catalog::{
     AppCategory, LaunchableApp, OpenAppWindows,
 };
 use sottomano_widgets::{

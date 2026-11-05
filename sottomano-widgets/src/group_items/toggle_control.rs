@@ -1,5 +1,7 @@
 use iced::{Subscription, Task};
-use sottomano_sources::{SnapshotDelivery, SnapshotSource, blocking_background_work::blocking};
+use sottomano_desktop_sources::{
+    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking,
+};
 
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
@@ -183,7 +185,7 @@ impl<S: ToggleableSource> ToggleControl<S> {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::{
+    use sottomano_desktop_sources::{
         cpu_memory_compute::amd_x3d_cache_preference::X3dCachePreference,
         system_protocol_clients::sysfs_attribute_reads::Error,
     };

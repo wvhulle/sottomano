@@ -3,7 +3,7 @@ use std::time::Duration;
 use chrono::TimeDelta;
 use rust_decimal::Decimal;
 use rusty_money::iso;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     ai_usage_spend::{
         ccusage_cli_reports::{BillingBlock, Period, RecentUsage, Usage},

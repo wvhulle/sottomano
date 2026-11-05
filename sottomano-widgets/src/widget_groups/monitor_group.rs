@@ -10,7 +10,7 @@ use std::{
 use iced::{Subscription, Task, mouse::ScrollDelta};
 use output_details::ConnectedOutput;
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
     desktop_windows_apps::niri_output_facts::OutputInfo,

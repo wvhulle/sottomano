@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use sottomano_config::widget_groups::gamepad_bindings::GamepadBindingsConfig;
-use sottomano_sources::gamepad_controller_input::{
+use sottomano_desktop_sources::gamepad_controller_input::{
     accelerometer_report_timing::{DeviceClock, ReportTiming, SentReports},
     evdev_gamepad_devices::{
         ConnectedGamepad, ControllerIdentity, GamepadOrigin, GamepadPower, GamepadTransport,

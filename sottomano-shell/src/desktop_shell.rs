@@ -29,7 +29,7 @@ use iced::{
 use iced_controller_diagram::ControllerArtwork;
 use niri_ipc::state::EventStreamState;
 use sottomano_config::{Config, ConfigFile, LoadError, SecretPaths, screen_edges::Position};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_notifications::alert_sound_player::SoundTheme,
     desktop_windows_apps::{

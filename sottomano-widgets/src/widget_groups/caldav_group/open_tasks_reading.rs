@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use chrono::{DateTime, Local, Locale, NaiveDate};
 use iced::alignment::Horizontal;
 use sottomano_config::severity::Severity;
-use sottomano_sources::caldav_tasks_events::{
+use sottomano_desktop_sources::caldav_tasks_events::{
     caldav_open_tasks::OpenTaskList,
     caldav_server_provider::CaldavProvider,
     caldav_task_query::{OpenTask, PriorityBand, TaskDeadline, TaskProgress},

@@ -3,7 +3,7 @@ use sottomano_config::{
     Config,
     screen_edges::{HEdge, VEdge},
 };
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     desktop_notifications::notification_data::NotificationData,
     desktop_windows_apps::niri_window_placement::{Placement, WindowOwner},
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,

@@ -6,7 +6,7 @@ use std::{
 use chrono::{DateTime, Local, Locale, NaiveDate, TimeDelta, Timelike, Utc};
 use iced::alignment::Horizontal;
 use sottomano_config::{severity::Severity, widget_groups::rain_alerts::RainAlertsConfig};
-use sottomano_sources::weather::{
+use sottomano_desktop_sources::weather::{
     buienradar_rain::{Downpour, Rain, RainOutlook, precipitation::millimeter_per_hour},
     open_meteo_precipitation_model::{ModelQuarterHour, PrecipitationModel},
 };
@@ -706,7 +706,7 @@ impl GroupItemReading for PrecipitationModel {
 mod tests {
     use std::time::Duration;
 
-    use sottomano_sources::weather::open_meteo_temperature::{
+    use sottomano_desktop_sources::weather::open_meteo_temperature::{
         Daylight, Intensity, WeatherCondition,
     };
     use uom::si::{

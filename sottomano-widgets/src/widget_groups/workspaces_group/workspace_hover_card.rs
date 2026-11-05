@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use iced::Size;
-use sottomano_sources::desktop_windows_apps::{
+use sottomano_desktop_sources::desktop_windows_apps::{
     niri_window_snapshot, window_title_labels::IconCandidate,
 };
 

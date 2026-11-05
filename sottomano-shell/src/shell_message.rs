@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use iced::window::Id;
 use iced_exwlshell::{actions::RegionActionCB, to_layer_message};
 use sottomano_config::{Config, LoadError};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_notifications::alert_sound_player::SoundTheme,
     desktop_windows_apps::{

@@ -10,7 +10,7 @@ mod sqlite_metered_volume;
 mod tcp_retransmit_reading;
 
 use sottomano_config::widget_groups::reachability::ReachabilityConfig;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
         icmp_internet_latency::InternetLatency,

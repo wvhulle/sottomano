@@ -1,4 +1,6 @@
-use sottomano_sources::network_connectivity::wifi_connection::{WifiAdapter, WifiAdapterDetails};
+use sottomano_desktop_sources::network_connectivity::wifi_connection::{
+    WifiAdapter, WifiAdapterDetails,
+};
 use uom::si::f64::Ratio;
 
 use crate::{

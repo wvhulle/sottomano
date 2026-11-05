@@ -1,5 +1,5 @@
 use sottomano_config::severity::Severity;
-use sottomano_sources::cpu_memory_compute::{
+use sottomano_desktop_sources::cpu_memory_compute::{
     memory_module_temperatures::MemoryModuleTemperatures,
     memory_usage::{Memory, MemoryProcesses, Swap},
 };

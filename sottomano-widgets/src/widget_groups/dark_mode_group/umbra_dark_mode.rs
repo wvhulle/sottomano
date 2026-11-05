@@ -1,4 +1,4 @@
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     screen_brightness_color::umbra_dark_mode::{self, DarkMode},
     system_protocol_clients::shell_command_output,
 };

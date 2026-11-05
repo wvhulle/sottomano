@@ -1,4 +1,4 @@
-use sottomano_sources::sqlite_state_store::{Columns, StoreError, flag, real, with_table};
+use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, flag, real, with_table};
 
 use crate::widgets::shell_layer_appearance::{
     LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer,
@@ -222,7 +222,7 @@ async fn read_layer_appearance(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::sqlite_state_store::{flag, in_memory_connection, real};
+    use sottomano_desktop_sources::sqlite_state_store::{flag, in_memory_connection, real};
 
     use super::{
         AppearanceSetting, CREATE_TABLE, read_layer_appearance, write_appearance, write_setting,

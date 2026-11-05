@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use iced::{Subscription, Task};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     ai_usage_spend::{
         openrouter_credits::{self, OpenRouterAccount, OpenRouterSpend, OpenRouterStrictBudget},

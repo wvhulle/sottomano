@@ -1,5 +1,5 @@
 use chrono::Locale;
-use sottomano_sources::wallpaper_place_article::Wallpaper;
+use sottomano_desktop_sources::wallpaper_place_article::Wallpaper;
 
 use crate::{
     clock::Clock,

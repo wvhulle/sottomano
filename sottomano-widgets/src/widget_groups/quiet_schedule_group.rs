@@ -9,7 +9,7 @@ use std::{ops::RangeInclusive, time::Duration};
 use chrono::{DateTime, Local, Locale, Utc, Weekday, WeekdaySet};
 use iced::{Function, Subscription, Task, task};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     login_session_presence::logind_manager,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };

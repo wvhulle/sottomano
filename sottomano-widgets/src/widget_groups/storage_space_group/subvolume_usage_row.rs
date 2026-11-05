@@ -1,6 +1,6 @@
 use bytesize::ByteSize;
 use chrono::Locale;
-use sottomano_sources::disk_storage::bcachefs_subvolume_usage::{
+use sottomano_desktop_sources::disk_storage::bcachefs_subvolume_usage::{
     BcachefsSubvolume, BcachefsSubvolumeUsage, MountAccess, SubvolumeMount,
 };
 use uom::si::f64::Ratio;

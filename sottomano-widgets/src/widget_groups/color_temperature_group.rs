@@ -5,7 +5,7 @@ use std::ops::RangeInclusive;
 
 use iced::{Subscription, Task};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     screen_brightness_color::gammarelay_color_temperature::{self, ColorTemperature},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,

@@ -1,4 +1,4 @@
-use sottomano_sources::sqlite_state_store::{Columns, StoreError, with_table};
+use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, with_table};
 
 use crate::group_menus::group_menu_presentation::{
     GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
@@ -107,7 +107,7 @@ async fn write_presentation(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
 
     use super::{CREATE_TABLE, DROP_SUPERSEDED_TABLE, read_presentation, write_presentation};
     use crate::group_menus::group_menu_presentation::{

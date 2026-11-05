@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, mem::take, path::PathBuf};
 
 use iced::{Subscription, Task};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     ai_usage_spend::llama_server_slots::{
         LlamaServer, LlamaServerOnBus, LlamaServerUnit, ModelInstance,

@@ -56,7 +56,7 @@ pub mod wireguard_server_group;
 mod wireguard_tunnel_hover_card;
 pub mod workspaces_group;
 
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     ai_usage_spend::gguf_header_model_card::GgufHeaderError,
     system_protocol_clients::{
         dbus_desktop_buses, http_json_client, shell_command_output, sysfs_attribute_reads,

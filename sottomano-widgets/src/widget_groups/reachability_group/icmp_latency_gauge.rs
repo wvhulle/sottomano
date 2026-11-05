@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use sottomano_sources::network_connectivity::icmp_internet_latency::InternetLatency;
+use sottomano_desktop_sources::network_connectivity::icmp_internet_latency::InternetLatency;
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{

@@ -1,7 +1,7 @@
 use std::iter::once;
 
 use chrono::Locale;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     network_connectivity::bluez_bluetooth::{AdapterPower, BluetoothAdapter},
     systemd_units_journal::journal_device_kernel_errors::DeviceKernelError,
 };

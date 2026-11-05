@@ -1,4 +1,4 @@
-use sottomano_sources::sqlite_state_store::{Columns, StoreError, flag, real, with_table};
+use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, flag, real, with_table};
 
 use super::PanelLayout;
 

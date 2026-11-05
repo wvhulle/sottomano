@@ -1,6 +1,6 @@
 use chrono::{DateTime, Locale, Utc};
 use sottomano_config::severity::Severity;
-use sottomano_sources::login_session_presence::focus_time_ledger::{
+use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
     Accounting, LAST_DAY, LAST_HOUR,
 };
 

@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use chrono::{DateTime, Locale, Utc};
 use sottomano_config::severity::Severity;
-use sottomano_sources::ai_usage_spend::usage_quota::Quota;
+use sottomano_desktop_sources::ai_usage_spend::usage_quota::Quota;
 use uom::si::f64::Ratio;
 
 use crate::{

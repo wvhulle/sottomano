@@ -8,7 +8,7 @@ use std::{ops::RangeInclusive, time::Duration};
 use chrono::{DateTime, Utc};
 use iced::{Function, Subscription, Task, task};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
     login_session_presence::logind_manager,

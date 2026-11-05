@@ -1,6 +1,6 @@
 use chrono::Locale;
 use situo_client::{BeaconDbEstimate, FixOrigin, GeoCoordinates, NearestPlace};
-use sottomano_sources::weather::situo_location_fix::Location;
+use sottomano_desktop_sources::weather::situo_location_fix::Location;
 use uom::si::length::kilometer;
 
 use crate::{

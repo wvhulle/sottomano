@@ -1,5 +1,5 @@
 use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     login_session_presence::focus_time_ledger::{
         FocusSpan, FocusUnit, LoadedSpans, PresenceSpan, SpanWrite, StoredFacet,
     },
@@ -205,7 +205,7 @@ mod tests {
     use std::path::PathBuf;
 
     use chrono::TimeDelta;
-    use sottomano_sources::{
+    use sottomano_desktop_sources::{
         login_session_presence::focus_time_ledger::Presence,
         sqlite_state_store::in_memory_connection,
     };

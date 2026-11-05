@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use reqwest::Url;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     media_playback_audio::{
         lrclib_synced_lyrics::TrackLyrics,

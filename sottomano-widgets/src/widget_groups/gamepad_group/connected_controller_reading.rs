@@ -7,7 +7,7 @@ use sottomano_config::{
         ButtonRole, ClaimedButton, CompositorAction, GamepadBindingsConfig, StickDirection,
     },
 };
-use sottomano_sources::gamepad_controller_input::{
+use sottomano_desktop_sources::gamepad_controller_input::{
     evdev_gamepad_devices::{
         ConnectedGamepad, ControllerIdentity, GamepadOrigin, PhysicalGamepadLink,
     },

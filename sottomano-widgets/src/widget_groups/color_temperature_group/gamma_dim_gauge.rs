@@ -1,4 +1,4 @@
-use sottomano_sources::screen_brightness_color::gammarelay_color_temperature::ColorTemperature;
+use sottomano_desktop_sources::screen_brightness_color::gammarelay_color_temperature::ColorTemperature;
 use uom::si::f64::Ratio;
 
 use crate::{

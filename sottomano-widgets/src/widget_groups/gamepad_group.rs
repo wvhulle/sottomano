@@ -15,7 +15,7 @@ use notulist_client::DictationCommand;
 use sottomano_config::widget_groups::gamepad_bindings::{
     ButtonRole, CompositorAction, GamepadBindingsConfig, GamepadButton,
 };
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::niri_action_requests::ActionFailure,
     gamepad_controller_input::{
@@ -858,7 +858,7 @@ fn niri_request(action: CompositorAction) -> niri_ipc::Action {
 #[cfg(test)]
 mod tests {
     use sottomano_config::widget_groups::gamepad_bindings::{GamepadStick, StickDirection};
-    use sottomano_sources::gamepad_controller_input::player_indicator_leds::LitPlayer;
+    use sottomano_desktop_sources::gamepad_controller_input::player_indicator_leds::LitPlayer;
 
     use super::*;
 

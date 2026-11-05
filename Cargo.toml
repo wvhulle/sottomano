@@ -4,7 +4,7 @@ members = [
   "iced_controller_diagram",
   "sottomano-config",
   "sottomano-icon-sets",
-  "sottomano-sources",
+  "sottomano-desktop-sources",
   "sottomano-widgets",
   "sottomano-shell",
   "sottomano-widget-showcase",

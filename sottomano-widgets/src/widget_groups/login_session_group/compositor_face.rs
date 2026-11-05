@@ -1,5 +1,5 @@
 use chrono::Locale;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     login_session_presence::logind_session_facts::SessionIdentity,
     systemd_units_journal::graphical_session_target::GraphicalSession,
 };

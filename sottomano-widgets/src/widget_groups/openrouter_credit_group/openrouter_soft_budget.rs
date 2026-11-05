@@ -1,5 +1,5 @@
 use chrono::{DateTime, Locale, Utc};
-use sottomano_sources::ai_usage_spend::{
+use sottomano_desktop_sources::ai_usage_spend::{
     openrouter_credits::{OpenRouterSpend, SpanSpend},
     usage_quota::Quota,
 };

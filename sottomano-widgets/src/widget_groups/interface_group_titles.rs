@@ -1,4 +1,4 @@
-use sottomano_sources::network_connectivity::interface_bus_attachment::InterfaceAttachment;
+use sottomano_desktop_sources::network_connectivity::interface_bus_attachment::InterfaceAttachment;
 
 use crate::widget_groups::widget_group_identity::WidgetGroupTitle;
 
@@ -40,7 +40,7 @@ impl AttachmentTitles {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::network_connectivity::interface_bus_attachment::InterfaceAttachment::{
+    use sottomano_desktop_sources::network_connectivity::interface_bus_attachment::InterfaceAttachment::{
         self, BuiltIn, Usb,
     };
 

@@ -3,7 +3,7 @@ mod memory_usage_gauge;
 
 use iced::{Subscription, Task};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::{
         memory_module_temperatures::MemoryModuleTemperatures,

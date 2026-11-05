@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use chrono::{DateTime, Local, Locale, NaiveDate};
 use iced::alignment::Horizontal;
-use sottomano_sources::caldav_tasks_events::{
+use sottomano_desktop_sources::caldav_tasks_events::{
     agenda_moment_zones::AgendaMoment, caldav_event_query::UpcomingEvent,
     caldav_server_provider::CaldavProvider, caldav_upcoming_events::UpcomingEventList,
     nextcloud_web_links::NextcloudWebRoot,
@@ -213,7 +213,7 @@ mod tests {
     use std::marker::PhantomData;
 
     use chrono::Locale;
-    use sottomano_sources::{
+    use sottomano_desktop_sources::{
         caldav_tasks_events::{
             caldav_server_provider::CaldavProvider, caldav_upcoming_events::UpcomingEventList,
         },

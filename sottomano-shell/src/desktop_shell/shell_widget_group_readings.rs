@@ -1,6 +1,6 @@
 use iced::Task;
 use sottomano_config::Config;
-use sottomano_sources::system_protocol_clients::dbus_desktop_buses::DesktopBuses;
+use sottomano_desktop_sources::system_protocol_clients::dbus_desktop_buses::DesktopBuses;
 use sottomano_widgets::{
     hover_cards::HoverTarget,
     widget_groups::{

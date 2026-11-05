@@ -1,7 +1,7 @@
 use chrono::Weekday;
 use rust_decimal::Decimal;
 use sottomano_config::severity::Severity;
-use sottomano_sources::ai_usage_spend::{
+use sottomano_desktop_sources::ai_usage_spend::{
     spend_money::{Money, usd},
     working_time_forecast::{SpendBudget, SpendPacing},
 };

@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use chrono::WeekdaySet;
 use iced::{Subscription, Task};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     ai_usage_spend::{
         copilot_usage::{self, CopilotAccount, CopilotCcusage, CopilotFree, CopilotMetered},

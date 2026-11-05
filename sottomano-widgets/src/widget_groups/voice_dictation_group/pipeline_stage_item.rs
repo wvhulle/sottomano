@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use notulist_client::{GateVerdict, PipelineActivity, PipelineStage};
-use sottomano_sources::voice_dictation_input::notulist_dbus_pipeline_activity::NotulistPipeline;
+use sottomano_desktop_sources::voice_dictation_input::notulist_dbus_pipeline_activity::NotulistPipeline;
 
 use crate::{
     clock::Clock,

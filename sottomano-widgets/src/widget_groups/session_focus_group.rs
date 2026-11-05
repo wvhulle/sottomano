@@ -11,7 +11,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use iced::{Subscription, Task};
 use niri_ipc::state::EventStreamState;
 use sottomano_config::{Config, widget_groups::session_focus::SessionFocusConfig};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_notifications::notification_data::ActionTint,
     desktop_windows_apps::kitty_terminal_windows::WindowProcesses,

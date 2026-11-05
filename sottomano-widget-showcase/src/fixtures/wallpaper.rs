@@ -1,5 +1,5 @@
 use sottomano_config::SecretPaths;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     wallpaper_place_article::{Position, Wallpaper, WikipediaArticle},
 };

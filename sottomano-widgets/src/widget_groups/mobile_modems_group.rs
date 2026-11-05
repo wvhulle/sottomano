@@ -3,7 +3,7 @@ mod modem_signal_reading;
 use std::collections::BTreeMap;
 
 use iced::{Subscription, Task};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::modem_manager_mobile::{
         Mobile, MobileModems, toggle_mobile_modem, toggle_mobile_radio,

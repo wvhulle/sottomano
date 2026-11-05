@@ -1,7 +1,7 @@
 use chrono::{DateTime, Locale, TimeDelta, Utc};
 use quick_xml::escape::escape;
 use sottomano_config::severity::Severity;
-use sottomano_sources::login_session_presence::focus_time_ledger::{
+use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
     Accounting, FocusUnit, Interval, ScreenRun, UnitTotal,
 };
 
@@ -202,7 +202,7 @@ mod tests {
     use std::time::Duration;
 
     use sottomano_config::widget_groups::session_focus::SessionFocusConfig;
-    use sottomano_sources::login_session_presence::focus_time_ledger::{
+    use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
         FocusLedger, FocusSignal, Focused,
     };
 

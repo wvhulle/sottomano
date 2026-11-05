@@ -8,7 +8,7 @@ mod oom_kill_log;
 mod service_error_log;
 
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     system_protocol_clients::journal_follow::JournalFollowError,
     systemd_units_journal::{

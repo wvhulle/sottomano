@@ -1,6 +1,6 @@
 use chrono::Locale;
 use rust_decimal::{Decimal, prelude::ToPrimitive};
-use sottomano_sources::ai_usage_spend::{
+use sottomano_desktop_sources::ai_usage_spend::{
     model_spend_ranking::{ModelRanking, ModelSpend},
     spend_money::{Money, usd},
 };

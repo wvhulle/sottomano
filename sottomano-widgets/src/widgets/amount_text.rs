@@ -1,6 +1,6 @@
 use rust_decimal::Decimal;
 use rusty_money::{Formatter, LocalFormat, Params, Position};
-use sottomano_sources::ai_usage_spend::spend_money::Money;
+use sottomano_desktop_sources::ai_usage_spend::spend_money::Money;
 use uom::si::{f64::Ratio, ratio::percent};
 
 const SYMBOL_FIRST: &[Position] = &[Position::Sign, Position::Symbol, Position::Amount];
@@ -59,7 +59,7 @@ pub fn token_count(tokens: u64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::ai_usage_spend::spend_money::usd;
+    use sottomano_desktop_sources::ai_usage_spend::spend_money::usd;
 
     use super::*;
 

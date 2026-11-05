@@ -1,4 +1,4 @@
-use sottomano_sources::disk_storage::disk_io_activity::{
+use sottomano_desktop_sources::disk_storage::disk_io_activity::{
     DiskActivity, DiskTransfer, DiskTransferDirection,
 };
 use uom::si::{

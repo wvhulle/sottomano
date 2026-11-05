@@ -2,7 +2,7 @@ use std::mem;
 
 use iced::{Task, window::Id};
 use iced_exwlshell::reexport::KeyboardInteractivity;
-use sottomano_sources::desktop_notifications::notification_data::{Outbound, close_reason};
+use sottomano_desktop_sources::desktop_notifications::notification_data::{Outbound, close_reason};
 
 use super::{NotificationLayer, ToastContext, toast_lifecycle::ExitPace};
 use crate::{

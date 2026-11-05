@@ -1,4 +1,4 @@
-use sottomano_sources::battery_power_profiles::upower_battery_state::{
+use sottomano_desktop_sources::battery_power_profiles::upower_battery_state::{
     Battery, ChargeStatus, ChargerSupply,
 };
 use uom::si::{
@@ -116,7 +116,7 @@ impl GroupItemReading for PowerDraw {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::{
+    use sottomano_desktop_sources::{
         SnapshotSource, battery_power_profiles::upower_battery_state::ChargerLimit,
     };
     use uom::si::{

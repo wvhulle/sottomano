@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 
 use chrono::Locale;
 use sottomano_config::severity::Severity;
-use sottomano_sources::cpu_memory_compute::{
+use sottomano_desktop_sources::cpu_memory_compute::{
     cpu_clock_frequency::CpuClock, kernel_frequency_limit_causes::FrequencyLimitCause,
 };
 
@@ -138,7 +138,7 @@ impl GroupItemReading for ClockLimitCauses<'_> {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::cpu_memory_compute::{
+    use sottomano_desktop_sources::cpu_memory_compute::{
         cpu_topology::CpuTopology, kernel_frequency_limit_causes::CoreLimitCauses,
     };
 

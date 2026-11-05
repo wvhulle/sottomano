@@ -2,7 +2,7 @@ use std::{cmp::Ordering, iter::once};
 
 use chrono::{DateTime, Locale, TimeDelta, Utc};
 use sottomano_config::severity::Severity;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     ai_usage_spend::usage_quota::Quota,
     login_session_presence::focus_time_ledger::{
         Accounting, BudgetStatus, FocusUnit, LAST_DAY, UnitTotal,

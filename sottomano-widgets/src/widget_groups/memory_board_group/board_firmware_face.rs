@@ -1,5 +1,5 @@
 use chrono::Locale;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     host_machine_identity::hostname1_os_identity::MachineInfo, non_empty_text::non_empty,
 };
 

@@ -1,4 +1,4 @@
-use sottomano_sources::screen_brightness_color::solar_switch_schedule::ColorMode;
+use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::ColorMode;
 
 use crate::widgets::{
     phosphor::{Phosphor, Weight},
@@ -169,7 +169,7 @@ impl AppearancePreset {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::screen_brightness_color::solar_switch_schedule::ColorMode;
+    use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::ColorMode;
 
     use super::{AppearancePreset, ShellAppearance};
     use crate::widgets::shell_layer_appearance::LayerAppearance;

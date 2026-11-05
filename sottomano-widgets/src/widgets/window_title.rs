@@ -3,7 +3,7 @@ use iced::{
     widget::{Column, Row, Text, text, text::Wrapping},
 };
 use sottomano_config::Config;
-use sottomano_sources::desktop_windows_apps::window_title_labels::WindowLabel;
+use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 
 use crate::widgets::{
     configured_theme::{secondary_text_color, text_color},

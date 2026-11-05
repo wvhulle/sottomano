@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use chrono::{NaiveTime, TimeDelta, Timelike};
-use sottomano_sources::sqlite_state_store::{Columns, StoreError, with_table};
+use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, with_table};
 
 pub const SCHEMA: [&str; 2] = [
     "CREATE TABLE IF NOT EXISTS quiet_hours (
@@ -129,7 +129,7 @@ mod tests {
     use std::time::Duration;
 
     use chrono::NaiveTime;
-    use sottomano_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
 
     use super::{QuietHoursSchedule, SCHEMA, read_schedule, write_schedule};
 

@@ -1,6 +1,6 @@
 use chrono::{DateTime, Locale, Utc};
 use situo_client::GeoCoordinates;
-use sottomano_sources::screen_brightness_color::solar_switch_schedule::{
+use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::{
     ColorMode, ModeSwitch, SolarSwitchSchedule, SunEventOffsets, SunOutlook,
 };
 

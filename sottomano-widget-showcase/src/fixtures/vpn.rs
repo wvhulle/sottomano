@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use bytesize::ByteSize;
 use chrono::TimeDelta;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     network_connectivity::{

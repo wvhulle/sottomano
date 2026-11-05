@@ -3,7 +3,7 @@ use std::{borrow::Cow, time::SystemTime};
 use chrono::{DateTime, Local, Locale, Utc};
 use quick_xml::escape::escape;
 use sottomano_config::severity::Severity;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     ai_usage_spend::usage_quota::{Pace, Quota},
     desktop_notifications::notification_data::{
         ActionTint, ExpireTimeout, NotifAction, NotificationData,

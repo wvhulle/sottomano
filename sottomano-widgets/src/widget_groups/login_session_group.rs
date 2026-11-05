@@ -8,7 +8,7 @@ mod service_manager_face;
 
 use iced::{Subscription, Task};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     host_machine_identity::hostname1_os_identity::OperatingSystemIdentity,
     login_session_presence::logind_session_facts::{SessionIdentity, SessionInfo},

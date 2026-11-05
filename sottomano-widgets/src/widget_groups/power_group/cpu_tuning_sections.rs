@@ -1,5 +1,5 @@
 use iced::alignment::Horizontal;
-use sottomano_sources::battery_power_profiles::cpu_tuning_platform_profile::CpuTuning;
+use sottomano_desktop_sources::battery_power_profiles::cpu_tuning_platform_profile::CpuTuning;
 
 use crate::{
     clock::Clock,

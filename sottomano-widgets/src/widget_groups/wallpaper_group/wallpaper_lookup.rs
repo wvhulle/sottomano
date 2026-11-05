@@ -4,7 +4,7 @@ use std::{
 };
 
 use iced::futures::{Stream, StreamExt, stream};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
     network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
     stream_operators::StreamOperators,

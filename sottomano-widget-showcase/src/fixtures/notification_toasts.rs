@@ -5,7 +5,7 @@ use niri_ipc::{
     state::{EventStreamState, EventStreamStatePart},
 };
 use sottomano_config::severity::Severity;
-use sottomano_sources::desktop_notifications::notification_data::{
+use sottomano_desktop_sources::desktop_notifications::notification_data::{
     ActionTint, ExpireTimeout, NotifAction, NotificationData,
 };
 use sottomano_widgets::{clock::Clock, toast_messages::NotificationMessage};

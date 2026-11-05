@@ -10,7 +10,7 @@ use sottomano_config::{
     notification_toasts::{ToastCardConfig, ToastLifetimeConfig},
     severity::Severity,
 };
-use sottomano_sources::desktop_notifications::notification_data::{
+use sottomano_desktop_sources::desktop_notifications::notification_data::{
     ExpireTimeout, NotificationData, close_reason,
 };
 

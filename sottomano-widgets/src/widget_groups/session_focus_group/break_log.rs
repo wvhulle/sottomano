@@ -1,6 +1,6 @@
 use chrono::{DateTime, Local, Locale, Utc};
 use iced::alignment::Horizontal;
-use sottomano_sources::login_session_presence::focus_time_ledger::{
+use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
     Accounting, LAST_DAY, TakenBreak,
 };
 

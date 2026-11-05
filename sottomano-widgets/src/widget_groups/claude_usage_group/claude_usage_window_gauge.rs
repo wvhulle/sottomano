@@ -1,7 +1,7 @@
 use std::iter::once;
 
 use chrono::{DateTime, Utc};
-use sottomano_sources::ai_usage_spend::{
+use sottomano_desktop_sources::ai_usage_spend::{
     claude_usage::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
     usage_quota::{Pace, Quota},
 };

@@ -1,4 +1,4 @@
-use sottomano_sources::cpu_memory_compute::cpu_topology::{CoreGroup, CpuTopology};
+use sottomano_desktop_sources::cpu_memory_compute::cpu_topology::{CoreGroup, CpuTopology};
 use uom::si::information::mebibyte;
 
 use crate::{

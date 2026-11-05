@@ -3,7 +3,7 @@ pub mod hover_card_source_delivery;
 
 use std::{convert::Infallible, fmt::Display, num::NonZeroUsize};
 
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotSource, SourceCaption, desktop_windows_apps::process_tree_inspection::Process,
 };
 

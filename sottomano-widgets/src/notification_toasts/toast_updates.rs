@@ -8,7 +8,7 @@ use iced::{
 use iced_exwlshell::reexport::{ActivationTokenSink, XdgActivationTokenV1State};
 use quick_xml::escape::escape;
 use sottomano_config::{Config, LoadError, severity::Severity};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     desktop_notifications::{
         alert_sound_player::{self, SoundTheme},
         notification_data::{NotificationData, Outbound, close_reason},

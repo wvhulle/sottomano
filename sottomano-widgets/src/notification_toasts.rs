@@ -17,7 +17,7 @@ use iced::{
 };
 use niri_ipc::state::EventStreamState;
 use sottomano_config::{Config, severity::Severity};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     desktop_notifications::{
         alert_sound_player::SoundTheme,
         notification_data::{NotificationData, Outbound},

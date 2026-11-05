@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use iced::{Subscription, Task};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
         ethernet_connection::{Ethernet, EthernetDetails, Port, PortState, toggle_ethernet_port},
@@ -393,7 +393,7 @@ impl EthernetPortsGroup {
 mod tests {
     use std::time::Duration;
 
-    use sottomano_sources::{
+    use sottomano_desktop_sources::{
         SnapshotDelivery,
         delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
         network_connectivity::{

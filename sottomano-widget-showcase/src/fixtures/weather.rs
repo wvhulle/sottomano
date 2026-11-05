@@ -6,7 +6,7 @@ use situo_client::{
     BeaconDbEstimate, EstimateMethod, FixOrigin, GeoCoordinates, LocationFix, NearestPlace,
     ObservationCounts,
 };
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     weather::{

@@ -1,4 +1,4 @@
-use sottomano_sources::desktop_notifications::notification_data::{
+use sottomano_desktop_sources::desktop_notifications::notification_data::{
     NotificationData, Outbound, ServerEvent,
 };
 use tokio::sync::mpsc;

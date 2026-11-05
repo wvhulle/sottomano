@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
+use sottomano_desktop_sources::login_session_presence::idle_session_actions::IdleAction;
 
 use crate::{
     clock::Clock,

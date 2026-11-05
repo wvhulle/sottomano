@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use iced::{Task, task::Handle};
 use niri_ipc::state::EventStreamState;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::firefox_favicon_lookup::{self, RawFavicon},
 };

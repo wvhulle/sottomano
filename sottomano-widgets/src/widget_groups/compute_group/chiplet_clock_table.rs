@@ -1,5 +1,5 @@
 use sottomano_config::severity::Severity;
-use sottomano_sources::cpu_memory_compute::{
+use sottomano_desktop_sources::cpu_memory_compute::{
     cpu_clock_frequency::{CoreFreq, CpuClock},
     cpu_core_loads::CpuCoreLoads,
     cpu_topology::{CoreGroup, PhysicalCore},

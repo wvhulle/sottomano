@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use chrono::Locale;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     gamepad_controller_input::{
         accelerometer_report_timing::DeviceClock, evdev_gamepad_devices::GamepadTransport,
     },

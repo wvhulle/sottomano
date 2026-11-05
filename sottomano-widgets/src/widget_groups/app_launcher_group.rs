@@ -2,7 +2,7 @@ use std::{cmp::Reverse, collections::HashMap};
 
 use iced::{Element, Task};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::{
         desktop_entry_app_catalog::{AppCategory, LaunchableApp, OpenAppWindows},
@@ -574,7 +574,7 @@ mod tests {
     use std::{collections::HashMap, iter::once};
 
     use sottomano_config::Config;
-    use sottomano_sources::desktop_windows_apps::desktop_entry_app_catalog::{
+    use sottomano_desktop_sources::desktop_windows_apps::desktop_entry_app_catalog::{
         AppCategory, LaunchableApp, OpenAppWindows,
     };
 

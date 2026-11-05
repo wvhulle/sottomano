@@ -9,7 +9,7 @@ use iced::{
     task,
 };
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     login_session_presence::{
         focus_time_ledger::ScreenEdge,

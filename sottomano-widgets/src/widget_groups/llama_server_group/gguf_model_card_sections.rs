@@ -1,4 +1,4 @@
-use sottomano_sources::ai_usage_spend::gguf_header_model_card::{
+use sottomano_desktop_sources::ai_usage_spend::gguf_header_model_card::{
     BaseModel, GgufModelCard, hugging_face_repository,
 };
 

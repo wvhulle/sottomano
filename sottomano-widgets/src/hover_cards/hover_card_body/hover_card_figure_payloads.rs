@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use iced::Size;
 use iced_controller_diagram::{ControllerModel, DiagramAnchor};
 use sottomano_config::severity::Severity;
-use sottomano_sources::desktop_windows_apps::window_title_labels::WindowLabel;
+use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 use uom::si::f64::Ratio;
 
 use super::{Section, SectionBody};

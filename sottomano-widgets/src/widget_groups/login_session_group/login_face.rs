@@ -1,5 +1,5 @@
 use chrono::Locale;
-use sottomano_sources::login_session_presence::logind_session_facts::{
+use sottomano_desktop_sources::login_session_presence::logind_session_facts::{
     SessionIdentity, SessionInfo,
 };
 

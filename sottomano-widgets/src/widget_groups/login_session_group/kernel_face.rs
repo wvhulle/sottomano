@@ -1,5 +1,5 @@
 use chrono::Locale;
-use sottomano_sources::host_machine_identity::hostname1_os_identity::{
+use sottomano_desktop_sources::host_machine_identity::hostname1_os_identity::{
     Chassis, OperatingSystemIdentity,
 };
 

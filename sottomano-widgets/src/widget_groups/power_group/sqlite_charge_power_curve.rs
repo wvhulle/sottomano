@@ -1,4 +1,4 @@
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     battery_power_profiles::battery_time_forecast::{CHARGE_BINS, ChargeCurve, PowerBin},
     sqlite_state_store::{Columns, StoreError, with_table},
 };
@@ -76,7 +76,7 @@ async fn write_bin(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
 
     use super::*;
 

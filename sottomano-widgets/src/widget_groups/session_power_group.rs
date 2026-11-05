@@ -2,7 +2,7 @@ use std::{iter::once, thread, time::Duration};
 
 use iced::{Element, Task, border::Radius};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     login_session_presence::{
         logind_action_permissions::{self, Permissions},

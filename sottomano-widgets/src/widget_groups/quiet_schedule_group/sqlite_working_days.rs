@@ -1,5 +1,5 @@
 use chrono::{Weekday, WeekdaySet};
-use sottomano_sources::sqlite_state_store::{Columns, StoreError, with_table};
+use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, with_table};
 
 const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS working_days (
     days_from_monday INTEGER PRIMARY KEY CHECK (days_from_monday BETWEEN 0 AND 6),
@@ -88,7 +88,7 @@ async fn write_days(
 #[cfg(test)]
 mod tests {
     use chrono::{Weekday, WeekdaySet};
-    use sottomano_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
 
     use super::{CREATE_TABLE, MONDAY_TO_FRIDAY, read_days, with_day_toggled, write_days};
 

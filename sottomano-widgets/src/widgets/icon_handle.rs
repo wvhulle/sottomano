@@ -5,7 +5,7 @@ use iced::{
     ContentFit, Element, Length,
     widget::{image, svg},
 };
-use sottomano_sources::desktop_windows_apps::{
+use sottomano_desktop_sources::desktop_windows_apps::{
     firefox_favicon_lookup::FaviconKind, status_notifier_tray::IconSource,
 };
 

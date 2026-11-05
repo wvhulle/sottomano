@@ -1,4 +1,4 @@
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     screen_brightness_color::clight_auto_brightness::{self, AutoBrightness},
     system_protocol_clients::dbus_desktop_buses,
 };

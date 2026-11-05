@@ -1,4 +1,4 @@
-use sottomano_sources::cpu_memory_compute::pci_gpu_readings::GpuSnapshot;
+use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_readings::GpuSnapshot;
 use uom::si::f64::Ratio;
 
 use crate::{

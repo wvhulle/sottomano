@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use chrono::{DateTime, Locale, Utc};
 use sottomano_config::severity::Severity;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotSource, ai_usage_spend::usage_quota::Quota,
     network_connectivity::internet_connectivity_gate::InternetUnreachable,
 };

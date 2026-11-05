@@ -1,7 +1,7 @@
 use bytesize::ByteSize;
 use chrono::Locale;
 use sottomano_config::severity::Severity;
-use sottomano_sources::disk_storage::{
+use sottomano_desktop_sources::disk_storage::{
     bcachefs_filesystem_space::{BcachefsSpace, SnapshotDeletion},
     btrfs_filesystem_space::BtrfsSpace,
     mounted_filesystem_usage::{Filesystem, FilesystemUsage},
@@ -279,7 +279,7 @@ fn bcachefs_sections(space: &BcachefsSpace, pressure: MetadataPressure) -> Vec<S
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::disk_storage::{
+    use sottomano_desktop_sources::disk_storage::{
         block_filesystem_mounts::{Compression, FilesystemMount},
         btrfs_filesystem_space::Allocation,
     };

@@ -1,4 +1,4 @@
-use sottomano_sources::media_playback_audio::pipewire_audio::{
+use sottomano_desktop_sources::media_playback_audio::pipewire_audio::{
     AudioState, ChannelLevels, OutputKind,
 };
 

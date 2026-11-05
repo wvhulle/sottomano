@@ -4,7 +4,7 @@ use niri_ipc::{
     Window, WindowLayout, Workspace,
     state::{EventStreamState, EventStreamStatePart},
 };
-use sottomano_sources::desktop_windows_apps::{
+use sottomano_desktop_sources::desktop_windows_apps::{
     kitty_terminal_windows::WindowProcesses, niri_window_snapshot::Snapshot,
 };
 

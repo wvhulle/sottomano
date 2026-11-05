@@ -5,7 +5,7 @@ mod reconnect_churn_counting;
 use std::collections::BTreeMap;
 
 use iced::{Subscription, Task};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     gamepad_controller_input::accelerometer_report_timing::ReportTiming,
     network_connectivity::bluez_bluetooth::{

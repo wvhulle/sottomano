@@ -1,7 +1,7 @@
 use std::{collections::HashSet, iter::once};
 
 use sottomano_config::Config;
-use sottomano_sources::desktop_windows_apps::status_notifier_tray::{MenuKind, MenuNode};
+use sottomano_desktop_sources::desktop_windows_apps::status_notifier_tray::{MenuKind, MenuNode};
 
 use crate::widgets::{
     configured_theme::text_color,

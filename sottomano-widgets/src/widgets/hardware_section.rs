@@ -1,4 +1,4 @@
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     cpu_memory_compute::pci_gpu_readings::{GpuModel, GpuNames},
     host_machine_identity::udev_hardware_identity::{
         Adapter, CpuModel, DriveIdentity, MemoryModules, ModemIdentity, PowerSupplyIdentity,

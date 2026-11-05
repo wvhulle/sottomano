@@ -3,7 +3,7 @@ use std::{borrow::Cow, iter::once};
 use chrono::Locale;
 use iced::alignment::Horizontal;
 use sottomano_config::severity::Severity;
-use sottomano_sources::login_session_presence::{
+use sottomano_desktop_sources::login_session_presence::{
     idle_session_actions::IdleAction,
     kernel_sleep_obstacles::{
         InhibitedOperation, KernelHibernation, LogindCapability, ScheduledShutdown, SleepObstacles,
@@ -481,7 +481,7 @@ fn screensaver_blockers<'a>(
 mod tests {
     use std::time::Duration;
 
-    use sottomano_sources::login_session_presence::{
+    use sottomano_desktop_sources::login_session_presence::{
         idle_session_actions::IdleAction,
         kernel_sleep_obstacles::{
             BlockingInhibitor, InhibitedOperation, KernelHibernation, LogindCapability,

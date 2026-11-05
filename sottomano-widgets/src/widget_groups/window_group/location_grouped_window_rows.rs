@@ -5,7 +5,7 @@ use iced::{
     widget::{Row, text},
 };
 use sottomano_config::Config;
-use sottomano_sources::desktop_windows_apps::{
+use sottomano_desktop_sources::desktop_windows_apps::{
     niri_window_snapshot, window_title_labels::WindowLabel,
 };
 
@@ -158,7 +158,7 @@ pub(super) fn arranged_location_groups<'a>(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::desktop_windows_apps::{
+    use sottomano_desktop_sources::desktop_windows_apps::{
         kitty_terminal_windows::kitty_window_label::{
             ForegroundActivity, KittyWindowLabel, WorkingLocation,
         },

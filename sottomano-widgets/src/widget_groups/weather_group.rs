@@ -10,7 +10,7 @@ mod rain_intensity;
 mod temperature_forecast;
 mod wind_speed;
 
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -291,7 +291,7 @@ impl WeatherGroup {
 mod tests {
     use std::time::Duration;
 
-    use sottomano_sources::{
+    use sottomano_desktop_sources::{
         delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
         weather::buienradar_rain::{Downpour, precipitation::millimeter_per_hour},
     };

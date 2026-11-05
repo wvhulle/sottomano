@@ -1,6 +1,6 @@
 use std::{convert::Infallible, marker::PhantomData, mem::take};
 
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
     network_connectivity::internet_connectivity_gate::InternetUnreachable,
 };
@@ -496,7 +496,7 @@ mod tests {
     };
 
     use iced::futures::{Stream, stream};
-    use sottomano_sources::delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling};
+    use sottomano_desktop_sources::delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling};
 
     use super::*;
 

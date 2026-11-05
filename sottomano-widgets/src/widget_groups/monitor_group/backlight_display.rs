@@ -1,4 +1,6 @@
-use sottomano_sources::screen_brightness_color::clightd_backlight::{Backlight, BacklightKind};
+use sottomano_desktop_sources::screen_brightness_color::clightd_backlight::{
+    Backlight, BacklightKind,
+};
 
 use crate::{
     hover_cards::hover_card_body::{HoverCardBody, Section},

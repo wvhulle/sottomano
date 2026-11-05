@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     host_machine_identity::hostname1_os_identity::{Chassis, OperatingSystemIdentity},
     login_session_presence::logind_session_facts::SessionIdentity,

@@ -1,5 +1,5 @@
 use chrono::{DateTime, Locale, Utc};
-use sottomano_sources::ai_usage_spend::{
+use sottomano_desktop_sources::ai_usage_spend::{
     claude_usage::{ClaudeEnterpriseSpend, ClaudeOrganization, ExtraStatus},
     usage_quota::Quota,
 };

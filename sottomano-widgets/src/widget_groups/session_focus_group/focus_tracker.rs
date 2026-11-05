@@ -4,7 +4,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use iced::futures::{Stream, StreamExt, stream};
 use niri_ipc::state::EventStreamState;
 use sottomano_config::widget_groups::session_focus::SessionFocusConfig;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::kitty_terminal_windows::WindowProcesses,
     login_session_presence::{

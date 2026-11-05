@@ -1,4 +1,4 @@
-use sottomano_sources::cpu_memory_compute::{
+use sottomano_desktop_sources::cpu_memory_compute::{
     amd_l3_pmu_cache_traffic::L3CacheTraffic, cpu_clock_frequency::CpuClock,
     cpu_temperature::Temperature, cpu_topology::CoreGroup, temperature_thresholds::celsius_text,
 };

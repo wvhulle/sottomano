@@ -1,5 +1,5 @@
 use sottomano_config::severity::Severity;
-use sottomano_sources::cpu_memory_compute::{
+use sottomano_desktop_sources::cpu_memory_compute::{
     cpu_busy_processes::CpuBusyProcesses,
     cpu_core_loads::{CpuCoreLoads, CpuUsage, LoadSplit},
 };

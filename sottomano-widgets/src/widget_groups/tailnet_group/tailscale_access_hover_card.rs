@@ -1,6 +1,6 @@
 use chrono::Locale;
 use iced::alignment::Horizontal;
-use sottomano_sources::network_connectivity::{
+use sottomano_desktop_sources::network_connectivity::{
     tailscale_inbound_access::{
         InboundAccessRule, InboundPorts, InboundReach, TailscaleInboundAccess,
     },
