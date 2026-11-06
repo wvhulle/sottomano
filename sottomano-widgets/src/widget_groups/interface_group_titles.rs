@@ -20,21 +20,11 @@ impl AttachmentTitles {
         self,
         attachments: impl IntoIterator<Item = InterfaceAttachment>,
     ) -> Vec<WidgetGroupTitle> {
-        let attachments: Vec<InterfaceAttachment> = attachments.into_iter().collect();
-        attachments
-            .iter()
-            .enumerate()
-            .map(|(position, attachment)| {
-                let earlier_with_attachment = attachments[..position]
-                    .iter()
-                    .filter(|earlier_attachment| *earlier_attachment == attachment)
-                    .count();
-                WidgetGroupTitle::numbered_from_second(
-                    self.base_title(*attachment),
-                    earlier_with_attachment,
-                )
-            })
-            .collect()
+        WidgetGroupTitle::numbered_namesakes(
+            attachments
+                .into_iter()
+                .map(|attachment| self.base_title(attachment)),
+        )
     }
 }
 
