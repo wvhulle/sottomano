@@ -65,10 +65,8 @@ impl SnapshotSource for Vec<Backlight> {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
-        name_owned(system.clone(), CLIGHTD_SERVICE).while_held(
-            move || backlight_deliveries(system.clone()).distinct_until_changed(),
-            SnapshotDelivery::SourceUnavailable,
-        )
+        name_owned(system.clone(), CLIGHTD_SERVICE)
+            .available_while(move || backlight_deliveries(system.clone()).distinct_until_changed())
     }
 }
 

@@ -122,13 +122,9 @@ impl SnapshotSource for TailscaleExitNodes {
     const NAME: &'static str = "Tailscale exit nodes";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(shell_command_output::exists("tailscale")).while_held(
-            move || {
-                PeriodicPolling::every(Duration::from_secs(10))
-                    .poll_deliveries(move || Self::poll(()))
-            },
-            SnapshotDelivery::SourceUnavailable,
-        )
+        stream::once(shell_command_output::exists("tailscale")).available_while(move || {
+            PeriodicPolling::every(Duration::from_secs(10)).poll_deliveries(move || Self::poll(()))
+        })
     }
 }
 

@@ -51,16 +51,13 @@ where
     S: SnapshotSource<Error = zbus::Error>,
     R: Stream<Item = zbus::Result<Option<S>>> + Send,
 {
-    name_owned(system, service).while_held(
-        move || {
-            readings().map(|device| match device {
-                Ok(Some(device)) => SnapshotDelivery::live_push(Ok(device)),
-                Ok(None) => SnapshotDelivery::SourceUnavailable,
-                Err(failure) => SnapshotDelivery::live_push(Err(failure)),
-            })
-        },
-        SnapshotDelivery::SourceUnavailable,
-    )
+    name_owned(system, service).available_while(move || {
+        readings().map(|device| match device {
+            Ok(Some(device)) => SnapshotDelivery::live_push(Ok(device)),
+            Ok(None) => SnapshotDelivery::SourceUnavailable,
+            Err(failure) => SnapshotDelivery::live_push(Err(failure)),
+        })
+    })
 }
 
 impl From<zbus::Error> for ReadingError {

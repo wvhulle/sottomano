@@ -146,13 +146,9 @@ impl SnapshotSource for TailscaleInboundAccess {
     const NAME: &'static str = "Tailscale packet filter";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(shell_command_output::exists("tailscale")).while_held(
-            move || {
-                PeriodicPolling::every(Duration::from_mins(1))
-                    .poll_deliveries(move || Self::poll(()))
-            },
-            SnapshotDelivery::SourceUnavailable,
-        )
+        stream::once(shell_command_output::exists("tailscale")).available_while(move || {
+            PeriodicPolling::every(Duration::from_mins(1)).poll_deliveries(move || Self::poll(()))
+        })
     }
 }
 

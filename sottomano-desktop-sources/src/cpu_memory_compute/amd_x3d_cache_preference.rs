@@ -81,9 +81,8 @@ impl SnapshotSource for X3dCachePreference {
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let exposed = async { Self::mode_file().is_some() };
-        stream::once(exposed).while_held(
-            || stream::once(blocking_poll(Self::read)).map(SnapshotDelivery::single_read),
-            SnapshotDelivery::SourceUnavailable,
-        )
+        stream::once(exposed).available_while(|| {
+            stream::once(blocking_poll(Self::read)).map(SnapshotDelivery::single_read)
+        })
     }
 }

@@ -48,10 +48,9 @@ impl SnapshotSource for AutoBrightness {
     const NAME: &'static str = "Clight auto brightness";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        name_owned(buses.session.clone(), CLIGHT_SERVICE).while_held(
-            move || SnapshotDelivery::live_push_deliveries(calibration_changes(buses.clone())),
-            SnapshotDelivery::SourceUnavailable,
-        )
+        name_owned(buses.session.clone(), CLIGHT_SERVICE).available_while(move || {
+            SnapshotDelivery::live_push_deliveries(calibration_changes(buses.clone()))
+        })
     }
 }
 

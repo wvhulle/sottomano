@@ -1,10 +1,10 @@
-use futures::{Stream, StreamExt};
-use notulist_client::{DICTATION_BUS_NAME, EngineState, followed_engine_state};
+use futures::Stream;
+use notulist_client::{EngineState, followed_engine_state};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    stream_operators::StreamOperators,
-    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error, name_owned},
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error},
+    voice_dictation_input::notulist_followed_deliveries,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -19,18 +19,10 @@ impl SnapshotSource for NotulistEngine {
     const NAME: &'static str = "Notulist engine";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let session = buses.session;
-        name_owned(session.clone(), DICTATION_BUS_NAME).while_held(
-            move || SnapshotDelivery::live_push_deliveries(engine_states(session.clone())),
-            SnapshotDelivery::SourceUnavailable,
+        notulist_followed_deliveries(
+            buses,
+            |session| async move { followed_engine_state(&session).await },
+            |engine| NotulistEngine { engine },
         )
     }
-}
-
-async fn engine_states(
-    session: zbus::Connection,
-) -> Result<impl Stream<Item = Result<NotulistEngine, Error>> + Send, Error> {
-    Ok(followed_engine_state(&session)
-        .await?
-        .map(|engine| Ok(NotulistEngine { engine: engine? })))
 }

@@ -167,17 +167,14 @@ impl SnapshotSource for NixPackageFacts {
     const NAME: &'static str = "Nix";
 
     fn delivery_stream(inputs: PackageWatch) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(shell_command_output::exists("nix")).while_held(
-            move || {
-                PeriodicPolling::every(Duration::from_secs(600))
-                    .poll_deliveries_after_setup(
-                        InstalledPackage::read(inputs.clone()),
-                        Self::poll_upstream,
-                    )
-                    .map(absent_outside_store)
-            },
-            SnapshotDelivery::SourceUnavailable,
-        )
+        stream::once(shell_command_output::exists("nix")).available_while(move || {
+            PeriodicPolling::every(Duration::from_secs(600))
+                .poll_deliveries_after_setup(
+                    InstalledPackage::read(inputs.clone()),
+                    Self::poll_upstream,
+                )
+                .map(absent_outside_store)
+        })
     }
 }
 

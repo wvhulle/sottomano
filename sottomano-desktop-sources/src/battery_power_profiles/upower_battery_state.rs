@@ -213,17 +213,14 @@ impl SnapshotSource for Battery {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
-        present(system.clone()).while_held(
-            move || {
-                TriggeredRereadCadence::LivePushWithRecheck(PeriodicPolling::every(
-                    BATTERY_POLL_INTERVAL,
-                ))
-                .triggered_deliveries(supply_state_changes(system.clone()), || {
-                    blocking_poll(read_battery)
-                })
-            },
-            SnapshotDelivery::SourceUnavailable,
-        )
+        present(system.clone()).available_while(move || {
+            TriggeredRereadCadence::LivePushWithRecheck(PeriodicPolling::every(
+                BATTERY_POLL_INTERVAL,
+            ))
+            .triggered_deliveries(supply_state_changes(system.clone()), || {
+                blocking_poll(read_battery)
+            })
+        })
     }
 }
 
