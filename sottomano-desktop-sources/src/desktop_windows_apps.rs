@@ -1,5 +1,6 @@
 pub mod app_launch_history;
 pub mod compositor_connection;
+pub mod compositor_output_facts;
 #[cfg(any(test, feature = "test-support"))]
 pub mod compositor_test_windows;
 pub mod compositor_window_state;
@@ -7,16 +8,26 @@ pub mod desktop_entry_app_catalog;
 pub mod desktop_entry_app_icons;
 pub mod desktop_entry_changes;
 pub mod firefox_favicon_lookup;
+#[cfg(feature = "hyprland")]
+pub mod hyprland_socket_connection;
+#[cfg(feature = "hyprland")]
+pub mod hyprland_socket_events;
 pub mod icon_whitespace_trim;
 pub mod kde_job_view_progress;
+#[cfg(feature = "niri")]
 pub mod niri_event_stream;
 pub mod niri_kdl_config;
+#[cfg(feature = "niri")]
 pub mod niri_output_facts;
 pub mod nix_package_facts;
 pub mod nix_store_provenance;
 pub mod process_tree_inspection;
 pub mod project_directory_labels;
 pub mod status_notifier_tray;
+#[cfg(feature = "sway")]
+pub mod sway_ipc_connection;
+#[cfg(feature = "sway")]
+pub mod sway_ipc_events;
 pub mod terminal_emulator_windows;
 pub mod unity_launcher_badges;
 pub mod window_edge_placement;

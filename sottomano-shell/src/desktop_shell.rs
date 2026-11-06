@@ -35,10 +35,11 @@ use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::{
         app_launch_history::LaunchTracker,
+        compositor_output_facts,
         compositor_window_state::CompositorWindowState,
         desktop_entry_changes,
         niri_kdl_config::{ConfiguredWorkspaces, NiriConfigFile},
-        niri_output_facts, workspace_window_snapshot,
+        workspace_window_snapshot,
     },
     system_protocol_clients::dbus_desktop_buses::{DesktopBusEvent, DesktopBuses},
 };
@@ -79,7 +80,7 @@ pub(crate) use self::compositor_update_handling::gamepad_window_claim;
 use self::notification_updates::GroupAlertScan;
 use crate::{
     desktop_shell::{
-        compositor_update_handling::reheats_switch_heat,
+        compositor_update_handling::{reheats_switch_heat, report_missing_compositor},
         monitor_surfaces::{Surface, SurfaceRole, query_outputs},
         pointer_drag::ShellDrag,
         shell_widget_groups::ShellWidgetGroups,
@@ -98,7 +99,7 @@ pub struct DesktopShell {
     pub launch_tracker: LaunchTracker,
     pub compositor: CompositorWindowState,
     pub window_snapshot: workspace_window_snapshot::Snapshot,
-    pub outputs: HashMap<String, niri_output_facts::OutputInfo>,
+    pub outputs: HashMap<String, compositor_output_facts::OutputInfo>,
     pub surfaces: BTreeMap<Id, Surface>,
     pub backdrops: BTreeMap<Id, Position>,
     pub sidebar_widths: HashMap<Id, f32>,
@@ -158,7 +159,8 @@ impl DesktopShell {
             Task::perform(desktop_entry_changes::load(), Message::DesktopEntriesLoaded),
             Task::perform(sqlite_app_launches::load(), Message::TrackerLoaded),
             shell.widget_groups.load(clock),
-            Task::perform(shell.niri_config.read_workspaces(), Message::NiriConfigRead),
+            shell.read_niri_workspace_order(),
+            report_missing_compositor(),
             Task::perform(
                 blocking("sound theme", SoundTheme::read_session),
                 Message::SoundThemeLoaded,

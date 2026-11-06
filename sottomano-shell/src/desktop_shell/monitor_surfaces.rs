@@ -4,7 +4,7 @@ use iced::{Padding, Task, window::Id};
 pub use iced_exwlshell::reexport::Margin;
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use sottomano_desktop_sources::{
-    blocking_background_work::blocking, desktop_windows_apps::niri_output_facts,
+    blocking_background_work::blocking, desktop_windows_apps::compositor_connection,
 };
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
@@ -400,7 +400,10 @@ impl DesktopShell {
 
 pub fn query_outputs() -> Task<Message> {
     Task::perform(
-        blocking("niri outputs", niri_output_facts::output_info),
+        blocking(
+            "compositor outputs",
+            compositor_connection::compositor_outputs,
+        ),
         Message::OutputsResolved,
     )
 }

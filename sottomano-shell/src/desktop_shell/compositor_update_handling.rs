@@ -4,12 +4,13 @@ use iced::Task;
 use sottomano_desktop_sinks::desktop_windows_apps::compositor_requests::CompositorRequestFailure;
 use sottomano_desktop_sources::desktop_windows_apps::{
     app_launch_history::LaunchScope,
+    compositor_connection::{CompositorKind, missing_compositor_reason},
+    compositor_output_facts::OutputInfo,
     compositor_window_state::{
         CompositorChange, CompositorUpdate, CompositorWindow, CompositorWindowState,
     },
     desktop_entry_app_catalog::{LaunchableApp, open_windows_by_app},
     desktop_entry_app_icons::{self},
-    niri_output_facts::OutputInfo,
     workspace_window_snapshot,
 };
 use sottomano_widgets::widget_groups::{
@@ -47,6 +48,13 @@ impl DesktopShell {
         )
     }
 
+    pub(super) fn read_niri_workspace_order(&self) -> Task<Message> {
+        if !CompositorKind::detected().is_some_and(CompositorKind::reads_niri_config) {
+            return Task::none();
+        }
+        Task::perform(self.niri_config.read_workspaces(), Message::NiriConfigRead)
+    }
+
     pub(super) fn apply_compositor_update(&mut self, update: CompositorUpdate) -> Task<Message> {
         let changed = |change| update.changed(change);
         let config_reloaded = changed(CompositorChange::ConfigReload);
@@ -61,10 +69,7 @@ impl DesktopShell {
             .map(|launch| Task::future(sqlite_app_launches::record(launch)).discard())
             .collect();
         if config_reloaded {
-            tasks.push(Task::perform(
-                self.niri_config.read_workspaces(),
-                Message::NiriConfigRead,
-            ));
+            tasks.push(self.read_niri_workspace_order());
         }
         self.derive_window_snapshot();
         tasks.push(self.refocus_session());
@@ -155,6 +160,18 @@ impl DesktopShell {
             .resolve_missing(app_keys, theme_keys)
             .map(Message::IconsResolved)
     }
+}
+
+pub(super) fn report_missing_compositor() -> Task<Message> {
+    if CompositorKind::detected().is_some() {
+        return Task::none();
+    }
+    Task::done(Message::CompositorRequestFailed(
+        CompositorRequestFailure::Unreachable {
+            request: "follow windows and workspaces".to_owned(),
+            reason: missing_compositor_reason(),
+        },
+    ))
 }
 
 const UNNAMED_FULLSCREEN_WINDOW: &str = "A window without an app ID";

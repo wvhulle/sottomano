@@ -22,9 +22,9 @@
   services.greetd = {
     enable = true;
     settings = {
-      default_session.command = "Hyprland --config /etc/sottomano-test/hyprland.conf";
+      default_session.command = "start-hyprland -- --config /etc/sottomano-test/hyprland.conf";
       initial_session = {
-        command = "Hyprland --config /etc/sottomano-test/hyprland.conf";
+        command = "start-hyprland -- --config /etc/sottomano-test/hyprland.conf";
         user = "session-user";
       };
     };

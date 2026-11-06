@@ -21,6 +21,11 @@ fn exit_without_niri(reason: &dyn fmt::Display) -> ! {
     process::exit(1)
 }
 
+#[must_use]
+pub fn niri_socket_is_set() -> bool {
+    env::var_os(SOCKET_PATH_ENV).is_some()
+}
+
 type NiriSubscribeFailure = Box<dyn Error + Send + Sync>;
 
 async fn subscribe_to_niri_events() -> Result<Framed<UnixStream, LinesCodec>, NiriSubscribeFailure>

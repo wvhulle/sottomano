@@ -6762,6 +6762,8 @@ dependencies = [
  "futures",
  "niri-ipc",
  "notulist-client",
+ "serde",
+ "serde_json",
  "sottomano-desktop-sources",
  "sottomano-toml-config",
  "system-tray",

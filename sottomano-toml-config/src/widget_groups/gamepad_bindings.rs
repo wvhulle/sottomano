@@ -489,8 +489,7 @@ mod tests {
     fn playstation_and_xbox_names_select_the_same_buttons() {
         let config: GamepadBindingsConfig = toml::from_str(
             "[typed_keys]\ncross = \"Return\"\nb = \"Escape\"\ncreate = \"Tab\"\nmenu = \
-             \"space\"\n[compositor_actions]\nl1 = \"move_left\"\nps = \
-             \"toggle_overview\"\n",
+             \"space\"\n[compositor_actions]\nl1 = \"move_left\"\nps = \"toggle_overview\"\n",
         )
         .unwrap();
         assert_eq!(

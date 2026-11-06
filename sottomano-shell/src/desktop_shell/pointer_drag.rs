@@ -2,7 +2,9 @@ use std::mem;
 
 use iced::{Subscription, Task, window::frames};
 use sottomano_desktop_sinks::desktop_windows_apps::compositor_requests::CompositorRequest;
-use sottomano_desktop_sources::desktop_windows_apps::workspace_window_snapshot;
+use sottomano_desktop_sources::desktop_windows_apps::{
+    compositor_connection::CompositorKind, workspace_window_snapshot,
+};
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     background_work::compositor_request,
@@ -226,7 +228,13 @@ fn click_slot(click: SlotClick) -> Task<Message> {
     match click {
         SlotClick::Workspace {
             is_active: true, ..
-        } => compositor_request(CompositorRequest::ToggleOverview),
+        } => {
+            if CompositorKind::detected().is_some_and(CompositorKind::has_overview) {
+                compositor_request(CompositorRequest::ToggleOverview)
+            } else {
+                Task::none()
+            }
+        }
         SlotClick::Workspace { id, .. } => {
             compositor_request(CompositorRequest::FocusWorkspace(id))
         }
