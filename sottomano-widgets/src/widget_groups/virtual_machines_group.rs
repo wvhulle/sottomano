@@ -31,7 +31,7 @@ use crate::{
         hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
-        process_usage_text::usage_text,
+        process_usage_text::{approximate_memory_text, cpu_load_text},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
@@ -120,11 +120,21 @@ struct VirtualMachineRow<'a> {
 impl VirtualMachineRow<'_> {
     fn configuration_entries(&self, clock: Clock) -> Vec<LabeledValue> {
         let machine = self.machine;
-        let mut entries = vec![
-            LabeledValue::new("Origin", origin_text(&machine.origin).into_owned()),
+        let mut entries = vec![LabeledValue::new(
+            "Origin",
+            origin_text(&machine.origin).into_owned(),
+        )];
+        if let Some(cpu_text) = cpu_load_text(machine.cpu_load) {
+            entries.push(LabeledValue::new("CPU", cpu_text));
+        }
+        entries.extend([
+            LabeledValue::new(
+                "Memory use",
+                approximate_memory_text(machine.resident_memory),
+            ),
             LabeledValue::new("Cores", machine.launch.guest_cores.to_string()),
-            LabeledValue::new("Memory", machine.launch.guest_memory.to_string()),
-        ];
+            LabeledValue::new("Guest memory", machine.launch.guest_memory.to_string()),
+        ]);
         if let NixosSystemClosure::Named(system_name) = &machine.launch.nixos_system {
             entries.push(LabeledValue::new("NixOS system", system_name.clone()));
         }
@@ -168,11 +178,7 @@ impl GroupItemReading for VirtualMachineRow<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        let usage = usage_text(self.machine.cpu_load, self.machine.resident_memory);
-        Some(match run_state_text(self.machine.run_state) {
-            Some(run_state) => format!("{run_state}  {usage}"),
-            None => usage,
-        })
+        run_state_text(self.machine.run_state).map(str::to_owned)
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
