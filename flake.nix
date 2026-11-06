@@ -148,6 +148,7 @@
 
       runtimeDeps =
         (with pkgs; [
+          fontconfig
           iproute2
           networkmanager
           modemmanager
