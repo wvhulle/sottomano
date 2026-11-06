@@ -165,7 +165,10 @@ impl DesktopShell {
     pub(super) fn update_tray(&mut self, msg: TrayMessage) -> Task<Message> {
         match self.widget_groups.tray_group.update(msg, self.clock) {
             tray_group::Action::None => Task::none(),
-            tray_group::Action::MenuItemActivated => self.dismiss_hover_card(),
+            tray_group::Action::Run(task) => task.map(Message::Tray),
+            tray_group::Action::MenuItemActivated(task) => {
+                Task::batch([self.dismiss_hover_card(), task.map(Message::Tray)])
+            }
             tray_group::Action::FocusAppWindow(focus) => {
                 self.focus_app_window(focus, Message::Tray)
             }

@@ -32,7 +32,6 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 niri-ipc.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
-tokio-stream.workspace = true
 turso.workspace = true
 zbus.workspace = true
 uom.workspace = true

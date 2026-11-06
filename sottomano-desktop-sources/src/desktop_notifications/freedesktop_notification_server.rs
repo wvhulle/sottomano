@@ -1,14 +1,17 @@
 use std::{
     collections::HashMap,
+    convert::Infallible,
     sync::{
         Arc,
         atomic::{AtomicU32, Ordering},
     },
 };
 
+use futures::{Sink, Stream, sink};
 use image::RgbaImage;
 use sottomano_toml_config::severity::Severity;
 use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 use uom::si::{f64::Ratio, ratio::percent};
 use zbus::{
     Connection, connection,
@@ -154,20 +157,19 @@ impl NotificationServer {
     ) -> zbus::Result<()>;
 }
 
-pub async fn serve(
-    events: mpsc::Sender<ServerEvent>,
-    mut outbound: mpsc::Receiver<Outbound>,
-) -> zbus::Result<()> {
+pub async fn serve() -> zbus::Result<(impl Stream<Item = ServerEvent> + Send, NotificationSignals)>
+{
+    let (event_sender, event_receiver) = mpsc::channel(256);
     let server = NotificationServer {
         next_id: AtomicU32::new(1),
-        events,
+        events: event_sender,
     };
-    let conn = connection::Builder::session()?
+    let connection = connection::Builder::session()?
         .serve_at(PATH, server)?
         .build()
         .await?;
 
-    match conn
+    match connection
         .request_name_with_flags(
             NAME,
             RequestNameFlags::ReplaceExisting | RequestNameFlags::AllowReplacement,
@@ -183,37 +185,41 @@ pub async fn serve(
         }
     }
 
-    tokio::spawn(async move {
-        let emitter = match SignalEmitter::new(&conn, PATH) {
-            Ok(emitter) => emitter,
-            Err(e) => {
-                tracing::error!("notifications: signal emitter: {e}");
-                return;
+    let signals = NotificationSignals(SignalEmitter::new(&connection, PATH)?);
+    Ok((ReceiverStream::new(event_receiver), signals))
+}
+
+#[derive(Debug, Clone)]
+pub struct NotificationSignals(SignalEmitter<'static>);
+
+impl NotificationSignals {
+    pub fn into_sink(self) -> impl Sink<Outbound, Error = Infallible> + Send {
+        sink::unfold(self, |signals, outbound| async move {
+            signals.emit(outbound).await;
+            Ok(signals)
+        })
+    }
+
+    async fn emit(&self, outbound: Outbound) {
+        let signal_emitter = &self.0;
+        let emitted = match outbound {
+            Outbound::ActivationToken { id, token } => {
+                NotificationServer::activation_token(signal_emitter, id, &token).await
+            }
+            Outbound::ActionInvoked { id, key } => {
+                NotificationServer::action_invoked(signal_emitter, id, &key).await
+            }
+            Outbound::Replied { id, text } => {
+                NotificationServer::notification_replied(signal_emitter, id, &text).await
+            }
+            Outbound::Closed { id, reason } => {
+                NotificationServer::notification_closed(signal_emitter, id, reason).await
             }
         };
-        while let Some(ob) = outbound.recv().await {
-            let result = match ob {
-                Outbound::ActivationToken { id, token } => {
-                    NotificationServer::activation_token(&emitter, id, &token).await
-                }
-                Outbound::ActionInvoked { id, key } => {
-                    NotificationServer::action_invoked(&emitter, id, &key).await
-                }
-                Outbound::Replied { id, text } => {
-                    NotificationServer::notification_replied(&emitter, id, &text).await
-                }
-                Outbound::Closed { id, reason } => {
-                    NotificationServer::notification_closed(&emitter, id, reason).await
-                }
-            };
-            if let Err(e) = result {
-                tracing::warn!("notifications: emit signal: {e}");
-            }
+        if let Err(emit_failure) = emitted {
+            tracing::warn!("notifications: emit signal: {emit_failure}");
         }
-        drop(conn);
-    });
-
-    Ok(())
+    }
 }
 
 async fn sender_process(connection: &Connection, header: &Header<'_>) -> OwnerProcess {

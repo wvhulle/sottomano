@@ -1,7 +1,7 @@
-use sottomano_desktop_sources::desktop_notifications::notification_data::{
-    NotificationData, Outbound, ServerEvent,
+use sottomano_desktop_sources::desktop_notifications::{
+    freedesktop_notification_server::NotificationSignals,
+    notification_data::{NotificationData, ServerEvent},
 };
-use tokio::sync::mpsc;
 
 #[derive(Debug, Clone)]
 pub enum ReplyMessage {
@@ -13,7 +13,7 @@ pub enum ReplyMessage {
 
 #[derive(Debug, Clone)]
 pub enum NotificationMessage {
-    Connected(mpsc::Sender<Outbound>),
+    Connected(NotificationSignals),
     Served(Box<NotificationData>),
     CloseRequested(u32),
     BodyClicked(u32),

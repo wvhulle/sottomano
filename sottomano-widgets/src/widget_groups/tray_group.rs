@@ -3,7 +3,7 @@ pub mod menu_lines;
 use std::{collections::HashSet, sync::Arc};
 
 use iced::{
-    Alignment, Element,
+    Alignment, Element, Task,
     border::Radius,
     widget::{Column, container, mouse_area},
 };
@@ -11,12 +11,11 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
         niri_window_placement::WindowOwner,
-        status_notifier_tray::{self, Status, TrayCommand, TrayItem, TrayUpdate},
+        status_notifier_tray::{self, Status, TrayCommand, TrayHost, TrayItem, TrayUpdate},
     },
 };
 use sottomano_toml_config::{Config, widget_groups::tray::ClickAction};
 use system_tray::error;
-use tokio::sync::mpsc;
 
 use self::menu_lines::TrayMenuLines;
 use crate::{
@@ -62,7 +61,7 @@ impl From<Arc<error::Error>> for Section {
 pub struct TrayGroup {
     items: LatestSnapshot<Vec<TrayItem>, HidesFetchFailures>,
     pixmap_handles: PixmapHandles,
-    commands: Option<mpsc::Sender<TrayCommand>>,
+    host: Option<TrayHost>,
     open_submenus: HashSet<i32>,
     expansion: WidgetGroupExpansion,
 }
@@ -87,7 +86,8 @@ pub enum TrayMessage {
 
 pub enum Action {
     None,
-    MenuItemActivated,
+    Run(Task<TrayMessage>),
+    MenuItemActivated(Task<TrayMessage>),
     FocusAppWindow(AppWindowFocus<TrayMessage>),
 }
 
@@ -102,8 +102,8 @@ impl TrayGroup {
 
     pub fn update(&mut self, message: TrayMessage, clock: Clock) -> Action {
         match message {
-            TrayMessage::Update(TrayUpdate::Connected(commands)) => {
-                self.commands = Some(commands);
+            TrayMessage::Update(TrayUpdate::Connected(host)) => {
+                self.host = Some(host);
                 Action::None
             }
             TrayMessage::Update(TrayUpdate::Items(items)) => {
@@ -115,7 +115,7 @@ impl TrayGroup {
                 Action::None
             }
             TrayMessage::Update(TrayUpdate::HostFailed(failure)) => {
-                self.commands = None;
+                self.host = None;
                 self.items
                     .receive(SnapshotDelivery::live_push(Err(failure)), clock);
                 Action::None
@@ -125,12 +125,10 @@ impl TrayGroup {
                 Action::None
             }
             TrayMessage::Activate(address) => {
-                self.command(TrayCommand::Activate(address));
-                Action::None
+                Action::Run(self.command(TrayCommand::Activate(address)))
             }
             TrayMessage::Secondary(address) => {
-                self.command(TrayCommand::Secondary(address));
-                Action::None
+                Action::Run(self.command(TrayCommand::Secondary(address)))
             }
             TrayMessage::FocusWindow {
                 window_app_id,
@@ -144,13 +142,12 @@ impl TrayGroup {
                 menu_path,
                 id,
             } => {
-                self.command(TrayCommand::MenuClick {
+                self.open_submenus.clear();
+                Action::MenuItemActivated(self.command(TrayCommand::MenuClick {
                     address,
                     menu_path,
                     id,
-                });
-                self.open_submenus.clear();
-                Action::MenuItemActivated
+                }))
             }
             TrayMessage::ToggleSubmenu(id) => {
                 if !self.open_submenus.remove(&id) {
@@ -213,10 +210,10 @@ impl TrayGroup {
         Some(context_menu(config, popup_corners, lines))
     }
 
-    fn command(&self, command: TrayCommand) {
-        if let Some(commands) = &self.commands {
-            let _ = commands.try_send(command);
-        }
+    fn command(&self, command: TrayCommand) -> Task<TrayMessage> {
+        self.host.clone().map_or_else(Task::none, |host| {
+            Task::future(host.activate(command)).discard()
+        })
     }
 
     #[must_use]

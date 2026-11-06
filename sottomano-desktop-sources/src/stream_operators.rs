@@ -208,6 +208,16 @@ pub trait StreamOperators: Stream + Sized {
         )
     }
 
+    fn keeping_alive<Guard: Send>(self, guard: Guard) -> impl Stream<Item = Self::Item> + Send
+    where
+        Self: Send,
+    {
+        self.map(move |item| {
+            let _ = &guard;
+            item
+        })
+    }
+
     fn switch_map<F, R>(self, switch: F) -> SwitchMap<Self, F, R>
     where
         F: FnMut(Self::Item) -> R,

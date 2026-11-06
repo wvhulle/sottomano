@@ -1,13 +1,15 @@
-use std::{collections::HashMap, convert::Infallible, fmt, future::ready, process, thread};
+use std::{
+    collections::HashMap, convert::Infallible, env, error::Error, fmt, future::ready, process,
+};
 
-use futures::{Stream, StreamExt};
+use futures::{SinkExt, Stream, StreamExt, stream};
 use niri_ipc::{
-    Event, Request,
-    socket::Socket,
+    Event, Reply, Request, Response,
+    socket::SOCKET_PATH_ENV,
     state::{EventStreamState, EventStreamStatePart},
 };
-use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
+use tokio::net::UnixStream;
+use tokio_util::codec::{Framed, LinesCodec, LinesCodecError};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -45,7 +47,7 @@ impl SnapshotSource for Snapshot {
     const NAME: &'static str = "Niri windows";
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        ReceiverStream::new(spawn_event_thread())
+        niri_events()
             .scan(EventStreamState::default(), |state, event| {
                 let _ = state.apply(event);
                 ready(Some(Ok(Snapshot::derive(
@@ -260,30 +262,49 @@ fn exit_without_niri(reason: &dyn fmt::Display) -> ! {
     process::exit(1)
 }
 
-#[must_use]
-pub fn spawn_event_thread() -> mpsc::Receiver<Event> {
-    let (tx, rx) = mpsc::channel(256);
-    thread::spawn(move || {
-        let mut socket = match Socket::connect() {
-            Ok(socket) => socket,
-            Err(e) => exit_without_niri(&format_args!("connect failed: {e}")),
-        };
-        if let Err(e) = socket.send(Request::EventStream) {
-            exit_without_niri(&format_args!("EventStream request failed: {e}"));
-        }
-        let mut read = socket.read_events();
-        loop {
-            match read() {
-                Ok(event) => {
-                    if tx.blocking_send(event).is_err() {
-                        return;
-                    }
-                }
-                Err(e) => exit_without_niri(&format_args!("event read ended: {e}")),
-            }
-        }
-    });
-    rx
+type NiriSubscribeFailure = Box<dyn Error + Send + Sync>;
+
+async fn subscribe_to_niri_events() -> Result<Framed<UnixStream, LinesCodec>, NiriSubscribeFailure>
+{
+    let socket_path =
+        env::var_os(SOCKET_PATH_ENV).ok_or_else(|| format!("{SOCKET_PATH_ENV} is not set"))?;
+    let mut niri_lines = Framed::new(UnixStream::connect(socket_path).await?, LinesCodec::new());
+    niri_lines
+        .send(serde_json::to_string(&Request::EventStream)?)
+        .await?;
+    let reply_line = niri_lines
+        .next()
+        .await
+        .ok_or("socket closed before replying")??;
+    match serde_json::from_str::<Reply>(&reply_line)? {
+        Ok(Response::Handled) => Ok(niri_lines),
+        Ok(unexpected_response) => Err(format!("unexpected reply {unexpected_response:?}").into()),
+        Err(rejection) => Err(rejection.into()),
+    }
+}
+
+fn decoded_niri_event(event_line: Result<String, LinesCodecError>) -> Event {
+    let decoded = event_line
+        .map_err(NiriSubscribeFailure::from)
+        .and_then(|event_line| Ok(serde_json::from_str::<Event>(&event_line)?));
+    match decoded {
+        Ok(event) => event,
+        Err(read_failure) => exit_without_niri(&format_args!("event read ended: {read_failure}")),
+    }
+}
+
+pub fn niri_events() -> impl Stream<Item = Event> + Send {
+    stream::once(subscribe_to_niri_events())
+        .flat_map(|subscription| match subscription {
+            Ok(niri_lines) => niri_lines,
+            Err(subscribe_failure) => exit_without_niri(&format_args!(
+                "EventStream subscription failed: {subscribe_failure}"
+            )),
+        })
+        .map(decoded_niri_event)
+        .chain(stream::poll_fn(|_| {
+            exit_without_niri(&"event stream closed")
+        }))
 }
 
 #[derive(Debug, Clone, Default)]
