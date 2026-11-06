@@ -1,4 +1,4 @@
-use std::{fmt, io, time::Instant};
+use std::{io, time::Instant};
 
 use sottomano_toml_config::widget_groups::gamepad_bindings::PointerButton;
 use wayrs_client::{Connection, global::BindError, protocol::wl_pointer::ButtonState};
@@ -8,21 +8,14 @@ use wayrs_protocols::wlr_virtual_pointer_unstable_v1::{
 
 use super::gamepad_input_machine::PointerEffect;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum VirtualPointerError {
+    #[error("could not connect to wayland: {0}")]
     Connect(wayrs_client::ConnectError),
+    #[error("compositor offers no virtual pointer: {0}")]
     Unsupported(BindError),
+    #[error("wayland io: {0}")]
     Io(io::Error),
-}
-
-impl fmt::Display for VirtualPointerError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Connect(e) => write!(f, "could not connect to wayland: {e}"),
-            Self::Unsupported(e) => write!(f, "compositor offers no virtual pointer: {e}"),
-            Self::Io(e) => write!(f, "wayland io: {e}"),
-        }
-    }
 }
 
 pub struct VirtualPointer {

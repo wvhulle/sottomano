@@ -1,8 +1,4 @@
-use std::{
-    fmt::{Display, Formatter, Result as FmtResult},
-    path::PathBuf,
-    time::Duration,
-};
+use std::{path::PathBuf, time::Duration};
 
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, SecondsFormat, Utc};
 use futures::Stream;
@@ -30,25 +26,12 @@ const CREDITS_URL: &str = "https://openrouter.ai/api/v1/credits";
 const KEYS_URL: &str = "https://openrouter.ai/api/v1/keys";
 const ANALYTICS_HOUR_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum Error {
+    #[error("management key unreadable")]
     Secret,
-    Fetch(http_json_client::Error),
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Error::Secret => write!(f, "management key unreadable"),
-            Error::Fetch(error) => write!(f, "{error}"),
-        }
-    }
-}
-
-impl From<http_json_client::Error> for Error {
-    fn from(error: http_json_client::Error) -> Self {
-        Error::Fetch(error)
-    }
+    #[error("{0}")]
+    Fetch(#[from] http_json_client::Error),
 }
 
 #[derive(Deserialize)]

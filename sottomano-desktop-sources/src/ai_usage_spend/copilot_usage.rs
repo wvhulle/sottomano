@@ -3,7 +3,6 @@ mod free_quota;
 mod metered_quota;
 
 use std::{
-    fmt::{Display, Formatter, Result as FmtResult},
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -32,35 +31,16 @@ pub const USER_ENDPOINT: &str = "/copilot_internal/user";
 const USER_AGENT: &str = "sottomano";
 const USER_POLLING: PeriodicPolling = PeriodicPolling::every(Duration::from_secs(15));
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum Error {
+    #[error("GitHub token unreadable")]
     Secret,
-    Fetch(http_json_client::Error),
+    #[error("{0}")]
+    Fetch(#[from] http_json_client::Error),
+    #[error("no metered quota in response")]
     NoQuota,
-    Ccusage(ccusage_cli_reports::Error),
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Error::Secret => write!(f, "GitHub token unreadable"),
-            Error::Fetch(error) => write!(f, "{error}"),
-            Error::NoQuota => write!(f, "no metered quota in response"),
-            Error::Ccusage(error) => write!(f, "ccusage: {error}"),
-        }
-    }
-}
-
-impl From<http_json_client::Error> for Error {
-    fn from(error: http_json_client::Error) -> Self {
-        Error::Fetch(error)
-    }
-}
-
-impl From<ccusage_cli_reports::Error> for Error {
-    fn from(error: ccusage_cli_reports::Error) -> Self {
-        Error::Ccusage(error)
-    }
+    #[error("ccusage: {0}")]
+    Ccusage(#[from] ccusage_cli_reports::Error),
 }
 
 #[derive(Deserialize)]

@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    fmt::{Display, Formatter, Result as FmtResult},
     future::ready,
     hash::{Hash, Hasher},
     pin::pin,
@@ -69,21 +68,14 @@ impl DbusPropertyLookup for Properties {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
+    #[error("session bus: {0}")]
     Connect(String),
+    #[error("{0}")]
     Call(String),
+    #[error("service not running")]
     Absent,
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Error::Connect(detail) => write!(f, "session bus: {detail}"),
-            Error::Call(detail) => write!(f, "{detail}"),
-            Error::Absent => write!(f, "service not running"),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]

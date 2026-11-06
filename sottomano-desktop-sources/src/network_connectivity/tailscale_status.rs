@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    fmt::{Display, Formatter, Result as FmtResult},
-    time::Duration,
-};
+use std::{collections::HashMap, time::Duration};
 
 use chrono::{DateTime, Datelike, Utc};
 use futures::{Stream, stream};
@@ -21,25 +17,12 @@ const FIRST_REAL_LAST_SEEN_YEAR: i32 = 2;
 const CAPABILITY_URL_PREFIX: &str = "https://tailscale.com/cap/";
 pub const ADMIN_CONSOLE_URL: &str = "https://login.tailscale.com/admin/machines";
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
-    Command(shell_command_output::Error),
+    #[error("{0}")]
+    Command(#[from] shell_command_output::Error),
+    #[error("unexpected status JSON")]
     Malformed,
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Error::Command(error) => write!(f, "{error}"),
-            Error::Malformed => write!(f, "unexpected status JSON"),
-        }
-    }
-}
-
-impl From<shell_command_output::Error> for Error {
-    fn from(error: shell_command_output::Error) -> Self {
-        Error::Command(error)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

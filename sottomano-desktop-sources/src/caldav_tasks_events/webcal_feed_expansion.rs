@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fmt::{Display, Formatter, Result as FmtResult},
     str::FromStr,
     time::Instant,
 };
@@ -29,21 +28,14 @@ const SERIES_EXPANSION_LIMIT: usize = 50_000;
 type ExpandedOccurrence =
     CalendarEvent<DateTime<CalendarZone>, TimeOrDelta<DateTime<CalendarZone>, TimeDelta>>;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum FeedExpansionError {
+    #[error("download failed: {0}")]
     Download(reqwest::Error),
+    #[error("feed is not an iCalendar file")]
     Unparseable,
+    #[error("feed expansion was interrupted")]
     ExpansionInterrupted,
-}
-
-impl Display for FeedExpansionError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            FeedExpansionError::Download(error) => write!(f, "download failed: {error}"),
-            FeedExpansionError::Unparseable => write!(f, "feed is not an iCalendar file"),
-            FeedExpansionError::ExpansionInterrupted => write!(f, "feed expansion was interrupted"),
-        }
-    }
 }
 
 impl From<reqwest::Error> for FeedExpansionError {

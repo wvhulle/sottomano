@@ -1,8 +1,4 @@
-use std::{
-    fmt::{Display, Formatter, Result as FmtResult},
-    path::PathBuf,
-    time::Duration,
-};
+use std::{path::PathBuf, time::Duration};
 
 use futures::Stream;
 use serde::Deserialize;
@@ -19,25 +15,12 @@ use crate::{
 const POLICY_FILE_URL: &str = "https://api.tailscale.com/api/v2/tailnet/-/acl";
 pub const ACCESS_CONTROLS_URL: &str = "https://login.tailscale.com/admin/acls";
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum PolicyFileError {
+    #[error("API token unreadable")]
     TokenUnreadable,
-    Fetch(http_json_client::Error),
-}
-
-impl Display for PolicyFileError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            PolicyFileError::TokenUnreadable => write!(f, "API token unreadable"),
-            PolicyFileError::Fetch(error) => write!(f, "{error}"),
-        }
-    }
-}
-
-impl From<http_json_client::Error> for PolicyFileError {
-    fn from(error: http_json_client::Error) -> Self {
-        PolicyFileError::Fetch(error)
-    }
+    #[error("{0}")]
+    Fetch(#[from] http_json_client::Error),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

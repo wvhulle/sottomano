@@ -1,6 +1,5 @@
 use std::{
     env,
-    fmt::{Display, Formatter, Result as FmtResult},
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -56,25 +55,12 @@ pub fn instant_of(moment: DateTime<Utc>) -> Instant {
     Instant::now() + (moment - Utc::now()).to_std().unwrap_or_default()
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum Error {
-    Command(shell_command_output::Error),
+    #[error("{0}")]
+    Command(#[from] shell_command_output::Error),
+    #[error("unexpected output: {0}")]
     Decode(Arc<serde_json::Error>),
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Error::Command(error) => write!(f, "{error}"),
-            Error::Decode(error) => write!(f, "unexpected output: {error}"),
-        }
-    }
-}
-
-impl From<shell_command_output::Error> for Error {
-    fn from(error: shell_command_output::Error) -> Self {
-        Error::Command(error)
-    }
 }
 
 impl From<serde_json::Error> for Error {

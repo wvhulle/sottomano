@@ -54,6 +54,7 @@ sunrise = "3.0.0"
 sys-locale = "0.3.2"
 system-tray.workspace = true
 systemd = "0.10.1"
+thiserror.workspace = true
 tokio = { workspace = true, features = ["net"] }
 tokio-stream.workspace = true
 tokio-util.workspace = true

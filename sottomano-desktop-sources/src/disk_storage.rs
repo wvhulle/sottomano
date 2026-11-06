@@ -8,51 +8,29 @@ pub mod filesystem_device_errors;
 pub mod mounted_filesystem_usage;
 pub mod whole_disk_space_occupancy;
 
-use std::fmt::{Display, Formatter, Result as FmtResult};
-
 use crate::{blocking_background_work::Panicked, system_protocol_clients::shell_command_output};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
-    Statvfs {
-        mount_point: String,
-        errno: i32,
-    },
+    #[error("statvfs on {mount_point} failed (errno {errno})")]
+    Statvfs { mount_point: String, errno: i32 },
+    #[error("cannot read {0}")]
     Unreadable(String),
+    #[error("unexpected contents in {0}")]
     Unparsable(String),
+    #[error("no {fs_type} filesystem found on {device}")]
     NoFilesystemOn {
         fs_type: &'static str,
         device: String,
     },
-    Command(shell_command_output::Error),
+    #[error("{0}")]
+    Command(#[from] shell_command_output::Error),
+    #[error("disk read panicked")]
     Panicked,
-}
-
-impl From<shell_command_output::Error> for Error {
-    fn from(error: shell_command_output::Error) -> Self {
-        Error::Command(error)
-    }
 }
 
 impl From<Panicked> for Error {
     fn from(Panicked: Panicked) -> Self {
         Error::Panicked
-    }
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Error::Statvfs { mount_point, errno } => {
-                write!(f, "statvfs on {mount_point} failed (errno {errno})")
-            }
-            Error::Unreadable(path) => write!(f, "cannot read {path}"),
-            Error::Unparsable(path) => write!(f, "unexpected contents in {path}"),
-            Error::NoFilesystemOn { fs_type, device } => {
-                write!(f, "no {fs_type} filesystem found on {device}")
-            }
-            Error::Command(error) => write!(f, "{error}"),
-            Error::Panicked => write!(f, "disk read panicked"),
-        }
     }
 }

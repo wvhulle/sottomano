@@ -1,15 +1,8 @@
-use std::fmt::{Display, Formatter, Result as FmtResult};
-
 use tokio::task::spawn_blocking;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("reading task panicked")]
 pub struct Panicked;
-
-impl Display for Panicked {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.write_str("reading task panicked")
-    }
-}
 
 pub async fn blocking_poll<T, E>(
     read: impl FnOnce() -> Result<T, E> + Send + 'static,

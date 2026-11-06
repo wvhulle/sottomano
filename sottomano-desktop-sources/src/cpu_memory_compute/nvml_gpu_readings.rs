@@ -1,6 +1,5 @@
 use std::{
     cmp::Reverse,
-    fmt::{Display, Formatter, Result as FmtResult},
     fs,
     hash::{Hash, Hasher},
     path::Path,
@@ -162,30 +161,22 @@ fn milliwatts(power: u32) -> Power {
     Power::new::<milliwatt>(f64::from(power))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
+    #[error(
+        "NVIDIA kernel module {loaded_module} is loaded, but the installed driver libraries \
+         differ; reboot to load the matching module"
+    )]
     DriverMismatch { loaded_module: String },
+    #[error("NVML: {0}")]
     Management(String),
+    #[error("GPU read panicked")]
     Panicked,
 }
 
 impl From<Panicked> for Error {
     fn from(Panicked: Panicked) -> Self {
         Error::Panicked
-    }
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Error::DriverMismatch { loaded_module } => write!(
-                f,
-                "NVIDIA kernel module {loaded_module} is loaded, but the installed driver \
-                 libraries differ; reboot to load the matching module"
-            ),
-            Error::Management(message) => write!(f, "NVML: {message}"),
-            Error::Panicked => write!(f, "GPU read panicked"),
-        }
     }
 }
 

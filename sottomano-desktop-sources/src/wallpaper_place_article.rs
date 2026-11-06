@@ -2,7 +2,6 @@ use std::{
     collections::{HashMap, HashSet},
     env,
     ffi::OsString,
-    fmt::{Display, Formatter, Result as FmtResult},
     fs, io,
     path::{Path, PathBuf},
 };
@@ -56,25 +55,12 @@ pub struct WikipediaArticle {
     pub summary: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum Error {
+    #[error("unsplash access key unreadable")]
     Secret,
-    Fetch(http_json_client::Error),
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Error::Secret => write!(f, "unsplash access key unreadable"),
-            Error::Fetch(error) => write!(f, "{error}"),
-        }
-    }
-}
-
-impl From<http_json_client::Error> for Error {
-    fn from(error: http_json_client::Error) -> Self {
-        Error::Fetch(error)
-    }
+    #[error("{0}")]
+    Fetch(#[from] http_json_client::Error),
 }
 
 #[derive(Deserialize)]

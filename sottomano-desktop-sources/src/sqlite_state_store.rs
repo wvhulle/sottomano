@@ -1,63 +1,31 @@
 pub mod write_rate_limit;
 
-use std::{collections::HashMap, env, fmt, fs, io, ops::Deref, path::PathBuf, time::Duration};
+use std::{collections::HashMap, env, fs, io, ops::Deref, path::PathBuf, time::Duration};
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum StoreError {
+    #[error("no state directory")]
     MissingStateDirectory,
-    CreateDirectory(io::Error),
-    Database(turso::Error),
-    Column(ColumnError),
+    #[error("creating state directory failed: {0}")]
+    CreateDirectory(#[from] io::Error),
+    #[error("database error: {0}")]
+    Database(#[from] turso::Error),
+    #[error("{0}")]
+    Column(#[from] ColumnError),
+    #[error("no matching row")]
     NoRow,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum ColumnError {
+    #[error("column {name} is absent from the result set")]
     Missing { name: String },
+    #[error("column {name} is not text")]
     NotText { name: String },
+    #[error("column {name} is not an integer")]
     NotInteger { name: String },
+    #[error("column {name} is not a real")]
     NotReal { name: String },
-}
-
-impl From<io::Error> for StoreError {
-    fn from(e: io::Error) -> Self {
-        Self::CreateDirectory(e)
-    }
-}
-
-impl From<turso::Error> for StoreError {
-    fn from(e: turso::Error) -> Self {
-        Self::Database(e)
-    }
-}
-
-impl From<ColumnError> for StoreError {
-    fn from(e: ColumnError) -> Self {
-        Self::Column(e)
-    }
-}
-
-impl fmt::Display for StoreError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::MissingStateDirectory => write!(f, "no state directory"),
-            Self::CreateDirectory(e) => write!(f, "creating state directory failed: {e}"),
-            Self::Database(e) => write!(f, "database error: {e}"),
-            Self::Column(e) => write!(f, "{e}"),
-            Self::NoRow => write!(f, "no matching row"),
-        }
-    }
-}
-
-impl fmt::Display for ColumnError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Missing { name } => write!(f, "column {name} is absent from the result set"),
-            Self::NotText { name } => write!(f, "column {name} is not text"),
-            Self::NotInteger { name } => write!(f, "column {name} is not an integer"),
-            Self::NotReal { name } => write!(f, "column {name} is not a real"),
-        }
-    }
 }
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
