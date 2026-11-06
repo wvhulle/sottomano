@@ -103,7 +103,7 @@ impl DesktopShell {
         let slot_context = self.panel_slot_context(Position::Bottom);
         let view = slot_context.drag;
         let drag = view.drag.filter(|drag| drag.surface == window)?;
-        let snapshot = &self.niri_snapshot;
+        let snapshot = &self.window_snapshot;
         let card = match drag.item {
             DraggedPanelSlot::Workspace(workspace) => {
                 workspaces_group::drag_ghost(snapshot, output, workspace, slot_context)?

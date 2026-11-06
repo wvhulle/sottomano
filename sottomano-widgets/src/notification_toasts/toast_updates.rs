@@ -17,7 +17,7 @@ use sottomano_desktop_sinks::{
 };
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::{NotificationData, Outbound, close_reason},
-    desktop_windows_apps::niri_window_placement::Placement,
+    desktop_windows_apps::window_edge_placement::Placement,
 };
 use sottomano_toml_config::{Config, LoadError, severity::Severity};
 use tokio::{sync::mpsc, time::timeout};

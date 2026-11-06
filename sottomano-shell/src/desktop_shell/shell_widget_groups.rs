@@ -1,6 +1,7 @@
 use iced::Task;
-use niri_ipc::state::EventStreamState;
-use sottomano_desktop_sources::desktop_windows_apps::desktop_entry_app_icons::DesktopEntries;
+use sottomano_desktop_sources::desktop_windows_apps::{
+    compositor_window_state::CompositorWindowState, desktop_entry_app_icons::DesktopEntries,
+};
 use sottomano_toml_config::{Config, SecretPaths};
 use sottomano_widgets::{
     clock::Clock,
@@ -355,13 +356,13 @@ impl ShellWidgetGroups {
     pub fn reheat_switch_heat(
         &mut self,
         config: &Config,
-        niri: &EventStreamState,
+        compositor: &CompositorWindowState,
         clock: Clock,
     ) -> Task<Message> {
         let session_focus_group = &self.session_focus_group;
         self.niri_window_group
             .reheat(config, || {
-                session_focus_group.heated_windows(niri, config, clock)
+                session_focus_group.heated_windows(compositor, config, clock)
             })
             .map(Message::NiriWindow)
     }
@@ -436,13 +437,13 @@ impl ShellWidgetGroups {
     #[must_use]
     pub fn toast_context<'shell>(
         &self,
-        niri: &EventStreamState,
+        compositor: &CompositorWindowState,
         entries: Option<&'shell DesktopEntries>,
         config: &'shell Config,
         clock: Clock,
     ) -> ToastContext<'shell> {
         ToastContext::new(
-            niri,
+            compositor,
             entries,
             config,
             self.notification_settings(),

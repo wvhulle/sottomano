@@ -1,22 +1,9 @@
-use std::{
-    collections::HashMap, convert::Infallible, env, error::Error, fmt, future::ready, process,
-};
+use std::collections::HashMap;
 
-use futures::{SinkExt, Stream, StreamExt, stream};
-use niri_ipc::{
-    Event, Reply, Request, Response,
-    socket::SOCKET_PATH_ENV,
-    state::{EventStreamState, EventStreamStatePart},
-};
-use tokio::net::UnixStream;
-use tokio_util::codec::{Framed, LinesCodec, LinesCodecError};
-
-use crate::{
-    SnapshotDelivery, SnapshotSource,
-    desktop_windows_apps::{
-        terminal_emulator_windows::WindowProcesses,
-        window_title_labels::{IconCandidate, WindowGroupKey, WindowLabel},
-    },
+use crate::desktop_windows_apps::{
+    compositor_window_state::{CompositorWindow, CompositorWindowState},
+    terminal_emulator_windows::WindowProcesses,
+    window_title_labels::{IconCandidate, WindowGroupKey, WindowLabel},
 };
 
 #[derive(Debug, Clone)]
@@ -40,31 +27,12 @@ pub struct Snapshot {
     active: HashMap<String, u64>,
 }
 
-impl SnapshotSource for Snapshot {
-    type Error = Infallible;
-    type StreamInputs = ();
-
-    const NAME: &'static str = "Niri windows";
-
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        niri_events()
-            .scan(EventStreamState::default(), |state, event| {
-                let _ = state.apply(event);
-                ready(Some(Ok(Snapshot::derive(
-                    state,
-                    &WindowProcesses::default(),
-                ))))
-            })
-            .map(SnapshotDelivery::live_push)
-    }
-}
-
 impl Snapshot {
     #[must_use]
-    pub fn derive(state: &EventStreamState, processes: &WindowProcesses) -> Self {
+    pub fn derive(state: &CompositorWindowState, processes: &WindowProcesses) -> Self {
         let mut workspaces: HashMap<String, Vec<WorkspaceIndicator>> = HashMap::new();
         let mut active = HashMap::new();
-        for w in state.workspaces.workspaces.values() {
+        for w in state.workspaces.values() {
             let Some(output) = &w.output else { continue };
             if w.is_active {
                 active.insert(output.clone(), w.id);
@@ -74,7 +42,7 @@ impl Snapshot {
                 .or_default()
                 .push(WorkspaceIndicator {
                     id: w.id,
-                    idx: w.idx,
+                    idx: w.index,
                     name: w.name.clone(),
                     is_active: w.is_active,
                     is_urgent: w.is_urgent,
@@ -84,8 +52,8 @@ impl Snapshot {
             indicators.sort_by_key(|indicator| indicator.idx);
         }
 
-        let mut grouped: HashMap<u64, Vec<&niri_ipc::Window>> = HashMap::new();
-        for w in state.windows.windows.values() {
+        let mut grouped: HashMap<u64, Vec<&CompositorWindow>> = HashMap::new();
+        for w in state.windows.values() {
             let Some(workspace) = w.workspace_id else {
                 continue;
             };
@@ -97,7 +65,7 @@ impl Snapshot {
                 group.sort_by_key(|w| {
                     let (col, tile) = w
                         .layout
-                        .pos_in_scrolling_layout
+                        .scrolling_position
                         .unwrap_or((usize::MAX, usize::MAX));
                     (col, tile, w.id)
                 });
@@ -257,56 +225,6 @@ fn column_after_move(column: usize, from: usize, to: usize) -> usize {
     }
 }
 
-fn exit_without_niri(reason: &dyn fmt::Display) -> ! {
-    tracing::error!("niri: {reason}; the bar cannot run without niri events");
-    process::exit(1)
-}
-
-type NiriSubscribeFailure = Box<dyn Error + Send + Sync>;
-
-async fn subscribe_to_niri_events() -> Result<Framed<UnixStream, LinesCodec>, NiriSubscribeFailure>
-{
-    let socket_path =
-        env::var_os(SOCKET_PATH_ENV).ok_or_else(|| format!("{SOCKET_PATH_ENV} is not set"))?;
-    let mut niri_lines = Framed::new(UnixStream::connect(socket_path).await?, LinesCodec::new());
-    niri_lines
-        .send(serde_json::to_string(&Request::EventStream)?)
-        .await?;
-    let reply_line = niri_lines
-        .next()
-        .await
-        .ok_or("socket closed before replying")??;
-    match serde_json::from_str::<Reply>(&reply_line)? {
-        Ok(Response::Handled) => Ok(niri_lines),
-        Ok(unexpected_response) => Err(format!("unexpected reply {unexpected_response:?}").into()),
-        Err(rejection) => Err(rejection.into()),
-    }
-}
-
-fn decoded_niri_event(event_line: Result<String, LinesCodecError>) -> Event {
-    let decoded = event_line
-        .map_err(NiriSubscribeFailure::from)
-        .and_then(|event_line| Ok(serde_json::from_str::<Event>(&event_line)?));
-    match decoded {
-        Ok(event) => event,
-        Err(read_failure) => exit_without_niri(&format_args!("event read ended: {read_failure}")),
-    }
-}
-
-pub fn niri_events() -> impl Stream<Item = Event> + Send {
-    stream::once(subscribe_to_niri_events())
-        .flat_map(|subscription| match subscription {
-            Ok(niri_lines) => niri_lines,
-            Err(subscribe_failure) => exit_without_niri(&format_args!(
-                "EventStream subscription failed: {subscribe_failure}"
-            )),
-        })
-        .map(decoded_niri_event)
-        .chain(stream::poll_fn(|_| {
-            exit_without_niri(&"event stream closed")
-        }))
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct WinLayout {
     pub column: Option<usize>,
@@ -350,7 +268,7 @@ impl WinEntry {
     }
 }
 
-fn win_entry(w: &niri_ipc::Window, processes: &WindowProcesses) -> WinEntry {
+fn win_entry(w: &CompositorWindow, processes: &WindowProcesses) -> WinEntry {
     let title = w.title.clone().filter(|title| !title.is_empty());
     let app_id = w.app_id.clone().filter(|app_id| !app_id.is_empty());
     let label = match (processes.terminal_label_in(w.id), app_id.as_deref()) {
@@ -369,7 +287,7 @@ fn win_entry(w: &niri_ipc::Window, processes: &WindowProcesses) -> WinEntry {
         is_urgent: w.is_urgent,
         label,
         layout: WinLayout {
-            column: w.layout.pos_in_scrolling_layout.map(|(column, _)| column),
+            column: w.layout.scrolling_position.map(|(column, _)| column),
             tile_size: w.layout.tile_size,
             is_floating: w.is_floating,
         },

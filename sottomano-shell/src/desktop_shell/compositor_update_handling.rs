@@ -1,17 +1,16 @@
 use std::collections::{HashMap, HashSet};
 
 use iced::Task;
-use niri_ipc::{
-    Window,
-    state::{EventStreamState, EventStreamStatePart},
-};
 use sottomano_desktop_sinks::desktop_windows_apps::niri_action_requests;
 use sottomano_desktop_sources::desktop_windows_apps::{
     app_launch_history::LaunchScope,
+    compositor_window_state::{
+        CompositorChange, CompositorUpdate, CompositorWindow, CompositorWindowState,
+    },
     desktop_entry_app_catalog::{LaunchableApp, open_windows_by_app},
     desktop_entry_app_icons::{self},
     niri_output_facts::OutputInfo,
-    niri_window_snapshot,
+    workspace_window_snapshot,
 };
 use sottomano_widgets::widget_groups::{
     app_launcher_group::{AppLaunchUsage, FrequentApp, FrequentAppScope, OutputFrequentApps},
@@ -24,9 +23,9 @@ use crate::{
 };
 
 impl DesktopShell {
-    pub(super) fn derive_niri_snapshot(&mut self) {
-        self.niri_snapshot = niri_window_snapshot::Snapshot::derive(
-            &self.niri,
+    pub(super) fn derive_window_snapshot(&mut self) {
+        self.window_snapshot = workspace_window_snapshot::Snapshot::derive(
+            &self.compositor,
             self.widget_groups.window_group.window_processes(),
         );
     }
@@ -36,11 +35,11 @@ impl DesktopShell {
         failure: &niri_action_requests::ActionFailure,
     ) -> Task<Message> {
         tracing::warn!("{failure}");
-        self.derive_niri_snapshot();
+        self.derive_window_snapshot();
         self.notifications.show_niri_failure(
             failure,
             &self.widget_groups.toast_context(
-                &self.niri,
+                &self.compositor,
                 self.desktop_entries.get(),
                 &self.config,
                 self.clock,
@@ -48,60 +47,46 @@ impl DesktopShell {
         )
     }
 
-    pub(super) fn apply_niri_events(&mut self, events: Vec<niri_ipc::Event>) -> Task<Message> {
-        let mut window_change = false;
-        let mut workspace_change = false;
-        let mut focus_change = false;
-        let mut tasks = Vec::new();
-        for event in events {
-            window_change |= matches!(
-                event,
-                niri_ipc::Event::WindowsChanged { .. }
-                    | niri_ipc::Event::WindowOpenedOrChanged { .. }
-                    | niri_ipc::Event::WindowClosed { .. }
-            );
-            workspace_change |= matches!(
-                event,
-                niri_ipc::Event::WorkspacesChanged { .. }
-                    | niri_ipc::Event::WorkspaceActivated { .. }
-            );
-            focus_change |= matches!(
-                event,
-                niri_ipc::Event::WindowFocusChanged { .. }
-                    | niri_ipc::Event::WindowFocusTimestampChanged { .. }
-            );
-            if matches!(event, niri_ipc::Event::ConfigLoaded { failed: false }) {
-                tasks.push(Task::perform(
-                    self.niri_config.read_workspaces(),
-                    Message::NiriConfigRead,
-                ));
-            }
-            if let Some(launch) = self.launch_tracker.observe(&event) {
-                tasks.push(Task::future(sqlite_app_launches::record(launch)).discard());
-            }
-            let _ = self.niri.apply(event);
+    pub(super) fn apply_compositor_update(&mut self, update: CompositorUpdate) -> Task<Message> {
+        let changed = |change| update.changed(change);
+        let config_reloaded = changed(CompositorChange::ConfigReload);
+        let focus_changed = changed(CompositorChange::Focus);
+        let windows_changed = changed(CompositorChange::Windows);
+        let workspaces_changed = changed(CompositorChange::Workspaces);
+        self.compositor = update.state;
+        let mut tasks: Vec<Task<Message>> = self
+            .launch_tracker
+            .observe(&self.compositor)
+            .into_iter()
+            .map(|launch| Task::future(sqlite_app_launches::record(launch)).discard())
+            .collect();
+        if config_reloaded {
+            tasks.push(Task::perform(
+                self.niri_config.read_workspaces(),
+                Message::NiriConfigRead,
+            ));
         }
-        self.derive_niri_snapshot();
+        self.derive_window_snapshot();
         tasks.push(self.refocus_session());
-        if focus_change {
+        if focus_changed {
             self.widget_groups.collapse_when_auto_collapsing();
         }
-        if window_change {
+        if windows_changed {
             tasks.push(
                 self.favicons
-                    .track_titles(&self.niri)
+                    .track_titles(&self.compositor)
                     .map(Message::FaviconsResolved),
             );
         }
-        if workspace_change {
+        if workspaces_changed {
             tasks.push(
                 self.widget_groups
                     .sidebar_settings_group
-                    .observe_workspace_switch(&self.niri_snapshot)
+                    .observe_workspace_switch(&self.window_snapshot)
                     .map(Message::SidebarSettings),
             );
         }
-        if window_change || workspace_change || focus_change {
+        if windows_changed || workspaces_changed || focus_changed {
             tasks.push(self.refresh_app_launcher());
         }
         if self.notifications.is_active() {
@@ -114,7 +99,7 @@ impl DesktopShell {
         let Some(entries) = self.desktop_entries.arc() else {
             return Task::none();
         };
-        let snapshot = &self.niri_snapshot;
+        let snapshot = &self.window_snapshot;
         let now = self.clock.utc();
         let launchable_ranked = |scope: LaunchScope<'_>| -> Vec<LaunchableApp> {
             let mut listed_app_ids = HashSet::new();
@@ -157,15 +142,15 @@ impl DesktopShell {
                 .into_iter()
                 .map(|app| app.app_id)
                 .collect(),
-            open_windows: open_windows_by_app(self.niri.windows.windows.values(), &entries),
+            open_windows: open_windows_by_app(self.compositor.windows.values(), &entries),
         };
         self.widget_groups.app_launcher_group.adopt_usage(usage);
         self.resolve_icons()
     }
 
     pub(super) fn resolve_icons(&mut self) -> Task<Message> {
-        let app_keys = desktop_entry_app_icons::app_icon_keys(&self.niri_snapshot);
-        let theme_keys = desktop_entry_app_icons::theme_icon_keys(&self.niri_snapshot);
+        let app_keys = desktop_entry_app_icons::app_icon_keys(&self.window_snapshot);
+        let theme_keys = desktop_entry_app_icons::theme_icon_keys(&self.window_snapshot);
         self.desktop_entries
             .resolve_missing(app_keys, theme_keys)
             .map(Message::IconsResolved)
@@ -174,7 +159,7 @@ impl DesktopShell {
 
 const UNNAMED_FULLSCREEN_WINDOW: &str = "A window without an app ID";
 
-fn fills_output_in_view(window: &Window, output: &OutputInfo) -> bool {
+fn fills_output_in_view(window: &CompositorWindow, output: &OutputInfo) -> bool {
     let (window_width, window_height) = window.layout.window_size;
     let fills_output = i64::from(window_width) == i64::from(output.logical_width)
         && i64::from(window_height) == i64::from(output.logical_height);
@@ -182,30 +167,26 @@ fn fills_output_in_view(window: &Window, output: &OutputInfo) -> bool {
     fills_output
         && window
             .layout
-            .tile_pos_in_workspace_view
+            .tile_position_in_view
             .is_none_or(|(tile_x, _)| tile_x.abs() < half_output_width)
 }
 
 fn focused_workspace_fullscreen_window<'a>(
-    niri: &'a EventStreamState,
+    compositor: &'a CompositorWindowState,
     outputs: &HashMap<String, OutputInfo>,
-) -> Option<&'a Window> {
-    let workspace = niri
-        .workspaces
-        .workspaces
-        .values()
-        .find(|workspace| workspace.is_focused)?;
+) -> Option<&'a CompositorWindow> {
+    let workspace = compositor.focused_workspace()?;
     let output = outputs.get(workspace.output.as_deref()?)?;
-    niri.windows.windows.values().find(|window| {
+    compositor.windows.values().find(|window| {
         window.workspace_id == Some(workspace.id) && fills_output_in_view(window, output)
     })
 }
 
 pub(crate) fn gamepad_window_claim<'a>(
-    niri: &'a EventStreamState,
+    compositor: &'a CompositorWindowState,
     outputs: &HashMap<String, OutputInfo>,
 ) -> GamepadWindowClaim<'a> {
-    if let Some(window) = focused_workspace_fullscreen_window(niri, outputs) {
+    if let Some(window) = focused_workspace_fullscreen_window(compositor, outputs) {
         return GamepadWindowClaim::Fullscreen(
             window
                 .app_id
@@ -213,7 +194,7 @@ pub(crate) fn gamepad_window_claim<'a>(
                 .unwrap_or(UNNAMED_FULLSCREEN_WINDOW),
         );
     }
-    niri.windows
+    compositor
         .windows
         .values()
         .find(|window| window.is_focused)
@@ -224,15 +205,18 @@ pub(crate) fn gamepad_window_claim<'a>(
 pub(super) fn reheats_switch_heat(message: &Message) -> bool {
     matches!(
         message,
-        Message::Niri(_) | Message::SessionFocus(_) | Message::NiriWindow(_) | Message::Clock(_)
+        Message::Compositor(_)
+            | Message::SessionFocus(_)
+            | Message::NiriWindow(_)
+            | Message::Clock(_)
     )
 }
 
 #[cfg(test)]
 mod tests {
-    use niri_ipc::{WindowLayout, Workspace};
-    use sottomano_desktop_sources::desktop_windows_apps::niri_test_windows::{
-        unnamed_niri_workspace, unplaced_niri_window,
+    use sottomano_desktop_sources::desktop_windows_apps::{
+        compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
+        compositor_window_state::{CompositorWindowLayout, CompositorWorkspace},
     };
 
     use super::*;
@@ -261,11 +245,11 @@ mod tests {
         ])
     }
 
-    fn workspace_on(id: u64, output: &str, is_focused: bool) -> Workspace {
-        Workspace {
+    fn workspace_on(id: u64, output: &str, is_focused: bool) -> CompositorWorkspace {
+        CompositorWorkspace {
             output: Some(output.to_owned()),
             is_focused,
-            ..unnamed_niri_workspace(id)
+            ..unnamed_compositor_workspace(id)
         }
     }
 
@@ -275,13 +259,13 @@ mod tests {
         workspace_id: u64,
         window_size: (i32, i32),
         is_focused: bool,
-    ) -> Window {
-        let unplaced = unplaced_niri_window(id);
-        Window {
+    ) -> CompositorWindow {
+        let unplaced = unplaced_compositor_window(id);
+        CompositorWindow {
             app_id: Some(app_id.to_owned()),
             workspace_id: Some(workspace_id),
             is_focused,
-            layout: WindowLayout {
+            layout: CompositorWindowLayout {
                 window_size,
                 ..unplaced.layout
             },
@@ -289,25 +273,19 @@ mod tests {
         }
     }
 
-    fn niri_state(windows: Vec<Window>) -> EventStreamState {
-        let mut niri = EventStreamState::default();
-        niri.workspaces.workspaces = [
-            workspace_on(GAME_WORKSPACE, "DP-1", true),
-            workspace_on(OTHER_WORKSPACE, "DP-2", false),
-        ]
-        .into_iter()
-        .map(|workspace| (workspace.id, workspace))
-        .collect();
-        niri.windows.windows = windows
-            .into_iter()
-            .map(|window| (window.id, window))
-            .collect();
-        niri
+    fn compositor(windows: Vec<CompositorWindow>) -> CompositorWindowState {
+        CompositorWindowState::from_lists(
+            [
+                workspace_on(GAME_WORKSPACE, "DP-1", true),
+                workspace_on(OTHER_WORKSPACE, "DP-2", false),
+            ],
+            windows,
+        )
     }
 
     #[test]
     fn a_prompt_focused_above_a_fullscreen_game_leaves_the_game_claiming() {
-        let niri = niri_state(vec![
+        let compositor = compositor(vec![
             window_sized(
                 1,
                 "steam_app_275850",
@@ -318,14 +296,14 @@ mod tests {
             window_sized(2, "opensnitch-ui", GAME_WORKSPACE, (600, 400), true),
         ]);
         assert_eq!(
-            gamepad_window_claim(&niri, &outputs()),
+            gamepad_window_claim(&compositor, &outputs()),
             GamepadWindowClaim::Fullscreen("steam_app_275850")
         );
     }
 
     #[test]
     fn a_fullscreen_game_claims_while_no_window_has_focus() {
-        let niri = niri_state(vec![window_sized(
+        let compositor = compositor(vec![window_sized(
             1,
             "slowroads",
             GAME_WORKSPACE,
@@ -333,14 +311,14 @@ mod tests {
             false,
         )]);
         assert_eq!(
-            gamepad_window_claim(&niri, &outputs()),
+            gamepad_window_claim(&compositor, &outputs()),
             GamepadWindowClaim::Fullscreen("slowroads")
         );
     }
 
     #[test]
     fn a_maximized_column_falls_back_to_the_focused_window() {
-        let niri = niri_state(vec![window_sized(
+        let compositor = compositor(vec![window_sized(
             1,
             "firefox",
             GAME_WORKSPACE,
@@ -348,19 +326,19 @@ mod tests {
             true,
         )]);
         assert_eq!(
-            gamepad_window_claim(&niri, &outputs()),
+            gamepad_window_claim(&compositor, &outputs()),
             GamepadWindowClaim::Focused("firefox")
         );
     }
 
     #[test]
     fn a_fullscreen_window_on_another_output_does_not_claim() {
-        let niri = niri_state(vec![
+        let compositor = compositor(vec![
             window_sized(1, "steam_app_275850", OTHER_WORKSPACE, (1920, 1080), false),
             window_sized(2, "kitty", GAME_WORKSPACE, (600, 1348), true),
         ]);
         assert_eq!(
-            gamepad_window_claim(&niri, &outputs()),
+            gamepad_window_claim(&compositor, &outputs()),
             GamepadWindowClaim::Focused("kitty")
         );
     }
@@ -374,13 +352,13 @@ mod tests {
             FULL_OUTPUT_SIZE,
             false,
         );
-        scrolled_away.layout.tile_pos_in_workspace_view = Some((-2560.0, 0.0));
-        let niri = niri_state(vec![
+        scrolled_away.layout.tile_position_in_view = Some((-2560.0, 0.0));
+        let compositor = compositor(vec![
             scrolled_away,
             window_sized(2, "firefox", GAME_WORKSPACE, (899, 1348), true),
         ]);
         assert_eq!(
-            gamepad_window_claim(&niri, &outputs()),
+            gamepad_window_claim(&compositor, &outputs()),
             GamepadWindowClaim::Focused("firefox")
         );
     }
@@ -388,7 +366,7 @@ mod tests {
     #[test]
     fn an_empty_desktop_is_unclaimed() {
         assert_eq!(
-            gamepad_window_claim(&niri_state(Vec::new()), &outputs()),
+            gamepad_window_claim(&compositor(Vec::new()), &outputs()),
             GamepadWindowClaim::Unclaimed
         );
     }

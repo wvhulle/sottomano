@@ -5,7 +5,7 @@ use iced::{
     widget::{Row, text},
 };
 use sottomano_desktop_sources::desktop_windows_apps::{
-    niri_window_snapshot, window_title_labels::WindowGroupKey,
+    window_title_labels::WindowGroupKey, workspace_window_snapshot,
 };
 use sottomano_toml_config::Config;
 
@@ -82,7 +82,7 @@ fn slot_presentations(
 }
 
 fn keyed_group_heading_text(
-    window_entry: &niri_window_snapshot::WinEntry,
+    window_entry: &workspace_window_snapshot::WinEntry,
     icons: WindowAssets<'_>,
 ) -> Option<String> {
     match window_entry.group_key()? {
@@ -98,7 +98,7 @@ fn keyed_group_heading_text(
 }
 
 fn keyed_group_heading<'a>(
-    window_entry: &niri_window_snapshot::WinEntry,
+    window_entry: &workspace_window_snapshot::WinEntry,
     icons: WindowAssets<'a>,
     config: &Config,
 ) -> Option<Element<'a, WindowListMessage>> {
@@ -133,7 +133,7 @@ fn keyed_group_heading<'a>(
 }
 
 pub(super) fn arranged_keyed_groups<'a>(
-    order: &[&niri_window_snapshot::WinEntry],
+    order: &[&workspace_window_snapshot::WinEntry],
     icons: WindowAssets<'a>,
     slot_context: PanelSlotContext<'_>,
 ) -> ArrangedWindowRows<'a> {

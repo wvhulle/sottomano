@@ -196,7 +196,7 @@ impl DesktopShell {
         {
             WorkspacesPlacement::Sidebar => None,
             WorkspacesPlacement::BottomPanel => inline_strip::inline_view(
-                &self.niri_snapshot,
+                &self.window_snapshot,
                 output,
                 self.configured_workspaces.as_ref(),
                 self.widget_groups
@@ -216,7 +216,7 @@ impl DesktopShell {
         self.widget_groups
             .window_group
             .view(
-                &self.niri_snapshot,
+                &self.window_snapshot,
                 self.window_assets(),
                 self.widget_groups.audio_group.window_audio(),
                 output,

@@ -1,6 +1,6 @@
 use iced::{Alignment, Element, border::Radius, widget::Column};
 use sottomano_desktop_sources::desktop_windows_apps::{
-    niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot,
+    niri_kdl_config::ConfiguredWorkspaces, workspace_window_snapshot,
 };
 use sottomano_toml_config::screen_edges::Position;
 
@@ -20,7 +20,7 @@ use crate::{
 };
 
 pub fn vertical_view<'a>(
-    niri: &niri_window_snapshot::Snapshot,
+    compositor: &workspace_window_snapshot::Snapshot,
     output: &str,
     configured: Option<&ConfiguredWorkspaces>,
     empty_workspace_folding: &EmptyWorkspaceFolding,
@@ -32,11 +32,11 @@ pub fn vertical_view<'a>(
         ..slot_context
     };
     let PanelSlotContext { config, drag, .. } = slot_context;
-    let workspaces = niri.workspaces_for_output(output);
+    let workspaces = compositor.workspaces_for_output(output);
     if workspaces.is_empty() {
         return None;
     }
-    let shown = shown_workspaces(niri, output, empty_workspace_folding);
+    let shown = shown_workspaces(compositor, output, empty_workspace_folding);
     let order: Vec<_> = drag
         .previewed(&shown, |workspace| workspace_slot_key(workspace))
         .into_iter()
@@ -48,7 +48,7 @@ pub fn vertical_view<'a>(
         .enumerate()
         .map(|(position_in_panel, workspace)| {
             let workspace_slot =
-                WorkspaceSlot::new(workspace, niri, position_in_panel, slot_context);
+                WorkspaceSlot::new(workspace, compositor, position_in_panel, slot_context);
             (
                 workspace_slot.key(),
                 workspace_slot.sidebar_view(end_corners.radius_at(position_in_panel)),
@@ -64,7 +64,7 @@ pub fn vertical_view<'a>(
             .extend(order_restore(configured, workspaces, output, config))
             .push(pager)
             .extend(empty_workspaces_toggle(
-                niri,
+                compositor,
                 output,
                 empty_workspace_folding,
                 config,

@@ -1,7 +1,7 @@
 use iced::{Element, Rectangle};
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::NotificationData,
-    desktop_windows_apps::niri_window_placement::{Placement, WindowOwner},
+    desktop_windows_apps::window_edge_placement::{Placement, WindowOwner},
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 use sottomano_toml_config::{

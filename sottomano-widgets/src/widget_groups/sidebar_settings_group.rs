@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use iced::{Task, task};
-use sottomano_desktop_sources::desktop_windows_apps::niri_window_snapshot;
+use sottomano_desktop_sources::desktop_windows_apps::workspace_window_snapshot;
 use sottomano_toml_config::Config;
 use tokio::time::sleep;
 
@@ -160,9 +160,12 @@ impl SidebarSettingsGroup {
 
     pub fn observe_workspace_switch(
         &mut self,
-        niri: &niri_window_snapshot::Snapshot,
+        compositor: &workspace_window_snapshot::Snapshot,
     ) -> Task<SidebarSettingsMessage> {
-        match self.empty_workspace_folding.observe_workspace_switch(niri) {
+        match self
+            .empty_workspace_folding
+            .observe_workspace_switch(compositor)
+        {
             RevealFoldTimer::Keep => Task::none(),
             RevealFoldTimer::Stop => {
                 self.reveal_fold_timer = None;

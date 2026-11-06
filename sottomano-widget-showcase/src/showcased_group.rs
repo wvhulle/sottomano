@@ -4,10 +4,12 @@ use iced::{
     widget::{Column, Row, container, stack, text},
 };
 use iced_controller_diagram::ControllerArtwork;
-use niri_ipc::state::EventStreamState;
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::NotificationData,
-    desktop_windows_apps::{niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot::Snapshot},
+    desktop_windows_apps::{
+        compositor_window_state::CompositorWindowState, niri_kdl_config::ConfiguredWorkspaces,
+        workspace_window_snapshot::Snapshot,
+    },
 };
 use sottomano_toml_config::{
     Config,
@@ -70,8 +72,8 @@ use sottomano_widgets::{
 
 use crate::{
     fixtures::{
-        claude_usage, compute, login_session, memory_board, niri_session, tailnet, voice_dictation,
-        wireguard_tunnels,
+        claude_usage, compute, desktop_session, login_session, memory_board, tailnet,
+        voice_dictation, wireguard_tunnels,
     },
     showcase_message::ShowcaseMessage,
     showcase_program::SHOWCASE_FLOAT_OFFSET_PX,
@@ -133,8 +135,8 @@ pub enum ShowcasedGroup {
     Tailnet(Box<TailnetGroup>),
     WireguardTunnels(Box<WireguardTunnelsGroup>),
     LoginSession(Box<LoginSessionGroup>),
-    BottomPanel(Box<ShowcasedNiriSession>),
-    WorkspaceSidebar(Box<ShowcasedNiriSession>),
+    BottomPanel(Box<ShowcasedDesktopSession>),
+    WorkspaceSidebar(Box<ShowcasedDesktopSession>),
     Toasts(Box<ShowcasedToasts>),
     MenuMembers(Vec<ShowcasedGroup>),
     ShellSettings(Box<ShowcasedShellSettings>),
@@ -218,7 +220,7 @@ pub struct ShowcasedGamepad {
 }
 
 pub struct ShowcasedToasts {
-    pub niri: EventStreamState,
+    pub compositor: CompositorWindowState,
     pub opening: Vec<NotificationData>,
     pub terminal_scrollback: &'static [TerminalLine],
 }
@@ -264,8 +266,8 @@ fn terminal_row<'a>(
 
 impl ShowcasedToasts {
     fn window_frames(&self) -> Element<'_, ShowcaseMessage> {
-        let frames = self.niri.windows.windows.values().filter_map(|window| {
-            let (x, y) = window.layout.tile_pos_in_workspace_view?;
+        let frames = self.compositor.windows.values().filter_map(|window| {
+            let (x, y) = window.layout.tile_position_in_view?;
             let (width, height) = window.layout.window_size;
             let focus_ring: fn(&Theme) -> Color = if window.is_focused {
                 primary_color
@@ -300,17 +302,17 @@ pub struct ShowcasedMedia {
     pub desktop_entries: DesktopIndex,
 }
 
-pub struct ShowcasedNiriSession {
+pub struct ShowcasedDesktopSession {
     pub window_group: WindowGroup,
     pub window_row_layout: WindowRowLayout,
-    pub niri: EventStreamState,
+    pub compositor: CompositorWindowState,
     pub snapshot: Snapshot,
     pub desktop_entries: DesktopIndex,
     pub favicons: Favicons,
     pub controller_artwork: ControllerArtwork,
 }
 
-impl ShowcasedNiriSession {
+impl ShowcasedDesktopSession {
     fn sidebar_groups<'a>(
         &'a self,
         config: &'a Config,
@@ -371,7 +373,7 @@ impl ShowcasedNiriSession {
     fn hover_card_for(&self, target: &HoverTarget, clock: Clock) -> Option<HoverCard> {
         match target {
             HoverTarget::Window(WindowTarget::Pick(window)) => {
-                WindowGroup::pick_hover_card(&self.niri, *window, clock)
+                WindowGroup::pick_hover_card(&self.compositor, *window, clock)
             }
             HoverTarget::Window(WindowTarget::Inspect(_)) => {
                 Some(self.window_group.inspect_hover_card(clock))
@@ -743,10 +745,11 @@ impl ShowcasedGroup {
                     .collect()
             }
             ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
-                let _ = session
-                    .window_group
-                    .hover(&session.niri, Some(target), config, clock);
-                niri_session::on_hover(target)
+                let _ =
+                    session
+                        .window_group
+                        .hover(&session.compositor, Some(target), config, clock);
+                desktop_session::on_hover(target)
                     .into_iter()
                     .map(ShowcaseMessage::WindowGroup)
                     .collect()
@@ -944,12 +947,12 @@ impl ShowcasedGroup {
         }
     }
 
-    pub fn niri(&self) -> Option<&EventStreamState> {
+    pub fn compositor(&self) -> Option<&CompositorWindowState> {
         match self {
             ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
-                Some(&session.niri)
+                Some(&session.compositor)
             }
-            ShowcasedGroup::Toasts(toasts) => Some(&toasts.niri),
+            ShowcasedGroup::Toasts(toasts) => Some(&toasts.compositor),
             ShowcasedGroup::AppLauncher(_)
             | ShowcasedGroup::Compute(_)
             | ShowcasedGroup::MemoryBoard(_)

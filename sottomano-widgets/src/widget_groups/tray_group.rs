@@ -13,8 +13,8 @@ use sottomano_desktop_sinks::desktop_windows_apps::status_notifier_tray_activati
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
-        niri_window_placement::WindowOwner,
         status_notifier_tray::{self, Status, TrayHost, TrayItem, TrayUpdate},
+        window_edge_placement::WindowOwner,
     },
 };
 use sottomano_toml_config::{Config, widget_groups::tray::ClickAction};

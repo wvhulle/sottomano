@@ -34,8 +34,8 @@ use sottomano_widgets::{
 
 use crate::{
     fixtures::{
-        app_launcher, appearance_presets, audio, caldav, claude_usage, compute, gamepad,
-        group_menu_members, idle_lock, login_session, media, memory_board, niri_session,
+        app_launcher, appearance_presets, audio, caldav, claude_usage, compute, desktop_session,
+        gamepad, group_menu_members, idle_lock, login_session, media, memory_board,
         notification_toasts, nspawn_containers, podman_engines, shell_settings, tailnet,
         unchanging, virtual_machines, voice_dictation, wallpaper, weather, wireguard_tunnels,
     },
@@ -366,21 +366,21 @@ pub const DEMOS: &[Demo] = &[
     },
     Demo {
         name: "bottom_workspaces",
-        group: niri_session::bottom_bar,
+        group: desktop_session::bottom_bar,
         live: unchanging,
         shown: GroupShown::OnPanel,
         script: &[Step::Hover(HoverTarget::Workspace(2))],
     },
     Demo {
         name: "bottom_window_directory_groups",
-        group: niri_session::terminals_grouped_by_directory,
+        group: desktop_session::terminals_grouped_by_directory,
         live: unchanging,
         shown: GroupShown::OnPanel,
         script: &[Step::Hover(HoverTarget::Window(WindowTarget::Pick(2)))],
     },
     Demo {
         name: "bottom_process_inspector",
-        group: niri_session::bottom_bar,
+        group: desktop_session::bottom_bar,
         live: unchanging,
         shown: GroupShown::OnPanel,
         script: &[Step::Hover(HoverTarget::Window(WindowTarget::Inspect(2)))],

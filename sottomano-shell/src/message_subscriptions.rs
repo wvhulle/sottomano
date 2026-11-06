@@ -10,7 +10,7 @@ use iced::{
 use iced_wayland_subscriber::output::{self, OutputEvent};
 use sottomano_desktop_sources::{
     desktop_notifications::freedesktop_notification_server,
-    desktop_windows_apps::{desktop_entry_changes, firefox_favicon_lookup, niri_window_snapshot},
+    desktop_windows_apps::{compositor_connection, desktop_entry_changes, firefox_favicon_lookup},
     system_protocol_clients::{
         dbus_desktop_buses::desktop_bus_events,
         inotify_directory_changes::{WatchTarget, changes},
@@ -64,7 +64,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         .map(|()| Message::ConfigFileChanged),
         state.widget_groups.subscription(
             &state.config,
-            gamepad_window_claim(&state.niri, &state.outputs),
+            gamepad_window_claim(&state.compositor, &state.outputs),
             state.desktop_buses.as_ref(),
         ),
         Subscription::run(desktop_bus_events).map(Message::DesktopBus),
@@ -90,7 +90,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .map(|()| Message::ReloadDesktopEntries),
         Subscription::run(firefox_favicon_lookup::profile_changes)
             .map(|()| Message::FirefoxProfileChanged),
-        niri_subscription(),
+        compositor_subscription(),
         notifications_subscription(),
         state
             .typing_under_cards
@@ -109,13 +109,9 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
     ])
 }
 
-fn niri_subscription() -> Subscription<Message> {
+fn compositor_subscription() -> Subscription<Message> {
     use iced::futures::StreamExt;
-    Subscription::run(|| {
-        niri_window_snapshot::niri_events()
-            .ready_chunks(256)
-            .map(Message::Niri)
-    })
+    Subscription::run(|| compositor_connection::compositor_updates().map(Message::Compositor))
 }
 
 fn notifications_subscription() -> Subscription<Message> {

@@ -1,16 +1,17 @@
 pub mod app_launch_history;
+pub mod compositor_connection;
+#[cfg(any(test, feature = "test-support"))]
+pub mod compositor_test_windows;
+pub mod compositor_window_state;
 pub mod desktop_entry_app_catalog;
 pub mod desktop_entry_app_icons;
 pub mod desktop_entry_changes;
 pub mod firefox_favicon_lookup;
 pub mod icon_whitespace_trim;
 pub mod kde_job_view_progress;
+pub mod niri_event_stream;
 pub mod niri_kdl_config;
 pub mod niri_output_facts;
-#[cfg(any(test, feature = "test-support"))]
-pub mod niri_test_windows;
-pub mod niri_window_placement;
-pub mod niri_window_snapshot;
 pub mod nix_package_facts;
 pub mod nix_store_provenance;
 pub mod process_tree_inspection;
@@ -18,4 +19,6 @@ pub mod project_directory_labels;
 pub mod status_notifier_tray;
 pub mod terminal_emulator_windows;
 pub mod unity_launcher_badges;
+pub mod window_edge_placement;
 pub mod window_title_labels;
+pub mod workspace_window_snapshot;

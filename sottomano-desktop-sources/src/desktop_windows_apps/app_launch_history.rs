@@ -4,7 +4,10 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use niri_ipc::{Event, Window};
+
+use crate::desktop_windows_apps::compositor_window_state::{
+    CompositorWindow, CompositorWindowState, CompositorWorkspace,
+};
 
 const HALFLIFE_DAYS: f64 = 14.0;
 
@@ -67,7 +70,6 @@ impl LaunchScope<'_> {
 #[derive(Default)]
 pub struct LaunchTracker {
     history: Vec<Launch>,
-    known_workspaces: HashMap<u64, LaunchWorkspace>,
     seen: HashSet<u64>,
     seeded: bool,
 }
@@ -79,45 +81,36 @@ impl LaunchTracker {
         self.history = stored;
     }
 
-    pub fn observe(&mut self, event: &Event) -> Option<Launch> {
-        match event {
-            Event::WorkspacesChanged { workspaces } => {
-                self.known_workspaces = workspaces
-                    .iter()
-                    .map(|workspace| {
-                        let launch_workspace = workspace
-                            .name
-                            .clone()
-                            .map_or(LaunchWorkspace::Unnamed, LaunchWorkspace::Named);
-                        (workspace.id, launch_workspace)
-                    })
-                    .collect();
-                None
-            }
-            Event::WindowsChanged { windows } => {
-                self.seen = windows.iter().map(|window| window.id).collect();
-                self.seeded = true;
-                None
-            }
-            Event::WindowOpenedOrChanged { window } => {
-                let launch = self.first_launch(window)?;
-                self.history.push(launch.clone());
-                Some(launch)
-            }
-            Event::WindowClosed { id } => {
-                self.seen.remove(id);
-                None
-            }
-            _ => None,
+    pub fn observe(&mut self, state: &CompositorWindowState) -> Vec<Launch> {
+        if !self.seeded {
+            self.seen = state.windows.keys().copied().collect();
+            self.seeded = true;
+            return Vec::new();
         }
+        self.seen.retain(|id| state.windows.contains_key(id));
+        let launches: Vec<Launch> = state
+            .windows
+            .values()
+            .filter_map(|window| self.first_launch(window, &state.workspaces))
+            .collect();
+        self.history.extend(launches.iter().cloned());
+        launches
     }
 
-    fn first_launch(&mut self, window: &Window) -> Option<Launch> {
-        if !self.seeded || self.seen.contains(&window.id) {
+    fn first_launch(
+        &mut self,
+        window: &CompositorWindow,
+        workspaces: &HashMap<u64, CompositorWorkspace>,
+    ) -> Option<Launch> {
+        if self.seen.contains(&window.id) {
             return None;
         }
         let app_id = window.app_id.clone().filter(|id| !id.is_empty())?;
-        let workspace = self.known_workspaces.get(&window.workspace_id?)?.clone();
+        let workspace = workspaces
+            .get(&window.workspace_id?)?
+            .name
+            .clone()
+            .map_or(LaunchWorkspace::Unnamed, LaunchWorkspace::Named);
         self.seen.insert(window.id);
         Some(Launch {
             workspace,
@@ -191,41 +184,46 @@ impl RankedApp<'_> {
 #[cfg(test)]
 mod tests {
     use chrono::{Duration, Utc};
-    use niri_ipc::{Event, Window, Workspace};
 
     use super::{Launch, LaunchScope, LaunchTracker, LaunchWorkspace};
-    use crate::desktop_windows_apps::niri_test_windows::{
-        unnamed_niri_workspace, unplaced_niri_window,
+    use crate::desktop_windows_apps::{
+        compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
+        compositor_window_state::{CompositorWindow, CompositorWindowState, CompositorWorkspace},
     };
 
-    fn workspace(id: u64, name: &str) -> Workspace {
-        Workspace {
+    fn workspace(id: u64, name: &str) -> CompositorWorkspace {
+        CompositorWorkspace {
             name: Some(name.to_owned()),
             output: Some("DP-1".to_owned()),
-            ..unnamed_niri_workspace(id)
+            ..unnamed_compositor_workspace(id)
         }
     }
 
-    fn window(id: u64, app_id: Option<&str>) -> Window {
-        Window {
+    fn window(id: u64, app_id: Option<&str>) -> CompositorWindow {
+        CompositorWindow {
             app_id: app_id.map(str::to_owned),
-            ..unplaced_niri_window(id)
+            ..unplaced_compositor_window(id)
         }
     }
 
     fn seeded_tracker() -> LaunchTracker {
         let mut tracker = LaunchTracker::default();
-        tracker.observe(&Event::WorkspacesChanged {
-            workspaces: vec![workspace(1, "web")],
-        });
-        tracker.observe(&Event::WindowsChanged {
-            windows: Vec::new(),
-        });
+        tracker.observe(&CompositorWindowState::default());
         tracker
     }
 
-    fn opened(tracker: &mut LaunchTracker, window: Window) -> Option<Launch> {
-        tracker.observe(&Event::WindowOpenedOrChanged { window })
+    fn opened_among(
+        tracker: &mut LaunchTracker,
+        workspaces: Vec<CompositorWorkspace>,
+        window: CompositorWindow,
+    ) -> Option<Launch> {
+        tracker
+            .observe(&CompositorWindowState::from_lists(workspaces, [window]))
+            .pop()
+    }
+
+    fn opened(tracker: &mut LaunchTracker, window: CompositorWindow) -> Option<Launch> {
+        opened_among(tracker, vec![workspace(1, "web")], window)
     }
 
     fn launch(app_id: &str, days_ago: i64) -> Launch {
@@ -246,6 +244,16 @@ mod tests {
     }
 
     #[test]
+    fn windows_open_before_the_first_state_are_not_launches() {
+        let mut tracker = LaunchTracker::default();
+        let initial =
+            CompositorWindowState::from_lists([workspace(1, "web")], [window(7, Some("code"))]);
+
+        assert!(tracker.observe(&initial).is_empty());
+        assert!(tracker.observe(&initial).is_empty());
+    }
+
+    #[test]
     fn launches_before_loading_survive_without_doubling() {
         let mut tracker = seeded_tracker();
         let early = opened(&mut tracker, window(7, Some("code"))).unwrap();
@@ -259,18 +267,13 @@ mod tests {
 
     #[test]
     fn a_launch_on_an_unnamed_workspace_counts_only_for_every_workspace() {
-        let mut tracker = LaunchTracker::default();
-        tracker.observe(&Event::WorkspacesChanged {
-            workspaces: vec![Workspace {
-                name: None,
-                ..workspace(1, "ignored")
-            }],
-        });
-        tracker.observe(&Event::WindowsChanged {
-            windows: Vec::new(),
-        });
+        let mut tracker = seeded_tracker();
+        let unnamed = CompositorWorkspace {
+            name: None,
+            ..workspace(1, "ignored")
+        };
 
-        let recorded = opened(&mut tracker, window(7, Some("foot"))).unwrap();
+        let recorded = opened_among(&mut tracker, vec![unnamed], window(7, Some("foot"))).unwrap();
 
         assert_eq!(recorded.workspace, LaunchWorkspace::Unnamed);
         assert_eq!(
@@ -286,15 +289,8 @@ mod tests {
 
     #[test]
     fn a_window_waits_until_its_workspace_is_known() {
-        let mut tracker = LaunchTracker::default();
-        tracker.observe(&Event::WindowsChanged {
-            windows: Vec::new(),
-        });
-        assert!(opened(&mut tracker, window(7, Some("foot"))).is_none());
-
-        tracker.observe(&Event::WorkspacesChanged {
-            workspaces: vec![workspace(1, "web")],
-        });
+        let mut tracker = seeded_tracker();
+        assert!(opened_among(&mut tracker, Vec::new(), window(7, Some("foot"))).is_none());
 
         let recorded = opened(&mut tracker, window(7, Some("foot"))).unwrap();
         assert_eq!(recorded.workspace, LaunchWorkspace::Named("web".to_owned()));

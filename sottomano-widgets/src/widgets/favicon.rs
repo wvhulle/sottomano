@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
 use iced::{Task, task::Handle};
-use niri_ipc::state::EventStreamState;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
-    desktop_windows_apps::firefox_favicon_lookup::{self, RawFavicon},
+    desktop_windows_apps::{
+        compositor_window_state::CompositorWindowState,
+        firefox_favicon_lookup::{self, RawFavicon},
+    },
 };
 
 use crate::widgets::icon_handle::IconHandle;
@@ -55,9 +57,9 @@ impl Favicons {
 
     pub fn track_titles(
         &mut self,
-        niri_state: &EventStreamState,
+        compositor: &CompositorWindowState,
     ) -> Task<HashMap<String, RawFavicon>> {
-        let titles = firefox_favicon_lookup::firefox_keys(niri_state);
+        let titles = firefox_favicon_lookup::firefox_keys(compositor);
         if titles == self.titles {
             return Task::none();
         }

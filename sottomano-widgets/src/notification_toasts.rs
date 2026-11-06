@@ -15,7 +15,6 @@ use iced::{
     futures::{StreamExt, stream},
     time::Instant,
 };
-use niri_ipc::state::EventStreamState;
 use sottomano_desktop_sinks::{
     desktop_notifications::alert_sound_player::SoundTheme,
     desktop_windows_apps::niri_action_requests::ActionFailure,
@@ -25,7 +24,8 @@ use sottomano_desktop_sources::{
         freedesktop_notification_server::NotificationSignals, notification_data::NotificationData,
     },
     desktop_windows_apps::{
-        desktop_entry_app_icons::DesktopEntries, niri_window_placement::Placement,
+        compositor_window_state::CompositorWindowState, desktop_entry_app_icons::DesktopEntries,
+        window_edge_placement::Placement,
     },
 };
 use sottomano_toml_config::{Config, severity::Severity};
@@ -84,7 +84,7 @@ pub struct ToastContext<'a> {
 impl<'a> ToastContext<'a> {
     #[must_use]
     pub fn new(
-        niri: &EventStreamState,
+        compositor: &CompositorWindowState,
         entries: Option<&'a DesktopEntries>,
         config: &'a Config,
         notifications: NotificationSettings,
@@ -92,7 +92,7 @@ impl<'a> ToastContext<'a> {
         clock: Clock,
     ) -> Self {
         Self {
-            placement: Placement::derive(niri),
+            placement: Placement::derive(compositor),
             entries,
             config,
             notifications,

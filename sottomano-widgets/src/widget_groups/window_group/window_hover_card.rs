@@ -1,7 +1,7 @@
 use std::time::{Duration, SystemTime};
 
-use niri_ipc::state::EventStreamState;
 use sottomano_desktop_sources::desktop_windows_apps::{
+    compositor_window_state::{CompositorWindow, CompositorWindowState},
     nix_package_facts::{self, Generation, NixPackageFacts, Origin, Upstream, UpstreamState},
     nix_store_provenance::StorePackage,
     process_tree_inspection::{self, Inspection, Launch},
@@ -19,11 +19,11 @@ use crate::{
 };
 
 pub fn pick_body(
-    niri_state: &EventStreamState,
+    compositor: &CompositorWindowState,
     window: u64,
     now: SystemTime,
 ) -> Option<HoverCardBody> {
-    let window = niri_state.windows.windows.get(&window)?;
+    let window = compositor.windows.get(&window)?;
     let window_entries = [
         window
             .title
@@ -163,10 +163,8 @@ fn upstream_entry(upstream: &Upstream) -> Option<LabeledValue> {
     }
 }
 
-fn focus_age(window: &niri_ipc::Window) -> Option<Duration> {
-    let focused = window.focus_timestamp?;
-    let stamp = Duration::new(focused.secs, focused.nanos);
-    process_tree_inspection::monotonic()?.checked_sub(stamp)
+fn focus_age(window: &CompositorWindow) -> Option<Duration> {
+    process_tree_inspection::monotonic()?.checked_sub(window.focused_at_monotonic?)
 }
 
 fn versioned(key: &'static str, package: &StorePackage) -> LabeledValue {

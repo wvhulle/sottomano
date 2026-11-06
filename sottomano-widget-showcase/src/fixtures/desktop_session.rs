@@ -5,16 +5,14 @@ use std::{
 
 use bytesize::ByteSize;
 use iced_controller_diagram::ControllerArtwork;
-use niri_ipc::{
-    Event, Window, WindowLayout, Workspace,
-    state::{EventStreamState, EventStreamStatePart},
-};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     desktop_windows_apps::{
-        niri_test_windows::{unnamed_niri_workspace, unplaced_niri_window},
-        niri_window_snapshot::Snapshot,
+        compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
+        compositor_window_state::{
+            CompositorWindow, CompositorWindowLayout, CompositorWindowState, CompositorWorkspace,
+        },
         nix_package_facts::{
             ClosureFacts, Definition, Generation, NixPackageFacts, NixpkgsEntry, Origin, Upstream,
             UpstreamState,
@@ -25,6 +23,7 @@ use sottomano_desktop_sources::{
             WindowProcesses,
             terminal_shell_label::{ForegroundActivity, TerminalShellLabel, WorkingLocation},
         },
+        workspace_window_snapshot::Snapshot,
     },
 };
 use sottomano_widgets::{
@@ -41,7 +40,7 @@ use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
     fixtures::showcase_epoch,
-    showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup, ShowcasedNiriSession},
+    showcased_group::{SHOWCASE_OUTPUT, ShowcasedDesktopSession, ShowcasedGroup},
 };
 
 const CODING_WORKSPACE: u64 = 1;
@@ -329,7 +328,7 @@ fn session(
     placed_windows: &[PlacedWindow],
     window_processes: &WindowProcesses,
     window_row_layout: WindowRowLayout,
-) -> ShowcasedNiriSession {
+) -> ShowcasedDesktopSession {
     let shown_windows: Vec<&PlacedWindow> = placed_windows
         .iter()
         .filter(|placed| {
@@ -338,17 +337,15 @@ fn session(
                 .any(|named| named.id == placed.workspace)
         })
         .collect();
-    let niri = [workspaces(shown_workspaces), windows(&shown_windows)]
-        .into_iter()
-        .fold(EventStreamState::default(), |mut state, event| {
-            let _ = state.apply(event);
-            state
-        });
-    let snapshot = Snapshot::derive(&niri, window_processes);
-    ShowcasedNiriSession {
+    let compositor = CompositorWindowState::from_lists(
+        shown_workspaces.iter().map(workspace),
+        shown_windows.iter().copied().map(window),
+    );
+    let snapshot = Snapshot::derive(&compositor, window_processes);
+    ShowcasedDesktopSession {
         window_group: WindowGroup::default(),
         window_row_layout,
-        niri,
+        compositor,
         snapshot,
         desktop_entries: bundled_app_icons(&shown_windows),
         favicons: Favicons::default(),
@@ -387,45 +384,33 @@ pub fn on_hover(target: &HoverTarget) -> Vec<WindowGroupMessage> {
     }
 }
 
-fn workspace(named: &NamedWorkspace) -> Workspace {
-    Workspace {
-        idx: u8::try_from(named.id).expect("few fixture workspaces"),
+fn workspace(named: &NamedWorkspace) -> CompositorWorkspace {
+    CompositorWorkspace {
+        index: u8::try_from(named.id).expect("few fixture workspaces"),
         name: Some(named.name.to_owned()),
         output: Some(SHOWCASE_OUTPUT.to_owned()),
         is_active: named.id == CODING_WORKSPACE,
         is_focused: named.id == CODING_WORKSPACE,
         active_window_id: Some(named.active_window),
-        ..unnamed_niri_workspace(named.id)
+        ..unnamed_compositor_workspace(named.id)
     }
 }
 
-fn workspaces(shown_workspaces: &[NamedWorkspace]) -> Event {
-    Event::WorkspacesChanged {
-        workspaces: shown_workspaces.iter().map(workspace).collect(),
-    }
-}
-
-fn window(placed: &PlacedWindow) -> Window {
-    let unplaced = unplaced_niri_window(placed.id);
-    Window {
+fn window(placed: &PlacedWindow) -> CompositorWindow {
+    let unplaced = unplaced_compositor_window(placed.id);
+    CompositorWindow {
         title: Some(placed.title.to_owned()),
         app_id: Some(placed.app_id.to_owned()),
         pid: Some(window_pid(placed.id)),
         workspace_id: Some(placed.workspace),
         is_focused: placed.id == TERMINAL_WINDOW,
-        layout: WindowLayout {
-            pos_in_scrolling_layout: Some((placed.column, 1)),
+        layout: CompositorWindowLayout {
+            scrolling_position: Some((placed.column, 1)),
             tile_size: (800.0, 900.0),
             window_size: (800, 900),
             ..unplaced.layout
         },
         ..unplaced
-    }
-}
-
-fn windows(shown_windows: &[&PlacedWindow]) -> Event {
-    Event::WindowsChanged {
-        windows: shown_windows.iter().copied().map(window).collect(),
     }
 }
 

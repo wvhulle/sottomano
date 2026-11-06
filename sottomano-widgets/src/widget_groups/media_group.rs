@@ -10,7 +10,7 @@ use sottomano_desktop_sinks::media_playback_audio::mpris_player_commands;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
-    desktop_windows_apps::niri_window_placement::WindowOwner,
+    desktop_windows_apps::window_edge_placement::WindowOwner,
     media_playback_audio::{
         lrclib_synced_lyrics::{LyricsQuery, TrackLyrics},
         mpris_players::{self, Command, Media, Progress, Status},

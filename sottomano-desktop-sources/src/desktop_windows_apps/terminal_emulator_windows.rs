@@ -9,23 +9,22 @@ use std::{
     collections::{HashMap, HashSet},
     env, io, mem,
     path::{Path, PathBuf},
-    thread,
     time::{Duration, Instant},
 };
 
-use futures::Stream;
-use niri_ipc::{
-    Event, Request, Response,
-    socket::Socket,
-    state::{EventStreamState, EventStreamStatePart},
-};
+use futures::{Stream, StreamExt, future::ready, stream};
 use pty_shell_sessions::ShellSession;
 use sottomano_toml_config::widget_groups::WindowAgentsConfig;
 use terminal_shell_label::TerminalShellLabel;
-use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
+use tokio::task::spawn_blocking;
 
-use crate::stream_operators::StreamOperators;
+use crate::{
+    desktop_windows_apps::{
+        compositor_connection::compositor_updates,
+        compositor_window_state::{CompositorChange, CompositorWindow, CompositorWindowState},
+    },
+    stream_operators::StreamOperators,
+};
 
 const KITTY_APP_ID: &str = "kitty";
 
@@ -124,11 +123,13 @@ enum TerminalLabelReading {
 }
 
 impl TerminalLabelReading {
-    fn terminal_label(&self, niri_title: &str, home: &Path) -> Option<TerminalShellLabel> {
+    fn terminal_label(&self, compositor_title: &str, home: &Path) -> Option<TerminalShellLabel> {
         match self {
             TerminalLabelReading::Unlabelled => None,
             TerminalLabelReading::Labelled(label) => Some(label.clone()),
-            TerminalLabelReading::ShellSession(session) => session.terminal_label(niri_title, home),
+            TerminalLabelReading::ShellSession(session) => {
+                session.terminal_label(compositor_title, home)
+            }
         }
     }
 }
@@ -167,7 +168,7 @@ trait TerminalAgentAccess {
         &mut self,
         agent: TerminalAgent,
         process: i32,
-        niri_window_count: usize,
+        compositor_window_count: usize,
     ) -> io::Result<Vec<TerminalWindow>>;
 
     fn hold_title(&mut self, target: &TitleProbeTarget, marker: &str) -> io::Result<()>;
@@ -184,7 +185,7 @@ impl TerminalAgentAccess for LiveTerminalAgents {
         &mut self,
         agent: TerminalAgent,
         process: i32,
-        niri_window_count: usize,
+        compositor_window_count: usize,
     ) -> io::Result<Vec<TerminalWindow>> {
         match agent {
             TerminalAgent::KittyRemoteControl => {
@@ -195,7 +196,7 @@ impl TerminalAgentAccess for LiveTerminalAgents {
             TerminalAgent::WeztermCli => wezterm_cli_listing::terminal_windows(process),
             TerminalAgent::PtyShells => Ok(pty_shell_sessions::terminal_windows(
                 process,
-                niri_window_count,
+                compositor_window_count,
             )),
         }
     }
@@ -231,7 +232,7 @@ impl TerminalAgentAccess for LiveTerminalAgents {
 
 struct TerminalProcess {
     agent: TerminalAgent,
-    niri_windows: Vec<u64>,
+    compositor_windows: Vec<u64>,
 }
 
 struct PendingProbe {
@@ -265,21 +266,21 @@ impl Pairing {
 
     fn refresh(
         &mut self,
-        niri: &EventStreamState,
+        compositor: &CompositorWindowState,
         access: &mut impl TerminalAgentAccess,
         now: Instant,
     ) -> WindowProcesses {
-        let open_windows: HashSet<u64> = niri.windows.windows.keys().copied().collect();
+        let open_windows: HashSet<u64> = compositor.windows.keys().copied().collect();
         self.paired
-            .retain(|niri_window, _| open_windows.contains(niri_window));
-        let terminal_processes = self.terminal_processes(niri);
+            .retain(|compositor_window, _| open_windows.contains(compositor_window));
+        let terminal_processes = self.terminal_processes(compositor);
         self.pending
             .retain(|probe| terminal_processes.contains_key(&probe.key.process));
         self.unpairable
             .retain(|key| terminal_processes.contains_key(&key.process));
         let mut processes = WindowProcesses::default();
         for (&process, terminal) in &terminal_processes {
-            let paired_windows = self.pair_process(process, terminal, niri, access, now);
+            let paired_windows = self.pair_process(process, terminal, compositor, access, now);
             processes.by_window.extend(paired_windows);
         }
         processes
@@ -289,14 +290,14 @@ impl Pairing {
         &mut self,
         process: i32,
         terminal: &TerminalProcess,
-        niri: &EventStreamState,
+        compositor: &CompositorWindowState,
         access: &mut impl TerminalAgentAccess,
         now: Instant,
     ) -> HashMap<u64, PairedWindow> {
         let terminal_windows = match access.list_terminal_windows(
             terminal.agent,
             process,
-            terminal.niri_windows.len(),
+            terminal.compositor_windows.len(),
         ) {
             Ok(terminal_windows) => terminal_windows,
             Err(listing_error) => {
@@ -305,9 +306,9 @@ impl Pairing {
             }
         };
         self.forget_closed(process, &terminal_windows);
-        self.settle_probes(process, niri, access, now);
+        self.settle_probes(process, compositor, access, now);
         if let ([sole_niri_window], [sole_terminal_window]) = (
-            terminal.niri_windows.as_slice(),
+            terminal.compositor_windows.as_slice(),
             terminal_windows.as_slice(),
         ) {
             self.paired
@@ -315,31 +316,35 @@ impl Pairing {
         }
         for terminal_window in &terminal_windows {
             if self.awaits_probe(terminal_window.key) {
-                self.start_probe(terminal_window, niri, access, now);
+                self.start_probe(terminal_window, compositor, access, now);
             }
         }
         terminal_windows
             .iter()
             .flat_map(|terminal_window| {
-                self.niri_windows_paired_with(terminal_window.key)
+                self.compositor_windows_paired_with(terminal_window.key)
                     .into_iter()
-                    .map(|niri_window| {
-                        let niri_title = window_title(niri, niri_window).unwrap_or_default();
+                    .map(|compositor_window| {
+                        let compositor_title =
+                            window_title(compositor, compositor_window).unwrap_or_default();
                         let paired_window = PairedWindow {
                             shown: terminal_window.shown_pid,
                             pids: terminal_window.pids.clone(),
                             terminal_label: terminal_window
                                 .label_reading
-                                .terminal_label(niri_title, &self.home),
+                                .terminal_label(compositor_title, &self.home),
                         };
-                        (niri_window, paired_window)
+                        (compositor_window, paired_window)
                     })
             })
             .collect()
     }
 
-    fn terminal_processes(&self, niri: &EventStreamState) -> HashMap<i32, TerminalProcess> {
-        niri.windows
+    fn terminal_processes(
+        &self,
+        compositor: &CompositorWindowState,
+    ) -> HashMap<i32, TerminalProcess> {
+        compositor
             .windows
             .values()
             .filter_map(|window| {
@@ -348,15 +353,15 @@ impl Pairing {
             })
             .fold(
                 HashMap::new(),
-                |mut by_process, (process, agent, niri_window)| {
+                |mut by_process, (process, agent, compositor_window)| {
                     by_process
                         .entry(process)
                         .or_insert_with(|| TerminalProcess {
                             agent,
-                            niri_windows: Vec::new(),
+                            compositor_windows: Vec::new(),
                         })
-                        .niri_windows
-                        .push(niri_window);
+                        .compositor_windows
+                        .push(compositor_window);
                     by_process
                 },
             )
@@ -377,18 +382,18 @@ impl Pairing {
             && !self.unpairable.contains(&key)
     }
 
-    fn niri_windows_paired_with(&self, key: TerminalWindowKey) -> Vec<u64> {
+    fn compositor_windows_paired_with(&self, key: TerminalWindowKey) -> Vec<u64> {
         self.paired
             .iter()
             .filter(|(_, paired)| **paired == key)
-            .map(|(&niri_window, _)| niri_window)
+            .map(|(&compositor_window, _)| compositor_window)
             .collect()
     }
 
     fn start_probe(
         &mut self,
         terminal_window: &TerminalWindow,
-        niri: &EventStreamState,
+        compositor: &CompositorWindowState,
         access: &mut impl TerminalAgentAccess,
         now: Instant,
     ) {
@@ -407,7 +412,7 @@ impl Pairing {
             key,
             marker,
             target: terminal_window.probe_target.clone(),
-            titles_before: windows_of_process(niri, key.process)
+            titles_before: windows_of_process(compositor, key.process)
                 .filter_map(|window| Some((window.id, window.title.clone()?)))
                 .collect(),
             sent_at: now,
@@ -417,7 +422,7 @@ impl Pairing {
     fn settle_probes(
         &mut self,
         process: i32,
-        niri: &EventStreamState,
+        compositor: &CompositorWindowState,
         access: &mut impl TerminalAgentAccess,
         now: Instant,
     ) {
@@ -426,19 +431,21 @@ impl Pairing {
                 self.pending.push(probe);
                 continue;
             }
-            let marked_window = windows_of_process(niri, process)
+            let marked_window = windows_of_process(compositor, process)
                 .find(|window| window.title.as_deref() == Some(probe.marker.as_str()))
                 .map(|window| window.id);
             match marked_window {
-                Some(niri_window) => {
-                    let restored_title = probe
-                        .target
-                        .known_title()
-                        .or_else(|| probe.titles_before.get(&niri_window).map(String::as_str));
+                Some(compositor_window) => {
+                    let restored_title = probe.target.known_title().or_else(|| {
+                        probe
+                            .titles_before
+                            .get(&compositor_window)
+                            .map(String::as_str)
+                    });
                     if let Some(restored_title) = restored_title {
                         restore_title(access, &probe.target, restored_title);
                     }
-                    self.paired.insert(niri_window, probe.key);
+                    self.paired.insert(compositor_window, probe.key);
                 }
                 None if now.duration_since(probe.sent_at) >= PROBE_PATIENCE => {
                     if let Some(known_title) = probe.target.known_title() {
@@ -459,64 +466,62 @@ fn restore_title(access: &mut impl TerminalAgentAccess, target: &TitleProbeTarge
 }
 
 fn windows_of_process(
-    niri: &EventStreamState,
+    compositor: &CompositorWindowState,
     process: i32,
-) -> impl Iterator<Item = &niri_ipc::Window> {
-    niri.windows
+) -> impl Iterator<Item = &CompositorWindow> {
+    compositor
         .windows
         .values()
         .filter(move |window| window.pid == Some(process))
 }
 
-fn window_title(niri: &EventStreamState, niri_window: u64) -> Option<&str> {
-    niri.windows.windows.get(&niri_window)?.title.as_deref()
+fn window_title(compositor: &CompositorWindowState, compositor_window: u64) -> Option<&str> {
+    compositor.windows.get(&compositor_window)?.title.as_deref()
 }
 
-fn changes_windows(event: &Event) -> bool {
-    matches!(
-        event,
-        Event::WindowsChanged { .. }
-            | Event::WindowOpenedOrChanged { .. }
-            | Event::WindowClosed { .. }
-    )
+struct PairingWorker {
+    pairing: Pairing,
+    access: LiveTerminalAgents,
 }
 
-fn pair_windows(
-    sender: &mpsc::Sender<WindowProcesses>,
-    agents: WindowAgentsConfig,
-) -> io::Result<()> {
-    let mut socket = Socket::connect()?;
-    match socket.send(Request::EventStream)? {
-        Ok(Response::Handled) => {}
-        Ok(other) => return Err(io::Error::other(format!("unexpected reply {other:?}"))),
-        Err(rejection) => return Err(io::Error::other(rejection)),
-    }
-    let mut read_event = socket.read_events();
-    let home = env::home_dir().ok_or_else(|| io::Error::other("no home directory"))?;
-    let mut access = LiveTerminalAgents { home: home.clone() };
-    let mut pairing = Pairing::new(home, agents);
-    let mut niri = EventStreamState::default();
-    loop {
-        let event = read_event()?;
-        let windows_changed = changes_windows(&event);
-        niri.apply(event);
-        if windows_changed {
-            let processes = pairing.refresh(&niri, &mut access, Instant::now());
-            if sender.blocking_send(processes).is_err() {
-                return Ok(());
-            }
-        }
+impl PairingWorker {
+    async fn refreshed(
+        mut self,
+        compositor: CompositorWindowState,
+    ) -> Option<(WindowProcesses, Self)> {
+        spawn_blocking(move || {
+            let processes = self
+                .pairing
+                .refresh(&compositor, &mut self.access, Instant::now());
+            (processes, self)
+        })
+        .await
+        .ok()
     }
 }
 
 pub fn window_pairings(agents: WindowAgentsConfig) -> impl Stream<Item = WindowProcesses> + Send {
-    let (sender, receiver) = mpsc::channel(16);
-    thread::spawn(move || {
-        if let Err(pairing_error) = pair_windows(&sender, agents) {
-            tracing::warn!("window pairing stopped: {pairing_error}");
-        }
-    });
-    ReceiverStream::new(receiver).distinct_until_changed()
+    let Some(home) = env::home_dir() else {
+        tracing::warn!("window pairing stopped: no home directory");
+        return stream::empty().left_stream();
+    };
+    let worker = PairingWorker {
+        pairing: Pairing::new(home.clone(), agents),
+        access: LiveTerminalAgents { home },
+    };
+    let window_updates = compositor_updates()
+        .filter(|update| ready(update.changed(CompositorChange::Windows)))
+        .boxed();
+    stream::unfold(
+        (window_updates, worker),
+        |(mut window_updates, worker)| async move {
+            let update = window_updates.next().await?;
+            let (processes, worker) = worker.refreshed(update.state).await?;
+            Some((processes, (window_updates, worker)))
+        },
+    )
+    .distinct_until_changed()
+    .right_stream()
 }
 
 #[cfg(test)]
@@ -527,14 +532,16 @@ mod tests {
         time::{Duration, Instant},
     };
 
-    use niri_ipc::{Window, state::EventStreamState};
     use sottomano_toml_config::widget_groups::WindowAgentsConfig;
 
     use super::{
         Pairing, TerminalAgent, TerminalAgentAccess, TerminalLabelReading, TerminalWindow,
         TerminalWindowKey, TitleProbeTarget,
     };
-    use crate::desktop_windows_apps::niri_test_windows::unplaced_niri_window;
+    use crate::desktop_windows_apps::{
+        compositor_test_windows::unplaced_compositor_window,
+        compositor_window_state::{CompositorWindow, CompositorWindowState},
+    };
 
     const GHOSTTY_PID: i32 = 700;
 
@@ -589,20 +596,14 @@ mod tests {
         }
     }
 
-    fn ghostty_windows(titles: &[(u64, &str)]) -> EventStreamState {
-        let mut niri = EventStreamState::default();
-        for &(niri_window, title) in titles {
-            niri.windows.windows.insert(
-                niri_window,
-                Window {
-                    pid: Some(GHOSTTY_PID),
-                    app_id: Some("com.mitchellh.ghostty".to_owned()),
-                    title: Some(title.to_owned()),
-                    ..unplaced_niri_window(niri_window)
-                },
-            );
-        }
-        niri
+    fn ghostty_windows(titles: &[(u64, &str)]) -> CompositorWindowState {
+        let ghostty_windows = titles.iter().map(|&(window_id, title)| CompositorWindow {
+            pid: Some(GHOSTTY_PID),
+            app_id: Some("com.mitchellh.ghostty".to_owned()),
+            title: Some(title.to_owned()),
+            ..unplaced_compositor_window(window_id)
+        });
+        CompositorWindowState::from_lists([], ghostty_windows)
     }
 
     fn pairing() -> Pairing {
@@ -662,11 +663,11 @@ mod tests {
         };
         let mut pairing = pairing();
         let started = Instant::now();
-        let niri = ghostty_windows(&[(1, "~/a"), (2, "~/b")]);
-        pairing.refresh(&niri, &mut terminal, started);
+        let compositor = ghostty_windows(&[(1, "~/a"), (2, "~/b")]);
+        pairing.refresh(&compositor, &mut terminal, started);
         let later = started + Duration::from_secs(3);
-        let processes = pairing.refresh(&niri, &mut terminal, later);
-        pairing.refresh(&niri, &mut terminal, later);
+        let processes = pairing.refresh(&compositor, &mut terminal, later);
+        pairing.refresh(&compositor, &mut terminal, later);
         assert_eq!(processes.shown_in(1), None);
         assert_eq!(terminal.held_titles.len(), 2);
         assert!(terminal.yielded_titles.is_empty());

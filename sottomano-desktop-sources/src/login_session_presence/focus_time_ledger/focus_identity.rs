@@ -1,11 +1,11 @@
 use std::{iter::successors, path::PathBuf};
 
-use niri_ipc::state::EventStreamState;
 use procfs::process::Process as Proc;
 
 use super::focus_units::FocusUnit;
 use crate::desktop_windows_apps::{
-    project_directory_labels::repository_root, terminal_emulator_windows::WindowProcesses,
+    compositor_window_state::CompositorWindowState, project_directory_labels::repository_root,
+    terminal_emulator_windows::WindowProcesses,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,12 +19,8 @@ pub struct FocusIdentity {
 
 impl FocusIdentity {
     #[must_use]
-    pub fn of(niri: &EventStreamState, processes: &WindowProcesses) -> Option<Self> {
-        let window = niri
-            .windows
-            .windows
-            .values()
-            .find(|window| window.is_focused)?;
+    pub fn of(compositor: &CompositorWindowState, processes: &WindowProcesses) -> Option<Self> {
+        let window = compositor.focused_window()?;
         let app_id = window.app_id.clone().filter(|app_id| !app_id.is_empty())?;
         Some(Self {
             window: window.id,

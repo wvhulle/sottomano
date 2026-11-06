@@ -4,7 +4,7 @@ use iced::{
     border::Radius,
     widget::{Text, column, container, progress_bar, row, text},
 };
-use sottomano_desktop_sources::desktop_windows_apps::niri_window_snapshot;
+use sottomano_desktop_sources::desktop_windows_apps::workspace_window_snapshot;
 use sottomano_toml_config::screen_edges::Position;
 
 use super::{WorkspacesMessage, dragged};
@@ -51,7 +51,7 @@ fn tinted_text(color: impl Fn(&Theme) -> Color + Copy + 'static) -> impl Fn(&The
 }
 
 fn window_marker_color(
-    window_entry: &niri_window_snapshot::WinEntry,
+    window_entry: &workspace_window_snapshot::WinEntry,
     unfocused: fn(&Theme) -> Color,
 ) -> fn(&Theme) -> Color {
     if window_entry.is_urgent {
@@ -64,13 +64,13 @@ fn window_marker_color(
 }
 
 pub(super) fn workspace_slot_key(
-    workspace: &niri_window_snapshot::WorkspaceIndicator,
+    workspace: &workspace_window_snapshot::WorkspaceIndicator,
 ) -> DraggedPanelSlot {
     DraggedPanelSlot::Workspace(workspace.id)
 }
 
 pub(super) fn active_workspace_key(
-    order: &[&niri_window_snapshot::WorkspaceIndicator],
+    order: &[&workspace_window_snapshot::WorkspaceIndicator],
 ) -> Option<DraggedPanelSlot> {
     order
         .iter()
@@ -79,7 +79,7 @@ pub(super) fn active_workspace_key(
 }
 
 pub(super) fn active_highlight_color(
-    order: &[&niri_window_snapshot::WorkspaceIndicator],
+    order: &[&workspace_window_snapshot::WorkspaceIndicator],
 ) -> fn(&Theme) -> Color {
     if order
         .iter()
@@ -92,8 +92,8 @@ pub(super) fn active_highlight_color(
 }
 
 pub(super) struct WorkspaceSlot<'s> {
-    workspace: &'s niri_window_snapshot::WorkspaceIndicator,
-    niri: &'s niri_window_snapshot::Snapshot,
+    workspace: &'s workspace_window_snapshot::WorkspaceIndicator,
+    compositor: &'s workspace_window_snapshot::Snapshot,
     tone: SlotTone,
     position_in_panel: usize,
     slot_context: PanelSlotContext<'s>,
@@ -101,8 +101,8 @@ pub(super) struct WorkspaceSlot<'s> {
 
 impl<'s> WorkspaceSlot<'s> {
     pub(super) fn new(
-        workspace: &'s niri_window_snapshot::WorkspaceIndicator,
-        niri: &'s niri_window_snapshot::Snapshot,
+        workspace: &'s workspace_window_snapshot::WorkspaceIndicator,
+        compositor: &'s workspace_window_snapshot::Snapshot,
         position_in_panel: usize,
         slot_context: PanelSlotContext<'s>,
     ) -> Self {
@@ -113,7 +113,7 @@ impl<'s> WorkspaceSlot<'s> {
         };
         Self {
             workspace,
-            niri,
+            compositor,
             tone,
             position_in_panel,
             slot_context,
@@ -121,13 +121,13 @@ impl<'s> WorkspaceSlot<'s> {
     }
 
     pub(super) fn ghost(
-        workspace: &'s niri_window_snapshot::WorkspaceIndicator,
-        niri: &'s niri_window_snapshot::Snapshot,
+        workspace: &'s workspace_window_snapshot::WorkspaceIndicator,
+        compositor: &'s workspace_window_snapshot::Snapshot,
         slot_context: PanelSlotContext<'s>,
     ) -> Self {
         Self {
             tone: SlotTone::Regular,
-            ..Self::new(workspace, niri, 0, slot_context)
+            ..Self::new(workspace, compositor, 0, slot_context)
         }
     }
 
@@ -228,7 +228,7 @@ impl<'s> WorkspaceSlot<'s> {
             .then(|| -> ThemedColor<'static> { Box::new(primary_color) });
         let tone = self.tone;
         let colors = self
-            .niri
+            .compositor
             .windows_on_workspace(self.workspace.id)
             .iter()
             .map(|window_entry| -> ThemedColor<'static> {
