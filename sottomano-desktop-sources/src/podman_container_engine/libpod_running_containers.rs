@@ -157,18 +157,41 @@ impl ListedContainer {
     }
 }
 
-async fn checked_socket_access(socket_path: &Path) -> Result<(), EngineReadError> {
-    UnixStream::connect(socket_path)
+async fn classified_engine_failure(
+    socket_path: &Path,
+    fetch_failure: http_json_client::Error,
+) -> EngineReadError {
+    match UnixStream::connect(socket_path)
         .await
-        .map(drop)
-        .map_err(|failure| match failure.kind() {
-            ErrorKind::NotFound => EngineReadError::SocketMissing,
-            ErrorKind::PermissionDenied => EngineReadError::SocketDenied,
-            _ => EngineReadError::Fetch(http_json_client::Error::Unreachable {
-                host: socket_path.display().to_string(),
-                detail: failure.to_string(),
-            }),
-        })
+        .map_err(|failure| failure.kind())
+    {
+        Err(ErrorKind::NotFound) => EngineReadError::SocketMissing,
+        Err(ErrorKind::PermissionDenied) => EngineReadError::SocketDenied,
+        Ok(_) | Err(_) => EngineReadError::Fetch(fetch_failure),
+    }
+}
+
+async fn listed_containers(
+    socket_path: &Path,
+) -> Result<Vec<ListedContainer>, http_json_client::Error> {
+    http_json_client::get_json_over_unix_socket(
+        socket_path,
+        &format!("{LIBPOD_API_ROOT}/containers/json"),
+    )
+    .await
+}
+
+async fn listed_containers_with_one_retry(
+    socket_path: &Path,
+) -> Result<Vec<ListedContainer>, EngineReadError> {
+    let attempt = match listed_containers(socket_path).await {
+        Err(failure) if failure.is_temporary() => listed_containers(socket_path).await,
+        first_attempt => first_attempt,
+    };
+    match attempt {
+        Ok(listed) => Ok(listed),
+        Err(failure) => Err(classified_engine_failure(socket_path, failure).await),
+    }
 }
 
 struct CpuCheckpoint {
@@ -208,14 +231,8 @@ impl EngineSampler {
     }
 
     pub(crate) async fn sample(&mut self) -> Result<EngineContainers, EngineReadError> {
-        checked_socket_access(&self.socket_path).await?;
-        let listed: Vec<ListedContainer> = http_json_client::get_json_over_unix_socket(
-            &self.socket_path,
-            &format!("{LIBPOD_API_ROOT}/containers/json"),
-        )
-        .await
-        .map_err(EngineReadError::Fetch)?;
-        let listed: Vec<ListedContainer> = listed
+        let listed: Vec<ListedContainer> = listed_containers_with_one_retry(&self.socket_path)
+            .await?
             .into_iter()
             .filter(ListedContainer::is_measurable)
             .collect();
@@ -352,7 +369,13 @@ impl SnapshotSource for EngineReadout {
 
 #[cfg(test)]
 mod tests {
+    use std::{env, fs, process};
+
     use serde_json::json;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::UnixListener,
+    };
 
     use super::*;
     use crate::podman_container_engine::container_process_usage::ProcessSample;
@@ -487,8 +510,39 @@ mod tests {
     #[tokio::test]
     async fn a_missing_socket_is_distinct_from_a_denied_one() {
         assert_eq!(
-            checked_socket_access(Path::new("/nonexistent/podman.sock")).await,
-            Err(EngineReadError::SocketMissing)
+            listed_containers_with_one_retry(Path::new("/nonexistent/podman.sock"))
+                .await
+                .err(),
+            Some(EngineReadError::SocketMissing)
         );
+    }
+
+    #[tokio::test]
+    async fn a_dropped_connection_is_retried_once() {
+        let socket_directory =
+            env::temp_dir().join(format!("sottomano-podman-retry-{}", process::id()));
+        fs::create_dir_all(&socket_directory).expect("scratch directory");
+        let socket_path = socket_directory.join("podman.sock");
+        let _ = fs::remove_file(&socket_path);
+        let listener = UnixListener::bind(&socket_path).expect("socket binds");
+        let serving = tokio::spawn(async move {
+            let (dropped_connection, _) = listener.accept().await.expect("first connection");
+            drop(dropped_connection);
+            let (mut answered_connection, _) = listener.accept().await.expect("second connection");
+            let mut request_bytes = [0u8; 1024];
+            let _ = answered_connection.read(&mut request_bytes).await;
+            answered_connection
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n[]",
+                )
+                .await
+                .expect("response writes");
+        });
+        let listed = listed_containers_with_one_retry(&socket_path)
+            .await
+            .expect("the retry is answered");
+        assert!(listed.is_empty());
+        serving.await.expect("server finishes");
+        fs::remove_dir_all(&socket_directory).expect("scratch directory removed");
     }
 }

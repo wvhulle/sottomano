@@ -46,6 +46,7 @@ pub mod niri_session;
 pub mod notification_toasts;
 pub mod podman_engines;
 pub mod shell_settings;
+pub mod systemd_service_units;
 pub mod tailnet;
 pub mod voice_dictation;
 pub mod vpn;

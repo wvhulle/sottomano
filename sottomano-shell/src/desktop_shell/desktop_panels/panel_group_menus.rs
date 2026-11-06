@@ -330,24 +330,19 @@ impl DesktopShell {
     }
 
     fn continuous_integration_group_menu(&self) -> GroupMenuView<'_, Message> {
-        let runners = &self.config.widget_groups.ci_runners;
         self.group_menu(
             GroupMenuTopic::ContinuousIntegration,
             [
-                self.widget_groups.woodpecker_tasks_group.group_content(
-                    runners
-                        .woodpecker_agents
-                        .iter()
-                        .map(|agent| agent.label.as_str()),
-                    |message| Message::WoodpeckerTasks(CiTasksMessage::Expansion(message)),
-                ),
-                self.widget_groups.forgejo_tasks_group.group_content(
-                    runners
-                        .forgejo_runners
-                        .iter()
-                        .map(|runner| runner.label.as_str()),
-                    |message| Message::ForgejoTasks(CiTasksMessage::Expansion(message)),
-                ),
+                self.widget_groups
+                    .woodpecker_tasks_group
+                    .group_content(|message| {
+                        Message::WoodpeckerTasks(CiTasksMessage::Expansion(message))
+                    }),
+                self.widget_groups
+                    .forgejo_tasks_group
+                    .group_content(|message| {
+                        Message::ForgejoTasks(CiTasksMessage::Expansion(message))
+                    }),
             ],
         )
     }
@@ -363,7 +358,7 @@ impl DesktopShell {
                     .map(Message::LlamaServer),
                 self.widget_groups
                     .podman_engines_group
-                    .group_content(&config.widget_groups.podman_engines)
+                    .group_content()
                     .map(Message::PodmanEngines),
                 self.widget_groups
                     .claude_usage_group

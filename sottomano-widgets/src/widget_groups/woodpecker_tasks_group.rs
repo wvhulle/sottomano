@@ -1,17 +1,14 @@
-use iced::Subscription;
-use sottomano_desktop_sources::ci_runner_tasks::{
-    CiRunnerTasks,
-    woodpecker_agent_tasks::{WoodpeckerAgentTasks, WoodpeckerAgentWatch},
-};
-use sottomano_toml_config::widget_groups::{
-    ci_runners::CiRunnersConfig, podman_engines::resolved_runtime_path,
+use sottomano_desktop_sources::{
+    ci_runner_tasks::{
+        CiRunnerTasks,
+        systemd_service_runner_discovery::DiscoveredCiRunner,
+        woodpecker_agent_tasks::{WoodpeckerAgentTasks, WoodpeckerAgentWatch},
+    },
+    systemd_units_journal::{SystemdUnitScope, service_commands::ServiceCommand},
 };
 
-use crate::{
-    background_work::snapshot_subscription,
-    widget_groups::ci_task_group_item::{
-        CiRunnerKind, CiRunnerSnapshot, CiTasksGroup, CiTasksMessage,
-    },
+use crate::widget_groups::ci_task_group_item::{
+    CiRunnerKind, CiRunnerSnapshot, CiTasksGroup, CiTasksMessage,
 };
 
 impl CiRunnerSnapshot for WoodpeckerAgentTasks {
@@ -20,20 +17,14 @@ impl CiRunnerSnapshot for WoodpeckerAgentTasks {
     fn runner(&self) -> &CiRunnerTasks {
         &self.runner
     }
+
+    fn discovered(
+        scope: SystemdUnitScope,
+        command: &ServiceCommand,
+    ) -> Option<DiscoveredCiRunner<WoodpeckerAgentWatch>> {
+        WoodpeckerAgentWatch::discovered(scope, command)
+    }
 }
 
 pub type WoodpeckerTasksGroup = CiTasksGroup<WoodpeckerAgentTasks>;
 pub type WoodpeckerTasksMessage = CiTasksMessage<WoodpeckerAgentTasks>;
-
-pub fn woodpecker_tasks_subscription(
-    config: &CiRunnersConfig,
-) -> Subscription<WoodpeckerTasksMessage> {
-    Subscription::batch(config.woodpecker_agents.iter().map(|agent| {
-        snapshot_subscription::<WoodpeckerAgentTasks>(WoodpeckerAgentWatch {
-            varz_url: agent.varz_url.clone(),
-            engine_socket: resolved_runtime_path(&agent.engine_socket),
-        })
-        .with(agent.label.clone())
-        .map(|(runner_label, delivery)| CiTasksMessage::Runner(runner_label, delivery))
-    }))
-}

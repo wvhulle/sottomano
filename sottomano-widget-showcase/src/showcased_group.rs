@@ -69,8 +69,8 @@ use sottomano_widgets::{
 
 use crate::{
     fixtures::{
-        ci_runner_tasks, claude_usage, compute, login_session, memory_board, niri_session,
-        podman_engines, tailnet, voice_dictation, vpn, wireguard_server,
+        claude_usage, compute, login_session, memory_board, niri_session, tailnet, voice_dictation,
+        vpn, wireguard_server,
     },
     showcase_message::ShowcaseMessage,
     showcase_program::SHOWCASE_FLOAT_OFFSET_PX,
@@ -468,25 +468,17 @@ impl ShowcasedGroup {
                 vec![group.group_content().map(ShowcaseMessage::VoiceDictation)]
             }
             ShowcasedGroup::PodmanEngines(group) => {
-                vec![
-                    group
-                        .group_content(&podman_engines::SHOWN_ENGINES)
-                        .map(ShowcaseMessage::PodmanEngines),
-                ]
+                vec![group.group_content().map(ShowcaseMessage::PodmanEngines)]
             }
             ShowcasedGroup::WoodpeckerTasks(group) => {
-                vec![
-                    group.group_content([ci_runner_tasks::SHOWN_RUNNER], |message| {
-                        ShowcaseMessage::WoodpeckerTasks(CiTasksMessage::Expansion(message))
-                    }),
-                ]
+                vec![group.group_content(|message| {
+                    ShowcaseMessage::WoodpeckerTasks(CiTasksMessage::Expansion(message))
+                })]
             }
             ShowcasedGroup::ForgejoTasks(group) => {
-                vec![
-                    group.group_content([ci_runner_tasks::SHOWN_RUNNER], |message| {
-                        ShowcaseMessage::ForgejoTasks(CiTasksMessage::Expansion(message))
-                    }),
-                ]
+                vec![group.group_content(|message| {
+                    ShowcaseMessage::ForgejoTasks(CiTasksMessage::Expansion(message))
+                })]
             }
             ShowcasedGroup::Caldav(group) => {
                 vec![

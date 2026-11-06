@@ -1,8 +1,6 @@
 pub mod caldav_account;
-pub mod ci_runners;
 pub mod gamepad_bindings;
 pub mod media_lyrics;
-pub mod podman_engines;
 pub mod rain_alerts;
 pub mod reachability;
 pub mod session_focus;
@@ -17,10 +15,8 @@ use crate::{
     spacing::Spacing,
     widget_groups::{
         caldav_account::CaldavAccountConfig,
-        ci_runners::CiRunnersConfig,
         gamepad_bindings::GamepadBindingsConfig,
         media_lyrics::MediaLyricsConfig,
-        podman_engines::PodmanEnginesConfig,
         rain_alerts::RainAlertsConfig,
         reachability::ReachabilityConfig,
         session_focus::SessionFocusConfig,
@@ -40,8 +36,6 @@ pub struct WidgetGroupsConfig {
     pub compute: ComputeGroupConfig,
     pub physical_drive: PhysicalDriveGroupConfig,
     pub systemd_manager: SystemdManagerConfig,
-    pub podman_engines: PodmanEnginesConfig,
-    pub ci_runners: CiRunnersConfig,
     pub claude_usage: ClaudeCodeBudgetConfig,
     pub copilot_usage: CopilotCliBudgetConfig,
     pub openrouter_credit: OpenRouterBudgetConfig,

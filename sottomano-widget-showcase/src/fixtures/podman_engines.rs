@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::LazyLock, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
 use bytesize::ByteSize;
 use sottomano_desktop_sources::{
@@ -8,29 +8,77 @@ use sottomano_desktop_sources::{
         ContainerCiIdentity, ContainerCpuLoad, EngineContainers, EngineReadError, EngineReadout,
         RunningContainer,
     },
-};
-use sottomano_toml_config::widget_groups::podman_engines::{
-    PodmanEngineSocket, PodmanEnginesConfig,
+    systemd_units_journal::{SystemdUnitScope, service_commands::ServiceAccount},
 };
 use sottomano_widgets::{
     clock::Clock,
     widget_groups::podman_engines_group::{PodmanEnginesGroup, PodmanEnginesMessage},
 };
 
-use crate::showcased_group::ShowcasedGroup;
+use crate::{
+    fixtures::systemd_service_units::{ShownService, services_delivered},
+    showcased_group::ShowcasedGroup,
+};
 
-const SESSION_ENGINE: &str = "Session";
-const WOODPECKER_ENGINE: &str = "Woodpecker";
-const FORGEJO_ENGINE: &str = "Forgejo";
+const ROOTLESS_SOCKET: &str = "/run/user/1000/podman/podman.sock";
+const WOODPECKER_SOCKET: &str = "/run/woodpecker-agent-codeberg/podman.sock";
+const FORGEJO_SOCKET: &str = "/run/forgejo-runner-codeberg/podman.sock";
 
-pub static SHOWN_ENGINES: LazyLock<PodmanEnginesConfig> = LazyLock::new(|| PodmanEnginesConfig {
-    engines: [SESSION_ENGINE, WOODPECKER_ENGINE, FORGEJO_ENGINE]
-        .map(|label| PodmanEngineSocket {
-            label: label.to_owned(),
-            socket: PathBuf::from("podman.sock"),
-        })
-        .into(),
-});
+fn podman_service<'a>(
+    unit: &'a str,
+    arguments: &'a [&'a str],
+    account: ServiceAccount,
+) -> ShownService<'a> {
+    ShownService {
+        unit,
+        program_name: "podman",
+        arguments,
+        environment: &[],
+        account,
+    }
+}
+
+fn discovered_engines() -> [PodmanEnginesMessage; 2] {
+    [
+        PodmanEnginesMessage::Services(services_delivered(
+            SystemdUnitScope::UserSession,
+            [podman_service(
+                "podman.service",
+                &[
+                    "system",
+                    "service",
+                    "unix:///run/user/1000/podman/podman.sock",
+                ],
+                ServiceAccount::ManagerOwner,
+            )],
+        )),
+        PodmanEnginesMessage::Services(services_delivered(
+            SystemdUnitScope::SystemWide,
+            [
+                podman_service(
+                    "woodpecker-agent-codeberg-podman.service",
+                    &[
+                        "system",
+                        "service",
+                        "--time=0",
+                        "unix:/run/woodpecker-agent-codeberg/podman.sock",
+                    ],
+                    ServiceAccount::NamedUser("woodpecker-agent-codeberg".to_owned()),
+                ),
+                podman_service(
+                    "forgejo-runner-codeberg-podman.service",
+                    &[
+                        "system",
+                        "service",
+                        "--time=0",
+                        "unix:/run/forgejo-runner-codeberg/podman.sock",
+                    ],
+                    ServiceAccount::NamedUser("forgejo-runner-codeberg".to_owned()),
+                ),
+            ],
+        )),
+    ]
+}
 
 fn step_container(
     shown_name: &str,
@@ -50,9 +98,9 @@ fn step_container(
     }
 }
 
-fn delivered(engine_label: &str, readout: EngineReadout) -> PodmanEnginesMessage {
+fn delivered(socket_path: &str, readout: EngineReadout) -> PodmanEnginesMessage {
     PodmanEnginesMessage::Engine(
-        engine_label.to_owned(),
+        PathBuf::from(socket_path),
         SnapshotDelivery::fixture_delivered(
             Ok(readout),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
@@ -62,15 +110,15 @@ fn delivered(engine_label: &str, readout: EngineReadout) -> PodmanEnginesMessage
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = PodmanEnginesGroup::default();
-    [
+    let readouts = [
         delivered(
-            SESSION_ENGINE,
+            ROOTLESS_SOCKET,
             EngineReadout::Containers(EngineContainers {
                 containers: Vec::new(),
             }),
         ),
         delivered(
-            WOODPECKER_ENGINE,
+            WOODPECKER_SOCKET,
             EngineReadout::Containers(EngineContainers {
                 containers: vec![
                     step_container("run-tests", 6.2, ByteSize::gib(4), clock),
@@ -79,11 +127,13 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
             }),
         ),
         delivered(
-            FORGEJO_ENGINE,
+            FORGEJO_SOCKET,
             EngineReadout::Unreadable(EngineReadError::SocketDenied),
         ),
-    ]
-    .into_iter()
-    .for_each(|message| group.update(message, clock));
+    ];
+    discovered_engines()
+        .into_iter()
+        .chain(readouts)
+        .for_each(|message| group.update(message, clock));
     ShowcasedGroup::PodmanEngines(Box::new(group))
 }
