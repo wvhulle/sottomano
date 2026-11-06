@@ -113,6 +113,7 @@ impl ShellWidgetGroups {
             | HoverTarget::Gamepad(_)
             | HoverTarget::LlamaServer(_)
             | HoverTarget::PodmanEngine(_)
+            | HoverTarget::VirtualMachine(_)
             | HoverTarget::CiRunner(_)
             | HoverTarget::SessionFocus(_)
             | HoverTarget::AppLauncher(_)

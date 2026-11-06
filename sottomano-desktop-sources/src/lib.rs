@@ -15,6 +15,7 @@ pub mod media_playback_audio;
 pub mod network_connectivity;
 pub mod non_empty_text;
 pub mod podman_container_engine;
+pub mod qemu_virtual_machines;
 pub mod screen_brightness_color;
 pub mod secret_file_reads;
 pub mod sqlite_state_store;

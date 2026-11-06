@@ -173,10 +173,8 @@ mod tests {
     use super::*;
     use crate::{
         ci_runner_tasks::woodpecker_agent_varz::captured_varz,
-        podman_container_engine::{
-            libpod_inspect_ci_identity::WoodpeckerStepIdentity,
-            libpod_running_containers::ContainerCpuLoad,
-        },
+        podman_container_engine::libpod_inspect_ci_identity::WoodpeckerStepIdentity,
+        system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad,
     };
 
     fn step_container(
@@ -196,7 +194,7 @@ mod tests {
                 workflow_name: "checks".to_owned(),
                 step_name: step_name.to_owned(),
             }),
-            cpu_load: ContainerCpuLoad::BusyCores(1.5),
+            cpu_load: ProcessTreeCpuLoad::BusyCores(1.5),
             resident_memory: ByteSize::b(2048),
         }
     }
@@ -220,7 +218,7 @@ mod tests {
         assert_eq!(
             sottomano.usage,
             TaskUsage::Measured {
-                cpu_load: ContainerCpuLoad::BusyCores(3.0),
+                cpu_load: ProcessTreeCpuLoad::BusyCores(3.0),
                 resident_memory: ByteSize::b(4096),
             }
         );

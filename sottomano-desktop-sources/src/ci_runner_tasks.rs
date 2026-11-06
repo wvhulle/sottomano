@@ -10,10 +10,11 @@ use std::time::SystemTime;
 use bytesize::ByteSize;
 
 use crate::{
-    podman_container_engine::libpod_running_containers::{
-        ContainerCpuLoad, EngineReadError, RunningContainer, total_cpu_load,
+    podman_container_engine::libpod_running_containers::{EngineReadError, RunningContainer},
+    system_protocol_clients::{
+        http_json_client,
+        procfs_process_tree::{ProcessTreeCpuLoad, total_cpu_load},
     },
-    system_protocol_clients::http_json_client,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,7 +43,7 @@ pub enum TaskDeadline {
 pub enum TaskUsage {
     NoContainerNow,
     Measured {
-        cpu_load: ContainerCpuLoad,
+        cpu_load: ProcessTreeCpuLoad,
         resident_memory: ByteSize,
     },
 }

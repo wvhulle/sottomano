@@ -19,6 +19,7 @@ use sottomano_widgets::{
         panel_settings_group::{self, PanelSettingsMessage},
         session_power_group::{self, SessionMessage},
         tray_group::{self, TrayMessage},
+        virtual_machines_group::{self, VirtualMachinesMessage},
         window_group::{self, WindowGroupMessage, window_list},
     },
     widgets::app_window_focus::AppWindowFocus,
@@ -167,6 +168,19 @@ impl DesktopShell {
             tray_group::Action::MenuItemActivated => self.dismiss_hover_card(),
             tray_group::Action::FocusAppWindow(focus) => {
                 self.focus_app_window(focus, Message::Tray)
+            }
+        }
+    }
+
+    pub(super) fn update_virtual_machines(&mut self, msg: VirtualMachinesMessage) -> Task<Message> {
+        match self
+            .widget_groups
+            .virtual_machines_group
+            .update(msg, self.clock)
+        {
+            virtual_machines_group::Action::Run(task) => task.map(Message::VirtualMachines),
+            virtual_machines_group::Action::FocusAppWindow(focus) => {
+                self.focus_app_window(focus, Message::VirtualMachines)
             }
         }
     }

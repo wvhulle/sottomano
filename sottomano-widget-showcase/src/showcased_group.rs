@@ -44,6 +44,7 @@ use sottomano_widgets::{
         podman_engines_group::PodmanEnginesGroup,
         sidebar_settings_group::SidebarSettingsGroup,
         tailnet_group::TailnetGroup,
+        virtual_machines_group::VirtualMachinesGroup,
         voice_dictation_group::VoiceDictationGroup,
         vpn_group::VpnGroup,
         wallpaper_group::WallpaperGroup,
@@ -125,6 +126,7 @@ pub enum ShowcasedGroup {
     VoiceDictation(Box<VoiceDictationGroup>),
     Caldav(Box<CaldavGroup>),
     PodmanEngines(Box<PodmanEnginesGroup>),
+    VirtualMachines(Box<VirtualMachinesGroup>),
     WoodpeckerTasks(Box<WoodpeckerTasksGroup>),
     ForgejoTasks(Box<ForgejoTasksGroup>),
     Tailnet(Box<TailnetGroup>),
@@ -406,6 +408,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::VoiceDictation(_)
             | ShowcasedGroup::Caldav(_)
             | ShowcasedGroup::PodmanEngines(_)
+            | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::WoodpeckerTasks(_)
             | ShowcasedGroup::ForgejoTasks(_)
             | ShowcasedGroup::Tailnet(_)
@@ -469,6 +472,9 @@ impl ShowcasedGroup {
             }
             ShowcasedGroup::PodmanEngines(group) => {
                 vec![group.group_content().map(ShowcaseMessage::PodmanEngines)]
+            }
+            ShowcasedGroup::VirtualMachines(group) => {
+                vec![group.group_content().map(ShowcaseMessage::VirtualMachines)]
             }
             ShowcasedGroup::WoodpeckerTasks(group) => {
                 vec![group.group_content(|message| {
@@ -543,6 +549,9 @@ impl ShowcasedGroup {
             (ShowcasedGroup::PodmanEngines(group), ShowcaseMessage::PodmanEngines(message)) => {
                 group.update(message, clock);
             }
+            (ShowcasedGroup::VirtualMachines(group), ShowcaseMessage::VirtualMachines(message)) => {
+                let _ = group.update(message, clock);
+            }
             (ShowcasedGroup::WoodpeckerTasks(group), ShowcaseMessage::WoodpeckerTasks(message)) => {
                 group.update(message, clock);
             }
@@ -606,6 +615,7 @@ impl ShowcasedGroup {
                 }
             }
             ShowcasedGroup::PodmanEngines(_)
+            | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::WoodpeckerTasks(_)
             | ShowcasedGroup::ForgejoTasks(_) => self.update_container_groups(message, clock),
             ShowcasedGroup::Caldav(group) => {
@@ -757,6 +767,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::Caldav(_)
             | ShowcasedGroup::PodmanEngines(_)
+            | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::WoodpeckerTasks(_)
             | ShowcasedGroup::ForgejoTasks(_)
             | ShowcasedGroup::AppearancePresets(_)
@@ -844,6 +855,12 @@ impl ShowcasedGroup {
             }
             ShowcasedGroup::PodmanEngines(group) => {
                 let HoverTarget::PodmanEngine(target) = target else {
+                    return None;
+                };
+                group.hover_card_for(target, clock)
+            }
+            ShowcasedGroup::VirtualMachines(group) => {
+                let HoverTarget::VirtualMachine(target) = target else {
                     return None;
                 };
                 group.hover_card_for(target, clock)
@@ -948,6 +965,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::VoiceDictation(_)
             | ShowcasedGroup::Caldav(_)
             | ShowcasedGroup::PodmanEngines(_)
+            | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::WoodpeckerTasks(_)
             | ShowcasedGroup::ForgejoTasks(_)
             | ShowcasedGroup::Tailnet(_)

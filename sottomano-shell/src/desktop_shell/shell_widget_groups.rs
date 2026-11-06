@@ -49,6 +49,7 @@ use sottomano_widgets::{
         systemd_manager_group::SystemdManagerGroup,
         tailnet_group::TailnetGroup,
         tray_group::TrayGroup,
+        virtual_machines_group::VirtualMachinesGroup,
         voice_dictation_group::VoiceDictationGroup,
         vpn_group::VpnGroup,
         wallpaper_group::WallpaperGroup,
@@ -111,6 +112,7 @@ pub struct ShellWidgetGroups {
     pub openrouter_credit_group: OpenRouterCreditGroup,
     pub llama_server_group: LlamaServerGroup,
     pub podman_engines_group: PodmanEnginesGroup,
+    pub virtual_machines_group: VirtualMachinesGroup,
     pub woodpecker_tasks_group: WoodpeckerTasksGroup,
     pub forgejo_tasks_group: ForgejoTasksGroup,
     pub session_focus_group: SessionFocusGroup,
@@ -176,6 +178,7 @@ impl ShellWidgetGroups {
             openrouter_credit_group: OpenRouterCreditGroup::new(secrets.openrouter_management),
             llama_server_group: LlamaServerGroup::default(),
             podman_engines_group: PodmanEnginesGroup::default(),
+            virtual_machines_group: VirtualMachinesGroup::default(),
             woodpecker_tasks_group: WoodpeckerTasksGroup::default(),
             forgejo_tasks_group: ForgejoTasksGroup::default(),
             session_focus_group: SessionFocusGroup::started_at(
@@ -479,6 +482,7 @@ impl ShellWidgetGroups {
         self.openrouter_credit_group.collapse();
         self.llama_server_group.collapse();
         self.podman_engines_group.collapse();
+        self.virtual_machines_group.collapse();
         self.woodpecker_tasks_group.collapse();
         self.forgejo_tasks_group.collapse();
         self.session_focus_group.collapse();

@@ -361,6 +361,10 @@ impl DesktopShell {
                     .group_content()
                     .map(Message::PodmanEngines),
                 self.widget_groups
+                    .virtual_machines_group
+                    .group_content()
+                    .map(Message::VirtualMachines),
+                self.widget_groups
                     .claude_usage_group
                     .group_content()
                     .map(Message::ClaudeUsage),

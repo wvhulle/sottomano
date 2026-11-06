@@ -5,9 +5,9 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     podman_container_engine::libpod_running_containers::{
-        ContainerCiIdentity, ContainerCpuLoad, EngineContainers, EngineReadError, EngineReadout,
-        RunningContainer,
+        ContainerCiIdentity, EngineContainers, EngineReadError, EngineReadout, RunningContainer,
     },
+    system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad,
     systemd_units_journal::{SystemdUnitScope, service_commands::ServiceAccount},
 };
 use sottomano_widgets::{
@@ -93,7 +93,7 @@ fn step_container(
         image: "docker.io/nixos/nix:latest".to_owned(),
         started_at: clock.wall - Duration::from_mins(4),
         ci_identity: ContainerCiIdentity::NotWoodpecker,
-        cpu_load: ContainerCpuLoad::BusyCores(busy_cores),
+        cpu_load: ProcessTreeCpuLoad::BusyCores(busy_cores),
         resident_memory,
     }
 }
