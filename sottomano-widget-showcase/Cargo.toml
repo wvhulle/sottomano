@@ -11,6 +11,7 @@ workspace = true
 [dependencies]
 sottomano-toml-config = { path = "../sottomano-toml-config" }
 sottomano-desktop-sources = { path = "../sottomano-desktop-sources", features = ["test-support"] }
+sottomano-desktop-sinks = { path = "../sottomano-desktop-sinks" }
 sottomano-widgets = { path = "../sottomano-widgets" }
 bytesize.workspace = true
 chrono.workspace = true

@@ -1,8 +1,3 @@
-use crate::{
-    desktop_windows_apps::niri_action_requests, login_session_presence::logind_manager,
-    system_protocol_clients::shell_command_output,
-};
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SessionAction {
     Lock,
@@ -119,41 +114,6 @@ impl SessionAction {
             SessionAction::LogOut => "niri Quit",
             SessionAction::TerminateSession => "logind TerminateSession",
             SessionAction::RestartShell => "systemctl --user restart sottomano",
-        }
-    }
-
-    pub fn perform(self) {
-        match self {
-            SessionAction::Lock => logind_manager::lock(),
-            SessionAction::LockAllSessions => logind_manager::lock_all_sessions(),
-            SessionAction::ScreenOff => {
-                niri_action_requests::send_action_or_warn(&niri_ipc::Action::PowerOffMonitors {});
-            }
-            SessionAction::Sleep => logind_manager::sleep(),
-            SessionAction::Suspend => logind_manager::suspend(),
-            SessionAction::Hibernate => logind_manager::hibernate(),
-            SessionAction::HybridSleep => logind_manager::hybrid_sleep(),
-            SessionAction::SuspendThenHibernate => logind_manager::suspend_then_hibernate(),
-            SessionAction::Reboot => logind_manager::reboot(),
-            SessionAction::RebootToFirmwareSetup => logind_manager::reboot_to_firmware_setup(),
-            SessionAction::RebootToBootLoaderMenu => logind_manager::reboot_to_boot_loader_menu(),
-            SessionAction::Halt => logind_manager::halt(),
-            SessionAction::PowerOff => logind_manager::power_off(),
-            SessionAction::CancelScheduledShutdown => logind_manager::cancel_scheduled_shutdown(),
-            SessionAction::LogOut => {
-                niri_action_requests::send_action_or_warn(&niri_ipc::Action::Quit {
-                    skip_confirmation: true,
-                });
-            }
-            SessionAction::TerminateSession => logind_manager::terminate_session(),
-            SessionAction::RestartShell => {
-                if !shell_command_output::blocking::run(
-                    "systemctl",
-                    &["--user", "restart", "sottomano.service"],
-                ) {
-                    tracing::warn!("systemctl: restarting sottomano.service failed");
-                }
-            }
         }
     }
 }

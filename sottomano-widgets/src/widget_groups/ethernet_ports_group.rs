@@ -3,10 +3,11 @@ mod port_link_reading;
 use std::collections::BTreeMap;
 
 use iced::{Subscription, Task};
+use sottomano_desktop_sinks::network_connectivity::network_manager_activations::toggle_ethernet_port;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
-        ethernet_connection::{Ethernet, EthernetDetails, Port, PortState, toggle_ethernet_port},
+        ethernet_connection::{Ethernet, EthernetDetails, Port, PortState},
         icmp_gateway_latency::GatewayLatencies,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,

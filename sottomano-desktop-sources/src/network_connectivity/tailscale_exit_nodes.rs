@@ -115,17 +115,6 @@ impl ExitNodeChoices {
     }
 }
 
-impl ExitRoutingSwitch {
-    fn set_argument(&self) -> String {
-        match self {
-            ExitRoutingSwitch::UseExitNode { ip } => format!("--exit-node={ip}"),
-            ExitRoutingSwitch::StopUsingExitNode => "--exit-node=".to_owned(),
-            ExitRoutingSwitch::AllowLanAccess => "--exit-node-allow-lan-access=true".to_owned(),
-            ExitRoutingSwitch::BlockLanAccess => "--exit-node-allow-lan-access=false".to_owned(),
-        }
-    }
-}
-
 impl SnapshotSource for TailscaleExitNodes {
     type Error = Error;
     type StreamInputs = ();
@@ -177,15 +166,6 @@ impl TailscaleExitNodes {
                 ExitNodeLanAccess::Blocked
             },
         }))
-    }
-}
-
-pub async fn switch_exit_routing(exit_routing_switch: ExitRoutingSwitch) {
-    let set_argument = exit_routing_switch.set_argument();
-    if let Err(command_error) =
-        shell_command_output::output("tailscale", &["set", &set_argument]).await
-    {
-        tracing::warn!("tailscale set {set_argument}: {command_error}");
     }
 }
 
@@ -311,25 +291,6 @@ mod tests {
         assert_eq!(
             named_option(&choices, "tcm").reachability,
             ExitNodeReachability::OfflineNeverSeen
-        );
-    }
-
-    #[test]
-    fn switches_map_to_tailscale_set_arguments() {
-        assert_eq!(
-            ExitRoutingSwitch::UseExitNode {
-                ip: "100.1.1.1".to_owned()
-            }
-            .set_argument(),
-            "--exit-node=100.1.1.1"
-        );
-        assert_eq!(
-            ExitRoutingSwitch::StopUsingExitNode.set_argument(),
-            "--exit-node="
-        );
-        assert_eq!(
-            ExitRoutingSwitch::AllowLanAccess.set_argument(),
-            "--exit-node-allow-lan-access=true"
         );
     }
 }

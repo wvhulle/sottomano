@@ -8,13 +8,13 @@ mod speech_runtime_sections;
 
 use iced::{Subscription, Task};
 use notulist_client::{DictationCommand, DictationEngine, EngineState};
+use sottomano_desktop_sinks::voice_dictation_input::notulist_dictation_commands::send_logged_dictation_command;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope},
     voice_dictation_input::{
-        huggingface_model_card::HuggingFaceModelCard,
-        notulist_dbus_dictation::{NotulistDictation, send_logged_dictation_command},
+        huggingface_model_card::HuggingFaceModelCard, notulist_dbus_dictation::NotulistDictation,
         notulist_dbus_engine::NotulistEngine,
         notulist_dbus_output_problems::NotulistOutputProblems,
         notulist_dbus_pipeline_activity::NotulistPipeline,

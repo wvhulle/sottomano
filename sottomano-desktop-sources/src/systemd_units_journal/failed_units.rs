@@ -5,7 +5,7 @@ use tokio::task::spawn_blocking;
 use zbus::{proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{
-    ManagerProxy, SystemdOnBus, SystemdUnitScope, UNIT_INTERFACE, UnitRow, connect, manager_signal,
+    ManagerProxy, SystemdOnBus, SystemdUnitScope, UNIT_INTERFACE, UnitRow, manager_signal,
     signals_matching, state_changed_at, systemd_signal,
 };
 use crate::{
@@ -70,23 +70,6 @@ impl FailedUnits {
 pub struct FailedUnitRestart {
     pub per_user: bool,
     pub unit: String,
-}
-
-impl FailedUnitRestart {
-    pub async fn apply(self) {
-        if let Err(e) = self.restart().await {
-            tracing::warn!("systemd: restarting {} failed: {e}", self.unit);
-        }
-    }
-
-    async fn restart(&self) -> zbus::Result<()> {
-        let connection = connect(self.per_user).await?;
-        ManagerProxy::new(&connection)
-            .await?
-            .restart_unit(&self.unit, "replace")
-            .await?;
-        Ok(())
-    }
 }
 
 impl SnapshotSource for FailedUnits {

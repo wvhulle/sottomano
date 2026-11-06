@@ -12,8 +12,6 @@ use crate::{
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
-const BOOT_LOADER_MENU_DEFAULT_TIMEOUT: u64 = 0;
-
 #[derive(Debug, Deserialize, Type)]
 #[allow(dead_code)]
 pub struct InhibitorRow {
@@ -30,7 +28,7 @@ pub struct InhibitorRow {
     default_service = "org.freedesktop.login1",
     default_path = "/org/freedesktop/login1"
 )]
-pub(super) trait Manager {
+pub trait Manager {
     fn suspend(&self, interactive: bool) -> zbus::Result<()>;
     fn hibernate(&self, interactive: bool) -> zbus::Result<()>;
     fn hybrid_sleep(&self, interactive: bool) -> zbus::Result<()>;
@@ -67,83 +65,14 @@ pub(super) trait Manager {
     fn prepare_for_sleep(&self, start: bool) -> zbus::Result<()>;
 }
 
-pub(super) fn manager() -> Option<ManagerProxyBlocking<'static>> {
+#[must_use]
+pub fn logind_manager_proxy() -> Option<ManagerProxyBlocking<'static>> {
     ManagerProxyBlocking::new(&blocking::Connection::system().ok()?).ok()
-}
-
-fn with_manager(call: impl FnOnce(&ManagerProxyBlocking<'static>) -> zbus::Result<()>) {
-    if let Some(proxy) = manager()
-        && let Err(e) = call(&proxy)
-    {
-        tracing::warn!("logind: {e}");
-    }
-}
-
-pub fn suspend() {
-    with_manager(|proxy| proxy.suspend(true));
-}
-
-pub fn hibernate() {
-    with_manager(|proxy| proxy.hibernate(true));
-}
-
-pub fn hybrid_sleep() {
-    with_manager(|proxy| proxy.hybrid_sleep(true));
-}
-
-pub fn suspend_then_hibernate() {
-    with_manager(|proxy| proxy.suspend_then_hibernate(true));
-}
-
-pub fn sleep() {
-    with_manager(|proxy| proxy.sleep(0));
-}
-
-pub fn reboot() {
-    with_manager(|proxy| proxy.reboot(true));
-}
-
-pub fn reboot_to_firmware_setup() {
-    with_manager(|proxy| {
-        proxy.set_reboot_to_firmware_setup(true)?;
-        proxy.reboot(true)
-    });
-}
-
-pub fn reboot_to_boot_loader_menu() {
-    with_manager(|proxy| {
-        proxy.set_reboot_to_boot_loader_menu(BOOT_LOADER_MENU_DEFAULT_TIMEOUT)?;
-        proxy.reboot(true)
-    });
-}
-
-pub fn halt() {
-    with_manager(|proxy| proxy.halt(true));
-}
-
-pub fn power_off() {
-    with_manager(|proxy| proxy.power_off(true));
-}
-
-pub fn cancel_scheduled_shutdown() {
-    with_manager(|proxy| proxy.cancel_scheduled_shutdown().map(|_| ()));
 }
 
 #[must_use]
 pub fn session_id() -> String {
     env::var("XDG_SESSION_ID").unwrap_or_else(|_| "auto".to_owned())
-}
-
-pub fn lock() {
-    with_manager(|proxy| proxy.lock_session(&session_id()));
-}
-
-pub fn lock_all_sessions() {
-    with_manager(ManagerProxyBlocking::lock_sessions);
-}
-
-pub fn terminate_session() {
-    with_manager(|proxy| proxy.terminate_session(&session_id()));
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

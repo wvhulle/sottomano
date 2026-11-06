@@ -3,6 +3,7 @@ pub mod timer;
 use std::time::Duration;
 
 use iced::futures::{Stream, StreamExt, stream};
+use sottomano_desktop_sinks::login_session_presence::logind_session_commands::perform_session_action;
 use sottomano_desktop_sources::login_session_presence::{
     idle_session_actions::IdleAction,
     wayland_idle_notify::{
@@ -117,7 +118,7 @@ fn perform_idled_actions(edges: &[IdleActionEdge]) {
         .filter(|tagged| tagged.edge == IdleEdge::Idled)
         .for_each(|tagged| {
             let action = tagged.tag.session_action();
-            spawn_blocking(move || action.perform());
+            spawn_blocking(move || perform_session_action(action));
         });
 }
 

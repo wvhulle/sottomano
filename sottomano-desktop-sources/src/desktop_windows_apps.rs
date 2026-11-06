@@ -1,5 +1,4 @@
 pub mod app_launch_history;
-pub mod clipboard_copy;
 pub mod desktop_entry_app_catalog;
 pub mod desktop_entry_app_icons;
 pub mod desktop_entry_changes;
@@ -7,7 +6,6 @@ pub mod firefox_favicon_lookup;
 pub mod icon_whitespace_trim;
 pub mod kde_job_view_progress;
 pub mod kitty_terminal_windows;
-pub mod niri_action_requests;
 pub mod niri_kdl_config;
 pub mod niri_output_facts;
 pub mod niri_window_placement;

@@ -6755,6 +6755,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "sottomano-desktop-sinks"
+version = "0.0.1"
+dependencies = [
+ "freedesktop-sound",
+ "futures",
+ "niri-ipc",
+ "notulist-client",
+ "sottomano-desktop-sources",
+ "sottomano-toml-config",
+ "system-tray",
+ "tokio",
+ "tracing",
+ "virt",
+ "zbus",
+]
+
+[[package]]
 name = "sottomano-desktop-sources"
 version = "0.0.1"
 dependencies = [
@@ -6770,7 +6787,6 @@ dependencies = [
  "form_urlencoded",
  "freedesktop-desktop-entry",
  "freedesktop-icons",
- "freedesktop-sound",
  "futures",
  "humantime",
  "iana-time-zone",
@@ -6836,6 +6852,7 @@ dependencies = [
  "iced_wayland_subscriber",
  "niri-ipc",
  "reqwest",
+ "sottomano-desktop-sinks",
  "sottomano-desktop-sources",
  "sottomano-toml-config",
  "sottomano-widgets",
@@ -6892,6 +6909,7 @@ dependencies = [
  "rust_decimal",
  "rusty-money",
  "situo-client",
+ "sottomano-desktop-sinks",
  "sottomano-desktop-sources",
  "sottomano-toml-config",
  "sottomano-widgets",
@@ -6933,6 +6951,7 @@ dependencies = [
  "rust_decimal",
  "rusty-money",
  "situo-client",
+ "sottomano-desktop-sinks",
  "sottomano-desktop-sources",
  "sottomano-phosphor-icons",
  "sottomano-simple-icons",

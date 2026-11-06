@@ -1,14 +1,10 @@
-use std::{
-    env, fs,
-    path::{Path, PathBuf},
-};
+use std::{env, path::PathBuf};
 
 use futures::Stream;
 use zbus::{blocking::Connection, proxy, proxy::CacheProperties};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    screen_brightness_color::clightd_backlight,
     stream_operators::{StreamOperators, read_once_then_per_burst},
     system_protocol_clients::{
         dbus_desktop_buses,
@@ -24,7 +20,7 @@ const CLIGHT_SERVICE: &str = "org.clight.clight";
     default_service = "org.clight.clight",
     default_path = "/org/clight/clight/Conf/Backlight"
 )]
-trait ConfBacklight {
+pub trait ConfBacklight {
     #[zbus(property)]
     fn no_auto_calib(&self) -> zbus::Result<bool>;
     #[zbus(property)]
@@ -36,7 +32,7 @@ trait ConfBacklight {
     default_service = "org.clight.clight",
     default_path = "/org/clight/clight"
 )]
-trait ClightDaemon {
+pub trait ClightDaemon {
     fn capture(&self, reset_timer: bool, capture_only: bool) -> zbus::Result<()>;
 }
 
@@ -77,7 +73,7 @@ async fn calibration_changes(
     }))
 }
 
-fn config_file() -> Option<PathBuf> {
+pub fn config_file() -> Option<PathBuf> {
     let config_home = env::var_os("XDG_CONFIG_HOME")
         .filter(|dir| !dir.is_empty())
         .map(PathBuf::from)
@@ -85,52 +81,11 @@ fn config_file() -> Option<PathBuf> {
     Some(config_home.join("clight.conf"))
 }
 
-fn no_auto_calib() -> Option<bool> {
+#[must_use]
+pub fn no_auto_calib() -> Option<bool> {
     let connection = Connection::session().ok()?;
     ConfBacklightProxyBlocking::new(&connection)
         .ok()?
         .no_auto_calib()
         .ok()
-}
-
-fn set_no_auto_calib(value: bool) -> Result<(), Error> {
-    let connection = Connection::session()?;
-    ConfBacklightProxyBlocking::new(&connection)?.set_no_auto_calib(value)?;
-    Ok(())
-}
-
-fn capture() {
-    let Ok(connection) = Connection::session() else {
-        return;
-    };
-    if let Ok(proxy) = ClightDaemonProxyBlocking::new(&connection) {
-        let _ = proxy.capture(true, false);
-    }
-}
-
-fn persist(manual: bool) {
-    let Some(file) = config_file() else {
-        return;
-    };
-    let value = if manual { "true" } else { "false" };
-    let contents = format!("backlight:\n{{\n    no_auto_calibration = {value};\n}};\n");
-    let _ = fs::write::<&Path, String>(&file, contents);
-}
-
-pub fn pause_auto_calib() {
-    let _ = set_no_auto_calib(true);
-    persist(true);
-}
-
-pub fn flip() -> Result<(), Error> {
-    let currently_auto = no_auto_calib().is_some_and(|no| !no);
-    let manual = currently_auto;
-    let outcome = set_no_auto_calib(manual);
-    if manual {
-        clightd_backlight::halt_ramp();
-    } else {
-        capture();
-    }
-    persist(manual);
-    outcome
 }

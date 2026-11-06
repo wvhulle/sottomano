@@ -8,7 +8,7 @@ use futures::{Stream, StreamExt, stream};
 use image::RgbaImage;
 pub use system_tray::item::Status;
 use system_tray::{
-    client::{ActivateRequest, Client, Event, UpdateEvent},
+    client::{Client, Event, UpdateEvent},
     error::Error as TrayHostError,
     item::{IconPixmap, StatusNotifierItem},
     menu::{MenuItem, MenuType, ToggleState, ToggleType, TrayMenu},
@@ -115,15 +115,11 @@ pub enum TrayUpdate {
 #[derive(Debug, Clone)]
 pub struct TrayHost(Arc<Client>);
 
-#[derive(Debug, Clone)]
-pub enum TrayCommand {
-    Activate(String),
-    Secondary(String),
-    MenuClick {
-        address: String,
-        menu_path: String,
-        id: i32,
-    },
+impl TrayHost {
+    #[must_use]
+    pub fn tray_client(&self) -> &Client {
+        &self.0
+    }
 }
 
 fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<RgbaImage> {
@@ -378,37 +374,5 @@ fn apply(items: &mut Vec<TrayItem>, event: Event, client: &Client, entries: &Des
                 UpdateEvent::AttentionIcon(_) | UpdateEvent::OverlayIcon(_) => {}
             }
         }
-    }
-}
-
-impl TrayHost {
-    pub async fn activate(self, command: TrayCommand) {
-        if let Err(activate_failure) = self.0.activate(activation_request(command)).await {
-            tracing::warn!("tray: activate: {activate_failure}");
-        }
-    }
-}
-
-fn activation_request(command: TrayCommand) -> ActivateRequest {
-    match command {
-        TrayCommand::Activate(address) => ActivateRequest::Default {
-            address,
-            x: 0,
-            y: 0,
-        },
-        TrayCommand::Secondary(address) => ActivateRequest::Secondary {
-            address,
-            x: 0,
-            y: 0,
-        },
-        TrayCommand::MenuClick {
-            address,
-            menu_path,
-            id,
-        } => ActivateRequest::MenuItem {
-            address,
-            menu_path,
-            submenu_id: id,
-        },
     }
 }

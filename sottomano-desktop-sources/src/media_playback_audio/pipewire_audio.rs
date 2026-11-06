@@ -167,21 +167,7 @@ impl fmt::Debug for Commands {
 
 impl Commands {
     #[must_use]
-    pub fn set_volume(&self, target: Target, percent: i64) -> Option<i64> {
-        self.request(target, CommandKind::SetVolume(percent.clamp(0, 100)))
-    }
-
-    #[must_use]
-    pub fn adjust_volume(&self, target: Target, delta: i64) -> Option<i64> {
-        self.request(target, CommandKind::AdjustVolume(delta))
-    }
-
-    #[must_use]
-    pub fn toggle_mute(&self, target: Target) -> Option<i64> {
-        self.request(target, CommandKind::ToggleMute)
-    }
-
-    fn request(&self, target: Target, kind: CommandKind) -> Option<i64> {
+    pub fn request_level_change(&self, target: Target, kind: CommandKind) -> Option<i64> {
         let (reply, outcome) = sync_channel(1);
         self.sender
             .send(Command {
@@ -311,7 +297,7 @@ struct Command {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum CommandKind {
+pub enum CommandKind {
     SetVolume(i64),
     AdjustVolume(i64),
     ToggleMute,

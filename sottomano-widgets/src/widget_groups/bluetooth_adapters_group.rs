@@ -5,13 +5,13 @@ mod reconnect_churn_counting;
 use std::collections::BTreeMap;
 
 use iced::{Subscription, Task};
+use sottomano_desktop_sinks::network_connectivity::bluez_bluetooth_commands::{
+    disconnect_bluetooth_device, toggle_adapter_power,
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     gamepad_controller_input::accelerometer_report_timing::ReportTiming,
-    network_connectivity::bluez_bluetooth::{
-        Bluetooth, BluetoothAdapter, ConnectedDevice, disconnect_bluetooth_device,
-        toggle_adapter_power,
-    },
+    network_connectivity::bluez_bluetooth::{Bluetooth, BluetoothAdapter, ConnectedDevice},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::journal_device_kernel_errors::{
         DeviceKernelError, device_kernel_error_windows,

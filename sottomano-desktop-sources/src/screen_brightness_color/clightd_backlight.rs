@@ -7,7 +7,6 @@ use zbus::{blocking::Connection, proxy, proxy::CacheProperties, zvariant::Type};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::{PeriodicPolling, TriggeredRereadCadence},
-    screen_brightness_color::clight_auto_brightness,
     stream_operators::StreamOperators,
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBuses, name_owned},
@@ -22,7 +21,7 @@ const CLIGHTD_SERVICE: &str = "org.clightd.clightd";
     default_service = "org.clightd.clightd",
     default_path = "/org/clightd/clightd/Backlight"
 )]
-trait ClightdBacklight {
+pub trait ClightdBacklight {
     fn get_all(&self, serial: &str) -> zbus::Result<Vec<BacklightReading>>;
     fn set(&self, target: f64, smooth: Smooth, serial: &str) -> zbus::Result<bool>;
     #[zbus(signal)]
@@ -35,17 +34,17 @@ struct BacklightReading {
     fraction: f64,
 }
 
-#[derive(Debug, Serialize, Type)]
-struct Smooth {
-    enabled: bool,
-    step: f64,
-    timeout: u32,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BacklightKind {
     Internal,
     External,
+}
+
+#[derive(Debug, Serialize, Type)]
+pub struct Smooth {
+    pub enabled: bool,
+    pub step: f64,
+    pub timeout: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -105,7 +104,8 @@ async fn watched_backlights(
     Ok(BacklightWatch { proxy, changes })
 }
 
-fn blocking_backlight_proxy() -> Option<ClightdBacklightProxyBlocking<'static>> {
+#[must_use]
+pub fn blocking_backlight_proxy() -> Option<ClightdBacklightProxyBlocking<'static>> {
     let connection = Connection::system().ok()?;
     zbus::blocking::proxy::Builder::new(&connection)
         .cache_properties(CacheProperties::No)
@@ -150,40 +150,6 @@ fn internal_names() -> HashSet<String> {
         .filter_map(Result::ok)
         .filter_map(|entry| entry.file_name().into_string().ok())
         .collect()
-}
-
-#[must_use]
-pub fn set(serial: &str, percent: i64) -> bool {
-    let frac = f64::from(i32::try_from(percent.clamp(0, 100)).unwrap_or(0)) / 100.0;
-    clight_auto_brightness::pause_auto_calib();
-    clightd_set(serial, frac)
-}
-
-pub fn halt_ramp() {
-    for Backlight {
-        serial, percent, ..
-    } in poll_all()
-    {
-        let frac = f64::from(i32::try_from(percent).unwrap_or(0)) / 100.0;
-        let _ = clightd_set(&serial, frac);
-    }
-}
-
-fn clightd_set(serial: &str, frac: f64) -> bool {
-    let Some(proxy) = blocking_backlight_proxy() else {
-        return false;
-    };
-    proxy
-        .set(
-            frac,
-            Smooth {
-                enabled: false,
-                step: 0.0,
-                timeout: 0,
-            },
-            serial,
-        )
-        .unwrap_or(false)
 }
 
 #[must_use]

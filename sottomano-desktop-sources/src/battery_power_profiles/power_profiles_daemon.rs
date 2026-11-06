@@ -93,7 +93,7 @@ impl Profile {
     default_service = "net.hadess.PowerProfiles",
     default_path = "/net/hadess/PowerProfiles"
 )]
-trait PowerProfiles {
+pub trait PowerProfiles {
     #[zbus(property)]
     fn active_profile(&self) -> zbus::Result<String>;
     #[zbus(property)]
@@ -104,13 +104,9 @@ trait PowerProfiles {
     fn performance_degraded(&self) -> zbus::Result<String>;
 }
 
-fn daemon() -> Option<PowerProfilesProxyBlocking<'static>> {
-    PowerProfilesProxyBlocking::new(&Connection::system().ok()?).ok()
-}
-
 #[must_use]
-pub fn set(profile: Profile) -> bool {
-    daemon().is_some_and(|daemon| daemon.set_active_profile(profile.name()).is_ok())
+pub fn power_profiles_proxy() -> Option<PowerProfilesProxyBlocking<'static>> {
+    PowerProfilesProxyBlocking::new(&Connection::system().ok()?).ok()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

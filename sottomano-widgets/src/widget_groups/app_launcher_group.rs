@@ -1,12 +1,10 @@
 use std::{cmp::Reverse, collections::HashMap};
 
 use iced::{Element, Task};
+use sottomano_desktop_sinks::desktop_windows_apps::niri_action_requests;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
-    desktop_windows_apps::{
-        desktop_entry_app_catalog::{AppCategory, LaunchableApp, OpenAppWindows},
-        niri_action_requests,
-    },
+    desktop_windows_apps::desktop_entry_app_catalog::{AppCategory, LaunchableApp, OpenAppWindows},
 };
 use sottomano_toml_config::Config;
 

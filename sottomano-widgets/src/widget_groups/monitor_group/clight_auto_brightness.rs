@@ -1,5 +1,6 @@
+use sottomano_desktop_sinks::screen_brightness_color::clight_calibration_writes;
 use sottomano_desktop_sources::{
-    screen_brightness_color::clight_auto_brightness::{self, AutoBrightness},
+    screen_brightness_color::clight_auto_brightness::AutoBrightness,
     system_protocol_clients::dbus_desktop_buses,
 };
 
@@ -44,7 +45,7 @@ impl ToggleableSource for AutoBrightness {
     }
 
     fn apply_toggle(&self) -> Result<(), dbus_desktop_buses::Error> {
-        clight_auto_brightness::flip()
+        clight_calibration_writes::flip()
     }
 
     fn switched_on(&self) -> bool {

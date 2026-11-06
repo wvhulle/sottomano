@@ -193,23 +193,6 @@ impl SnapshotSource for NetworkManagerVpns {
     }
 }
 
-pub async fn switch_vpn(vpn_switch: VpnSwitch) {
-    let switched = match Connection::system().await {
-        Ok(system) => match &vpn_switch {
-            VpnSwitch::Connect(settings_connection) => {
-                network_manager_proxies::activate(&system, settings_connection).await
-            }
-            VpnSwitch::Disconnect(active_connection) => {
-                network_manager_proxies::deactivate(&system, active_connection).await
-            }
-        },
-        Err(bus_error) => Err(bus_error),
-    };
-    if let Err(bus_error) = switched {
-        tracing::warn!("NetworkManager VPN {vpn_switch:?}: {bus_error}");
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;

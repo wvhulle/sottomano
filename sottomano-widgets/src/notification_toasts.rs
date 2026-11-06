@@ -16,14 +16,16 @@ use iced::{
     time::Instant,
 };
 use niri_ipc::state::EventStreamState;
+use sottomano_desktop_sinks::{
+    desktop_notifications::alert_sound_player::SoundTheme,
+    desktop_windows_apps::niri_action_requests::ActionFailure,
+};
 use sottomano_desktop_sources::{
     desktop_notifications::{
-        alert_sound_player::SoundTheme, freedesktop_notification_server::NotificationSignals,
-        notification_data::NotificationData,
+        freedesktop_notification_server::NotificationSignals, notification_data::NotificationData,
     },
     desktop_windows_apps::{
-        desktop_entry_app_icons::DesktopEntries, niri_action_requests::ActionFailure,
-        niri_window_placement::Placement,
+        desktop_entry_app_icons::DesktopEntries, niri_window_placement::Placement,
     },
 };
 use sottomano_toml_config::{Config, severity::Severity};

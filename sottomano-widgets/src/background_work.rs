@@ -1,10 +1,9 @@
 use std::convert::identity;
 
 use iced::{Subscription, Task, futures::StreamExt};
+use sottomano_desktop_sinks::desktop_windows_apps::{clipboard_copy, niri_action_requests};
 use sottomano_desktop_sources::{
-    SnapshotDelivery, SnapshotSource,
-    blocking_background_work::blocking,
-    desktop_windows_apps::{clipboard_copy, niri_action_requests},
+    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking,
 };
 
 pub fn niri_action<Routed: From<niri_action_requests::ActionFailure> + Send + 'static>(

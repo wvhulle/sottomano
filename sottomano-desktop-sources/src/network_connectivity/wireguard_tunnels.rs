@@ -555,23 +555,6 @@ async fn interface_ip(iface: &str) -> Option<String> {
         })
 }
 
-pub async fn switch_wireguard(wireguard_switch: WireguardSwitch) {
-    let switched = match Connection::system().await {
-        Ok(system) => match &wireguard_switch {
-            WireguardSwitch::Connect(settings_connection) => {
-                network_manager_proxies::activate(&system, settings_connection).await
-            }
-            WireguardSwitch::Disconnect(active_connection) => {
-                network_manager_proxies::deactivate(&system, active_connection).await
-            }
-        },
-        Err(bus_error) => Err(bus_error),
-    };
-    if let Err(bus_error) = switched {
-        tracing::warn!("WireGuard {wireguard_switch:?}: {bus_error}");
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

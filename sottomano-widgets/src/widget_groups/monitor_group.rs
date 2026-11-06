@@ -9,6 +9,7 @@ use std::{
 
 use iced::{Subscription, Task, mouse::ScrollDelta};
 use output_details::ConnectedOutput;
+use sottomano_desktop_sinks::screen_brightness_color::clightd_backlight_writes;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
@@ -179,7 +180,7 @@ impl MonitorGroup {
             Action::Commit(value) => {
                 let set_serial = serial.clone();
                 ControlMessage::commit("backlight set", value, move || {
-                    clightd_backlight::set(&set_serial, as_percent(value))
+                    clightd_backlight_writes::set(&set_serial, as_percent(value))
                 })
                 .map(move |m| MonitorMessage::Backlight(serial.clone(), m))
             }

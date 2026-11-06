@@ -1,4 +1,4 @@
-use sottomano_desktop_sources::desktop_windows_apps::niri_action_requests::ActionFailure;
+use sottomano_desktop_sinks::desktop_windows_apps::niri_action_requests::ActionFailure;
 use sottomano_widgets::{
     clock::Clock,
     group_menus::group_menu_state::GroupMenuMessage,

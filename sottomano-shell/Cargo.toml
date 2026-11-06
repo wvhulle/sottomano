@@ -19,6 +19,7 @@ workspace = true
 [dependencies]
 sottomano-toml-config = { path = "../sottomano-toml-config" }
 sottomano-desktop-sources = { path = "../sottomano-desktop-sources" }
+sottomano-desktop-sinks = { path = "../sottomano-desktop-sinks" }
 sottomano-widgets = { path = "../sottomano-widgets" }
 chrono.workspace = true
 clap.workspace = true
@@ -42,5 +43,5 @@ sottomano-desktop-sources = { path = "../sottomano-desktop-sources", features = 
 [features]
 default = ["libvirt-domains"]
 devtools = ["iced_exwlshell/debug"]
-libvirt-domains = ["sottomano-desktop-sources/libvirt-domains"]
+libvirt-domains = ["sottomano-desktop-sinks/libvirt-domains"]
 time-travel = ["iced_exwlshell/time-travel"]

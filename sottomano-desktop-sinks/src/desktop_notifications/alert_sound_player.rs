@@ -1,10 +1,9 @@
 use std::{path::PathBuf, process::Command};
 
-use sottomano_toml_config::severity::Severity;
-
-use crate::{
+use sottomano_desktop_sources::{
     blocking_background_work::blocking, desktop_notifications::notification_data::NotificationData,
 };
+use sottomano_toml_config::severity::Severity;
 
 const PLAYER: &str = "pw-play";
 

@@ -28,7 +28,7 @@ fn run_state_of_domain_state(domain_state: virDomainState) -> GuestRunState {
 }
 
 #[cfg(feature = "libvirt-domains")]
-fn with_system_connection<T>(use_connection: impl FnOnce(&Connect) -> T) -> Result<T, String> {
+pub fn with_system_connection<T>(use_connection: impl FnOnce(&Connect) -> T) -> Result<T, String> {
     let mut connection =
         Connect::open(Some(LIBVIRT_SYSTEM_URI)).map_err(|failure| failure.to_string())?;
     let outcome = use_connection(&connection);
@@ -59,19 +59,4 @@ pub(crate) fn libvirt_run_states(domain_names: &[String]) -> HashMap<String, Gue
 #[must_use]
 pub(crate) fn libvirt_run_states(_domain_names: &[String]) -> HashMap<String, GuestRunState> {
     HashMap::new()
-}
-
-#[cfg(feature = "libvirt-domains")]
-pub fn request_libvirt_shutdown(domain_name: &str) -> Result<(), String> {
-    with_system_connection(|connection| {
-        Domain::lookup_by_name(connection, domain_name)
-            .and_then(|domain| domain.shutdown())
-            .map(drop)
-            .map_err(|failure| failure.to_string())
-    })?
-}
-
-#[cfg(not(feature = "libvirt-domains"))]
-pub fn request_libvirt_shutdown(_domain_name: &str) -> Result<(), String> {
-    Err("sottomano was built without the libvirt-domains feature".to_owned())
 }

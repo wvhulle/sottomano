@@ -1,4 +1,4 @@
-use std::{fmt, fs, path::PathBuf, str::FromStr};
+use std::{fmt, path::PathBuf, str::FromStr};
 
 use futures::{Stream, StreamExt, stream};
 
@@ -9,7 +9,7 @@ use crate::{
     system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_trimmed},
 };
 
-const X3D_VCACHE_DRIVER: &str = "/sys/bus/platform/drivers/amd_x3d_vcache";
+pub const X3D_VCACHE_DRIVER: &str = "/sys/bus/platform/drivers/amd_x3d_vcache";
 const MODE_FILE: &str = "amd_x3d_mode";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,7 +56,8 @@ impl X3dCachePreference {
         }
     }
 
-    fn mode_file() -> Option<PathBuf> {
+    #[must_use]
+    pub fn mode_file() -> Option<PathBuf> {
         list_dir(X3D_VCACHE_DRIVER)
             .into_iter()
             .map(|device| device.join(MODE_FILE))
@@ -69,15 +70,6 @@ impl X3dCachePreference {
         let mode = read_trimmed(&mode_file)
             .ok_or_else(|| Error::Unreadable(mode_file.display().to_string()))?;
         mode.parse().map_err(|_| Error::Unparsable(mode))
-    }
-
-    pub fn write(self) -> Result<(), Error> {
-        let mode_file =
-            Self::mode_file().ok_or_else(|| Error::Unreadable(X3D_VCACHE_DRIVER.to_owned()))?;
-        fs::write(&mode_file, self.stored_name()).map_err(|failure| Error::Unwritable {
-            path: mode_file.display().to_string(),
-            detail: failure.to_string(),
-        })
     }
 }
 
