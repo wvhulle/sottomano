@@ -2,17 +2,20 @@ use std::{path::Path, sync::Arc};
 
 use ::image::RgbaImage;
 use iced::{
-    ContentFit, Element, Length,
+    Color, ContentFit, Element, Length, Theme,
     widget::{image, svg},
 };
 use sottomano_desktop_sources::desktop_windows_apps::{
     firefox_favicon_lookup::FaviconKind, status_notifier_tray::IconSource,
 };
 
+use crate::widgets::configured_theme::text_color;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum IconHandle {
     Raster(image::Handle),
     Svg(svg::Handle),
+    SymbolicSvg(svg::Handle),
 }
 
 impl IconHandle {
@@ -37,6 +40,15 @@ impl IconHandle {
     }
 
     pub fn view<'a, Message: 'a>(&self, side: f32, opacity: f32) -> Element<'a, Message> {
+        self.view_with_symbolic_tint(side, opacity, text_color)
+    }
+
+    pub fn view_with_symbolic_tint<'a, Message: 'a>(
+        &self,
+        side: f32,
+        opacity: f32,
+        symbolic_tint: impl Fn(&Theme) -> Color + 'a,
+    ) -> Element<'a, Message> {
         match self {
             Self::Raster(handle) => image(handle.clone())
                 .width(side)
@@ -47,6 +59,14 @@ impl IconHandle {
                 .width(side)
                 .height(side)
                 .opacity(opacity)
+                .into(),
+            Self::SymbolicSvg(handle) => svg(handle.clone())
+                .width(side)
+                .height(side)
+                .opacity(opacity)
+                .style(move |theme, _| svg::Style {
+                    color: Some(symbolic_tint(theme)),
+                })
                 .into(),
         }
     }
@@ -62,6 +82,14 @@ impl IconHandle {
                 .width(Length::Fill)
                 .content_fit(ContentFit::ScaleDown)
                 .opacity(opacity)
+                .into(),
+            Self::SymbolicSvg(handle) => svg(handle.clone())
+                .width(Length::Fill)
+                .content_fit(ContentFit::ScaleDown)
+                .opacity(opacity)
+                .style(|theme, _| svg::Style {
+                    color: Some(text_color(theme)),
+                })
                 .into(),
         }
     }
@@ -118,6 +146,9 @@ impl PixmapHandles {
         match source {
             IconSource::Pixmap(pixels) => self.pixmap_handle(pixels),
             IconSource::Themed(path) => IconHandle::at(path),
+            IconSource::ThemedSymbolic(path) => {
+                IconHandle::SymbolicSvg(svg::Handle::from_path(path))
+            }
         }
     }
 }
