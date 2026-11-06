@@ -31,6 +31,7 @@ use sottomano_widgets::{
         memory_board_group::{MemoryBoardGroup, MemoryBoardMessage},
         mobile_modems_group::MobileModemsGroup,
         monitor_group::MonitorGroup,
+        network_manager_vpn_group::NetworkManagerVpnGroup,
         niri_window_group::{NiriWindowGroup, niri_kdl_rules::NiriRulesFile},
         notification_group::NotificationGroup,
         openrouter_credit_group::OpenRouterCreditGroup,
@@ -51,12 +52,11 @@ use sottomano_widgets::{
         tray_group::TrayGroup,
         virtual_machines_group::VirtualMachinesGroup,
         voice_dictation_group::VoiceDictationGroup,
-        vpn_group::VpnGroup,
         wallpaper_group::WallpaperGroup,
         weather_group::WeatherGroup,
         wifi_adapters_group::WifiAdaptersGroup,
         window_group::WindowGroup,
-        wireguard_server_group::WireguardServerGroup,
+        wireguard_tunnels_group::WireguardTunnelsGroup,
         woodpecker_tasks_group::WoodpeckerTasksGroup,
     },
     widgets::{
@@ -92,8 +92,8 @@ pub struct ShellWidgetGroups {
     pub pending_upgrades_group: PendingUpgradesGroup,
     pub reachability_group: ReachabilityGroup,
     pub tailnet_group: TailnetGroup,
-    pub wireguard_server_group: WireguardServerGroup,
-    pub vpn_group: VpnGroup,
+    pub wireguard_tunnels_group: WireguardTunnelsGroup,
+    pub network_manager_vpn_group: NetworkManagerVpnGroup,
     pub wifi_adapters_group: WifiAdaptersGroup,
     pub mobile_modems_group: MobileModemsGroup,
     pub ethernet_ports_group: EthernetPortsGroup,
@@ -156,8 +156,8 @@ impl ShellWidgetGroups {
                 TailnetGroup::without_policy_file,
                 TailnetGroup::with_policy_file,
             ),
-            wireguard_server_group: WireguardServerGroup::default(),
-            vpn_group: VpnGroup::default(),
+            wireguard_tunnels_group: WireguardTunnelsGroup::default(),
+            network_manager_vpn_group: NetworkManagerVpnGroup::default(),
             wifi_adapters_group: WifiAdaptersGroup::default(),
             mobile_modems_group: MobileModemsGroup::default(),
             ethernet_ports_group: EthernetPortsGroup::default(),
@@ -280,11 +280,14 @@ impl ShellWidgetGroups {
                 .update(msg, &config.widget_groups.reachability, clock)
                 .map(Message::Reachability),
             Message::Tailnet(msg) => self.tailnet_group.update(msg, clock).map(Message::Tailnet),
-            Message::WireguardServer(msg) => self
-                .wireguard_server_group
+            Message::WireguardTunnels(msg) => self
+                .wireguard_tunnels_group
                 .update(msg, clock)
-                .map(Message::WireguardServer),
-            Message::Vpn(msg) => self.vpn_group.update(msg, clock).map(Message::Vpn),
+                .map(Message::WireguardTunnels),
+            Message::NetworkManagerVpns(msg) => self
+                .network_manager_vpn_group
+                .update(msg, clock)
+                .map(Message::NetworkManagerVpns),
             Message::Monitor(msg) => self.monitor_group.update(msg, clock).map(Message::Monitor),
             Message::ColorTemperature(msg) => self
                 .color_temperature_group
@@ -469,8 +472,8 @@ impl ShellWidgetGroups {
         self.media_group.collapse();
         self.reachability_group.collapse();
         self.tailnet_group.collapse();
-        self.wireguard_server_group.collapse();
-        self.vpn_group.collapse();
+        self.wireguard_tunnels_group.collapse();
+        self.network_manager_vpn_group.collapse();
         self.wifi_adapters_group.collapse();
         self.mobile_modems_group.collapse();
         self.ethernet_ports_group.collapse();

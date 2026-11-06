@@ -47,6 +47,7 @@ use crate::{
         memory_board_group::MemoryBoardTarget,
         mobile_modems_group::MobileModemTarget,
         monitor_group::MonitorTarget,
+        network_manager_vpn_group::NetworkManagerVpnTarget,
         niri_window_group::NiriWindowTarget,
         notification_group::NotificationTarget,
         openrouter_credit_group::OpenRouterCreditTarget,
@@ -66,13 +67,12 @@ use crate::{
         tailnet_group::TailnetTarget,
         virtual_machines_group::VirtualMachineTarget,
         voice_dictation_group::VoiceDictationTarget,
-        vpn_group::VpnTarget,
         wallpaper_group::WallpaperTarget,
         weather_group::WeatherTarget,
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
         wifi_adapters_group::WifiAdapterTarget,
         window_group::{WindowGroupMessage, WindowTarget},
-        wireguard_server_group::WireguardServerTarget,
+        wireguard_tunnels_group::WireguardTunnelTarget,
     },
     widgets::phosphor::{Phosphor, Weight},
 };
@@ -106,8 +106,8 @@ pub enum HoverTarget {
     PauseBlocker(PauseBlockerTarget),
     Reachability(ReachabilityTarget),
     Tailnet(TailnetTarget),
-    WireguardServer(WireguardServerTarget),
-    Vpn(VpnTarget),
+    WireguardTunnel(WireguardTunnelTarget),
+    NetworkManagerVpn(NetworkManagerVpnTarget),
     Weather(WeatherTarget),
     Wallpaper(WallpaperTarget),
     Caldav(CaldavTarget),
@@ -375,13 +375,16 @@ mod tests {
     use super::HoverTarget;
     use crate::widget_groups::{
         media_group::{MediaTarget, PlayerTarget},
-        vpn_group::VpnTarget,
+        wireguard_tunnels_group::WireguardTunnelTarget,
     };
 
     #[test]
     fn sibling_targets_have_their_own_item_keys() {
-        let tunnel =
-            |name: &'static str| HoverTarget::from(VpnTarget::Wireguard(Cow::Borrowed(name)));
+        let tunnel = |interface: &'static str| {
+            HoverTarget::from(WireguardTunnelTarget {
+                interface: Cow::Borrowed(interface),
+            })
+        };
         assert_ne!(
             tunnel("wg0").stable_item_key(),
             tunnel("wg1").stable_item_key()

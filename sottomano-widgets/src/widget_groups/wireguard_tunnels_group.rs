@@ -5,7 +5,7 @@ use sottomano_desktop_sinks::network_connectivity::network_manager_activations::
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::wireguard_tunnels::{
-        Tunnel, TunnelAddress, TunnelOnBus, TunnelRole, Wireguard, WireguardSwitch,
+        Tunnel, TunnelAddress, TunnelOnBus, Wireguard, WireguardSwitch,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -22,7 +22,7 @@ use crate::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
-        wireguard_tunnel_hover_card::wireguard_tunnel_item,
+        wireguard_tunnels_group::wireguard_tunnel_hover_card::wireguard_tunnel_item,
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot, latest_snapshot::LatestSnapshot,
@@ -30,37 +30,35 @@ use crate::{
     },
 };
 
+mod wireguard_tunnel_hover_card;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WireguardServerTarget {
+pub struct WireguardTunnelTarget {
     pub interface: Cow<'static, str>,
 }
 
-impl From<WireguardServerTarget> for HoverTarget {
-    fn from(target: WireguardServerTarget) -> Self {
-        HoverTarget::WireguardServer(target)
+impl From<WireguardTunnelTarget> for HoverTarget {
+    fn from(target: WireguardTunnelTarget) -> Self {
+        HoverTarget::WireguardTunnel(target)
     }
 }
 
 #[derive(Default)]
-pub struct WireguardServerGroup {
+pub struct WireguardTunnelsGroup {
     wireguard: LatestSnapshot<Wireguard>,
     tunnel_address: HoverFetchedSnapshot<TunnelAddress>,
     expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
-pub enum WireguardServerMessage {
+pub enum WireguardTunnelsMessage {
     Wireguard(SnapshotDelivery<Wireguard>),
     TunnelAddressFetched(SnapshotDelivery<TunnelAddress>),
     Expansion(WidgetGroupExpansionMessage),
     SwitchTunnel(WireguardSwitch),
 }
 
-fn serves_clients(tunnel: &Tunnel) -> bool {
-    matches!(tunnel.role, TunnelRole::Server { .. })
-}
-
-impl WireguardServerGroup {
+impl WireguardTunnelsGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -69,31 +67,31 @@ impl WireguardServerGroup {
         &self,
         buses: &DesktopBuses,
         demand: &GroupSourceDemand,
-    ) -> Subscription<WireguardServerMessage> {
+    ) -> Subscription<WireguardTunnelsMessage> {
         demand.while_face_shown(
             snapshot_subscription::<Wireguard>(buses.clone())
-                .map(WireguardServerMessage::Wireguard),
+                .map(WireguardTunnelsMessage::Wireguard),
         )
     }
 
-    pub fn refresh(buses: &DesktopBuses) -> Task<WireguardServerMessage> {
-        first_delivery::<Wireguard>(buses.clone()).map(WireguardServerMessage::Wireguard)
+    pub fn refresh(buses: &DesktopBuses) -> Task<WireguardTunnelsMessage> {
+        first_delivery::<Wireguard>(buses.clone()).map(WireguardTunnelsMessage::Wireguard)
     }
 
     pub fn update(
         &mut self,
-        message: WireguardServerMessage,
+        message: WireguardTunnelsMessage,
         clock: Clock,
-    ) -> Task<WireguardServerMessage> {
+    ) -> Task<WireguardTunnelsMessage> {
         match message {
-            WireguardServerMessage::Wireguard(delivery) => self.wireguard.receive(delivery, clock),
-            WireguardServerMessage::TunnelAddressFetched(delivery) => {
+            WireguardTunnelsMessage::Wireguard(delivery) => self.wireguard.receive(delivery, clock),
+            WireguardTunnelsMessage::TunnelAddressFetched(delivery) => {
                 self.tunnel_address.receive(delivery, clock);
             }
-            WireguardServerMessage::Expansion(expansion_message) => {
+            WireguardTunnelsMessage::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
-            WireguardServerMessage::SwitchTunnel(wireguard_switch) => {
+            WireguardTunnelsMessage::SwitchTunnel(wireguard_switch) => {
                 return Task::future(switch_wireguard(wireguard_switch)).discard();
             }
         }
@@ -106,9 +104,9 @@ impl WireguardServerGroup {
         config: &Config,
         buses: Option<&DesktopBuses>,
         clock: Clock,
-    ) -> Task<WireguardServerMessage> {
+    ) -> Task<WireguardTunnelsMessage> {
         self.tunnel_address.stop();
-        let (Some(HoverTarget::WireguardServer(target)), Some(buses)) = (hovered, buses) else {
+        let (Some(HoverTarget::WireguardTunnel(target)), Some(buses)) = (hovered, buses) else {
             return Task::none();
         };
         self.tunnel_address.start_hover_fetch(
@@ -116,28 +114,33 @@ impl WireguardServerGroup {
                 buses: buses.clone(),
                 tunnel: target.interface.to_string(),
             },
-            WireguardServerMessage::TunnelAddressFetched,
+            WireguardTunnelsMessage::TunnelAddressFetched,
             config,
             clock,
         )
     }
 
-    fn server_tunnels(&self) -> impl Iterator<Item = &Tunnel> {
+    fn listed_tunnels(&self) -> impl Iterator<Item = &Tunnel> {
         self.wireguard
             .get()
             .into_iter()
             .flat_map(|wireguard| &wireguard.tunnels)
-            .filter(|tunnel| serves_clients(tunnel))
+    }
+
+    fn previewed_tunnel_interface(&self) -> Option<&str> {
+        self.listed_tunnels()
+            .find(|tunnel| tunnel.routes_all_traffic())
+            .map(|tunnel| tunnel.interface.as_str())
     }
 
     #[must_use]
     pub fn hover_card_for(
         &self,
-        target: &WireguardServerTarget,
+        target: &WireguardTunnelTarget,
         clock: Clock,
     ) -> Option<HoverCard> {
         let tunnel = self
-            .server_tunnels()
+            .listed_tunnels()
             .find(|tunnel| tunnel.interface == target.interface.as_ref())?;
         Some(
             self.wireguard
@@ -146,18 +149,22 @@ impl WireguardServerGroup {
         )
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WireguardServerMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WireguardTunnelsMessage> {
+        let previewed_tunnel_interface = self.previewed_tunnel_interface();
         WidgetGroupContent::expandable(
-            WidgetGroupFamily::WireguardServer,
+            WidgetGroupFamily::WireguardTunnels,
             &self.expansion,
-            WireguardServerMessage::Expansion,
-            self.server_tunnels().map(|tunnel| {
+            WireguardTunnelsMessage::Expansion,
+            self.listed_tunnels().map(move |tunnel| {
                 wireguard_tunnel_item(
                     tunnel,
-                    WireguardServerTarget {
+                    WireguardTunnelTarget {
                         interface: Cow::Owned(tunnel.interface.clone()),
                     },
-                    WireguardServerMessage::SwitchTunnel,
+                    WireguardTunnelsMessage::SwitchTunnel,
+                )
+                .previewed_on_handle_if(
+                    previewed_tunnel_interface == Some(tunnel.interface.as_str()),
                 )
             }),
         )

@@ -7,10 +7,10 @@ use sottomano_widgets::{
         clock_group::ClockGroup, color_temperature_group::ColorTemperatureGroup,
         compute_group::ComputeGroup, dark_mode_group::DarkModeGroup,
         login_session_group::LoginSessionGroup, memory_board_group::MemoryBoardGroup,
-        monitor_group::MonitorGroup, power_group::PowerGroup,
-        reachability_group::ReachabilityGroup, tailnet_group::TailnetGroup,
-        voice_dictation_group::VoiceDictationGroup, vpn_group::VpnGroup,
-        wireguard_server_group::WireguardServerGroup,
+        monitor_group::MonitorGroup, network_manager_vpn_group::NetworkManagerVpnGroup,
+        power_group::PowerGroup, reachability_group::ReachabilityGroup,
+        tailnet_group::TailnetGroup, voice_dictation_group::VoiceDictationGroup,
+        wireguard_tunnels_group::WireguardTunnelsGroup,
     },
 };
 
@@ -80,12 +80,12 @@ impl ShellWidgetGroups {
                 on_buses(&|buses| ReachabilityGroup::refresh(buses).map(Message::Reachability))
             }
             HoverTarget::Tailnet(_) => TailnetGroup::refresh().map(Message::Tailnet),
-            HoverTarget::WireguardServer(_) => on_buses(&|buses| {
-                WireguardServerGroup::refresh(buses).map(Message::WireguardServer)
+            HoverTarget::WireguardTunnel(_) => on_buses(&|buses| {
+                WireguardTunnelsGroup::refresh(buses).map(Message::WireguardTunnels)
             }),
-            HoverTarget::Vpn(target) => {
-                on_buses(&|buses| VpnGroup::refresh(target, buses).map(Message::Vpn))
-            }
+            HoverTarget::NetworkManagerVpn(_) => on_buses(&|buses| {
+                NetworkManagerVpnGroup::refresh(buses).map(Message::NetworkManagerVpns)
+            }),
             HoverTarget::Monitor(target) => {
                 on_buses(&|buses| MonitorGroup::refresh(target, buses).map(Message::Monitor))
             }

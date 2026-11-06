@@ -153,13 +153,13 @@ impl DesktopShell {
                     .group_content()
                     .map(Message::Tailnet),
                 self.widget_groups
-                    .wireguard_server_group
+                    .wireguard_tunnels_group
                     .group_content()
-                    .map(Message::WireguardServer),
+                    .map(Message::WireguardTunnels),
                 self.widget_groups
-                    .vpn_group
+                    .network_manager_vpn_group
                     .group_content()
-                    .map(Message::Vpn),
+                    .map(Message::NetworkManagerVpns),
             ]);
         self.group_menu(GroupMenuTopic::Network, groups)
     }

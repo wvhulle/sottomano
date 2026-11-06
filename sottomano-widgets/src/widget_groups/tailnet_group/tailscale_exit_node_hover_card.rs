@@ -16,18 +16,16 @@ use crate::{
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
     },
 };
 
-const OFFERING_BLOCKS_USE_TEXT: &str =
-    "this machine offers itself as an exit node, see the Tailscale group";
+const OFFERING_BLOCKS_USE_TEXT: &str = "stop offering this machine as an exit node first";
 
-fn lan_access_entry(choices: &ExitNodeChoices) -> LabeledValue {
+fn lan_access_entry(exit_node_choices: &ExitNodeChoices) -> LabeledValue {
     LabeledValue::new(
         "Local network",
-        match choices.lan_access {
+        match exit_node_choices.lan_access {
             ExitNodeLanAccess::Allowed => "stays reachable through an exit node",
             ExitNodeLanAccess::Blocked => "unreachable through an exit node",
         },
@@ -40,7 +38,7 @@ impl GroupItemReading for TailscaleExitNodes {
     }
 
     fn icon(&self) -> IconGlyph {
-        SimpleIcon::Tailscale.into()
+        Phosphor::SignOut(Weight::Regular).into()
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
@@ -48,30 +46,33 @@ impl GroupItemReading for TailscaleExitNodes {
     }
 }
 
-pub(super) struct ExitNodeRow<'a> {
-    pub(super) option: &'a ExitNodeOption,
-    pub(super) choices: &'a ExitNodeChoices,
+pub(super) struct ExitNodeChoiceRow<'a> {
+    pub(super) exit_node_option: &'a ExitNodeOption,
+    pub(super) exit_node_choices: &'a ExitNodeChoices,
 }
 
-impl GroupItemReading for ExitNodeRow<'_> {
+impl GroupItemReading for ExitNodeChoiceRow<'_> {
     fn name(&self) -> &'static str {
         "Tailscale exit node"
     }
 
     fn menu_row_name(&self) -> Cow<'static, str> {
-        format!("{} exit node", self.option.name).into()
+        format!("Exit via {}", self.exit_node_option.name).into()
     }
 
     fn icon(&self) -> IconGlyph {
-        SimpleIcon::Tailscale.into()
+        Phosphor::SignOut(Weight::Regular).into()
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::of_toggle(self.option.in_use)
+        ReadingDisplayState::of_toggle(self.exit_node_option.in_use)
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        match self.choices.control_for_option(self.option) {
+        match self
+            .exit_node_choices
+            .control_for_option(self.exit_node_option)
+        {
             ExitNodeControl::Switchable(_) => None,
             ExitNodeControl::BlockedByOffering => Some("blocked".to_owned()),
             ExitNodeControl::Offline => Some("offline".to_owned()),
@@ -79,7 +80,7 @@ impl GroupItemReading for ExitNodeRow<'_> {
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        let reachability_entry = match self.option.reachability {
+        let reachability_entry = match self.exit_node_option.reachability {
             ExitNodeReachability::Online => LabeledValue::new("State", "online"),
             ExitNodeReachability::OfflineSince(last_seen) => {
                 LabeledValue::new("Last seen", ValueCell::RelativeMoment(last_seen))
@@ -87,17 +88,25 @@ impl GroupItemReading for ExitNodeRow<'_> {
             ExitNodeReachability::OfflineNeverSeen => LabeledValue::new("State", "offline"),
         };
         let blocked_entry = matches!(
-            self.choices.control_for_option(self.option),
+            self.exit_node_choices
+                .control_for_option(self.exit_node_option),
             ExitNodeControl::BlockedByOffering
         )
         .then(|| LabeledValue::new("Blocked", OFFERING_BLOCKS_USE_TEXT).level(Severity::Warning));
         HoverCardBody::dictionary(
             [
-                LabeledValue::new("Exit node", self.option.name.as_str()),
-                LabeledValue::new("IP", self.option.ip.as_str()),
+                LabeledValue::new("Exit node", self.exit_node_option.name.as_str()),
+                LabeledValue::new("IP", self.exit_node_option.ip.as_str()),
                 reachability_entry,
-                LabeledValue::new("In use", if self.option.in_use { "yes" } else { "no" }),
-                lan_access_entry(self.choices),
+                LabeledValue::new(
+                    "In use",
+                    if self.exit_node_option.in_use {
+                        "yes"
+                    } else {
+                        "no"
+                    },
+                ),
+                lan_access_entry(self.exit_node_choices),
             ]
             .into_iter()
             .chain(blocked_entry),
@@ -106,23 +115,25 @@ impl GroupItemReading for ExitNodeRow<'_> {
 }
 
 pub(super) struct ExitNodeLanAccessRow<'a> {
-    pub(super) choices: &'a ExitNodeChoices,
+    pub(super) exit_node_choices: &'a ExitNodeChoices,
 }
 
 impl GroupItemReading for ExitNodeLanAccessRow<'_> {
     fn name(&self) -> &'static str {
-        "Exit node LAN access"
+        "LAN while exiting"
     }
 
     fn icon(&self) -> IconGlyph {
-        Phosphor::Network(Weight::Regular).into()
+        Phosphor::HouseLine(Weight::Regular).into()
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::of_toggle(self.choices.lan_access == ExitNodeLanAccess::Allowed)
+        ReadingDisplayState::of_toggle(
+            self.exit_node_choices.lan_access == ExitNodeLanAccess::Allowed,
+        )
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([lan_access_entry(self.choices)])
+        HoverCardBody::dictionary([lan_access_entry(self.exit_node_choices)])
     }
 }

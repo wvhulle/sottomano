@@ -50,7 +50,6 @@ pub mod systemd_service_units;
 pub mod tailnet;
 pub mod virtual_machines;
 pub mod voice_dictation;
-pub mod vpn;
 pub mod wallpaper;
 pub mod weather;
-pub mod wireguard_server;
+pub mod wireguard_tunnels;

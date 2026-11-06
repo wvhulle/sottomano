@@ -119,20 +119,22 @@ impl ShellWidgetGroups {
             self.tailnet_group
                 .subscription(&self.group_menus.source_demand(WidgetGroupFamily::Tailnet))
                 .map(Message::Tailnet),
-            self.wireguard_server_group
+            self.wireguard_tunnels_group
                 .subscription(
                     buses,
                     &self
                         .group_menus
-                        .source_demand(WidgetGroupFamily::WireguardServer),
+                        .source_demand(WidgetGroupFamily::WireguardTunnels),
                 )
-                .map(Message::WireguardServer),
-            self.vpn_group
+                .map(Message::WireguardTunnels),
+            self.network_manager_vpn_group
                 .subscription(
                     buses,
-                    &self.group_menus.source_demand(WidgetGroupFamily::Vpn),
+                    &self
+                        .group_menus
+                        .source_demand(WidgetGroupFamily::NetworkManagerVpns),
                 )
-                .map(Message::Vpn),
+                .map(Message::NetworkManagerVpns),
             self.wifi_adapters_group
                 .subscription(
                     buses,

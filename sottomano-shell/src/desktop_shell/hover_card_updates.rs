@@ -386,14 +386,14 @@ impl DesktopShell {
             HoverTarget::Tailnet(target) => self
                 .widget_groups
                 .tailnet_group
-                .hover_card_for(*target, self.clock),
-            HoverTarget::WireguardServer(target) => self
-                .widget_groups
-                .wireguard_server_group
                 .hover_card_for(target, self.clock),
-            HoverTarget::Vpn(target) => self
+            HoverTarget::WireguardTunnel(target) => self
                 .widget_groups
-                .vpn_group
+                .wireguard_tunnels_group
+                .hover_card_for(target, self.clock),
+            HoverTarget::NetworkManagerVpn(target) => self
+                .widget_groups
+                .network_manager_vpn_group
                 .hover_card_for(target, self.clock),
             HoverTarget::Weather(target) => {
                 self.widget_groups
@@ -544,13 +544,9 @@ impl DesktopShell {
                 .hover(hovered, &self.config, buses, self.clock)
                 .map(Message::Tailnet),
             self.widget_groups
-                .wireguard_server_group
+                .wireguard_tunnels_group
                 .hover(hovered, &self.config, buses, self.clock)
-                .map(Message::WireguardServer),
-            self.widget_groups
-                .vpn_group
-                .hover(hovered, &self.config, buses, self.clock)
-                .map(Message::Vpn),
+                .map(Message::WireguardTunnels),
             self.widget_groups
                 .compute_group
                 .hover(hovered, &self.config, self.clock)
