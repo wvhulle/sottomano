@@ -36,7 +36,6 @@ pub enum GroupMenuTopic {
     Media,
     Display,
     Services,
-    ContinuousIntegration,
     Session,
     Appearance,
     Behaviour,
@@ -44,14 +43,13 @@ pub enum GroupMenuTopic {
 }
 
 impl GroupMenuTopic {
-    pub const ALL: [GroupMenuTopic; 11] = [
+    pub const ALL: [GroupMenuTopic; 10] = [
         GroupMenuTopic::Hardware,
         GroupMenuTopic::Network,
         GroupMenuTopic::Agenda,
         GroupMenuTopic::Media,
         GroupMenuTopic::Display,
         GroupMenuTopic::Services,
-        GroupMenuTopic::ContinuousIntegration,
         GroupMenuTopic::Session,
         GroupMenuTopic::Appearance,
         GroupMenuTopic::Behaviour,
@@ -67,7 +65,6 @@ impl GroupMenuTopic {
             GroupMenuTopic::Media => "Media",
             GroupMenuTopic::Display => "Display",
             GroupMenuTopic::Services => "Services",
-            GroupMenuTopic::ContinuousIntegration => "CI",
             GroupMenuTopic::Session => "Session",
             GroupMenuTopic::Appearance => "Appearance",
             GroupMenuTopic::Behaviour => "Behaviour",
@@ -84,7 +81,6 @@ impl GroupMenuTopic {
             GroupMenuTopic::Media => Phosphor::MusicNotes(Weight::Regular),
             GroupMenuTopic::Display => Phosphor::Monitor(Weight::Regular),
             GroupMenuTopic::Services => Phosphor::Stack(Weight::Regular),
-            GroupMenuTopic::ContinuousIntegration => Phosphor::GitBranch(Weight::Regular),
             GroupMenuTopic::Session => Phosphor::UserCircle(Weight::Regular),
             GroupMenuTopic::Appearance => Phosphor::SlidersHorizontal(Weight::Regular),
             GroupMenuTopic::Behaviour => Phosphor::ToggleRight(Weight::Regular),
@@ -100,7 +96,6 @@ impl GroupMenuTopic {
             GroupMenuTopic::Media => "media",
             GroupMenuTopic::Display => "display",
             GroupMenuTopic::Services => "services",
-            GroupMenuTopic::ContinuousIntegration => "continuous_integration",
             GroupMenuTopic::Session => "session",
             GroupMenuTopic::Appearance => "appearance",
             GroupMenuTopic::Behaviour => "behaviour",

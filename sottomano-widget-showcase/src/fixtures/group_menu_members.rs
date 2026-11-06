@@ -15,7 +15,7 @@ pub fn media_group_menu(clock: Clock) -> ShowcasedGroup {
     ])
 }
 
-pub fn continuous_integration_group_menu(clock: Clock) -> ShowcasedGroup {
+pub fn ci_runner_menu_members(clock: Clock) -> ShowcasedGroup {
     ShowcasedGroup::MenuMembers(vec![
         ci_runner_tasks::woodpecker_group(clock),
         ci_runner_tasks::forgejo_group(clock),
