@@ -1,6 +1,9 @@
 use iced::{Subscription, Task};
 
-use crate::{widget_groups::widget_group_identity::WidgetGroupFamily, widgets::phosphor::Weight};
+use crate::{
+    hover_cards::hover_card_body::ShownAsErrorSection,
+    widget_groups::widget_group_identity::WidgetGroupFamily, widgets::phosphor::Weight,
+};
 
 mod coredump_log;
 mod kernel_error_log;
@@ -51,11 +54,7 @@ pub enum JournalTarget {
     OomKills,
 }
 
-impl From<JournalFollowError> for Section {
-    fn from(error: JournalFollowError) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for JournalFollowError {}
 
 impl From<JournalTarget> for HoverTarget {
     fn from(target: JournalTarget) -> Self {

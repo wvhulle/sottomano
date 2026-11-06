@@ -9,7 +9,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{HoverCardBody, Section, ShownAsErrorSection},
     widgets::{
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
@@ -19,11 +19,7 @@ use crate::{
     },
 };
 
-impl From<ShutdownReadError> for Section {
-    fn from(error: ShutdownReadError) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for ShutdownReadError {}
 
 impl IntoTableRecord<2> for &UnitStop {
     fn into_table_record(self) -> TableRecord<2> {

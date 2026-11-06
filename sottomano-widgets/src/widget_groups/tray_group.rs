@@ -31,7 +31,9 @@ use crate::{
     },
     hover_cards::{
         HoverTarget, PressHints,
-        hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
+        hover_card_body::{
+            HoverCardBody, Section, ShownAsErrorSection, hover_card_source_delivery::HoverCard,
+        },
         hoverable,
     },
     widget_groups::{
@@ -54,11 +56,7 @@ use crate::{
     },
 };
 
-impl From<Arc<error::Error>> for Section {
-    fn from(error: Arc<error::Error>) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for Arc<error::Error> {}
 
 #[derive(Default)]
 pub struct TrayGroup {

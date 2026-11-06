@@ -27,7 +27,9 @@ use crate::{
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
+        hover_card_body::{
+            HoverCardBody, ShownAsErrorSection, hover_card_source_delivery::HoverCard,
+        },
     },
     widget_groups::{
         widget_group_content::{
@@ -57,11 +59,7 @@ pub enum StorageTarget {
     SnapshotDeletion(PathBuf),
 }
 
-impl From<disk_storage::Error> for Section {
-    fn from(error: disk_storage::Error) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for disk_storage::Error {}
 
 impl From<StorageTarget> for HoverTarget {
     fn from(target: StorageTarget) -> Self {

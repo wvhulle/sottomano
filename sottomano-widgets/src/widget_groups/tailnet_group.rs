@@ -26,7 +26,7 @@ use crate::{
     hover_cards::{
         HoverTarget,
         hover_card_body::{
-            Section,
+            ShownAsErrorSection,
             hover_card_source_delivery::{HoverCard, SourcedSections},
         },
     },
@@ -65,17 +65,9 @@ impl From<TailnetTarget> for HoverTarget {
     }
 }
 
-impl From<tailscale_status::Error> for Section {
-    fn from(error: tailscale_status::Error) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for tailscale_status::Error {}
 
-impl From<PolicyFileError> for Section {
-    fn from(error: PolicyFileError) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for PolicyFileError {}
 
 enum PolicyFileAccess {
     NoApiToken,

@@ -22,7 +22,9 @@ use crate::{
     },
     hover_cards::{
         HoverTarget,
-        hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
+        hover_card_body::{
+            HoverCardBody, ShownAsErrorSection, hover_card_source_delivery::HoverCard,
+        },
     },
     widget_groups::{
         widget_group_content::{
@@ -52,11 +54,7 @@ pub enum AudioTarget {
     Connection,
 }
 
-impl From<AudioConnectError> for Section {
-    fn from(error: AudioConnectError) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for AudioConnectError {}
 
 impl From<AudioTarget> for HoverTarget {
     fn from(target: AudioTarget) -> Self {

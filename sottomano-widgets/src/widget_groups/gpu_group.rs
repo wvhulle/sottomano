@@ -25,7 +25,7 @@ use crate::{
     hover_cards::{
         HoverTarget,
         hover_card_body::{
-            HoverCardBody, ReadingSections, Section,
+            HoverCardBody, ReadingSections, Section, ShownAsErrorSection,
             hover_card_source_delivery::{DeliveryTiming, HoverCard, SourcedSections},
         },
     },
@@ -56,11 +56,7 @@ pub struct GpuTarget {
     reading: GpuReading,
 }
 
-impl From<pci_gpu_readings::Error> for Section {
-    fn from(error: pci_gpu_readings::Error) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for pci_gpu_readings::Error {}
 
 impl From<GpuTarget> for HoverTarget {
     fn from(target: GpuTarget) -> Self {
