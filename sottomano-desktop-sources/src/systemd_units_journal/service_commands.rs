@@ -1,31 +1,15 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use futures::{Stream, StreamExt, future::join_all};
-use zbus::{proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
+use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
-use super::{ManagerProxy, SystemdOnBus, manager_signal, signals_matching};
+use super::{ManagerProxy, ServiceProxy, SystemdOnBus, manager_signal, signals_matching};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     stream_operators::{StreamOperators, connected_until_failure, read_once_then_per_burst},
 };
 
 const SERVICE_SUFFIX: &str = ".service";
-
-type ExecCommandRow = (String, Vec<String>, bool, u64, u64, u64, u64, u32, i32, i32);
-
-#[proxy(
-    interface = "org.freedesktop.systemd1.Service",
-    default_service = "org.freedesktop.systemd1",
-    gen_blocking = false
-)]
-trait ServiceExec {
-    #[zbus(property)]
-    fn exec_start(&self) -> zbus::Result<Vec<ExecCommandRow>>;
-    #[zbus(property)]
-    fn environment(&self) -> zbus::Result<Vec<String>>;
-    #[zbus(property)]
-    fn user(&self) -> zbus::Result<String>;
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ServiceAccount {
@@ -179,7 +163,7 @@ async fn service_command(
     unit: String,
     path: OwnedObjectPath,
 ) -> Option<ServiceCommand> {
-    let service = ServiceExecProxy::builder(manager.inner().connection())
+    let service = ServiceProxy::builder(manager.inner().connection())
         .path(path)
         .ok()?
         .cache_properties(CacheProperties::No)

@@ -9,10 +9,7 @@ const BLUEZ_ROOT: &str = "/";
 const BLUEZ_DEVICE_INTERFACE: &str = "org.bluez.Device1";
 
 async fn bluetooth_alias_lookup(connection: &Connection) -> zbus::Result<HashMap<String, String>> {
-    let objects = ObjectManagerProxy::builder(connection)
-        .destination(BLUEZ_SERVICE)?
-        .path(BLUEZ_ROOT)?
-        .build()
+    let objects = ObjectManagerProxy::new(connection, BLUEZ_SERVICE, BLUEZ_ROOT)
         .await?
         .get_managed_objects()
         .await?;

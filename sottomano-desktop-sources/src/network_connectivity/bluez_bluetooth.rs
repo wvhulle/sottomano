@@ -274,10 +274,7 @@ fn reading(objects: &ManagedObjects) -> Bluetooth {
 }
 
 pub async fn read_bluetooth(connection: Connection) -> zbus::Result<Bluetooth> {
-    let objects = ObjectManagerProxy::builder(&connection)
-        .destination(SERVICE)?
-        .path(ROOT)?
-        .build()
+    let objects = ObjectManagerProxy::new(&connection, SERVICE, ROOT)
         .await?
         .get_managed_objects()
         .await?;
@@ -285,11 +282,7 @@ pub async fn read_bluetooth(connection: Connection) -> zbus::Result<Bluetooth> {
 }
 
 async fn bluez_object_signals(connection: Connection) -> zbus::Result<impl Stream<Item = ()>> {
-    let objects = ObjectManagerProxy::builder(&connection)
-        .destination(SERVICE)?
-        .path(ROOT)?
-        .build()
-        .await?;
+    let objects = ObjectManagerProxy::new(&connection, SERVICE, ROOT).await?;
     Ok(select(
         select(
             objects.receive_interfaces_added().await?.map(drop),

@@ -7,10 +7,7 @@ use zbus::{blocking::Connection, proxy};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     stream_operators::StreamOperators,
-    system_protocol_clients::{
-        dbus_desktop_buses,
-        dbus_desktop_buses::{DesktopBuses, Error, name_owned},
-    },
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error, name_owned},
 };
 
 const RELAY_SERVICE: &str = "rs.wl-gammarelay";
@@ -55,7 +52,7 @@ impl SnapshotSource for ColorTemperature {
 async fn relay_changes(
     buses: DesktopBuses,
 ) -> Result<impl Stream<Item = Result<ColorTemperature, Error>> + Send, Error> {
-    let relay: GammaRelayProxy = buses.proxy(dbus_desktop_buses::Bus::Session).await?;
+    let relay = GammaRelayProxy::new(&buses.session).await?;
     let changes = stream::select(
         relay.receive_brightness_changed().await.map(drop),
         relay.receive_temperature_changed().await.map(drop),

@@ -183,6 +183,26 @@ pub trait Manager {
     fn userspace_timestamp(&self) -> zbus::Result<u64>;
 }
 
+type ExecCommandRow = (String, Vec<String>, bool, u64, u64, u64, u64, u32, i32, i32);
+
+#[proxy(
+    interface = "org.freedesktop.systemd1.Service",
+    default_service = "org.freedesktop.systemd1",
+    gen_blocking = false
+)]
+trait Service {
+    #[zbus(property)]
+    fn result(&self) -> zbus::Result<String>;
+    #[zbus(property)]
+    fn exec_main_status(&self) -> zbus::Result<i32>;
+    #[zbus(property)]
+    fn exec_start(&self) -> zbus::Result<Vec<ExecCommandRow>>;
+    #[zbus(property)]
+    fn environment(&self) -> zbus::Result<Vec<String>>;
+    #[zbus(property)]
+    fn user(&self) -> zbus::Result<String>;
+}
+
 #[proxy(
     interface = "org.freedesktop.systemd1.Unit",
     default_service = "org.freedesktop.systemd1",
