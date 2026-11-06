@@ -39,7 +39,7 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
         HoverTarget,
-        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
+        hover_card_body::{ShownAsErrorSection, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
         widget_group_content::{
@@ -64,11 +64,7 @@ pub enum ComputeTarget {
     X3dCachePreference,
 }
 
-impl From<HostHardwareError> for Section {
-    fn from(error: HostHardwareError) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for HostHardwareError {}
 
 impl From<ComputeTarget> for HoverTarget {
     fn from(target: ComputeTarget) -> Self {

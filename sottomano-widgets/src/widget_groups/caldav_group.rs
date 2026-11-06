@@ -23,7 +23,7 @@ use crate::{
     group_items::group_item::GroupItem,
     hover_cards::{
         HoverTarget,
-        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
+        hover_card_body::{ShownAsErrorSection, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
         widget_group_content::{
@@ -51,11 +51,7 @@ impl From<CaldavTarget> for HoverTarget {
     }
 }
 
-impl From<caldav_agenda::Error> for Section {
-    fn from(error: caldav_agenda::Error) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for caldav_agenda::Error {}
 
 pub struct CaldavGroup {
     upcoming_events: LatestSnapshot<UpcomingEventList>,

@@ -10,7 +10,7 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,
-    hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section},
+    hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section, ShownAsErrorSection},
     widgets::{
         localized_quantities::Quantity,
         simple_icons::SimpleIcon,
@@ -43,17 +43,9 @@ pub fn pick_body(
     )]))
 }
 
-impl From<process_tree_inspection::Error> for Section {
-    fn from(error: process_tree_inspection::Error) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for process_tree_inspection::Error {}
 
-impl From<nix_package_facts::Error> for Section {
-    fn from(error: nix_package_facts::Error) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for nix_package_facts::Error {}
 
 impl ReadingSections for Inspection {
     fn sections(&self, _clock: Clock) -> Vec<Section> {

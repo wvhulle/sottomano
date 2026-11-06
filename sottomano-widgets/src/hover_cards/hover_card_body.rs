@@ -112,6 +112,14 @@ pub enum SectionHeading {
     Titled(Heading),
 }
 
+pub trait ShownAsErrorSection: Display {}
+
+impl<Failure: ShownAsErrorSection> From<Failure> for Section {
+    fn from(failure: Failure) -> Self {
+        Section::error(failure)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Section {
     heading: SectionHeading,

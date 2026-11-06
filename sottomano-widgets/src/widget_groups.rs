@@ -68,37 +68,20 @@ use sottomano_desktop_sources::{
     },
 };
 
-use crate::{hover_cards::hover_card_body::Section, widgets::value_cells::LabeledValue};
+use crate::{
+    hover_cards::hover_card_body::{Section, ShownAsErrorSection},
+    widgets::value_cells::LabeledValue,
+};
 
-impl From<GgufHeaderError> for Section {
-    fn from(error: GgufHeaderError) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for GgufHeaderError {}
 
-impl From<dbus_desktop_buses::Error> for Section {
-    fn from(error: dbus_desktop_buses::Error) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for dbus_desktop_buses::Error {}
 
-impl From<zbus::Error> for Section {
-    fn from(error: zbus::Error) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for zbus::Error {}
 
-impl From<sysfs_attribute_reads::Error> for Section {
-    fn from(error: sysfs_attribute_reads::Error) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for sysfs_attribute_reads::Error {}
 
-impl From<shell_command_output::Error> for Section {
-    fn from(error: shell_command_output::Error) -> Self {
-        Section::error(error)
-    }
-}
+impl ShownAsErrorSection for shell_command_output::Error {}
 
 impl From<http_json_client::Error> for Section {
     fn from(error: http_json_client::Error) -> Self {
