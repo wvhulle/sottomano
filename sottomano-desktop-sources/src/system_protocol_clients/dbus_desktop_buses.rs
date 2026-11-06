@@ -9,7 +9,6 @@ use futures::{Stream, StreamExt, future::select, stream};
 use zbus::{
     fdo::DBusProxy,
     names::BusName,
-    proxy::{Builder, Defaults},
     zvariant::{OwnedObjectPath, OwnedValue},
 };
 
@@ -97,16 +96,6 @@ impl DesktopBuses {
             Bus::Session => &self.session,
             Bus::System => &self.system,
         }
-    }
-
-    pub async fn proxy<P>(&self, bus: Bus) -> Result<P, Error>
-    where
-        P: From<zbus::Proxy<'static>> + Defaults,
-    {
-        Builder::new(self.on(bus))
-            .build()
-            .await
-            .map_err(|error| Error::Connect(error.to_string()))
     }
 
     async fn closed(&self) {

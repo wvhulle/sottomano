@@ -2,11 +2,11 @@ use std::time::SystemTime;
 
 use futures::{Stream, StreamExt, future::join_all};
 use tokio::task::spawn_blocking;
-use zbus::{proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
+use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{
-    ManagerProxy, SystemdOnBus, SystemdUnitScope, UNIT_INTERFACE, UnitRow, manager_signal,
-    signals_matching, state_changed_at, systemd_signal,
+    ManagerProxy, ServiceProxy, SystemdOnBus, SystemdUnitScope, UNIT_INTERFACE, UnitRow,
+    manager_signal, signals_matching, state_changed_at, systemd_signal,
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -20,18 +20,6 @@ pub const UNIT_FAILURE_PRIORITY: JournalPriority = JournalPriority::Warning;
 
 const FAILED_STATE: &str = "failed";
 const CORE_DUMP_RESULT: &str = "core-dump";
-
-#[proxy(
-    interface = "org.freedesktop.systemd1.Service",
-    default_service = "org.freedesktop.systemd1",
-    gen_blocking = false
-)]
-trait Service {
-    #[zbus(property)]
-    fn result(&self) -> zbus::Result<String>;
-    #[zbus(property)]
-    fn exec_main_status(&self) -> zbus::Result<i32>;
-}
 
 #[derive(Debug, Clone)]
 pub struct ServiceOutcome {
