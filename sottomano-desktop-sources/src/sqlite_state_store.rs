@@ -195,15 +195,6 @@ impl Columns {
     }
 
     #[must_use]
-    pub fn optional_real(&self, row: &turso::Row, name: &str) -> Option<f64> {
-        match self.value(row, name).ok()? {
-            turso::Value::Real(real) => Some(real),
-            turso::Value::Integer(integer) => Some(integer as f64),
-            _ => None,
-        }
-    }
-
-    #[must_use]
     pub fn optional_flag(&self, row: &turso::Row, name: &str) -> Option<bool> {
         self.optional_integer(row, name).map(|integer| integer != 0)
     }
