@@ -24,7 +24,9 @@ use crate::{
         libvirt_domain_control::{LIBVIRT_DOMAIN_CONTROL_BUILT, libvirt_run_states},
         machined_libvirt_machines::{libvirt_leader_pids, machine_set_changes},
         pidfd_process_exits::process_exit,
-        procfs_qemu_processes::{QemuProcess, account_names_by_uid, scanned_qemu_processes},
+        procfs_qemu_processes::{
+            ProcessWorkingDirectory, QemuProcess, account_names_by_uid, scanned_qemu_processes,
+        },
         qemu_command_line_arguments::{QemuLaunchArguments, QmpSocketAccess},
         qmp_monitor_events::{GuestRunState, QmpPowerdownSender, follow_qmp_run_state},
     },
@@ -106,13 +108,12 @@ async fn watch_machine(
         let run_states = run_states.clone();
         let rescan_requests = rescan_requests.clone();
         async move {
-            if let QmpSocketAccess::UnixSocket(socket_path) = qmp_socket {
-                let followed =
-                    follow_qmp_run_state(&socket_path, powerdown_requests, |run_state| {
-                        record_run_state(&run_states, pid, run_state);
-                        let _ = rescan_requests.send(());
-                    })
-                    .await;
+            if let Some(socket_path) = qmp_socket.connectable_path() {
+                let followed = follow_qmp_run_state(socket_path, powerdown_requests, |run_state| {
+                    record_run_state(&run_states, pid, run_state);
+                    let _ = rescan_requests.send(());
+                })
+                .await;
                 if let Err(failure) = followed {
                     tracing::debug!("qmp {}: {failure}", socket_path.display());
                 }
@@ -154,6 +155,17 @@ fn origin_of(
     }
 }
 
+fn launch_arguments_of(qemu_process: &QemuProcess) -> QemuLaunchArguments {
+    let launch = QemuLaunchArguments::parsed(&qemu_process.command_line);
+    match &qemu_process.working_directory {
+        ProcessWorkingDirectory::Readable(working_directory) => QemuLaunchArguments {
+            qmp_socket: launch.qmp_socket.resolved_in(working_directory),
+            ..launch
+        },
+        ProcessWorkingDirectory::Unreadable => launch,
+    }
+}
+
 struct IdentifiedQemuProcess {
     qemu_process: QemuProcess,
     launch: QemuLaunchArguments,
@@ -191,11 +203,12 @@ impl VirtualMachineSampler {
 
     fn watch_new_machine(&mut self, pid: i32, qmp_socket: &QmpSocketAccess) {
         let (powerdown_sender, powerdown_receiver) = mpsc::unbounded_channel();
-        let qmp_watch = match qmp_socket {
-            QmpSocketAccess::UnixSocket(socket_path) => QmpWatch::Following(
-                QmpPowerdownSender::new(socket_path.clone(), powerdown_sender),
-            ),
-            QmpSocketAccess::NotConfigured => QmpWatch::NotConfigured,
+        let qmp_watch = match qmp_socket.connectable_path() {
+            Some(socket_path) => QmpWatch::Following(QmpPowerdownSender::new(
+                socket_path.to_path_buf(),
+                powerdown_sender,
+            )),
+            None => QmpWatch::NotConfigured,
         };
         let watcher = tokio::spawn(watch_machine(
             pid,
@@ -269,7 +282,7 @@ impl VirtualMachineSampler {
             .qemu_processes
             .into_iter()
             .map(|qemu_process| IdentifiedQemuProcess {
-                launch: QemuLaunchArguments::parsed(&qemu_process.command_line),
+                launch: launch_arguments_of(&qemu_process),
                 origin: origin_of(&qemu_process, &libvirt_pids, session_uid, &account_names),
                 qemu_process,
             })
@@ -385,6 +398,7 @@ mod tests {
             owner_uid,
             command_line: vec!["qemu-system-x86_64".to_owned()],
             started_at: SystemTime::UNIX_EPOCH,
+            working_directory: ProcessWorkingDirectory::Unreadable,
         }
     }
 

@@ -131,6 +131,10 @@ holds the layer rules sottomano writes for its own surfaces.
   module. Set it to `false` for a static palette.
 - `windowAgents.kitty.enable` turns on kitty's socket-only remote control so the
   window list can tell kitty OS windows apart.
+- `virtualMachines.qmpSocket.enable` (default `true`) sets `QEMU_OPTS` so every
+  NixOS `run-*-vm` script you start opens a QMP socket in its own temporary
+  directory, which the virtual machines group uses to show a paused VM and power
+  it off. An existing `QEMU_OPTS` wins.
 - `systemdUnit` (default `true`) adds a user service bound to
   `graphical-session.target`. Disable it to spawn sottomano from niri's
   `spawn-at-startup` instead.

@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     fs,
+    path::PathBuf,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -14,11 +15,18 @@ use crate::{
 const ACCOUNT_DATABASE_PATH: &str = "/etc/passwd";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ProcessWorkingDirectory {
+    Readable(PathBuf),
+    Unreadable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct QemuProcess {
     pub pid: i32,
     pub owner_uid: u32,
     pub command_line: Vec<String>,
     pub started_at: SystemTime,
+    pub working_directory: ProcessWorkingDirectory,
 }
 
 #[derive(Default)]
@@ -65,6 +73,10 @@ pub(crate) fn scanned_qemu_processes() -> QemuProcessScan {
             owner_uid,
             command_line,
             started_at: started_after_boot(boot_time, stat.starttime),
+            working_directory: process.cwd().map_or(
+                ProcessWorkingDirectory::Unreadable,
+                ProcessWorkingDirectory::Readable,
+            ),
         });
     }
     QemuProcessScan {
