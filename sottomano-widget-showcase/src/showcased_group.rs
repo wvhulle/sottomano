@@ -46,12 +46,11 @@ use sottomano_widgets::{
         tailnet_group::TailnetGroup,
         virtual_machines_group::VirtualMachinesGroup,
         voice_dictation_group::VoiceDictationGroup,
-        vpn_group::VpnGroup,
         wallpaper_group::WallpaperGroup,
         weather_group::WeatherGroup,
         widget_group_content::WidgetGroupContent,
         window_group::{WindowGroup, WindowRowLayout, WindowTarget},
-        wireguard_server_group::WireguardServerGroup,
+        wireguard_tunnels_group::WireguardTunnelsGroup,
         woodpecker_tasks_group::WoodpeckerTasksGroup,
         workspaces_group::{
             EmptyWorkspaceFolding, EmptyWorkspaces, inline_strip, sidebar_column,
@@ -71,7 +70,7 @@ use sottomano_widgets::{
 use crate::{
     fixtures::{
         claude_usage, compute, login_session, memory_board, niri_session, tailnet, voice_dictation,
-        vpn, wireguard_server,
+        wireguard_tunnels,
     },
     showcase_message::ShowcaseMessage,
     showcase_program::SHOWCASE_FLOAT_OFFSET_PX,
@@ -130,8 +129,7 @@ pub enum ShowcasedGroup {
     WoodpeckerTasks(Box<WoodpeckerTasksGroup>),
     ForgejoTasks(Box<ForgejoTasksGroup>),
     Tailnet(Box<TailnetGroup>),
-    WireguardServer(Box<WireguardServerGroup>),
-    Vpn(Box<VpnGroup>),
+    WireguardTunnels(Box<WireguardTunnelsGroup>),
     LoginSession(Box<LoginSessionGroup>),
     BottomPanel(Box<ShowcasedNiriSession>),
     WorkspaceSidebar(Box<ShowcasedNiriSession>),
@@ -412,8 +410,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::WoodpeckerTasks(_)
             | ShowcasedGroup::ForgejoTasks(_)
             | ShowcasedGroup::Tailnet(_)
-            | ShowcasedGroup::WireguardServer(_)
-            | ShowcasedGroup::Vpn(_)
+            | ShowcasedGroup::WireguardTunnels(_)
             | ShowcasedGroup::Toasts(_) => Position::Top,
             ShowcasedGroup::MenuMembers(groups) => groups
                 .first()
@@ -496,10 +493,9 @@ impl ShowcasedGroup {
             ShowcasedGroup::Tailnet(group) => {
                 vec![group.group_content().map(ShowcaseMessage::Tailnet)]
             }
-            ShowcasedGroup::WireguardServer(group) => {
-                vec![group.group_content().map(ShowcaseMessage::WireguardServer)]
+            ShowcasedGroup::WireguardTunnels(group) => {
+                vec![group.group_content().map(ShowcaseMessage::WireguardTunnels)]
             }
-            ShowcasedGroup::Vpn(group) => vec![group.group_content().map(ShowcaseMessage::Vpn)],
             ShowcasedGroup::LoginSession(group) => {
                 vec![group.group_content().map(ShowcaseMessage::LoginSession)]
             }
@@ -623,18 +619,13 @@ impl ShowcasedGroup {
                     let _ = group.update(message, clock);
                 }
             }
-            ShowcasedGroup::WireguardServer(group) => {
-                if let ShowcaseMessage::WireguardServer(message) = message {
+            ShowcasedGroup::WireguardTunnels(group) => {
+                if let ShowcaseMessage::WireguardTunnels(message) = message {
                     let _ = group.update(message, clock);
                 }
             }
             ShowcasedGroup::Tailnet(group) => {
                 if let ShowcaseMessage::Tailnet(message) = message {
-                    let _ = group.update(message, clock);
-                }
-            }
-            ShowcasedGroup::Vpn(group) => {
-                if let ShowcaseMessage::Vpn(message) = message {
                     let _ = group.update(message, clock);
                 }
             }
@@ -708,11 +699,14 @@ impl ShowcasedGroup {
                     .map(ShowcaseMessage::VoiceDictation)
                     .collect()
             }
-            ShowcasedGroup::WireguardServer(group) => {
+            ShowcasedGroup::WireguardTunnels(group) => {
                 let _ = group.hover(Some(target), config, None, clock);
-                wireguard_server::on_hover()
+                let HoverTarget::WireguardTunnel(target) = target else {
+                    return Vec::new();
+                };
+                wireguard_tunnels::on_hover(target)
                     .into_iter()
-                    .map(ShowcaseMessage::WireguardServer)
+                    .map(ShowcaseMessage::WireguardTunnels)
                     .collect()
             }
             ShowcasedGroup::Tailnet(group) => {
@@ -720,19 +714,9 @@ impl ShowcasedGroup {
                 let HoverTarget::Tailnet(target) = target else {
                     return Vec::new();
                 };
-                tailnet::on_hover(*target)
+                tailnet::on_hover(target)
                     .into_iter()
                     .map(ShowcaseMessage::Tailnet)
-                    .collect()
-            }
-            ShowcasedGroup::Vpn(group) => {
-                let _ = group.hover(Some(target), config, None, clock);
-                let HoverTarget::Vpn(target) = target else {
-                    return Vec::new();
-                };
-                vpn::on_hover(target)
-                    .into_iter()
-                    .map(ShowcaseMessage::Vpn)
                     .collect()
             }
             ShowcasedGroup::LoginSession(group) => {
@@ -883,20 +867,14 @@ impl ShowcasedGroup {
                 };
                 group.hover_card_for(*target, &CaldavAccountConfig::default(), clock)
             }
-            ShowcasedGroup::WireguardServer(group) => {
-                let HoverTarget::WireguardServer(target) = target else {
+            ShowcasedGroup::WireguardTunnels(group) => {
+                let HoverTarget::WireguardTunnel(target) = target else {
                     return None;
                 };
                 group.hover_card_for(target, clock)
             }
             ShowcasedGroup::Tailnet(group) => {
                 let HoverTarget::Tailnet(target) = target else {
-                    return None;
-                };
-                group.hover_card_for(*target, clock)
-            }
-            ShowcasedGroup::Vpn(group) => {
-                let HoverTarget::Vpn(target) = target else {
                     return None;
                 };
                 group.hover_card_for(target, clock)
@@ -969,8 +947,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::WoodpeckerTasks(_)
             | ShowcasedGroup::ForgejoTasks(_)
             | ShowcasedGroup::Tailnet(_)
-            | ShowcasedGroup::WireguardServer(_)
-            | ShowcasedGroup::Vpn(_)
+            | ShowcasedGroup::WireguardTunnels(_)
             | ShowcasedGroup::LoginSession(_)
             | ShowcasedGroup::MenuMembers(_)
             | ShowcasedGroup::ShellSettings(_)

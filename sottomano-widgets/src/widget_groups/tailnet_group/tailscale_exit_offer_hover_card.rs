@@ -16,7 +16,7 @@ use crate::{
     },
 };
 
-const USE_BLOCKS_OFFERING_TEXT: &str = "this machine is using an exit node, see the VPN group";
+const USE_BLOCKS_OFFERING_TEXT: &str = "stop using the exit node first";
 
 pub(super) fn exit_offer_text(exit_offer: ExitNodeOffer) -> &'static str {
     match exit_offer {

@@ -588,14 +588,16 @@ mod tests {
             item_key: item_key.to_owned(),
         };
         let mut group_menus = GroupMenuState::default();
-        let _ = group_menus.update(toggle_in_hardware(sibling_item("Vpn(Wireguard(\"wg0\"))")));
+        let _ = group_menus.update(toggle_in_hardware(sibling_item(
+            "WireguardTunnel(WireguardTunnelTarget { interface: \"wg0\" })",
+        )));
         assert!(group_menus.is_pinned(
             GroupMenuTopic::Hardware,
-            sibling_item("Vpn(Wireguard(\"wg0\"))")
+            sibling_item("WireguardTunnel(WireguardTunnelTarget { interface: \"wg0\" })")
         ));
         assert!(!group_menus.is_pinned(
             GroupMenuTopic::Hardware,
-            sibling_item("Vpn(Wireguard(\"wg1\"))")
+            sibling_item("WireguardTunnel(WireguardTunnelTarget { interface: \"wg1\" })")
         ));
     }
 

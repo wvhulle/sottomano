@@ -23,12 +23,11 @@ use sottomano_widgets::{
         tailnet_group::TailnetTarget,
         virtual_machines_group::VirtualMachineTarget,
         voice_dictation_group::VoiceDictationTarget,
-        vpn_group::VpnTarget,
         wallpaper_group::WallpaperTarget,
         weather_group::WeatherTarget,
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         window_group::WindowTarget,
-        wireguard_server_group::WireguardServerTarget,
+        wireguard_tunnels_group::WireguardTunnelTarget,
     },
 };
 
@@ -37,7 +36,7 @@ use crate::{
         app_launcher, appearance_presets, audio, caldav, claude_usage, compute, gamepad,
         group_menu_members, idle_lock, login_session, media, memory_board, niri_session,
         notification_toasts, podman_engines, shell_settings, tailnet, unchanging, virtual_machines,
-        voice_dictation, vpn, wallpaper, weather, wireguard_server,
+        voice_dictation, wallpaper, weather, wireguard_tunnels,
     },
     showcase_message::ShowcaseMessage,
     showcased_group::ShowcasedGroup,
@@ -133,28 +132,28 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "vpn_tailscale",
-        group: vpn::group,
+        name: "tailnet_exit_node",
+        group: tailnet::group,
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Network),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
-            Step::PressText("VPN"),
-            Step::Hover(HoverTarget::Vpn(VpnTarget::TailscaleExitNode(
-                Cow::Borrowed(vpn::HOME_EXIT_NODE_IP),
-            ))),
+            Step::PressText("Tailscale"),
+            Step::Hover(HoverTarget::Tailnet(TailnetTarget::ExitNodeChoice {
+                exit_node_ip: Cow::Borrowed(tailnet::HOME_EXIT_NODE_IP),
+            })),
         ],
     },
     Demo {
-        name: "wireguard_server",
-        group: wireguard_server::group,
+        name: "wireguard_tunnels",
+        group: wireguard_tunnels::group,
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Network),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
-            Step::PressText("WireGuard server"),
-            Step::Hover(HoverTarget::WireguardServer(WireguardServerTarget {
-                interface: Cow::Borrowed(wireguard_server::HOME_SERVER_TUNNEL_NAME),
+            Step::PressText("WireGuard"),
+            Step::Hover(HoverTarget::WireguardTunnel(WireguardTunnelTarget {
+                interface: Cow::Borrowed(wireguard_tunnels::HOME_SERVER_TUNNEL_NAME),
             })),
         ],
     },

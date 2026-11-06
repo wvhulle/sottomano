@@ -16,9 +16,9 @@ The controller drawn with every bound button labelled in place.
 
 ## Other readings
 
-The [README](../../README.md) shows the VPN and dictation groups; these open from the same groups.
+The [README](../../README.md) shows the Tailscale and dictation groups; these open from the same groups.
 
 | Reading | What it shows |
 |---|---|
-| VPN: WireGuard | A WireGuard client tunnel and the server this machine runs, with each peer's last handshake and traffic. |
+| WireGuard: Tunnels | Each WireGuard tunnel by its connection name, client or server, with each peer's last handshake and traffic. |
 | Dictation: Pipeline | What the dictation daemon is doing right now and how fast the last pass decoded. |

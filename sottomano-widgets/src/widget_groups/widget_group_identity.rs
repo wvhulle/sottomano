@@ -51,11 +51,11 @@ pub enum WidgetGroupFamily {
     Tray,
     VirtualMachines,
     VoiceDictation,
-    Vpn,
+    NetworkManagerVpns,
     Wallpaper,
     Weather,
     WifiAdapters,
-    WireguardServer,
+    WireguardTunnels,
     WoodpeckerTasks,
 }
 
@@ -106,11 +106,11 @@ impl WidgetGroupFamily {
             WidgetGroupFamily::Tailnet => "Tailscale",
             WidgetGroupFamily::Tray => "Tray",
             WidgetGroupFamily::VoiceDictation => "Voice dictation",
-            WidgetGroupFamily::Vpn => "VPN",
+            WidgetGroupFamily::NetworkManagerVpns => "VPN",
             WidgetGroupFamily::Wallpaper => "Wallpaper",
             WidgetGroupFamily::Weather => "Weather",
             WidgetGroupFamily::WifiAdapters => "Wi-Fi",
-            WidgetGroupFamily::WireguardServer => "WireGuard server",
+            WidgetGroupFamily::WireguardTunnels => "WireGuard",
         }
     }
 

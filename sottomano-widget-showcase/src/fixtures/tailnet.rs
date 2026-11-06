@@ -6,6 +6,10 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     network_connectivity::{
+        tailscale_exit_nodes::{
+            ExitNodeChoices, ExitNodeLanAccess, ExitNodeOption, ExitNodeReachability,
+            TailscaleExitNodes,
+        },
         tailscale_inbound_access::{
             InboundAccessRule, InboundPorts, InboundReach, TailscaleInboundAccess,
         },
@@ -20,12 +24,21 @@ use sottomano_widgets::{
 use crate::showcased_group::ShowcasedGroup;
 
 const KEY_EXPIRY_DAYS: i64 = 9;
+const OFFLINE_EXIT_NODE_DAYS: i64 = 14;
+pub const HOME_EXIT_NODE_IP: &str = "100.88.40.2";
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut tailnet_group = TailnetGroup::without_policy_file();
     let _ = tailnet_group.update(
         TailnetMessage::Tailscale(SnapshotDelivery::fixture_delivered(
             Ok(Tailscale::Running(Box::new(home_tailnet(clock)))),
+            DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(10))),
+        )),
+        clock,
+    );
+    let _ = tailnet_group.update(
+        TailnetMessage::ExitNodesDelivered(SnapshotDelivery::fixture_delivered(
+            Ok(TailscaleExitNodes::Running(home_exit_nodes(clock))),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(10))),
         )),
         clock,
@@ -100,12 +113,38 @@ fn home_tailnet(clock: Clock) -> Tailnet {
     }
 }
 
-pub fn on_hover(target: TailnetTarget) -> Vec<TailnetMessage> {
+fn home_exit_nodes(clock: Clock) -> ExitNodeChoices {
+    ExitNodeChoices {
+        options: vec![
+            ExitNodeOption {
+                name: "home-server".to_owned(),
+                ip: HOME_EXIT_NODE_IP.to_owned(),
+                reachability: ExitNodeReachability::Online,
+                in_use: true,
+            },
+            ExitNodeOption {
+                name: "office-laptop".to_owned(),
+                ip: "100.70.3.9".to_owned(),
+                reachability: ExitNodeReachability::OfflineSince(
+                    clock.utc() - TimeDelta::days(OFFLINE_EXIT_NODE_DAYS),
+                ),
+                in_use: false,
+            },
+        ],
+        offer: ExitNodeOffer::NotOffered,
+        lan_access: ExitNodeLanAccess::Allowed,
+    }
+}
+
+pub fn on_hover(target: &TailnetTarget) -> Vec<TailnetMessage> {
     match target {
         TailnetTarget::Membership
         | TailnetTarget::OwnNode
         | TailnetTarget::PolicyFile
-        | TailnetTarget::ExitOffer => Vec::new(),
+        | TailnetTarget::ExitOffer
+        | TailnetTarget::ExitNodeChoice { .. }
+        | TailnetTarget::ExitNodeLanAccess
+        | TailnetTarget::ExitNodeListFailure => Vec::new(),
         TailnetTarget::InboundAccess => vec![TailnetMessage::InboundAccessFetched(
             SnapshotDelivery::single_read(Ok(TailscaleInboundAccess {
                 rules: vec![

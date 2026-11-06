@@ -909,7 +909,7 @@ mod tests {
         let expansion = WidgetGroupExpansion::default();
         let group_pressing = |description| {
             WidgetGroupContent::expandable(
-                WidgetGroupFamily::Vpn,
+                WidgetGroupFamily::NetworkManagerVpns,
                 &expansion,
                 |_| (),
                 [

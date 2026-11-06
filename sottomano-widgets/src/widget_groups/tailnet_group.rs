@@ -1,13 +1,17 @@
-use std::path::PathBuf;
+use std::{borrow::Cow, path::PathBuf};
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::tailscale_cli_switches::{
-    open_admin, switch_exit_offer, switch_tailscale,
+    open_admin, switch_exit_offer, switch_exit_routing, switch_tailscale,
 };
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
         internet_connectivity_gate::OnlineSourceInputs,
+        tailscale_exit_nodes::{
+            ExitNodeChoices, ExitNodeControl, ExitNodeLanAccess, ExitNodeOption, ExitRoutingSwitch,
+            TailscaleExitNodes,
+        },
         tailscale_inbound_access::TailscaleInboundAccess,
         tailscale_policy_file::{PolicyFileError, TailscalePolicyFile},
         tailscale_status::{
@@ -33,6 +37,7 @@ use crate::{
     widget_groups::{
         tailnet_group::{
             tailscale_access_hover_card::{InboundAccessRow, OwnNodeRow, PolicyFileRow},
+            tailscale_exit_node_hover_card::{ExitNodeChoiceRow, ExitNodeLanAccessRow},
             tailscale_exit_offer_hover_card::ExitOfferRow,
         },
         widget_group_content::{
@@ -47,16 +52,20 @@ use crate::{
 };
 
 mod tailscale_access_hover_card;
+mod tailscale_exit_node_hover_card;
 mod tailscale_exit_offer_hover_card;
 mod tailscale_mesh_hover_card;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TailnetTarget {
     Membership,
     OwnNode,
     InboundAccess,
     PolicyFile,
     ExitOffer,
+    ExitNodeChoice { exit_node_ip: Cow<'static, str> },
+    ExitNodeLanAccess,
+    ExitNodeListFailure,
 }
 
 impl From<TailnetTarget> for HoverTarget {
@@ -100,6 +109,7 @@ impl PolicyFileAccess {
 
 pub struct TailnetGroup {
     tailscale: LatestSnapshot<Tailscale>,
+    tailscale_exit_nodes: LatestSnapshot<TailscaleExitNodes>,
     inbound_access: HoverFetchedSnapshot<TailscaleInboundAccess>,
     policy_file_access: PolicyFileAccess,
     expansion: WidgetGroupExpansion,
@@ -108,11 +118,13 @@ pub struct TailnetGroup {
 #[derive(Debug, Clone)]
 pub enum TailnetMessage {
     Tailscale(SnapshotDelivery<Tailscale>),
+    ExitNodesDelivered(SnapshotDelivery<TailscaleExitNodes>),
     InboundAccessFetched(SnapshotDelivery<TailscaleInboundAccess>),
     PolicyFileFetched(SnapshotDelivery<TailscalePolicyFile>),
     Expansion(WidgetGroupExpansionMessage),
     SwitchTailscale(TailscaleSwitch),
     SwitchExitOffer(ExitOfferSwitch),
+    SwitchExitRouting(ExitRoutingSwitch),
     OpenAdminConsole,
 }
 
@@ -133,6 +145,7 @@ impl TailnetGroup {
     fn with_access(policy_file_access: PolicyFileAccess) -> Self {
         Self {
             tailscale: LatestSnapshot::default(),
+            tailscale_exit_nodes: LatestSnapshot::default(),
             inbound_access: HoverFetchedSnapshot::default(),
             policy_file_access,
             expansion: WidgetGroupExpansion::default(),
@@ -144,18 +157,31 @@ impl TailnetGroup {
     }
 
     pub fn subscription(&self, demand: &GroupSourceDemand) -> Subscription<TailnetMessage> {
-        demand
-            .while_face_shown(snapshot_subscription::<Tailscale>(()).map(TailnetMessage::Tailscale))
+        Subscription::batch([
+            demand.while_face_shown(
+                snapshot_subscription::<Tailscale>(()).map(TailnetMessage::Tailscale),
+            ),
+            demand.while_face_shown(
+                snapshot_subscription::<TailscaleExitNodes>(())
+                    .map(TailnetMessage::ExitNodesDelivered),
+            ),
+        ])
     }
 
     pub fn refresh() -> Task<TailnetMessage> {
-        first_delivery::<Tailscale>(()).map(TailnetMessage::Tailscale)
+        Task::batch([
+            first_delivery::<Tailscale>(()).map(TailnetMessage::Tailscale),
+            first_delivery::<TailscaleExitNodes>(()).map(TailnetMessage::ExitNodesDelivered),
+        ])
     }
 
     pub fn update(&mut self, message: TailnetMessage, clock: Clock) -> Task<TailnetMessage> {
         use sottomano_desktop_sources::blocking_background_work::blocking;
         match message {
             TailnetMessage::Tailscale(delivery) => self.tailscale.receive(delivery, clock),
+            TailnetMessage::ExitNodesDelivered(delivery) => {
+                self.tailscale_exit_nodes.receive(delivery, clock);
+            }
             TailnetMessage::InboundAccessFetched(delivery) => {
                 self.inbound_access.receive(delivery, clock);
             }
@@ -170,6 +196,10 @@ impl TailnetGroup {
             }
             TailnetMessage::SwitchExitOffer(exit_offer_switch) => {
                 return Task::future(switch_exit_offer(exit_offer_switch))
+                    .then(|()| Self::refresh());
+            }
+            TailnetMessage::SwitchExitRouting(exit_routing_switch) => {
+                return Task::future(switch_exit_routing(exit_routing_switch))
                     .then(|()| Self::refresh());
             }
             TailnetMessage::OpenAdminConsole => {
@@ -218,7 +248,7 @@ impl TailnetGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: TailnetTarget, clock: Clock) -> Option<HoverCard> {
+    pub fn hover_card_for(&self, target: &TailnetTarget, clock: Clock) -> Option<HoverCard> {
         match target {
             TailnetTarget::Membership => self.tailscale.hover_card(clock),
             TailnetTarget::ExitOffer => {
@@ -237,6 +267,26 @@ impl TailnetGroup {
             TailnetTarget::PolicyFile => {
                 Some(HoverCard::grouped(self.policy_file_access.sections(clock)))
             }
+            TailnetTarget::ExitNodeChoice { exit_node_ip } => {
+                let exit_node_choices = self.running_exit_node_choices()?;
+                let exit_node_option = exit_node_choices
+                    .options
+                    .iter()
+                    .find(|exit_node_option| exit_node_option.ip == exit_node_ip.as_ref())?;
+                self.tailscale_exit_nodes.hover_card_with(
+                    ExitNodeChoiceRow {
+                        exit_node_option,
+                        exit_node_choices,
+                    }
+                    .hover_card(clock),
+                )
+            }
+            TailnetTarget::ExitNodeLanAccess => {
+                let exit_node_choices = self.running_exit_node_choices()?;
+                self.tailscale_exit_nodes
+                    .hover_card_with(ExitNodeLanAccessRow { exit_node_choices }.hover_card(clock))
+            }
+            TailnetTarget::ExitNodeListFailure => self.tailscale_exit_nodes.hover_card(clock),
         }
     }
 
@@ -298,6 +348,77 @@ impl TailnetGroup {
         }
     }
 
+    fn running_exit_node_choices(&self) -> Option<&ExitNodeChoices> {
+        match self.tailscale_exit_nodes.get()? {
+            TailscaleExitNodes::Running(exit_node_choices) => Some(exit_node_choices),
+            TailscaleExitNodes::NotRunning => None,
+        }
+    }
+
+    fn exit_node_choice_item<'a>(
+        exit_node_option: &'a ExitNodeOption,
+        exit_node_choices: &'a ExitNodeChoices,
+    ) -> GroupItem<'a, TailnetMessage> {
+        let exit_node_item = GroupItem::reading(
+            ExitNodeChoiceRow {
+                exit_node_option,
+                exit_node_choices,
+            },
+            TailnetTarget::ExitNodeChoice {
+                exit_node_ip: Cow::Owned(exit_node_option.ip.clone()),
+            },
+        )
+        .previewed_on_handle_if(exit_node_option.in_use);
+        match exit_node_choices.control_for_option(exit_node_option) {
+            ExitNodeControl::Switchable(exit_routing_switch) => exit_node_item.on_switch_press(
+                exit_node_option.in_use,
+                if exit_node_option.in_use {
+                    "stop using the exit node"
+                } else {
+                    "use the exit node"
+                },
+                TailnetMessage::SwitchExitRouting(exit_routing_switch),
+            ),
+            ExitNodeControl::BlockedByOffering | ExitNodeControl::Offline => exit_node_item,
+        }
+    }
+
+    fn exit_node_lan_access_item(
+        exit_node_choices: &ExitNodeChoices,
+    ) -> GroupItem<'_, TailnetMessage> {
+        let lan_access_allowed = exit_node_choices.lan_access == ExitNodeLanAccess::Allowed;
+        GroupItem::reading(
+            ExitNodeLanAccessRow { exit_node_choices },
+            TailnetTarget::ExitNodeLanAccess,
+        )
+        .on_switch_press(
+            lan_access_allowed,
+            if lan_access_allowed {
+                "cut local network access through exit nodes"
+            } else {
+                "keep local network access through exit nodes"
+            },
+            TailnetMessage::SwitchExitRouting(exit_node_choices.lan_access_switch()),
+        )
+    }
+
+    fn exit_node_choice_items(&self) -> Vec<GroupItem<'_, TailnetMessage>> {
+        let Some(exit_node_choices) = self.running_exit_node_choices() else {
+            return Vec::new();
+        };
+        exit_node_choices
+            .options
+            .iter()
+            .map(|exit_node_option| {
+                Self::exit_node_choice_item(exit_node_option, exit_node_choices)
+            })
+            .chain(
+                (!exit_node_choices.options.is_empty())
+                    .then(|| Self::exit_node_lan_access_item(exit_node_choices)),
+            )
+            .collect()
+    }
+
     pub fn group_content(&self) -> WidgetGroupContent<'_, TailnetMessage> {
         let own_node_item = self
             .tailscale
@@ -316,7 +437,11 @@ impl TailnetGroup {
                 .chain(own_node_item)
                 .chain(inbound_access_item)
                 .chain(self.policy_file_item())
-                .chain(self.running_tailnet().map(Self::exit_offer_item)),
+                .chain(self.running_tailnet().map(Self::exit_offer_item))
+                .chain(self.exit_node_choice_items())
+                .chain(self.tailscale_exit_nodes.failure().map(|failure_reading| {
+                    GroupItem::reading(failure_reading, TailnetTarget::ExitNodeListFailure)
+                })),
         )
         .face(WidgetGroupFace::Icon {
             glyph: SimpleIcon::Tailscale.into(),
@@ -326,8 +451,9 @@ impl TailnetGroup {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_desktop_sources::network_connectivity::tailscale_status::{
-        ExitNodeOffer, KeyExpiry, Peer, PeerPath,
+    use sottomano_desktop_sources::network_connectivity::{
+        tailscale_exit_nodes::ExitNodeReachability,
+        tailscale_status::{ExitNodeOffer, KeyExpiry, Peer, PeerPath},
     };
 
     use super::*;
@@ -393,6 +519,59 @@ mod tests {
                 message: TailnetMessage::SwitchExitOffer(ExitOfferSwitch::StopOffering),
                 ..
             }
+        ));
+    }
+
+    fn reachable_exit_node(reachability: ExitNodeReachability) -> ExitNodeOption {
+        ExitNodeOption {
+            name: "zbook".to_owned(),
+            ip: "100.1.1.1".to_owned(),
+            reachability,
+            in_use: false,
+        }
+    }
+
+    fn exit_node_choices_while(exit_offer: ExitNodeOffer) -> ExitNodeChoices {
+        ExitNodeChoices {
+            options: Vec::new(),
+            offer: exit_offer,
+            lan_access: ExitNodeLanAccess::Blocked,
+        }
+    }
+
+    fn exit_node_press_is_inert(
+        exit_node_option: &ExitNodeOption,
+        exit_node_choices: &ExitNodeChoices,
+    ) -> bool {
+        matches!(
+            TailnetGroup::exit_node_choice_item(exit_node_option, exit_node_choices)
+                .gestures()
+                .left,
+            GroupItemGesture::Inert
+        )
+    }
+
+    #[test]
+    fn an_online_exit_node_row_can_be_pressed() {
+        assert!(!exit_node_press_is_inert(
+            &reachable_exit_node(ExitNodeReachability::Online),
+            &exit_node_choices_while(ExitNodeOffer::NotOffered),
+        ));
+    }
+
+    #[test]
+    fn an_exit_node_row_is_inert_while_this_machine_advertises() {
+        assert!(exit_node_press_is_inert(
+            &reachable_exit_node(ExitNodeReachability::Online),
+            &exit_node_choices_while(ExitNodeOffer::Approved),
+        ));
+    }
+
+    #[test]
+    fn an_offline_exit_node_row_is_inert() {
+        assert!(exit_node_press_is_inert(
+            &reachable_exit_node(ExitNodeReachability::OfflineNeverSeen),
+            &exit_node_choices_while(ExitNodeOffer::NotOffered),
         ));
     }
 }

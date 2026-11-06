@@ -31,12 +31,12 @@ Hovering the info icon of the temperature opens the forecast for the coming hour
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_conditions.webp" width="905" alt="Hovering the temperature in the weather group">
 
-### VPN: Tailscale
+### Tailscale: Exit node
 
-The tailnet: how each peer is reached, the exit node and when the key expires,
-next to the NetworkManager VPNs and WireGuard client and server tunnels.
+The tailnet: how each peer is reached, when the key expires, and which exit
+node carries the traffic, next to the switch that offers this machine as one.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/vpn_tailscale.webp" width="1099" alt="Opening the VPN group from the Network menu and hovering Tailscale">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/tailnet_exit_node.webp" width="1099" alt="Opening the Tailscale group from the Network menu and hovering an exit node">
 
 ### Dictation: Speech model
 

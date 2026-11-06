@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::network_connectivity::wireguard_tunnels::{
     Peer, PeerEndpoint, PeerTraffic, StatisticsAccess, Tunnel, TunnelAddress, TunnelRole,
@@ -243,10 +245,17 @@ impl GroupItemReading for Tunnel {
         "WireGuard tunnel"
     }
 
+    fn menu_row_name(&self) -> Cow<'static, str> {
+        self.name.clone().into()
+    }
+
     fn icon(&self) -> IconGlyph {
         match self.role {
-            TunnelRole::Server { .. } => Phosphor::ArrowsInSimple(Weight::Regular).into(),
-            TunnelRole::Client => Phosphor::MapPinLine(Weight::Regular).into(),
+            TunnelRole::Server { .. } => Phosphor::HardDrives(Weight::Regular).into(),
+            TunnelRole::Client if self.peers.iter().any(Peer::routes_all_traffic) => {
+                Phosphor::GlobeHemisphereWest(Weight::Regular).into()
+            }
+            TunnelRole::Client => Phosphor::PlugsConnected(Weight::Regular).into(),
             TunnelRole::Undetermined => SimpleIcon::WireGuard.into(),
         }
     }
