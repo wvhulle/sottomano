@@ -8,6 +8,8 @@ pub mod filesystem_device_errors;
 pub mod mounted_filesystem_usage;
 pub mod whole_disk_space_occupancy;
 
+use std::{fs, path::Path, str::FromStr};
+
 use crate::{blocking_background_work::Panicked, system_protocol_clients::shell_command_output};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -33,4 +35,19 @@ impl From<Panicked> for Error {
     fn from(Panicked: Panicked) -> Self {
         Error::Panicked
     }
+}
+
+pub(crate) fn unparsable_disk_file(path: &Path) -> Error {
+    Error::Unparsable(path.display().to_string())
+}
+
+pub(crate) fn read_disk_text(path: &Path) -> Result<String, Error> {
+    fs::read_to_string(path).map_err(|_| Error::Unreadable(path.display().to_string()))
+}
+
+pub(crate) fn read_disk_value<T: FromStr>(path: &Path) -> Result<T, Error> {
+    read_disk_text(path)?
+        .trim()
+        .parse()
+        .map_err(|_| unparsable_disk_file(path))
 }

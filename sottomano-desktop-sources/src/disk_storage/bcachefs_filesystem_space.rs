@@ -1,7 +1,4 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{fs, path::PathBuf};
 
 use bytesize::ByteSize;
 
@@ -9,6 +6,7 @@ use super::{
     Error,
     block_filesystem_mounts::KernelDevice,
     filesystem_device_errors::{DeviceErrors, ErrorCount},
+    read_disk_text, read_disk_value, unparsable_disk_file,
 };
 use crate::system_protocol_clients::sysfs_attribute_reads::list_dir;
 
@@ -110,14 +108,16 @@ impl BcachefsFilesystem {
                 .iter()
                 .map(BcachefsMember::space)
                 .collect::<Result<_, _>>()?,
-            metadata_replicas: read_parsed(&self.option_path("metadata_replicas"))?,
-            data_replicas: read_parsed(&self.option_path("data_replicas"))?,
-            compression: read_trimmed_text(&self.option_path("compression"))?,
-            background_compression: read_trimmed_text(&self.option_path("background_compression"))?,
-            compressed_extents: CompressedExtents::parse(&read_text(
+            metadata_replicas: read_disk_value(&self.option_path("metadata_replicas"))?,
+            data_replicas: read_disk_value(&self.option_path("data_replicas"))?,
+            compression: read_disk_value::<String>(&self.option_path("compression"))?,
+            background_compression: read_disk_value::<String>(
+                &self.option_path("background_compression"),
+            )?,
+            compressed_extents: CompressedExtents::parse(&read_disk_text(
                 &self.dir.join("compression_stats"),
             )?),
-            snapshot_deletion: SnapshotDeletion::parse(&read_text(
+            snapshot_deletion: SnapshotDeletion::parse(&read_disk_text(
                 &self.dir.join("snapshot_delete_status"),
             )?),
         })
@@ -135,7 +135,7 @@ impl BcachefsFilesystem {
         let path = member.dir.join("io_errors");
         Ok(DeviceErrors {
             counted_on: member.partition.clone(),
-            counts: parse_errors_since_reset(&read_text(&path)?),
+            counts: parse_errors_since_reset(&read_disk_text(&path)?),
             reset_command: format!(
                 "echo 1 | sudo tee {}",
                 member.dir.join("io_errors_reset").display()
@@ -171,13 +171,13 @@ impl BcachefsMember {
 
     fn space(&self) -> Result<BcachefsDeviceSpace, Error> {
         let bucket_size_path = self.dir.join("bucket_size");
-        let bucket_bytes = parse_human_size(&read_text(&bucket_size_path)?)
-            .ok_or_else(|| unparsable(&bucket_size_path))?;
+        let bucket_bytes = parse_human_size(&read_disk_text(&bucket_size_path)?)
+            .ok_or_else(|| unparsable_disk_file(&bucket_size_path))?;
         let alloc_path = self.dir.join("alloc_debug");
-        let buckets =
-            BucketCounts::parse(&read_text(&alloc_path)?).ok_or_else(|| unparsable(&alloc_path))?;
+        let buckets = BucketCounts::parse(&read_disk_text(&alloc_path)?)
+            .ok_or_else(|| unparsable_disk_file(&alloc_path))?;
         let state_path = self.dir.join("state");
-        let label = read_trimmed_text(&self.dir.join("label"))?;
+        let label = read_disk_value::<String>(&self.dir.join("label"))?;
         Ok(BcachefsDeviceSpace {
             label: if label.is_empty() {
                 self.partition.clone()
@@ -185,12 +185,12 @@ impl BcachefsMember {
                 label
             },
             partition: self.partition.clone(),
-            state: selected_choice(&read_text(&state_path)?)
-                .ok_or_else(|| unparsable(&state_path))?
+            state: selected_choice(&read_disk_text(&state_path)?)
+                .ok_or_else(|| unparsable_disk_file(&state_path))?
                 .to_owned(),
             free: ByteSize::b(buckets.reusable * bucket_bytes),
             capacity: ByteSize::b(buckets.capacity * bucket_bytes),
-            holds_metadata: read_text(&self.dir.join("data_allowed"))?
+            holds_metadata: read_disk_text(&self.dir.join("data_allowed"))?
                 .trim()
                 .split(',')
                 .any(|data_type| data_type == METADATA_DATA_TYPE),
@@ -294,25 +294,6 @@ fn parse_human_size(text: &str) -> Option<u64> {
     };
     let value: f64 = number.parse().ok()?;
     Some((value * multiplier as f64).round() as u64)
-}
-
-fn unparsable(path: &Path) -> Error {
-    Error::Unparsable(path.display().to_string())
-}
-
-fn read_text(path: &Path) -> Result<String, Error> {
-    fs::read_to_string(path).map_err(|_| Error::Unreadable(path.display().to_string()))
-}
-
-fn read_trimmed_text(path: &Path) -> Result<String, Error> {
-    read_text(path).map(|text| text.trim().to_owned())
-}
-
-fn read_parsed(path: &Path) -> Result<usize, Error> {
-    read_text(path)?
-        .trim()
-        .parse()
-        .map_err(|_| unparsable(path))
 }
 
 #[cfg(test)]
