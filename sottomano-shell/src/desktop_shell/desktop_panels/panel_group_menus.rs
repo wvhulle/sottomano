@@ -38,7 +38,6 @@ impl DesktopShell {
             GroupMenuTopic::Media => self.media_group_menu(),
             GroupMenuTopic::Display => self.display_group_menu(),
             GroupMenuTopic::Services => self.services_group_menu(),
-            GroupMenuTopic::ContinuousIntegration => self.continuous_integration_group_menu(),
             GroupMenuTopic::Session => self.session_group_menu(),
             GroupMenuTopic::Appearance => self.group_menu(
                 GroupMenuTopic::Appearance,
@@ -329,24 +328,6 @@ impl DesktopShell {
         )
     }
 
-    fn continuous_integration_group_menu(&self) -> GroupMenuView<'_, Message> {
-        self.group_menu(
-            GroupMenuTopic::ContinuousIntegration,
-            [
-                self.widget_groups
-                    .woodpecker_tasks_group
-                    .group_content(|message| {
-                        Message::WoodpeckerTasks(CiTasksMessage::Expansion(message))
-                    }),
-                self.widget_groups
-                    .forgejo_tasks_group
-                    .group_content(|message| {
-                        Message::ForgejoTasks(CiTasksMessage::Expansion(message))
-                    }),
-            ],
-        )
-    }
-
     fn services_group_menu(&self) -> GroupMenuView<'_, Message> {
         let config = &self.config;
         self.group_menu(
@@ -360,6 +341,16 @@ impl DesktopShell {
                     .podman_engines_group
                     .group_content()
                     .map(Message::PodmanEngines),
+                self.widget_groups
+                    .woodpecker_tasks_group
+                    .group_content(|message| {
+                        Message::WoodpeckerTasks(CiTasksMessage::Expansion(message))
+                    }),
+                self.widget_groups
+                    .forgejo_tasks_group
+                    .group_content(|message| {
+                        Message::ForgejoTasks(CiTasksMessage::Expansion(message))
+                    }),
                 self.widget_groups
                     .virtual_machines_group
                     .group_content()

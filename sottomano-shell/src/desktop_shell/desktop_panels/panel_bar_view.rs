@@ -9,7 +9,6 @@ use sottomano_widgets::{
         panel_frame::{OutlinedSides, outlined_sides_inward_of, panel_frame},
         region_reporter::{RegionRoles, region_reporter},
     },
-    group_menus::group_menu_state::GroupMenuTopic,
     hover_cards::HoverTarget,
     widget_groups::{sidebar_settings_group::WorkspacesPlacement, workspaces_group::inline_strip},
 };
@@ -58,18 +57,6 @@ impl DesktopShell {
     ) -> Vec<Element<'a, Message>> {
         let config = &self.config;
         match entry {
-            PanelZoneEntry::Menu(GroupMenuTopic::ContinuousIntegration)
-                if self
-                    .widget_groups
-                    .woodpecker_tasks_group
-                    .no_runners_discovered()
-                    && self
-                        .widget_groups
-                        .forgejo_tasks_group
-                        .no_runners_discovered() =>
-            {
-                Vec::new()
-            }
             PanelZoneEntry::Menu(topic) => self
                 .group_menu_of(topic, output)
                 .panel_views(

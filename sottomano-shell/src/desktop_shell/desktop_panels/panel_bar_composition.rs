@@ -88,7 +88,6 @@ pub(in crate::desktop_shell) const BOTTOM_PANEL: PanelBarComposition = PanelBarC
     ],
     center: &[Menu(GroupMenuTopic::Applications), OutputWindows],
     end: &[
-        Menu(GroupMenuTopic::ContinuousIntegration),
         Menu(GroupMenuTopic::Services),
         Menu(GroupMenuTopic::Session),
         Standalone(Tray),

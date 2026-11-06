@@ -291,11 +291,6 @@ impl<S: CiRunnerSnapshot> CiTasksGroup<S> {
         self.expansion.collapse();
     }
 
-    #[must_use]
-    pub fn no_runners_discovered(&self) -> bool {
-        self.discovered_runners.is_empty()
-    }
-
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<CiTasksMessage<S>> {
         Subscription::batch(
             [DiscoveredSystemdServices::subscription(buses).map(CiTasksMessage::Services)]

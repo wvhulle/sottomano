@@ -215,13 +215,11 @@ pub const DEMOS: &[Demo] = &[
     },
     Demo {
         name: "ci_runner_tasks",
-        group: group_menu_members::continuous_integration_group_menu,
+        group: group_menu_members::ci_runner_menu_members,
         live: unchanging,
-        shown: GroupShown::InMenu(GroupMenuTopic::ContinuousIntegration),
+        shown: GroupShown::InMenu(GroupMenuTopic::Services),
         script: &[
-            Step::Press(HoverTarget::GroupMenu(
-                GroupMenuTopic::ContinuousIntegration,
-            )),
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
             Step::PressText("Woodpecker"),
         ],
     },
