@@ -18,6 +18,7 @@ use sottomano_widgets::{
         woodpecker_tasks_group::WoodpeckerTasksGroup,
     },
 };
+use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
     fixtures::systemd_service_units::{ShownService, services_delivered},
@@ -86,7 +87,7 @@ pub fn woodpecker_group(clock: Clock) -> ShowcasedGroup {
         "#185",
         "run-tests",
         TaskUsage::Measured {
-            cpu_load: ProcessTreeCpuLoad::BusyCores(6.2),
+            cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(18.6)),
             resident_memory: ByteSize::gib(4),
         },
         Duration::from_mins(10),
@@ -97,7 +98,7 @@ pub fn woodpecker_group(clock: Clock) -> ShowcasedGroup {
         "#201",
         "clone",
         TaskUsage::Measured {
-            cpu_load: ProcessTreeCpuLoad::BusyCores(3.8),
+            cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(11.4)),
             resident_memory: ByteSize::gib(1),
         },
         Duration::from_mins(2),
@@ -158,7 +159,7 @@ pub fn forgejo_group(clock: Clock) -> ShowcasedGroup {
                             "11282424",
                             "build",
                             TaskUsage::Measured {
-                                cpu_load: ProcessTreeCpuLoad::BusyCores(1.1),
+                                cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(3.3)),
                                 resident_memory: ByteSize::mib(640),
                             },
                             Duration::from_mins(1),

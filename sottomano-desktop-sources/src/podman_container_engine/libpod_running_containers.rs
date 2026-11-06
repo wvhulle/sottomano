@@ -343,9 +343,13 @@ mod tests {
         io::{AsyncReadExt, AsyncWriteExt},
         net::UnixListener,
     };
+    use uom::si::{f64::Ratio, ratio::percent};
 
     use super::*;
-    use crate::system_protocol_clients::procfs_process_tree::ProcessSample;
+    use crate::{
+        desktop_windows_apps::process_tree_inspection::CpuCapacity,
+        system_protocol_clients::procfs_process_tree::ProcessSample,
+    };
 
     fn listed_step_container() -> ListedContainer {
         serde_json::from_value(json!({
@@ -381,6 +385,8 @@ mod tests {
     #[test]
     fn cpu_load_needs_two_samples_and_memory_is_the_tree_sum() {
         let mut sampler = EngineSampler::new(PathBuf::from("/nonexistent"));
+        sampler.checkpoints_by_id =
+            CpuTickCheckpoints::with_capacity(CpuCapacity::of_logical_cpus(4));
         let started = Instant::now();
         let first_table = ProcessTable::from_samples([ProcessSample {
             pid: 10,
@@ -406,10 +412,10 @@ mod tests {
             &second_table,
             started + Duration::from_secs(5),
         );
-        let ProcessTreeCpuLoad::BusyCores(cores) = second.containers[0].cpu_load else {
+        let ProcessTreeCpuLoad::BusyShare(share) = second.containers[0].cpu_load else {
             panic!("a second sample yields a load");
         };
-        assert!((cores - 2.0).abs() < 1e-9);
+        assert!((share.get::<percent>() - 50.0).abs() < 1e-9);
     }
 
     #[test]
@@ -432,7 +438,7 @@ mod tests {
         );
         assert_eq!(
             shrunk.containers[0].cpu_load,
-            ProcessTreeCpuLoad::BusyCores(0.0)
+            ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(0.0))
         );
     }
 

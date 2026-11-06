@@ -20,6 +20,7 @@ use sottomano_widgets::{
     clock::Clock,
     widget_groups::virtual_machines_group::{VirtualMachinesGroup, VirtualMachinesMessage},
 };
+use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::showcased_group::ShowcasedGroup;
 
@@ -51,7 +52,7 @@ fn interactive_sample_vm(clock: Clock) -> RunningVirtualMachine {
             qmp_socket,
         )),
         started_at: clock.wall - Duration::from_mins(12),
-        cpu_load: ProcessTreeCpuLoad::BusyCores(0.4),
+        cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(1.2)),
         resident_memory: ByteSize::mib(1150),
     }
 }
@@ -73,7 +74,7 @@ fn nixos_test_vm(clock: Clock) -> RunningVirtualMachine {
         run_state: GuestRunState::Unreported,
         power_control: GuestPowerControl::Unavailable,
         started_at: clock.wall - Duration::from_secs(40),
-        cpu_load: ProcessTreeCpuLoad::BusyCores(1.8),
+        cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(5.4)),
         resident_memory: ByteSize::mib(760),
     }
 }
@@ -95,7 +96,7 @@ fn paused_libvirt_domain(clock: Clock) -> RunningVirtualMachine {
         run_state: GuestRunState::Paused,
         power_control: GuestPowerControl::LibvirtDomain("windows11".to_owned()),
         started_at: clock.wall - Duration::from_hours(3),
-        cpu_load: ProcessTreeCpuLoad::BusyCores(0.0),
+        cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(0.0)),
         resident_memory: ByteSize::gib(6),
     }
 }

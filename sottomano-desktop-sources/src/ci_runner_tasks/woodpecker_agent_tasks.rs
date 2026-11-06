@@ -169,6 +169,7 @@ mod tests {
     use bytesize::ByteSize;
     use chrono::DateTime;
     use serde_json::json;
+    use uom::si::{f64::Ratio, ratio::percent};
 
     use super::*;
     use crate::{
@@ -194,7 +195,7 @@ mod tests {
                 workflow_name: "checks".to_owned(),
                 step_name: step_name.to_owned(),
             }),
-            cpu_load: ProcessTreeCpuLoad::BusyCores(1.5),
+            cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(1.5)),
             resident_memory: ByteSize::b(2048),
         }
     }
@@ -218,7 +219,7 @@ mod tests {
         assert_eq!(
             sottomano.usage,
             TaskUsage::Measured {
-                cpu_load: ProcessTreeCpuLoad::BusyCores(3.0),
+                cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(3.0)),
                 resident_memory: ByteSize::b(4096),
             }
         );

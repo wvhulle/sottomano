@@ -31,7 +31,7 @@ use crate::{
         hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
-        process_usage_text::{approximate_memory_text, cpu_load_text},
+        process_usage_cells::{approximate_memory_text, cpu_share_quantity},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
@@ -124,8 +124,8 @@ impl VirtualMachineRow<'_> {
             "Origin",
             origin_text(&machine.origin).into_owned(),
         )];
-        if let Some(cpu_text) = cpu_load_text(machine.cpu_load) {
-            entries.push(LabeledValue::new("CPU", cpu_text));
+        if let Some(cpu_share) = cpu_share_quantity(machine.cpu_load) {
+            entries.push(LabeledValue::new("CPU load", cpu_share));
         }
         entries.extend([
             LabeledValue::new(

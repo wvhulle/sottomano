@@ -1,11 +1,13 @@
 use bytesize::ByteSize;
 use sottomano_desktop_sources::system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad;
 
+use crate::widgets::localized_quantities::Quantity;
+
 #[must_use]
-pub(crate) fn cpu_load_text(cpu_load: ProcessTreeCpuLoad) -> Option<String> {
+pub(crate) fn cpu_share_quantity(cpu_load: ProcessTreeCpuLoad) -> Option<Quantity> {
     match cpu_load {
         ProcessTreeCpuLoad::AwaitingSecondSample => None,
-        ProcessTreeCpuLoad::BusyCores(cores) => Some(format!("{cores:.1} cpu")),
+        ProcessTreeCpuLoad::BusyShare(share) => Some(Quantity::share(share)),
     }
 }
 
