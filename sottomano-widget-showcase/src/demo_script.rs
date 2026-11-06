@@ -198,7 +198,7 @@ pub const DEMOS: &[Demo] = &[
         shown: GroupShown::InMenu(GroupMenuTopic::Services),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
-            Step::PressText("Podman"),
+            Step::PressText("Podman containers"),
         ],
     },
     Demo {
@@ -221,7 +221,7 @@ pub const DEMOS: &[Demo] = &[
         shown: GroupShown::InMenu(GroupMenuTopic::Services),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
-            Step::PressText("Containers"),
+            Step::PressText("nspawn containers"),
             Step::Hover(HoverTarget::NspawnContainer(
                 NspawnContainerTarget::of_machine(Cow::Borrowed(
                     nspawn_containers::HOVERED_CONTAINER_NAME,
