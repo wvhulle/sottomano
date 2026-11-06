@@ -114,6 +114,7 @@ impl ShellWidgetGroups {
             | HoverTarget::LlamaServer(_)
             | HoverTarget::PodmanEngine(_)
             | HoverTarget::VirtualMachine(_)
+            | HoverTarget::NspawnContainer(_)
             | HoverTarget::CiRunner(_)
             | HoverTarget::SessionFocus(_)
             | HoverTarget::AppLauncher(_)

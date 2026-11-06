@@ -444,6 +444,10 @@ impl DesktopShell {
                 .widget_groups
                 .virtual_machines_group
                 .hover_card_for(target, self.clock),
+            HoverTarget::NspawnContainer(target) => self
+                .widget_groups
+                .nspawn_containers_group
+                .hover_card_for(target, self.clock),
             HoverTarget::CiRunner(target) => match target.kind() {
                 CiRunnerKind::Woodpecker => self
                     .widget_groups

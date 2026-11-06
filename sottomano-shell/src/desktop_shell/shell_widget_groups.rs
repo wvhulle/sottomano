@@ -34,6 +34,7 @@ use sottomano_widgets::{
         network_manager_vpn_group::NetworkManagerVpnGroup,
         niri_window_group::{NiriWindowGroup, niri_kdl_rules::NiriRulesFile},
         notification_group::NotificationGroup,
+        nspawn_containers_group::NspawnContainersGroup,
         openrouter_credit_group::OpenRouterCreditGroup,
         overlay_settings_group::{OverlaySettingsGroup, OverlaySettingsMessage},
         panel_settings_group::{PanelSettingsGroup, PanelSettingsMessage},
@@ -113,6 +114,7 @@ pub struct ShellWidgetGroups {
     pub llama_server_group: LlamaServerGroup,
     pub podman_engines_group: PodmanEnginesGroup,
     pub virtual_machines_group: VirtualMachinesGroup,
+    pub nspawn_containers_group: NspawnContainersGroup,
     pub woodpecker_tasks_group: WoodpeckerTasksGroup,
     pub forgejo_tasks_group: ForgejoTasksGroup,
     pub session_focus_group: SessionFocusGroup,
@@ -179,6 +181,7 @@ impl ShellWidgetGroups {
             llama_server_group: LlamaServerGroup::default(),
             podman_engines_group: PodmanEnginesGroup::default(),
             virtual_machines_group: VirtualMachinesGroup::default(),
+            nspawn_containers_group: NspawnContainersGroup::default(),
             woodpecker_tasks_group: WoodpeckerTasksGroup::default(),
             forgejo_tasks_group: ForgejoTasksGroup::default(),
             session_focus_group: SessionFocusGroup::started_at(
@@ -322,6 +325,10 @@ impl ShellWidgetGroups {
                 self.podman_engines_group.update(msg, clock);
                 Task::none()
             }
+            Message::NspawnContainers(container_message) => self
+                .nspawn_containers_group
+                .update(container_message, clock)
+                .map(Message::NspawnContainers),
             Message::WoodpeckerTasks(msg) => {
                 self.woodpecker_tasks_group.update(msg, clock);
                 Task::none()
@@ -486,6 +493,7 @@ impl ShellWidgetGroups {
         self.llama_server_group.collapse();
         self.podman_engines_group.collapse();
         self.virtual_machines_group.collapse();
+        self.nspawn_containers_group.collapse();
         self.woodpecker_tasks_group.collapse();
         self.forgejo_tasks_group.collapse();
         self.session_focus_group.collapse();

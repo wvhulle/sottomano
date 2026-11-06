@@ -102,6 +102,9 @@ impl ShellWidgetGroups {
                 .subscription(buses)
                 .map(Message::PodmanEngines),
             VirtualMachinesGroup::subscription(buses).map(Message::VirtualMachines),
+            self.nspawn_containers_group
+                .subscription(buses)
+                .map(Message::NspawnContainers),
             self.woodpecker_tasks_group
                 .subscription(buses)
                 .map(Message::WoodpeckerTasks),

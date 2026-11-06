@@ -9,8 +9,10 @@ pub mod journal_previous_shutdown;
 pub mod journal_record_fields;
 pub mod journal_service_errors;
 pub mod journal_startup_history;
+pub(crate) mod machined_machine_registry;
 pub mod service_commands;
 pub mod slow_running_jobs;
+pub(crate) mod template_instance_units;
 pub mod unit_active_state;
 pub mod user_service_manager;
 
@@ -150,6 +152,16 @@ impl SystemdUnitScope {
 pub trait Manager {
     fn list_units(&self) -> zbus::Result<Vec<UnitRow>>;
     fn list_units_filtered(&self, states: &[&str]) -> zbus::Result<Vec<UnitRow>>;
+    fn list_units_by_patterns(
+        &self,
+        states: &[&str],
+        patterns: &[&str],
+    ) -> zbus::Result<Vec<UnitRow>>;
+    fn list_unit_files_by_patterns(
+        &self,
+        states: &[&str],
+        patterns: &[&str],
+    ) -> zbus::Result<Vec<(String, String)>>;
     fn list_jobs(&self) -> zbus::Result<Vec<JobRow>>;
     fn subscribe(&self) -> zbus::Result<()>;
     fn restart_unit(&self, name: &str, mode: &str) -> zbus::Result<OwnedObjectPath>;

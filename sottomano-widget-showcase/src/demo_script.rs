@@ -20,6 +20,7 @@ use sottomano_widgets::{
         login_session_group::LoginSessionTarget,
         media_group::{MediaTarget, PlayerTarget},
         memory_board_group::MemoryBoardTarget,
+        nspawn_containers_group::NspawnContainerTarget,
         tailnet_group::TailnetTarget,
         virtual_machines_group::VirtualMachineTarget,
         voice_dictation_group::VoiceDictationTarget,
@@ -35,8 +36,8 @@ use crate::{
     fixtures::{
         app_launcher, appearance_presets, audio, caldav, claude_usage, compute, gamepad,
         group_menu_members, idle_lock, login_session, media, memory_board, niri_session,
-        notification_toasts, podman_engines, shell_settings, tailnet, unchanging, virtual_machines,
-        voice_dictation, wallpaper, weather, wireguard_tunnels,
+        notification_toasts, nspawn_containers, podman_engines, shell_settings, tailnet,
+        unchanging, virtual_machines, voice_dictation, wallpaper, weather, wireguard_tunnels,
     },
     showcase_message::ShowcaseMessage,
     showcased_group::ShowcasedGroup,
@@ -211,6 +212,21 @@ pub const DEMOS: &[Demo] = &[
             Step::Hover(HoverTarget::VirtualMachine(VirtualMachineTarget::of_pid(
                 virtual_machines::INTERACTIVE_VM_PID,
             ))),
+        ],
+    },
+    Demo {
+        name: "nspawn_containers",
+        group: nspawn_containers::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Services),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
+            Step::PressText("Containers"),
+            Step::Hover(HoverTarget::NspawnContainer(
+                NspawnContainerTarget::of_machine(Cow::Borrowed(
+                    nspawn_containers::HOVERED_CONTAINER_NAME,
+                )),
+            )),
         ],
     },
     Demo {

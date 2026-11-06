@@ -29,6 +29,7 @@ pub mod monitor_group;
 pub mod network_manager_vpn_group;
 pub mod niri_window_group;
 pub mod notification_group;
+pub mod nspawn_containers_group;
 pub mod openrouter_credit_group;
 pub mod overlay_settings_group;
 pub mod panel_settings_group;

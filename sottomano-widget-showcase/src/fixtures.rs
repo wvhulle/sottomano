@@ -44,6 +44,7 @@ pub mod media;
 pub mod memory_board;
 pub mod niri_session;
 pub mod notification_toasts;
+pub mod nspawn_containers;
 pub mod podman_engines;
 pub mod shell_settings;
 pub mod systemd_service_units;

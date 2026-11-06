@@ -22,7 +22,7 @@ use crate::{
     delivery_cadence_drivers::{PeriodicPolling, StampedCadence},
     qemu_virtual_machines::{
         libvirt_domain_control::{LIBVIRT_DOMAIN_CONTROL_BUILT, libvirt_run_states},
-        machined_libvirt_machines::{libvirt_leader_pids, machine_set_changes},
+        machined_libvirt_machines::libvirt_leader_pids,
         pidfd_process_exits::process_exit,
         procfs_qemu_processes::{
             ProcessWorkingDirectory, QemuProcess, account_names_by_uid, scanned_qemu_processes,
@@ -35,6 +35,7 @@ use crate::{
         dbus_desktop_buses::DesktopBuses,
         procfs_process_tree::{CpuTickCheckpoints, ProcessTreeCpuLoad},
     },
+    systemd_units_journal::machined_machine_registry::machine_set_changes,
 };
 
 pub const VIRTUAL_MACHINE_POLL_PERIOD: Duration = Duration::from_secs(5);

@@ -408,6 +408,7 @@ impl DesktopShell {
             | Message::OpenRouterCredit(_)
             | Message::LlamaServer(_)
             | Message::PodmanEngines(_)
+            | Message::NspawnContainers(_)
             | Message::WoodpeckerTasks(_)
             | Message::ForgejoTasks(_)
             | Message::SessionFocus(_)
