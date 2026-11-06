@@ -285,7 +285,11 @@ fn item_view<'a>(
             IconGlyph::from(Phosphor::Question(Weight::Regular))
                 .view(side, move |theme| tint.color(theme))
         },
-        |source| pixmap_handles.icon_handle(source).view(side, reveal),
+        |source| {
+            pixmap_handles
+                .icon_handle(source)
+                .view_with_symbolic_tint(side, reveal, move |theme| tint.color(theme))
+        },
     );
 
     let marked: Element<'a, GroupEvent<TrayMessage>> = if item.status == Status::NeedsAttention {
