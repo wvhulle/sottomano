@@ -26,6 +26,28 @@ pub enum QmpSocketAccess {
     NotConfigured,
 }
 
+impl QmpSocketAccess {
+    #[must_use]
+    pub(crate) fn resolved_in(self, working_directory: &Path) -> Self {
+        match self {
+            QmpSocketAccess::UnixSocket(socket_path) if socket_path.is_relative() => {
+                QmpSocketAccess::UnixSocket(working_directory.join(socket_path))
+            }
+            unchanged => unchanged,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn connectable_path(&self) -> Option<&Path> {
+        match self {
+            QmpSocketAccess::UnixSocket(socket_path) if socket_path.is_absolute() => {
+                Some(socket_path)
+            }
+            QmpSocketAccess::UnixSocket(_) | QmpSocketAccess::NotConfigured => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForwardedGuestPort {
     pub protocol: String,
@@ -448,6 +470,22 @@ mod tests {
         assert_eq!(
             launch.nixos_system,
             NixosSystemClosure::Named("test-vm-26.11".to_owned())
+        );
+    }
+
+    #[test]
+    fn a_relative_qmp_socket_lives_in_the_qemu_working_directory() {
+        let relative_socket =
+            launched_with(&["-qmp", "unix:qmp.sock,server=on,wait=off"]).qmp_socket;
+        assert_eq!(relative_socket.connectable_path(), None);
+        let resolved_socket = relative_socket.resolved_in(Path::new("/tmp/nix-vm.Ab12Cd34Ef"));
+        assert_eq!(
+            resolved_socket.connectable_path(),
+            Some(Path::new("/tmp/nix-vm.Ab12Cd34Ef/qmp.sock"))
+        );
+        assert_eq!(
+            resolved_socket.clone().resolved_in(Path::new("/elsewhere")),
+            resolved_socket
         );
     }
 

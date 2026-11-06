@@ -9,6 +9,7 @@ let
   cfg = config.services.sottomano;
   themeCfg = config.services.umbra or null;
   tomlFormat = pkgs.formats.toml { };
+  qmpSocketQemuOptions = "-qmp unix:qmp.sock,server=on,wait=off";
 
   modeToPalette = p: {
     background = p.base00;
@@ -168,9 +169,28 @@ in
       tell apart kitty OS windows sharing one `--single-instance` process
     '';
 
+    virtualMachines.qmpSocket.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Set QEMU_OPTS (at `mkDefault` priority, so an existing value wins) to
+        give every NixOS `run-*-vm` script started in this session a QMP
+        socket in its own temporary directory. The virtual machines group
+        reads it to show whether a VM is paused and to power it off.
+      '';
+    };
+
   };
 
   config = lib.mkIf cfg.enable {
+    home.sessionVariables = lib.mkIf cfg.virtualMachines.qmpSocket.enable {
+      QEMU_OPTS = lib.mkDefault qmpSocketQemuOptions;
+    };
+
+    systemd.user.sessionVariables = lib.mkIf cfg.virtualMachines.qmpSocket.enable {
+      QEMU_OPTS = lib.mkDefault qmpSocketQemuOptions;
+    };
+
     programs.kitty.settings = lib.mkIf cfg.windowAgents.kitty.enable {
       allow_remote_control = lib.mkDefault "socket-only";
       listen_on = lib.mkDefault "unix:$XDG_RUNTIME_DIR/kitty.sock";
