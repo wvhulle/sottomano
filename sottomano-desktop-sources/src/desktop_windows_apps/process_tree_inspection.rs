@@ -162,8 +162,12 @@ pub(crate) struct CpuCapacity {
 impl CpuCapacity {
     pub(crate) fn current() -> Self {
         let cores = KernelStats::current().map_or(1, |stats| stats.cpu_time.len().max(1));
+        Self::of_logical_cpus(cores as u64)
+    }
+
+    pub(crate) fn of_logical_cpus(logical_cpus: u64) -> Self {
         Self {
-            ticks_per_second: ticks_per_second() * cores as u64,
+            ticks_per_second: ticks_per_second() * logical_cpus,
         }
     }
 

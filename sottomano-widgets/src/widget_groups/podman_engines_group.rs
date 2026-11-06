@@ -25,7 +25,7 @@ use crate::{
         hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
-        process_usage_text::{approximate_memory_text, cpu_load_text},
+        process_usage_cells::{approximate_memory_text, cpu_share_quantity},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
@@ -37,7 +37,7 @@ use crate::{
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
-        value_cells::LabeledValue,
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -67,7 +67,8 @@ impl IntoTableRecord<3> for &RunningContainer {
             self.shown_name.clone(),
             [
                 self.image.clone().into(),
-                cpu_load_text(self.cpu_load).unwrap_or_default().into(),
+                cpu_share_quantity(self.cpu_load)
+                    .map_or_else(|| ValueCell::from(String::new()), ValueCell::from),
                 approximate_memory_text(self.resident_memory).into(),
             ],
         )

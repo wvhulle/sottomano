@@ -25,7 +25,7 @@ use crate::{
         hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
-        process_usage_text::{approximate_memory_text, cpu_load_text},
+        process_usage_cells::{approximate_memory_text, cpu_share_quantity},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -228,8 +228,8 @@ impl GroupItemReading for CiTaskRow<'_> {
             TaskUsage::Measured {
                 cpu_load,
                 resident_memory,
-            } => cpu_load_text(cpu_load)
-                .map(|cpu_text| LabeledValue::new("CPU", cpu_text))
+            } => cpu_share_quantity(cpu_load)
+                .map(|cpu_share| LabeledValue::new("CPU load", cpu_share))
                 .into_iter()
                 .chain([LabeledValue::new(
                     "Memory",
@@ -405,6 +405,7 @@ mod tests {
 
     use bytesize::ByteSize;
     use sottomano_desktop_sources::system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad;
+    use uom::si::{f64::Ratio, ratio::percent};
 
     use super::*;
 
@@ -417,7 +418,7 @@ mod tests {
             activities: Vec::new(),
             images: Vec::new(),
             usage: TaskUsage::Measured {
-                cpu_load: ProcessTreeCpuLoad::BusyCores(1.0),
+                cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(1.0)),
                 resident_memory: ByteSize::mib(1),
             },
         }

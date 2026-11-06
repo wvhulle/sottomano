@@ -14,6 +14,7 @@ use sottomano_widgets::{
     clock::Clock,
     widget_groups::podman_engines_group::{PodmanEnginesGroup, PodmanEnginesMessage},
 };
+use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
     fixtures::systemd_service_units::{ShownService, services_delivered},
@@ -82,7 +83,7 @@ fn discovered_engines() -> [PodmanEnginesMessage; 2] {
 
 fn step_container(
     shown_name: &str,
-    busy_cores: f64,
+    busy_share_percent: f64,
     resident_memory: ByteSize,
     clock: Clock,
 ) -> RunningContainer {
@@ -93,7 +94,7 @@ fn step_container(
         image: "docker.io/nixos/nix:latest".to_owned(),
         started_at: clock.wall - Duration::from_mins(4),
         ci_identity: ContainerCiIdentity::NotWoodpecker,
-        cpu_load: ProcessTreeCpuLoad::BusyCores(busy_cores),
+        cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(busy_share_percent)),
         resident_memory,
     }
 }
@@ -121,8 +122,8 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
             WOODPECKER_SOCKET,
             EngineReadout::Containers(EngineContainers {
                 containers: vec![
-                    step_container("run-tests", 6.2, ByteSize::gib(4), clock),
-                    step_container("clone", 0.4, ByteSize::mib(120), clock),
+                    step_container("run-tests", 19.0, ByteSize::gib(4), clock),
+                    step_container("clone", 1.2, ByteSize::mib(120), clock),
                 ],
             }),
         ),

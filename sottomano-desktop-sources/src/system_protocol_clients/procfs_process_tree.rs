@@ -7,8 +7,10 @@ use std::{
 use procfs::{
     WithCurrentSystemInfo,
     process::{Stat, all_processes},
-    ticks_per_second,
 };
+use uom::si::f64::Ratio;
+
+use crate::desktop_windows_apps::process_tree_inspection::CpuCapacity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ProcessSample {
@@ -95,19 +97,10 @@ impl ProcessTable {
     }
 }
 
-#[must_use]
-#[allow(clippy::cast_precision_loss)]
-pub(crate) fn busy_cores(spent_ticks: u64, elapsed_seconds: f64) -> f64 {
-    if elapsed_seconds <= 0.0 {
-        return 0.0;
-    }
-    spent_ticks as f64 / ticks_per_second() as f64 / elapsed_seconds
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ProcessTreeCpuLoad {
     AwaitingSecondSample,
-    BusyCores(f64),
+    BusyShare(Ratio),
 }
 
 #[must_use]
@@ -115,11 +108,11 @@ pub fn total_cpu_load(loads: impl Iterator<Item = ProcessTreeCpuLoad>) -> Proces
     loads.fold(
         ProcessTreeCpuLoad::AwaitingSecondSample,
         |total, load| match (total, load) {
-            (ProcessTreeCpuLoad::BusyCores(first), ProcessTreeCpuLoad::BusyCores(second)) => {
-                ProcessTreeCpuLoad::BusyCores(first + second)
+            (ProcessTreeCpuLoad::BusyShare(first), ProcessTreeCpuLoad::BusyShare(second)) => {
+                ProcessTreeCpuLoad::BusyShare(first + second)
             }
             (
-                known @ ProcessTreeCpuLoad::BusyCores(_),
+                known @ ProcessTreeCpuLoad::BusyShare(_),
                 ProcessTreeCpuLoad::AwaitingSecondSample,
             ) => known,
             (ProcessTreeCpuLoad::AwaitingSecondSample, other) => other,
@@ -133,12 +126,20 @@ struct CpuTickCheckpoint {
 }
 
 pub(crate) struct CpuTickCheckpoints<CheckpointKey> {
+    capacity: CpuCapacity,
     checkpoints_by_key: HashMap<CheckpointKey, CpuTickCheckpoint>,
 }
 
 impl<CheckpointKey> Default for CpuTickCheckpoints<CheckpointKey> {
     fn default() -> Self {
+        Self::with_capacity(CpuCapacity::current())
+    }
+}
+
+impl<CheckpointKey> CpuTickCheckpoints<CheckpointKey> {
+    pub(crate) fn with_capacity(capacity: CpuCapacity) -> Self {
         Self {
+            capacity,
             checkpoints_by_key: HashMap::new(),
         }
     }
@@ -154,9 +155,9 @@ impl<CheckpointKey: Eq + Hash> CpuTickCheckpoints<CheckpointKey> {
         let cpu_load = self.checkpoints_by_key.get(&checkpoint_key).map_or(
             ProcessTreeCpuLoad::AwaitingSecondSample,
             |checkpoint| {
-                ProcessTreeCpuLoad::BusyCores(busy_cores(
+                ProcessTreeCpuLoad::BusyShare(self.capacity.busy_fraction(
                     spent_ticks.saturating_sub(checkpoint.spent_ticks),
-                    taken_at.duration_since(checkpoint.taken_at).as_secs_f64(),
+                    taken_at.duration_since(checkpoint.taken_at),
                 ))
             },
         );
@@ -193,6 +194,8 @@ impl<CheckpointKey: Eq + Hash> CpuTickCheckpoints<CheckpointKey> {
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
+
+    use uom::si::ratio::percent;
 
     use super::*;
 
@@ -246,13 +249,13 @@ mod tests {
         assert_eq!(
             total_cpu_load(
                 [
-                    ProcessTreeCpuLoad::BusyCores(1.5),
+                    ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(1.5)),
                     ProcessTreeCpuLoad::AwaitingSecondSample,
-                    ProcessTreeCpuLoad::BusyCores(0.5),
+                    ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(0.5)),
                 ]
                 .into_iter()
             ),
-            ProcessTreeCpuLoad::BusyCores(2.0)
+            ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(2.0))
         );
         assert_eq!(
             total_cpu_load([ProcessTreeCpuLoad::AwaitingSecondSample].into_iter()),
@@ -270,7 +273,7 @@ mod tests {
         );
         assert_eq!(
             checkpoints.load_since_previous(7, 100, started + Duration::from_secs(5)),
-            ProcessTreeCpuLoad::BusyCores(0.0)
+            ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(0.0))
         );
     }
 }

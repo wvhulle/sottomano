@@ -35,7 +35,7 @@ pub mod pending_upgrades_group;
 pub mod physical_drive_group;
 pub mod podman_engines_group;
 pub mod power_group;
-pub(crate) mod process_usage_text;
+pub(crate) mod process_usage_cells;
 pub mod quiet_schedule_group;
 pub mod reachability_group;
 pub mod session_focus_group;

@@ -142,6 +142,7 @@ mod tests {
     use std::time::{Duration, UNIX_EPOCH};
 
     use bytesize::ByteSize;
+    use uom::si::{f64::Ratio, ratio::percent};
 
     use super::*;
     use crate::{
@@ -161,7 +162,7 @@ mod tests {
             image: "docker.io/nixos/nix:latest".to_owned(),
             started_at: UNIX_EPOCH + Duration::from_secs(started_seconds),
             ci_identity: ContainerCiIdentity::NotWoodpecker,
-            cpu_load: ProcessTreeCpuLoad::BusyCores(1.0),
+            cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(1.0)),
             resident_memory: ByteSize::b(memory_bytes),
         }
     }
@@ -187,7 +188,7 @@ mod tests {
         assert_eq!(
             tasks[0].usage,
             TaskUsage::Measured {
-                cpu_load: ProcessTreeCpuLoad::BusyCores(2.0),
+                cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(2.0)),
                 resident_memory: ByteSize::b(150),
             }
         );
