@@ -5,7 +5,9 @@ use niri_ipc::{
     state::{EventStreamState, EventStreamStatePart},
 };
 use sottomano_desktop_sources::desktop_windows_apps::{
-    kitty_terminal_windows::WindowProcesses, niri_window_snapshot::Snapshot,
+    kitty_terminal_windows::WindowProcesses,
+    niri_test_windows::{unnamed_niri_workspace, unplaced_niri_window},
+    niri_window_snapshot::Snapshot,
 };
 
 use crate::widgets::{
@@ -21,35 +23,27 @@ const SIMULATED_BAR_WIDTH_PX: f32 = 1024.0;
 
 fn simulated_workspace(workspace_id: u64) -> Workspace {
     Workspace {
-        id: workspace_id,
         idx: u8::try_from(workspace_id).expect("few simulated workspaces"),
-        name: None,
         output: Some(SIMULATED_OUTPUT.to_owned()),
-        is_urgent: false,
         is_active: workspace_id == SIMULATED_WORKSPACE_IDS[0],
         is_focused: workspace_id == SIMULATED_WORKSPACE_IDS[0],
-        active_window_id: None,
+        ..unnamed_niri_workspace(workspace_id)
     }
 }
 
 fn simulated_tiled_window(column: usize, window_id: u64) -> Window {
+    let unplaced = unplaced_niri_window(window_id);
     Window {
-        id: window_id,
         title: Some(format!("window {window_id}")),
-        app_id: None,
-        pid: None,
         workspace_id: Some(SIMULATED_WORKSPACE_IDS[0]),
         is_focused: column == 1,
-        is_floating: false,
-        is_urgent: false,
         layout: WindowLayout {
             pos_in_scrolling_layout: Some((column, 1)),
             tile_size: (800.0, 900.0),
             window_size: (800, 900),
-            tile_pos_in_workspace_view: None,
-            window_offset_in_tile: (0.0, 0.0),
+            ..unplaced.layout
         },
-        focus_timestamp: None,
+        ..unplaced
     }
 }
 

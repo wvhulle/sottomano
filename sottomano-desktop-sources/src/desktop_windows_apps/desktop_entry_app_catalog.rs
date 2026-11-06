@@ -193,10 +193,12 @@ pub fn open_windows_by_app<'window>(
 #[cfg(test)]
 mod tests {
     use freedesktop_desktop_entry::DesktopEntry;
-    use niri_ipc::{Timestamp, Window, WindowLayout};
+    use niri_ipc::{Timestamp, Window};
 
     use super::{AppCategory, LaunchableApp, OpenAppWindows, open_windows_by_app};
-    use crate::desktop_windows_apps::desktop_entry_app_icons::DesktopEntries;
+    use crate::desktop_windows_apps::{
+        desktop_entry_app_icons::DesktopEntries, niri_test_windows::unplaced_niri_window,
+    };
 
     fn entry_of(app_id: &str, fields: &str) -> DesktopEntry {
         let no_locales: Option<&[&str]> = None;
@@ -218,22 +220,9 @@ mod tests {
 
     fn window_of(id: u64, app_id: &str, focused_at_secs: Option<u64>) -> Window {
         Window {
-            id,
-            title: None,
             app_id: Some(app_id.to_owned()),
-            pid: None,
-            workspace_id: Some(1),
-            is_focused: false,
-            is_floating: false,
-            is_urgent: false,
-            layout: WindowLayout {
-                pos_in_scrolling_layout: None,
-                tile_size: (0.0, 0.0),
-                window_size: (0, 0),
-                tile_pos_in_workspace_view: None,
-                window_offset_in_tile: (0.0, 0.0),
-            },
             focus_timestamp: focused_at_secs.map(|secs| Timestamp { secs, nanos: 0 }),
+            ..unplaced_niri_window(id)
         }
     }
 

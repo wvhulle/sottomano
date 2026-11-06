@@ -8,6 +8,8 @@ pub mod kde_job_view_progress;
 pub mod kitty_terminal_windows;
 pub mod niri_kdl_config;
 pub mod niri_output_facts;
+#[cfg(any(test, feature = "test-support"))]
+pub mod niri_test_windows;
 pub mod niri_window_placement;
 pub mod niri_window_snapshot;
 pub mod nix_package_facts;

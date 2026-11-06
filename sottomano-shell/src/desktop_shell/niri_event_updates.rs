@@ -231,6 +231,9 @@ pub(super) fn reheats_switch_heat(message: &Message) -> bool {
 #[cfg(test)]
 mod tests {
     use niri_ipc::{WindowLayout, Workspace};
+    use sottomano_desktop_sources::desktop_windows_apps::niri_test_windows::{
+        unnamed_niri_workspace, unplaced_niri_window,
+    };
 
     use super::*;
 
@@ -260,14 +263,9 @@ mod tests {
 
     fn workspace_on(id: u64, output: &str, is_focused: bool) -> Workspace {
         Workspace {
-            id,
-            idx: 1,
-            name: None,
             output: Some(output.to_owned()),
-            is_urgent: false,
-            is_active: true,
             is_focused,
-            active_window_id: None,
+            ..unnamed_niri_workspace(id)
         }
     }
 
@@ -278,23 +276,16 @@ mod tests {
         window_size: (i32, i32),
         is_focused: bool,
     ) -> Window {
+        let unplaced = unplaced_niri_window(id);
         Window {
-            id,
-            title: None,
             app_id: Some(app_id.to_owned()),
-            pid: None,
             workspace_id: Some(workspace_id),
             is_focused,
-            is_floating: false,
-            is_urgent: false,
             layout: WindowLayout {
-                pos_in_scrolling_layout: None,
-                tile_size: (0.0, 0.0),
                 window_size,
-                tile_pos_in_workspace_view: None,
-                window_offset_in_tile: (0.0, 0.0),
+                ..unplaced.layout
             },
-            focus_timestamp: None,
+            ..unplaced
         }
     }
 
