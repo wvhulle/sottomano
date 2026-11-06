@@ -107,6 +107,7 @@
             ./docs
             ./README.md
             ./.woodpecker
+            ./vm-tests
           ]
         );
       };
@@ -233,6 +234,11 @@
       );
 
       homeModule = import ./nix/hm-module.nix { inherit self; };
+
+      vmTests = import ./vm-tests {
+        sottomanoNixosModule = self.nixosModules.default;
+        sottomanoPackage = sottomano;
+      };
     in
     {
       packages.${system} = {
@@ -271,7 +277,8 @@
             cargoClippyExtraArgs = "--all-targets";
           }
         );
-      };
+      }
+      // vmTests.checksFor pkgs;
 
       homeModules.default = {
         imports = [
