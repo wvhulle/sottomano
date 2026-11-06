@@ -1,6 +1,7 @@
 use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     iter,
+    sync::LazyLock,
 };
 
 use chrono::{DateTime, Local, Locale, NaiveDate, TimeDelta, Timelike, Utc};
@@ -505,6 +506,26 @@ pub struct RadarRainForecast<'a> {
     pub alerts: &'a RainAlertsConfig,
 }
 
+static DEFAULT_RAIN_ALERTS: LazyLock<RainAlertsConfig> = LazyLock::new(RainAlertsConfig::default);
+
+impl<'a> RadarRainForecast<'a> {
+    fn with_default_alerts(rain: &'a Rain) -> Self {
+        RadarRainForecast {
+            rain,
+            alerts: &DEFAULT_RAIN_ALERTS,
+        }
+    }
+}
+
+impl<'a> RainForecast<'a> {
+    fn modelled_with_default_alerts(model: &'a PrecipitationModel) -> Self {
+        RainForecast {
+            sources: RainSources::Model(model),
+            alerts: &DEFAULT_RAIN_ALERTS,
+        }
+    }
+}
+
 struct RainSpell<'a> {
     outlook: RainOutlook,
     starts_at: DateTime<Local>,
@@ -628,11 +649,7 @@ impl GroupItemReading for Rain {
     }
 
     fn icon(&self) -> IconGlyph {
-        RadarRainForecast {
-            rain: self,
-            alerts: &RainAlertsConfig::default(),
-        }
-        .icon()
+        RadarRainForecast::with_default_alerts(self).icon()
     }
 
     fn fallback_icon() -> IconGlyph {
@@ -660,11 +677,7 @@ impl GroupItemReading for Rain {
     }
 
     fn hover_card(&self, clock: Clock) -> HoverCardBody {
-        RadarRainForecast {
-            rain: self,
-            alerts: &RainAlertsConfig::default(),
-        }
-        .hover_card(clock)
+        RadarRainForecast::with_default_alerts(self).hover_card(clock)
     }
 }
 
@@ -674,11 +687,7 @@ impl GroupItemReading for PrecipitationModel {
     }
 
     fn icon(&self) -> IconGlyph {
-        RainForecast {
-            sources: RainSources::Model(self),
-            alerts: &RainAlertsConfig::default(),
-        }
-        .icon()
+        RainForecast::modelled_with_default_alerts(self).icon()
     }
 
     fn fallback_icon() -> IconGlyph {
@@ -686,19 +695,11 @@ impl GroupItemReading for PrecipitationModel {
     }
 
     fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
-        RainForecast {
-            sources: RainSources::Model(self),
-            alerts: &RainAlertsConfig::default(),
-        }
-        .label(clock, locale)
+        RainForecast::modelled_with_default_alerts(self).label(clock, locale)
     }
 
     fn hover_card(&self, clock: Clock) -> HoverCardBody {
-        RainForecast {
-            sources: RainSources::Model(self),
-            alerts: &RainAlertsConfig::default(),
-        }
-        .hover_card(clock)
+        RainForecast::modelled_with_default_alerts(self).hover_card(clock)
     }
 }
 
@@ -743,11 +744,7 @@ mod tests {
     }
 
     fn severity_of(rain: &Rain, clock: Clock) -> Severity {
-        RadarRainForecast {
-            rain,
-            alerts: &RainAlertsConfig::default(),
-        }
-        .severity(clock.local())
+        RadarRainForecast::with_default_alerts(rain).severity(clock.local())
     }
 
     #[test]
@@ -763,10 +760,7 @@ mod tests {
     fn a_dry_forecast_stays_on_the_panel_as_inactive() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 0.0]);
-        let forecast = RadarRainForecast {
-            rain: &rain,
-            alerts: &RainAlertsConfig::default(),
-        };
+        let forecast = RadarRainForecast::with_default_alerts(&rain);
         assert!(forecast.visible_on_panel());
         assert_eq!(forecast.state(clock), ReadingDisplayState::Off);
         assert_eq!(
@@ -774,11 +768,7 @@ mod tests {
             IconGlyph::from(Phosphor::DropSlash(Weight::Regular))
         );
         assert_eq!(
-            RadarRainForecast {
-                rain: &radar_frames(clock, &[0.0, 0.2]),
-                alerts: &RainAlertsConfig::default(),
-            }
-            .state(clock),
+            RadarRainForecast::with_default_alerts(&radar_frames(clock, &[0.0, 0.2])).state(clock),
             ReadingDisplayState::Idle
         );
     }
@@ -829,12 +819,9 @@ mod tests {
     fn the_toast_describes_the_shower_rather_than_the_drizzle_before_it() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.2, 0.2, 3.0, 1.0, 0.0, 9.0]);
-        let body = RadarRainForecast {
-            rain: &rain,
-            alerts: &RainAlertsConfig::default(),
-        }
-        .ongoing_toast_body(clock, Locale::default())
-        .unwrap();
+        let body = RadarRainForecast::with_default_alerts(&rain)
+            .ongoing_toast_body(clock, Locale::default())
+            .unwrap();
         assert_eq!(severity_of(&rain, clock), Severity::Warning);
         assert!(body.contains("<dt>Starts</dt>"));
         assert!(body.contains("<dt>Peak</dt><dd>3.0 mm/h</dd>"));
@@ -866,10 +853,7 @@ mod tests {
     fn the_toast_body_stays_the_same_as_the_clock_advances() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 0.0, 3.0]);
-        let forecast = RadarRainForecast {
-            rain: &rain,
-            alerts: &RainAlertsConfig::default(),
-        };
+        let forecast = RadarRainForecast::with_default_alerts(&rain);
         let body = forecast.ongoing_toast_body(clock, Locale::default());
         assert!(
             body.as_deref()
@@ -887,10 +871,7 @@ mod tests {
         let rain = radar_frames(clock, &[0.0, 3.0]);
         let toast = OngoingToast::from_reading_display_state(
             HoverTarget::Weather(WeatherTarget::Rain),
-            &RadarRainForecast {
-                rain: &rain,
-                alerts: &RainAlertsConfig::default(),
-            },
+            &RadarRainForecast::with_default_alerts(&rain),
             0_u8,
             Locale::default(),
             clock,
