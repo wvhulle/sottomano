@@ -11,8 +11,8 @@ use serde::Deserialize;
 
 use super::{Error, block_filesystem_mounts::FilesystemMount};
 use crate::{
-    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking_poll,
-    delivery_cadence_drivers::PeriodicPolling, system_protocol_clients::shell_command_output,
+    SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
+    system_protocol_clients::shell_command_output,
 };
 
 const BCACHEFS_PROGRAM: &str = "bcachefs";
@@ -55,13 +55,7 @@ impl SnapshotSource for BcachefsSubvolumeUsage {
         mount: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         PeriodicPolling::every(Duration::from_secs(60))
-            .poll_deliveries(move || Self::poll(mount.clone()))
-    }
-}
-
-impl BcachefsSubvolumeUsage {
-    async fn poll(mount: FilesystemMount) -> Result<Self, Error> {
-        blocking_poll(move || read_subvolume_usage(&mount)).await
+            .blocking_poll_deliveries(move || read_subvolume_usage(&mount))
     }
 }
 

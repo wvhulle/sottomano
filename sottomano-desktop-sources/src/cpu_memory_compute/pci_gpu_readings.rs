@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    blocking_background_work::{Panicked, blocking_poll},
+    blocking_background_work::Panicked,
     delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::sysfs_attribute_reads::{self, read_trimmed},
 };
@@ -135,23 +135,15 @@ impl SnapshotSource for GpuRuntimePower {
     fn delivery_stream(
         inputs: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(Duration::from_secs(3))
-            .poll_deliveries(move || Self::poll(inputs.clone()))
-    }
-}
-
-impl GpuRuntimePower {
-    async fn poll(bus: PciBusId) -> Result<Self, sysfs_attribute_reads::Error> {
-        blocking_poll(move || {
+        PeriodicPolling::every(Duration::from_secs(3)).blocking_poll_deliveries(move || {
             let status = Path::new(PCI_DEVICES)
-                .join(&bus.0)
+                .join(&inputs.0)
                 .join("power/runtime_status");
             Ok(match read_trimmed(status).as_deref() {
                 Some("suspended" | "suspending") => GpuRuntimePower::Asleep,
                 _ => GpuRuntimePower::Awake,
             })
         })
-        .await
     }
 }
 

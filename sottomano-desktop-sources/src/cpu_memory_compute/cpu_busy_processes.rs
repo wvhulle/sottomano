@@ -6,7 +6,6 @@ use uom::si::f64::Ratio;
 
 use crate::{
     SnapshotDelivery, SnapshotSource, SourceCaption,
-    blocking_background_work::blocking_poll,
     delivery_cadence_drivers::PeriodicPolling,
     desktop_windows_apps::process_tree_inspection::{CpuCapacity, binary_name},
     system_protocol_clients::sysfs_attribute_reads::Error,
@@ -40,13 +39,8 @@ impl SnapshotSource for CpuBusyProcesses {
     fn delivery_stream(
         (): Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(Duration::from_secs(3)).poll_deliveries(move || Self::poll(()))
-    }
-}
-
-impl CpuBusyProcesses {
-    async fn poll(_key: ()) -> Result<Self, Error> {
-        blocking_poll(read_cpu_busy_processes).await
+        PeriodicPolling::every(Duration::from_secs(3))
+            .blocking_poll_deliveries(read_cpu_busy_processes)
     }
 }
 

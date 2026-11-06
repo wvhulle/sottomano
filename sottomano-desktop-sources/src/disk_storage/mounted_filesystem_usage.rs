@@ -10,10 +10,7 @@ use super::{
     block_filesystem_mounts::FilesystemMount,
     btrfs_filesystem_space::{BtrfsFilesystem, BtrfsSpace},
 };
-use crate::{
-    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking_poll,
-    delivery_cadence_drivers::PeriodicPolling,
-};
+use crate::{SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FilesystemUsage {
@@ -51,13 +48,7 @@ impl SnapshotSource for FilesystemUsage {
         mount: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         PeriodicPolling::every(Duration::from_secs(60))
-            .poll_deliveries(move || Self::poll(mount.clone()))
-    }
-}
-
-impl FilesystemUsage {
-    async fn poll(mount: FilesystemMount) -> Result<Self, Error> {
-        blocking_poll(move || read_filesystem_usage(mount)).await
+            .blocking_poll_deliveries(move || read_filesystem_usage(mount.clone()))
     }
 }
 

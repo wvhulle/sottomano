@@ -5,7 +5,6 @@ use zbus::{blocking::Connection, proxy};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    blocking_background_work::blocking_poll,
     cpu_memory_compute::cpu_core_loads,
     delivery_cadence_drivers::PeriodicPolling,
     non_empty_text::non_empty,
@@ -142,18 +141,12 @@ impl SnapshotSource for Conditions {
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         name_owned(buses.system.clone(), DAEMON_SERVICE).while_held(
             move || {
-                let buses = buses.clone();
+                let _buses = buses.clone();
                 PeriodicPolling::every(Duration::from_secs(5))
-                    .poll_deliveries(move || Self::poll(buses.clone()))
+                    .blocking_poll_deliveries(|| Ok(Conditions::current()))
             },
             SnapshotDelivery::SourceUnavailable,
         )
-    }
-}
-
-impl Conditions {
-    async fn poll(_buses: DesktopBuses) -> Result<Self, sysfs_attribute_reads::Error> {
-        blocking_poll(|| Ok(Conditions::current())).await
     }
 }
 

@@ -137,24 +137,18 @@ impl SnapshotSource for CpuClock {
         };
         stream::once(exposed).while_held(
             move || {
-                PeriodicPolling::every(Duration::from_secs(3)).poll_deliveries_after_setup(
+                PeriodicPolling::every(Duration::from_secs(3)).blocking_poll_deliveries_after_setup(
                     blocking_poll(|| {
                         Ok(ClockProbe {
                             topology: CpuTopology::detect(),
                             throttle_baseline: ThrottleBaseline::default(),
                         })
                     }),
-                    Self::poll,
+                    read_cpu_clock,
                 )
             },
             SnapshotDelivery::SourceUnavailable,
         )
-    }
-}
-
-impl CpuClock {
-    async fn poll(probe: ClockProbe) -> Result<Self, Error> {
-        blocking_poll(move || read_cpu_clock(probe)).await
     }
 }
 

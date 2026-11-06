@@ -9,7 +9,6 @@ use uom::si::{f64::Power, power::watt};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    blocking_background_work::blocking_poll,
     delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_i64, read_trimmed},
 };
@@ -37,13 +36,8 @@ impl SnapshotSource for CpuPower {
     fn delivery_stream(
         (): Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(Duration::from_secs(3)).poll_deliveries(move || Self::poll(()))
-    }
-}
-
-impl CpuPower {
-    async fn poll(_key: ()) -> Result<Self, Error> {
-        blocking_poll(|| Ok(read_cpu_power())).await
+        PeriodicPolling::every(Duration::from_secs(3))
+            .blocking_poll_deliveries(|| Ok(read_cpu_power()))
     }
 }
 

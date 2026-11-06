@@ -12,6 +12,7 @@ use tokio_stream::wrappers::IntervalStream;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    blocking_background_work::{Panicked, blocking_poll},
     stream_operators::{StreamOperators, connected_until_failure, reread_on_trigger_or_deadline},
 };
 
@@ -88,6 +89,33 @@ impl PeriodicPolling {
                 async move { poll_tick.stamped(poll().await) }
             })
             .repeats_as_unchanged()
+    }
+
+    pub fn blocking_poll_deliveries<S>(
+        self,
+        read: impl Fn() -> Result<S, S::Error> + Send + Sync + Clone + 'static,
+    ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
+    where
+        S: SnapshotSource + PartialEq,
+        S::Error: From<Panicked>,
+    {
+        self.poll_deliveries(move || blocking_poll(read.clone()))
+    }
+
+    pub fn blocking_poll_deliveries_after_setup<S, P>(
+        self,
+        setup: impl Future<Output = Result<P, S::Error>> + Send,
+        read: impl Fn(P) -> Result<S, S::Error> + Send + Sync + Clone + 'static,
+    ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
+    where
+        S: SnapshotSource + PartialEq,
+        S::Error: From<Panicked>,
+        P: Clone + Send + 'static,
+    {
+        self.poll_deliveries_after_setup(setup, move |prepared| {
+            let read = read.clone();
+            blocking_poll(move || read(prepared))
+        })
     }
 
     pub fn poll_deliveries_after_setup<S, P, F>(

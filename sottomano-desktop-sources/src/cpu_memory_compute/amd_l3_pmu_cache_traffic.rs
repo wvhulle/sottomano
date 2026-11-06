@@ -8,7 +8,6 @@ use uom::si::{f64::Ratio, ratio::ratio};
 use super::cpu_topology::cpulist;
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    blocking_background_work::blocking_poll,
     delivery_cadence_drivers::PeriodicPolling,
     stream_operators::StreamOperators,
     system_protocol_clients::sysfs_attribute_reads::{Error, read_trimmed},
@@ -48,16 +47,10 @@ impl SnapshotSource for L3CacheTraffic {
         stream::once(countable).while_held(
             move || {
                 PeriodicPolling::every(Duration::from_secs(3))
-                    .poll_deliveries(move || Self::poll(()))
+                    .blocking_poll_deliveries(read_l3_cache_traffic)
             },
             SnapshotDelivery::SourceUnavailable,
         )
-    }
-}
-
-impl L3CacheTraffic {
-    async fn poll(_key: ()) -> Result<Self, Error> {
-        blocking_poll(read_l3_cache_traffic).await
     }
 }
 
