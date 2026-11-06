@@ -65,9 +65,7 @@ use crate::{
         },
     },
     widget_groups::{
-        widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        },
+        widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
@@ -202,14 +200,9 @@ impl WifiBandUse {
 }
 
 #[derive(Default)]
-struct ControllerSession {
-    expansion: WidgetGroupExpansion,
-}
-
-#[derive(Default)]
 pub struct GamepadGroup {
     controllers: Vec<ConnectedGamepad>,
-    sessions: BTreeMap<usize, ControllerSession>,
+    expansions: KeyedExpansions<usize>,
     report_timings: BTreeMap<usize, ReportTiming>,
     kernel_errors: Vec<DeviceKernelError>,
     wifi_band_use: WifiBandUse,
@@ -254,9 +247,7 @@ fn niri_control_toggle(driving_niri: bool) -> IconToggle {
 
 impl GamepadGroup {
     pub fn collapse(&mut self) {
-        for session in self.sessions.values_mut() {
-            session.expansion.collapse();
-        }
+        self.expansions.collapse();
     }
 
     fn handed_over(&self, slot: usize) -> bool {
@@ -325,10 +316,7 @@ impl GamepadGroup {
         buses: &DesktopBuses,
         demand: GroupSourceDemand,
     ) -> Subscription<GamepadMessage> {
-        let any_session_expanded = self
-            .sessions
-            .values()
-            .any(|session| session.expansion.is_expanded());
+        let any_session_expanded = self.expansions.any_expanded();
         let demand = demand.expanded_when(any_session_expanded);
         Subscription::batch([
             demand.while_rows_shown(
@@ -440,9 +428,7 @@ impl GamepadGroup {
                 Action::Idle
             }
             GamepadMessage::Expansion { slot, expansion } => {
-                if let Some(session) = self.sessions.get_mut(&slot) {
-                    session.expansion.update(expansion);
-                }
+                self.expansions.update(&slot, expansion);
                 Action::Idle
             }
         }
@@ -450,11 +436,9 @@ impl GamepadGroup {
 
     fn receive_roster(&mut self, controllers: Vec<ConnectedGamepad>) {
         let connected = |slot: &usize| controllers.iter().any(|gamepad| gamepad.slot == *slot);
-        self.sessions.retain(|slot, _| connected(slot));
+        self.expansions
+            .track(controllers.iter().map(|gamepad| gamepad.slot));
         self.report_timings.retain(|slot, _| connected(slot));
-        for gamepad in &controllers {
-            self.sessions.entry(gamepad.slot).or_default();
-        }
         self.controllers = controllers;
     }
 
@@ -694,7 +678,7 @@ impl GamepadGroup {
         window_claim: GamepadWindowClaim<'a>,
     ) -> Option<WidgetGroupContent<'a, GamepadMessage>> {
         let slot = gamepad.slot;
-        let session = self.sessions.get(&slot)?;
+        let expansion = self.expansions.get(&slot)?;
         let battery_reading = ControllerBatteryReading {
             power: gamepad.power,
         };
@@ -731,7 +715,7 @@ impl GamepadGroup {
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::Gamepad, handover_key(link).to_owned()),
             group_title,
-            &session.expansion,
+            expansion,
             move |expansion| GamepadMessage::Expansion { slot, expansion },
             [
                 Some(face),

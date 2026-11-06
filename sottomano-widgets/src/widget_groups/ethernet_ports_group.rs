@@ -1,7 +1,5 @@
 mod port_link_reading;
 
-use std::collections::BTreeMap;
-
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::network_manager_activations::toggle_ethernet_port;
 use sottomano_desktop_sources::{
@@ -36,9 +34,7 @@ use crate::{
             family_address_sections, family_router_sections,
         },
         interface_group_titles::AttachmentTitles,
-        widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        },
+        widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
@@ -99,23 +95,16 @@ pub enum EthernetPortsMessage {
 }
 
 #[derive(Default)]
-struct PortSession {
-    expansion: WidgetGroupExpansion,
-}
-
-#[derive(Default)]
 pub struct EthernetPortsGroup {
     ethernet: LatestSnapshot<Ethernet, HidesFetchFailures>,
     ethernet_details: HoverFetchedSnapshot<EthernetDetails>,
     gateway_latencies: LatestSnapshot<GatewayLatencies, HidesFetchFailures>,
-    sessions: BTreeMap<String, PortSession>,
+    expansions: KeyedExpansions<String>,
 }
 
 impl EthernetPortsGroup {
     pub fn collapse(&mut self) {
-        self.sessions.values_mut().for_each(|session| {
-            session.expansion.collapse();
-        });
+        self.expansions.collapse();
     }
 
     pub fn subscription(
@@ -123,10 +112,7 @@ impl EthernetPortsGroup {
         buses: &DesktopBuses,
         demand: GroupSourceDemand,
     ) -> Subscription<EthernetPortsMessage> {
-        let any_port_expanded = self
-            .sessions
-            .values()
-            .any(|session| session.expansion.is_expanded());
+        let any_port_expanded = self.expansions.any_expanded();
         let demand = demand.expanded_when(any_port_expanded);
         Subscription::batch([
             snapshot_subscription::<Ethernet>(buses.clone()).map(EthernetPortsMessage::Snapshot),
@@ -165,9 +151,7 @@ impl EthernetPortsGroup {
                 port_name,
                 expansion,
             } => {
-                if let Some(session) = self.sessions.get_mut(&port_name) {
-                    session.expansion.update(expansion);
-                }
+                self.expansions.update(&port_name, expansion);
             }
         }
         Task::none()
@@ -175,18 +159,15 @@ impl EthernetPortsGroup {
 
     fn observe_latest_snapshot(&mut self) {
         let Some(ethernet) = self.ethernet.get() else {
-            self.sessions.clear();
+            self.expansions.clear();
             return;
         };
-        self.sessions.retain(|port_name, _| {
+        self.expansions.track(
             ethernet
                 .ports
                 .iter()
-                .any(|port_state| port_state.name == *port_name)
-        });
-        ethernet.ports.iter().for_each(|port_state| {
-            self.sessions.entry(port_state.name.clone()).or_default();
-        });
+                .map(|port_state| port_state.name.clone()),
+        );
     }
 
     pub fn hover(
@@ -314,7 +295,7 @@ impl EthernetPortsGroup {
         port_state: &'a PortState,
         group_title: WidgetGroupTitle,
     ) -> Option<WidgetGroupContent<'a, EthernetPortsMessage>> {
-        let session = self.sessions.get(&port_state.name)?;
+        let expansion = self.expansions.get(&port_state.name)?;
         let link_item = GroupItem::reading(
             PortLinkReading {
                 port_state,
@@ -361,7 +342,7 @@ impl EthernetPortsGroup {
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::EthernetPorts, port_state.name.clone()),
             group_title,
-            &session.expansion,
+            expansion,
             move |expansion| EthernetPortsMessage::Expansion {
                 port_name: port_name.clone(),
                 expansion,
