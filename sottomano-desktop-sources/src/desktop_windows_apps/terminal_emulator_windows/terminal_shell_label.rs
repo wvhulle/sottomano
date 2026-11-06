@@ -9,7 +9,7 @@ const SSH_VALUE_FLAGS: [&str; 20] = [
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct KittyWindowLabel {
+pub struct TerminalShellLabel {
     pub working_location: WorkingLocation,
     pub foreground_activity: ForegroundActivity,
 }
@@ -68,14 +68,14 @@ impl ForegroundActivity {
     }
 }
 
-pub struct ActiveKittyWindow<'a> {
+pub struct ActiveTerminalShell<'a> {
     pub shell: ShellState<'a>,
     pub shell_name: &'a str,
     pub foreground_program: Option<&'a [String]>,
 }
 
-impl ActiveKittyWindow<'_> {
-    pub fn window_label(&self) -> KittyWindowLabel {
+impl ActiveTerminalShell<'_> {
+    pub fn window_label(&self) -> TerminalShellLabel {
         let program_name = self.foreground_program.and_then(program_name);
         let title_format = ShellTitleFormat::from(self.shell_name);
         let foreground_activity = match title_format.read(&self.shell) {
@@ -102,7 +102,7 @@ impl ActiveKittyWindow<'_> {
                 self.shell.home,
             )),
         };
-        KittyWindowLabel {
+        TerminalShellLabel {
             working_location,
             foreground_activity,
         }
@@ -146,8 +146,8 @@ mod tests {
         title: &str,
         cwd: &str,
         foreground_program: Option<&[String]>,
-    ) -> KittyWindowLabel {
-        ActiveKittyWindow {
+    ) -> TerminalShellLabel {
+        ActiveTerminalShell {
             shell: ShellState {
                 title,
                 cwd: Path::new(cwd),
@@ -177,7 +177,7 @@ mod tests {
     fn an_idle_nushell_prompt_is_titled_with_the_shell_name() {
         assert_eq!(
             window_label("~/Downloads", "/home/user/Downloads", None),
-            KittyWindowLabel {
+            TerminalShellLabel {
                 working_location: local_directory("~/Downloads"),
                 foreground_activity: ForegroundActivity::ShellPrompt {
                     shell_name: "nu".to_owned(),
@@ -188,7 +188,7 @@ mod tests {
 
     #[test]
     fn an_idle_prompt_is_titled_with_whichever_shell_the_window_runs() {
-        let label = ActiveKittyWindow {
+        let label = ActiveTerminalShell {
             shell: ShellState {
                 title: "user@host:/srv",
                 cwd: Path::new("/srv"),
@@ -213,7 +213,7 @@ mod tests {
     fn a_nushell_command_title_names_the_typed_command() {
         assert_eq!(
             window_label("~/Downloads> sleep", "/home/user/Downloads", None),
-            KittyWindowLabel {
+            TerminalShellLabel {
                 working_location: local_directory("~/Downloads"),
                 foreground_activity: ForegroundActivity::ShellCommand {
                     command_line: "sleep".to_owned(),
@@ -228,7 +228,7 @@ mod tests {
         let claude = cmdline(&["/etc/profiles/per-user/user/bin/claude", "--resume"]);
         assert_eq!(
             window_label("✳ Session name", "/tmp", Some(&claude)),
-            KittyWindowLabel {
+            TerminalShellLabel {
                 working_location: local_directory("/tmp"),
                 foreground_activity: ForegroundActivity::ProgramTitle {
                     title: "✳ Session name".to_owned(),

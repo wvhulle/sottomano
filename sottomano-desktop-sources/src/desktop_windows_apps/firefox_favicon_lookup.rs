@@ -10,7 +10,7 @@ use rusqlite::{Connection, OpenFlags};
 
 use crate::{
     desktop_windows_apps::window_title_labels::{
-        WindowLabel, browser_page_title::strip_unread_badge,
+        WindowLabel, firefox_page_titles::strip_unread_badge,
     },
     system_protocol_clients::inotify_directory_changes::{WatchTarget, changes},
 };
@@ -38,8 +38,7 @@ pub fn firefox_keys(niri: &EventStreamState) -> Vec<String> {
         .windows
         .values()
         .filter_map(|w| {
-            let title = w.title.as_deref()?;
-            let label = WindowLabel::classify(w.app_id.as_deref(), title, None);
+            let label = WindowLabel::classify(w.app_id.as_deref()?, w.title.as_deref()?);
             label.favicon_key().map(str::to_owned)
         })
         .collect();

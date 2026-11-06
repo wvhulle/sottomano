@@ -5,9 +5,9 @@ use niri_ipc::{
     state::{EventStreamState, EventStreamStatePart},
 };
 use sottomano_desktop_sources::desktop_windows_apps::{
-    kitty_terminal_windows::WindowProcesses,
     niri_test_windows::{unnamed_niri_workspace, unplaced_niri_window},
     niri_window_snapshot::Snapshot,
+    terminal_emulator_windows::WindowProcesses,
 };
 
 use crate::widgets::{

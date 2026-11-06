@@ -14,8 +14,8 @@ use tokio_util::codec::{Framed, LinesCodec, LinesCodecError};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     desktop_windows_apps::{
-        kitty_terminal_windows::WindowProcesses,
-        window_title_labels::{IconCandidate, WindowLabel},
+        terminal_emulator_windows::WindowProcesses,
+        window_title_labels::{IconCandidate, WindowGroupKey, WindowLabel},
     },
 };
 
@@ -340,18 +340,27 @@ impl WinEntry {
     pub fn favicon_key(&self) -> Option<&str> {
         self.label.as_ref()?.favicon_key()
     }
+
+    #[must_use]
+    pub fn group_key(&self) -> Option<WindowGroupKey<'_>> {
+        self.label
+            .as_ref()
+            .and_then(WindowLabel::group_key)
+            .or_else(|| self.app_id.as_deref().map(WindowGroupKey::Application))
+    }
 }
 
 fn win_entry(w: &niri_ipc::Window, processes: &WindowProcesses) -> WinEntry {
     let title = w.title.clone().filter(|title| !title.is_empty());
     let app_id = w.app_id.clone().filter(|app_id| !app_id.is_empty());
-    let label = title.as_deref().or(app_id.as_deref()).map(|shown_title| {
-        WindowLabel::classify(
-            app_id.as_deref(),
-            shown_title,
-            processes.kitty_label_in(w.id).cloned(),
-        )
-    });
+    let label = match (processes.terminal_label_in(w.id), app_id.as_deref()) {
+        (Some(terminal_label), _) => Some(WindowLabel::TerminalShell(terminal_label.clone())),
+        (None, Some(app_id)) => Some(WindowLabel::classify(
+            app_id,
+            title.as_deref().unwrap_or(app_id),
+        )),
+        (None, None) => title.map(WindowLabel::Titled),
+    };
     WinEntry {
         id: w.id,
         app_id,

@@ -1,5 +1,5 @@
 mod flat_window_rows;
-mod location_grouped_window_rows;
+mod keyed_window_group_rows;
 pub mod process_tree;
 mod window_hover_card;
 pub mod window_list;
@@ -11,8 +11,8 @@ use iced::{Element, Subscription, Task};
 use niri_ipc::state::EventStreamState;
 use sottomano_desktop_sources::{
     desktop_windows_apps::{
-        kitty_terminal_windows::WindowProcesses, niri_window_snapshot,
-        process_tree_inspection::Watched,
+        niri_window_snapshot, process_tree_inspection::Watched,
+        terminal_emulator_windows::WindowProcesses,
     },
     media_playback_audio::pipewire_audio::WindowAudio,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,

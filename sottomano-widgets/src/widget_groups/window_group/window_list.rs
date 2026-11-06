@@ -8,10 +8,10 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
         kde_job_view_progress::{self, JobProgress},
-        kitty_terminal_windows::{self, WindowProcesses},
         niri_window_snapshot,
         nix_package_facts::{NixPackageFacts, PackageWatch},
         process_tree_inspection::{Inspection, Process, Watched},
+        terminal_emulator_windows::{self, WindowProcesses},
         unity_launcher_badges::{self, LauncherEntries, LauncherEntry},
     },
     media_playback_audio::pipewire_audio::WindowAudio,
@@ -39,7 +39,7 @@ use crate::{
     widget_groups::window_group::{
         WindowRowLayout, WindowTarget,
         flat_window_rows::arranged_flat_rows,
-        location_grouped_window_rows::arranged_location_groups,
+        keyed_window_group_rows::arranged_keyed_groups,
         process_tree::Folding,
         window_row_presentation::{ArrangedWindowRows, WindowSlotPresentation},
     },
@@ -121,9 +121,9 @@ impl WindowList {
         Subscription::batch([
             Subscription::run(|| restarting("job view", kde_job_view_progress::serve))
                 .map(WindowListMessage::JobsChanged),
-            if agents.kitty {
-                Subscription::run_with(agents.clone(), |_| {
-                    kitty_terminal_windows::window_pairings()
+            if agents.kitty || agents.wezterm || agents.pty_shells {
+                Subscription::run_with(agents.clone(), |agents| {
+                    terminal_emulator_windows::window_pairings(agents.clone())
                 })
                 .map(WindowListMessage::WindowProcessesPaired)
             } else {
@@ -274,7 +274,7 @@ impl WindowList {
         } = match slot_context.window_row_layout {
             WindowRowLayout::Flat => arranged_flat_rows(order.len()),
             WindowRowLayout::GroupedByLocation => {
-                arranged_location_groups(&order, icons, slot_context)
+                arranged_keyed_groups(&order, icons, slot_context)
             }
         };
         let window_slots: Vec<_> = order
