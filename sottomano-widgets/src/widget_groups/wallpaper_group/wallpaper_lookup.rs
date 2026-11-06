@@ -78,50 +78,45 @@ impl SnapshotSource for Lookup {
             source_inputs: unsplash_key,
         }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(wallpaper_place_article::daemon_installed()).while_held(
-            move || {
+        stream::once(wallpaper_place_article::daemon_installed()).available_while(move || {
+            let unsplash_key = unsplash_key.clone();
+            internet_connectivity_gate::while_online(buses.clone(), move || {
                 let unsplash_key = unsplash_key.clone();
-                internet_connectivity_gate::while_online(buses.clone(), move || {
-                    let unsplash_key = unsplash_key.clone();
-                    wallpaper_place_article::displayed()
-                        .distinct_until_changed()
-                        .flat_map(move |displayed| {
-                            let unsplash_key = unsplash_key.clone();
-                            let path = match displayed {
-                                Err(failure) => {
-                                    return stream::iter([SnapshotDelivery::live_push(Err(
-                                        Failure::Query(failure),
-                                    ))])
-                                    .left_stream();
-                                }
-                                Ok(DisplayedWallpaper::NoImageFile) => {
-                                    return stream::iter([SnapshotDelivery::SourceUnavailable])
-                                        .left_stream();
-                                }
-                                Ok(DisplayedWallpaper::ImageFile(path)) => path,
-                            };
-                            let Some(id) = wallpaper_place_article::photo_id(&path) else {
-                                return stream::iter([SnapshotDelivery::SourceUnavailable])
-                                    .left_stream();
-                            };
-                            let unresolved =
-                                Lookup::of(&wallpaper_place_article::unresolved(&path, &id));
-                            let resolved = async move {
-                                SnapshotDelivery::live_push(
-                                    wallpaper_place_article::resolve(path, id, &unsplash_key)
-                                        .await
-                                        .map(|wallpaper| Lookup::of(&wallpaper))
-                                        .map_err(Failure::Resolve),
-                                )
-                            };
-                            stream::iter([SnapshotDelivery::live_push(Ok(unresolved))])
-                                .chain(stream::once(resolved))
-                                .right_stream()
-                        })
-                })
-            },
-            SnapshotDelivery::SourceUnavailable,
-        )
+                wallpaper_place_article::displayed()
+                    .distinct_until_changed()
+                    .flat_map(move |displayed| displayed_lookups(displayed, unsplash_key.clone()))
+            })
+        })
+    }
+}
+
+fn displayed_lookups(
+    displayed: Result<DisplayedWallpaper, shell_command_output::Error>,
+    unsplash_key: PathBuf,
+) -> impl Stream<Item = SnapshotDelivery<Lookup>> + Send {
+    let credited_photo = match displayed {
+        Err(failure) => Err(SnapshotDelivery::live_push(Err(Failure::Query(failure)))),
+        Ok(DisplayedWallpaper::NoImageFile) => Err(SnapshotDelivery::SourceUnavailable),
+        Ok(DisplayedWallpaper::ImageFile(path)) => wallpaper_place_article::photo_id(&path)
+            .map(|id| (path, id))
+            .ok_or(SnapshotDelivery::SourceUnavailable),
+    };
+    match credited_photo {
+        Err(settled) => stream::iter([settled]).left_stream(),
+        Ok((path, id)) => {
+            let unresolved = Lookup::of(&wallpaper_place_article::unresolved(&path, &id));
+            let resolved = async move {
+                SnapshotDelivery::live_push(
+                    wallpaper_place_article::resolve(path, id, &unsplash_key)
+                        .await
+                        .map(|wallpaper| Lookup::of(&wallpaper))
+                        .map_err(Failure::Resolve),
+                )
+            };
+            stream::iter([SnapshotDelivery::live_push(Ok(unresolved))])
+                .chain(stream::once(resolved))
+                .right_stream()
+        }
     }
 }
 
