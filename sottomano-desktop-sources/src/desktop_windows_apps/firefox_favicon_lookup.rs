@@ -5,12 +5,12 @@ use std::{
 };
 
 use futures::Stream;
-use niri_ipc::state::EventStreamState;
 use rusqlite::{Connection, OpenFlags};
 
 use crate::{
-    desktop_windows_apps::window_title_labels::{
-        WindowLabel, firefox_page_titles::strip_unread_badge,
+    desktop_windows_apps::{
+        compositor_window_state::CompositorWindowState,
+        window_title_labels::{WindowLabel, firefox_page_titles::strip_unread_badge},
     },
     system_protocol_clients::inotify_directory_changes::{WatchTarget, changes},
 };
@@ -32,9 +32,8 @@ pub enum FaviconKind {
 }
 
 #[must_use]
-pub fn firefox_keys(niri: &EventStreamState) -> Vec<String> {
-    let mut keys: Vec<String> = niri
-        .windows
+pub fn firefox_keys(compositor: &CompositorWindowState) -> Vec<String> {
+    let mut keys: Vec<String> = compositor
         .windows
         .values()
         .filter_map(|w| {

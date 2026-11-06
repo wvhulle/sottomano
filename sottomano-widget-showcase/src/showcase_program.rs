@@ -14,8 +14,10 @@ use iced::{
 };
 use iced_controller_diagram::ControllerArtwork;
 use iced_test::program::{Preset, Program};
-use niri_ipc::state::EventStreamState;
-use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::ColorMode;
+use sottomano_desktop_sources::{
+    desktop_windows_apps::compositor_window_state::CompositorWindowState,
+    screen_brightness_color::solar_switch_schedule::ColorMode,
+};
 use sottomano_toml_config::{Config, Palette, screen_edges::Position};
 use sottomano_widgets::{
     clock::Clock,
@@ -465,9 +467,9 @@ impl ShowcaseState {
     }
 
     fn update_notification(&mut self, message: NotificationMessage) -> Task<ShowcaseMessage> {
-        let unplaced = EventStreamState::default();
+        let unplaced = CompositorWindowState::default();
         let context = ToastContext::new(
-            self.group.niri().unwrap_or(&unplaced),
+            self.group.compositor().unwrap_or(&unplaced),
             self.desktop_entries.get(),
             &self.config,
             self.notification_settings,

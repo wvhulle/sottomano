@@ -2,7 +2,7 @@ use std::mem;
 
 use iced::{Subscription, Task, window::frames};
 use niri_ipc::{Action, WorkspaceReferenceArg};
-use sottomano_desktop_sources::desktop_windows_apps::niri_window_snapshot;
+use sottomano_desktop_sources::desktop_windows_apps::workspace_window_snapshot;
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     background_work::niri_action,
@@ -140,7 +140,7 @@ impl DesktopShell {
     }
 
     fn reorder(&mut self, drag: ActiveDrag, to: usize) -> Task<Message> {
-        let snapshot = &self.niri_snapshot;
+        let snapshot = &self.window_snapshot;
         match drag.item {
             DraggedPanelSlot::Workspace(workspace) => {
                 let Some(index) = self
@@ -186,7 +186,7 @@ impl DesktopShell {
         let Some(configured) = &self.configured_workspaces else {
             return Task::none();
         };
-        let snapshot = &self.niri_snapshot;
+        let snapshot = &self.window_snapshot;
         configured
             .restoring_moves(snapshot.workspaces_for_output(output))
             .into_iter()
@@ -201,8 +201,7 @@ impl DesktopShell {
 
     fn move_window_to_workspace(&mut self, window: u64, workspace: u64) -> Task<Message> {
         if self
-            .niri
-            .windows
+            .compositor
             .windows
             .get(&window)
             .is_none_or(|found| found.workspace_id == Some(workspace))
@@ -221,9 +220,9 @@ impl DesktopShell {
 
     fn reshape_snapshot(
         &mut self,
-        reshape: impl FnOnce(niri_window_snapshot::Snapshot) -> niri_window_snapshot::Snapshot,
+        reshape: impl FnOnce(workspace_window_snapshot::Snapshot) -> workspace_window_snapshot::Snapshot,
     ) {
-        self.niri_snapshot = reshape(mem::take(&mut self.niri_snapshot));
+        self.window_snapshot = reshape(mem::take(&mut self.window_snapshot));
     }
 }
 

@@ -8,11 +8,10 @@ mod window_row_presentation;
 use std::collections::HashMap;
 
 use iced::{Element, Subscription, Task};
-use niri_ipc::state::EventStreamState;
 use sottomano_desktop_sources::{
     desktop_windows_apps::{
-        niri_window_snapshot, process_tree_inspection::Watched,
-        terminal_emulator_windows::WindowProcesses,
+        compositor_window_state::CompositorWindowState, process_tree_inspection::Watched,
+        terminal_emulator_windows::WindowProcesses, workspace_window_snapshot,
     },
     media_playback_audio::pipewire_audio::WindowAudio,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -76,14 +75,14 @@ impl WindowGroup {
 
     pub fn hover(
         &mut self,
-        niri_state: &EventStreamState,
+        compositor: &CompositorWindowState,
         hovered: Option<&HoverTarget>,
         config: &Config,
         clock: Clock,
     ) -> Task<WindowGroupMessage> {
         let watched = match hovered {
             Some(HoverTarget::Window(WindowTarget::Inspect(window))) => {
-                watched(niri_state, *window)
+                watched(compositor, *window)
             }
             _ => None,
         };
@@ -94,12 +93,12 @@ impl WindowGroup {
 
     #[must_use]
     pub fn pick_hover_card(
-        niri_state: &EventStreamState,
+        compositor: &CompositorWindowState,
         window: u64,
         clock: Clock,
     ) -> Option<HoverCard> {
         Some(HoverCard::sourced(
-            window_hover_card::pick_body(niri_state, window, clock.wall)?,
+            window_hover_card::pick_body(compositor, window, clock.wall)?,
             DeliveryTiming::LivePush,
         ))
     }
@@ -125,14 +124,14 @@ impl WindowGroup {
     #[must_use]
     pub fn view<'a>(
         &'a self,
-        niri: &niri_window_snapshot::Snapshot,
+        compositor: &workspace_window_snapshot::Snapshot,
         icons: WindowAssets<'a>,
         audio: Option<&HashMap<i32, WindowAudio>>,
         output: &str,
         slot_context: PanelSlotContext<'a>,
     ) -> Option<Element<'a, GroupEvent<WindowGroupMessage>>> {
         self.window_list
-            .view(niri, icons, audio, output, slot_context)
+            .view(compositor, icons, audio, output, slot_context)
             .map(|element| {
                 element.map(|message| match message {
                     WindowListMessage::HoverCard(hover_card) => GroupEvent::HoverCard(hover_card),
@@ -142,8 +141,8 @@ impl WindowGroup {
     }
 }
 
-fn watched(niri_state: &EventStreamState, window: u64) -> Option<Watched> {
-    let found = niri_state.windows.windows.get(&window)?;
+fn watched(compositor: &CompositorWindowState, window: u64) -> Option<Watched> {
+    let found = compositor.windows.get(&window)?;
     Some(Watched {
         window,
         pid: found.pid?,

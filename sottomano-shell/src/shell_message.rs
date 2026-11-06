@@ -9,9 +9,9 @@ use sottomano_desktop_sinks::{
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
-        app_launch_history::Launch, desktop_entry_app_icons::DesktopEntries,
-        firefox_favicon_lookup::RawFavicon, niri_kdl_config::ConfiguredWorkspaces,
-        niri_output_facts,
+        app_launch_history::Launch, compositor_window_state::CompositorUpdate,
+        desktop_entry_app_icons::DesktopEntries, firefox_favicon_lookup::RawFavicon,
+        niri_kdl_config::ConfiguredWorkspaces, niri_output_facts,
     },
     host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::dbus_desktop_buses::DesktopBusEvent,
@@ -134,7 +134,7 @@ pub enum Message {
     FaviconsResolved(HashMap<String, RawFavicon>),
     FirefoxProfileChanged,
     DismissPressed,
-    Niri(Vec<niri_ipc::Event>),
+    Compositor(CompositorUpdate),
     Redraw,
     WindowClosed(Id),
     PointerLeft,

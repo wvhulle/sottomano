@@ -1,6 +1,6 @@
 use iced::{Alignment, Element, Length, widget::Row};
 use sottomano_desktop_sources::desktop_windows_apps::{
-    niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot,
+    niri_kdl_config::ConfiguredWorkspaces, workspace_window_snapshot,
 };
 
 use super::{
@@ -16,7 +16,7 @@ use crate::{
 };
 
 pub fn inline_view<'a>(
-    niri: &niri_window_snapshot::Snapshot,
+    compositor: &workspace_window_snapshot::Snapshot,
     output: &str,
     configured: Option<&ConfiguredWorkspaces>,
     empty_workspace_folding: &EmptyWorkspaceFolding,
@@ -25,11 +25,11 @@ pub fn inline_view<'a>(
     let PanelSlotContext {
         config, edge, drag, ..
     } = slot_context;
-    let workspaces = niri.workspaces_for_output(output);
+    let workspaces = compositor.workspaces_for_output(output);
     if workspaces.is_empty() {
         return None;
     }
-    let shown = shown_workspaces(niri, output, empty_workspace_folding);
+    let shown = shown_workspaces(compositor, output, empty_workspace_folding);
     let order: Vec<_> = drag
         .previewed(&shown, |workspace| workspace_slot_key(workspace))
         .into_iter()
@@ -40,7 +40,7 @@ pub fn inline_view<'a>(
         .enumerate()
         .map(|(position_in_panel, workspace)| {
             let workspace_slot =
-                WorkspaceSlot::new(workspace, niri, position_in_panel, slot_context);
+                WorkspaceSlot::new(workspace, compositor, position_in_panel, slot_context);
             (workspace_slot.key(), workspace_slot.inline_view())
         });
     let pager = slot_pager(slots, edge, config)
@@ -50,7 +50,7 @@ pub fn inline_view<'a>(
         Row::new()
             .push(pager)
             .extend(empty_workspaces_toggle(
-                niri,
+                compositor,
                 output,
                 empty_workspace_folding,
                 config,
@@ -90,7 +90,7 @@ mod tests {
     #[test]
     fn dragging_a_workspace_across_the_strip_enters_each_slot_then_leaves() {
         let config = Config::default();
-        let niri_snapshot = three_workspaces_three_windows();
+        let window_snapshot = three_workspaces_three_windows();
         let drag_view =
             dragging_from_start(DraggedPanelSlot::Workspace(SIMULATED_WORKSPACE_IDS[0]));
         let slot_context = PanelSlotContext {
@@ -103,7 +103,7 @@ mod tests {
             window_row_layout: WindowRowLayout::default(),
         };
         let pager_element = inline_view(
-            &niri_snapshot,
+            &window_snapshot,
             SIMULATED_OUTPUT,
             None,
             &EmptyWorkspaceFolding::new(EmptyWorkspaces::Shown),

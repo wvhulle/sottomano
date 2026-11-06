@@ -34,7 +34,7 @@ impl DesktopShell {
             .sidebar_settings_group
             .workspaces_placement()
             == WorkspacesPlacement::Sidebar)
-            .then_some(&self.niri_snapshot)
+            .then_some(&self.window_snapshot)
             .and_then(|snapshot| {
                 sidebar_column::vertical_view(
                     snapshot,

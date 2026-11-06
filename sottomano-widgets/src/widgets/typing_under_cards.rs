@@ -6,9 +6,10 @@ use iced::{
     mouse,
     time::{Duration, Instant},
 };
-use niri_ipc::state::EventStreamState;
 use sottomano_desktop_sources::{
-    desktop_windows_apps::niri_window_placement::Placement,
+    desktop_windows_apps::{
+        compositor_window_state::CompositorWindowState, window_edge_placement::Placement,
+    },
     login_session_presence::wayland_idle_notify::{IdleEdge, input_idle_edges},
 };
 use sottomano_toml_config::overlay_surfaces::OverlaySurfacesConfig;
@@ -73,7 +74,7 @@ fn input_edge_signals(idle_delay: &Duration) -> impl Stream<Item = TypingSignal>
 #[must_use]
 pub fn viewed_window_bounds(placement: &Placement, window_id: u64) -> Option<Rectangle> {
     let layout = placement.viewed_window_layout(window_id)?;
-    let (tile_x, tile_y) = layout.tile_pos_in_workspace_view?;
+    let (tile_x, tile_y) = layout.tile_position_in_view?;
     let (offset_x, offset_y) = layout.window_offset_in_tile;
     let (width, height) = layout.window_size;
     Some(Rectangle {
@@ -175,7 +176,7 @@ impl TypingUnderCards {
     pub fn background_fade_on(
         &self,
         output: &str,
-        niri: &EventStreamState,
+        compositor: &CompositorWindowState,
         now: Instant,
         overlay_surfaces: &OverlaySurfacesConfig,
     ) -> CardBackgroundFade {
@@ -183,7 +184,7 @@ impl TypingUnderCards {
         if fade_level <= 0.0 {
             return CardBackgroundFade::Resting;
         }
-        focused_window_bounds_on(output, &Placement::derive(niri)).map_or(
+        focused_window_bounds_on(output, &Placement::derive(compositor)).map_or(
             CardBackgroundFade::Resting,
             |focused_window| CardBackgroundFade::Fading {
                 focused_window,

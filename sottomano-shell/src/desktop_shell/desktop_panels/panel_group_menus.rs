@@ -240,7 +240,7 @@ impl DesktopShell {
             .gamepad_group
             .group_contents(
                 &config.widget_groups.gamepad,
-                gamepad_window_claim(&self.niri, &self.outputs),
+                gamepad_window_claim(&self.compositor, &self.outputs),
             )
             .into_iter()
             .map(|group| group.map(Message::Gamepad));

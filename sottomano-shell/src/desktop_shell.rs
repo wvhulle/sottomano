@@ -1,10 +1,10 @@
+mod compositor_update_handling;
 mod config_adoption;
 pub mod desktop_panels;
 mod group_actions;
 pub mod hover_card_updates;
 pub mod monitor_layout;
 pub mod monitor_surfaces;
-mod niri_event_updates;
 pub mod notification_updates;
 pub mod pointer_drag;
 mod shell_widget_group_readings;
@@ -27,15 +27,15 @@ use iced::{
     window::Id,
 };
 use iced_controller_diagram::ControllerArtwork;
-use niri_ipc::state::EventStreamState;
 use sottomano_desktop_sinks::desktop_notifications::alert_sound_player::SoundTheme;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::{
         app_launch_history::LaunchTracker,
+        compositor_window_state::CompositorWindowState,
         desktop_entry_changes,
         niri_kdl_config::{ConfiguredWorkspaces, NiriConfigFile},
-        niri_output_facts, niri_window_snapshot,
+        niri_output_facts, workspace_window_snapshot,
     },
     system_protocol_clients::dbus_desktop_buses::{DesktopBusEvent, DesktopBuses},
 };
@@ -72,12 +72,12 @@ use sottomano_widgets::{
     },
 };
 
-pub(crate) use self::niri_event_updates::gamepad_window_claim;
+pub(crate) use self::compositor_update_handling::gamepad_window_claim;
 use self::notification_updates::GroupAlertScan;
 use crate::{
     desktop_shell::{
+        compositor_update_handling::reheats_switch_heat,
         monitor_surfaces::{Surface, SurfaceRole, query_outputs},
-        niri_event_updates::reheats_switch_heat,
         pointer_drag::ShellDrag,
         shell_widget_groups::ShellWidgetGroups,
     },
@@ -93,8 +93,8 @@ pub struct DesktopShell {
     pub theme: iced::Theme,
     pub widget_groups: ShellWidgetGroups,
     pub launch_tracker: LaunchTracker,
-    pub niri: EventStreamState,
-    pub niri_snapshot: niri_window_snapshot::Snapshot,
+    pub compositor: CompositorWindowState,
+    pub window_snapshot: workspace_window_snapshot::Snapshot,
     pub outputs: HashMap<String, niri_output_facts::OutputInfo>,
     pub surfaces: BTreeMap<Id, Surface>,
     pub backdrops: BTreeMap<Id, Position>,
@@ -127,8 +127,8 @@ impl DesktopShell {
         let shell = Self {
             widget_groups: ShellWidgetGroups::new(&config, secrets, niri_rules, clock),
             launch_tracker: LaunchTracker::default(),
-            niri: EventStreamState::default(),
-            niri_snapshot: niri_window_snapshot::Snapshot::default(),
+            compositor: CompositorWindowState::default(),
+            window_snapshot: workspace_window_snapshot::Snapshot::default(),
             outputs: HashMap::new(),
             surfaces: BTreeMap::new(),
             backdrops: BTreeMap::new(),
@@ -182,7 +182,7 @@ impl DesktopShell {
             .refresh_daily_totals(&self.config.widget_groups.session_focus, self.clock);
         let reheated = if reheat_due {
             self.widget_groups
-                .reheat_switch_heat(&self.config, &self.niri, self.clock)
+                .reheat_switch_heat(&self.config, &self.compositor, self.clock)
         } else {
             Task::none()
         };
@@ -213,7 +213,7 @@ impl DesktopShell {
         let widget_toasts = self.notifications.show_widget_toasts(
             toast_requests,
             &self.widget_groups.toast_context(
-                &self.niri,
+                &self.compositor,
                 self.desktop_entries.get(),
                 &self.config,
                 self.clock,
@@ -298,7 +298,7 @@ impl DesktopShell {
                 self.widget_groups.collapse_when_auto_collapsing();
                 Task::none()
             }
-            Message::Niri(events) => self.apply_niri_events(events),
+            Message::Compositor(update) => self.apply_compositor_update(update),
             Message::WindowClosed(window) => self.forget_window(window),
             Message::SidebarWidthChanged { window, width } => {
                 self.update_sidebar_width(window, width)
@@ -335,7 +335,7 @@ impl DesktopShell {
                 self.notifications.show_bus_failure(
                     &failure,
                     &self.widget_groups.toast_context(
-                        &self.niri,
+                        &self.compositor,
                         self.desktop_entries.get(),
                         &self.config,
                         self.clock,
@@ -583,7 +583,7 @@ impl DesktopShell {
     fn card_background_fade(&self, output: &str) -> CardBackgroundFade {
         self.typing_under_cards.background_fade_on(
             output,
-            &self.niri,
+            &self.compositor,
             self.clock.instant,
             &self.config.overlay_surfaces,
         )

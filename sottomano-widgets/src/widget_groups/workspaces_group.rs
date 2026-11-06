@@ -11,7 +11,7 @@ use iced::{
     widget::{button, text},
 };
 use sottomano_desktop_sources::desktop_windows_apps::{
-    niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot,
+    niri_kdl_config::ConfiguredWorkspaces, workspace_window_snapshot,
 };
 use sottomano_toml_config::Config;
 
@@ -108,9 +108,9 @@ impl EmptyWorkspaceFolding {
 
     pub fn observe_workspace_switch(
         &mut self,
-        niri: &niri_window_snapshot::Snapshot,
+        compositor: &workspace_window_snapshot::Snapshot,
     ) -> RevealFoldTimer {
-        let active_workspace_by_output: HashMap<String, u64> = niri
+        let active_workspace_by_output: HashMap<String, u64> = compositor
             .active_workspace_ids_by_output()
             .map(|(output, workspace_id)| (output.to_owned(), workspace_id))
             .collect();
@@ -121,7 +121,7 @@ impl EmptyWorkspaceFolding {
             })
             .map(|(output, workspace_id)| {
                 let previous_workspace_id = self.active_workspace_by_output.get(output).copied();
-                classify_switch(niri, output, previous_workspace_id, *workspace_id)
+                classify_switch(compositor, output, previous_workspace_id, *workspace_id)
             })
             .fold(WorkspaceSwitch::Unchanged, |combined, switch| {
                 match (combined, switch) {
@@ -172,22 +172,22 @@ impl EmptyWorkspaceFolding {
 
     fn hides(
         &self,
-        niri: &niri_window_snapshot::Snapshot,
-        workspace: &niri_window_snapshot::WorkspaceIndicator,
+        compositor: &workspace_window_snapshot::Snapshot,
+        workspace: &workspace_window_snapshot::WorkspaceIndicator,
     ) -> bool {
         self.mode == EmptyWorkspaces::Folded
             && !self.temporarily_revealed
-            && !is_in_use(niri, workspace)
+            && !is_in_use(compositor, workspace)
     }
 }
 
 fn classify_switch(
-    niri: &niri_window_snapshot::Snapshot,
+    compositor: &workspace_window_snapshot::Snapshot,
     output: &str,
     previous_workspace_id: Option<u64>,
     workspace_id: u64,
 ) -> WorkspaceSwitch {
-    let workspaces = niri.workspaces_for_output(output);
+    let workspaces = compositor.workspaces_for_output(output);
     let position_of = |searched_id: u64| {
         workspaces
             .iter()
@@ -206,7 +206,7 @@ fn classify_switch(
     };
     if is_step {
         WorkspaceSwitch::Step {
-            landed_on_empty: niri.windows_on_workspace(workspace_id).is_empty(),
+            landed_on_empty: compositor.windows_on_workspace(workspace_id).is_empty(),
         }
     } else {
         WorkspaceSwitch::Jump
@@ -214,26 +214,27 @@ fn classify_switch(
 }
 
 fn is_in_use(
-    niri: &niri_window_snapshot::Snapshot,
-    workspace: &niri_window_snapshot::WorkspaceIndicator,
+    compositor: &workspace_window_snapshot::Snapshot,
+    workspace: &workspace_window_snapshot::WorkspaceIndicator,
 ) -> bool {
-    workspace.is_active || !niri.windows_on_workspace(workspace.id).is_empty()
+    workspace.is_active || !compositor.windows_on_workspace(workspace.id).is_empty()
 }
 
 #[must_use]
 pub fn shown_workspaces<'s>(
-    niri: &'s niri_window_snapshot::Snapshot,
+    compositor: &'s workspace_window_snapshot::Snapshot,
     output: &str,
     folding: &EmptyWorkspaceFolding,
-) -> Vec<&'s niri_window_snapshot::WorkspaceIndicator> {
-    niri.workspaces_for_output(output)
+) -> Vec<&'s workspace_window_snapshot::WorkspaceIndicator> {
+    compositor
+        .workspaces_for_output(output)
         .iter()
-        .filter(|workspace| !folding.hides(niri, workspace))
+        .filter(|workspace| !folding.hides(compositor, workspace))
         .collect()
 }
 
 fn empty_workspaces_toggle<'a>(
-    niri: &niri_window_snapshot::Snapshot,
+    compositor: &workspace_window_snapshot::Snapshot,
     output: &str,
     folding: &EmptyWorkspaceFolding,
     config: &Config,
@@ -241,10 +242,10 @@ fn empty_workspaces_toggle<'a>(
     if folding.mode == EmptyWorkspaces::Shown {
         return None;
     }
-    let unused_count = niri
+    let unused_count = compositor
         .workspaces_for_output(output)
         .iter()
-        .filter(|workspace| !is_in_use(niri, workspace))
+        .filter(|workspace| !is_in_use(compositor, workspace))
         .count();
     if unused_count == 0 {
         return None;
@@ -282,20 +283,20 @@ fn empty_workspaces_toggle<'a>(
 
 #[must_use]
 pub fn drag_ghost<'a>(
-    niri: &niri_window_snapshot::Snapshot,
+    compositor: &workspace_window_snapshot::Snapshot,
     output: &str,
     workspace_id: u64,
     slot_context: PanelSlotContext<'_>,
 ) -> Option<Element<'a, WorkspacesMessage>> {
     let PanelSlotContext { config, drag, .. } = slot_context;
-    let workspace = niri
+    let workspace = compositor
         .workspaces_for_output(output)
         .iter()
         .find(|workspace| workspace.id == workspace_id)?;
     Some(
         panel_frame(
             dragged_slot_content(
-                WorkspaceSlot::ghost(workspace, niri, slot_context).label(),
+                WorkspaceSlot::ghost(workspace, compositor, slot_context).label(),
                 config,
             ),
             drag.ghost_frame,
@@ -310,7 +311,7 @@ fn dragged(event: SlotDragEvent) -> WorkspacesMessage {
 
 fn order_restore<'a>(
     configured: Option<&ConfiguredWorkspaces>,
-    workspaces: &[niri_window_snapshot::WorkspaceIndicator],
+    workspaces: &[workspace_window_snapshot::WorkspaceIndicator],
     output: &str,
     config: &Config,
 ) -> Option<Element<'a, WorkspacesMessage>> {

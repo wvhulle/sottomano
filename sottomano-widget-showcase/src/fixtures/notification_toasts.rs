@@ -1,14 +1,15 @@
 use std::time::Duration;
 
-use niri_ipc::{
-    Event, Window, WindowLayout, Workspace,
-    state::{EventStreamState, EventStreamStatePart},
-};
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::{
         ActionTint, ExpireTimeout, NotifAction, NotificationData,
     },
-    desktop_windows_apps::niri_test_windows::unplaced_niri_window,
+    desktop_windows_apps::{
+        compositor_test_windows::unplaced_compositor_window,
+        compositor_window_state::{
+            CompositorWindow, CompositorWindowLayout, CompositorWindowState, CompositorWorkspace,
+        },
+    },
 };
 use sottomano_toml_config::severity::Severity;
 use sottomano_widgets::{clock::Clock, toast_messages::NotificationMessage};
@@ -156,54 +157,45 @@ fn action(key: &str, label: &str) -> NotifAction {
 
 fn desk(opening: NotificationData, _clock: Clock) -> ShowcasedGroup {
     let editor_view = opening.window_id_hint.map(|_| EDITOR_POSITION_IN_VIEW);
-    let niri = [workspaces(), windows(editor_view)].into_iter().fold(
-        EventStreamState::default(),
-        |mut state, event| {
-            let _ = state.apply(event);
-            state
-        },
-    );
+    let compositor =
+        CompositorWindowState::from_lists([desk_workspace()], [editor_window(editor_view)]);
     ShowcasedGroup::Toasts(Box::new(ShowcasedToasts {
-        niri,
+        compositor,
         opening: vec![opening],
         terminal_scrollback: BUILD_SCROLLBACK,
     }))
 }
 
-fn workspaces() -> Event {
-    Event::WorkspacesChanged {
-        workspaces: vec![Workspace {
-            id: DESK_WORKSPACE,
-            idx: 1,
-            name: Some("code".to_owned()),
-            output: Some(SHOWCASE_OUTPUT.to_owned()),
-            is_urgent: false,
-            is_active: true,
-            is_focused: true,
-            active_window_id: Some(EDITOR_WINDOW),
-        }],
+fn desk_workspace() -> CompositorWorkspace {
+    CompositorWorkspace {
+        id: DESK_WORKSPACE,
+        index: 1,
+        name: Some("code".to_owned()),
+        output: Some(SHOWCASE_OUTPUT.to_owned()),
+        is_urgent: false,
+        is_active: true,
+        is_focused: true,
+        active_window_id: Some(EDITOR_WINDOW),
     }
 }
 
-fn windows(editor_view: Option<(f64, f64)>) -> Event {
-    Event::WindowsChanged {
-        windows: vec![Window {
-            title: Some(PROJECT_DIRECTORY.to_owned()),
-            app_id: Some("foot".to_owned()),
-            pid: Some(EDITOR_PID),
-            workspace_id: Some(DESK_WORKSPACE),
-            is_focused: true,
-            layout: WindowLayout {
-                pos_in_scrolling_layout: Some((1, 1)),
-                tile_size: (
-                    f64::from(EDITOR_WINDOW_SIZE.0),
-                    f64::from(EDITOR_WINDOW_SIZE.1),
-                ),
-                window_size: EDITOR_WINDOW_SIZE,
-                tile_pos_in_workspace_view: editor_view,
-                window_offset_in_tile: (0.0, 0.0),
-            },
-            ..unplaced_niri_window(EDITOR_WINDOW)
-        }],
+fn editor_window(editor_view: Option<(f64, f64)>) -> CompositorWindow {
+    CompositorWindow {
+        title: Some(PROJECT_DIRECTORY.to_owned()),
+        app_id: Some("foot".to_owned()),
+        pid: Some(EDITOR_PID),
+        workspace_id: Some(DESK_WORKSPACE),
+        is_focused: true,
+        layout: CompositorWindowLayout {
+            scrolling_position: Some((1, 1)),
+            tile_size: (
+                f64::from(EDITOR_WINDOW_SIZE.0),
+                f64::from(EDITOR_WINDOW_SIZE.1),
+            ),
+            window_size: EDITOR_WINDOW_SIZE,
+            tile_position_in_view: editor_view,
+            window_offset_in_tile: (0.0, 0.0),
+        },
+        ..unplaced_compositor_window(EDITOR_WINDOW)
     }
 }

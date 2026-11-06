@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use iced::Size;
 use sottomano_desktop_sources::desktop_windows_apps::{
-    niri_window_snapshot, window_title_labels::IconCandidate,
+    window_title_labels::IconCandidate, workspace_window_snapshot,
 };
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
 
 #[must_use]
 pub fn hover_card(
-    snapshot: &niri_window_snapshot::Snapshot,
+    snapshot: &workspace_window_snapshot::Snapshot,
     icons: &DesktopIndex,
     niri_layout: NiriLayout,
     workspace: u64,
@@ -45,19 +45,19 @@ pub fn hover_card(
 }
 
 fn scrolling_columns(
-    windows: &[niri_window_snapshot::WinEntry],
-) -> Vec<Vec<&niri_window_snapshot::WinEntry>> {
-    let tiled: Vec<&niri_window_snapshot::WinEntry> = windows
+    windows: &[workspace_window_snapshot::WinEntry],
+) -> Vec<Vec<&workspace_window_snapshot::WinEntry>> {
+    let tiled: Vec<&workspace_window_snapshot::WinEntry> = windows
         .iter()
         .filter(|window| !window.layout.is_floating)
         .collect();
     tiled
         .chunk_by(|left, right| left.layout.column == right.layout.column)
-        .map(<[&niri_window_snapshot::WinEntry]>::to_vec)
+        .map(<[&workspace_window_snapshot::WinEntry]>::to_vec)
         .collect()
 }
 
-fn preview_tile(icons: &DesktopIndex, window: &niri_window_snapshot::WinEntry) -> PreviewTile {
+fn preview_tile(icons: &DesktopIndex, window: &workspace_window_snapshot::WinEntry) -> PreviewTile {
     PreviewTile {
         window: window.id,
         label: window.label.clone(),
@@ -73,7 +73,10 @@ fn preview_tile(icons: &DesktopIndex, window: &niri_window_snapshot::WinEntry) -
     }
 }
 
-fn icon_path(icons: &DesktopIndex, window: &niri_window_snapshot::WinEntry) -> Option<PathBuf> {
+fn icon_path(
+    icons: &DesktopIndex,
+    window: &workspace_window_snapshot::WinEntry,
+) -> Option<PathBuf> {
     window
         .icon_candidates()
         .into_iter()
@@ -88,15 +91,15 @@ fn icon_path(icons: &DesktopIndex, window: &niri_window_snapshot::WinEntry) -> O
 mod tests {
     use super::*;
 
-    fn window(id: u64, column: Option<usize>) -> niri_window_snapshot::WinEntry {
-        niri_window_snapshot::WinEntry {
+    fn window(id: u64, column: Option<usize>) -> workspace_window_snapshot::WinEntry {
+        workspace_window_snapshot::WinEntry {
             id,
             app_id: Some("kitty".to_owned()),
             pid: None,
             is_focused: false,
             is_urgent: false,
             label: None,
-            layout: niri_window_snapshot::WinLayout {
+            layout: workspace_window_snapshot::WinLayout {
                 column,
                 tile_size: (800.0, 600.0),
                 is_floating: column.is_none(),

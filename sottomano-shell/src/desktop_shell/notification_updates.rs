@@ -62,7 +62,7 @@ impl DesktopShell {
         self.notifications.update(
             msg,
             &ToastContext::new(
-                &self.niri,
+                &self.compositor,
                 self.desktop_entries.get(),
                 &self.config,
                 self.widget_groups.notification_settings(),
@@ -108,7 +108,7 @@ impl DesktopShell {
                 .map(Message::IdleTimeouts),
             QuietChange::Ended => {
                 let released = self.notifications.release_held(&ToastContext::new(
-                    &self.niri,
+                    &self.compositor,
                     self.desktop_entries.get(),
                     &self.config,
                     self.widget_groups.notification_settings(),

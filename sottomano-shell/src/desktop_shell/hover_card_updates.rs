@@ -257,7 +257,7 @@ impl DesktopShell {
             ),
             HoverTarget::Tray(address) => self.widget_groups.tray_group.hover_card_for(address),
             HoverTarget::Window(WindowTarget::Pick(window)) => {
-                WindowGroup::pick_hover_card(&self.niri, *window, self.clock)
+                WindowGroup::pick_hover_card(&self.compositor, *window, self.clock)
             }
             HoverTarget::Window(WindowTarget::Inspect(_)) => Some(
                 self.widget_groups
@@ -270,7 +270,7 @@ impl DesktopShell {
                     .window_usage_hover_card(*window, &self.config, self.clock),
             ),
             HoverTarget::Workspace(workspace) => workspace_hover_card::hover_card(
-                &self.niri_snapshot,
+                &self.window_snapshot,
                 &self.desktop_entries,
                 self.widget_groups.niri_window_group.niri_layout(),
                 *workspace,
@@ -417,7 +417,7 @@ impl DesktopShell {
             HoverTarget::Gamepad(target) => self.widget_groups.gamepad_group.hover_card_for(
                 *target,
                 &self.config.widget_groups.gamepad,
-                gamepad_window_claim(&self.niri, &self.outputs),
+                gamepad_window_claim(&self.compositor, &self.outputs),
                 self.clock,
             ),
             HoverTarget::ClaudeUsage(target) => self
@@ -521,7 +521,7 @@ impl DesktopShell {
         Task::batch([
             self.widget_groups
                 .window_group
-                .hover(&self.niri, hovered, &self.config, self.clock)
+                .hover(&self.compositor, hovered, &self.config, self.clock)
                 .map(Message::WindowGroup),
             self.widget_groups
                 .gpu_group

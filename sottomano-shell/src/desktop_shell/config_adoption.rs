@@ -70,7 +70,7 @@ impl DesktopShell {
             path,
             error,
             &self.widget_groups.toast_context(
-                &self.niri,
+                &self.compositor,
                 self.desktop_entries.get(),
                 &self.config,
                 self.clock,

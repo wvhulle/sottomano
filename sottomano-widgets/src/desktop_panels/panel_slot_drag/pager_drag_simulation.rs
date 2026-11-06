@@ -1,13 +1,12 @@
 use iced::{Element, Event, Point, Settings, Size, mouse, window};
 use iced_test::Simulator;
-use niri_ipc::{
-    Window, WindowLayout, Workspace,
-    state::{EventStreamState, EventStreamStatePart},
-};
 use sottomano_desktop_sources::desktop_windows_apps::{
-    niri_test_windows::{unnamed_niri_workspace, unplaced_niri_window},
-    niri_window_snapshot::Snapshot,
+    compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
+    compositor_window_state::{
+        CompositorWindow, CompositorWindowLayout, CompositorWindowState, CompositorWorkspace,
+    },
     terminal_emulator_windows::WindowProcesses,
+    workspace_window_snapshot::Snapshot,
 };
 
 use crate::widgets::{
@@ -21,24 +20,24 @@ pub(crate) const SIMULATED_WINDOW_IDS: [u64; 3] = [10, 20, 30];
 const SWEEP_STEP_PX: f32 = 2.0;
 const SIMULATED_BAR_WIDTH_PX: f32 = 1024.0;
 
-fn simulated_workspace(workspace_id: u64) -> Workspace {
-    Workspace {
-        idx: u8::try_from(workspace_id).expect("few simulated workspaces"),
+fn simulated_workspace(workspace_id: u64) -> CompositorWorkspace {
+    CompositorWorkspace {
+        index: u8::try_from(workspace_id).expect("few simulated workspaces"),
         output: Some(SIMULATED_OUTPUT.to_owned()),
         is_active: workspace_id == SIMULATED_WORKSPACE_IDS[0],
         is_focused: workspace_id == SIMULATED_WORKSPACE_IDS[0],
-        ..unnamed_niri_workspace(workspace_id)
+        ..unnamed_compositor_workspace(workspace_id)
     }
 }
 
-fn simulated_tiled_window(column: usize, window_id: u64) -> Window {
-    let unplaced = unplaced_niri_window(window_id);
-    Window {
+fn simulated_tiled_window(column: usize, window_id: u64) -> CompositorWindow {
+    let unplaced = unplaced_compositor_window(window_id);
+    CompositorWindow {
         title: Some(format!("window {window_id}")),
         workspace_id: Some(SIMULATED_WORKSPACE_IDS[0]),
         is_focused: column == 1,
-        layout: WindowLayout {
-            pos_in_scrolling_layout: Some((column, 1)),
+        layout: CompositorWindowLayout {
+            scrolling_position: Some((column, 1)),
             tile_size: (800.0, 900.0),
             window_size: (800, 900),
             ..unplaced.layout
@@ -48,31 +47,14 @@ fn simulated_tiled_window(column: usize, window_id: u64) -> Window {
 }
 
 pub(crate) fn three_workspaces_three_windows() -> Snapshot {
-    let niri_events = [
-        niri_ipc::Event::WorkspacesChanged {
-            workspaces: SIMULATED_WORKSPACE_IDS
-                .into_iter()
-                .map(simulated_workspace)
-                .collect(),
-        },
-        niri_ipc::Event::WindowsChanged {
-            windows: SIMULATED_WINDOW_IDS
-                .into_iter()
-                .enumerate()
-                .map(|(column_index, window_id)| {
-                    simulated_tiled_window(column_index + 1, window_id)
-                })
-                .collect(),
-        },
-    ];
-    let niri_state =
-        niri_events
+    let compositor = CompositorWindowState::from_lists(
+        SIMULATED_WORKSPACE_IDS.map(simulated_workspace),
+        SIMULATED_WINDOW_IDS
             .into_iter()
-            .fold(EventStreamState::default(), |mut state, event| {
-                let _ = state.apply(event);
-                state
-            });
-    Snapshot::derive(&niri_state, &WindowProcesses::default())
+            .enumerate()
+            .map(|(column_index, window_id)| simulated_tiled_window(column_index + 1, window_id)),
+    );
+    Snapshot::derive(&compositor, &WindowProcesses::default())
 }
 
 pub(crate) fn dragging_from_start(dragged_item: DraggedPanelSlot) -> DragView {

@@ -6,7 +6,7 @@ use std::{
 use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
 use freedesktop_icons::lookup;
 
-use super::niri_window_snapshot;
+use super::workspace_window_snapshot;
 use crate::desktop_windows_apps::{
     desktop_entry_app_catalog::LaunchableApp, window_title_labels::IconCandidate,
 };
@@ -135,7 +135,7 @@ impl DesktopEntries {
 }
 
 #[must_use]
-pub fn app_icon_keys(snapshot: &niri_window_snapshot::Snapshot) -> Vec<String> {
+pub fn app_icon_keys(snapshot: &workspace_window_snapshot::Snapshot) -> Vec<String> {
     icon_keys(snapshot, |c| match c {
         IconCandidate::AppId(id) => Some(id),
         IconCandidate::Theme(_) => None,
@@ -143,7 +143,7 @@ pub fn app_icon_keys(snapshot: &niri_window_snapshot::Snapshot) -> Vec<String> {
 }
 
 #[must_use]
-pub fn theme_icon_keys(snapshot: &niri_window_snapshot::Snapshot) -> Vec<String> {
+pub fn theme_icon_keys(snapshot: &workspace_window_snapshot::Snapshot) -> Vec<String> {
     icon_keys(snapshot, |c| match c {
         IconCandidate::Theme(name) => Some(name),
         IconCandidate::AppId(_) => None,
@@ -151,7 +151,7 @@ pub fn theme_icon_keys(snapshot: &niri_window_snapshot::Snapshot) -> Vec<String>
 }
 
 fn icon_keys(
-    snapshot: &niri_window_snapshot::Snapshot,
+    snapshot: &workspace_window_snapshot::Snapshot,
     pick: impl Fn(IconCandidate) -> Option<String>,
 ) -> Vec<String> {
     let mut keys: Vec<String> = snapshot

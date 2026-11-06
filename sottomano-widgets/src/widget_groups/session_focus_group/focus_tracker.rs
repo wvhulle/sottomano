@@ -2,10 +2,11 @@ use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use iced::futures::{Stream, StreamExt, stream};
-use niri_ipc::state::EventStreamState;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
-    desktop_windows_apps::terminal_emulator_windows::WindowProcesses,
+    desktop_windows_apps::{
+        compositor_window_state::CompositorWindowState, terminal_emulator_windows::WindowProcesses,
+    },
     login_session_presence::{
         focus_time_ledger::{FocusIdentity, FocusLedger, FocusSignal, LoadedSpans},
         logind_manager,
@@ -70,10 +71,10 @@ impl FocusTracker {
 
     pub fn refocus(
         &mut self,
-        niri: &EventStreamState,
+        compositor: &CompositorWindowState,
         processes: &WindowProcesses,
     ) -> Option<impl Future<Output = TrackerMessage> + Send + use<>> {
-        let probed = FocusIdentity::of(niri, processes).map_or(
+        let probed = FocusIdentity::of(compositor, processes).map_or(
             ProbedWindowFocus::NoWindowFocused,
             ProbedWindowFocus::FocusedWindowIdentity,
         );

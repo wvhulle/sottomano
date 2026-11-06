@@ -2,7 +2,7 @@ use std::{borrow::Cow, cmp::Reverse, collections::HashMap};
 
 use freedesktop_desktop_entry::DesktopEntry;
 
-use super::desktop_entry_app_icons::DesktopEntries;
+use super::{compositor_window_state::CompositorWindow, desktop_entry_app_icons::DesktopEntries};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AppCategory {
@@ -155,10 +155,10 @@ pub struct OpenAppWindows {
 
 #[must_use]
 pub fn open_windows_by_app<'window>(
-    windows: impl IntoIterator<Item = &'window niri_ipc::Window>,
+    windows: impl IntoIterator<Item = &'window CompositorWindow>,
     entries: &DesktopEntries,
 ) -> HashMap<String, OpenAppWindows> {
-    let mut windows_by_app: HashMap<String, Vec<&niri_ipc::Window>> = HashMap::new();
+    let mut windows_by_app: HashMap<String, Vec<&CompositorWindow>> = HashMap::new();
     for window in windows {
         let launchable_app = window
             .app_id
@@ -171,14 +171,9 @@ pub fn open_windows_by_app<'window>(
     windows_by_app
         .into_iter()
         .filter_map(|(app_id, app_windows)| {
-            let latest_window = app_windows.iter().max_by_key(|window| {
-                (
-                    window
-                        .focus_timestamp
-                        .map(|timestamp| (timestamp.secs, timestamp.nanos)),
-                    Reverse(window.id),
-                )
-            })?;
+            let latest_window = app_windows
+                .iter()
+                .max_by_key(|window| (window.focused_at_monotonic, Reverse(window.id)))?;
             Some((
                 app_id,
                 OpenAppWindows {
@@ -192,12 +187,14 @@ pub fn open_windows_by_app<'window>(
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use freedesktop_desktop_entry::DesktopEntry;
-    use niri_ipc::{Timestamp, Window};
 
     use super::{AppCategory, LaunchableApp, OpenAppWindows, open_windows_by_app};
     use crate::desktop_windows_apps::{
-        desktop_entry_app_icons::DesktopEntries, niri_test_windows::unplaced_niri_window,
+        compositor_test_windows::unplaced_compositor_window,
+        compositor_window_state::CompositorWindow, desktop_entry_app_icons::DesktopEntries,
     };
 
     fn entry_of(app_id: &str, fields: &str) -> DesktopEntry {
@@ -218,11 +215,11 @@ mod tests {
         app_on_niri(fields).expect("the entry is shown").category
     }
 
-    fn window_of(id: u64, app_id: &str, focused_at_secs: Option<u64>) -> Window {
-        Window {
+    fn window_of(id: u64, app_id: &str, focused_at_secs: Option<u64>) -> CompositorWindow {
+        CompositorWindow {
             app_id: Some(app_id.to_owned()),
-            focus_timestamp: focused_at_secs.map(|secs| Timestamp { secs, nanos: 0 }),
-            ..unplaced_niri_window(id)
+            focused_at_monotonic: focused_at_secs.map(Duration::from_secs),
+            ..unplaced_compositor_window(id)
         }
     }
 

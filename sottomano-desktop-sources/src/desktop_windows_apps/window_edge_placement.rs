@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
-use niri_ipc::{Window, WindowLayout, state::EventStreamState};
 use sottomano_toml_config::screen_edges::{HEdge, VEdge};
+
+use crate::desktop_windows_apps::compositor_window_state::{
+    CompositorWindow, CompositorWindowLayout, CompositorWindowState,
+};
 
 #[derive(Debug, Clone)]
 pub struct WindowEdge {
@@ -17,7 +20,7 @@ pub struct Placement {
     focused_output: Option<String>,
     output_by_workspace: HashMap<u64, String>,
     edges: HashMap<u64, WindowEdge>,
-    viewed_layouts: HashMap<u64, WindowLayout>,
+    viewed_layouts: HashMap<u64, CompositorWindowLayout>,
     windows: Vec<WindowIdentity>,
 }
 
@@ -46,14 +49,14 @@ impl WindowIdentity {
 
 impl Placement {
     #[must_use]
-    pub fn derive(state: &EventStreamState) -> Self {
+    pub fn derive(state: &CompositorWindowState) -> Self {
         let mut ws_idx = HashMap::new();
         let mut output_by_workspace = HashMap::new();
         let mut active_ws_by_output: HashMap<String, OutputActiveWorkspace> = HashMap::new();
         let mut ws_active_window = HashMap::new();
         let mut focused_output = None;
-        for w in state.workspaces.workspaces.values() {
-            ws_idx.insert(w.id, w.idx);
+        for w in state.workspaces.values() {
+            ws_idx.insert(w.id, w.index);
             if let Some(output) = &w.output {
                 output_by_workspace.insert(w.id, output.clone());
                 if w.is_active {
@@ -61,7 +64,7 @@ impl Placement {
                         output.clone(),
                         OutputActiveWorkspace {
                             id: w.id,
-                            idx: w.idx,
+                            idx: w.index,
                         },
                     );
                 }
@@ -79,16 +82,16 @@ impl Placement {
         let mut focused_window = None;
         let mut windows = Vec::new();
         let mut viewed_layouts = HashMap::new();
-        for w in state.windows.windows.values() {
+        for w in state.windows.values() {
             if let Some(ws) = w.workspace_id {
                 workspace_by_window.insert(w.id, ws);
             }
-            if !state.overview.is_open
+            if !state.overview_is_open
                 && on_viewed_workspace(w, &output_by_workspace, &active_ws_by_output)
             {
                 viewed_layouts.insert(w.id, w.layout.clone());
             }
-            if let Some((col, _)) = w.layout.pos_in_scrolling_layout {
+            if let Some((col, _)) = w.layout.scrolling_position {
                 column_by_window.insert(w.id, col);
             }
             if w.is_focused {
@@ -139,7 +142,7 @@ impl Placement {
     }
 
     #[must_use]
-    pub fn viewed_window_layout(&self, id: u64) -> Option<&WindowLayout> {
+    pub fn viewed_window_layout(&self, id: u64) -> Option<&CompositorWindowLayout> {
         self.viewed_layouts.get(&id)
     }
 
@@ -189,7 +192,7 @@ struct OutputActiveWorkspace {
 }
 
 fn on_viewed_workspace(
-    window: &Window,
+    window: &CompositorWindow,
     output_by_workspace: &HashMap<u64, String>,
     active_ws_by_output: &HashMap<String, OutputActiveWorkspace>,
 ) -> bool {

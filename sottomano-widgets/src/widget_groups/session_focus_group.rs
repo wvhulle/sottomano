@@ -9,12 +9,13 @@ mod window_usage;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use iced::{Subscription, Task};
-use niri_ipc::state::EventStreamState;
 use sottomano_desktop_sinks::login_session_presence::logind_session_commands::perform_session_action;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_notifications::notification_data::ActionTint,
-    desktop_windows_apps::terminal_emulator_windows::WindowProcesses,
+    desktop_windows_apps::{
+        compositor_window_state::CompositorWindowState, terminal_emulator_windows::WindowProcesses,
+    },
     login_session_presence::{
         focus_time_ledger::{FocusSignal, ScreenEdge},
         session_power_actions::SessionAction,
@@ -144,11 +145,11 @@ impl SessionFocusGroup {
 
     pub fn refocus(
         &mut self,
-        niri: &EventStreamState,
+        compositor: &CompositorWindowState,
         processes: &WindowProcesses,
     ) -> Task<SessionFocusMessage> {
         self.tracker
-            .refocus(niri, processes)
+            .refocus(compositor, processes)
             .map_or_else(Task::none, |probe| {
                 Task::perform(probe, SessionFocusMessage::Tracker)
             })
@@ -227,7 +228,7 @@ impl SessionFocusGroup {
     #[must_use]
     pub fn heated_windows(
         &self,
-        niri: &EventStreamState,
+        compositor: &CompositorWindowState,
         config: &Config,
         clock: Clock,
     ) -> Vec<HeatedWindow> {
@@ -236,7 +237,7 @@ impl SessionFocusGroup {
             .ledger()
             .accounted(&config.widget_groups.session_focus);
         let now = clock.utc();
-        let mut windows: Vec<_> = niri.windows.windows.values().collect();
+        let mut windows: Vec<_> = compositor.windows.values().collect();
         windows.sort_by_key(|window| window.id);
         windows
             .into_iter()

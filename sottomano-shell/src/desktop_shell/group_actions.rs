@@ -5,7 +5,7 @@ use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::{
         app_launch_history::Launch, desktop_entry_app_icons::DesktopEntries, niri_output_facts,
-        niri_window_placement,
+        window_edge_placement,
     },
     system_protocol_clients::shell_command_output::blocking::run,
 };
@@ -26,7 +26,7 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    desktop_shell::{DesktopShell, niri_event_updates::gamepad_window_claim},
+    desktop_shell::{DesktopShell, compositor_update_handling::gamepad_window_claim},
     shell_message::Message,
 };
 
@@ -88,7 +88,7 @@ impl DesktopShell {
     }
 
     pub(super) fn reflow_toasts(&mut self) -> Task<Message> {
-        let placement = niri_window_placement::Placement::derive(&self.niri);
+        let placement = window_edge_placement::Placement::derive(&self.compositor);
         self.notifications.on_niri_changed(
             &placement,
             &self.config,
@@ -101,7 +101,7 @@ impl DesktopShell {
         self.widget_groups
             .session_focus_group
             .refocus(
-                &self.niri,
+                &self.compositor,
                 self.widget_groups.window_group.window_processes(),
             )
             .map(Message::SessionFocus)
@@ -123,7 +123,7 @@ impl DesktopShell {
                 .map(Message::Audio),
             window_group::Action::WindowList(window_list::Action::None) => Task::none(),
             window_group::Action::WindowList(window_list::Action::WindowProcessesPaired) => {
-                self.derive_niri_snapshot();
+                self.derive_window_snapshot();
                 self.resolve_icons()
             }
             window_group::Action::WindowList(window_list::Action::Drag(drag)) => {
@@ -139,7 +139,7 @@ impl DesktopShell {
             .update(
                 msg,
                 &self.config.widget_groups.gamepad,
-                gamepad_window_claim(&self.niri, &self.outputs),
+                gamepad_window_claim(&self.compositor, &self.outputs),
             )
             .into_task()
     }
@@ -193,7 +193,7 @@ impl DesktopShell {
         focus: AppWindowFocus<M>,
         lift: fn(M) -> Message,
     ) -> Task<Message> {
-        let placement = niri_window_placement::Placement::derive(&self.niri);
+        let placement = window_edge_placement::Placement::derive(&self.compositor);
         let Some(window) = placement.window_owned_by(&focus.owner) else {
             tracing::debug!("no single window owned by {:?}", focus.owner);
             return Task::done(lift(focus.unmatched));

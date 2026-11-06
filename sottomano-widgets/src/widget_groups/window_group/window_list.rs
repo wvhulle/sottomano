@@ -8,11 +8,11 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
         kde_job_view_progress::{self, JobProgress},
-        niri_window_snapshot,
         nix_package_facts::{NixPackageFacts, PackageWatch},
         process_tree_inspection::{Inspection, Process, Watched},
         terminal_emulator_windows::{self, WindowProcesses},
         unity_launcher_badges::{self, LauncherEntries, LauncherEntry},
+        workspace_window_snapshot,
     },
     media_playback_audio::pipewire_audio::WindowAudio,
     stream_operators::restarting,
@@ -241,7 +241,7 @@ impl WindowList {
 
     pub fn view<'a>(
         &'a self,
-        niri: &niri_window_snapshot::Snapshot,
+        compositor: &workspace_window_snapshot::Snapshot,
         icons: WindowAssets<'a>,
         audio: Option<&HashMap<i32, WindowAudio>>,
         output: &str,
@@ -252,12 +252,13 @@ impl WindowList {
         } = slot_context;
         let workspace = window_source_workspace(&drag)
             .filter(|source| {
-                niri.workspaces_for_output(output)
+                compositor
+                    .workspaces_for_output(output)
                     .iter()
                     .any(|indicator| indicator.id == *source)
             })
-            .or_else(|| niri.active_workspace_id(output))?;
-        let windows = niri.windows_on_workspace(workspace);
+            .or_else(|| compositor.active_workspace_id(output))?;
+        let windows = compositor.windows_on_workspace(workspace);
         if windows.is_empty() {
             return None;
         }
@@ -340,7 +341,7 @@ impl WindowList {
     #[must_use]
     pub fn drag_ghost<'a>(
         &'a self,
-        niri: &niri_window_snapshot::Snapshot,
+        compositor: &workspace_window_snapshot::Snapshot,
         icons: WindowAssets<'a>,
         audio: Option<&HashMap<i32, WindowAudio>>,
         window: u64,
@@ -348,7 +349,7 @@ impl WindowList {
     ) -> Option<Element<'a, WindowListMessage>> {
         let PanelSlotContext { config, drag, .. } = slot_context;
         let workspace = window_source_workspace(&drag)?;
-        let window_entry = niri
+        let window_entry = compositor
             .windows_on_workspace(workspace)
             .iter()
             .find(|window_entry| window_entry.id == window)?;
@@ -385,7 +386,7 @@ impl WindowList {
 
     fn extras(
         &self,
-        window_entry: &niri_window_snapshot::WinEntry,
+        window_entry: &workspace_window_snapshot::WinEntry,
         audio: Option<&HashMap<i32, WindowAudio>>,
         config: &Config,
     ) -> Extras<'_> {
@@ -404,7 +405,7 @@ impl WindowList {
 }
 
 fn window_slot_key(
-    window_entry: &niri_window_snapshot::WinEntry,
+    window_entry: &workspace_window_snapshot::WinEntry,
     workspace: u64,
 ) -> DraggedPanelSlot {
     DraggedPanelSlot::Window {
@@ -449,7 +450,7 @@ impl Extras<'_> {
 }
 
 struct WindowSlot<'s> {
-    window_entry: &'s niri_window_snapshot::WinEntry,
+    window_entry: &'s workspace_window_snapshot::WinEntry,
     item: DraggedPanelSlot,
     extras: Extras<'s>,
     position_in_panel: usize,
@@ -759,7 +760,7 @@ mod tests {
     #[test]
     fn dragging_a_window_across_the_list_enters_each_slot_then_leaves() {
         let config = Config::default();
-        let niri_snapshot = three_workspaces_three_windows();
+        let window_snapshot = three_workspaces_three_windows();
         let dragged_window = DraggedPanelSlot::Window {
             window: SIMULATED_WINDOW_IDS[0],
             workspace: SIMULATED_WORKSPACE_IDS[0],
@@ -785,7 +786,7 @@ mod tests {
         };
         let pager_element = window_list
             .view(
-                &niri_snapshot,
+                &window_snapshot,
                 window_assets,
                 None,
                 SIMULATED_OUTPUT,
