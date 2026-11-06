@@ -1,4 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hash,
+    time::Instant,
+};
 
 use procfs::{
     WithCurrentSystemInfo,
@@ -7,7 +11,7 @@ use procfs::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct ProcessSample {
+pub(crate) struct ProcessSample {
     pub pid: i32,
     pub parent_pid: i32,
     pub spent_ticks: u64,
@@ -28,12 +32,13 @@ impl From<&Stat> for ProcessSample {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(super) struct ProcessTreeTotals {
+pub(crate) struct ProcessTreeTotals {
     pub spent_ticks: u64,
     pub resident_bytes: u64,
 }
 
-pub(super) struct ProcessTable {
+#[derive(Default)]
+pub(crate) struct ProcessTable {
     samples_by_pid: HashMap<i32, ProcessSample>,
     children_by_pid: HashMap<i32, Vec<i32>>,
 }
@@ -92,15 +97,103 @@ impl ProcessTable {
 
 #[must_use]
 #[allow(clippy::cast_precision_loss)]
-pub(super) fn busy_cores(spent_ticks: u64, elapsed_seconds: f64) -> f64 {
+pub(crate) fn busy_cores(spent_ticks: u64, elapsed_seconds: f64) -> f64 {
     if elapsed_seconds <= 0.0 {
         return 0.0;
     }
     spent_ticks as f64 / ticks_per_second() as f64 / elapsed_seconds
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ProcessTreeCpuLoad {
+    AwaitingSecondSample,
+    BusyCores(f64),
+}
+
+#[must_use]
+pub fn total_cpu_load(loads: impl Iterator<Item = ProcessTreeCpuLoad>) -> ProcessTreeCpuLoad {
+    loads.fold(
+        ProcessTreeCpuLoad::AwaitingSecondSample,
+        |total, load| match (total, load) {
+            (ProcessTreeCpuLoad::BusyCores(first), ProcessTreeCpuLoad::BusyCores(second)) => {
+                ProcessTreeCpuLoad::BusyCores(first + second)
+            }
+            (
+                known @ ProcessTreeCpuLoad::BusyCores(_),
+                ProcessTreeCpuLoad::AwaitingSecondSample,
+            ) => known,
+            (ProcessTreeCpuLoad::AwaitingSecondSample, other) => other,
+        },
+    )
+}
+
+struct CpuTickCheckpoint {
+    spent_ticks: u64,
+    taken_at: Instant,
+}
+
+pub(crate) struct CpuTickCheckpoints<CheckpointKey> {
+    checkpoints_by_key: HashMap<CheckpointKey, CpuTickCheckpoint>,
+}
+
+impl<CheckpointKey> Default for CpuTickCheckpoints<CheckpointKey> {
+    fn default() -> Self {
+        Self {
+            checkpoints_by_key: HashMap::new(),
+        }
+    }
+}
+
+impl<CheckpointKey: Eq + Hash> CpuTickCheckpoints<CheckpointKey> {
+    pub(crate) fn load_since_previous(
+        &mut self,
+        checkpoint_key: CheckpointKey,
+        spent_ticks: u64,
+        taken_at: Instant,
+    ) -> ProcessTreeCpuLoad {
+        let cpu_load = self.checkpoints_by_key.get(&checkpoint_key).map_or(
+            ProcessTreeCpuLoad::AwaitingSecondSample,
+            |checkpoint| {
+                ProcessTreeCpuLoad::BusyCores(busy_cores(
+                    spent_ticks.saturating_sub(checkpoint.spent_ticks),
+                    taken_at.duration_since(checkpoint.taken_at).as_secs_f64(),
+                ))
+            },
+        );
+        self.checkpoints_by_key.insert(
+            checkpoint_key,
+            CpuTickCheckpoint {
+                spent_ticks,
+                taken_at,
+            },
+        );
+        cpu_load
+    }
+
+    pub(crate) fn retain_keys(&mut self, mut keeps_key: impl FnMut(&CheckpointKey) -> bool) {
+        self.checkpoints_by_key
+            .retain(|checkpoint_key, _| keeps_key(checkpoint_key));
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.checkpoints_by_key.clear();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.checkpoints_by_key.len()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.checkpoints_by_key.is_empty()
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
 
     fn sample(pid: i32, parent_pid: i32, spent_ticks: u64, resident_bytes: u64) -> ProcessSample {
@@ -146,5 +239,38 @@ mod tests {
     fn a_parent_cycle_terminates() {
         let table = ProcessTable::from_samples([sample(10, 11, 1, 1), sample(11, 10, 1, 1)]);
         assert_eq!(table.tree_totals(10).spent_ticks, 2);
+    }
+
+    #[test]
+    fn totals_ignore_trees_still_awaiting_a_sample() {
+        assert_eq!(
+            total_cpu_load(
+                [
+                    ProcessTreeCpuLoad::BusyCores(1.5),
+                    ProcessTreeCpuLoad::AwaitingSecondSample,
+                    ProcessTreeCpuLoad::BusyCores(0.5),
+                ]
+                .into_iter()
+            ),
+            ProcessTreeCpuLoad::BusyCores(2.0)
+        );
+        assert_eq!(
+            total_cpu_load([ProcessTreeCpuLoad::AwaitingSecondSample].into_iter()),
+            ProcessTreeCpuLoad::AwaitingSecondSample
+        );
+    }
+
+    #[test]
+    fn a_checkpoint_needs_a_predecessor_and_never_goes_negative() {
+        let mut checkpoints = CpuTickCheckpoints::default();
+        let started = Instant::now();
+        assert_eq!(
+            checkpoints.load_since_previous(7, 500, started),
+            ProcessTreeCpuLoad::AwaitingSecondSample
+        );
+        assert_eq!(
+            checkpoints.load_since_previous(7, 100, started + Duration::from_secs(5)),
+            ProcessTreeCpuLoad::BusyCores(0.0)
+        );
     }
 }

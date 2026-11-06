@@ -86,6 +86,7 @@
           systemd
           pipewire
           openssl
+          libvirt
         ];
         WEATHER_ICONS_SVG = "${pkgs.weather-icons.src}/svg";
         PHOSPHOR_SVG = "${phosphorCore}/assets";

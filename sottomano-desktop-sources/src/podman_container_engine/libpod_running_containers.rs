@@ -17,12 +17,16 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::{Panicked, blocking_poll},
     podman_container_engine::{
-        container_process_usage::{ProcessTable, busy_cores},
         libpod_inspect_ci_identity::{WoodpeckerStepIdentity, fetch_woodpecker_step_identity},
         running_set_changes::{ChangeTrackedSample, samples_on_running_set_changes},
     },
     stream_operators::StreamOperators,
-    system_protocol_clients::http_json_client,
+    system_protocol_clients::{
+        http_json_client,
+        procfs_process_tree::{
+            CpuTickCheckpoints, ProcessTable, ProcessTreeCpuLoad, total_cpu_load,
+        },
+    },
 };
 
 pub(super) const LIBPOD_API_ROOT: &str = "http://podman/v5.0.0/libpod";
@@ -59,12 +63,6 @@ impl From<Panicked> for EngineReadError {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ContainerCpuLoad {
-    AwaitingSecondSample,
-    BusyCores(f64),
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContainerCiIdentity {
     NotWoodpecker,
@@ -79,7 +77,7 @@ pub struct RunningContainer {
     pub image: String,
     pub started_at: SystemTime,
     pub ci_identity: ContainerCiIdentity,
-    pub cpu_load: ContainerCpuLoad,
+    pub cpu_load: ProcessTreeCpuLoad,
     pub resident_memory: ByteSize,
 }
 
@@ -99,24 +97,9 @@ impl EngineContainers {
     }
 
     #[must_use]
-    pub fn total_cpu_load(&self) -> ContainerCpuLoad {
+    pub fn total_cpu_load(&self) -> ProcessTreeCpuLoad {
         total_cpu_load(self.containers.iter().map(|container| container.cpu_load))
     }
-}
-
-pub fn total_cpu_load(loads: impl Iterator<Item = ContainerCpuLoad>) -> ContainerCpuLoad {
-    loads.fold(
-        ContainerCpuLoad::AwaitingSecondSample,
-        |total, load| match (total, load) {
-            (ContainerCpuLoad::BusyCores(first), ContainerCpuLoad::BusyCores(second)) => {
-                ContainerCpuLoad::BusyCores(first + second)
-            }
-            (known @ ContainerCpuLoad::BusyCores(_), ContainerCpuLoad::AwaitingSecondSample) => {
-                known
-            }
-            (ContainerCpuLoad::AwaitingSecondSample, other) => other,
-        },
-    )
 }
 
 #[derive(Deserialize)]
@@ -194,15 +177,10 @@ async fn listed_containers_with_one_retry(
     }
 }
 
-struct CpuCheckpoint {
-    spent_ticks: u64,
-    taken_at: Instant,
-}
-
 pub(crate) struct EngineSampler {
     socket_path: PathBuf,
     identities_by_id: HashMap<String, WoodpeckerStepIdentity>,
-    checkpoints_by_id: HashMap<String, CpuCheckpoint>,
+    checkpoints_by_id: CpuTickCheckpoints<String>,
 }
 
 impl EngineSampler {
@@ -210,7 +188,7 @@ impl EngineSampler {
         Self {
             socket_path,
             identities_by_id: HashMap::new(),
-            checkpoints_by_id: HashMap::new(),
+            checkpoints_by_id: CpuTickCheckpoints::default(),
         }
     }
 
@@ -264,7 +242,7 @@ impl EngineSampler {
         self.identities_by_id
             .retain(|container_id, _| live_ids.contains(container_id.as_str()));
         self.checkpoints_by_id
-            .retain(|container_id, _| live_ids.contains(container_id.as_str()));
+            .retain_keys(|container_id| live_ids.contains(container_id.as_str()));
         let containers = listed
             .iter()
             .map(|container| self.measured_container(container, table, taken_at))
@@ -279,21 +257,10 @@ impl EngineSampler {
         taken_at: Instant,
     ) -> RunningContainer {
         let totals = table.tree_totals(container.pid);
-        let cpu_load = self.checkpoints_by_id.get(&container.id).map_or(
-            ContainerCpuLoad::AwaitingSecondSample,
-            |checkpoint| {
-                ContainerCpuLoad::BusyCores(busy_cores(
-                    totals.spent_ticks.saturating_sub(checkpoint.spent_ticks),
-                    taken_at.duration_since(checkpoint.taken_at).as_secs_f64(),
-                ))
-            },
-        );
-        self.checkpoints_by_id.insert(
+        let cpu_load = self.checkpoints_by_id.load_since_previous(
             container.id.clone(),
-            CpuCheckpoint {
-                spent_ticks: totals.spent_ticks,
-                taken_at,
-            },
+            totals.spent_ticks,
+            taken_at,
         );
         let container_name = container.container_name();
         RunningContainer {
@@ -378,7 +345,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::podman_container_engine::container_process_usage::ProcessSample;
+    use crate::system_protocol_clients::procfs_process_tree::ProcessSample;
 
     fn listed_step_container() -> ListedContainer {
         serde_json::from_value(json!({
@@ -424,7 +391,7 @@ mod tests {
         let first = sampler.measured(&[listed_step_container()], &first_table, started);
         assert_eq!(
             first.containers[0].cpu_load,
-            ContainerCpuLoad::AwaitingSecondSample
+            ProcessTreeCpuLoad::AwaitingSecondSample
         );
         assert_eq!(first.containers[0].resident_memory, ByteSize::b(4096));
 
@@ -439,7 +406,7 @@ mod tests {
             &second_table,
             started + Duration::from_secs(5),
         );
-        let ContainerCpuLoad::BusyCores(cores) = second.containers[0].cpu_load else {
+        let ProcessTreeCpuLoad::BusyCores(cores) = second.containers[0].cpu_load else {
             panic!("a second sample yields a load");
         };
         assert!((cores - 2.0).abs() < 1e-9);
@@ -465,7 +432,7 @@ mod tests {
         );
         assert_eq!(
             shrunk.containers[0].cpu_load,
-            ContainerCpuLoad::BusyCores(0.0)
+            ProcessTreeCpuLoad::BusyCores(0.0)
         );
     }
 
@@ -486,25 +453,6 @@ mod tests {
         assert_eq!(sampler.checkpoints_by_id.len(), 1);
         sampler.measured(&[], &table, Instant::now());
         assert!(sampler.checkpoints_by_id.is_empty());
-    }
-
-    #[test]
-    fn totals_ignore_containers_still_awaiting_a_sample() {
-        assert_eq!(
-            total_cpu_load(
-                [
-                    ContainerCpuLoad::BusyCores(1.5),
-                    ContainerCpuLoad::AwaitingSecondSample,
-                    ContainerCpuLoad::BusyCores(0.5),
-                ]
-                .into_iter()
-            ),
-            ContainerCpuLoad::BusyCores(2.0)
-        );
-        assert_eq!(
-            total_cpu_load([ContainerCpuLoad::AwaitingSecondSample].into_iter()),
-            ContainerCpuLoad::AwaitingSecondSample
-        );
     }
 
     #[tokio::test]

@@ -16,7 +16,8 @@ use sottomano_widgets::{
         monitor_group::MonitorGroup, pending_upgrades_group::PendingUpgradesGroup,
         power_group::PowerGroup, quiet_schedule_group::QuietScheduleGroup,
         session_focus_group::SessionFocusGroup, systemd_manager_group::SystemdManagerGroup,
-        tray_group::TrayGroup, widget_group_identity::WidgetGroupFamily, window_group::WindowGroup,
+        tray_group::TrayGroup, virtual_machines_group::VirtualMachinesGroup,
+        widget_group_identity::WidgetGroupFamily, window_group::WindowGroup,
     },
 };
 
@@ -100,6 +101,7 @@ impl ShellWidgetGroups {
             self.podman_engines_group
                 .subscription(buses)
                 .map(Message::PodmanEngines),
+            VirtualMachinesGroup::subscription(buses).map(Message::VirtualMachines),
             self.woodpecker_tasks_group
                 .subscription(buses)
                 .map(Message::WoodpeckerTasks),

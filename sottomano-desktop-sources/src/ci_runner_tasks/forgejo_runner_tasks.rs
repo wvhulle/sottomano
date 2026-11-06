@@ -144,8 +144,9 @@ mod tests {
     use bytesize::ByteSize;
 
     use super::*;
-    use crate::podman_container_engine::libpod_running_containers::{
-        ContainerCiIdentity, ContainerCpuLoad,
+    use crate::{
+        podman_container_engine::libpod_running_containers::ContainerCiIdentity,
+        system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad,
     };
 
     fn container(
@@ -160,7 +161,7 @@ mod tests {
             image: "docker.io/nixos/nix:latest".to_owned(),
             started_at: UNIX_EPOCH + Duration::from_secs(started_seconds),
             ci_identity: ContainerCiIdentity::NotWoodpecker,
-            cpu_load: ContainerCpuLoad::BusyCores(1.0),
+            cpu_load: ProcessTreeCpuLoad::BusyCores(1.0),
             resident_memory: ByteSize::b(memory_bytes),
         }
     }
@@ -186,7 +187,7 @@ mod tests {
         assert_eq!(
             tasks[0].usage,
             TaskUsage::Measured {
-                cpu_load: ContainerCpuLoad::BusyCores(2.0),
+                cpu_load: ProcessTreeCpuLoad::BusyCores(2.0),
                 resident_memory: ByteSize::b(150),
             }
         );

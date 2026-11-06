@@ -440,6 +440,10 @@ impl DesktopShell {
                 .widget_groups
                 .podman_engines_group
                 .hover_card_for(target, self.clock),
+            HoverTarget::VirtualMachine(target) => self
+                .widget_groups
+                .virtual_machines_group
+                .hover_card_for(target, self.clock),
             HoverTarget::CiRunner(target) => match target.kind() {
                 CiRunnerKind::Woodpecker => self
                     .widget_groups

@@ -48,6 +48,7 @@ pub mod podman_engines;
 pub mod shell_settings;
 pub mod systemd_service_units;
 pub mod tailnet;
+pub mod virtual_machines;
 pub mod voice_dictation;
 pub mod vpn;
 pub mod wallpaper;

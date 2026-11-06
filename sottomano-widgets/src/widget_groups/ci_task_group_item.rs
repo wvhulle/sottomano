@@ -25,7 +25,7 @@ use crate::{
         hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
-        container_usage_text::{approximate_memory_text, cpu_load_text},
+        process_usage_text::{approximate_memory_text, cpu_load_text},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -404,7 +404,7 @@ mod tests {
     use std::time::{Duration, UNIX_EPOCH};
 
     use bytesize::ByteSize;
-    use sottomano_desktop_sources::podman_container_engine::libpod_running_containers::ContainerCpuLoad;
+    use sottomano_desktop_sources::system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad;
 
     use super::*;
 
@@ -417,7 +417,7 @@ mod tests {
             activities: Vec::new(),
             images: Vec::new(),
             usage: TaskUsage::Measured {
-                cpu_load: ContainerCpuLoad::BusyCores(1.0),
+                cpu_load: ProcessTreeCpuLoad::BusyCores(1.0),
                 resident_memory: ByteSize::mib(1),
             },
         }

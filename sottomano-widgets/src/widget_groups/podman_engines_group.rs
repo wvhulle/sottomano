@@ -25,7 +25,7 @@ use crate::{
         hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
-        container_usage_text::{approximate_memory_text, cpu_load_text},
+        process_usage_text::{approximate_memory_text, cpu_load_text},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },

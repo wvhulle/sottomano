@@ -264,6 +264,7 @@ impl DesktopShell {
             ]),
             Message::Media(msg) => self.update_media(msg),
             Message::Tray(msg) => self.update_tray(msg),
+            Message::VirtualMachines(msg) => self.update_virtual_machines(msg),
             Message::IdleTimeouts(IdlePauseMessage::ScreenPowerChangedByIdleAction(edge)) => self
                 .widget_groups
                 .session_focus_group

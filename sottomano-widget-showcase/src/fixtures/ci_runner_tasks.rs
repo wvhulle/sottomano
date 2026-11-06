@@ -8,7 +8,7 @@ use sottomano_desktop_sources::{
         forgejo_runner_tasks::ForgejoRunnerTasks, woodpecker_agent_tasks::WoodpeckerAgentTasks,
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
-    podman_container_engine::libpod_running_containers::ContainerCpuLoad,
+    system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad,
     systemd_units_journal::{SystemdUnitScope, service_commands::ServiceAccount},
 };
 use sottomano_widgets::{
@@ -86,7 +86,7 @@ pub fn woodpecker_group(clock: Clock) -> ShowcasedGroup {
         "#185",
         "run-tests",
         TaskUsage::Measured {
-            cpu_load: ContainerCpuLoad::BusyCores(6.2),
+            cpu_load: ProcessTreeCpuLoad::BusyCores(6.2),
             resident_memory: ByteSize::gib(4),
         },
         Duration::from_mins(10),
@@ -97,7 +97,7 @@ pub fn woodpecker_group(clock: Clock) -> ShowcasedGroup {
         "#201",
         "clone",
         TaskUsage::Measured {
-            cpu_load: ContainerCpuLoad::BusyCores(3.8),
+            cpu_load: ProcessTreeCpuLoad::BusyCores(3.8),
             resident_memory: ByteSize::gib(1),
         },
         Duration::from_mins(2),
@@ -158,7 +158,7 @@ pub fn forgejo_group(clock: Clock) -> ShowcasedGroup {
                             "11282424",
                             "build",
                             TaskUsage::Measured {
-                                cpu_load: ContainerCpuLoad::BusyCores(1.1),
+                                cpu_load: ProcessTreeCpuLoad::BusyCores(1.1),
                                 resident_memory: ByteSize::mib(640),
                             },
                             Duration::from_mins(1),

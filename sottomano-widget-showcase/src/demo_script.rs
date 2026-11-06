@@ -21,6 +21,7 @@ use sottomano_widgets::{
         media_group::{MediaTarget, PlayerTarget},
         memory_board_group::MemoryBoardTarget,
         tailnet_group::TailnetTarget,
+        virtual_machines_group::VirtualMachineTarget,
         voice_dictation_group::VoiceDictationTarget,
         vpn_group::VpnTarget,
         wallpaper_group::WallpaperTarget,
@@ -35,8 +36,8 @@ use crate::{
     fixtures::{
         app_launcher, appearance_presets, audio, caldav, claude_usage, compute, gamepad,
         group_menu_members, idle_lock, login_session, media, memory_board, niri_session,
-        notification_toasts, podman_engines, shell_settings, tailnet, unchanging, voice_dictation,
-        vpn, wallpaper, weather, wireguard_server,
+        notification_toasts, podman_engines, shell_settings, tailnet, unchanging, virtual_machines,
+        voice_dictation, vpn, wallpaper, weather, wireguard_server,
     },
     showcase_message::ShowcaseMessage,
     showcased_group::ShowcasedGroup,
@@ -198,6 +199,19 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
             Step::PressText("Podman"),
+        ],
+    },
+    Demo {
+        name: "virtual_machines",
+        group: virtual_machines::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Services),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
+            Step::PressText("VMs"),
+            Step::Hover(HoverTarget::VirtualMachine(VirtualMachineTarget::of_pid(
+                virtual_machines::INTERACTIVE_VM_PID,
+            ))),
         ],
     },
     Demo {
