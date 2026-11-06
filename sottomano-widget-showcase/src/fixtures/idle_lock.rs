@@ -3,7 +3,8 @@ use std::time::Duration;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     login_session_presence::kernel_sleep_obstacles::{
-        KernelHibernation, LogindCapability, SleepObstacles, SleepState, SleepStateSupport,
+        KernelHibernation, LogindCapability, SecretMemoryHolder, SleepObstacles, SleepState,
+        SleepStateSupport,
     },
 };
 use sottomano_widgets::{
@@ -51,7 +52,11 @@ fn hibernation_held_by_secret_memory() -> SleepObstacles {
             SleepState::Suspend,
             SleepState::Hibernate,
         ],
-        kernel_hibernation: KernelHibernation::DisabledBySecretMemory(vec!["Bitwarden".to_owned()]),
+        kernel_hibernation: KernelHibernation::DisabledBySecretMemory(vec![SecretMemoryHolder {
+            name: "Bitwarden".to_owned(),
+            pid: 6627,
+            has_open_window: false,
+        }]),
         resume_device_configured: true,
         blocking_inhibitors: Vec::new(),
         logind_idle_action_enabled: false,

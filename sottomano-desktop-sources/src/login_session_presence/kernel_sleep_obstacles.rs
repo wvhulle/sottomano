@@ -2,12 +2,14 @@ use std::{fs, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
 use futures::Stream;
-use tokio::process::Command;
+use niri_ipc::{Request, Response, socket::Socket};
+use tokio::{process::Command, task::spawn_blocking};
 use zbus::proxy::CacheProperties;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
+    desktop_windows_apps::process_tree_inspection::launch,
     host_machine_identity::hostname1_os_identity::at_micros,
     login_session_presence::{
         cgroup_inhibitor_app_names::InhibitorAppNames,
@@ -94,9 +96,16 @@ pub enum KernelHibernation {
     Allowed,
     DisabledByBootFlag(String),
     DisabledByLockdown(String),
-    DisabledBySecretMemory(Vec<String>),
+    DisabledBySecretMemory(Vec<SecretMemoryHolder>),
     DisabledForUnidentifiedCause,
     DisabledWithoutInspection,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SecretMemoryHolder {
+    pub name: String,
+    pub pid: u32,
+    pub has_open_window: bool,
 }
 
 impl KernelHibernation {
@@ -280,7 +289,11 @@ async fn read_kernel_hibernation(app_names: &InhibitorAppNames) -> KernelHiberna
     match secret_memory_holder_pids().await {
         None => KernelHibernation::DisabledWithoutInspection,
         Some(pids) if pids.is_empty() => KernelHibernation::DisabledForUnidentifiedCause,
-        Some(pids) => KernelHibernation::DisabledBySecretMemory(holder_names(&pids, app_names)),
+        Some(pids) => KernelHibernation::DisabledBySecretMemory(secret_memory_holders(
+            &pids,
+            app_names,
+            open_window_owners().await.as_ref(),
+        )),
     }
 }
 
@@ -295,18 +308,70 @@ async fn secret_memory_holder_pids() -> Option<Vec<u32>> {
     )))
 }
 
-fn holder_names(pids: &[u32], app_names: &InhibitorAppNames) -> Vec<String> {
-    let mut names: Vec<String> = pids
+fn secret_memory_holders(
+    pids: &[u32],
+    app_names: &InhibitorAppNames,
+    window_owners: Option<&WindowOwners>,
+) -> Vec<SecretMemoryHolder> {
+    let mut holders: Vec<SecretMemoryHolder> = pids
         .iter()
-        .map(|pid| {
-            app_names
+        .map(|pid| SecretMemoryHolder {
+            name: app_names
                 .of_process(*pid)
-                .unwrap_or_else(|| format!("Process {pid}"))
+                .unwrap_or_else(|| format!("Process {pid}")),
+            pid: *pid,
+            has_open_window: window_owners
+                .as_ref()
+                .is_none_or(|owners| owners.own_window(*pid, process_scope(*pid).as_deref())),
         })
         .collect();
-    names.sort();
-    names.dedup();
-    names
+    holders.sort_by(|earlier, later| {
+        (earlier.name.as_str(), earlier.pid).cmp(&(later.name.as_str(), later.pid))
+    });
+    holders
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+struct WindowOwners {
+    window_pids: Vec<u32>,
+    window_scopes: Vec<String>,
+}
+
+impl WindowOwners {
+    fn own_window(&self, pid: u32, scope: Option<&str>) -> bool {
+        self.window_pids.contains(&pid)
+            || scope.is_some_and(|scope| self.window_scopes.iter().any(|owned| owned == scope))
+    }
+}
+
+fn process_scope(pid: u32) -> Option<String> {
+    launch(i32::try_from(pid).ok()?)?.scope
+}
+
+async fn open_window_owners() -> Option<WindowOwners> {
+    spawn_blocking(read_window_owners).await.ok().flatten()
+}
+
+fn read_window_owners() -> Option<WindowOwners> {
+    let reply = Socket::connect()
+        .and_then(|mut socket| socket.send(Request::Windows))
+        .ok()?;
+    let Ok(Response::Windows(windows)) = reply else {
+        return None;
+    };
+    let window_pids: Vec<u32> = windows
+        .iter()
+        .filter_map(|window| u32::try_from(window.pid?).ok())
+        .collect();
+    let window_scopes = window_pids
+        .iter()
+        .filter_map(|pid| process_scope(*pid))
+        .filter(|scope| scope.starts_with("app-"))
+        .collect();
+    Some(WindowOwners {
+        window_pids,
+        window_scopes,
+    })
 }
 
 fn blocking_inhibitors(
@@ -366,9 +431,21 @@ fn pids_in_helper_output(helper_output: &str) -> Vec<u32> {
 mod tests {
     use super::{
         InhibitedOperation, KernelHibernation, LogindCapability, SleepObstacles, SleepState,
-        SleepStateSupport, active_lockdown_level, disabling_boot_flag, lists_hibernation_disabled,
-        names_resume_device, pids_in_helper_output,
+        SleepStateSupport, WindowOwners, active_lockdown_level, disabling_boot_flag,
+        lists_hibernation_disabled, names_resume_device, pids_in_helper_output,
     };
+
+    #[test]
+    fn a_holder_owns_a_window_through_its_own_pid_or_its_app_scope() {
+        let owners = WindowOwners {
+            window_pids: vec![6627],
+            window_scopes: vec!["app-bitwarden-6370.scope".to_owned()],
+        };
+        assert!(owners.own_window(6627, None));
+        assert!(owners.own_window(7365, Some("app-bitwarden-6370.scope")));
+        assert!(!owners.own_window(9000, Some("app-signal-12.scope")));
+        assert!(!owners.own_window(9001, None));
+    }
 
     fn obstacles_with(capabilities: [LogindCapability; 4]) -> SleepObstacles {
         SleepObstacles {
