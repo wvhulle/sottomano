@@ -738,8 +738,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_items::toggle_control::SwitchPresses,
-        hover_cards::{HoverCardMessage, PanelPinOrigin, hover_card_body::HoverCardBody},
+        group_items::{group_item_reading::NamedTestReading, toggle_control::SwitchPresses},
+        hover_cards::{HoverCardMessage, PanelPinOrigin},
         widget_groups::{
             dark_mode_group::DarkModeTarget,
             session_power_group::SessionTarget,
@@ -748,42 +748,12 @@ mod tests {
         widgets::phosphor::{Phosphor, Weight},
     };
 
-    struct NamedReading;
-
-    impl GroupItemReading for NamedReading {
-        fn name(&self) -> &'static str {
-            "Named reading"
-        }
-
-        fn icon(&self) -> IconGlyph {
-            Phosphor::Question(Weight::Regular).into()
-        }
-
-        fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-            HoverCardBody::sections([])
-        }
-    }
-
-    struct FailedReading;
-
-    impl GroupItemReading for FailedReading {
-        fn name(&self) -> &'static str {
-            "Failed reading"
-        }
-
-        fn icon(&self) -> IconGlyph {
-            Phosphor::Question(Weight::Regular).into()
-        }
-
-        fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-            HoverCardBody::sections([])
-        }
-    }
-
     #[test]
     fn a_failed_reading_keeps_the_pin_of_its_target() {
-        let healthy: GroupItem<'static, ()> = GroupItem::reading(NamedReading, SessionTarget::Menu);
-        let failed: GroupItem<'static, ()> = GroupItem::reading(FailedReading, SessionTarget::Menu);
+        let healthy: GroupItem<'static, ()> =
+            GroupItem::reading(NamedTestReading("Named reading"), SessionTarget::Menu);
+        let failed: GroupItem<'static, ()> =
+            GroupItem::reading(NamedTestReading("Failed reading"), SessionTarget::Menu);
         assert_eq!(healthy.pinnable_key(), failed.pinnable_key());
     }
 
@@ -834,7 +804,8 @@ mod tests {
 
     #[test]
     fn a_composed_item_can_share_the_pin_of_the_reading_it_replaces() {
-        let reading: GroupItem<'static, ()> = GroupItem::reading(NamedReading, SessionTarget::Menu);
+        let reading: GroupItem<'static, ()> =
+            GroupItem::reading(NamedTestReading("Named reading"), SessionTarget::Menu);
         let composed: GroupItem<'static, ()> = GroupItem::composed_pinnable(
             ComposedGroupItemFace {
                 name: "Composed row".into(),
@@ -905,7 +876,8 @@ mod tests {
     fn readings_and_sliders_are_pinnable_but_plain_composed_rows_are_not() {
         let config = Config::default();
         let slider = offset_slider_for(DarkModeTarget::SunriseOffset);
-        let reading: GroupItem<'static, ()> = GroupItem::reading(NamedReading, SessionTarget::Menu);
+        let reading: GroupItem<'static, ()> =
+            GroupItem::reading(NamedTestReading("Named reading"), SessionTarget::Menu);
         assert!(reading.pinnable_key().is_some());
         assert!(slider_pin_key(&slider, &config).is_some());
         assert_eq!(composed_with(whole_item_hover()).pinnable_key(), None);

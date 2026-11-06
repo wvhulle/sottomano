@@ -155,3 +155,21 @@ impl<ForwardedReading: GroupItemReading + ?Sized> GroupItemReading for &Forwarde
         (**self).hover_card(clock)
     }
 }
+
+#[cfg(test)]
+pub(crate) struct NamedTestReading(pub &'static str);
+
+#[cfg(test)]
+impl GroupItemReading for NamedTestReading {
+    fn name(&self) -> &'static str {
+        self.0
+    }
+
+    fn icon(&self) -> IconGlyph {
+        Phosphor::Question(Weight::Regular).into()
+    }
+
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([])
+    }
+}
