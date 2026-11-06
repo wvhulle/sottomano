@@ -6,14 +6,17 @@ use std::{
     },
 };
 
-use futures::{Stream, stream};
+use futures::Stream;
 use tokio::sync::watch;
+use tokio_stream::wrappers::WatchStream;
 use zbus::{
     Connection, connection,
     fdo::{self, RequestNameFlags, RequestNameReply},
     object_server::ObjectServer,
     zvariant::{OwnedObjectPath, OwnedValue},
 };
+
+use crate::stream_operators::StreamOperators;
 
 const PATH: &str = "/JobViewServer";
 const SERVER_NAME: &str = "org.kde.JobViewServer";
@@ -313,18 +316,6 @@ impl JobView {
     }
 }
 
-struct Served {
-    _connection: Connection,
-    updates: watch::Receiver<JobProgress>,
-}
-
-impl Served {
-    async fn next_jobs(&mut self) -> Option<JobProgress> {
-        self.updates.changed().await.ok()?;
-        Some(self.updates.borrow_and_update().clone())
-    }
-}
-
 pub async fn serve() -> zbus::Result<impl Stream<Item = JobProgress>> {
     let (states, updates) = watch::channel(JobProgress::default());
     let tracker = Arc::new(Tracker {
@@ -351,14 +342,7 @@ pub async fn serve() -> zbus::Result<impl Stream<Item = JobProgress>> {
     claim(&connection, SERVER_NAME).await?;
     claim(&connection, KUISERVER_NAME).await?;
 
-    let served = Served {
-        _connection: connection,
-        updates,
-    };
-    Ok(stream::unfold(served, |mut served| async move {
-        let jobs = served.next_jobs().await?;
-        Some((jobs, served))
-    }))
+    Ok(WatchStream::from_changes(updates).keeping_alive(connection))
 }
 
 async fn claim(connection: &Connection, name: &str) -> zbus::Result<()> {

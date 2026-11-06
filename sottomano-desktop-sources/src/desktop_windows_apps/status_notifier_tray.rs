@@ -4,11 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use futures::{
-    SinkExt, Stream, StreamExt,
-    channel::mpsc::{Sender, channel},
-    stream,
-};
+use futures::{Stream, StreamExt, stream};
 use image::RgbaImage;
 pub use system_tray::item::Status;
 use system_tray::{
@@ -17,10 +13,7 @@ use system_tray::{
     item::{IconPixmap, StatusNotifierItem},
     menu::{MenuItem, MenuType, ToggleState, ToggleType, TrayMenu},
 };
-use tokio::{
-    select,
-    sync::{broadcast::error::RecvError, mpsc},
-};
+use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -114,10 +107,13 @@ impl TrayItem {
 
 #[derive(Debug, Clone)]
 pub enum TrayUpdate {
-    Connected(mpsc::Sender<TrayCommand>),
+    Connected(TrayHost),
     Items(Vec<TrayItem>),
     HostFailed(Arc<TrayHostError>),
 }
+
+#[derive(Debug, Clone)]
+pub struct TrayHost(Arc<Client>);
 
 #[derive(Debug, Clone)]
 pub enum TrayCommand {
@@ -276,9 +272,27 @@ fn build_item(
 }
 
 pub fn updates() -> impl Stream<Item = TrayUpdate> + Send {
-    let (mut output, received) = channel(64);
-    let hosting = stream::once(async move { run(&mut output).await }).filter_map(|()| ready(None));
-    stream::select(received, hosting)
+    stream::once(Client::new()).flat_map(|connection| match connection {
+        Ok(client) => hosted_updates(Arc::new(client)).left_stream(),
+        Err(host_failure) => {
+            stream::iter([TrayUpdate::HostFailed(Arc::new(host_failure))]).right_stream()
+        }
+    })
+}
+
+fn hosted_updates(client: Arc<Client>) -> impl Stream<Item = TrayUpdate> + Send {
+    let item_events = BroadcastStream::new(client.subscribe());
+    let entries = DesktopEntries::empty();
+    let listed = listed_items(&client, &entries);
+    let host = TrayHost(client.clone());
+    let item_changes = item_events.scan(listed.clone(), move |items, received| {
+        match received {
+            Ok(event) => apply(items, event, &client, &entries),
+            Err(BroadcastStreamRecvError::Lagged(_)) => *items = listed_items(&client, &entries),
+        }
+        ready(Some(TrayUpdate::Items(items.clone())))
+    });
+    stream::iter([TrayUpdate::Connected(host), TrayUpdate::Items(listed)]).chain(item_changes)
 }
 
 impl SnapshotSource for Vec<TrayItem> {
@@ -297,55 +311,6 @@ impl SnapshotSource for Vec<TrayItem> {
                 })
             })
             .map(SnapshotDelivery::live_push)
-    }
-}
-
-async fn run(output: &mut Sender<TrayUpdate>) {
-    let client = match Client::new().await {
-        Ok(client) => client,
-        Err(e) => {
-            let _ = output.send(TrayUpdate::HostFailed(Arc::new(e))).await;
-            return;
-        }
-    };
-    let mut events = client.subscribe();
-    let (command_tx, mut command_rx) = mpsc::channel::<TrayCommand>(64);
-    if output
-        .send(TrayUpdate::Connected(command_tx))
-        .await
-        .is_err()
-    {
-        return;
-    }
-
-    let entries = DesktopEntries::empty();
-    let mut items = listed_items(&client, &entries);
-    if output.send(TrayUpdate::Items(items.clone())).await.is_err() {
-        return;
-    }
-
-    loop {
-        select! {
-            event = events.recv() => match event {
-                Ok(event) => {
-                    apply(&mut items, event, &client, &entries);
-                    if output.send(TrayUpdate::Items(items.clone())).await.is_err() {
-                        break;
-                    }
-                }
-                Err(RecvError::Lagged(_)) => {
-                    items = listed_items(&client, &entries);
-                    if output.send(TrayUpdate::Items(items.clone())).await.is_err() {
-                        break;
-                    }
-                }
-                Err(RecvError::Closed) => break,
-            },
-            command = command_rx.recv() => match command {
-                Some(command) => run_command(&client, command).await,
-                None => break,
-            },
-        }
     }
 }
 
@@ -416,8 +381,16 @@ fn apply(items: &mut Vec<TrayItem>, event: Event, client: &Client, entries: &Des
     }
 }
 
-async fn run_command(client: &Client, command: TrayCommand) {
-    let request = match command {
+impl TrayHost {
+    pub async fn activate(self, command: TrayCommand) {
+        if let Err(activate_failure) = self.0.activate(activation_request(command)).await {
+            tracing::warn!("tray: activate: {activate_failure}");
+        }
+    }
+}
+
+fn activation_request(command: TrayCommand) -> ActivateRequest {
+    match command {
         TrayCommand::Activate(address) => ActivateRequest::Default {
             address,
             x: 0,
@@ -437,8 +410,5 @@ async fn run_command(client: &Client, command: TrayCommand) {
             menu_path,
             submenu_id: id,
         },
-    };
-    if let Err(e) = client.activate(request).await {
-        tracing::warn!("tray: activate: {e}");
     }
 }

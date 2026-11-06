@@ -2,6 +2,7 @@ use std::{borrow::Cow, iter, mem, path::Path};
 
 use iced::{
     Task,
+    futures::{StreamExt, stream},
     time::{Duration, Instant},
     window::Id,
 };
@@ -64,8 +65,8 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         toast_surface_on: &dyn Fn(&str) -> Option<Id>,
     ) -> Task<Routed> {
         match message {
-            NotificationMessage::Connected(handle) => {
-                self.outbound = Some(handle);
+            NotificationMessage::Connected(signals) => {
+                self.signals = Some(signals);
                 Task::none()
             }
             NotificationMessage::Served(data) => self.serve(
@@ -649,16 +650,13 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     }
 
     pub(super) fn emit_in_order(&self, outbound: Vec<Outbound>) -> Task<Routed> {
-        match &self.outbound {
-            Some(sender) if !outbound.is_empty() => {
-                let sender = sender.clone();
-                Task::future(async move {
-                    for signal in outbound {
-                        let _ = sender.send(signal).await;
-                    }
-                })
-                .discard()
-            }
+        match &self.signals {
+            Some(signals) if !outbound.is_empty() => Task::future(
+                stream::iter(outbound)
+                    .map(Ok)
+                    .forward(signals.clone().into_sink()),
+            )
+            .discard(),
             _ => Task::none(),
         }
     }

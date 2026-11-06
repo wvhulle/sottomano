@@ -9,10 +9,7 @@ use iced::{
 };
 use iced_wayland_subscriber::output::{self, OutputEvent};
 use sottomano_desktop_sources::{
-    desktop_notifications::{
-        freedesktop_notification_server,
-        notification_data::{Outbound, ServerEvent},
-    },
+    desktop_notifications::freedesktop_notification_server,
     desktop_windows_apps::{desktop_entry_changes, firefox_favicon_lookup, niri_window_snapshot},
     system_protocol_clients::{
         dbus_desktop_buses::desktop_bus_events,
@@ -20,8 +17,6 @@ use sottomano_desktop_sources::{
     },
 };
 use sottomano_widgets::{hover_cards::HoverCardMessage, toast_messages::NotificationMessage};
-use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
 use wayland_client::Connection;
 
 use crate::{
@@ -117,7 +112,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
 fn niri_subscription() -> Subscription<Message> {
     use iced::futures::StreamExt;
     Subscription::run(|| {
-        ReceiverStream::new(niri_window_snapshot::spawn_event_thread())
+        niri_window_snapshot::niri_events()
             .ready_chunks(256)
             .map(Message::Niri)
     })
@@ -138,12 +133,8 @@ fn notifications_subscription() -> Subscription<Message> {
 
 async fn served_notifications() -> zbus::Result<impl Stream<Item = Message>> {
     use iced::futures::{StreamExt, stream};
-    let (event_tx, event_rx) = mpsc::channel::<ServerEvent>(256);
-    let (outbound_tx, outbound_rx) = mpsc::channel::<Outbound>(256);
-    freedesktop_notification_server::serve(event_tx, outbound_rx).await?;
-    let connected = NotificationMessage::Connected(outbound_tx);
-    let served = ReceiverStream::new(event_rx).map(NotificationMessage::from);
-    Ok(stream::iter([connected])
-        .chain(served)
+    let (server_events, signals) = freedesktop_notification_server::serve().await?;
+    Ok(stream::iter([NotificationMessage::Connected(signals)])
+        .chain(server_events.map(NotificationMessage::from))
         .map(Message::Notification))
 }

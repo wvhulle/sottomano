@@ -18,8 +18,8 @@ use iced::{
 use niri_ipc::state::EventStreamState;
 use sottomano_desktop_sources::{
     desktop_notifications::{
-        alert_sound_player::SoundTheme,
-        notification_data::{NotificationData, Outbound},
+        alert_sound_player::SoundTheme, freedesktop_notification_server::NotificationSignals,
+        notification_data::NotificationData,
     },
     desktop_windows_apps::{
         desktop_entry_app_icons::DesktopEntries, niri_action_requests::ActionFailure,
@@ -32,7 +32,7 @@ pub use toast_lifecycle::Notification;
 use toast_lifecycle::{BodyClick, Countdown, ToastKind};
 use toast_placement::AnchoredToast;
 use toast_reply::ReplyFocus;
-use tokio::{sync::mpsc, time::sleep_until};
+use tokio::time::sleep_until;
 use window_anchored_toasts::WindowAnchoredToasts;
 
 use crate::{
@@ -128,7 +128,7 @@ pub(super) struct SnoozedOngoingToast {
 }
 
 pub struct NotificationLayer<Routed> {
-    outbound: Option<mpsc::Sender<Outbound>>,
+    signals: Option<NotificationSignals>,
     sound_theme: SoundTheme,
     live: Vec<Notification<Routed>>,
     held: Vec<NotificationData>,
@@ -142,7 +142,7 @@ pub struct NotificationLayer<Routed> {
 impl<Routed> Default for NotificationLayer<Routed> {
     fn default() -> Self {
         Self {
-            outbound: None,
+            signals: None,
             sound_theme: SoundTheme::default(),
             live: Vec::new(),
             held: Vec::new(),
