@@ -9,7 +9,6 @@ use serde::{Deserialize, Deserializer, de::Error as DeserializeError};
 use situo_client::GeoCoordinates;
 use uom::si::{
     f64::{Ratio, ThermodynamicTemperature},
-    ratio::percent,
     thermodynamic_temperature::degree_celsius,
 };
 
@@ -18,7 +17,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
-    system_protocol_clients::http_json_client,
+    system_protocol_clients::{http_json_client, http_json_client::deserialize_percent_ratio},
 };
 
 fn unix_instant<E: DeserializeError>(seconds: i64) -> Result<DateTime<Utc>, E> {
@@ -55,10 +54,6 @@ fn celsius_series<'de, D: Deserializer<'de>>(
         .into_iter()
         .map(ThermodynamicTemperature::new::<degree_celsius>)
         .collect())
-}
-
-fn percent_value<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Ratio, D::Error> {
-    Ok(Ratio::new::<percent>(f64::deserialize(deserializer)?))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -226,7 +221,7 @@ struct CurrentTemperature {
     temperature_2m: ThermodynamicTemperature,
     #[serde(deserialize_with = "celsius")]
     apparent_temperature: ThermodynamicTemperature,
-    #[serde(deserialize_with = "percent_value")]
+    #[serde(deserialize_with = "deserialize_percent_ratio")]
     relative_humidity_2m: Ratio,
     weather_code: i64,
     is_day: Daylight,

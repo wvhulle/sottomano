@@ -4,7 +4,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use futures::Stream;
 use rust_decimal::Decimal;
 use rusty_money::iso;
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 use uom::si::{f64::Ratio, ratio::percent};
 
 use super::{
@@ -19,6 +19,7 @@ use crate::{
     },
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
+    system_protocol_clients::http_json_client::deserialize_percent_ratio,
 };
 
 const SESSION_LENGTH: TimeDelta = TimeDelta::hours(5);
@@ -48,13 +49,9 @@ struct Overage {
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct WindowUsage {
-    #[serde(deserialize_with = "percent_share")]
+    #[serde(deserialize_with = "deserialize_percent_ratio")]
     pub utilization: Ratio,
     pub resets_at: Option<DateTime<Utc>>,
-}
-
-fn percent_share<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Ratio, D::Error> {
-    f64::deserialize(deserializer).map(Ratio::new::<percent>)
 }
 
 #[derive(Debug, Clone, PartialEq)]

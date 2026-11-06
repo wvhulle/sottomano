@@ -11,9 +11,10 @@ use reqwest::{
     ClientBuilder, Method, Url,
     header::{CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue},
 };
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::{Deserialize, Deserializer, de::DeserializeOwned};
 use serde_json::Value;
 use tokio::{net::lookup_host, time::timeout};
+use uom::si::{f64::Ratio, ratio::percent};
 
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const RESOLVE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -126,6 +127,12 @@ impl Display for Error {
 }
 
 impl StdError for Error {}
+
+pub fn deserialize_percent_ratio<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Ratio, D::Error> {
+    f64::deserialize(deserializer).map(Ratio::new::<percent>)
+}
 
 pub struct Response {
     pub status: u16,
