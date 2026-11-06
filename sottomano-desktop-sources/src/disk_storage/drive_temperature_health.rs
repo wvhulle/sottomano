@@ -16,7 +16,6 @@ use super::{
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    blocking_background_work::blocking_poll,
     cpu_memory_compute::{
         hwmon_temperature_sensors::{ChosenSensors, HwmonChip, LimitKind},
         temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
@@ -126,13 +125,7 @@ impl SnapshotSource for DriveHealth {
         inputs: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         PeriodicPolling::every(Duration::from_secs(60))
-            .poll_deliveries(move || Self::poll(inputs.clone()))
-    }
-}
-
-impl DriveHealth {
-    async fn poll(inputs: DriveHealthInputs) -> Result<Self, Error> {
-        blocking_poll(move || read_drive_health(&inputs)).await
+            .blocking_poll_deliveries(move || read_drive_health(&inputs))
     }
 }
 

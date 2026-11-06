@@ -45,13 +45,7 @@ impl SnapshotSource for CpuUsage {
     fn delivery_stream(
         (): Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(Duration::from_secs(3)).poll_deliveries(move || Self::poll(()))
-    }
-}
-
-impl CpuUsage {
-    async fn poll(_key: ()) -> Result<Self, Error> {
-        blocking_poll(read_cpu_usage).await
+        PeriodicPolling::every(Duration::from_secs(3)).blocking_poll_deliveries(read_cpu_usage)
     }
 }
 
@@ -66,14 +60,10 @@ impl SnapshotSource for CpuCoreLoads {
     );
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(Duration::from_secs(3))
-            .poll_deliveries_after_setup(blocking_poll(|| Ok(CpuTopology::detect())), Self::poll)
-    }
-}
-
-impl CpuCoreLoads {
-    async fn poll(topology: CpuTopology) -> Result<Self, Error> {
-        blocking_poll(move || read_core_loads(topology)).await
+        PeriodicPolling::every(Duration::from_secs(3)).blocking_poll_deliveries_after_setup(
+            blocking_poll(|| Ok(CpuTopology::detect())),
+            read_core_loads,
+        )
     }
 }
 

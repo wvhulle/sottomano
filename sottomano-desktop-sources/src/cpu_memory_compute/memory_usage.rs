@@ -5,8 +5,7 @@ use futures::Stream;
 use procfs::{Current, Meminfo, WithCurrentSystemInfo, process::all_processes};
 
 use crate::{
-    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking_poll,
-    delivery_cadence_drivers::PeriodicPolling,
+    SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
     desktop_windows_apps::process_tree_inspection::binary_name,
     system_protocol_clients::sysfs_attribute_reads::Error,
 };
@@ -44,13 +43,7 @@ impl SnapshotSource for Memory {
     fn delivery_stream(
         (): Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(Duration::from_secs(5)).poll_deliveries(move || Self::poll(()))
-    }
-}
-
-impl Memory {
-    async fn poll(_key: ()) -> Result<Self, Error> {
-        blocking_poll(read_meminfo).await
+        PeriodicPolling::every(Duration::from_secs(5)).blocking_poll_deliveries(read_meminfo)
     }
 }
 
@@ -95,13 +88,8 @@ impl SnapshotSource for MemoryProcesses {
     fn delivery_stream(
         (): Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(Duration::from_secs(3)).poll_deliveries(move || Self::poll(()))
-    }
-}
-
-impl MemoryProcesses {
-    async fn poll(_key: ()) -> Result<Self, Error> {
-        blocking_poll(read_memory_processes).await
+        PeriodicPolling::every(Duration::from_secs(3))
+            .blocking_poll_deliveries(read_memory_processes)
     }
 }
 

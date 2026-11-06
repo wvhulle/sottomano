@@ -84,14 +84,19 @@ impl SnapshotSource for CpuCoreTemperatures {
     fn delivery_stream(
         overrides: ThresholdOverrides,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        TEMPERATURE_POLLING.poll_deliveries_after_setup(
+        TEMPERATURE_POLLING.blocking_poll_deliveries_after_setup(
             blocking_poll(move || {
                 Ok(CoreSensorLayout {
                     overrides,
                     topology: CpuTopology::detect(),
                 })
             }),
-            Self::poll,
+            |layout: CoreSensorLayout| {
+                Ok(CpuCoreTemperatures {
+                    cores: core_temperatures(layout.overrides),
+                    topology: layout.topology,
+                })
+            },
         )
     }
 }
@@ -100,18 +105,6 @@ impl SnapshotSource for CpuCoreTemperatures {
 pub struct CoreSensorLayout {
     overrides: ThresholdOverrides,
     topology: CpuTopology,
-}
-
-impl CpuCoreTemperatures {
-    async fn poll(layout: CoreSensorLayout) -> Result<Self, Error> {
-        blocking_poll(move || {
-            Ok(CpuCoreTemperatures {
-                cores: core_temperatures(layout.overrides),
-                topology: layout.topology,
-            })
-        })
-        .await
-    }
 }
 
 fn margin(degrees: f64) -> TemperatureInterval {
@@ -197,14 +190,14 @@ impl SnapshotSource for Temperature {
         holding_earliest_critical(stream::once(exposed).while_held(
             move || {
                 let config = config.clone();
-                TEMPERATURE_POLLING.poll_deliveries_after_setup(
+                TEMPERATURE_POLLING.blocking_poll_deliveries_after_setup(
                     blocking_poll(move || {
                         Ok(TemperatureProbe {
                             sensors: cpu_sensors(&config.sensor),
                             config,
                         })
                     }),
-                    Self::poll,
+                    |probe| read_temperature(&probe),
                 )
             },
             SnapshotDelivery::SourceUnavailable,
@@ -216,12 +209,6 @@ impl SnapshotSource for Temperature {
 pub struct TemperatureProbe {
     sensors: Vec<ChosenSensors>,
     config: SensorConfig,
-}
-
-impl Temperature {
-    async fn poll(probe: TemperatureProbe) -> Result<Self, Error> {
-        blocking_poll(move || read_temperature(&probe)).await
-    }
 }
 
 fn holding_earliest_critical(

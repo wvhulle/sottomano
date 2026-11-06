@@ -30,24 +30,17 @@ impl SnapshotSource for MemoryModuleTemperatures {
     const NAME: &'static str = "Module temperatures";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(Duration::from_secs(3)).poll_deliveries_after_setup(
+        PeriodicPolling::every(Duration::from_secs(3)).blocking_poll_deliveries_after_setup(
             blocking_poll(|| Ok(MemoryModuleSensor::discover())),
-            Self::poll,
+            |sensors: Vec<MemoryModuleSensor>| {
+                Ok(MemoryModuleTemperatures {
+                    modules: sensors
+                        .iter()
+                        .filter_map(MemoryModuleSensor::read)
+                        .collect(),
+                })
+            },
         )
-    }
-}
-
-impl MemoryModuleTemperatures {
-    async fn poll(sensors: Vec<MemoryModuleSensor>) -> Result<Self, Error> {
-        blocking_poll(move || {
-            Ok(MemoryModuleTemperatures {
-                modules: sensors
-                    .iter()
-                    .filter_map(MemoryModuleSensor::read)
-                    .collect(),
-            })
-        })
-        .await
     }
 }
 

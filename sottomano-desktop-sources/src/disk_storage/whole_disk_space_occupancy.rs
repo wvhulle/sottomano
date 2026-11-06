@@ -9,10 +9,7 @@ use super::{
     bcachefs_filesystem_space::BcachefsFilesystem,
     block_filesystem_mounts::{FilesystemMount, KernelDevice},
 };
-use crate::{
-    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking_poll,
-    delivery_cadence_drivers::PeriodicPolling,
-};
+use crate::{SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling};
 
 const SECTOR_BYTES: u64 = 512;
 
@@ -73,13 +70,7 @@ impl SnapshotSource for DiskSpaceOccupancy {
         inputs: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         PeriodicPolling::every(Duration::from_secs(60))
-            .poll_deliveries(move || Self::poll(inputs.clone()))
-    }
-}
-
-impl DiskSpaceOccupancy {
-    async fn poll(inputs: DiskOccupancyInputs) -> Result<Self, Error> {
-        blocking_poll(move || read_disk_occupancy(&inputs)).await
+            .blocking_poll_deliveries(move || read_disk_occupancy(&inputs))
     }
 }
 
