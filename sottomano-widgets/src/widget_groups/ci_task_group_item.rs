@@ -1,15 +1,20 @@
 use std::{borrow::Cow, collections::BTreeMap, convert::Infallible, iter::once, time::Duration};
 
 use chrono::{DateTime, Locale, Utc};
+use iced::Subscription;
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
     ci_runner_tasks::{
         CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskUsage,
+        systemd_service_runner_discovery::DiscoveredCiRunner,
     },
     podman_container_engine::libpod_running_containers::EngineReadError,
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    systemd_units_journal::{SystemdUnitScope, service_commands::ServiceCommand},
 };
 
 use crate::{
+    background_work::snapshot_subscription,
     clock::Clock,
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
@@ -27,6 +32,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
+        discovered_systemd_services::{DiscoveredSystemdServices, ScopedServiceCommands},
         icon_glyph::IconGlyph,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         localized_durations::duration_text,
@@ -248,9 +254,16 @@ pub trait CiRunnerSnapshot: SnapshotSource<Error = Infallible> {
     const KIND: CiRunnerKind;
 
     fn runner(&self) -> &CiRunnerTasks;
+
+    fn discovered(
+        scope: SystemdUnitScope,
+        command: &ServiceCommand,
+    ) -> Option<DiscoveredCiRunner<Self::StreamInputs>>;
 }
 
 pub struct CiTasksGroup<S: CiRunnerSnapshot> {
+    services: DiscoveredSystemdServices,
+    discovered_runners: Vec<DiscoveredCiRunner<S::StreamInputs>>,
     runners: BTreeMap<String, LatestSnapshot<S, HidesFetchFailures>>,
     expansion: WidgetGroupExpansion,
 }
@@ -258,6 +271,8 @@ pub struct CiTasksGroup<S: CiRunnerSnapshot> {
 impl<S: CiRunnerSnapshot> Default for CiTasksGroup<S> {
     fn default() -> Self {
         Self {
+            services: DiscoveredSystemdServices::default(),
+            discovered_runners: Vec::new(),
             runners: BTreeMap::new(),
             expansion: WidgetGroupExpansion::default(),
         }
@@ -266,6 +281,7 @@ impl<S: CiRunnerSnapshot> Default for CiTasksGroup<S> {
 
 #[derive(Debug, Clone)]
 pub enum CiTasksMessage<S: CiRunnerSnapshot> {
+    Services(ScopedServiceCommands),
     Runner(String, SnapshotDelivery<S>),
     Expansion(WidgetGroupExpansionMessage),
 }
@@ -275,8 +291,42 @@ impl<S: CiRunnerSnapshot> CiTasksGroup<S> {
         self.expansion.collapse();
     }
 
+    #[must_use]
+    pub fn no_runners_discovered(&self) -> bool {
+        self.discovered_runners.is_empty()
+    }
+
+    pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<CiTasksMessage<S>> {
+        Subscription::batch(
+            [DiscoveredSystemdServices::subscription(buses).map(CiTasksMessage::Services)]
+                .into_iter()
+                .chain(self.discovered_runners.iter().map(|discovered| {
+                    snapshot_subscription::<S>(discovered.watch.clone())
+                        .with(discovered.label.clone())
+                        .map(|(runner_label, delivery)| {
+                            CiTasksMessage::Runner(runner_label, delivery)
+                        })
+                })),
+        )
+    }
+
+    fn adopt_discovered(&mut self) {
+        let discovered_runners: Vec<DiscoveredCiRunner<S::StreamInputs>> =
+            self.services.discovered(S::discovered).collect();
+        self.runners.retain(|runner_label, _| {
+            discovered_runners
+                .iter()
+                .any(|discovered| &discovered.label == runner_label)
+        });
+        self.discovered_runners = discovered_runners;
+    }
+
     pub fn update(&mut self, message: CiTasksMessage<S>, clock: Clock) {
         match message {
+            CiTasksMessage::Services(scoped_commands) => {
+                self.services.receive(scoped_commands, clock);
+                self.adopt_discovered();
+            }
             CiTasksMessage::Runner(runner_label, delivery) => {
                 self.runners
                     .entry(runner_label)
@@ -313,10 +363,13 @@ impl<S: CiRunnerSnapshot> CiTasksGroup<S> {
 
     pub fn group_content<'a, M: Clone + 'a>(
         &'a self,
-        runner_labels: impl IntoIterator<Item = &'a str>,
         lift_expansion: fn(WidgetGroupExpansionMessage) -> M,
     ) -> WidgetGroupContent<'a, M> {
-        let items = runner_labels.into_iter().flat_map(|runner_label| {
+        let runner_labels = self
+            .discovered_runners
+            .iter()
+            .map(|discovered| discovered.label.as_str());
+        let items = runner_labels.flat_map(|runner_label| {
             let runner = self
                 .runners
                 .get(runner_label)

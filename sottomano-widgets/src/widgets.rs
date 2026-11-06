@@ -14,6 +14,7 @@ pub mod app_window_focus;
 pub mod appearance_presets;
 pub mod configured_theme;
 pub mod context_menu;
+pub mod discovered_systemd_services;
 pub mod favicon;
 pub mod hardware_section;
 pub mod hover_fetched_snapshot;

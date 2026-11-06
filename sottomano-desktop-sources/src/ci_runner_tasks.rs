@@ -1,6 +1,7 @@
 pub mod forgejo_runner_container_names;
 pub mod forgejo_runner_journal_repos;
 pub mod forgejo_runner_tasks;
+pub mod systemd_service_runner_discovery;
 pub mod woodpecker_agent_tasks;
 pub mod woodpecker_agent_varz;
 

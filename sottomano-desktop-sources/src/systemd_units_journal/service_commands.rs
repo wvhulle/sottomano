@@ -21,6 +21,26 @@ type ExecCommandRow = (String, Vec<String>, bool, u64, u64, u64, u64, u32, i32, 
 trait ServiceExec {
     #[zbus(property)]
     fn exec_start(&self) -> zbus::Result<Vec<ExecCommandRow>>;
+    #[zbus(property)]
+    fn environment(&self) -> zbus::Result<Vec<String>>;
+    #[zbus(property)]
+    fn user(&self) -> zbus::Result<String>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ServiceAccount {
+    ManagerOwner,
+    NamedUser(String),
+}
+
+impl ServiceAccount {
+    fn of_user_property(user: String) -> Self {
+        if user.is_empty() {
+            ServiceAccount::ManagerOwner
+        } else {
+            ServiceAccount::NamedUser(user)
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -28,6 +48,8 @@ pub struct ServiceCommand {
     pub unit: String,
     pub program: PathBuf,
     pub arguments: Vec<String>,
+    pub environment: BTreeMap<String, String>,
+    pub account: ServiceAccount,
 }
 
 impl ServiceCommand {
@@ -45,6 +67,48 @@ impl ServiceCommand {
             .position(|argument| argument == flag)?;
         self.arguments.get(position + 1).map(String::as_str)
     }
+
+    pub fn arguments_after<'a>(
+        &'a self,
+        subcommand: &[&str],
+    ) -> Option<impl Iterator<Item = &'a str>> {
+        let position = self
+            .arguments
+            .windows(subcommand.len())
+            .position(|window| {
+                window
+                    .iter()
+                    .zip(subcommand)
+                    .all(|(argument, expected)| argument == expected)
+            })?;
+        Some(
+            self.arguments[position + subcommand.len()..]
+                .iter()
+                .map(String::as_str),
+        )
+    }
+
+    pub fn variable(&self, name: &str) -> Option<&str> {
+        self.environment.get(name).map(String::as_str)
+    }
+
+    #[must_use]
+    pub fn unit_stem(&self) -> &str {
+        self.unit
+            .strip_suffix(SERVICE_SUFFIX)
+            .unwrap_or(self.unit.as_str())
+    }
+}
+
+fn environment_assignments(assignments: Vec<String>) -> BTreeMap<String, String> {
+    assignments
+        .into_iter()
+        .filter_map(|assignment| {
+            assignment
+                .split_once('=')
+                .map(|(name, value)| (name.to_owned(), value.to_owned()))
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone)]
@@ -127,5 +191,7 @@ async fn service_command(
         unit,
         program: PathBuf::from(program),
         arguments: argv.into_iter().skip(1).collect(),
+        environment: environment_assignments(service.environment().await.unwrap_or_default()),
+        account: ServiceAccount::of_user_property(service.user().await.unwrap_or_default()),
     })
 }

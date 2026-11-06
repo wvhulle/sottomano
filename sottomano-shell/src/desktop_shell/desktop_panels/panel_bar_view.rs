@@ -59,7 +59,14 @@ impl DesktopShell {
         let config = &self.config;
         match entry {
             PanelZoneEntry::Menu(GroupMenuTopic::ContinuousIntegration)
-                if config.widget_groups.ci_runners.no_runners_configured() =>
+                if self
+                    .widget_groups
+                    .woodpecker_tasks_group
+                    .no_runners_discovered()
+                    && self
+                        .widget_groups
+                        .forgejo_tasks_group
+                        .no_runners_discovered() =>
             {
                 Vec::new()
             }

@@ -1,14 +1,17 @@
-use std::{borrow::Cow, collections::BTreeMap};
+use std::{borrow::Cow, collections::BTreeMap, path::PathBuf};
 
 use chrono::Locale;
 use iced::{Subscription, alignment::Horizontal};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    podman_container_engine::libpod_running_containers::{
-        EngineContainers, EngineReadError, EngineReadout, RunningContainer,
+    podman_container_engine::{
+        libpod_running_containers::{
+            EngineContainers, EngineReadError, EngineReadout, RunningContainer,
+        },
+        systemd_service_engine_discovery::DiscoveredPodmanEngine,
     },
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
-use sottomano_toml_config::widget_groups::podman_engines::PodmanEnginesConfig;
 
 use crate::{
     background_work::snapshot_subscription,
@@ -29,23 +32,25 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
+        discovered_systemd_services::{DiscoveredSystemdServices, ScopedServiceCommands},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
+        value_cells::LabeledValue,
     },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PodmanEngineTarget {
-    engine_label: String,
+    socket_path: PathBuf,
 }
 
 impl PodmanEngineTarget {
     #[must_use]
-    pub fn of_engine(engine_label: &str) -> Self {
+    pub fn of_engine(engine: &DiscoveredPodmanEngine) -> Self {
         Self {
-            engine_label: engine_label.to_owned(),
+            socket_path: engine.socket_path.clone(),
         }
     }
 }
@@ -70,7 +75,7 @@ impl IntoTableRecord<3> for &RunningContainer {
 }
 
 struct PodmanEngineRow<'a> {
-    engine_label: &'a str,
+    engine: &'a DiscoveredPodmanEngine,
     readout: &'a EngineReadout,
 }
 
@@ -95,7 +100,7 @@ impl GroupItemReading for PodmanEngineRow<'_> {
     }
 
     fn menu_row_name(&self) -> Cow<'static, str> {
-        self.engine_label.to_owned().into()
+        self.engine.owner.to_string().into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -120,17 +125,20 @@ impl GroupItemReading for PodmanEngineRow<'_> {
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        match self.readout {
+        let readout_section = match self.readout {
             EngineReadout::Containers(engine) if engine.containers.is_empty() => {
-                HoverCardBody::sections([Section::note("No running containers")])
+                Section::note("No running containers")
             }
-            EngineReadout::Containers(engine) => {
-                HoverCardBody::sections([containers_section(engine)])
-            }
-            EngineReadout::Unreadable(failure) => {
-                HoverCardBody::sections([Section::error(failure)])
-            }
-        }
+            EngineReadout::Containers(engine) => containers_section(engine),
+            EngineReadout::Unreadable(failure) => Section::error(failure),
+        };
+        HoverCardBody::sections([
+            readout_section,
+            Section::dictionary([
+                LabeledValue::new("Unit", self.engine.unit.unit_name.clone()),
+                LabeledValue::new("Socket", self.engine.socket_path.display().to_string()),
+            ]),
+        ])
     }
 }
 
@@ -143,13 +151,16 @@ fn is_hidden_engine(readout: &EngineReadout) -> bool {
 
 #[derive(Default)]
 pub struct PodmanEnginesGroup {
-    engines: BTreeMap<String, LatestSnapshot<EngineReadout, HidesFetchFailures>>,
+    services: DiscoveredSystemdServices,
+    engines: Vec<DiscoveredPodmanEngine>,
+    readouts: BTreeMap<PathBuf, LatestSnapshot<EngineReadout, HidesFetchFailures>>,
     expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum PodmanEnginesMessage {
-    Engine(String, SnapshotDelivery<EngineReadout>),
+    Services(ScopedServiceCommands),
+    Engine(PathBuf, SnapshotDelivery<EngineReadout>),
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -158,21 +169,43 @@ impl PodmanEnginesGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(config: &PodmanEnginesConfig) -> Subscription<PodmanEnginesMessage> {
-        Subscription::batch(config.engines.iter().map(|engine| {
-            snapshot_subscription::<EngineReadout>(engine.resolved_socket_path())
-                .with(engine.label.clone())
-                .map(|(engine_label, delivery)| {
-                    PodmanEnginesMessage::Engine(engine_label, delivery)
-                })
-        }))
+    pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<PodmanEnginesMessage> {
+        Subscription::batch(
+            [DiscoveredSystemdServices::subscription(buses).map(PodmanEnginesMessage::Services)]
+                .into_iter()
+                .chain(self.engines.iter().map(|engine| {
+                    snapshot_subscription::<EngineReadout>(engine.socket_path.clone())
+                        .with(engine.socket_path.clone())
+                        .map(|(socket_path, delivery)| {
+                            PodmanEnginesMessage::Engine(socket_path, delivery)
+                        })
+                })),
+        )
+    }
+
+    fn adopt_discovered(&mut self) {
+        let mut engines: Vec<DiscoveredPodmanEngine> = self
+            .services
+            .discovered(DiscoveredPodmanEngine::discovered)
+            .collect();
+        engines.dedup_by(|later, earlier| later.socket_path == earlier.socket_path);
+        self.readouts.retain(|socket_path, _| {
+            engines
+                .iter()
+                .any(|engine| &engine.socket_path == socket_path)
+        });
+        self.engines = engines;
     }
 
     pub fn update(&mut self, message: PodmanEnginesMessage, clock: Clock) {
         match message {
-            PodmanEnginesMessage::Engine(engine_label, delivery) => {
-                self.engines
-                    .entry(engine_label)
+            PodmanEnginesMessage::Services(scoped_commands) => {
+                self.services.receive(scoped_commands, clock);
+                self.adopt_discovered();
+            }
+            PodmanEnginesMessage::Engine(socket_path, delivery) => {
+                self.readouts
+                    .entry(socket_path)
                     .or_default()
                     .receive(delivery, clock);
             }
@@ -184,27 +217,25 @@ impl PodmanEnginesGroup {
 
     #[must_use]
     pub fn hover_card_for(&self, target: &PodmanEngineTarget, clock: Clock) -> Option<HoverCard> {
-        let reading = self.engines.get(&target.engine_label)?;
+        let engine = self
+            .engines
+            .iter()
+            .find(|engine| engine.socket_path == target.socket_path)?;
+        let reading = self.readouts.get(&target.socket_path)?;
         let row = PodmanEngineRow {
-            engine_label: &target.engine_label,
+            engine,
             readout: reading.get()?,
         };
         reading.hover_card_with(row.hover_card(clock))
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a PodmanEnginesConfig,
-    ) -> WidgetGroupContent<'a, PodmanEnginesMessage> {
-        let rows = config.engines.iter().filter_map(|engine| {
-            let readout = self.engines.get(&engine.label)?.get()?;
+    pub fn group_content(&self) -> WidgetGroupContent<'_, PodmanEnginesMessage> {
+        let rows = self.engines.iter().filter_map(|engine| {
+            let readout = self.readouts.get(&engine.socket_path)?.get()?;
             (!is_hidden_engine(readout)).then(|| {
                 GroupItem::reading(
-                    PodmanEngineRow {
-                        engine_label: &engine.label,
-                        readout,
-                    },
-                    PodmanEngineTarget::of_engine(&engine.label),
+                    PodmanEngineRow { engine, readout },
+                    PodmanEngineTarget::of_engine(engine),
                 )
             })
         });
