@@ -1,42 +1,13 @@
 use std::collections::HashSet;
 
-use futures::{Stream, StreamExt, stream};
-use zbus::{proxy, zvariant::OwnedObjectPath};
+use zbus::zvariant::OwnedObjectPath;
+
+use crate::systemd_units_journal::machined_machine_registry::{
+    RegisteredMachineListing, registered_machine_at, registered_machine_listings,
+};
 
 const VIRTUAL_MACHINE_CLASS: &str = "vm";
 const LIBVIRT_SERVICE_PREFIX: &str = "libvirt";
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, zbus::zvariant::Type)]
-struct RegisteredMachineListing {
-    machine_name: String,
-    machine_class: String,
-    registering_service: String,
-    machine_path: OwnedObjectPath,
-}
-
-#[proxy(
-    interface = "org.freedesktop.machine1.Manager",
-    default_service = "org.freedesktop.machine1",
-    default_path = "/org/freedesktop/machine1"
-)]
-trait MachineManager {
-    fn list_machines(&self) -> zbus::Result<Vec<RegisteredMachineListing>>;
-
-    #[zbus(signal)]
-    fn machine_new(&self, machine: String, path: OwnedObjectPath) -> zbus::Result<()>;
-
-    #[zbus(signal)]
-    fn machine_removed(&self, machine: String, path: OwnedObjectPath) -> zbus::Result<()>;
-}
-
-#[proxy(
-    interface = "org.freedesktop.machine1.Machine",
-    default_service = "org.freedesktop.machine1"
-)]
-trait RegisteredMachine {
-    #[zbus(property)]
-    fn leader(&self) -> zbus::Result<u32>;
-}
 
 fn is_libvirt_virtual_machine(listing: &RegisteredMachineListing) -> bool {
     listing.machine_class == VIRTUAL_MACHINE_CLASS
@@ -49,23 +20,15 @@ async fn leader_pid_of(
     system_bus: &zbus::Connection,
     machine_path: OwnedObjectPath,
 ) -> Option<i32> {
-    let machine = RegisteredMachineProxy::builder(system_bus)
-        .path(machine_path)
-        .ok()?
-        .build()
-        .await
-        .ok()?;
+    let machine = registered_machine_at(system_bus, machine_path).await.ok()?;
     i32::try_from(machine.leader().await.ok()?).ok()
 }
 
 pub(crate) async fn libvirt_leader_pids(system_bus: &zbus::Connection) -> HashSet<i32> {
-    let Ok(manager) = MachineManagerProxy::new(system_bus).await else {
-        return HashSet::new();
-    };
-    let listings = match manager.list_machines().await {
+    let listings = match registered_machine_listings(system_bus).await {
         Ok(listings) => listings,
-        Err(failure) => {
-            tracing::debug!("machined listing: {failure}");
+        Err(listing_error) => {
+            tracing::debug!("machined listing: {listing_error}");
             return HashSet::new();
         }
     };
@@ -76,25 +39,6 @@ pub(crate) async fn libvirt_leader_pids(system_bus: &zbus::Connection) -> HashSe
         }
     }
     leader_pids
-}
-
-async fn subscribed_machine_set_changes(
-    system_bus: zbus::Connection,
-) -> zbus::Result<impl Stream<Item = ()> + Send> {
-    let manager = MachineManagerProxy::new(&system_bus).await?;
-    let registered = manager.receive_machine_new().await?.map(drop);
-    let unregistered = manager.receive_machine_removed().await?.map(drop);
-    Ok(stream::select(registered, unregistered))
-}
-
-pub(crate) fn machine_set_changes(system_bus: zbus::Connection) -> impl Stream<Item = ()> + Send {
-    stream::once(subscribed_machine_set_changes(system_bus))
-        .filter_map(|subscription| async move {
-            subscription
-                .inspect_err(|failure| tracing::debug!("machined signals: {failure}"))
-                .ok()
-        })
-        .flatten()
 }
 
 #[cfg(test)]

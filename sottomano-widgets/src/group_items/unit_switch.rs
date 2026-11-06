@@ -111,7 +111,8 @@ impl UnitSwitch {
         }
     }
 
-    fn activity(&self) -> Option<UnitActivity> {
+    #[must_use]
+    pub fn activity(&self) -> Option<UnitActivity> {
         self.active_state.get().map(|state| state.activity)
     }
 
@@ -207,6 +208,20 @@ impl UnitSwitch {
             target,
             pressed,
         )
+    }
+
+    #[must_use]
+    pub fn attach_switch_press<'a, M: 'a>(
+        &self,
+        group_item: GroupItem<'a, M>,
+        pressed: M,
+    ) -> GroupItem<'a, M> {
+        match self.reading(true) {
+            Some(reading) => {
+                group_item.on_switch_press(reading.switched_on(), reading.press_does(), pressed)
+            }
+            None => group_item,
+        }
     }
 
     pub fn group_item_with_glyph<'a, M: 'a>(

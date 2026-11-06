@@ -30,7 +30,7 @@ The Menus group in the Behaviour menu changes how every menu opens. Menus can op
 | Behaviour | bottom, left | the remaining panel, sidebar, overlay, window and menu settings |
 | Display | bottom, left | monitors, dark mode, colour temperature, wallpaper |
 | Applications | bottom, middle | frequently launched apps, one group per category, launcher options |
-| Services | bottom, right | local models, virtual machines, AI usage, systemd units, journal, upgrades |
+| Services | bottom, right | local models, virtual machines, containers, AI usage, systemd units, journal, upgrades |
 | Session | bottom, right | idle timeouts, login session |
 
 ## Top panel
@@ -51,7 +51,7 @@ The Appearance, Behaviour and Display menus, the looks and the workspaces on the
 - [Wallpaper](wallpaper.md): the place in the wallpaper and its article.
 - [Idle and session](idle-and-session.md): idle timeouts and the login session.
 - [AI usage](ai-usage.md): subscription windows, billing block and spend.
-- [Virtual machines](virtual-machines.md): running QEMU and libvirt machines.
+- [Virtual machines and containers](virtual-machines.md): running QEMU and libvirt machines, and systemd-nspawn containers with a switch to start or stop them.
 - [Appearance](appearance.md): the looks and how to switch them.
 
 ## Notification toasts

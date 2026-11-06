@@ -39,6 +39,7 @@ use sottomano_widgets::{
         media_group::MediaGroup,
         memory_board_group::MemoryBoardGroup,
         niri_window_group::{NiriWindowGroup, niri_kdl_rules::NiriLayout},
+        nspawn_containers_group::NspawnContainersGroup,
         overlay_settings_group::OverlaySettingsGroup,
         panel_settings_group::PanelSettingsGroup,
         podman_engines_group::PodmanEnginesGroup,
@@ -126,6 +127,7 @@ pub enum ShowcasedGroup {
     Caldav(Box<CaldavGroup>),
     PodmanEngines(Box<PodmanEnginesGroup>),
     VirtualMachines(Box<VirtualMachinesGroup>),
+    NspawnContainers(Box<NspawnContainersGroup>),
     WoodpeckerTasks(Box<WoodpeckerTasksGroup>),
     ForgejoTasks(Box<ForgejoTasksGroup>),
     Tailnet(Box<TailnetGroup>),
@@ -407,6 +409,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Caldav(_)
             | ShowcasedGroup::PodmanEngines(_)
             | ShowcasedGroup::VirtualMachines(_)
+            | ShowcasedGroup::NspawnContainers(_)
             | ShowcasedGroup::WoodpeckerTasks(_)
             | ShowcasedGroup::ForgejoTasks(_)
             | ShowcasedGroup::Tailnet(_)
@@ -472,6 +475,9 @@ impl ShowcasedGroup {
             }
             ShowcasedGroup::VirtualMachines(group) => {
                 vec![group.group_content().map(ShowcaseMessage::VirtualMachines)]
+            }
+            ShowcasedGroup::NspawnContainers(group) => {
+                vec![group.group_content().map(ShowcaseMessage::NspawnContainers)]
             }
             ShowcasedGroup::WoodpeckerTasks(group) => {
                 vec![group.group_content(|message| {
@@ -548,6 +554,12 @@ impl ShowcasedGroup {
             (ShowcasedGroup::VirtualMachines(group), ShowcaseMessage::VirtualMachines(message)) => {
                 let _ = group.update(message, clock);
             }
+            (
+                ShowcasedGroup::NspawnContainers(group),
+                ShowcaseMessage::NspawnContainers(container_message),
+            ) => {
+                let _ = group.update(container_message, clock);
+            }
             (ShowcasedGroup::WoodpeckerTasks(group), ShowcaseMessage::WoodpeckerTasks(message)) => {
                 group.update(message, clock);
             }
@@ -612,6 +624,7 @@ impl ShowcasedGroup {
             }
             ShowcasedGroup::PodmanEngines(_)
             | ShowcasedGroup::VirtualMachines(_)
+            | ShowcasedGroup::NspawnContainers(_)
             | ShowcasedGroup::WoodpeckerTasks(_)
             | ShowcasedGroup::ForgejoTasks(_) => self.update_container_groups(message, clock),
             ShowcasedGroup::Caldav(group) => {
@@ -752,6 +765,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Caldav(_)
             | ShowcasedGroup::PodmanEngines(_)
             | ShowcasedGroup::VirtualMachines(_)
+            | ShowcasedGroup::NspawnContainers(_)
             | ShowcasedGroup::WoodpeckerTasks(_)
             | ShowcasedGroup::ForgejoTasks(_)
             | ShowcasedGroup::AppearancePresets(_)
@@ -845,6 +859,12 @@ impl ShowcasedGroup {
             }
             ShowcasedGroup::VirtualMachines(group) => {
                 let HoverTarget::VirtualMachine(target) = target else {
+                    return None;
+                };
+                group.hover_card_for(target, clock)
+            }
+            ShowcasedGroup::NspawnContainers(group) => {
+                let HoverTarget::NspawnContainer(target) = target else {
                     return None;
                 };
                 group.hover_card_for(target, clock)
@@ -944,6 +964,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Caldav(_)
             | ShowcasedGroup::PodmanEngines(_)
             | ShowcasedGroup::VirtualMachines(_)
+            | ShowcasedGroup::NspawnContainers(_)
             | ShowcasedGroup::WoodpeckerTasks(_)
             | ShowcasedGroup::ForgejoTasks(_)
             | ShowcasedGroup::Tailnet(_)
