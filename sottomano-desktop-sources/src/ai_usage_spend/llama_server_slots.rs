@@ -290,35 +290,32 @@ impl SnapshotSource for LlamaServer {
             buses,
             unit: server.unit.clone(),
         });
-        running.while_held(
-            move || {
-                let endpoint = server.endpoint.clone();
-                PeriodicPolling::every(POLL_INTERVAL)
-                    .poll_ticks()
-                    .then(move |poll_tick| {
-                        let endpoint = endpoint.clone();
-                        async move {
-                            PolledServerFetch {
-                                poll_tick,
-                                fetched_server: fetch_server(&endpoint).await,
-                            }
+        running.available_while(move || {
+            let endpoint = server.endpoint.clone();
+            PeriodicPolling::every(POLL_INTERVAL)
+                .poll_ticks()
+                .then(move |poll_tick| {
+                    let endpoint = endpoint.clone();
+                    async move {
+                        PolledServerFetch {
+                            poll_tick,
+                            fetched_server: fetch_server(&endpoint).await,
                         }
-                    })
-                    .scan(
-                        None,
-                        |previous: &mut Option<Self>, polled: PolledServerFetch| {
-                            let rated = polled
-                                .fetched_server
-                                .map(|server| server.rated_since(previous.as_ref()));
-                            if let Ok(server) = &rated {
-                                *previous = Some(server.clone());
-                            }
-                            ready(Some(polled.poll_tick.stamped(rated)))
-                        },
-                    )
-            },
-            SnapshotDelivery::SourceUnavailable,
-        )
+                    }
+                })
+                .scan(
+                    None,
+                    |previous: &mut Option<Self>, polled: PolledServerFetch| {
+                        let rated = polled
+                            .fetched_server
+                            .map(|server| server.rated_since(previous.as_ref()));
+                        if let Ok(server) = &rated {
+                            *previous = Some(server.clone());
+                        }
+                        ready(Some(polled.poll_tick.stamped(rated)))
+                    },
+                )
+        })
     }
 }
 

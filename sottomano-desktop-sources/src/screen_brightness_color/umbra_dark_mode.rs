@@ -23,15 +23,12 @@ impl SnapshotSource for DarkMode {
     const NAME: &'static str = "Dark mode";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(shell_command_output::exists("umbra")).while_held(
-            || {
-                SnapshotDelivery::live_push_deliveries(ready(Ok(read_once_then_per_burst(
-                    changes(mode_file().map(WatchTarget::File).into_iter().collect()),
-                    Self::read,
-                ))))
-            },
-            SnapshotDelivery::SourceUnavailable,
-        )
+        stream::once(shell_command_output::exists("umbra")).available_while(|| {
+            SnapshotDelivery::live_push_deliveries(ready(Ok(read_once_then_per_burst(
+                changes(mode_file().map(WatchTarget::File).into_iter().collect()),
+                Self::read,
+            ))))
+        })
     }
 }
 

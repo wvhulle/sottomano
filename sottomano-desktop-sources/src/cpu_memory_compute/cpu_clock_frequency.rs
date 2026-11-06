@@ -135,20 +135,17 @@ impl SnapshotSource for CpuClock {
                 .await
                 .is_ok_and(|cores| !cores.is_empty())
         };
-        stream::once(exposed).while_held(
-            move || {
-                PeriodicPolling::every(Duration::from_secs(3)).blocking_poll_deliveries_after_setup(
-                    blocking_poll(|| {
-                        Ok(ClockProbe {
-                            topology: CpuTopology::detect(),
-                            throttle_baseline: ThrottleBaseline::default(),
-                        })
-                    }),
-                    read_cpu_clock,
-                )
-            },
-            SnapshotDelivery::SourceUnavailable,
-        )
+        stream::once(exposed).available_while(move || {
+            PeriodicPolling::every(Duration::from_secs(3)).blocking_poll_deliveries_after_setup(
+                blocking_poll(|| {
+                    Ok(ClockProbe {
+                        topology: CpuTopology::detect(),
+                        throttle_baseline: ThrottleBaseline::default(),
+                    })
+                }),
+                read_cpu_clock,
+            )
+        })
     }
 }
 

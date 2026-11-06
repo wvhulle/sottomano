@@ -29,28 +29,25 @@ impl SnapshotSource for ClaudeCcusageModels {
     fn delivery_stream(
         credentials: Option<PathBuf>,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(ccusage_cli_reports::installed()).while_held(
-            move || {
-                let subscription_logins = match credentials.clone() {
-                    Some(credentials) => logins(credentials)
-                        .map(|kind| kind == Some(LoginKind::Subscription))
-                        .left_stream(),
-                    None => stream::iter([false]).right_stream(),
-                };
-                subscription_logins
-                    .distinct_until_changed()
-                    .switch_map(|covered_by_subscription| {
-                        SnapshotDelivery::live_push_deliveries(ready(Ok(
-                            reread_on_trigger_or_deadline(
-                                ccusage_cli_reports::transcript_changes(Agent::ClaudeCode),
-                                move || Self::read(covered_by_subscription),
-                                |_| ccusage_cli_reports::next_local_midnight(),
-                            ),
-                        )))
-                    })
-            },
-            SnapshotDelivery::SourceUnavailable,
-        )
+        stream::once(ccusage_cli_reports::installed()).available_while(move || {
+            let subscription_logins = match credentials.clone() {
+                Some(credentials) => logins(credentials)
+                    .map(|kind| kind == Some(LoginKind::Subscription))
+                    .left_stream(),
+                None => stream::iter([false]).right_stream(),
+            };
+            subscription_logins
+                .distinct_until_changed()
+                .switch_map(|covered_by_subscription| {
+                    SnapshotDelivery::live_push_deliveries(ready(Ok(
+                        reread_on_trigger_or_deadline(
+                            ccusage_cli_reports::transcript_changes(Agent::ClaudeCode),
+                            move || Self::read(covered_by_subscription),
+                            |_| ccusage_cli_reports::next_local_midnight(),
+                        ),
+                    )))
+                })
+        })
     }
 }
 

@@ -139,14 +139,11 @@ impl SnapshotSource for Conditions {
     const NAME: &'static str = "Power conditions";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        name_owned(buses.system.clone(), DAEMON_SERVICE).while_held(
-            move || {
-                let _buses = buses.clone();
-                PeriodicPolling::every(Duration::from_secs(5))
-                    .blocking_poll_deliveries(|| Ok(Conditions::current()))
-            },
-            SnapshotDelivery::SourceUnavailable,
-        )
+        name_owned(buses.system.clone(), DAEMON_SERVICE).available_while(move || {
+            let _buses = buses.clone();
+            PeriodicPolling::every(Duration::from_secs(5))
+                .blocking_poll_deliveries(|| Ok(Conditions::current()))
+        })
     }
 }
 
@@ -182,13 +179,9 @@ impl SnapshotSource for ProfileStatus {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
-        name_owned(system.clone(), DAEMON_SERVICE).while_held(
-            move || {
-                connected_until_failure(status_changes(system.clone()))
-                    .map(SnapshotDelivery::live_push)
-            },
-            SnapshotDelivery::SourceUnavailable,
-        )
+        name_owned(system.clone(), DAEMON_SERVICE).available_while(move || {
+            connected_until_failure(status_changes(system.clone())).map(SnapshotDelivery::live_push)
+        })
     }
 }
 

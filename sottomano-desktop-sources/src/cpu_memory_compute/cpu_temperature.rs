@@ -187,21 +187,18 @@ impl SnapshotSource for Temperature {
                 .await
                 .is_ok_and(|sensors| !sensors.is_empty())
         };
-        holding_earliest_critical(stream::once(exposed).while_held(
-            move || {
-                let config = config.clone();
-                TEMPERATURE_POLLING.blocking_poll_deliveries_after_setup(
-                    blocking_poll(move || {
-                        Ok(TemperatureProbe {
-                            sensors: cpu_sensors(&config.sensor),
-                            config,
-                        })
-                    }),
-                    |probe| read_temperature(&probe),
-                )
-            },
-            SnapshotDelivery::SourceUnavailable,
-        ))
+        holding_earliest_critical(stream::once(exposed).available_while(move || {
+            let config = config.clone();
+            TEMPERATURE_POLLING.blocking_poll_deliveries_after_setup(
+                blocking_poll(move || {
+                    Ok(TemperatureProbe {
+                        sensors: cpu_sensors(&config.sensor),
+                        config,
+                    })
+                }),
+                |probe| read_temperature(&probe),
+            )
+        }))
     }
 }
 

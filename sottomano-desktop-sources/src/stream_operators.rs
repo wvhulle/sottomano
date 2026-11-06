@@ -230,6 +230,18 @@ pub trait StreamOperators: Stream + Sized {
         }
     }
 
+    fn available_while<S, R>(
+        self,
+        start: impl FnMut() -> R + Send,
+    ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
+    where
+        Self: Stream<Item = bool> + Send,
+        S: SnapshotSource,
+        R: Stream<Item = SnapshotDelivery<S>> + Send,
+    {
+        self.while_held(start, SnapshotDelivery::SourceUnavailable)
+    }
+
     fn while_held<R>(
         self,
         mut start: impl FnMut() -> R + Send,

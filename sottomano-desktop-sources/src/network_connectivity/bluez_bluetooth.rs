@@ -307,21 +307,18 @@ impl SnapshotSource for Bluetooth {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
-        name_owned(system.clone(), SERVICE).while_held(
-            move || {
-                let signal_connection = system.clone();
-                let read_connection = system.clone();
-                TriggeredRereadCadence::LivePushWithRecheck(PeriodicPolling::every(
-                    PERIPHERAL_BATTERY_RECHECK,
-                ))
-                .triggered_deliveries(
-                    restarting("bluez object changes", move || {
-                        bluez_object_signals(signal_connection.clone())
-                    }),
-                    move || read_bluetooth(read_connection.clone()),
-                )
-            },
-            SnapshotDelivery::SourceUnavailable,
-        )
+        name_owned(system.clone(), SERVICE).available_while(move || {
+            let signal_connection = system.clone();
+            let read_connection = system.clone();
+            TriggeredRereadCadence::LivePushWithRecheck(PeriodicPolling::every(
+                PERIPHERAL_BATTERY_RECHECK,
+            ))
+            .triggered_deliveries(
+                restarting("bluez object changes", move || {
+                    bluez_object_signals(signal_connection.clone())
+                }),
+                move || read_bluetooth(read_connection.clone()),
+            )
+        })
     }
 }

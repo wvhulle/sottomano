@@ -1,10 +1,10 @@
-use futures::{Stream, StreamExt};
-use notulist_client::{DICTATION_BUS_NAME, DictationPhase, followed_dictation_phases};
+use futures::Stream;
+use notulist_client::{DictationPhase, followed_dictation_phases};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    stream_operators::StreamOperators,
-    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error, name_owned},
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error},
+    voice_dictation_input::notulist_followed_deliveries,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,18 +19,10 @@ impl SnapshotSource for NotulistDictation {
     const NAME: &'static str = "Notulist dictation";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let session = buses.session;
-        name_owned(session.clone(), DICTATION_BUS_NAME).while_held(
-            move || SnapshotDelivery::live_push_deliveries(dictation_phases(session.clone())),
-            SnapshotDelivery::SourceUnavailable,
+        notulist_followed_deliveries(
+            buses,
+            |session| async move { followed_dictation_phases(&session).await },
+            |phase| NotulistDictation { phase },
         )
     }
-}
-
-async fn dictation_phases(
-    session: zbus::Connection,
-) -> Result<impl Stream<Item = Result<NotulistDictation, Error>> + Send, Error> {
-    Ok(followed_dictation_phases(&session)
-        .await?
-        .map(|phase| Ok(NotulistDictation { phase: phase? })))
 }

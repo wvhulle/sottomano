@@ -46,10 +46,9 @@ impl SnapshotSource for ColorTemperature {
     const NAME: &'static str = "Color temperature";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        name_owned(buses.session.clone(), RELAY_SERVICE).while_held(
-            move || SnapshotDelivery::live_push_deliveries(relay_changes(buses.clone())),
-            SnapshotDelivery::SourceUnavailable,
-        )
+        name_owned(buses.session.clone(), RELAY_SERVICE).available_while(move || {
+            SnapshotDelivery::live_push_deliveries(relay_changes(buses.clone()))
+        })
     }
 }
 

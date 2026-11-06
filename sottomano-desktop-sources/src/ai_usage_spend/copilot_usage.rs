@@ -99,33 +99,28 @@ where
     S: SnapshotSource<StreamInputs = CopilotAccount, Error = Error> + PartialEq,
     F: Future<Output = Result<S, Error>> + Send + 'static,
 {
-    path_present(account.gh_auth_token.clone()).while_held(
-        move || {
-            let account = account.clone();
+    path_present(account.gh_auth_token.clone()).available_while(move || {
+        let account = account.clone();
+        let poll = poll.clone();
+        internet_connectivity_gate::while_online(account.buses.clone(), move || {
+            let checked = account.gh_auth_token.clone();
+            let polled = account.clone();
             let poll = poll.clone();
-            internet_connectivity_gate::while_online(account.buses.clone(), move || {
-                let checked = account.gh_auth_token.clone();
-                let polled = account.clone();
-                let poll = poll.clone();
-                stream::once(async move { user_info(&checked).await }).flat_map(move |info| {
-                    match info {
-                        Ok(info) if on_plan(&info) => {
-                            let polled = polled.clone();
-                            let poll = poll.clone();
-                            USER_POLLING
-                                .poll_deliveries(move || poll(polled.clone()))
-                                .left_stream()
-                        }
-                        Ok(_) => stream::iter([SnapshotDelivery::SourceUnavailable]).right_stream(),
-                        Err(e) => {
-                            stream::iter([SnapshotDelivery::single_read(Err(e))]).right_stream()
-                        }
+            stream::once(async move { user_info(&checked).await }).flat_map(
+                move |info| match info {
+                    Ok(info) if on_plan(&info) => {
+                        let polled = polled.clone();
+                        let poll = poll.clone();
+                        USER_POLLING
+                            .poll_deliveries(move || poll(polled.clone()))
+                            .left_stream()
                     }
-                })
-            })
-        },
-        SnapshotDelivery::SourceUnavailable,
-    )
+                    Ok(_) => stream::iter([SnapshotDelivery::SourceUnavailable]).right_stream(),
+                    Err(e) => stream::iter([SnapshotDelivery::single_read(Err(e))]).right_stream(),
+                },
+            )
+        })
+    })
 }
 
 async fn user_info(key: &Path) -> Result<UserInfo, Error> {

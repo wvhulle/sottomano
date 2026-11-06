@@ -1,10 +1,10 @@
-use futures::{Stream, StreamExt};
-use notulist_client::{DICTATION_BUS_NAME, PipelineActivity, followed_pipeline_activity};
+use futures::Stream;
+use notulist_client::{PipelineActivity, followed_pipeline_activity};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    stream_operators::StreamOperators,
-    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error, name_owned},
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error},
+    voice_dictation_input::notulist_followed_deliveries,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -19,20 +19,10 @@ impl SnapshotSource for NotulistPipeline {
     const NAME: &'static str = "Notulist pipeline";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let session = buses.session;
-        name_owned(session.clone(), DICTATION_BUS_NAME).while_held(
-            move || SnapshotDelivery::live_push_deliveries(pipeline_activities(session.clone())),
-            SnapshotDelivery::SourceUnavailable,
+        notulist_followed_deliveries(
+            buses,
+            |session| async move { followed_pipeline_activity(&session).await },
+            |activity| NotulistPipeline { activity },
         )
     }
-}
-
-async fn pipeline_activities(
-    session: zbus::Connection,
-) -> Result<impl Stream<Item = Result<NotulistPipeline, Error>> + Send, Error> {
-    Ok(followed_pipeline_activity(&session).await?.map(|activity| {
-        Ok(NotulistPipeline {
-            activity: activity?,
-        })
-    }))
 }

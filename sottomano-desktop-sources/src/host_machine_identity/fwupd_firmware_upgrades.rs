@@ -93,10 +93,9 @@ impl SnapshotSource for Vec<FirmwareUpgrade> {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
-        name_owned(system.clone(), FWUPD_SERVICE).while_held(
-            move || signalled_upgrades(system.clone()).map(SnapshotDelivery::live_push),
-            SnapshotDelivery::SourceUnavailable,
-        )
+        name_owned(system.clone(), FWUPD_SERVICE).available_while(move || {
+            signalled_upgrades(system.clone()).map(SnapshotDelivery::live_push)
+        })
     }
 }
 
