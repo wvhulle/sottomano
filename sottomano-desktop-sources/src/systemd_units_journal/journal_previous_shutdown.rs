@@ -264,11 +264,15 @@ impl ShutdownEvent {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ShutdownReadError {
+    #[error("cannot read the journal: {0}")]
     Journal(io::ErrorKind),
+    #[error("no previous boot in the journal")]
     NoPreviousBoot,
+    #[error("previous boot recorded no shutdown")]
     NoShutdownRecorded,
+    #[error("shutdown read panicked")]
     Panicked,
 }
 
@@ -281,17 +285,6 @@ impl From<io::Error> for ShutdownReadError {
 impl From<Panicked> for ShutdownReadError {
     fn from(Panicked: Panicked) -> Self {
         Self::Panicked
-    }
-}
-
-impl Display for ShutdownReadError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Self::Journal(kind) => write!(f, "cannot read the journal: {kind}"),
-            Self::NoPreviousBoot => write!(f, "no previous boot in the journal"),
-            Self::NoShutdownRecorded => write!(f, "previous boot recorded no shutdown"),
-            Self::Panicked => write!(f, "shutdown read panicked"),
-        }
     }
 }
 

@@ -187,10 +187,13 @@ impl Commands {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum AudioConnectError {
+    #[error("cannot start the pipewire thread: {0}")]
     ThreadNotStarted(io::ErrorKind),
+    #[error("pipewire thread ended before connecting")]
     ThreadEndedBeforeConnecting,
+    #[error("pipewire refused the connection: {0}")]
     PipewireRefused(Arc<pipewire::Error>),
 }
 
@@ -209,18 +212,6 @@ impl From<oneshot::error::RecvError> for AudioConnectError {
 impl From<pipewire::Error> for AudioConnectError {
     fn from(error: pipewire::Error) -> Self {
         Self::PipewireRefused(Arc::new(error))
-    }
-}
-
-impl fmt::Display for AudioConnectError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::ThreadNotStarted(kind) => write!(f, "cannot start the pipewire thread: {kind}"),
-            Self::ThreadEndedBeforeConnecting => {
-                write!(f, "pipewire thread ended before connecting")
-            }
-            Self::PipewireRefused(error) => write!(f, "pipewire refused the connection: {error}"),
-        }
     }
 }
 

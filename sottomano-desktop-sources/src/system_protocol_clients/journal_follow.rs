@@ -1,6 +1,5 @@
 use std::{
     collections::VecDeque,
-    fmt::{Display, Formatter, Result as FmtResult},
     io,
     str::FromStr,
     thread,
@@ -39,21 +38,12 @@ pub trait JournalEvent: Clone + Send + 'static {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum JournalFollowError {
+    #[error("cannot open the journal: {0}")]
     OpenFailed(io::ErrorKind),
+    #[error("stopped following the journal: {0}")]
     FollowingStopped(io::ErrorKind),
-}
-
-impl Display for JournalFollowError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            JournalFollowError::OpenFailed(kind) => write!(f, "cannot open the journal: {kind}"),
-            JournalFollowError::FollowingStopped(kind) => {
-                write!(f, "stopped following the journal: {kind}")
-            }
-        }
-    }
 }
 
 pub fn journal_windows<E: JournalEvent>()

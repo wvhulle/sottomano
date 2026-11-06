@@ -1,5 +1,4 @@
 use std::{
-    fmt::{Display, Formatter, Result as FmtResult},
     io::{self, ErrorKind},
     process::Output,
 };
@@ -16,21 +15,14 @@ const BACKGROUND_SCOPE_ARGS: [&str; 6] = [
     "--",
 ];
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
+    #[error("{program} is not installed")]
     NotInstalled { program: String },
+    #[error("cannot run {program}: {detail}")]
     Spawn { program: String, detail: String },
+    #[error("{program} failed: {stderr}")]
     Failed { program: String, stderr: String },
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Error::NotInstalled { program } => write!(f, "{program} is not installed"),
-            Error::Spawn { program, detail } => write!(f, "cannot run {program}: {detail}"),
-            Error::Failed { program, stderr } => write!(f, "{program} failed: {stderr}"),
-        }
-    }
 }
 
 fn spawn_failure(program: &str, error: &io::Error) -> Error {

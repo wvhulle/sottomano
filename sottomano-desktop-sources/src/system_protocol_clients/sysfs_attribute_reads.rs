@@ -1,5 +1,4 @@
 use std::{
-    fmt::{Display, Formatter, Result as FmtResult},
     fs,
     path::{Path, PathBuf},
     str::FromStr,
@@ -9,32 +8,23 @@ use uom::si::{f64::Frequency, frequency::kilohertz};
 
 use crate::blocking_background_work::Panicked;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
+    #[error("cannot read {0}")]
     Unreadable(String),
+    #[error("cannot write {path}: {detail}")]
     Unwritable { path: String, detail: String },
+    #[error("unexpected contents in {0}")]
     Unparsable(String),
+    #[error("no matching temperature sensor in /sys/class/hwmon")]
     NoTemperatureSensor,
+    #[error("sensor read panicked")]
     Panicked,
 }
 
 impl From<Panicked> for Error {
     fn from(Panicked: Panicked) -> Self {
         Error::Panicked
-    }
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Error::Unreadable(path) => write!(f, "cannot read {path}"),
-            Error::Unwritable { path, detail } => write!(f, "cannot write {path}: {detail}"),
-            Error::Unparsable(path) => write!(f, "unexpected contents in {path}"),
-            Error::NoTemperatureSensor => {
-                write!(f, "no matching temperature sensor in /sys/class/hwmon")
-            }
-            Error::Panicked => write!(f, "sensor read panicked"),
-        }
     }
 }
 

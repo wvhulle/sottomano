@@ -1,5 +1,4 @@
 use std::{
-    fmt,
     io::Cursor,
     mem::size_of,
     time::{Duration, Instant},
@@ -61,27 +60,14 @@ fn remedy(direction: Direction) -> &'static str {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum MeterError {
+    #[error("encoding the capture format failed: {0}")]
     Format(GenError),
+    #[error("the encoded capture format is not a valid pod")]
     UnreadableFormat,
-    Stream(pipewire::Error),
-}
-
-impl fmt::Display for MeterError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Format(e) => write!(f, "encoding the capture format failed: {e}"),
-            Self::UnreadableFormat => write!(f, "the encoded capture format is not a valid pod"),
-            Self::Stream(e) => write!(f, "creating the capture stream failed: {e}"),
-        }
-    }
-}
-
-impl From<pipewire::Error> for MeterError {
-    fn from(e: pipewire::Error) -> Self {
-        Self::Stream(e)
-    }
+    #[error("creating the capture stream failed: {0}")]
+    Stream(#[from] pipewire::Error),
 }
 
 pub struct Meter {

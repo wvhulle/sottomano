@@ -1,4 +1,4 @@
-use std::{error::Error as StdError, fmt, io, marker::PhantomData, mem::take, time::Duration};
+use std::{io, marker::PhantomData, mem::take, time::Duration};
 
 use futures::{Stream, StreamExt, stream};
 use wayrs_client::{Connection, EventCtx, global::GlobalExt, protocol::WlSeat};
@@ -8,29 +8,17 @@ use wayrs_protocols::ext_idle_notify_v1::{
 
 use crate::stream_operators::restarting;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum WaylandError {
+    #[error("could not connect to wayland: {0}")]
     Connect(wayrs_client::ConnectError),
+    #[error("compositor does not advertise ext_idle_notifier_v1 version {required_version}")]
     NotifierUnavailable { required_version: u32 },
+    #[error("compositor exposes no wl_seat")]
     NoSeat,
+    #[error("wayland io: {0}")]
     Io(io::Error),
 }
-
-impl fmt::Display for WaylandError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Connect(e) => write!(f, "could not connect to wayland: {e}"),
-            Self::NotifierUnavailable { required_version } => write!(
-                f,
-                "compositor does not advertise ext_idle_notifier_v1 version {required_version}"
-            ),
-            Self::NoSeat => write!(f, "compositor exposes no wl_seat"),
-            Self::Io(e) => write!(f, "wayland io: {e}"),
-        }
-    }
-}
-
-impl StdError for WaylandError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IdleEdge {

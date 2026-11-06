@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, HashSet},
-    fmt::{Display, Formatter, Result as FmtResult},
     ops::Add,
     path::PathBuf,
     time::{Duration, Instant},
@@ -26,19 +25,12 @@ use crate::{
 const SCAN_INTERVAL: Duration = Duration::from_secs(1);
 const SAMPLE_WINDOW: Duration = Duration::from_millis(500);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
+    #[error("{0}")]
     Panicked(Panicked),
+    #[error("process {pid} exited")]
     Exited { pid: i32 },
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Error::Panicked(panicked) => write!(f, "{panicked}"),
-            Error::Exited { pid } => write!(f, "process {pid} exited"),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

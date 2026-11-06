@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    fmt::{Display, Formatter, Result as FmtResult},
     mem,
     path::PathBuf,
     str::FromStr,
@@ -34,31 +33,22 @@ use crate::{
     stream_operators::StreamOperators,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum Error {
+    #[error("password unreadable")]
     Secret,
+    #[error("user or password rejected (HTTP 401)")]
     Rejected,
+    #[error("server names no current-user-principal")]
     NoCurrentUserPrincipal,
+    #[error("principal has no calendar-home-set")]
     NoCalendarHomeSet,
+    #[error("upcoming_days reaches past the calendar")]
     WindowBeyondCalendar,
-    ListingUnparseable(roxmltree::Error),
+    #[error("calendar home listing unparseable: {0}")]
+    ListingUnparseable(#[from] roxmltree::Error),
+    #[error("{0}")]
     Dav(Arc<fast_dav_rs::Error>),
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Error::Secret => write!(f, "password unreadable"),
-            Error::Rejected => write!(f, "user or password rejected (HTTP 401)"),
-            Error::NoCurrentUserPrincipal => write!(f, "server names no current-user-principal"),
-            Error::NoCalendarHomeSet => write!(f, "principal has no calendar-home-set"),
-            Error::WindowBeyondCalendar => write!(f, "upcoming_days reaches past the calendar"),
-            Error::ListingUnparseable(error) => {
-                write!(f, "calendar home listing unparseable: {error}")
-            }
-            Error::Dav(error) => write!(f, "{error}"),
-        }
-    }
 }
 
 impl From<fast_dav_rs::Error> for Error {
@@ -72,12 +62,6 @@ impl From<fast_dav_rs::Error> for Error {
             }
             other => Error::Dav(Arc::new(other)),
         }
-    }
-}
-
-impl From<roxmltree::Error> for Error {
-    fn from(error: roxmltree::Error) -> Self {
-        Error::ListingUnparseable(error)
     }
 }
 

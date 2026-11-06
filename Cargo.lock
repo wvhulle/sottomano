@@ -6821,6 +6821,7 @@ dependencies = [
  "sys-locale",
  "system-tray",
  "systemd",
+ "thiserror 2.0.21",
  "tokio",
  "tokio-stream",
  "tokio-tungstenite",
