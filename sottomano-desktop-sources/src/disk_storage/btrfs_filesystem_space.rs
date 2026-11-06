@@ -1,7 +1,4 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::path::PathBuf;
 
 use bytesize::ByteSize;
 
@@ -9,6 +6,7 @@ use super::{
     Error,
     block_filesystem_mounts::{Compression, KernelDevice},
     filesystem_device_errors::{DeviceErrors, ErrorCount},
+    read_disk_text, read_disk_value,
 };
 use crate::system_protocol_clients::sysfs_attribute_reads::list_dir;
 
@@ -89,7 +87,7 @@ impl BtrfsFilesystem {
                 used: self.allocation_bytes("metadata", "bytes_used")?,
                 allocated: self.allocation_bytes("metadata", "total_bytes")?,
             },
-            global_reserve: read_u64(&self.dir.join("allocation").join("global_rsv_size"))
+            global_reserve: read_disk_value(&self.dir.join("allocation").join("global_rsv_size"))
                 .map(ByteSize::b)?,
             metadata_chunk: self
                 .allocation_bytes("metadata", "chunk_size")
@@ -102,7 +100,7 @@ impl BtrfsFilesystem {
             .iter()
             .map(|device| {
                 let path = device.join("error_stats");
-                read_text(&path).map(|stats| ErrorStats::parse(&stats))
+                read_disk_text(&path).map(|stats| ErrorStats::parse(&stats))
             })
             .try_fold(ErrorStats::default(), |total, device| {
                 device.map(|device| total.plus(device))
@@ -122,7 +120,7 @@ impl BtrfsFilesystem {
     fn unallocated(&self) -> Result<ByteSize, Error> {
         let device_sectors: u64 = list_dir(self.dir.join("devices"))
             .iter()
-            .map(|device| read_u64(&device.join("size")))
+            .map(|device| read_disk_value::<u64>(&device.join("size")))
             .sum::<Result<_, _>>()?;
         let allocated: u64 = BLOCK_GROUP_KINDS
             .iter()
@@ -137,7 +135,7 @@ impl BtrfsFilesystem {
     }
 
     fn allocation_bytes(&self, kind: &str, counter: &str) -> Result<ByteSize, Error> {
-        read_u64(&self.dir.join("allocation").join(kind).join(counter)).map(ByteSize::b)
+        read_disk_value(&self.dir.join("allocation").join(kind).join(counter)).map(ByteSize::b)
     }
 }
 
@@ -185,17 +183,6 @@ impl ErrorStats {
             ErrorCount::new("Generation", self.generation),
         ]
     }
-}
-
-fn read_text(path: &Path) -> Result<String, Error> {
-    fs::read_to_string(path).map_err(|_| Error::Unreadable(path.display().to_string()))
-}
-
-fn read_u64(path: &Path) -> Result<u64, Error> {
-    read_text(path)?
-        .trim()
-        .parse()
-        .map_err(|_| Error::Unparsable(path.display().to_string()))
 }
 
 #[cfg(test)]
