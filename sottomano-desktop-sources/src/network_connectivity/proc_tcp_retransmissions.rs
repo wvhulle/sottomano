@@ -1,11 +1,11 @@
 use std::{
     collections::VecDeque,
-    fs,
     future::ready,
     time::{Duration, Instant},
 };
 
 use futures::{Stream, StreamExt};
+use procfs::net::snmp;
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
@@ -113,60 +113,16 @@ impl TcpRetransmissions {
 }
 
 fn read_segment_counters() -> Result<TcpSegmentCounters, Error> {
-    let snmp_text = fs::read_to_string(PROC_NET_SNMP)
-        .map_err(|_| Error::Unreadable(PROC_NET_SNMP.to_owned()))?;
-    parse_segment_counters(&snmp_text).ok_or_else(|| Error::Unparsable(PROC_NET_SNMP.to_owned()))
-}
-
-#[must_use]
-pub fn parse_segment_counters(snmp_text: &str) -> Option<TcpSegmentCounters> {
-    let mut tcp_lines = snmp_text
-        .lines()
-        .filter_map(|line| line.strip_prefix("Tcp:"));
-    let field_names = tcp_lines.next()?.split_whitespace();
-    let field_values = tcp_lines.next()?.split_whitespace();
-    let counter_named = |wanted_name: &str| {
-        field_names
-            .clone()
-            .zip(field_values.clone())
-            .find(|(field_name, _)| *field_name == wanted_name)
-            .and_then(|(_, field_value)| field_value.parse().ok())
-    };
-    Some(TcpSegmentCounters {
-        sent_segments: counter_named("OutSegs")?,
-        retransmitted_segments: counter_named("RetransSegs")?,
+    let snmp = snmp().map_err(|_| Error::Unreadable(PROC_NET_SNMP.to_owned()))?;
+    Ok(TcpSegmentCounters {
+        sent_segments: snmp.tcp_out_segs,
+        retransmitted_segments: snmp.tcp_retrans_segs,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    const SNMP_EXCERPT: &str = "\
-Ip: Forwarding DefaultTTL
-Ip: 1 64
-Tcp: RtoAlgorithm RtoMin RtoMax MaxConn ActiveOpens PassiveOpens AttemptFails EstabResets \
-                                CurrEstab InSegs OutSegs RetransSegs InErrs OutRsts InCsumErrors
-Tcp: 1 200 120000 -1 155886 122383 7821 5633 81 4935763 11827475 19525 13 26973 0
-Udp: InDatagrams NoPorts
-Udp: 10 2
-";
-
-    #[test]
-    fn tcp_counters_are_read_by_field_name() {
-        assert_eq!(
-            parse_segment_counters(SNMP_EXCERPT),
-            Some(TcpSegmentCounters {
-                sent_segments: 11_827_475,
-                retransmitted_segments: 19_525,
-            })
-        );
-    }
-
-    #[test]
-    fn missing_tcp_section_is_unparsable() {
-        assert_eq!(parse_segment_counters("Udp: InDatagrams\nUdp: 1\n"), None);
-    }
 
     #[test]
     fn share_is_retransmitted_over_sent_within_the_window() {
