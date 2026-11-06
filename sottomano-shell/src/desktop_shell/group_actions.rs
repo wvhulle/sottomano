@@ -5,8 +5,8 @@ use sottomano_desktop_sinks::desktop_windows_apps::compositor_requests::Composit
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::{
-        app_launch_history::Launch, desktop_entry_app_icons::DesktopEntries, niri_output_facts,
-        window_edge_placement,
+        app_launch_history::Launch, compositor_output_facts,
+        desktop_entry_app_icons::DesktopEntries, window_edge_placement,
     },
     system_protocol_clients::shell_command_output::blocking::run,
 };
@@ -82,7 +82,7 @@ impl DesktopShell {
 
     pub(super) fn adopt_outputs(
         &mut self,
-        outputs: HashMap<String, niri_output_facts::OutputInfo>,
+        outputs: HashMap<String, compositor_output_facts::OutputInfo>,
     ) -> Task<Message> {
         self.outputs = outputs;
         self.reflow_toasts()

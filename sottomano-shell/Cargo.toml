@@ -40,7 +40,10 @@ uom.workspace = true
 sottomano-desktop-sources = { path = "../sottomano-desktop-sources", features = ["test-support"] }
 
 [features]
-default = ["libvirt-domains"]
+default = ["hyprland", "libvirt-domains", "niri", "sway"]
 devtools = ["iced_exwlshell/debug"]
+hyprland = ["sottomano-desktop-sinks/hyprland"]
 libvirt-domains = ["sottomano-desktop-sinks/libvirt-domains"]
+niri = ["sottomano-desktop-sinks/niri"]
+sway = ["sottomano-desktop-sinks/sway"]
 time-travel = ["iced_exwlshell/time-travel"]

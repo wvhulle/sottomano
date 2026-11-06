@@ -9,9 +9,9 @@ use sottomano_desktop_sinks::{
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
-        app_launch_history::Launch, compositor_window_state::CompositorUpdate,
-        desktop_entry_app_icons::DesktopEntries, firefox_favicon_lookup::RawFavicon,
-        niri_kdl_config::ConfiguredWorkspaces, niri_output_facts,
+        app_launch_history::Launch, compositor_output_facts,
+        compositor_window_state::CompositorUpdate, desktop_entry_app_icons::DesktopEntries,
+        firefox_favicon_lookup::RawFavicon, niri_kdl_config::ConfiguredWorkspaces,
     },
     host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::dbus_desktop_buses::DesktopBusEvent,
@@ -148,7 +148,7 @@ pub enum Message {
     TypingUnderCards(TypingSignal),
     HoverCard(HoverCardMessage),
     Notification(NotificationMessage),
-    OutputsResolved(HashMap<String, niri_output_facts::OutputInfo>),
+    OutputsResolved(HashMap<String, compositor_output_facts::OutputInfo>),
     Output(OutputChange),
     ReloadDesktopEntries,
     SidebarWidthChanged {

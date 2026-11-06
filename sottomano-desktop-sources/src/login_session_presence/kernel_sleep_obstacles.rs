@@ -2,14 +2,15 @@ use std::{fs, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
 use futures::Stream;
-use niri_ipc::{Request, Response, socket::Socket};
 use tokio::{process::Command, task::spawn_blocking};
 use zbus::proxy::CacheProperties;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
-    desktop_windows_apps::process_tree_inspection::launch,
+    desktop_windows_apps::{
+        compositor_connection::compositor_window_pids, process_tree_inspection::launch,
+    },
     host_machine_identity::hostname1_os_identity::at_micros,
     login_session_presence::{
         cgroup_inhibitor_app_names::InhibitorAppNames,
@@ -353,15 +354,9 @@ async fn open_window_owners() -> Option<WindowOwners> {
 }
 
 fn read_window_owners() -> Option<WindowOwners> {
-    let reply = Socket::connect()
-        .and_then(|mut socket| socket.send(Request::Windows))
-        .ok()?;
-    let Ok(Response::Windows(windows)) = reply else {
-        return None;
-    };
-    let window_pids: Vec<u32> = windows
-        .iter()
-        .filter_map(|window| u32::try_from(window.pid?).ok())
+    let window_pids: Vec<u32> = compositor_window_pids()?
+        .into_iter()
+        .filter_map(|pid| u32::try_from(pid).ok())
         .collect();
     let window_scopes = window_pids
         .iter()

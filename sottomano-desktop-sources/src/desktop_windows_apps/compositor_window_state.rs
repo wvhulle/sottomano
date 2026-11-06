@@ -65,6 +65,25 @@ impl CompositorWindowState {
     }
 
     #[must_use]
+    pub fn with_focus_times_from(
+        mut self,
+        previous: &CompositorWindowState,
+        now: Option<Duration>,
+    ) -> Self {
+        for window in self.windows.values_mut() {
+            let earlier = previous.windows.get(&window.id);
+            let newly_focused =
+                window.is_focused && !earlier.is_some_and(|earlier| earlier.is_focused);
+            window.focused_at_monotonic = if newly_focused {
+                now
+            } else {
+                earlier.and_then(|earlier| earlier.focused_at_monotonic)
+            };
+        }
+        self
+    }
+
+    #[must_use]
     pub fn focused_workspace(&self) -> Option<&CompositorWorkspace> {
         self.workspaces
             .values()
@@ -104,5 +123,62 @@ impl CompositorUpdate {
     #[must_use]
     pub fn changed(&self, change: CompositorChange) -> bool {
         self.changes.contains(&change)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::{CompositorWindow, CompositorWindowState};
+    use crate::desktop_windows_apps::compositor_test_windows::unplaced_compositor_window;
+
+    fn window_focused(id: u64, is_focused: bool) -> CompositorWindow {
+        CompositorWindow {
+            is_focused,
+            ..unplaced_compositor_window(id)
+        }
+    }
+
+    #[test]
+    fn a_newly_focused_window_is_stamped_and_others_keep_their_stamp() {
+        let first = CompositorWindowState::from_lists(
+            [],
+            [window_focused(1, true), window_focused(2, false)],
+        )
+        .with_focus_times_from(
+            &CompositorWindowState::default(),
+            Some(Duration::from_secs(10)),
+        );
+        let second = CompositorWindowState::from_lists(
+            [],
+            [window_focused(1, false), window_focused(2, true)],
+        )
+        .with_focus_times_from(&first, Some(Duration::from_secs(20)));
+
+        assert_eq!(
+            second.windows[&1].focused_at_monotonic,
+            Some(Duration::from_secs(10))
+        );
+        assert_eq!(
+            second.windows[&2].focused_at_monotonic,
+            Some(Duration::from_secs(20))
+        );
+    }
+
+    #[test]
+    fn a_window_that_stays_focused_keeps_its_first_stamp() {
+        let first = CompositorWindowState::from_lists([], [window_focused(1, true)])
+            .with_focus_times_from(
+                &CompositorWindowState::default(),
+                Some(Duration::from_secs(10)),
+            );
+        let second = CompositorWindowState::from_lists([], [window_focused(1, true)])
+            .with_focus_times_from(&first, Some(Duration::from_secs(20)));
+
+        assert_eq!(
+            second.windows[&1].focused_at_monotonic,
+            Some(Duration::from_secs(10))
+        );
     }
 }

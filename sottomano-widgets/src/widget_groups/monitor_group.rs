@@ -13,7 +13,7 @@ use sottomano_desktop_sinks::screen_brightness_color::clightd_backlight_writes;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
-    desktop_windows_apps::niri_output_facts::OutputInfo,
+    desktop_windows_apps::compositor_output_facts::OutputInfo,
     screen_brightness_color::{
         clight_auto_brightness::AutoBrightness,
         clightd_backlight::{self, Backlight},

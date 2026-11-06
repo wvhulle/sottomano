@@ -1,6 +1,15 @@
 use std::fmt;
 
+use sottomano_desktop_sources::desktop_windows_apps::compositor_connection::{
+    CompositorKind, missing_compositor_reason,
+};
+
+#[cfg(feature = "hyprland")]
+use crate::desktop_windows_apps::hyprland_dispatch_requests::send_hyprland_request;
+#[cfg(feature = "niri")]
 use crate::desktop_windows_apps::niri_action_requests::send_niri_request;
+#[cfg(feature = "sway")]
+use crate::desktop_windows_apps::sway_command_requests::send_sway_request;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompositorRequest {
@@ -43,8 +52,18 @@ pub enum CompositorRequest {
 
 #[derive(Debug, Clone)]
 pub enum CompositorRequestFailure {
-    Rejected { request: String, reason: String },
-    Unreachable { request: String, reason: String },
+    Rejected {
+        request: String,
+        reason: String,
+    },
+    Unreachable {
+        request: String,
+        reason: String,
+    },
+    Unsupported {
+        request: String,
+        compositor: &'static str,
+    },
 }
 
 impl CompositorRequestFailure {
@@ -57,6 +76,9 @@ impl CompositorRequestFailure {
             CompositorRequestFailure::Unreachable { .. } => {
                 "The bar could not reach the compositor"
             }
+            CompositorRequestFailure::Unsupported { .. } => {
+                "The compositor has no equivalent for this request"
+            }
         }
     }
 
@@ -65,6 +87,7 @@ impl CompositorRequestFailure {
         match self {
             CompositorRequestFailure::Rejected { reason, .. }
             | CompositorRequestFailure::Unreachable { reason, .. } => reason,
+            CompositorRequestFailure::Unsupported { compositor, .. } => compositor,
         }
     }
 
@@ -72,7 +95,8 @@ impl CompositorRequestFailure {
     pub fn request(&self) -> &str {
         match self {
             CompositorRequestFailure::Rejected { request, .. }
-            | CompositorRequestFailure::Unreachable { request, .. } => request,
+            | CompositorRequestFailure::Unreachable { request, .. }
+            | CompositorRequestFailure::Unsupported { request, .. } => request,
         }
     }
 }
@@ -92,7 +116,18 @@ impl fmt::Display for CompositorRequestFailure {
 pub fn send_compositor_request(
     request: &CompositorRequest,
 ) -> Result<(), CompositorRequestFailure> {
-    send_niri_request(request)
+    match CompositorKind::detected() {
+        #[cfg(feature = "niri")]
+        Some(CompositorKind::Niri) => send_niri_request(request),
+        #[cfg(feature = "sway")]
+        Some(CompositorKind::Sway) => send_sway_request(request),
+        #[cfg(feature = "hyprland")]
+        Some(CompositorKind::Hyprland) => send_hyprland_request(request),
+        None => Err(CompositorRequestFailure::Unreachable {
+            request: format!("{request:?}"),
+            reason: missing_compositor_reason(),
+        }),
+    }
 }
 
 pub fn send_compositor_request_or_warn(request: &CompositorRequest) {
