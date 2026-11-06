@@ -84,6 +84,7 @@ holds the layer rules sottomano writes for its own surfaces.
   programs.sottomano = {
     enable = true;
     journalReaders = [ "alice" ];
+    nspawnContainerControllers = [ "alice" ];
     autoBrightness.enable = true;
     cpuPowerReading.enable = true;
     cacheCounters.enable = true;
@@ -94,6 +95,10 @@ holds the layer rules sottomano writes for its own surfaces.
 
 - `journalReaders` adds users to `systemd-journal` so the systemd and journal
   groups can read the system journal. Members of `wheel` already can.
+- `nspawnContainerControllers` lets users start, stop and restart
+  systemd-nspawn and NixOS containers from the nspawn containers group: a
+  polkit rule allows exactly those verbs on `container@*.service` and
+  `systemd-nspawn@*.service`, and nothing else.
 - `autoBrightness` runs clight for webcam-based brightness, which drives the
   monitor group's auto toggle and backlight slider.
 - `cpuPowerReading` (on by default) makes the RAPL energy counters
