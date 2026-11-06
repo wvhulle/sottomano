@@ -14,7 +14,7 @@ use sottomano_desktop_sinks::login_session_presence::logind_session_commands::pe
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_notifications::notification_data::ActionTint,
-    desktop_windows_apps::kitty_terminal_windows::WindowProcesses,
+    desktop_windows_apps::terminal_emulator_windows::WindowProcesses,
     login_session_presence::{
         focus_time_ledger::{FocusSignal, ScreenEdge},
         session_power_actions::SessionAction,

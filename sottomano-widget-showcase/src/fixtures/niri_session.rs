@@ -13,10 +13,6 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     desktop_windows_apps::{
-        kitty_terminal_windows::{
-            WindowProcesses,
-            kitty_window_label::{ForegroundActivity, KittyWindowLabel, WorkingLocation},
-        },
         niri_test_windows::{unnamed_niri_workspace, unplaced_niri_window},
         niri_window_snapshot::Snapshot,
         nix_package_facts::{
@@ -25,6 +21,10 @@ use sottomano_desktop_sources::{
         },
         nix_store_provenance::{Provenance, StorePackage},
         process_tree_inspection::{Inspection, Launch, Process},
+        terminal_emulator_windows::{
+            WindowProcesses,
+            terminal_shell_label::{ForegroundActivity, TerminalShellLabel, WorkingLocation},
+        },
     },
 };
 use sottomano_widgets::{
@@ -274,8 +274,11 @@ fn terminals_in_layout(window_row_layout: WindowRowLayout) -> ShowcasedGroup {
     )))
 }
 
-fn kitty_label_in(directory: &str, foreground_activity: ForegroundActivity) -> KittyWindowLabel {
-    KittyWindowLabel {
+fn terminal_label_in(
+    directory: &str,
+    foreground_activity: ForegroundActivity,
+) -> TerminalShellLabel {
+    TerminalShellLabel {
         working_location: WorkingLocation::LocalDirectory(directory.to_owned()),
         foreground_activity,
     }
@@ -290,30 +293,30 @@ fn typed_command(command_line: &str) -> ForegroundActivity {
 
 fn kitty_terminal_labels() -> WindowProcesses {
     WindowProcesses::default()
-        .with_kitty_label(
+        .with_terminal_label(
             SECOND_PROJECT_TERMINAL,
             window_pid(SECOND_PROJECT_TERMINAL),
-            kitty_label_in(PROJECT_DIRECTORY, typed_command("hx src/main.rs")),
+            terminal_label_in(PROJECT_DIRECTORY, typed_command("hx src/main.rs")),
         )
-        .with_kitty_label(
+        .with_terminal_label(
             TERMINAL_WINDOW,
             window_pid(TERMINAL_WINDOW),
-            kitty_label_in(PROJECT_DIRECTORY, typed_command("cargo test")),
+            terminal_label_in(PROJECT_DIRECTORY, typed_command("cargo test")),
         )
-        .with_kitty_label(
+        .with_terminal_label(
             IDLE_PROJECT_TERMINAL,
             window_pid(IDLE_PROJECT_TERMINAL),
-            kitty_label_in(
+            terminal_label_in(
                 PROJECT_DIRECTORY,
                 ForegroundActivity::ShellPrompt {
                     shell_name: "nu".to_owned(),
                 },
             ),
         )
-        .with_kitty_label(
+        .with_terminal_label(
             NOTES_TERMINAL,
             window_pid(NOTES_TERMINAL),
-            kitty_label_in(NOTES_DIRECTORY, typed_command("jj log")),
+            terminal_label_in(NOTES_DIRECTORY, typed_command("jj log")),
         )
 }
 

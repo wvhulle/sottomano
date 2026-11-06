@@ -5,7 +5,7 @@ use iced::{
     widget::{Row, text},
 };
 use sottomano_desktop_sources::desktop_windows_apps::{
-    niri_window_snapshot, window_title_labels::WindowLabel,
+    niri_window_snapshot, window_title_labels::WindowGroupKey,
 };
 use sottomano_toml_config::Config;
 
@@ -29,28 +29,29 @@ use crate::{
 };
 
 struct WindowGroupIdentity<'a> {
-    label: Option<&'a WindowLabel>,
+    group_key: Option<WindowGroupKey<'a>>,
     icon_path: Option<PathBuf>,
     favicon_key: Option<&'a str>,
 }
 
 impl WindowGroupIdentity<'_> {
     fn continues_group_of(&self, previous: &WindowGroupIdentity<'_>) -> bool {
-        self.icon_path == previous.icon_path
+        self.group_key.is_some()
+            && self.group_key == previous.group_key
+            && self.icon_path == previous.icon_path
             && self.favicon_key == previous.favicon_key
-            && self
-                .label
-                .zip(previous.label)
-                .is_some_and(|(label, previous_label)| label.continues_location_of(previous_label))
     }
 
-    fn opens_group(&self) -> bool {
-        self.label
-            .is_some_and(|label| label.location_text().is_some())
+    fn opens_group_of(&self, window_count: usize) -> bool {
+        match self.group_key {
+            None => false,
+            Some(WindowGroupKey::Application(_)) => window_count >= 2,
+            Some(_) => true,
+        }
     }
 }
 
-fn location_group_positions(identities: &[WindowGroupIdentity<'_>]) -> Vec<Range<usize>> {
+fn keyed_group_positions(identities: &[WindowGroupIdentity<'_>]) -> Vec<Range<usize>> {
     identities
         .chunk_by(|previous, current| current.continues_group_of(previous))
         .scan(0, |next_start, run| {
@@ -58,7 +59,7 @@ fn location_group_positions(identities: &[WindowGroupIdentity<'_>]) -> Vec<Range
             *next_start += run.len();
             Some(start..*next_start)
         })
-        .filter(|positions| identities[positions.start].opens_group())
+        .filter(|positions| identities[positions.start].opens_group_of(positions.len()))
         .collect()
 }
 
@@ -72,20 +73,36 @@ fn slot_presentations(
                 .iter()
                 .any(|positions| positions.contains(&position))
             {
-                WindowSlotPresentation::InLocationGroup
+                WindowSlotPresentation::InKeyedGroup
             } else {
-                WindowSlotPresentation::OutsideLocationGroups
+                WindowSlotPresentation::OutsideKeyedGroups
             }
         })
         .collect()
 }
 
-fn location_group_heading<'a>(
+fn keyed_group_heading_text(
+    window_entry: &niri_window_snapshot::WinEntry,
+    icons: WindowAssets<'_>,
+) -> Option<String> {
+    match window_entry.group_key()? {
+        WindowGroupKey::Application(app_id) => Some(
+            icons
+                .entries
+                .get()
+                .and_then(|entries| entries.launchable_app(app_id))
+                .map_or_else(|| app_id.to_owned(), |app| app.name),
+        ),
+        group_key => Some(group_key.heading_text().to_owned()),
+    }
+}
+
+fn keyed_group_heading<'a>(
     window_entry: &niri_window_snapshot::WinEntry,
     icons: WindowAssets<'a>,
     config: &Config,
 ) -> Option<Element<'a, WindowListMessage>> {
-    let location = window_entry.label.as_ref()?.location_text()?;
+    let heading_text = keyed_group_heading_text(window_entry, icons)?;
     let tint = ReadingStateTint {
         state: ReadingDisplayState::Idle,
         opacity: 1.0,
@@ -102,7 +119,7 @@ fn location_group_heading<'a>(
         Row::new()
             .extend(icon)
             .push(
-                text(location.to_owned())
+                text(heading_text)
                     .size(config.theme.font.text_size_px)
                     .line_height(LINE_HEIGHT)
                     .font(font_faces_of(&config.theme.font).regular)
@@ -115,7 +132,7 @@ fn location_group_heading<'a>(
     )
 }
 
-pub(super) fn arranged_location_groups<'a>(
+pub(super) fn arranged_keyed_groups<'a>(
     order: &[&niri_window_snapshot::WinEntry],
     icons: WindowAssets<'a>,
     slot_context: PanelSlotContext<'_>,
@@ -123,19 +140,19 @@ pub(super) fn arranged_location_groups<'a>(
     let group_identities: Vec<_> = order
         .iter()
         .map(|window_entry| WindowGroupIdentity {
-            label: window_entry.label.as_ref(),
+            group_key: window_entry.group_key(),
             icon_path: icons.path_for(window_entry),
             favicon_key: window_entry.favicon_key(),
         })
         .collect();
-    let group_positions = location_group_positions(&group_identities);
+    let group_positions = keyed_group_positions(&group_identities);
     let tile_inset_thickness = ACCENT_STROKE_PX;
     let groups = group_positions
         .iter()
         .filter_map(|positions| {
             Some(SlotGroup {
                 positions: positions.clone(),
-                heading: location_group_heading(
+                heading: keyed_group_heading(
                     order.get(positions.start)?,
                     icons,
                     slot_context.config,
@@ -160,79 +177,71 @@ pub(super) fn arranged_location_groups<'a>(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_desktop_sources::desktop_windows_apps::{
-        kitty_terminal_windows::kitty_window_label::{
-            ForegroundActivity, KittyWindowLabel, WorkingLocation,
-        },
-        window_title_labels::WindowLabel,
-    };
+    use std::ops::Range;
+
+    use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowGroupKey;
 
     use super::{
-        WindowGroupIdentity, WindowSlotPresentation, location_group_positions, slot_presentations,
+        WindowGroupIdentity, WindowSlotPresentation, keyed_group_positions, slot_presentations,
     };
 
-    fn kitty_label_in(directory: &str, foreground_activity: ForegroundActivity) -> WindowLabel {
-        WindowLabel::KittyAgent(KittyWindowLabel {
-            working_location: WorkingLocation::LocalDirectory(directory.to_owned()),
-            foreground_activity,
-        })
-    }
-
-    fn running(command_line: &str) -> ForegroundActivity {
-        ForegroundActivity::ShellCommand {
-            command_line: command_line.to_owned(),
-            program_name: None,
-        }
-    }
-
-    fn identity_with_icon<'a>(label: &'a WindowLabel, icon: &str) -> WindowGroupIdentity<'a> {
+    fn identity<'a>(group_key: Option<WindowGroupKey<'a>>, icon: &str) -> WindowGroupIdentity<'a> {
         WindowGroupIdentity {
-            label: Some(label),
+            group_key,
             icon_path: Some(icon.into()),
             favicon_key: None,
         }
     }
 
     #[test]
-    fn neighbouring_windows_with_one_location_and_icon_form_one_group() {
-        let first_session = kitty_label_in("sottomano", running("first session"));
-        let second_session = kitty_label_in("sottomano", running("second session"));
-        let cargo = kitty_label_in("sottomano", running("cargo"));
-        let idle_shell = kitty_label_in(
-            "sottomano",
-            ForegroundActivity::ShellPrompt {
-                shell_name: "nu".to_owned(),
-            },
-        );
-        let plain_title = WindowLabel::Titled("Files".to_owned());
-        let other_directory = kitty_label_in("nix", running("jj"));
+    fn neighbouring_windows_with_one_group_key_and_icon_form_one_group() {
+        let sottomano = Some(WindowGroupKey::WorkingDirectory("sottomano"));
         let identities = [
-            identity_with_icon(&first_session, "claude"),
-            identity_with_icon(&second_session, "claude"),
-            identity_with_icon(&cargo, "terminal"),
-            identity_with_icon(&idle_shell, "terminal"),
-            identity_with_icon(&plain_title, "files"),
-            identity_with_icon(&other_directory, "terminal"),
-            WindowGroupIdentity {
-                label: None,
-                icon_path: None,
-                favicon_key: None,
-            },
+            identity(sottomano, "claude"),
+            identity(sottomano, "claude"),
+            identity(sottomano, "terminal"),
+            identity(sottomano, "terminal"),
+            identity(None, "files"),
+            identity(Some(WindowGroupKey::WorkingDirectory("nix")), "terminal"),
+            identity(None, "unknown"),
         ];
-        assert_eq!(location_group_positions(&identities), [0..2, 2..4, 5..6]);
+        assert_eq!(keyed_group_positions(&identities), [0..2, 2..4, 5..6]);
+    }
+
+    #[test]
+    fn a_directory_and_a_site_with_one_name_stay_apart() {
+        let identities = [
+            identity(Some(WindowGroupKey::WorkingDirectory("github.com")), "icon"),
+            identity(Some(WindowGroupKey::WebSite("github.com")), "icon"),
+        ];
+        assert_eq!(keyed_group_positions(&identities), [0..1, 1..2]);
+    }
+
+    #[test]
+    fn windows_grouped_only_by_their_app_need_a_neighbour() {
+        let dolphin = Some(WindowGroupKey::Application("org.kde.dolphin"));
+        let identities = [
+            identity(dolphin, "dolphin"),
+            identity(dolphin, "dolphin"),
+            identity(Some(WindowGroupKey::Application("spotify")), "spotify"),
+        ];
+        assert_eq!(
+            keyed_group_positions(&identities),
+            [Range { start: 0, end: 2 }]
+        );
     }
 
     #[test]
     fn only_windows_inside_a_group_are_presented_as_grouped() {
-        use WindowSlotPresentation::{InLocationGroup, OutsideLocationGroups};
+        use WindowSlotPresentation::{InKeyedGroup, OutsideKeyedGroups};
         assert_eq!(
             slot_presentations(&[0..2, 3..4], 5),
             [
-                InLocationGroup,
-                InLocationGroup,
-                OutsideLocationGroups,
-                InLocationGroup,
-                OutsideLocationGroups
+                InKeyedGroup,
+                InKeyedGroup,
+                OutsideKeyedGroups,
+                InKeyedGroup,
+                OutsideKeyedGroups
             ]
         );
     }

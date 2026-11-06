@@ -93,6 +93,8 @@ maximum_window_title_width = "200px"
 
 [widget_groups.window.agents]
 kitty = true
+wezterm = true
+pty_shells = true
 
 [widget_groups.workspaces]
 preview_scale = 0.19

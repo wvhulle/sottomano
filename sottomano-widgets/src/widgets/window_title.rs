@@ -11,7 +11,7 @@ use crate::widgets::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum LocationPlacement {
+enum GroupKeyPlacement {
     Hidden,
     BesideTitle,
     AboveTitle,
@@ -23,7 +23,7 @@ pub struct WindowTitle<'a> {
     size: f32,
     opacity: f32,
     wrapping: Wrapping,
-    location_placement: LocationPlacement,
+    group_key_placement: GroupKeyPlacement,
     color: fn(&Theme) -> Color,
 }
 
@@ -36,7 +36,7 @@ impl<'a> WindowTitle<'a> {
             size: config.theme.font.text_size_px,
             opacity: 1.0,
             wrapping: Wrapping::default(),
-            location_placement: LocationPlacement::BesideTitle,
+            group_key_placement: GroupKeyPlacement::BesideTitle,
             color: text_color,
         }
     }
@@ -57,17 +57,17 @@ impl<'a> WindowTitle<'a> {
     }
 
     #[must_use]
-    pub fn without_location(self) -> Self {
+    pub fn without_group_key(self) -> Self {
         Self {
-            location_placement: LocationPlacement::Hidden,
+            group_key_placement: GroupKeyPlacement::Hidden,
             ..self
         }
     }
 
     #[must_use]
-    pub fn location_above_title(self) -> Self {
+    pub fn group_key_above_title(self) -> Self {
         Self {
-            location_placement: LocationPlacement::AboveTitle,
+            group_key_placement: GroupKeyPlacement::AboveTitle,
             ..self
         }
     }
@@ -92,22 +92,22 @@ impl<'a> WindowTitle<'a> {
 
 impl<'a, Message: 'a> From<WindowTitle<'_>> for Element<'a, Message> {
     fn from(title: WindowTitle<'_>) -> Self {
-        let own_text = title.styled_text(title.label.own_text(), title.color);
-        let Some(location) = title.label.location_text() else {
-            return own_text.into();
+        let subject_text = title.styled_text(title.label.subject_text(), title.color);
+        let Some(group_key) = title.label.group_key() else {
+            return subject_text.into();
         };
-        let location_text = title.styled_text(location, secondary_text_color);
+        let group_key_text = title.styled_text(group_key.heading_text(), secondary_text_color);
         let spacing = title.config.theme.spacing.item_gap;
-        match title.location_placement {
-            LocationPlacement::Hidden => own_text.into(),
-            LocationPlacement::BesideTitle => Row::new()
-                .push(location_text)
-                .push(own_text)
+        match title.group_key_placement {
+            GroupKeyPlacement::Hidden => subject_text.into(),
+            GroupKeyPlacement::BesideTitle => Row::new()
+                .push(group_key_text)
+                .push(subject_text)
                 .spacing(spacing)
                 .into(),
-            LocationPlacement::AboveTitle => Column::new()
-                .push(location_text)
-                .push(own_text)
+            GroupKeyPlacement::AboveTitle => Column::new()
+                .push(group_key_text)
+                .push(subject_text)
                 .spacing(spacing)
                 .into(),
         }

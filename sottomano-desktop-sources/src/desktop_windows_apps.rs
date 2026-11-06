@@ -5,7 +5,6 @@ pub mod desktop_entry_changes;
 pub mod firefox_favicon_lookup;
 pub mod icon_whitespace_trim;
 pub mod kde_job_view_progress;
-pub mod kitty_terminal_windows;
 pub mod niri_kdl_config;
 pub mod niri_output_facts;
 #[cfg(any(test, feature = "test-support"))]
@@ -17,5 +16,6 @@ pub mod nix_store_provenance;
 pub mod process_tree_inspection;
 pub mod project_directory_labels;
 pub mod status_notifier_tray;
+pub mod terminal_emulator_windows;
 pub mod unity_launcher_badges;
 pub mod window_title_labels;

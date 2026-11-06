@@ -8,13 +8,13 @@ use crate::widgets::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum WindowSlotPresentation {
     Flat,
-    InLocationGroup,
-    OutsideLocationGroups,
+    InKeyedGroup,
+    OutsideKeyedGroups,
 }
 
 impl WindowSlotPresentation {
     pub(super) fn shows_icon(self) -> bool {
-        self != WindowSlotPresentation::InLocationGroup
+        self != WindowSlotPresentation::InKeyedGroup
     }
 
     pub(super) fn marks_urgency_with_tile(self) -> bool {
@@ -32,13 +32,13 @@ impl WindowSlotPresentation {
     ) -> WindowTitle<'_> {
         match (self, self.sits_on_opaque_tile(window_is_marked)) {
             (WindowSlotPresentation::Flat, _)
-            | (WindowSlotPresentation::OutsideLocationGroups, false) => window_title,
-            (WindowSlotPresentation::OutsideLocationGroups, true) => {
+            | (WindowSlotPresentation::OutsideKeyedGroups, false) => window_title,
+            (WindowSlotPresentation::OutsideKeyedGroups, true) => {
                 window_title.color(background_color)
             }
-            (WindowSlotPresentation::InLocationGroup, false) => window_title.without_location(),
-            (WindowSlotPresentation::InLocationGroup, true) => {
-                window_title.without_location().color(background_color)
+            (WindowSlotPresentation::InKeyedGroup, false) => window_title.without_group_key(),
+            (WindowSlotPresentation::InKeyedGroup, true) => {
+                window_title.without_group_key().color(background_color)
             }
         }
     }
@@ -56,14 +56,14 @@ mod tests {
 
     #[test]
     fn window_outside_groups_sits_on_the_tile_only_while_focused() {
-        let presentation = WindowSlotPresentation::OutsideLocationGroups;
+        let presentation = WindowSlotPresentation::OutsideKeyedGroups;
         assert!(presentation.sits_on_opaque_tile(true));
         assert!(!presentation.sits_on_opaque_tile(false));
     }
 
     #[test]
     fn window_outside_groups_keeps_its_own_icon() {
-        assert!(WindowSlotPresentation::OutsideLocationGroups.shows_icon());
+        assert!(WindowSlotPresentation::OutsideKeyedGroups.shows_icon());
     }
 
     #[test]
@@ -74,7 +74,7 @@ mod tests {
     #[test]
     fn only_flat_windows_mark_urgency_with_a_line() {
         assert!(!WindowSlotPresentation::Flat.marks_urgency_with_tile());
-        assert!(WindowSlotPresentation::InLocationGroup.marks_urgency_with_tile());
-        assert!(WindowSlotPresentation::OutsideLocationGroups.marks_urgency_with_tile());
+        assert!(WindowSlotPresentation::InKeyedGroup.marks_urgency_with_tile());
+        assert!(WindowSlotPresentation::OutsideKeyedGroups.marks_urgency_with_tile());
     }
 }

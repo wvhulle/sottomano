@@ -120,11 +120,17 @@ impl Default for WorkspacesConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct WindowAgentsConfig {
     pub kitty: bool,
+    pub wezterm: bool,
+    pub pty_shells: bool,
 }
 
 impl Default for WindowAgentsConfig {
     fn default() -> Self {
-        Self { kitty: true }
+        Self {
+            kitty: true,
+            wezterm: true,
+            pty_shells: true,
+        }
     }
 }
 

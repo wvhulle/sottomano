@@ -9,9 +9,9 @@ use procfs::process::Process as Proc;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AgentWindow,
-    kitty_window_label::{ActiveKittyWindow, KittyWindowLabel, program_name},
+    TerminalLabelReading, TerminalWindow, TerminalWindowKey, TitleProbeTarget,
     shell_prompt_title::ShellState,
+    terminal_shell_label::{ActiveTerminalShell, TerminalShellLabel, program_name},
 };
 
 const FRAME_START: &[u8] = b"\x1bP@kitty-cmd";
@@ -42,7 +42,7 @@ pub fn socket_of(kitty_pid: i32) -> Option<PathBuf> {
         })
 }
 
-pub fn list(socket: &Path, home: &Path) -> io::Result<Vec<AgentWindow>> {
+pub fn list(socket: &Path, kitty_pid: i32, home: &Path) -> io::Result<Vec<TerminalWindow>> {
     let reply = exchange(socket, "ls", NoPayload {})?;
     let listing = reply
         .data
@@ -50,25 +50,25 @@ pub fn list(socket: &Path, home: &Path) -> io::Result<Vec<AgentWindow>> {
     let os_windows: Vec<OsWindow> = serde_json::from_str(&listing)?;
     Ok(os_windows
         .into_iter()
-        .filter_map(|os_window| os_window.agent_window(home))
+        .filter_map(|os_window| os_window.terminal_window(socket, kitty_pid, home))
         .collect())
 }
 
-pub fn hold_title(socket: &Path, window: &AgentWindow, title: &str) -> io::Result<()> {
-    retitle(socket, window, title, false)
+pub fn hold_title(socket: &Path, kitty_window: u64, title: &str) -> io::Result<()> {
+    retitle(socket, kitty_window, title, false)
 }
 
-pub fn yield_title(socket: &Path, window: &AgentWindow, title: &str) -> io::Result<()> {
-    retitle(socket, window, title, true)
+pub fn yield_title(socket: &Path, kitty_window: u64, title: &str) -> io::Result<()> {
+    retitle(socket, kitty_window, title, true)
 }
 
-fn retitle(socket: &Path, window: &AgentWindow, title: &str, temporary: bool) -> io::Result<()> {
+fn retitle(socket: &Path, kitty_window: u64, title: &str, temporary: bool) -> io::Result<()> {
     exchange(
         socket,
         "set-window-title",
         TitlePayload {
             title,
-            r#match: format!("id:{}", window.title_holder),
+            r#match: format!("id:{kitty_window}"),
             temporary,
         },
     )
@@ -173,7 +173,7 @@ impl ForegroundProcess {
 }
 
 impl KittyWindow {
-    fn window_label(&self, home: &Path) -> Option<KittyWindowLabel> {
+    fn window_label(&self, home: &Path) -> Option<TerminalShellLabel> {
         let shell_name = program_name(&self.cmdline)?;
         let foreground_program = self
             .foreground_processes
@@ -181,7 +181,7 @@ impl KittyWindow {
             .filter(|process| process.pid != self.pid)
             .find(|process| process.leads_its_group())
             .map(|process| process.cmdline.as_slice());
-        let active_window = ActiveKittyWindow {
+        let active_window = ActiveTerminalShell {
             shell: ShellState {
                 title: &self.title,
                 cwd: &self.cwd,
@@ -198,7 +198,7 @@ impl KittyWindow {
 }
 
 impl OsWindow {
-    fn agent_window(self, home: &Path) -> Option<AgentWindow> {
+    fn terminal_window(self, socket: &Path, kitty_pid: i32, home: &Path) -> Option<TerminalWindow> {
         let shown = self
             .tabs
             .iter()
@@ -206,12 +206,21 @@ impl OsWindow {
             .windows
             .iter()
             .find(|window| window.is_active)?;
-        Some(AgentWindow {
-            id: self.id,
-            title_holder: shown.id,
-            title: shown.title.clone(),
+        Some(TerminalWindow {
+            key: TerminalWindowKey {
+                process: kitty_pid,
+                terminal_window: self.id,
+            },
+            probe_target: TitleProbeTarget::KittyWindow {
+                socket: socket.to_owned(),
+                kitty_window: shown.id,
+                title: shown.title.clone(),
+            },
             shown_pid: shown.pid,
-            kitty_label: shown.window_label(home),
+            label_reading: shown.window_label(home).map_or(
+                TerminalLabelReading::Unlabelled,
+                TerminalLabelReading::Labelled,
+            ),
             pids: self
                 .tabs
                 .iter()
@@ -226,8 +235,9 @@ mod tests {
     use std::path::Path;
 
     use super::OsWindow;
-    use crate::desktop_windows_apps::kitty_terminal_windows::kitty_window_label::{
-        ForegroundActivity, KittyWindowLabel, WorkingLocation,
+    use crate::desktop_windows_apps::terminal_emulator_windows::{
+        TerminalLabelReading, TerminalWindowKey, TitleProbeTarget,
+        terminal_shell_label::{ForegroundActivity, TerminalShellLabel, WorkingLocation},
     };
 
     const LISTING: &str = r#"[
@@ -257,16 +267,28 @@ mod tests {
             .into_iter()
             .next()
             .unwrap()
-            .agent_window(Path::new("/home/user"))
+            .terminal_window(Path::new("/run/kitty"), 4200, Path::new("/home/user"))
             .unwrap();
-        assert_eq!(window.id, 92);
-        assert_eq!(window.title_holder, 93);
-        assert_eq!(window.title, "/srv> pkill");
+        assert_eq!(
+            window.key,
+            TerminalWindowKey {
+                process: 4200,
+                terminal_window: 92,
+            }
+        );
+        assert_eq!(
+            window.probe_target,
+            TitleProbeTarget::KittyWindow {
+                socket: Path::new("/run/kitty").to_owned(),
+                kitty_window: 93,
+                title: "/srv> pkill".to_owned(),
+            }
+        );
         assert_eq!(window.shown_pid, 500);
         assert_eq!(window.pids, [400, 500, 501]);
         assert_eq!(
-            window.kitty_label,
-            Some(KittyWindowLabel {
+            window.label_reading,
+            TerminalLabelReading::Labelled(TerminalShellLabel {
                 working_location: WorkingLocation::LocalDirectory("/srv".to_owned()),
                 foreground_activity: ForegroundActivity::ShellCommand {
                     command_line: "pkill".to_owned(),

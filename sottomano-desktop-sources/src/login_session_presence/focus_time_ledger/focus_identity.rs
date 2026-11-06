@@ -5,7 +5,7 @@ use procfs::process::Process as Proc;
 
 use super::focus_units::FocusUnit;
 use crate::desktop_windows_apps::{
-    kitty_terminal_windows::WindowProcesses, project_directory_labels::repository_root,
+    project_directory_labels::repository_root, terminal_emulator_windows::WindowProcesses,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
