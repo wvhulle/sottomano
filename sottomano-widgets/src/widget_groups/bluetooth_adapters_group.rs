@@ -23,7 +23,7 @@ use self::{
     reconnect_churn_counting::ReconnectHistory,
 };
 use crate::{
-    background_work::snapshot_subscription,
+    background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
@@ -91,12 +91,6 @@ pub struct BluetoothAdaptersGroup {
     kernel_errors: Vec<DeviceKernelError>,
 }
 
-async fn logged_bus_call(action: &'static str, bus_call: impl Future<Output = zbus::Result<()>>) {
-    if let Err(bus_error) = bus_call.await {
-        tracing::warn!("{action}: {bus_error}");
-    }
-}
-
 impl BluetoothAdaptersGroup {
     pub fn collapse(&mut self) {
         self.expansions.collapse();
@@ -121,16 +115,14 @@ impl BluetoothAdaptersGroup {
                 self.kernel_errors = kernel_errors;
                 Task::none()
             }
-            BluetoothMessage::ToggleAdapterPower(adapter) => Task::future(logged_bus_call(
-                "toggle Bluetooth adapter",
+            BluetoothMessage::ToggleAdapterPower(adapter) => logged_failure_task(
+                "toggle Bluetooth adapter".to_owned(),
                 toggle_adapter_power(adapter),
-            ))
-            .discard(),
-            BluetoothMessage::Disconnect(device) => Task::future(logged_bus_call(
-                "disconnect Bluetooth device",
+            ),
+            BluetoothMessage::Disconnect(device) => logged_failure_task(
+                "disconnect Bluetooth device".to_owned(),
                 disconnect_bluetooth_device(device),
-            ))
-            .discard(),
+            ),
             BluetoothMessage::Expansion {
                 controller_name,
                 expansion,

@@ -49,7 +49,7 @@ use self::{
     usb_cable_reading::{UsbCableReading, UsbCableRole},
 };
 use crate::{
-    background_work::{niri_action, snapshot_subscription},
+    background_work::{logged_failure_task, niri_action, snapshot_subscription},
     clock::Clock,
     group_items::{
         group_item::GroupItem,
@@ -161,12 +161,11 @@ impl Action {
             Action::Dictation(command) => {
                 Task::future(send_logged_dictation_command(command)).discard()
             }
-            Action::DisconnectBluetooth { hardware_address } => Task::future(async move {
-                if let Err(bus_error) = disconnect_bluetooth_address(hardware_address).await {
-                    tracing::warn!("disconnect Bluetooth controller: {bus_error}");
-                }
-            })
-            .discard(),
+            Action::DisconnectBluetooth { hardware_address } => {
+                logged_failure_task("disconnect Bluetooth controller".to_owned(), async move {
+                    disconnect_bluetooth_address(hardware_address).await
+                })
+            }
         }
     }
 }

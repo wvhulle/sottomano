@@ -15,7 +15,7 @@ use self::modem_signal_reading::{
     modem_connected, modem_family_address, modem_radio_on,
 };
 use crate::{
-    background_work::snapshot_subscription,
+    background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     hover_cards::{
@@ -94,20 +94,15 @@ impl MobileModemsGroup {
                 self.observe_latest_snapshot();
             }
             MobileModemsMessage::ToggleModem(modem_path) => {
-                return Task::future(async move {
-                    if let Err(bus_error) = toggle_mobile_modem(&modem_path).await {
-                        tracing::warn!("toggle modem {modem_path}: {bus_error}");
-                    }
-                })
-                .discard();
+                return logged_failure_task(format!("toggle modem {modem_path}"), async move {
+                    toggle_mobile_modem(&modem_path).await
+                });
             }
             MobileModemsMessage::ToggleAllRadios => {
-                return Task::future(async move {
-                    if let Err(bus_error) = toggle_mobile_radio().await {
-                        tracing::warn!("toggle all mobile radios: {bus_error}");
-                    }
-                })
-                .discard();
+                return logged_failure_task(
+                    "toggle all mobile radios".to_owned(),
+                    toggle_mobile_radio(),
+                );
             }
             MobileModemsMessage::Expansion {
                 modem_path,
