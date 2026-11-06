@@ -36,7 +36,6 @@ iced_exwlshell.workspace = true
 iced_wgpu = "0.14.0"
 image.workspace = true
 nalgebra.workspace = true
-niri-ipc.workspace = true
 notulist-client.workspace = true
 quick-xml = "0.42"
 reqwest.workspace = true

@@ -1,5 +1,7 @@
 use iced::Task;
-use sottomano_desktop_sinks::desktop_windows_apps::niri_action_requests;
+use sottomano_desktop_sinks::desktop_windows_apps::compositor_requests::{
+    CompositorRequest, send_compositor_request_or_warn,
+};
 use sottomano_desktop_sources::blocking_background_work::blocking;
 use sottomano_toml_config::Config;
 
@@ -36,7 +38,7 @@ impl TerminalCommand {
     pub fn open<M: Send + 'static>(self) -> Task<M> {
         let command = self.command;
         Task::future(blocking("terminal command", move || {
-            niri_action_requests::send_action_or_warn(&niri_ipc::Action::Spawn { command });
+            send_compositor_request_or_warn(&CompositorRequest::Spawn(command));
         }))
         .discard()
     }

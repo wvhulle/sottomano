@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use iced::Task;
-use sottomano_desktop_sinks::desktop_windows_apps::niri_action_requests;
+use sottomano_desktop_sinks::desktop_windows_apps::compositor_requests::CompositorRequestFailure;
 use sottomano_desktop_sources::desktop_windows_apps::{
     app_launch_history::LaunchScope,
     compositor_window_state::{
@@ -30,13 +30,13 @@ impl DesktopShell {
         );
     }
 
-    pub(super) fn show_niri_failure(
+    pub(super) fn show_compositor_failure(
         &mut self,
-        failure: &niri_action_requests::ActionFailure,
+        failure: &CompositorRequestFailure,
     ) -> Task<Message> {
         tracing::warn!("{failure}");
         self.derive_window_snapshot();
-        self.notifications.show_niri_failure(
+        self.notifications.show_compositor_failure(
             failure,
             &self.widget_groups.toast_context(
                 &self.compositor,

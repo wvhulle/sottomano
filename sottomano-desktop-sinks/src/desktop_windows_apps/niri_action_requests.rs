@@ -1,71 +1,81 @@
-use std::fmt;
+use niri_ipc::{Action, Request, WorkspaceReferenceArg, socket::Socket};
 
-use niri_ipc::{Request, socket::Socket};
+use crate::desktop_windows_apps::compositor_requests::{
+    CompositorRequest, CompositorRequestFailure,
+};
 
-#[derive(Debug, Clone)]
-pub enum ActionFailure {
-    Rejected { action: String, reason: String },
-    Unreachable { action: String, reason: String },
-}
-
-impl ActionFailure {
-    #[must_use]
-    pub fn summary(&self) -> &'static str {
-        match self {
-            ActionFailure::Rejected { .. } => "niri refused a request from the bar",
-            ActionFailure::Unreachable { .. } => "The bar could not reach niri",
-        }
-    }
-
-    #[must_use]
-    pub fn reason(&self) -> &str {
-        match self {
-            ActionFailure::Rejected { reason, .. } | ActionFailure::Unreachable { reason, .. } => {
-                reason
+fn niri_action_of(request: &CompositorRequest) -> Action {
+    match request {
+        CompositorRequest::FocusWindow(window) => Action::FocusWindow { id: *window },
+        CompositorRequest::CloseWindow(window) => Action::CloseWindow { id: Some(*window) },
+        CompositorRequest::CloseFocusedWindow => Action::CloseWindow { id: None },
+        CompositorRequest::FocusWorkspace(workspace) => Action::FocusWorkspace {
+            reference: WorkspaceReferenceArg::Id(*workspace),
+        },
+        CompositorRequest::MoveWorkspaceToIndex { workspace, index } => {
+            Action::MoveWorkspaceToIndex {
+                index: *index,
+                reference: Some(WorkspaceReferenceArg::Id(*workspace)),
             }
         }
-    }
-
-    #[must_use]
-    pub fn action(&self) -> &str {
-        match self {
-            ActionFailure::Rejected { action, .. } | ActionFailure::Unreachable { action, .. } => {
-                action
+        CompositorRequest::MoveNamedWorkspaceToIndex { name, index } => {
+            Action::MoveWorkspaceToIndex {
+                index: *index,
+                reference: Some(WorkspaceReferenceArg::Name(name.clone())),
             }
         }
+        CompositorRequest::MoveWindowToWorkspace {
+            window,
+            workspace,
+            follows_focus,
+        } => Action::MoveWindowToWorkspace {
+            window_id: Some(*window),
+            reference: WorkspaceReferenceArg::Id(*workspace),
+            focus: *follows_focus,
+        },
+        CompositorRequest::MoveFocusedColumnToIndex(index) => {
+            Action::MoveColumnToIndex { index: *index }
+        }
+        CompositorRequest::FocusLeft => Action::FocusColumnLeft {},
+        CompositorRequest::FocusRight => Action::FocusColumnRight {},
+        CompositorRequest::FocusUp => Action::FocusWindowUp {},
+        CompositorRequest::FocusDown => Action::FocusWindowDown {},
+        CompositorRequest::MoveLeft => Action::MoveColumnLeft {},
+        CompositorRequest::MoveRight => Action::MoveColumnRight {},
+        CompositorRequest::FocusWorkspaceUp => Action::FocusWorkspaceUp {},
+        CompositorRequest::FocusWorkspaceDown => Action::FocusWorkspaceDown {},
+        CompositorRequest::MoveFocusedWindowToWorkspaceUp => {
+            Action::MoveWindowToWorkspaceUp { focus: true }
+        }
+        CompositorRequest::MoveFocusedWindowToWorkspaceDown => {
+            Action::MoveWindowToWorkspaceDown { focus: true }
+        }
+        CompositorRequest::FocusPreviousWindow => Action::FocusWindowPrevious {},
+        CompositorRequest::ToggleOverview => Action::ToggleOverview {},
+        CompositorRequest::MaximizeFocused => Action::MaximizeColumn {},
+        CompositorRequest::CenterFocused => Action::CenterColumn {},
+        CompositorRequest::Spawn(command) => Action::Spawn {
+            command: command.clone(),
+        },
+        CompositorRequest::PowerOffMonitors => Action::PowerOffMonitors {},
+        CompositorRequest::Quit => Action::Quit {
+            skip_confirmation: true,
+        },
     }
 }
 
-impl fmt::Display for ActionFailure {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}: {} ({})",
-            self.summary(),
-            self.reason(),
-            self.action()
-        )
-    }
-}
-
-pub fn send_action(action: &niri_ipc::Action) -> Result<(), ActionFailure> {
-    let sent =
-        Socket::connect().and_then(|mut socket| socket.send(Request::Action(action.clone())));
+pub fn send_niri_request(request: &CompositorRequest) -> Result<(), CompositorRequestFailure> {
+    let action = niri_action_of(request);
+    let sent = Socket::connect().and_then(|mut socket| socket.send(Request::Action(action)));
     match sent {
         Ok(Ok(_)) => Ok(()),
-        Ok(Err(rejection)) => Err(ActionFailure::Rejected {
-            action: format!("{action:?}"),
+        Ok(Err(rejection)) => Err(CompositorRequestFailure::Rejected {
+            request: format!("{request:?}"),
             reason: rejection,
         }),
-        Err(e) => Err(ActionFailure::Unreachable {
-            action: format!("{action:?}"),
-            reason: e.to_string(),
+        Err(connection_error) => Err(CompositorRequestFailure::Unreachable {
+            request: format!("{request:?}"),
+            reason: connection_error.to_string(),
         }),
-    }
-}
-
-pub fn send_action_or_warn(action: &niri_ipc::Action) {
-    if let Err(failure) = send_action(action) {
-        tracing::warn!("{failure}");
     }
 }

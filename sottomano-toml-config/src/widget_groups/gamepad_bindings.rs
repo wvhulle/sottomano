@@ -65,20 +65,20 @@ impl GamepadButton {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CompositorAction {
-    FocusColumnLeft,
-    FocusColumnRight,
-    FocusWindowUp,
-    FocusWindowDown,
+    FocusLeft,
+    FocusRight,
+    FocusUp,
+    FocusDown,
     FocusWorkspaceUp,
     FocusWorkspaceDown,
-    FocusWindowPrevious,
-    MoveColumnLeft,
-    MoveColumnRight,
+    FocusPreviousWindow,
+    MoveLeft,
+    MoveRight,
     MoveWindowToWorkspaceUp,
     MoveWindowToWorkspaceDown,
     ToggleOverview,
-    MaximizeColumn,
-    CenterColumn,
+    Maximize,
+    Center,
     CloseWindow,
 }
 
@@ -86,20 +86,20 @@ impl CompositorAction {
     #[must_use]
     pub const fn press_hint(self) -> &'static str {
         match self {
-            CompositorAction::FocusColumnLeft => "focus the column to the left",
-            CompositorAction::FocusColumnRight => "focus the column to the right",
-            CompositorAction::FocusWindowUp => "focus the window above",
-            CompositorAction::FocusWindowDown => "focus the window below",
+            CompositorAction::FocusLeft => "focus the window to the left",
+            CompositorAction::FocusRight => "focus the window to the right",
+            CompositorAction::FocusUp => "focus the window above",
+            CompositorAction::FocusDown => "focus the window below",
             CompositorAction::FocusWorkspaceUp => "focus the workspace above",
             CompositorAction::FocusWorkspaceDown => "focus the workspace below",
-            CompositorAction::FocusWindowPrevious => "focus the previous window",
-            CompositorAction::MoveColumnLeft => "move the column left",
-            CompositorAction::MoveColumnRight => "move the column right",
+            CompositorAction::FocusPreviousWindow => "focus the previous window",
+            CompositorAction::MoveLeft => "move the window left",
+            CompositorAction::MoveRight => "move the window right",
             CompositorAction::MoveWindowToWorkspaceUp => "move the window a workspace up",
             CompositorAction::MoveWindowToWorkspaceDown => "move the window a workspace down",
             CompositorAction::ToggleOverview => "toggle the overview",
-            CompositorAction::MaximizeColumn => "maximize the column",
-            CompositorAction::CenterColumn => "center the column",
+            CompositorAction::Maximize => "maximize the window",
+            CompositorAction::Center => "center the window",
             CompositorAction::CloseWindow => "close the window",
         }
     }
@@ -107,20 +107,20 @@ impl CompositorAction {
     #[must_use]
     pub const fn short_label(self) -> &'static str {
         match self {
-            CompositorAction::FocusColumnLeft => "column ←",
-            CompositorAction::FocusColumnRight => "column →",
-            CompositorAction::FocusWindowUp => "window ↑",
-            CompositorAction::FocusWindowDown => "window ↓",
+            CompositorAction::FocusLeft => "focus ←",
+            CompositorAction::FocusRight => "focus →",
+            CompositorAction::FocusUp => "focus ↑",
+            CompositorAction::FocusDown => "focus ↓",
             CompositorAction::FocusWorkspaceUp => "workspace ↑",
             CompositorAction::FocusWorkspaceDown => "workspace ↓",
-            CompositorAction::FocusWindowPrevious => "previous window",
-            CompositorAction::MoveColumnLeft => "move column ←",
-            CompositorAction::MoveColumnRight => "move column →",
+            CompositorAction::FocusPreviousWindow => "previous window",
+            CompositorAction::MoveLeft => "move ←",
+            CompositorAction::MoveRight => "move →",
             CompositorAction::MoveWindowToWorkspaceUp => "move to workspace ↑",
             CompositorAction::MoveWindowToWorkspaceDown => "move to workspace ↓",
             CompositorAction::ToggleOverview => "overview",
-            CompositorAction::MaximizeColumn => "maximize",
-            CompositorAction::CenterColumn => "center",
+            CompositorAction::Maximize => "maximize",
+            CompositorAction::Center => "center",
             CompositorAction::CloseWindow => "close window",
         }
     }
@@ -238,8 +238,8 @@ impl Default for StickNavigationConfig {
             stick: Some(GamepadStick::Left),
             up: Some(CompositorAction::FocusWorkspaceUp),
             down: Some(CompositorAction::FocusWorkspaceDown),
-            left: Some(CompositorAction::FocusColumnLeft),
-            right: Some(CompositorAction::FocusColumnRight),
+            left: Some(CompositorAction::FocusLeft),
+            right: Some(CompositorAction::FocusRight),
         }
     }
 }
@@ -456,18 +456,12 @@ impl Default for GamepadBindingsConfig {
                 (GamepadButton::Back, "Tab".to_owned()),
             ]),
             compositor_actions: BTreeMap::from([
-                (
-                    GamepadButton::LeftShoulder,
-                    CompositorAction::MoveColumnLeft,
-                ),
-                (
-                    GamepadButton::RightShoulder,
-                    CompositorAction::MoveColumnRight,
-                ),
-                (GamepadButton::Start, CompositorAction::MaximizeColumn),
+                (GamepadButton::LeftShoulder, CompositorAction::MoveLeft),
+                (GamepadButton::RightShoulder, CompositorAction::MoveRight),
+                (GamepadButton::Start, CompositorAction::Maximize),
                 (
                     GamepadButton::LeftStick,
-                    CompositorAction::FocusWindowPrevious,
+                    CompositorAction::FocusPreviousWindow,
                 ),
                 (GamepadButton::Guide, CompositorAction::ToggleOverview),
             ]),
@@ -495,7 +489,7 @@ mod tests {
     fn playstation_and_xbox_names_select_the_same_buttons() {
         let config: GamepadBindingsConfig = toml::from_str(
             "[typed_keys]\ncross = \"Return\"\nb = \"Escape\"\ncreate = \"Tab\"\nmenu = \
-             \"space\"\n[compositor_actions]\nl1 = \"move_column_left\"\nps = \
+             \"space\"\n[compositor_actions]\nl1 = \"move_left\"\nps = \
              \"toggle_overview\"\n",
         )
         .unwrap();
@@ -517,7 +511,7 @@ mod tests {
         );
         assert_eq!(
             config.role_of(GamepadButton::LeftShoulder),
-            Some(ButtonRole::Compositor(CompositorAction::MoveColumnLeft))
+            Some(ButtonRole::Compositor(CompositorAction::MoveLeft))
         );
         assert_eq!(
             config.role_of(GamepadButton::Guide),

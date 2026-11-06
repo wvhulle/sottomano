@@ -1,11 +1,11 @@
 use std::mem;
 
 use iced::{Subscription, Task, window::frames};
-use niri_ipc::{Action, WorkspaceReferenceArg};
+use sottomano_desktop_sinks::desktop_windows_apps::compositor_requests::CompositorRequest;
 use sottomano_desktop_sources::desktop_windows_apps::workspace_window_snapshot;
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
-    background_work::niri_action,
+    background_work::compositor_request,
     desktop_panels::panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick},
     widget_groups::{
         sidebar_settings_group::WorkspacesPlacement, workspaces_group::shown_workspaces,
@@ -95,9 +95,7 @@ impl DesktopShell {
                 if self.drag_view().drag.and_then(|drag| drag.hovered()) != Some(hover) {
                     return Task::none();
                 }
-                niri_action(Action::FocusWorkspace {
-                    reference: WorkspaceReferenceArg::Id(workspace),
-                })
+                compositor_request(CompositorRequest::FocusWorkspace(workspace))
             }
         }
     }
@@ -162,10 +160,7 @@ impl DesktopShell {
                     return Task::none();
                 };
                 self.reshape_snapshot(|snapshot| snapshot.with_workspace_moved(workspace, index));
-                niri_action(Action::MoveWorkspaceToIndex {
-                    index,
-                    reference: Some(WorkspaceReferenceArg::Id(workspace)),
-                })
+                compositor_request(CompositorRequest::MoveWorkspaceToIndex { workspace, index })
             }
             DraggedPanelSlot::Window { window, workspace } => {
                 let Some(index) = snapshot
@@ -176,8 +171,9 @@ impl DesktopShell {
                     return Task::none();
                 };
                 self.reshape_snapshot(|snapshot| snapshot.with_column_moved(window, index));
-                niri_action(Action::FocusWindow { id: window })
-                    .chain(niri_action(Action::MoveColumnToIndex { index }))
+                compositor_request(CompositorRequest::FocusWindow(window)).chain(
+                    compositor_request(CompositorRequest::MoveFocusedColumnToIndex(index)),
+                )
             }
         }
     }
@@ -191,9 +187,9 @@ impl DesktopShell {
             .restoring_moves(snapshot.workspaces_for_output(output))
             .into_iter()
             .map(|restored| {
-                niri_action(Action::MoveWorkspaceToIndex {
+                compositor_request(CompositorRequest::MoveNamedWorkspaceToIndex {
+                    name: restored.name,
                     index: restored.index,
-                    reference: Some(WorkspaceReferenceArg::Name(restored.name)),
                 })
             })
             .fold(Task::none(), Task::chain)
@@ -211,10 +207,10 @@ impl DesktopShell {
         self.reshape_snapshot(|snapshot| {
             snapshot.with_window_moved_to_workspace(window, workspace)
         });
-        niri_action(Action::MoveWindowToWorkspace {
-            window_id: Some(window),
-            reference: WorkspaceReferenceArg::Id(workspace),
-            focus: false,
+        compositor_request(CompositorRequest::MoveWindowToWorkspace {
+            window,
+            workspace,
+            follows_focus: false,
         })
     }
 
@@ -230,11 +226,13 @@ fn click_slot(click: SlotClick) -> Task<Message> {
     match click {
         SlotClick::Workspace {
             is_active: true, ..
-        } => niri_action(Action::ToggleOverview {}),
-        SlotClick::Workspace { id, .. } => niri_action(Action::FocusWorkspace {
-            reference: WorkspaceReferenceArg::Id(id),
-        }),
-        SlotClick::FocusWindow(window) => niri_action(Action::FocusWindow { id: window }),
-        SlotClick::MaximizeColumn => niri_action(Action::MaximizeColumn {}),
+        } => compositor_request(CompositorRequest::ToggleOverview),
+        SlotClick::Workspace { id, .. } => {
+            compositor_request(CompositorRequest::FocusWorkspace(id))
+        }
+        SlotClick::FocusWindow(window) => {
+            compositor_request(CompositorRequest::FocusWindow(window))
+        }
+        SlotClick::MaximizeColumn => compositor_request(CompositorRequest::MaximizeFocused),
     }
 }

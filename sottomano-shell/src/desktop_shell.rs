@@ -27,7 +27,10 @@ use iced::{
     window::Id,
 };
 use iced_controller_diagram::ControllerArtwork;
-use sottomano_desktop_sinks::desktop_notifications::alert_sound_player::SoundTheme;
+use sottomano_desktop_sinks::{
+    desktop_notifications::alert_sound_player::SoundTheme,
+    desktop_windows_apps::compositor_requests::CompositorRequest,
+};
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::{
@@ -41,7 +44,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::{Config, ConfigFile, LoadError, SecretPaths, screen_edges::Position};
 use sottomano_widgets::{
-    background_work::{copy_to_clipboard, niri_action},
+    background_work::{compositor_request, copy_to_clipboard},
     clock::Clock,
     desktop_index::DesktopIndex,
     group_menus::{
@@ -320,7 +323,7 @@ impl DesktopShell {
                 }
             }
             Message::PointerDrag(msg) => self.update_pointer_drag(msg),
-            Message::NiriActionFailed(failure) => self.show_niri_failure(&failure),
+            Message::CompositorRequestFailed(failure) => self.show_compositor_failure(&failure),
             Message::DesktopBus(Ok(DesktopBusEvent::Connected(buses))) => {
                 self.desktop_buses = Some(buses);
                 Task::none()
@@ -359,7 +362,7 @@ impl DesktopShell {
             ]),
             Message::FocusWindow(window) => Task::batch([
                 self.dismiss_hover_card(),
-                niri_action(niri_ipc::Action::FocusWindow { id: window }),
+                compositor_request(CompositorRequest::FocusWindow(window)),
             ]),
             Message::HoverCardHideElapsed => self.leave_hover_card_after_grace(),
             Message::TypingUnderCards(signal) => {

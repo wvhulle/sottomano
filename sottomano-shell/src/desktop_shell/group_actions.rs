@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use iced::Task;
+use sottomano_desktop_sinks::desktop_windows_apps::compositor_requests::CompositorRequest;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::{
@@ -10,7 +11,7 @@ use sottomano_desktop_sources::{
     system_protocol_clients::shell_command_output::blocking::run,
 };
 use sottomano_widgets::{
-    background_work::niri_action,
+    background_work::compositor_request,
     widget_groups::{
         app_launcher_group::{self, AppLauncherMessage},
         gamepad_group::GamepadMessage,
@@ -198,7 +199,7 @@ impl DesktopShell {
             tracing::debug!("no single window owned by {:?}", focus.owner);
             return Task::done(lift(focus.unmatched));
         };
-        niri_action(niri_ipc::Action::FocusWindow { id: window })
+        compositor_request(CompositorRequest::FocusWindow(window))
     }
 
     pub(super) fn update_panel_settings(&mut self, msg: PanelSettingsMessage) -> Task<Message> {

@@ -13,7 +13,7 @@ use std::{
 use iced::{Subscription, Task};
 use notulist_client::DictationCommand;
 use sottomano_desktop_sinks::{
-    desktop_windows_apps::niri_action_requests::ActionFailure,
+    desktop_windows_apps::compositor_requests::{CompositorRequest, CompositorRequestFailure},
     network_connectivity::bluez_bluetooth_commands::disconnect_bluetooth_address,
     voice_dictation_input::notulist_dictation_commands::send_logged_dictation_command,
 };
@@ -49,7 +49,7 @@ use self::{
     usb_cable_reading::{UsbCableReading, UsbCableRole},
 };
 use crate::{
-    background_work::{logged_failure_task, niri_action, snapshot_subscription},
+    background_work::{compositor_request, logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_items::{
         group_item::GroupItem,
@@ -80,7 +80,7 @@ pub enum GamepadTarget {
     Battery { slot: usize },
     Link { slot: usize },
     UsbCable { slot: usize },
-    NiriControl { slot: usize },
+    CompositorDriving { slot: usize },
 }
 
 impl GamepadTarget {
@@ -91,7 +91,7 @@ impl GamepadTarget {
             GamepadTarget::Battery { .. } => "battery",
             GamepadTarget::Link { .. } => "link",
             GamepadTarget::UsbCable { .. } => "usb_cable",
-            GamepadTarget::NiriControl { .. } => "niri_control",
+            GamepadTarget::CompositorDriving { .. } => "compositor_driving",
         }
     }
 }
@@ -104,7 +104,7 @@ impl From<GamepadTarget> for HoverTarget {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompositorControl<'a> {
-    DrivingNiri,
+    DrivingCompositor,
     HandedOverByHand,
     PausedForFocusedApp(&'a str),
     PausedForFullscreenApp(&'a str),
@@ -136,7 +136,7 @@ pub enum GamepadMessage {
     DisconnectBluetooth {
         slot: usize,
     },
-    ToggleNiriControl {
+    ToggleCompositorDriving {
         slot: usize,
     },
     Expansion {
@@ -148,16 +148,16 @@ pub enum GamepadMessage {
 #[derive(Debug, Clone)]
 pub enum Action {
     Idle,
-    Compositor(niri_ipc::Action),
+    Compositor(CompositorRequest),
     Dictation(DictationCommand),
     DisconnectBluetooth { hardware_address: String },
 }
 
 impl Action {
-    pub fn into_task<M: From<ActionFailure> + Send + 'static>(self) -> Task<M> {
+    pub fn into_task<M: From<CompositorRequestFailure> + Send + 'static>(self) -> Task<M> {
         match self {
             Action::Idle => Task::none(),
-            Action::Compositor(action) => niri_action(action),
+            Action::Compositor(request) => compositor_request(request),
             Action::Dictation(command) => {
                 Task::future(send_logged_dictation_command(command)).discard()
             }
@@ -218,13 +218,13 @@ fn handover_key(link: &PhysicalGamepadLink) -> &str {
     }
 }
 
-fn niri_control_toggle(driving_niri: bool) -> IconToggle {
+fn compositor_driving_toggle(driving_compositor: bool) -> IconToggle {
     IconToggle::new(
-        "Niri control",
+        "Compositor control",
         Phosphor::AppWindow(Weight::Regular),
-        driving_niri,
+        driving_compositor,
         SwitchPresses {
-            turning_on: "let this controller drive niri again",
+            turning_on: "let this controller drive the compositor again",
             turning_off: "hand this controller to the focused window",
         },
     )
@@ -257,7 +257,7 @@ impl GamepadGroup {
                 CompositorControl::PausedForFocusedApp(app_id)
             }
             GamepadWindowClaim::Unclaimed | GamepadWindowClaim::Focused(_) => {
-                CompositorControl::DrivingNiri
+                CompositorControl::DrivingCompositor
             }
         }
     }
@@ -321,7 +321,7 @@ impl GamepadGroup {
         bindings: &GamepadBindingsConfig,
         window_claim: GamepadWindowClaim<'_>,
     ) -> bool {
-        self.control(slot, bindings, window_claim) == CompositorControl::DrivingNiri
+        self.control(slot, bindings, window_claim) == CompositorControl::DrivingCompositor
     }
 
     pub fn update(
@@ -351,7 +351,7 @@ impl GamepadGroup {
                 .flick_action(stick, direction)
                 .filter(|_| self.acts(slot, bindings, window_claim))
                 .map_or(Action::Idle, |action| {
-                    Action::Compositor(niri_request(action))
+                    Action::Compositor(compositor_request_of(action))
                 }),
             GamepadMessage::KernelErrors(kernel_errors) => {
                 self.kernel_errors = kernel_errors;
@@ -403,7 +403,7 @@ impl GamepadGroup {
                         }
                     })
             }
-            GamepadMessage::ToggleNiriControl { slot } => {
+            GamepadMessage::ToggleCompositorDriving { slot } => {
                 if let Some(key) = self.physical_link(slot).map(handover_key) {
                     let key = key.to_owned();
                     if !self.handed_over_controllers.remove(&key) {
@@ -597,45 +597,45 @@ impl GamepadGroup {
                 role: usb_cable_role(self.physical_link(slot)?.transport)?,
             }
             .hover_card(clock),
-            GamepadTarget::NiriControl { slot } => {
+            GamepadTarget::CompositorDriving { slot } => {
                 self.physical_link(slot)?;
-                self.niri_control_hover_card(slot, bindings, window_claim)
+                self.compositor_driving_hover_card(slot, bindings, window_claim)
             }
         })
     }
 
-    fn niri_control_hover_card(
+    fn compositor_driving_hover_card(
         &self,
         slot: usize,
         bindings: &GamepadBindingsConfig,
         window_claim: GamepadWindowClaim<'_>,
     ) -> HoverCardBody {
         let (note_title, note_body) = match self.control(slot, bindings, window_claim) {
-            CompositorControl::DrivingNiri => (
-                "Driving niri",
-                "Buttons and sticks focus and move niri windows. Turn this off when a game keeps \
-                 losing its window to niri: the controller then belongs to the focused window \
-                 until you turn it back on."
+            CompositorControl::DrivingCompositor => (
+                "Driving the compositor",
+                "Buttons and sticks focus and move windows. Turn this off when a game keeps \
+                 losing its window to the compositor: the controller then belongs to the focused \
+                 window until you turn it back on."
                     .to_owned(),
             ),
             CompositorControl::HandedOverByHand => (
                 "Handed to the focused window",
-                "Niri bindings stay off for this controller, whatever window has focus, until you \
-                 turn this back on."
+                "Compositor bindings stay off for this controller, whatever window has focus, \
+                 until you turn this back on."
                     .to_owned(),
             ),
             CompositorControl::PausedForFocusedApp(app_id) => (
                 "Paused while a game has focus",
                 format!(
-                    "{app_id} has focus, so niri bindings already pause on their own. Turning \
-                     this off keeps them off after focus moves."
+                    "{app_id} has focus, so compositor bindings already pause on their own. \
+                     Turning this off keeps them off after focus moves."
                 ),
             ),
             CompositorControl::PausedForFullscreenApp(app_id) => (
                 "Paused while a window fills the screen",
                 format!(
-                    "{app_id} fills the screen, so niri bindings pause even while a prompt has \
-                     focus. Turning this off keeps them off after it leaves fullscreen."
+                    "{app_id} fills the screen, so compositor bindings pause even while a prompt \
+                     has focus. Turning this off keeps them off after it leaves fullscreen."
                 ),
             ),
         };
@@ -681,10 +681,10 @@ impl GamepadGroup {
                 GroupItem::reading(battery_reading, GamepadTarget::Battery { slot })
                     .previewed_on_handle_if(battery_low)
             });
-        let niri_control = GroupItem::toggle(
-            niri_control_toggle(!self.handed_over(slot)),
-            GamepadTarget::NiriControl { slot },
-            GamepadMessage::ToggleNiriControl { slot },
+        let compositor_driving = GroupItem::toggle(
+            compositor_driving_toggle(!self.handed_over(slot)),
+            GamepadTarget::CompositorDriving { slot },
+            GamepadMessage::ToggleCompositorDriving { slot },
         );
         let usb_cable = usb_cable_role(link.transport).map(|role| {
             let item =
@@ -704,7 +704,7 @@ impl GamepadGroup {
             move |expansion| GamepadMessage::Expansion { slot, expansion },
             [
                 Some(face),
-                Some(niri_control),
+                Some(compositor_driving),
                 connection,
                 battery,
                 usb_cable,
@@ -747,10 +747,8 @@ fn usb_cable_role(transport: GamepadTransport) -> Option<UsbCableRole> {
     }
 }
 
-fn spawned(command: impl IntoIterator<Item = impl Into<String>>) -> niri_ipc::Action {
-    niri_ipc::Action::Spawn {
-        command: command.into_iter().map(Into::into).collect(),
-    }
+fn spawned(command: impl IntoIterator<Item = impl Into<String>>) -> CompositorRequest {
+    CompositorRequest::Spawn(command.into_iter().map(Into::into).collect())
 }
 
 fn typed_key_command(key_chord: &str) -> Vec<String> {
@@ -786,7 +784,7 @@ fn role_request(role: ButtonRole<'_>, edge: ButtonEdge) -> Option<Action> {
             Some(Action::Compositor(spawned(typed_key_command(key))))
         }
         (ButtonRole::Compositor(action), ButtonEdge::Pressed) => {
-            Some(Action::Compositor(niri_request(action)))
+            Some(Action::Compositor(compositor_request_of(action)))
         }
         (ButtonRole::Command(command), ButtonEdge::Pressed) => {
             Some(Action::Compositor(spawned(command.iter().cloned())))
@@ -799,27 +797,27 @@ fn role_request(role: ButtonRole<'_>, edge: ButtonEdge) -> Option<Action> {
     }
 }
 
-fn niri_request(action: CompositorAction) -> niri_ipc::Action {
+fn compositor_request_of(action: CompositorAction) -> CompositorRequest {
     match action {
-        CompositorAction::FocusColumnLeft => niri_ipc::Action::FocusColumnLeft {},
-        CompositorAction::FocusColumnRight => niri_ipc::Action::FocusColumnRight {},
-        CompositorAction::FocusWindowUp => niri_ipc::Action::FocusWindowUp {},
-        CompositorAction::FocusWindowDown => niri_ipc::Action::FocusWindowDown {},
-        CompositorAction::FocusWorkspaceUp => niri_ipc::Action::FocusWorkspaceUp {},
-        CompositorAction::FocusWorkspaceDown => niri_ipc::Action::FocusWorkspaceDown {},
-        CompositorAction::FocusWindowPrevious => niri_ipc::Action::FocusWindowPrevious {},
-        CompositorAction::MoveColumnLeft => niri_ipc::Action::MoveColumnLeft {},
-        CompositorAction::MoveColumnRight => niri_ipc::Action::MoveColumnRight {},
+        CompositorAction::FocusLeft => CompositorRequest::FocusLeft,
+        CompositorAction::FocusRight => CompositorRequest::FocusRight,
+        CompositorAction::FocusUp => CompositorRequest::FocusUp,
+        CompositorAction::FocusDown => CompositorRequest::FocusDown,
+        CompositorAction::FocusWorkspaceUp => CompositorRequest::FocusWorkspaceUp,
+        CompositorAction::FocusWorkspaceDown => CompositorRequest::FocusWorkspaceDown,
+        CompositorAction::FocusPreviousWindow => CompositorRequest::FocusPreviousWindow,
+        CompositorAction::MoveLeft => CompositorRequest::MoveLeft,
+        CompositorAction::MoveRight => CompositorRequest::MoveRight,
         CompositorAction::MoveWindowToWorkspaceUp => {
-            niri_ipc::Action::MoveWindowToWorkspaceUp { focus: true }
+            CompositorRequest::MoveFocusedWindowToWorkspaceUp
         }
         CompositorAction::MoveWindowToWorkspaceDown => {
-            niri_ipc::Action::MoveWindowToWorkspaceDown { focus: true }
+            CompositorRequest::MoveFocusedWindowToWorkspaceDown
         }
-        CompositorAction::ToggleOverview => niri_ipc::Action::ToggleOverview {},
-        CompositorAction::MaximizeColumn => niri_ipc::Action::MaximizeColumn {},
-        CompositorAction::CenterColumn => niri_ipc::Action::CenterColumn {},
-        CompositorAction::CloseWindow => niri_ipc::Action::CloseWindow { id: None },
+        CompositorAction::ToggleOverview => CompositorRequest::ToggleOverview,
+        CompositorAction::Maximize => CompositorRequest::MaximizeFocused,
+        CompositorAction::Center => CompositorRequest::CenterFocused,
+        CompositorAction::CloseWindow => CompositorRequest::CloseFocusedWindow,
     }
 }
 
@@ -854,7 +852,7 @@ mod tests {
     }
 
     fn spawned_command(action: Action) -> Vec<String> {
-        let Action::Compositor(niri_ipc::Action::Spawn { command }) = action else {
+        let Action::Compositor(CompositorRequest::Spawn(command)) = action else {
             panic!("expected a spawned command, got {action:?}");
         };
         command
@@ -894,7 +892,7 @@ mod tests {
     }
 
     #[test]
-    fn flicking_the_left_stick_right_focuses_the_next_column() {
+    fn flicking_the_left_stick_right_focuses_to_the_right() {
         let action = GamepadGroup::default().update(
             GamepadMessage::Input(GamepadInput::StickFlick {
                 slot: DUALSENSE,
@@ -906,7 +904,7 @@ mod tests {
         );
         assert!(matches!(
             action,
-            Action::Compositor(niri_ipc::Action::FocusColumnRight {})
+            Action::Compositor(CompositorRequest::FocusRight)
         ));
     }
 
@@ -1051,12 +1049,12 @@ mod tests {
     }
 
     #[test]
-    fn controllers_drive_niri_unless_a_game_has_focus() {
+    fn controllers_drive_the_compositor_unless_a_game_has_focus() {
         let bindings = GamepadBindingsConfig::default();
         let group = group_with_two_pads_and_a_virtual_one();
         assert_eq!(
             group.control(DUALSENSE, &bindings, GamepadWindowClaim::Focused("kitty")),
-            CompositorControl::DrivingNiri
+            CompositorControl::DrivingCompositor
         );
         assert_eq!(
             group.control(
@@ -1069,10 +1067,10 @@ mod tests {
     }
 
     #[test]
-    fn a_handed_over_controller_stops_driving_niri_while_others_continue() {
+    fn a_handed_over_controller_stops_driving_the_compositor_while_others_continue() {
         let mut group = group_with_two_pads_and_a_virtual_one();
         group.update(
-            GamepadMessage::ToggleNiriControl { slot: DUALSENSE },
+            GamepadMessage::ToggleCompositorDriving { slot: DUALSENSE },
             &GamepadBindingsConfig::default(),
             GamepadWindowClaim::Focused("kitty"),
         );
@@ -1090,7 +1088,7 @@ mod tests {
         );
         assert_eq!(settings.gate.handed_over_slots, BTreeSet::from([DUALSENSE]));
         group.update(
-            GamepadMessage::ToggleNiriControl { slot: DUALSENSE },
+            GamepadMessage::ToggleCompositorDriving { slot: DUALSENSE },
             &GamepadBindingsConfig::default(),
             GamepadWindowClaim::Focused("kitty"),
         );
@@ -1104,7 +1102,7 @@ mod tests {
     fn a_handover_survives_the_controller_reconnecting_on_a_new_slot() {
         let mut group = group_with_two_pads_and_a_virtual_one();
         group.update(
-            GamepadMessage::ToggleNiriControl { slot: DUALSENSE },
+            GamepadMessage::ToggleCompositorDriving { slot: DUALSENSE },
             &GamepadBindingsConfig::default(),
             GamepadWindowClaim::Focused("kitty"),
         );
@@ -1145,12 +1143,12 @@ mod tests {
     }
 
     #[test]
-    fn an_unclaimed_desktop_leaves_controllers_driving_niri() {
+    fn an_unclaimed_desktop_leaves_controllers_driving_the_compositor() {
         let bindings = GamepadBindingsConfig::default();
         let group = group_with_two_pads_and_a_virtual_one();
         assert_eq!(
             group.control(DUALSENSE, &bindings, GamepadWindowClaim::Unclaimed),
-            CompositorControl::DrivingNiri
+            CompositorControl::DrivingCompositor
         );
     }
 

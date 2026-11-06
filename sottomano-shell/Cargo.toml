@@ -30,7 +30,6 @@ iced_wayland_subscriber = { git = "https://github.com/wvhulle/exwlshelleventloop
 wayland-client = "0.31.15"
 tracing.workspace = true
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-niri-ipc.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
 turso.workspace = true

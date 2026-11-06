@@ -17,7 +17,7 @@ use iced::{
 };
 use sottomano_desktop_sinks::{
     desktop_notifications::alert_sound_player::SoundTheme,
-    desktop_windows_apps::niri_action_requests::ActionFailure,
+    desktop_windows_apps::compositor_requests::CompositorRequestFailure,
 };
 use sottomano_desktop_sources::{
     desktop_notifications::{
@@ -109,7 +109,7 @@ pub trait ToastLayerHost:
     + From<PopupMessage>
     + From<SurfaceRequest>
     + From<NotificationMessage>
-    + From<ActionFailure>
+    + From<CompositorRequestFailure>
 {
 }
 
@@ -120,7 +120,7 @@ impl<Routed> ToastLayerHost for Routed where
         + From<PopupMessage>
         + From<SurfaceRequest>
         + From<NotificationMessage>
-        + From<ActionFailure>
+        + From<CompositorRequestFailure>
 {
 }
 
