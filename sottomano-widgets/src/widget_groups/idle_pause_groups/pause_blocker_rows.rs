@@ -5,8 +5,8 @@ use iced::alignment::Horizontal;
 use sottomano_desktop_sources::login_session_presence::{
     idle_session_actions::IdleAction,
     kernel_sleep_obstacles::{
-        InhibitedOperation, KernelHibernation, LogindCapability, ScheduledShutdown, SleepObstacles,
-        SleepState,
+        InhibitedOperation, KernelHibernation, LogindCapability, ScheduledShutdown,
+        SecretMemoryHolder, SleepObstacles, SleepState,
     },
     screensaver_bus_idle_inhibitors::IdleInhibitor,
 };
@@ -100,6 +100,13 @@ pub(super) struct PauseBlocker {
     pub why: String,
     pub cause: BlockerCause,
     pub rises_to_panel: bool,
+    pub holder_process: Option<HolderProcess>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct HolderProcess {
+    pub pid: u32,
+    pub has_open_window: bool,
 }
 
 impl PauseBlocker {
@@ -158,6 +165,32 @@ impl GroupItemReading for PauseBlocker {
 impl IntoTableRecord<1> for &PauseBlocker {
     fn into_table_record(self) -> TableRecord<1> {
         TableRecord::new(self.holder.clone(), [self.why.clone().into()])
+    }
+}
+
+struct SecretMemoryHolderRecord<'a>(&'a PauseBlocker);
+
+impl IntoTableRecord<2> for SecretMemoryHolderRecord<'_> {
+    fn into_table_record(self) -> TableRecord<2> {
+        let SecretMemoryHolderRecord(blocker) = self;
+        let (pid_text, window_text) = blocker.holder_process.map_or_else(
+            || (String::new(), String::new()),
+            |process| {
+                (
+                    process.pid.to_string(),
+                    if process.has_open_window {
+                        "open"
+                    } else {
+                        "none"
+                    }
+                    .to_owned(),
+                )
+            },
+        );
+        TableRecord::new(
+            blocker.holder.clone(),
+            [pid_text.into(), window_text.into()],
+        )
     }
 }
 
@@ -242,11 +275,21 @@ pub(super) fn blocker_sections<'a>(
                 .iter()
                 .copied()
                 .filter(|blocker| blocker.cause == cause);
-            Section::column_table(
-                [ColumnHeading::titled("Why").align_x(Horizontal::Left)],
-                rows,
-            )
-            .titled(cause.section_heading())
+            let section = if cause == BlockerCause::KernelSecretMemory {
+                Section::column_table(
+                    [
+                        ColumnHeading::titled("PID"),
+                        ColumnHeading::titled("Window").align_x(Horizontal::Left),
+                    ],
+                    rows.map(SecretMemoryHolderRecord),
+                )
+            } else {
+                Section::column_table(
+                    [ColumnHeading::titled("Why").align_x(Horizontal::Left)],
+                    rows,
+                )
+            };
+            section.titled(cause.section_heading())
         })
         .collect()
 }
@@ -308,7 +351,7 @@ fn kernel_refusal_text(kernel_hibernation: &KernelHibernation) -> String {
         }
         KernelHibernation::DisabledBySecretMemory(holders) => format!(
             "disabled by the kernel while {} holds secret memory",
-            holders.join(", ")
+            unique_holder_names(holders).join(", ")
         ),
         KernelHibernation::DisabledForUnidentifiedCause => {
             "disabled by the kernel, with no boot flag, lockdown or secret memory found".to_owned()
@@ -317,6 +360,13 @@ fn kernel_refusal_text(kernel_hibernation: &KernelHibernation) -> String {
             "disabled by the kernel; enable the NixOS module to see which app".to_owned()
         }
     }
+}
+
+fn unique_holder_names(holders: &[SecretMemoryHolder]) -> Vec<&str> {
+    let mut names: Vec<&str> = holders.iter().map(|holder| holder.name.as_str()).collect();
+    names.sort_unstable();
+    names.dedup();
+    names
 }
 
 fn unsupported_by_logind_text() -> &'static str {
@@ -358,6 +408,7 @@ fn hibernate_blockers(obstacles: &SleepObstacles, timer_set: bool) -> Vec<PauseB
         why,
         cause,
         rises_to_panel,
+        holder_process: None,
     };
     let refusal = kernel_refusal_text(&obstacles.kernel_hibernation);
     let kernel = "Kernel".to_owned();
@@ -377,9 +428,13 @@ fn hibernate_blockers(obstacles: &SleepObstacles, timer_set: bool) -> Vec<PauseB
         }
         KernelHibernation::DisabledBySecretMemory(holders) => holders
             .iter()
-            .map(|holder| {
-                blocker(
-                    holder.clone(),
+            .map(|holder| PauseBlocker {
+                holder_process: Some(HolderProcess {
+                    pid: holder.pid,
+                    has_open_window: holder.has_open_window,
+                }),
+                ..blocker(
+                    holder.name.clone(),
                     "holds secret memory".to_owned(),
                     BlockerCause::KernelSecretMemory,
                 )
@@ -416,6 +471,7 @@ fn lock_blockers(obstacles: &SleepObstacles) -> impl Iterator<Item = PauseBlocke
                         why: why.clone(),
                         cause: BlockerCause::SleepLock,
                         rises_to_panel,
+                        holder_process: None,
                     },
                 )
             });
@@ -428,6 +484,7 @@ fn lock_blockers(obstacles: &SleepObstacles) -> impl Iterator<Item = PauseBlocke
                 why: stated_reason(&inhibitor.reason, "holds a shutdown lock"),
                 cause: BlockerCause::ShutdownLock,
                 rises_to_panel: true,
+                holder_process: None,
             });
     let idle_locks = obstacles
         .inhibitors_of(InhibitedOperation::Idle)
@@ -437,6 +494,7 @@ fn lock_blockers(obstacles: &SleepObstacles) -> impl Iterator<Item = PauseBlocke
             why: stated_reason(&inhibitor.reason, "holds an idle lock"),
             cause: BlockerCause::LogindIdleLock,
             rises_to_panel: obstacles.logind_idle_action_enabled,
+            holder_process: None,
         });
     sleep_locks.chain(shutdown_locks).chain(idle_locks)
 }
@@ -452,6 +510,7 @@ fn no_sleep_state_blocker(obstacles: &SleepObstacles) -> Option<PauseBlocker> {
         why: "no configured sleep state is available".to_owned(),
         cause: BlockerCause::LogindRefusal,
         rises_to_panel: true,
+        holder_process: None,
     })
 }
 
@@ -473,6 +532,7 @@ fn screensaver_blockers<'a>(
                 .unwrap_or_else(|| "asked the compositor to hold idle timers".to_owned()),
             cause: BlockerCause::ScreenSaverHold,
             rises_to_panel: Some(trigger.tag) == first_to_fire,
+            holder_process: None,
         })
     })
 }
@@ -485,12 +545,14 @@ mod tests {
         idle_session_actions::IdleAction,
         kernel_sleep_obstacles::{
             BlockingInhibitor, InhibitedOperation, KernelHibernation, LogindCapability,
-            SleepObstacles, SleepState, SleepStateSupport,
+            SecretMemoryHolder, SleepObstacles, SleepState, SleepStateSupport,
         },
         screensaver_bus_idle_inhibitors::IdleInhibitor,
     };
 
-    use super::{BlockerCause, PauseBlocker, PauseFacts, pause_blockers, sleep_state_answer};
+    use super::{
+        BlockerCause, HolderProcess, PauseBlocker, PauseFacts, pause_blockers, sleep_state_answer,
+    };
     use crate::widgets::idle::ActionTrigger;
 
     fn clear_obstacles() -> SleepObstacles {
@@ -523,7 +585,11 @@ mod tests {
                 })
                 .to_vec(),
             kernel_hibernation: KernelHibernation::DisabledBySecretMemory(vec![
-                "Bitwarden".to_owned(),
+                SecretMemoryHolder {
+                    name: "Bitwarden".to_owned(),
+                    pid: 6627,
+                    has_open_window: false,
+                },
             ]),
             ..clear_obstacles()
         }
@@ -558,6 +624,13 @@ mod tests {
         assert_eq!(blockers[0].pause, IdleAction::Hibernate);
         assert_eq!(blockers[0].holder, "Bitwarden");
         assert_eq!(blockers[0].cause, BlockerCause::KernelSecretMemory);
+        assert_eq!(
+            blockers[0].holder_process,
+            Some(HolderProcess {
+                pid: 6627,
+                has_open_window: false,
+            })
+        );
         assert!(blockers[0].rises_to_panel);
     }
 
