@@ -79,6 +79,18 @@ in
         default = true;
       };
 
+    nspawnContainerControllers = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [ "alice" ];
+      description = ''
+        Users allowed to start, stop and restart systemd-nspawn containers from
+        the bar's container switches. A polkit rule grants them exactly those verbs
+        on `container@*.service` (NixOS containers) and `systemd-nspawn@*.service`
+        units, without a password prompt, and nothing else.
+      '';
+    };
+
     journalReaders = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
@@ -106,6 +118,26 @@ in
           extraGroups = [ "systemd-journal" ];
         });
       }
+
+      (lib.mkIf (cfg.nspawnContainerControllers != [ ]) {
+        security.polkit = {
+          enable = true;
+          extraConfig = ''
+            polkit.addRule(function (action, subject) {
+              var containerControllers = ${builtins.toJSON cfg.nspawnContainerControllers};
+              var managedUnit = action.lookup("unit");
+              var requestedVerb = action.lookup("verb");
+              if (action.id == "org.freedesktop.systemd1.manage-units"
+                  && managedUnit
+                  && /^(container|systemd-nspawn)@[^/]+\.service$/.test(managedUnit)
+                  && ["start", "stop", "restart"].indexOf(requestedVerb) >= 0
+                  && containerControllers.indexOf(subject.user) >= 0) {
+                return polkit.Result.YES;
+              }
+            });
+          '';
+        };
+      })
 
       (lib.mkIf cfg.secretMemoryInspection.enable {
         security.wrappers.sottomano-secret-memory-holders = {
