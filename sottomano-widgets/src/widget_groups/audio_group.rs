@@ -3,6 +3,7 @@ mod channel_level_control;
 use std::{collections::HashMap, env, ops::RangeInclusive, thread, time::Duration};
 
 use iced::{Function, Subscription, Task};
+use sottomano_desktop_sinks::media_playback_audio::pipewire_level_commands;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
@@ -239,7 +240,7 @@ impl AudioGroup {
         };
         ControlMessage::commit("audio set volume", value, move || {
             slow_write_delay();
-            commands.set_volume(target, as_percent(value)).is_some()
+            pipewire_level_commands::set_volume(&commands, target, as_percent(value)).is_some()
         })
         .map(move |m| AudioMessage::Control(kind, m))
     }
@@ -252,7 +253,7 @@ impl AudioGroup {
         Task::perform(
             blocking("audio adjust volume", move || {
                 slow_write_delay();
-                commands.adjust_volume(target, step)
+                pipewire_level_commands::adjust_volume(&commands, target, step)
             }),
             move |resolved| {
                 AudioMessage::Control(
@@ -268,7 +269,7 @@ impl AudioGroup {
     fn mute(&self, target: Target) -> Task<AudioMessage> {
         match self.commands.clone() {
             Some(commands) => Task::future(blocking("audio toggle mute", move || {
-                commands.toggle_mute(target)
+                pipewire_level_commands::toggle_mute(&commands, target)
             }))
             .discard(),
             None => Task::none(),

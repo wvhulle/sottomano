@@ -4,7 +4,6 @@ use futures::{Stream, stream};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    screen_brightness_color::solar_switch_schedule::ColorMode,
     stream_operators::{StreamOperators, read_once_then_per_burst},
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
@@ -50,13 +49,4 @@ fn mode_file() -> Option<PathBuf> {
         .map(PathBuf::from)
         .or_else(|| env::home_dir().map(|home| home.join(".local/state")))?;
     Some(state_home.join("umbra/mode.env"))
-}
-
-pub fn toggle_mode() -> Result<(), shell_command_output::Error> {
-    shell_command_output::blocking::output("umbra", &["toggle"]).map(drop)
-}
-
-#[must_use]
-pub fn set_mode(mode: ColorMode) -> bool {
-    shell_command_output::blocking::run("umbra", &["set", mode.umbra_name()])
 }

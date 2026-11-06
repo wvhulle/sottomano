@@ -1,7 +1,6 @@
 use iced::Task;
-use sottomano_desktop_sources::{
-    blocking_background_work::blocking, desktop_windows_apps::niri_action_requests,
-};
+use sottomano_desktop_sinks::desktop_windows_apps::niri_action_requests;
+use sottomano_desktop_sources::blocking_background_work::blocking;
 use sottomano_toml_config::Config;
 
 #[derive(Debug, Clone)]

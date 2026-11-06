@@ -1,4 +1,4 @@
-use crate::system_protocol_clients::shell_command_output;
+use sottomano_desktop_sources::system_protocol_clients::shell_command_output;
 
 const COPY_PROGRAM: &str = "wl-copy";
 

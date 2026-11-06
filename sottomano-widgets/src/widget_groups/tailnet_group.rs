@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
 use iced::{Subscription, Task};
+use sottomano_desktop_sinks::network_connectivity::tailscale_cli_switches::{
+    open_admin, switch_exit_offer, switch_tailscale,
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
@@ -9,7 +12,6 @@ use sottomano_desktop_sources::{
         tailscale_policy_file::{PolicyFileError, TailscalePolicyFile},
         tailscale_status::{
             self, ExitOfferControl, ExitOfferSwitch, Tailnet, Tailscale, TailscaleSwitch,
-            open_admin, switch_exit_offer, switch_tailscale,
         },
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,

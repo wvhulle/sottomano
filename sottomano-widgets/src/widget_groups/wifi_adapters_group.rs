@@ -3,14 +3,14 @@ mod adapter_signal_reading;
 use std::collections::BTreeMap;
 
 use iced::{Subscription, Task};
+use sottomano_desktop_sinks::network_connectivity::network_manager_activations::{
+    toggle_wifi_adapter, toggle_wifi_radio,
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
         icmp_gateway_latency::GatewayLatencies,
-        wifi_connection::{
-            Wifi, WifiAdapter, WifiAdapterDetails, WifiDetails, toggle_wifi_adapter,
-            toggle_wifi_radio,
-        },
+        wifi_connection::{Wifi, WifiAdapter, WifiAdapterDetails, WifiDetails},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };

@@ -10,10 +10,8 @@ use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 
 use crate::{
-    SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::PeriodicPolling,
-    stream_operators::StreamOperators,
-    system_protocol_clients::{shell_command_output, shell_command_output::blocking::run},
+    SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
+    stream_operators::StreamOperators, system_protocol_clients::shell_command_output,
 };
 
 const RUNNING_BACKEND_STATE: &str = "Running";
@@ -138,15 +136,6 @@ impl Tailnet {
             ExitOfferControl::BlockedByExitNodeInUse
         } else {
             ExitOfferControl::Switchable(ExitOfferSwitch::StartOffering)
-        }
-    }
-}
-
-impl ExitOfferSwitch {
-    fn set_argument(self) -> &'static str {
-        match self {
-            ExitOfferSwitch::StartOffering => "--advertise-exit-node=true",
-            ExitOfferSwitch::StopOffering => "--advertise-exit-node=false",
         }
     }
 }
@@ -389,30 +378,6 @@ impl Tailscale {
     }
 }
 
-pub async fn switch_tailscale(tailscale_switch: TailscaleSwitch) {
-    let subcommand = match tailscale_switch {
-        TailscaleSwitch::Up => "up",
-        TailscaleSwitch::Down => "down",
-    };
-    if let Err(command_error) = shell_command_output::output("tailscale", &[subcommand]).await {
-        tracing::warn!("tailscale {subcommand}: {command_error}");
-    }
-}
-
-pub async fn switch_exit_offer(exit_offer_switch: ExitOfferSwitch) {
-    let set_argument = exit_offer_switch.set_argument();
-    if let Err(command_error) =
-        shell_command_output::output("tailscale", &["set", set_argument]).await
-    {
-        tracing::warn!("tailscale set {set_argument}: {command_error}");
-    }
-}
-
-#[must_use]
-pub fn open_admin() -> bool {
-    run("xdg-open", &[ADMIN_CONSOLE_URL])
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -495,18 +460,6 @@ mod tests {
         assert_eq!(
             parsed_tailnet(&unapproved, ADVERTISING_PREFS).exit_offer,
             ExitNodeOffer::AwaitingApproval
-        );
-    }
-
-    #[test]
-    fn offer_switches_map_to_tailscale_set_arguments() {
-        assert_eq!(
-            ExitOfferSwitch::StopOffering.set_argument(),
-            "--advertise-exit-node=false"
-        );
-        assert_eq!(
-            ExitOfferSwitch::StartOffering.set_argument(),
-            "--advertise-exit-node=true"
         );
     }
 

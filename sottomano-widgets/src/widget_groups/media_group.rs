@@ -6,6 +6,7 @@ use std::{
 };
 
 use iced::{Element, Subscription, Task, time::every, widget::Row};
+use sottomano_desktop_sinks::media_playback_audio::mpris_player_commands;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
@@ -661,7 +662,7 @@ fn send(media: &Media, command: Command) -> Task<MediaMessage> {
 fn dispatch(media: &Media, command: Command) -> Task<bool> {
     let bus = media.bus.clone();
     Task::future(blocking("mpris control", move || {
-        mpris_players::control(&bus, command)
+        mpris_player_commands::control(&bus, command)
     }))
 }
 

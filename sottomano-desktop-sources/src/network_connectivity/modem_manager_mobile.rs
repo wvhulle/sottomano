@@ -11,9 +11,7 @@ use zbus::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     host_machine_identity::udev_hardware_identity::{Adapter, ModemIdentity, reported},
-    network_connectivity::{
-        device_or_absent, interface, managed_objects_readings, network_manager_proxies,
-    },
+    network_connectivity::{device_or_absent, interface, managed_objects_readings},
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Properties, prop},
 };
 
@@ -277,20 +275,6 @@ impl SnapshotSource for MobileModems {
             managed_objects_readings(system.clone(), SERVICE, ROOT, reading)
         })
     }
-}
-
-pub async fn toggle_mobile_radio() -> zbus::Result<()> {
-    network_manager_proxies::toggle_wwan_radio(&zbus::Connection::system().await?).await
-}
-
-pub async fn toggle_mobile_modem(modem_path: &str) -> zbus::Result<()> {
-    let system = zbus::Connection::system().await?;
-    let Some(modem_device) = network_manager_proxies::modem_device_at(&system, modem_path).await?
-    else {
-        tracing::warn!("no NetworkManager device manages the modem at {modem_path}");
-        return Ok(());
-    };
-    network_manager_proxies::toggle_device_connection(&system, &modem_device).await
 }
 
 #[cfg(test)]

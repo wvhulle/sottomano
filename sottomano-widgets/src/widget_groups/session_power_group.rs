@@ -1,6 +1,7 @@
 use std::{iter::once, thread, time::Duration};
 
 use iced::{Element, Task, border::Radius};
+use sottomano_desktop_sinks::login_session_presence::logind_session_commands::perform_session_action;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     login_session_presence::{
@@ -143,7 +144,7 @@ impl SessionPowerGroup {
             SessionMessage::Press(action) => Action::Performed(
                 Task::future(blocking("session action", move || {
                     thread::sleep(PRESS_SETTLE_DELAY);
-                    action.perform();
+                    perform_session_action(action);
                 }))
                 .discard(),
             ),

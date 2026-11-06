@@ -230,25 +230,6 @@ async fn readings_while_access_points_hold(
     Ok(device_readings(readings))
 }
 
-pub async fn toggle_wifi_radio() -> zbus::Result<()> {
-    network_manager_proxies::toggle_wireless_radio(&Connection::system().await?).await
-}
-
-pub async fn toggle_wifi_adapter(adapter_device: &str) -> zbus::Result<()> {
-    let system = Connection::system().await?;
-    let Some(wifi_device) = network_manager_proxies::devices(&system)
-        .await?
-        .into_iter()
-        .find(|device| {
-            device.kind == network_manager_proxies::DeviceKind::Wifi
-                && device.interface == adapter_device
-        })
-    else {
-        return Ok(());
-    };
-    network_manager_proxies::toggle_device_connection(&system, &wifi_device).await
-}
-
 impl Wifi {
     fn access_points(&self) -> Vec<OwnedObjectPath> {
         self.adapters

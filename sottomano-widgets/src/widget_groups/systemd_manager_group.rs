@@ -10,6 +10,7 @@ mod running_job_reading;
 use boot_timeline_reading::StartupUnits;
 use failed_unit_log::failed_units_item;
 use running_job_reading::slow_jobs_item;
+use sottomano_desktop_sinks::systemd_units_journal::systemd_unit_restarts::restart_failed_unit;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -200,7 +201,7 @@ impl SystemdManagerGroup {
             }
             SystemdManagerMessage::OpenLog(journal) => return journal.open(),
             SystemdManagerMessage::RestartFailedUnit(restart) => {
-                return Task::future(restart.apply()).discard();
+                return Task::future(restart_failed_unit(restart)).discard();
             }
             SystemdManagerMessage::InspectCoredump(command) => return command.open(),
             SystemdManagerMessage::CopyToClipboard(text) => return copy_to_clipboard(text),

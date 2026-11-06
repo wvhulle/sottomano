@@ -147,7 +147,7 @@ impl SystemdUnitScope {
     default_path = "/org/freedesktop/systemd1",
     gen_blocking = false
 )]
-trait Manager {
+pub trait Manager {
     fn list_units(&self) -> zbus::Result<Vec<UnitRow>>;
     fn list_units_filtered(&self, states: &[&str]) -> zbus::Result<Vec<UnitRow>>;
     fn list_jobs(&self) -> zbus::Result<Vec<JobRow>>;
@@ -238,7 +238,7 @@ impl ManagerProxy<'_> {
     }
 }
 
-async fn connect(user: bool) -> zbus::Result<zbus::Connection> {
+pub async fn connect_systemd_bus(user: bool) -> zbus::Result<zbus::Connection> {
     if user {
         zbus::Connection::session().await
     } else {

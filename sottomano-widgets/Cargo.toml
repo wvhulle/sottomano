@@ -15,6 +15,7 @@ sottomano-phosphor-icons = { path = "../sottomano-phosphor-icons" }
 sottomano-simple-icons = { path = "../sottomano-simple-icons" }
 sottomano-weather-icons = { path = "../sottomano-weather-icons" }
 sottomano-desktop-sources = { path = "../sottomano-desktop-sources" }
+sottomano-desktop-sinks = { path = "../sottomano-desktop-sinks" }
 bytesize.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true

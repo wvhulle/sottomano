@@ -1,0 +1,24 @@
+[package]
+name = "sottomano-desktop-sinks"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+sottomano-desktop-sources = { path = "../sottomano-desktop-sources" }
+sottomano-toml-config = { path = "../sottomano-toml-config" }
+freedesktop-sound = "0.1.0"
+futures.workspace = true
+niri-ipc.workspace = true
+notulist-client.workspace = true
+system-tray.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+virt = { version = "0.4.3", optional = true }
+zbus.workspace = true
+
+[features]
+libvirt-domains = ["dep:virt", "sottomano-desktop-sources/libvirt-domains"]

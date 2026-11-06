@@ -3,7 +3,7 @@ use std::pin::pin;
 use futures::{Stream, StreamExt, stream};
 use tokio::select;
 
-use super::{ManagerProxy, SystemdUnitOnBus, UnitProxy, connect};
+use super::{ManagerProxy, SystemdUnitOnBus, UnitProxy, connect_systemd_bus};
 use crate::{SnapshotDelivery, SnapshotSource, stream_operators::connected_until_failure};
 
 const JOB_DONE: &str = "done";
@@ -140,7 +140,7 @@ impl UnitControl {
     }
 
     async fn job_result(&self, change: UnitChange) -> zbus::Result<String> {
-        let connection = connect(self.per_user).await?;
+        let connection = connect_systemd_bus(self.per_user).await?;
         let manager = ManagerProxy::new(&connection).await?;
         manager.ensure_subscribed().await?;
         let mut removed_jobs = manager.receive_job_removed().await?;

@@ -1,0 +1,11 @@
+pub mod battery_power_profiles;
+pub mod cpu_memory_compute;
+pub mod desktop_notifications;
+pub mod desktop_windows_apps;
+pub mod login_session_presence;
+pub mod media_playback_audio;
+pub mod network_connectivity;
+pub mod qemu_virtual_machines;
+pub mod screen_brightness_color;
+pub mod systemd_units_journal;
+pub mod voice_dictation_input;

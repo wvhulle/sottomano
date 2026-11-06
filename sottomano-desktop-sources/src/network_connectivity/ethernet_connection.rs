@@ -181,18 +181,3 @@ impl SnapshotSource for EthernetDetails {
         )
     }
 }
-
-pub async fn toggle_ethernet_port(port_name: &str) -> zbus::Result<()> {
-    let system = Connection::system().await?;
-    let Some(port_device) = network_manager_proxies::devices(&system)
-        .await?
-        .into_iter()
-        .find(|device| {
-            device.kind == network_manager_proxies::DeviceKind::Ethernet
-                && device.interface == port_name
-        })
-    else {
-        return Ok(());
-    };
-    network_manager_proxies::toggle_device_connection(&system, &port_device).await
-}

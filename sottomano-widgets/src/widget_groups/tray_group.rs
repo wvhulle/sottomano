@@ -7,11 +7,14 @@ use iced::{
     border::Radius,
     widget::{Column, container, mouse_area},
 };
+use sottomano_desktop_sinks::desktop_windows_apps::status_notifier_tray_activation::{
+    TrayCommand, activate_tray_item,
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
         niri_window_placement::WindowOwner,
-        status_notifier_tray::{self, Status, TrayCommand, TrayHost, TrayItem, TrayUpdate},
+        status_notifier_tray::{self, Status, TrayHost, TrayItem, TrayUpdate},
     },
 };
 use sottomano_toml_config::{Config, widget_groups::tray::ClickAction};
@@ -212,7 +215,7 @@ impl TrayGroup {
 
     fn command(&self, command: TrayCommand) -> Task<TrayMessage> {
         self.host.clone().map_or_else(Task::none, |host| {
-            Task::future(host.activate(command)).discard()
+            Task::future(activate_tray_item(host, command)).discard()
         })
     }
 

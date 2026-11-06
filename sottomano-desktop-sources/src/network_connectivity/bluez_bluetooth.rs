@@ -35,7 +35,7 @@ const BLUETOOTH_CLASS_DIRECTORY: &str = "/sys/class/bluetooth";
 const PERIPHERAL_BATTERY_RECHECK: Duration = Duration::from_secs(60);
 
 #[proxy(interface = "org.bluez.Adapter1", default_service = "org.bluez")]
-trait BluezAdapter {
+pub trait BluezAdapter {
     #[zbus(property)]
     fn powered(&self) -> zbus::Result<bool>;
 
@@ -44,7 +44,7 @@ trait BluezAdapter {
 }
 
 #[proxy(interface = "org.bluez.Device1", default_service = "org.bluez")]
-trait BluezDevice {
+pub trait BluezDevice {
     fn disconnect(&self) -> zbus::Result<()>;
 }
 
@@ -273,7 +273,7 @@ fn reading(objects: &ManagedObjects) -> Bluetooth {
     Bluetooth { adapters }
 }
 
-async fn read_bluetooth(connection: Connection) -> zbus::Result<Bluetooth> {
+pub async fn read_bluetooth(connection: Connection) -> zbus::Result<Bluetooth> {
     let objects = ObjectManagerProxy::builder(&connection)
         .destination(SERVICE)?
         .path(ROOT)?
@@ -324,39 +324,4 @@ impl SnapshotSource for Bluetooth {
             SnapshotDelivery::SourceUnavailable,
         )
     }
-}
-
-pub async fn toggle_adapter_power(adapter: OwnedObjectPath) -> zbus::Result<()> {
-    let connection = Connection::system().await?;
-    let proxy = BluezAdapterProxy::builder(&connection)
-        .path(adapter)?
-        .build()
-        .await?;
-    let powered = proxy.powered().await?;
-    proxy.set_powered(!powered).await
-}
-
-async fn disconnect_on(connection: &Connection, device: OwnedObjectPath) -> zbus::Result<()> {
-    BluezDeviceProxy::builder(connection)
-        .path(device)?
-        .build()
-        .await?
-        .disconnect()
-        .await
-}
-
-pub async fn disconnect_bluetooth_device(device: OwnedObjectPath) -> zbus::Result<()> {
-    disconnect_on(&Connection::system().await?, device).await
-}
-
-pub async fn disconnect_bluetooth_address(hardware_address: String) -> zbus::Result<()> {
-    let connection = Connection::system().await?;
-    let bluetooth = read_bluetooth(connection.clone()).await?;
-    let Some(device) = bluetooth
-        .connected_devices()
-        .find(|device| device.address.eq_ignore_ascii_case(&hardware_address))
-    else {
-        return Ok(());
-    };
-    disconnect_on(&connection, device.object_path.clone()).await
 }

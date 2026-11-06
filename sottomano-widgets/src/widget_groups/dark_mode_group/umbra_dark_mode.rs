@@ -1,5 +1,6 @@
+use sottomano_desktop_sinks::screen_brightness_color::umbra_mode_writes;
 use sottomano_desktop_sources::{
-    screen_brightness_color::umbra_dark_mode::{self, DarkMode},
+    screen_brightness_color::umbra_dark_mode::DarkMode,
     system_protocol_clients::shell_command_output,
 };
 
@@ -37,7 +38,7 @@ impl ToggleableSource for DarkMode {
     }
 
     fn apply_toggle(&self) -> Result<(), shell_command_output::Error> {
-        umbra_dark_mode::toggle_mode()
+        umbra_mode_writes::toggle_mode()
     }
 
     fn switched_on(&self) -> bool {

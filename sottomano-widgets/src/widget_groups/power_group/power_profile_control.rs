@@ -5,11 +5,12 @@ use std::{
 };
 
 use iced::{Subscription, Task};
+use sottomano_desktop_sinks::battery_power_profiles::power_profile_selection;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     battery_power_profiles::{
         battery_time_forecast::{Estimate, RegressionState, time_until_empty},
-        power_profiles_daemon::{self, Conditions, Profile, ProfileStatus},
+        power_profiles_daemon::{Conditions, Profile, ProfileStatus},
         upower_battery_state::Battery,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -93,7 +94,7 @@ pub enum PowerProfileMessage {
 
 fn commit_profile_switch(profile: Profile) -> Task<PowerProfileMessage> {
     ControlMessage::commit("power profile set", profile.position(), move || {
-        power_profiles_daemon::set(profile)
+        power_profile_selection::set(profile)
     })
     .map(PowerProfileMessage::Control)
 }

@@ -1,8 +1,5 @@
 use futures::{Stream, StreamExt};
-use notulist_client::{
-    DICTATION_BUS_NAME, DictationCommand, DictationPhase, followed_dictation_phases,
-    send_dictation_command,
-};
+use notulist_client::{DICTATION_BUS_NAME, DictationPhase, followed_dictation_phases};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -36,10 +33,4 @@ async fn dictation_phases(
     Ok(followed_dictation_phases(&session)
         .await?
         .map(|phase| Ok(NotulistDictation { phase: phase? })))
-}
-
-pub async fn send_logged_dictation_command(command: DictationCommand) {
-    if let Err(error) = send_dictation_command(command).await {
-        tracing::warn!("notulist {command:?}: {error}");
-    }
 }

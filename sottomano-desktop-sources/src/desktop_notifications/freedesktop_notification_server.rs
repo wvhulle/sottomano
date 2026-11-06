@@ -1,13 +1,12 @@
 use std::{
     collections::HashMap,
-    convert::Infallible,
     sync::{
         Arc,
         atomic::{AtomicU32, Ordering},
     },
 };
 
-use futures::{Sink, Stream, sink};
+use futures::Stream;
 use image::RgbaImage;
 use sottomano_toml_config::severity::Severity;
 use tokio::sync::mpsc;
@@ -193,14 +192,7 @@ pub async fn serve() -> zbus::Result<(impl Stream<Item = ServerEvent> + Send, No
 pub struct NotificationSignals(SignalEmitter<'static>);
 
 impl NotificationSignals {
-    pub fn into_sink(self) -> impl Sink<Outbound, Error = Infallible> + Send {
-        sink::unfold(self, |signals, outbound| async move {
-            signals.emit(outbound).await;
-            Ok(signals)
-        })
-    }
-
-    async fn emit(&self, outbound: Outbound) {
+    pub async fn emit_outbound_signal(&self, outbound: Outbound) {
         let signal_emitter = &self.0;
         let emitted = match outbound {
             Outbound::ActivationToken { id, token } => {

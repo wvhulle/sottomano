@@ -1,4 +1,5 @@
 use chrono::Locale;
+use sottomano_desktop_sinks::cpu_memory_compute::amd_x3d_mode_writes::write_x3d_cache_preference;
 use sottomano_desktop_sources::{
     cpu_memory_compute::{
         amd_x3d_cache_preference::X3dCachePreference,
@@ -102,7 +103,7 @@ impl ToggleableSource for X3dCachePreference {
     }
 
     fn apply_toggle(&self) -> Result<(), Error> {
-        self.other().write()
+        write_x3d_cache_preference(self.other())
     }
 
     fn switched_on(&self) -> bool {

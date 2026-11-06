@@ -2,13 +2,16 @@ use std::{collections::HashMap, sync::Arc};
 
 use iced::window::Id;
 use iced_exwlshell::{actions::RegionActionCB, to_layer_message};
+use sottomano_desktop_sinks::{
+    desktop_notifications::alert_sound_player::SoundTheme,
+    desktop_windows_apps::niri_action_requests,
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    desktop_notifications::alert_sound_player::SoundTheme,
     desktop_windows_apps::{
         app_launch_history::Launch, desktop_entry_app_icons::DesktopEntries,
-        firefox_favicon_lookup::RawFavicon, niri_action_requests,
-        niri_kdl_config::ConfiguredWorkspaces, niri_output_facts,
+        firefox_favicon_lookup::RawFavicon, niri_kdl_config::ConfiguredWorkspaces,
+        niri_output_facts,
     },
     host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::dbus_desktop_buses::DesktopBusEvent,

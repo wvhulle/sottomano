@@ -2,11 +2,11 @@ use std::borrow::Cow;
 
 use chrono::Locale;
 use iced::{Subscription, Task};
+use sottomano_desktop_sinks::qemu_virtual_machines::libvirt_domain_shutdown::request_libvirt_shutdown;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::niri_window_placement::WindowOwner,
     qemu_virtual_machines::{
-        libvirt_domain_control::request_libvirt_shutdown,
         qemu_command_line_arguments::{
             ForwardedGuestPort, GuestDisplay, NixosSystemClosure, QmpSocketAccess,
         },

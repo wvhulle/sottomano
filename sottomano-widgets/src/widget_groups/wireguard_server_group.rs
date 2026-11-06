@@ -1,11 +1,11 @@
 use std::borrow::Cow;
 
 use iced::{Subscription, Task};
+use sottomano_desktop_sinks::network_connectivity::network_manager_activations::switch_wireguard;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::wireguard_tunnels::{
         Tunnel, TunnelAddress, TunnelOnBus, TunnelRole, Wireguard, WireguardSwitch,
-        switch_wireguard,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };

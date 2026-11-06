@@ -9,8 +9,10 @@ Work inside the Nix devshell (`nix develop`). The repository is a cargo
 workspace:
 
 - `sottomano-toml-config/` holds the TOML config types and their loading.
-- `sottomano-desktop-sources/` holds the data sources and sinks the shell reads
-  and writes.
+- `sottomano-desktop-sources/` holds the data sources the shell reads, as
+  streams, together with the bus proxies and connection handles they share.
+- `sottomano-desktop-sinks/` holds what the shell writes: commands, settings and
+  signals sent to desktop services, built on the handles from the sources crate.
 - `corredo/` holds generic iced widgets that know nothing about the shell.
 - `sottomano-widgets/` holds the panels, group menus, widget groups, group items
   and hover cards, one module per level of the hierarchy in `CONTRIBUTING.md`.
@@ -33,10 +35,15 @@ flowchart TB
   subgraph sources_crate [sottomano-desktop-sources]
     desktop_bus["D-Bus (zbus)<br>power, login session, media, …"]
     notification_server["freedesktop<br>notification server"]
-    niri_event_thread["niri IPC<br>event thread"]
+    niri_event_socket["niri IPC<br>event socket"]
     wayland_outputs["Wayland outputs"]
     file_watches["inotify<br>config file, desktop entries"]
     snapshot_sources["snapshot sources"]
+  end
+
+  subgraph sinks_crate [sottomano-desktop-sinks]
+    service_commands["service commands<br>volume, power, network, tray, …"]
+    notification_signals["notification<br>signals"]
   end
 
   subgraph config_crate [sottomano-toml-config]
@@ -74,10 +81,11 @@ flowchart TB
   niri_kdl_file[("$XDG_CONFIG_HOME/sottomano/niri.kdl<br>niri layer, layout and window rules")]
 
   config_loading --> shell_startup
-  desktop_bus & notification_server & niri_event_thread & wayland_outputs & file_watches --> message_subscriptions
+  desktop_bus & notification_server & niri_event_socket & wayland_outputs & file_watches --> message_subscriptions
   snapshot_sources -->|snapshots| snapshot_subscription
   snapshot_subscription --> shell_message
   shell_update <-->|group messages and tasks| widget_groups
+  widget_groups -->|write tasks| service_commands & notification_signals
   group_stores & app_launch_store <--> state_database
   niri_kdl_rules <-->|read / rewrite| niri_kdl_file
 ```

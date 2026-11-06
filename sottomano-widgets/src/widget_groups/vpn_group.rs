@@ -9,17 +9,20 @@ use crate::widget_groups::{
 mod network_manager_vpn_hover_card;
 mod tailscale_exit_node_hover_card;
 
+use sottomano_desktop_sinks::network_connectivity::{
+    network_manager_activations::{switch_vpn, switch_wireguard},
+    tailscale_cli_switches::switch_exit_routing,
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
-        network_manager_vpn_connections::{NetworkManagerVpns, VpnSwitch, switch_vpn},
+        network_manager_vpn_connections::{NetworkManagerVpns, VpnSwitch},
         tailscale_exit_nodes::{
             ExitNodeChoices, ExitNodeControl, ExitNodeLanAccess, ExitNodeOption, ExitRoutingSwitch,
-            TailscaleExitNodes, switch_exit_routing,
+            TailscaleExitNodes,
         },
         wireguard_tunnels::{
             Tunnel, TunnelAddress, TunnelOnBus, TunnelRole, Wireguard, WireguardSwitch,
-            switch_wireguard,
         },
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,

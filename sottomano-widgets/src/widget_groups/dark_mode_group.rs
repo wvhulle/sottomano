@@ -7,14 +7,12 @@ use std::{ops::RangeInclusive, time::Duration};
 
 use chrono::{DateTime, Utc};
 use iced::{Function, Subscription, Task, task};
+use sottomano_desktop_sinks::screen_brightness_color::umbra_mode_writes::set_mode;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
     login_session_presence::logind_manager,
-    screen_brightness_color::{
-        solar_switch_schedule::ColorMode,
-        umbra_dark_mode::{DarkMode, set_mode},
-    },
+    screen_brightness_color::{solar_switch_schedule::ColorMode, umbra_dark_mode::DarkMode},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     weather::situo_location_fix::Location,
 };

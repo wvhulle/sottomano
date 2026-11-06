@@ -8,6 +8,7 @@ members = [
   "sottomano-simple-icons",
   "sottomano-weather-icons",
   "sottomano-desktop-sources",
+  "sottomano-desktop-sinks",
   "sottomano-widgets",
   "sottomano-shell",
   "sottomano-widget-showcase",

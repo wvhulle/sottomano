@@ -8,12 +8,16 @@ use iced::{
 };
 use iced_exwlshell::reexport::{ActivationTokenSink, XdgActivationTokenV1State};
 use quick_xml::escape::escape;
-use sottomano_desktop_sources::{
+use sottomano_desktop_sinks::{
     desktop_notifications::{
         alert_sound_player::{self, SoundTheme},
-        notification_data::{NotificationData, Outbound, close_reason},
+        freedesktop_notification_signals::notification_signal_sink,
     },
-    desktop_windows_apps::{niri_action_requests, niri_window_placement::Placement},
+    desktop_windows_apps::niri_action_requests,
+};
+use sottomano_desktop_sources::{
+    desktop_notifications::notification_data::{NotificationData, Outbound, close_reason},
+    desktop_windows_apps::niri_window_placement::Placement,
 };
 use sottomano_toml_config::{Config, LoadError, severity::Severity};
 use tokio::{sync::mpsc, time::timeout};
@@ -654,7 +658,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             Some(signals) if !outbound.is_empty() => Task::future(
                 stream::iter(outbound)
                     .map(Ok)
-                    .forward(signals.clone().into_sink()),
+                    .forward(notification_signal_sink(signals.clone())),
             )
             .discard(),
             _ => Task::none(),

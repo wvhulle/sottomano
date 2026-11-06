@@ -1,7 +1,7 @@
 use std::env;
 
 use super::{
-    logind_manager::{ManagerProxyBlocking, manager},
+    logind_manager::{ManagerProxyBlocking, logind_manager_proxy},
     session_power_actions::SessionAction,
 };
 
@@ -82,7 +82,7 @@ fn answer_for(proxy: &ManagerProxyBlocking<'static>, action: SessionAction) -> A
 
 #[must_use]
 pub fn read() -> Permissions {
-    let Some(proxy) = manager() else {
+    let Some(proxy) = logind_manager_proxy() else {
         return Permissions::default();
     };
     Permissions {

@@ -88,7 +88,7 @@ impl Connectivity {
     default_service = "org.freedesktop.NetworkManager",
     default_path = "/org/freedesktop/NetworkManager"
 )]
-trait Manager {
+pub trait Manager {
     fn get_devices(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
     fn deactivate_connection(&self, active_connection: &OwnedObjectPath) -> zbus::Result<()>;
     fn activate_connection(
@@ -125,7 +125,7 @@ trait Manager {
     interface = "org.freedesktop.NetworkManager.Device",
     default_service = "org.freedesktop.NetworkManager"
 )]
-trait Device {
+pub trait Device {
     fn disconnect(&self) -> zbus::Result<()>;
     #[zbus(property)]
     fn device_type(&self) -> zbus::Result<u32>;
@@ -276,7 +276,7 @@ where
         .await
 }
 
-async fn manager(connection: &Connection) -> zbus::Result<ManagerProxy<'static>> {
+pub async fn network_manager_proxy(connection: &Connection) -> zbus::Result<ManagerProxy<'static>> {
     Builder::new(connection)
         .cache_properties(CacheProperties::No)
         .build()
@@ -288,12 +288,15 @@ pub struct DeviceInfo {
     pub kind: DeviceKind,
     pub connected: bool,
     pub switching: bool,
-    path: OwnedObjectPath,
-    proxy: DeviceProxy<'static>,
+    pub path: OwnedObjectPath,
+    pub proxy: DeviceProxy<'static>,
 }
 
 pub async fn devices(connection: &Connection) -> zbus::Result<Vec<DeviceInfo>> {
-    let paths = manager(connection).await?.get_devices().await?;
+    let paths = network_manager_proxy(connection)
+        .await?
+        .get_devices()
+        .await?;
     try_join_all(paths.into_iter().map(|path| device_info(connection, path))).await
 }
 
@@ -403,12 +406,15 @@ impl From<u32> for ManagerState {
 }
 
 pub async fn networking_enabled(connection: &Connection) -> zbus::Result<bool> {
-    manager(connection).await?.networking_enabled().await
+    network_manager_proxy(connection)
+        .await?
+        .networking_enabled()
+        .await
 }
 
 pub async fn manager_state(connection: &Connection) -> zbus::Result<ManagerState> {
     Ok(ManagerState::from(
-        manager(connection).await?.state().await?,
+        network_manager_proxy(connection).await?.state().await?,
     ))
 }
 
@@ -416,17 +422,26 @@ pub async fn checked_connectivity(
     connection: &Connection,
 ) -> zbus::Result<Result<Connectivity, u32>> {
     Ok(Connectivity::try_from(
-        manager(connection).await?.connectivity().await?,
+        network_manager_proxy(connection)
+            .await?
+            .connectivity()
+            .await?,
     ))
 }
 
 pub async fn primary_uplink(connection: &Connection) -> zbus::Result<UplinkIdentity> {
-    let primary_connection = manager(connection).await?.primary_connection().await?;
+    let primary_connection = network_manager_proxy(connection)
+        .await?
+        .primary_connection()
+        .await?;
     uplink_identity(connection, primary_connection).await
 }
 
 pub async fn activating_uplink(connection: &Connection) -> zbus::Result<UplinkIdentity> {
-    let activating_connection = manager(connection).await?.activating_connection().await?;
+    let activating_connection = network_manager_proxy(connection)
+        .await?
+        .activating_connection()
+        .await?;
     uplink_identity(connection, activating_connection).await
 }
 
@@ -453,7 +468,7 @@ async fn uplink_identity(
 }
 
 pub async fn uplink(connection: Connection) -> Result<Uplink, ReadingError> {
-    let manager = manager(&connection).await?;
+    let manager = network_manager_proxy(&connection).await?;
     let (paths, connectivity, metered) = try_join!(
         manager.get_devices(),
         manager.connectivity(),
@@ -477,7 +492,10 @@ pub async fn uplink(connection: Connection) -> Result<Uplink, ReadingError> {
 }
 
 pub async fn manager_connectivity(connection: Connection) -> Result<Connectivity, ReadingError> {
-    let state_code = manager(&connection).await?.connectivity().await?;
+    let state_code = network_manager_proxy(&connection)
+        .await?
+        .connectivity()
+        .await?;
     Connectivity::try_from(state_code).map_err(|_| ReadingError::Absent)
 }
 
@@ -595,7 +613,10 @@ async fn vpn_profile(
 }
 
 pub async fn active_vpns(connection: &Connection) -> zbus::Result<Vec<ActiveVpn>> {
-    let paths = manager(connection).await?.active_connections().await?;
+    let paths = network_manager_proxy(connection)
+        .await?
+        .active_connections()
+        .await?;
     let vpns = join_all(paths.into_iter().map(|path| active_vpn(connection, path))).await;
     Ok(vpns.into_iter().filter_map(Result::ok).flatten().collect())
 }
@@ -732,7 +753,10 @@ async fn wireguard_profile(
 }
 
 pub async fn active_wireguards(connection: &Connection) -> zbus::Result<Vec<ActiveWireguard>> {
-    let paths = manager(connection).await?.active_connections().await?;
+    let paths = network_manager_proxy(connection)
+        .await?
+        .active_connections()
+        .await?;
     let wireguards = join_all(
         paths
             .into_iter()
@@ -766,66 +790,11 @@ async fn active_wireguard(
     }))
 }
 
-pub async fn activate(
-    connection: &Connection,
-    settings_connection: &OwnedObjectPath,
-) -> zbus::Result<()> {
-    let unset = ObjectPath::from_static_str_unchecked("/");
-    manager(connection)
-        .await?
-        .activate_connection(settings_connection, &unset, &unset)
-        .await
-        .map(drop)
-}
-
-pub async fn deactivate(
-    connection: &Connection,
-    active_connection: &OwnedObjectPath,
-) -> zbus::Result<()> {
-    manager(connection)
-        .await?
-        .deactivate_connection(active_connection)
-        .await
-}
-
 pub async fn wireless_enabled(connection: &Connection) -> zbus::Result<bool> {
-    manager(connection).await?.wireless_enabled().await
-}
-
-pub async fn toggle_wireless_radio(connection: &Connection) -> zbus::Result<()> {
-    let manager = manager(connection).await?;
-    let enabled = manager.wireless_enabled().await?;
-    manager.set_wireless_enabled(!enabled).await
-}
-
-pub async fn toggle_wwan_radio(connection: &Connection) -> zbus::Result<()> {
-    let manager = manager(connection).await?;
-    let enabled = manager.wwan_enabled().await?;
-    manager.set_wwan_enabled(!enabled).await
-}
-
-pub async fn disconnect_device(device: &DeviceInfo) -> zbus::Result<()> {
-    device.proxy.disconnect().await
-}
-
-pub async fn connect_device(connection: &Connection, device: &DeviceInfo) -> zbus::Result<()> {
-    let unset = ObjectPath::from_static_str_unchecked("/");
-    manager(connection)
+    network_manager_proxy(connection)
         .await?
-        .activate_connection(&unset.clone().into(), &device.path, &unset)
+        .wireless_enabled()
         .await
-        .map(drop)
-}
-
-pub async fn toggle_device_connection(
-    connection: &Connection,
-    device: &DeviceInfo,
-) -> zbus::Result<()> {
-    if device.connected {
-        disconnect_device(device).await
-    } else {
-        connect_device(connection, device).await
-    }
 }
 
 #[must_use]

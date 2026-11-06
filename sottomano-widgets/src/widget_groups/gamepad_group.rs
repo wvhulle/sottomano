@@ -12,9 +12,13 @@ use std::{
 
 use iced::{Subscription, Task};
 use notulist_client::DictationCommand;
+use sottomano_desktop_sinks::{
+    desktop_windows_apps::niri_action_requests::ActionFailure,
+    network_connectivity::bluez_bluetooth_commands::disconnect_bluetooth_address,
+    voice_dictation_input::notulist_dictation_commands::send_logged_dictation_command,
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    desktop_windows_apps::niri_action_requests::ActionFailure,
     gamepad_controller_input::{
         accelerometer_report_timing::ReportTiming,
         evdev_gamepad_devices::{
@@ -25,15 +29,11 @@ use sottomano_desktop_sources::{
         gamepad_input_stream::gamepad_inputs,
         player_indicator_leds::PlayerIndicator,
     },
-    network_connectivity::{
-        bluez_bluetooth::disconnect_bluetooth_address, ethernet_connection::Ethernet,
-        wifi_connection::Wifi,
-    },
+    network_connectivity::{ethernet_connection::Ethernet, wifi_connection::Wifi},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::journal_device_kernel_errors::{
         DeviceKernelError, device_kernel_error_windows,
     },
-    voice_dictation_input::notulist_dbus_dictation::send_logged_dictation_command,
 };
 use sottomano_toml_config::widget_groups::gamepad_bindings::{
     ButtonRole, CompositorAction, GamepadBindingsConfig, GamepadButton,

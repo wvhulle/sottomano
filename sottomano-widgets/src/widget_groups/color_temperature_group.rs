@@ -4,9 +4,10 @@ mod sun_follow_toggle;
 use std::ops::RangeInclusive;
 
 use iced::{Subscription, Task};
+use sottomano_desktop_sinks::screen_brightness_color::gammarelay_color_writes;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    screen_brightness_color::gammarelay_color_temperature::{self, ColorTemperature},
+    screen_brightness_color::gammarelay_color_temperature::ColorTemperature,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope, unit_active_state::UnitChange},
 };
@@ -178,7 +179,7 @@ impl ColorTemperatureGroup {
                     Task::none()
                 }
                 Action::Commit(value) => ControlMessage::commit("gamma dim", value, move || {
-                    gammarelay_color_temperature::set_brightness(as_percent(value))
+                    gammarelay_color_writes::set_brightness(as_percent(value))
                 })
                 .map(ColorTemperatureMessage::Dim),
                 Action::None | Action::Right | Action::Adjust(_) => Task::none(),
@@ -194,7 +195,7 @@ impl ColorTemperatureGroup {
                     .map(ColorTemperatureMessage::Auto)
                     .chain(
                         ControlMessage::commit("gamma temperature", value, move || {
-                            gammarelay_color_temperature::set_temperature(as_kelvin(value))
+                            gammarelay_color_writes::set_temperature(as_kelvin(value))
                         })
                         .map(ColorTemperatureMessage::Warmth),
                     ),

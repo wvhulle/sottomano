@@ -5,11 +5,11 @@ use niri_ipc::{
     Window,
     state::{EventStreamState, EventStreamStatePart},
 };
+use sottomano_desktop_sinks::desktop_windows_apps::niri_action_requests;
 use sottomano_desktop_sources::desktop_windows_apps::{
     app_launch_history::LaunchScope,
     desktop_entry_app_catalog::{LaunchableApp, open_windows_by_app},
     desktop_entry_app_icons::{self},
-    niri_action_requests,
     niri_output_facts::OutputInfo,
     niri_window_snapshot,
 };

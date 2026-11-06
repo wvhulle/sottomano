@@ -28,9 +28,9 @@ use iced::{
 };
 use iced_controller_diagram::ControllerArtwork;
 use niri_ipc::state::EventStreamState;
+use sottomano_desktop_sinks::desktop_notifications::alert_sound_player::SoundTheme;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
-    desktop_notifications::alert_sound_player::SoundTheme,
     desktop_windows_apps::{
         app_launch_history::LaunchTracker,
         desktop_entry_changes,

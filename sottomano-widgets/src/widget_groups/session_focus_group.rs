@@ -10,6 +10,7 @@ mod window_usage;
 use chrono::{DateTime, TimeDelta, Utc};
 use iced::{Subscription, Task};
 use niri_ipc::state::EventStreamState;
+use sottomano_desktop_sinks::login_session_presence::logind_session_commands::perform_session_action;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_notifications::notification_data::ActionTint,
@@ -166,7 +167,10 @@ impl SessionFocusGroup {
                 Task::future(span_writes).discard()
             }
             SessionFocusMessage::BreakStarted(action) => {
-                Task::future(blocking("break session action", move || action.perform())).discard()
+                Task::future(blocking("break session action", move || {
+                    perform_session_action(action);
+                }))
+                .discard()
             }
             SessionFocusMessage::WarningSnoozed => {
                 let snooze_length =
