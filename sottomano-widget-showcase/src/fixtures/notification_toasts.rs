@@ -4,8 +4,11 @@ use niri_ipc::{
     Event, Window, WindowLayout, Workspace,
     state::{EventStreamState, EventStreamStatePart},
 };
-use sottomano_desktop_sources::desktop_notifications::notification_data::{
-    ActionTint, ExpireTimeout, NotifAction, NotificationData,
+use sottomano_desktop_sources::{
+    desktop_notifications::notification_data::{
+        ActionTint, ExpireTimeout, NotifAction, NotificationData,
+    },
+    desktop_windows_apps::niri_test_windows::unplaced_niri_window,
 };
 use sottomano_toml_config::severity::Severity;
 use sottomano_widgets::{clock::Clock, toast_messages::NotificationMessage};
@@ -185,14 +188,11 @@ fn workspaces() -> Event {
 fn windows(editor_view: Option<(f64, f64)>) -> Event {
     Event::WindowsChanged {
         windows: vec![Window {
-            id: EDITOR_WINDOW,
             title: Some(PROJECT_DIRECTORY.to_owned()),
             app_id: Some("foot".to_owned()),
             pid: Some(EDITOR_PID),
             workspace_id: Some(DESK_WORKSPACE),
             is_focused: true,
-            is_floating: false,
-            is_urgent: false,
             layout: WindowLayout {
                 pos_in_scrolling_layout: Some((1, 1)),
                 tile_size: (
@@ -203,7 +203,7 @@ fn windows(editor_view: Option<(f64, f64)>) -> Event {
                 tile_pos_in_workspace_view: editor_view,
                 window_offset_in_tile: (0.0, 0.0),
             },
-            focus_timestamp: None,
+            ..unplaced_niri_window(EDITOR_WINDOW)
         }],
     }
 }

@@ -17,6 +17,7 @@ use sottomano_desktop_sources::{
             WindowProcesses,
             kitty_window_label::{ForegroundActivity, KittyWindowLabel, WorkingLocation},
         },
+        niri_test_windows::{unnamed_niri_workspace, unplaced_niri_window},
         niri_window_snapshot::Snapshot,
         nix_package_facts::{
             ClosureFacts, Definition, Generation, NixPackageFacts, NixpkgsEntry, Origin, Upstream,
@@ -385,14 +386,13 @@ pub fn on_hover(target: &HoverTarget) -> Vec<WindowGroupMessage> {
 
 fn workspace(named: &NamedWorkspace) -> Workspace {
     Workspace {
-        id: named.id,
         idx: u8::try_from(named.id).expect("few fixture workspaces"),
         name: Some(named.name.to_owned()),
         output: Some(SHOWCASE_OUTPUT.to_owned()),
-        is_urgent: false,
         is_active: named.id == CODING_WORKSPACE,
         is_focused: named.id == CODING_WORKSPACE,
         active_window_id: Some(named.active_window),
+        ..unnamed_niri_workspace(named.id)
     }
 }
 
@@ -403,23 +403,20 @@ fn workspaces(shown_workspaces: &[NamedWorkspace]) -> Event {
 }
 
 fn window(placed: &PlacedWindow) -> Window {
+    let unplaced = unplaced_niri_window(placed.id);
     Window {
-        id: placed.id,
         title: Some(placed.title.to_owned()),
         app_id: Some(placed.app_id.to_owned()),
         pid: Some(window_pid(placed.id)),
         workspace_id: Some(placed.workspace),
         is_focused: placed.id == TERMINAL_WINDOW,
-        is_floating: false,
-        is_urgent: false,
         layout: WindowLayout {
             pos_in_scrolling_layout: Some((placed.column, 1)),
             tile_size: (800.0, 900.0),
             window_size: (800, 900),
-            tile_pos_in_workspace_view: None,
-            window_offset_in_tile: (0.0, 0.0),
+            ..unplaced.layout
         },
-        focus_timestamp: None,
+        ..unplaced
     }
 }
 
