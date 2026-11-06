@@ -12,8 +12,8 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::pci_gpu_readings::{
-        self, GpuClocks, GpuDiscovery, GpuHandle, GpuMemory, GpuModel, GpuNames, GpuPowerDraw,
-        GpuProcesses, GpuRuntimePower, GpuSnapshot, PciBusId,
+        self, GpuClocks, GpuDiscovery, GpuHandle, GpuMemory, GpuModel, GpuPowerDraw, GpuProcesses,
+        GpuRuntimePower, GpuSnapshot, PciBusId,
     },
 };
 use sottomano_toml_config::Config;
@@ -127,21 +127,6 @@ impl GpuDevice {
 
 fn gpu_group_identity(bus: &PciBusId) -> WidgetGroupIdentity {
     WidgetGroupIdentity::durable(WidgetGroupFamily::Gpu, bus.0.clone())
-}
-
-fn gpu_group_titles<'names>(
-    discovered_names: impl Iterator<Item = &'names GpuNames>,
-) -> impl Iterator<Item = WidgetGroupTitle> {
-    discovered_names.scan(
-        BTreeMap::<&str, usize>::new(),
-        |namesake_counts, gpu_names| {
-            let name = gpu_names.preferred_name();
-            let namesake_count = namesake_counts.entry(name).or_default();
-            let title = WidgetGroupTitle::numbered_from_second(name.to_owned(), *namesake_count);
-            *namesake_count += 1;
-            Some(title)
-        },
-    )
 }
 
 #[derive(Default)]
@@ -311,8 +296,10 @@ impl GpuGroup {
     pub fn group_contents(&self) -> impl Iterator<Item = WidgetGroupContent<'_, GpuMessage>> {
         self.devices
             .iter()
-            .zip(gpu_group_titles(
-                self.devices.values().map(|device| &device.model.names),
+            .zip(WidgetGroupTitle::numbered_namesakes(
+                self.devices
+                    .values()
+                    .map(|device| device.model.names.preferred_name().to_owned()),
             ))
             .filter(|((_, device), _)| device.is_awake())
             .map(|((bus, device), group_title)| {
@@ -412,16 +399,21 @@ impl GpuGroup {
 
 #[cfg(test)]
 mod tests {
-    use super::{GpuNames, PciBusId, gpu_group_identity, gpu_group_titles};
+    use super::{PciBusId, WidgetGroupTitle, gpu_group_identity, pci_gpu_readings::GpuNames};
 
     fn titles_of(product_names: &[&str]) -> Vec<String> {
         let discovered_names: Vec<GpuNames> = product_names
             .iter()
             .map(|product_name| GpuNames::Product((*product_name).to_owned()))
             .collect();
-        gpu_group_titles(discovered_names.iter())
-            .map(|group_title| group_title.to_string())
-            .collect()
+        WidgetGroupTitle::numbered_namesakes(
+            discovered_names
+                .iter()
+                .map(|names| names.preferred_name().to_owned()),
+        )
+        .iter()
+        .map(ToString::to_string)
+        .collect()
     }
 
     #[test]

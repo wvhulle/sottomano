@@ -218,20 +218,6 @@ fn handover_key(link: &PhysicalGamepadLink) -> &str {
     }
 }
 
-fn controller_group_titles(names: &[&str]) -> Vec<WidgetGroupTitle> {
-    names
-        .iter()
-        .enumerate()
-        .map(|(position, name)| {
-            let earlier_namesakes = names[..position]
-                .iter()
-                .filter(|earlier_name| *earlier_name == name)
-                .count();
-            WidgetGroupTitle::numbered_from_second((*name).to_owned(), earlier_namesakes)
-        })
-        .collect()
-}
-
 fn niri_control_toggle(driving_niri: bool) -> IconToggle {
     IconToggle::new(
         "Niri control",
@@ -735,13 +721,12 @@ impl GamepadGroup {
         window_claim: GamepadWindowClaim<'a>,
     ) -> Vec<WidgetGroupContent<'a, GamepadMessage>> {
         let controllers = self.controllers_in_player_order();
-        let names: Vec<&str> = controllers
-            .iter()
-            .map(|(gamepad, _)| gamepad.name.as_str())
-            .collect();
+        let titles = WidgetGroupTitle::numbered_namesakes(
+            controllers.iter().map(|(gamepad, _)| gamepad.name.clone()),
+        );
         controllers
             .iter()
-            .zip(controller_group_titles(&names))
+            .zip(titles)
             .filter_map(|((gamepad, link), group_title)| {
                 self.controller_group(gamepad, link, group_title, bindings, window_claim)
             })
@@ -1180,10 +1165,11 @@ mod tests {
 
     #[test]
     fn namesake_controllers_get_numbered_titles() {
-        let titles: Vec<String> = controller_group_titles(&["DualSense", "Xbox", "DualSense"])
-            .iter()
-            .map(ToString::to_string)
-            .collect();
+        let titles: Vec<String> =
+            WidgetGroupTitle::numbered_namesakes(["DualSense", "Xbox", "DualSense"])
+                .iter()
+                .map(ToString::to_string)
+                .collect();
         assert_eq!(titles, ["DualSense", "Xbox", "DualSense 2"]);
     }
 

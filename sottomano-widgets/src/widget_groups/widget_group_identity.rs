@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    collections::BTreeMap,
     fmt::{Display, Formatter, Result as FmtResult},
 };
 
@@ -189,6 +190,22 @@ impl WidgetGroupTitle {
             },
             Ok(_) | Err(_) => WidgetGroupTitle::Named(base_title),
         }
+    }
+
+    pub fn numbered_namesakes(
+        names: impl IntoIterator<Item: Into<Cow<'static, str>>>,
+    ) -> Vec<Self> {
+        let mut namesake_counts: BTreeMap<Cow<'static, str>, usize> = BTreeMap::new();
+        names
+            .into_iter()
+            .map(|name| {
+                let name = name.into();
+                let namesake_count = namesake_counts.entry(name.clone()).or_default();
+                let title = Self::numbered_from_second(name, *namesake_count);
+                *namesake_count += 1;
+                title
+            })
+            .collect()
     }
 }
 
