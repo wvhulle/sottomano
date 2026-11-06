@@ -19,7 +19,7 @@ use self::adapter_signal_reading::{
     adapter_radio_stats_sections,
 };
 use crate::{
-    background_work::snapshot_subscription,
+    background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     group_menus::group_source_demand::GroupSourceDemand,
@@ -133,20 +133,16 @@ impl WifiAdaptersGroup {
                 self.gateway_latencies.receive(delivery, clock);
             }
             WifiAdaptersMessage::ToggleAdapter(adapter_device) => {
-                return Task::future(async move {
-                    if let Err(bus_error) = toggle_wifi_adapter(&adapter_device).await {
-                        tracing::warn!("toggle Wi-Fi adapter {adapter_device}: {bus_error}");
-                    }
-                })
-                .discard();
+                return logged_failure_task(
+                    format!("toggle Wi-Fi adapter {adapter_device}"),
+                    async move { toggle_wifi_adapter(&adapter_device).await },
+                );
             }
             WifiAdaptersMessage::ToggleAllRadios => {
-                return Task::future(async move {
-                    if let Err(bus_error) = toggle_wifi_radio().await {
-                        tracing::warn!("toggle all Wi-Fi radios: {bus_error}");
-                    }
-                })
-                .discard();
+                return logged_failure_task(
+                    "toggle all Wi-Fi radios".to_owned(),
+                    toggle_wifi_radio(),
+                );
             }
             WifiAdaptersMessage::Expansion {
                 adapter_device,

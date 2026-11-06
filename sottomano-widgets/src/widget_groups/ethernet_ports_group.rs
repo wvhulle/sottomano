@@ -17,7 +17,7 @@ use self::port_link_reading::{
     port_identity_sections,
 };
 use crate::{
-    background_work::snapshot_subscription,
+    background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     group_menus::group_source_demand::GroupSourceDemand,
@@ -140,12 +140,10 @@ impl EthernetPortsGroup {
                 self.gateway_latencies.receive(delivery, clock);
             }
             EthernetPortsMessage::TogglePort(port_name) => {
-                return Task::future(async move {
-                    if let Err(bus_error) = toggle_ethernet_port(&port_name).await {
-                        tracing::warn!("toggle Ethernet port {port_name}: {bus_error}");
-                    }
-                })
-                .discard();
+                return logged_failure_task(
+                    format!("toggle Ethernet port {port_name}"),
+                    async move { toggle_ethernet_port(&port_name).await },
+                );
             }
             EthernetPortsMessage::Expansion {
                 port_name,

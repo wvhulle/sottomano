@@ -1,4 +1,4 @@
-use std::convert::identity;
+use std::{convert::identity, fmt::Display};
 
 use iced::{Subscription, Task, futures::StreamExt};
 use sottomano_desktop_sinks::desktop_windows_apps::{clipboard_copy, niri_action_requests};
@@ -35,6 +35,18 @@ pub fn snapshot_subscription<S: SnapshotSource>(
 
 pub fn first_delivery<S: SnapshotSource>(inputs: S::StreamInputs) -> Task<SnapshotDelivery<S>> {
     Task::run(S::delivery_stream(inputs).take(1), identity)
+}
+
+pub fn logged_failure_task<M: Send + 'static, Failure: Display>(
+    action: String,
+    work: impl Future<Output = Result<(), Failure>> + Send + 'static,
+) -> Task<M> {
+    Task::future(async move {
+        if let Err(failure) = work.await {
+            tracing::warn!("{action}: {failure}");
+        }
+    })
+    .discard()
 }
 
 pub fn copy_to_clipboard<M: Send + 'static>(text: String) -> Task<M> {
