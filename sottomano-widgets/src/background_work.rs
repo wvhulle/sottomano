@@ -1,16 +1,19 @@
 use std::{convert::identity, fmt::Display};
 
 use iced::{Subscription, Task, futures::StreamExt};
-use sottomano_desktop_sinks::desktop_windows_apps::{clipboard_copy, niri_action_requests};
+use sottomano_desktop_sinks::desktop_windows_apps::{
+    clipboard_copy,
+    compositor_requests::{self, CompositorRequest, CompositorRequestFailure},
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource, blocking_background_work::blocking,
 };
 
-pub fn niri_action<Routed: From<niri_action_requests::ActionFailure> + Send + 'static>(
-    action: niri_ipc::Action,
+pub fn compositor_request<Routed: From<CompositorRequestFailure> + Send + 'static>(
+    request: CompositorRequest,
 ) -> Task<Routed> {
-    Task::future(blocking("niri action", move || {
-        niri_action_requests::send_action(&action).err()
+    Task::future(blocking("compositor request", move || {
+        compositor_requests::send_compositor_request(&request).err()
     }))
     .and_then(|failure| Task::done(Routed::from(failure)))
 }

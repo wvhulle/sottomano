@@ -175,15 +175,17 @@ impl ConnectedControllerReading<'_> {
 
     fn control_description(&self) -> String {
         match self.control {
-            CompositorControl::DrivingNiri => "niri, through the bindings below".to_owned(),
+            CompositorControl::DrivingCompositor => {
+                "the compositor, through the bindings below".to_owned()
+            }
             CompositorControl::HandedOverByHand => {
-                "the focused window; niri control is switched off".to_owned()
+                "the focused window; compositor control is switched off".to_owned()
             }
             CompositorControl::PausedForFocusedApp(app_id) => {
-                format!("{app_id}, which has focus; niri bindings pause")
+                format!("{app_id}, which has focus; compositor bindings pause")
             }
             CompositorControl::PausedForFullscreenApp(app_id) => {
-                format!("{app_id}, which fills the screen; niri bindings pause")
+                format!("{app_id}, which fills the screen; compositor bindings pause")
             }
         }
     }
@@ -296,7 +298,7 @@ impl GroupItemReading for ConnectedControllerReading<'_> {
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self.control {
-            CompositorControl::DrivingNiri => ReadingDisplayState::On,
+            CompositorControl::DrivingCompositor => ReadingDisplayState::On,
             CompositorControl::HandedOverByHand
             | CompositorControl::PausedForFocusedApp(_)
             | CompositorControl::PausedForFullscreenApp(_) => ReadingDisplayState::Off,
@@ -344,11 +346,11 @@ mod tests {
     fn matching_directions_share_one_axis_label() {
         assert_eq!(
             axis_label(
-                Some(CompositorAction::FocusColumnLeft),
-                Some(CompositorAction::FocusColumnRight),
+                Some(CompositorAction::FocusLeft),
+                Some(CompositorAction::FocusRight),
                 "↔",
             ),
-            Some("column ↔".to_owned())
+            Some("focus ↔".to_owned())
         );
     }
 

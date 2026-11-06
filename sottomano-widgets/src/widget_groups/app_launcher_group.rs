@@ -1,7 +1,9 @@
 use std::{cmp::Reverse, collections::HashMap};
 
 use iced::{Element, Task};
-use sottomano_desktop_sinks::desktop_windows_apps::niri_action_requests;
+use sottomano_desktop_sinks::desktop_windows_apps::compositor_requests::{
+    CompositorRequest, send_compositor_request_or_warn,
+};
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::desktop_entry_app_catalog::{AppCategory, LaunchableApp, OpenAppWindows},
@@ -231,16 +233,14 @@ fn launch_task(app: &LaunchableApp, config: &Config) -> Task<AppLauncherMessage>
         return TerminalCommand::running(config, launch_command).open();
     }
     Task::future(blocking("launch app", move || {
-        niri_action_requests::send_action_or_warn(&niri_ipc::Action::Spawn {
-            command: launch_command,
-        });
+        send_compositor_request_or_warn(&CompositorRequest::Spawn(launch_command));
     }))
     .discard()
 }
 
 fn jump_task(window: u64) -> Task<AppLauncherMessage> {
     Task::future(blocking("focus app window", move || {
-        niri_action_requests::send_action_or_warn(&niri_ipc::Action::FocusWindow { id: window });
+        send_compositor_request_or_warn(&CompositorRequest::FocusWindow(window));
     }))
     .discard()
 }

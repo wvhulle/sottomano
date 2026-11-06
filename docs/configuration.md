@@ -168,8 +168,8 @@ passive_app_id_prefixes = ["steam", "gamescope"]
 stick = "left"
 up = "focus_workspace_up"
 down = "focus_workspace_down"
-left = "focus_column_left"
-right = "focus_column_right"
+left = "focus_left"
+right = "focus_right"
 
 [widget_groups.gamepad.pointer]
 stick = "right"
@@ -189,11 +189,11 @@ dpad_right = "Right"
 back = "Tab"
 
 [widget_groups.gamepad.compositor_actions]
-left_shoulder = "move_column_left"
-right_shoulder = "move_column_right"
-start = "maximize_column"
+left_shoulder = "move_left"
+right_shoulder = "move_right"
+start = "maximize"
 guide = "toggle_overview"
-left_stick = "focus_window_previous"
+left_stick = "focus_previous_window"
 
 [widget_groups.gamepad.commands]
 

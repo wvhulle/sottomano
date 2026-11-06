@@ -1,4 +1,4 @@
-use sottomano_desktop_sinks::desktop_windows_apps::niri_action_requests::ActionFailure;
+use sottomano_desktop_sinks::desktop_windows_apps::compositor_requests::CompositorRequestFailure;
 use sottomano_widgets::{
     clock::Clock,
     group_menus::group_menu_state::GroupMenuMessage,
@@ -98,8 +98,8 @@ impl From<SurfaceRequest> for ShowcaseMessage {
     }
 }
 
-impl From<ActionFailure> for ShowcaseMessage {
-    fn from(_failure: ActionFailure) -> Self {
+impl From<CompositorRequestFailure> for ShowcaseMessage {
+    fn from(_failure: CompositorRequestFailure) -> Self {
         ShowcaseMessage::OutsideShowcase
     }
 }

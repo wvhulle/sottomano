@@ -13,7 +13,7 @@ use sottomano_desktop_sinks::{
         alert_sound_player::{self, SoundTheme},
         freedesktop_notification_signals::notification_signal_sink,
     },
-    desktop_windows_apps::niri_action_requests,
+    desktop_windows_apps::compositor_requests::{CompositorRequest, CompositorRequestFailure},
 };
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::{NotificationData, Outbound, close_reason},
@@ -29,7 +29,7 @@ use super::{
     toast_placement::{ToastWindow, placement_for},
 };
 use crate::{
-    background_work::niri_action,
+    background_work::compositor_request,
     hover_cards::PopupMessage,
     layer_surfaces::SurfaceRequest,
     notification_toasts::{NotificationSettings, ToastLayerHost},
@@ -274,9 +274,9 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         )
     }
 
-    pub fn show_niri_failure(
+    pub fn show_compositor_failure(
         &mut self,
-        failure: &niri_action_requests::ActionFailure,
+        failure: &CompositorRequestFailure,
         context: &ToastContext,
     ) -> Task<Routed> {
         let toast_id = self.fresh_shell_toast_id();
@@ -285,7 +285,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             body: Some(format!(
                 "{}<pre>{}</pre>",
                 escape(failure.reason()),
-                escape(failure.action())
+                escape(failure.request())
             )),
             ..NotificationData::from_shell(toast_id, failure.summary())
         };
@@ -683,18 +683,16 @@ fn action_on_window<Routed: ToastLayerHost>(
     placement: &Placement,
 ) -> Option<Task<Routed>> {
     match key {
-        DEFAULT_ACTION => Some(niri_action(niri_ipc::Action::FocusWindow { id: window })),
-        "quit" => Some(niri_action(niri_ipc::Action::CloseWindow {
-            id: Some(window),
-        })),
+        DEFAULT_ACTION => Some(compositor_request(CompositorRequest::FocusWindow(window))),
+        "quit" => Some(compositor_request(CompositorRequest::CloseWindow(window))),
         "move" => Some(
             placement
                 .active_workspace_for_move()
                 .map_or_else(Task::none, |target| {
-                    niri_action(niri_ipc::Action::MoveWindowToWorkspace {
-                        window_id: Some(window),
-                        reference: niri_ipc::WorkspaceReferenceArg::Id(target),
-                        focus: true,
+                    compositor_request(CompositorRequest::MoveWindowToWorkspace {
+                        window,
+                        workspace: target,
+                        follows_focus: true,
                     })
                 }),
         ),

@@ -4,7 +4,7 @@ use iced::window::Id;
 use iced_exwlshell::{actions::RegionActionCB, to_layer_message};
 use sottomano_desktop_sinks::{
     desktop_notifications::alert_sound_player::SoundTheme,
-    desktop_windows_apps::niri_action_requests,
+    desktop_windows_apps::compositor_requests::CompositorRequestFailure,
 };
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -156,7 +156,7 @@ pub enum Message {
         width: f32,
     },
     PointerDrag(DragMessage),
-    NiriActionFailed(niri_action_requests::ActionFailure),
+    CompositorRequestFailed(CompositorRequestFailure),
     NiriConfigRead(Result<ConfiguredWorkspaces, String>),
     RestoreWorkspaceOrder {
         output: String,
@@ -239,9 +239,9 @@ impl From<NotificationMessage> for Message {
     }
 }
 
-impl From<niri_action_requests::ActionFailure> for Message {
-    fn from(failure: niri_action_requests::ActionFailure) -> Self {
-        Message::NiriActionFailed(failure)
+impl From<CompositorRequestFailure> for Message {
+    fn from(failure: CompositorRequestFailure) -> Self {
+        Message::CompositorRequestFailed(failure)
     }
 }
 

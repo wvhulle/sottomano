@@ -6,7 +6,7 @@ use sottomano_desktop_sources::{
     system_protocol_clients::shell_command_output,
 };
 
-use crate::desktop_windows_apps::niri_action_requests;
+use crate::desktop_windows_apps::compositor_requests::{self, CompositorRequest};
 
 fn with_logind_manager(call: impl FnOnce(&ManagerProxyBlocking<'static>) -> zbus::Result<()>) {
     if let Some(proxy) = logind_manager::logind_manager_proxy()
@@ -85,7 +85,9 @@ pub fn perform_session_action(session_action: SessionAction) {
         SessionAction::Lock => lock(),
         SessionAction::LockAllSessions => lock_all_sessions(),
         SessionAction::ScreenOff => {
-            niri_action_requests::send_action_or_warn(&niri_ipc::Action::PowerOffMonitors {});
+            compositor_requests::send_compositor_request_or_warn(
+                &CompositorRequest::PowerOffMonitors,
+            );
         }
         SessionAction::Sleep => sleep(),
         SessionAction::Suspend => suspend(),
@@ -99,9 +101,7 @@ pub fn perform_session_action(session_action: SessionAction) {
         SessionAction::PowerOff => power_off(),
         SessionAction::CancelScheduledShutdown => cancel_scheduled_shutdown(),
         SessionAction::LogOut => {
-            niri_action_requests::send_action_or_warn(&niri_ipc::Action::Quit {
-                skip_confirmation: true,
-            });
+            compositor_requests::send_compositor_request_or_warn(&CompositorRequest::Quit);
         }
         SessionAction::TerminateSession => terminate_session(),
         SessionAction::RestartShell => {
