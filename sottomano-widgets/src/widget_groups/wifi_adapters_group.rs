@@ -1,7 +1,5 @@
 mod adapter_signal_reading;
 
-use std::collections::BTreeMap;
-
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::network_manager_activations::{
     toggle_wifi_adapter, toggle_wifi_radio,
@@ -38,9 +36,7 @@ use crate::{
             family_address_sections, family_router_sections,
         },
         interface_group_titles::AttachmentTitles,
-        widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        },
+        widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
@@ -92,23 +88,16 @@ pub enum WifiAdaptersMessage {
 }
 
 #[derive(Default)]
-struct AdapterSession {
-    expansion: WidgetGroupExpansion,
-}
-
-#[derive(Default)]
 pub struct WifiAdaptersGroup {
     wifi: LatestSnapshot<Wifi, HidesFetchFailures>,
     wifi_details: HoverFetchedSnapshot<WifiDetails>,
     gateway_latencies: LatestSnapshot<GatewayLatencies, HidesFetchFailures>,
-    sessions: BTreeMap<String, AdapterSession>,
+    expansions: KeyedExpansions<String>,
 }
 
 impl WifiAdaptersGroup {
     pub fn collapse(&mut self) {
-        self.sessions.values_mut().for_each(|session| {
-            session.expansion.collapse();
-        });
+        self.expansions.collapse();
     }
 
     pub fn subscription(
@@ -116,10 +105,7 @@ impl WifiAdaptersGroup {
         buses: &DesktopBuses,
         demand: GroupSourceDemand,
     ) -> Subscription<WifiAdaptersMessage> {
-        let any_adapter_expanded = self
-            .sessions
-            .values()
-            .any(|session| session.expansion.is_expanded());
+        let any_adapter_expanded = self.expansions.any_expanded();
         let demand = demand.expanded_when(any_adapter_expanded);
         Subscription::batch([
             snapshot_subscription::<Wifi>(buses.clone()).map(WifiAdaptersMessage::Snapshot),
@@ -166,9 +152,7 @@ impl WifiAdaptersGroup {
                 adapter_device,
                 expansion,
             } => {
-                if let Some(session) = self.sessions.get_mut(&adapter_device) {
-                    session.expansion.update(expansion);
-                }
+                self.expansions.update(&adapter_device, expansion);
             }
         }
         Task::none()
@@ -176,17 +160,11 @@ impl WifiAdaptersGroup {
 
     fn observe_latest_snapshot(&mut self) {
         let Some(wifi) = self.wifi.get() else {
-            self.sessions.clear();
+            self.expansions.clear();
             return;
         };
-        self.sessions.retain(|adapter_device, _| {
-            wifi.adapters
-                .iter()
-                .any(|adapter| adapter.device == *adapter_device)
-        });
-        wifi.adapters.iter().for_each(|adapter| {
-            self.sessions.entry(adapter.device.clone()).or_default();
-        });
+        self.expansions
+            .track(wifi.adapters.iter().map(|adapter| adapter.device.clone()));
     }
 
     pub fn hover(
@@ -307,7 +285,7 @@ impl WifiAdaptersGroup {
         radio_enabled: bool,
         group_title: WidgetGroupTitle,
     ) -> Option<WidgetGroupContent<'a, WifiAdaptersMessage>> {
-        let session = self.sessions.get(&adapter.device)?;
+        let expansion = self.expansions.get(&adapter.device)?;
         let signal_item = GroupItem::reading(
             AdapterSignalReading {
                 adapter,
@@ -364,7 +342,7 @@ impl WifiAdaptersGroup {
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::WifiAdapters, adapter.device.clone()),
             group_title,
-            &session.expansion,
+            expansion,
             move |expansion| WifiAdaptersMessage::Expansion {
                 adapter_device: adapter_device.clone(),
                 expansion,

@@ -1,4 +1,9 @@
-use std::{borrow::Cow, collections::BTreeMap, rc::Rc, slice};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+    slice,
+};
 
 use chrono::Locale;
 use corredo::primitives::expand_animation::expand_animation;
@@ -57,6 +62,56 @@ pub enum WidgetGroupExpansionMessage {
 pub struct WidgetGroupExpansion {
     expanded: bool,
     cursor_hovering: bool,
+}
+
+pub struct KeyedExpansions<Key> {
+    expansions: BTreeMap<Key, WidgetGroupExpansion>,
+}
+
+impl<Key> Default for KeyedExpansions<Key> {
+    fn default() -> Self {
+        Self {
+            expansions: BTreeMap::new(),
+        }
+    }
+}
+
+impl<Key: Ord> KeyedExpansions<Key> {
+    pub fn collapse(&mut self) {
+        self.expansions.values_mut().for_each(|expansion| {
+            expansion.collapse();
+        });
+    }
+
+    #[must_use]
+    pub fn any_expanded(&self) -> bool {
+        self.expansions
+            .values()
+            .any(WidgetGroupExpansion::is_expanded)
+    }
+
+    #[must_use]
+    pub fn get(&self, key: &Key) -> Option<&WidgetGroupExpansion> {
+        self.expansions.get(key)
+    }
+
+    pub fn update(&mut self, key: &Key, message: WidgetGroupExpansionMessage) {
+        if let Some(expansion) = self.expansions.get_mut(key) {
+            expansion.update(message);
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.expansions.clear();
+    }
+
+    pub fn track(&mut self, keys: impl IntoIterator<Item = Key>) {
+        let current: BTreeSet<Key> = keys.into_iter().collect();
+        self.expansions.retain(|key, _| current.contains(key));
+        for key in current {
+            self.expansions.entry(key).or_default();
+        }
+    }
 }
 
 impl WidgetGroupExpansion {

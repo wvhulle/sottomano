@@ -2,8 +2,6 @@ mod adapter_radio_reading;
 mod connected_device_reading;
 mod reconnect_churn_counting;
 
-use std::collections::BTreeMap;
-
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::bluez_bluetooth_commands::{
     disconnect_bluetooth_device, toggle_adapter_power,
@@ -33,9 +31,7 @@ use crate::{
     },
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
-        widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        },
+        widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
@@ -76,11 +72,6 @@ pub enum BluetoothMessage {
     },
 }
 
-#[derive(Default)]
-struct AdapterSession {
-    expansion: WidgetGroupExpansion,
-}
-
 fn adapter_group_title(naming: AdapterNaming) -> WidgetGroupTitle {
     match naming {
         AdapterNaming::SoleAdapter => {
@@ -95,7 +86,7 @@ fn adapter_group_title(naming: AdapterNaming) -> WidgetGroupTitle {
 #[derive(Default)]
 pub struct BluetoothAdaptersGroup {
     bluetooth: LatestSnapshot<Bluetooth, HidesFetchFailures>,
-    sessions: BTreeMap<String, AdapterSession>,
+    expansions: KeyedExpansions<String>,
     reconnects: ReconnectHistory,
     kernel_errors: Vec<DeviceKernelError>,
 }
@@ -108,9 +99,7 @@ async fn logged_bus_call(action: &'static str, bus_call: impl Future<Output = zb
 
 impl BluetoothAdaptersGroup {
     pub fn collapse(&mut self) {
-        self.sessions.values_mut().for_each(|session| {
-            session.expansion.collapse();
-        });
+        self.expansions.collapse();
     }
 
     pub fn subscription(buses: &DesktopBuses) -> Subscription<BluetoothMessage> {
@@ -146,9 +135,7 @@ impl BluetoothAdaptersGroup {
                 controller_name,
                 expansion,
             } => {
-                if let Some(session) = self.sessions.get_mut(&controller_name) {
-                    session.expansion.update(expansion);
-                }
+                self.expansions.update(&controller_name, expansion);
                 Task::none()
             }
         }
@@ -156,21 +143,16 @@ impl BluetoothAdaptersGroup {
 
     fn observe_latest_snapshot(&mut self, clock: Clock) {
         let Some(bluetooth) = self.bluetooth.get() else {
-            self.sessions.clear();
+            self.expansions.clear();
             return;
         };
         self.reconnects.observe(bluetooth, clock.utc());
-        self.sessions.retain(|controller_name, _| {
+        self.expansions.track(
             bluetooth
                 .adapters
                 .iter()
-                .any(|adapter| adapter.controller_name == *controller_name)
-        });
-        bluetooth.adapters.iter().for_each(|adapter| {
-            self.sessions
-                .entry(adapter.controller_name.clone())
-                .or_default();
-        });
+                .map(|adapter| adapter.controller_name.clone()),
+        );
     }
 
     fn adapter_named(&self, controller_name: &str) -> Option<&BluetoothAdapter> {
@@ -278,7 +260,7 @@ impl BluetoothAdaptersGroup {
         report_timing_for: &impl Fn(&str) -> Option<ReportTiming>,
         clock: Clock,
     ) -> Option<WidgetGroupContent<'a, BluetoothMessage>> {
-        let session = self.sessions.get(&adapter.controller_name)?;
+        let expansion = self.expansions.get(&adapter.controller_name)?;
         let summary_item = GroupItem::reading(
             self.adapter_reading(adapter),
             BluetoothTarget::Adapter {
@@ -326,7 +308,7 @@ impl BluetoothAdaptersGroup {
                 adapter.controller_name.clone(),
             ),
             adapter_group_title(self.adapter_naming(adapter)),
-            &session.expansion,
+            expansion,
             move |expansion| BluetoothMessage::Expansion {
                 controller_name: controller_name.clone(),
                 expansion,

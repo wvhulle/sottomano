@@ -1,7 +1,5 @@
 mod modem_signal_reading;
 
-use std::collections::BTreeMap;
-
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::network_manager_activations::{
     toggle_mobile_modem, toggle_mobile_radio,
@@ -26,9 +24,7 @@ use crate::{
     },
     widget_groups::{
         interface_address_sections::{AddressFamily, InterfaceAddressReading},
-        widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        },
+        widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
@@ -73,21 +69,14 @@ pub enum MobileModemsMessage {
 }
 
 #[derive(Default)]
-struct ModemSession {
-    expansion: WidgetGroupExpansion,
-}
-
-#[derive(Default)]
 pub struct MobileModemsGroup {
     mobile_modems: LatestSnapshot<MobileModems, HidesFetchFailures>,
-    sessions: BTreeMap<String, ModemSession>,
+    expansions: KeyedExpansions<String>,
 }
 
 impl MobileModemsGroup {
     pub fn collapse(&mut self) {
-        self.sessions.values_mut().for_each(|session| {
-            session.expansion.collapse();
-        });
+        self.expansions.collapse();
     }
 
     pub fn subscription(buses: &DesktopBuses) -> Subscription<MobileModemsMessage> {
@@ -124,9 +113,7 @@ impl MobileModemsGroup {
                 modem_path,
                 expansion,
             } => {
-                if let Some(session) = self.sessions.get_mut(&modem_path) {
-                    session.expansion.update(expansion);
-                }
+                self.expansions.update(&modem_path, expansion);
             }
         }
         Task::none()
@@ -134,18 +121,15 @@ impl MobileModemsGroup {
 
     fn observe_latest_snapshot(&mut self) {
         let Some(mobile_modems) = self.mobile_modems.get() else {
-            self.sessions.clear();
+            self.expansions.clear();
             return;
         };
-        self.sessions.retain(|modem_path, _| {
+        self.expansions.track(
             mobile_modems
                 .modems
                 .iter()
-                .any(|modem| modem.modem_path == *modem_path)
-        });
-        mobile_modems.modems.iter().for_each(|modem| {
-            self.sessions.entry(modem.modem_path.clone()).or_default();
-        });
+                .map(|modem| modem.modem_path.clone()),
+        );
     }
 
     fn modem_at(&self, modem_path: &str) -> Option<&Mobile> {
@@ -194,7 +178,7 @@ impl MobileModemsGroup {
         modem: &'a Mobile,
         group_title: WidgetGroupTitle,
     ) -> Option<WidgetGroupContent<'a, MobileModemsMessage>> {
-        let session = self.sessions.get(&modem.modem_path)?;
+        let expansion = self.expansions.get(&modem.modem_path)?;
         let modem_path = || modem.modem_path.clone();
         let signal_item = GroupItem::reading(
             ModemSignalReading { modem },
@@ -254,7 +238,7 @@ impl MobileModemsGroup {
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::MobileModems, modem_path()),
             group_title,
-            &session.expansion,
+            expansion,
             move |expansion| MobileModemsMessage::Expansion {
                 modem_path: expanded_modem_path.clone(),
                 expansion,
