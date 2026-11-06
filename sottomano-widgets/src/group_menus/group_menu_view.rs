@@ -382,7 +382,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
 #[cfg(test)]
 mod tests {
     use iced::{
-        Event, Point, Rectangle, Settings, Size, mouse,
+        Element, Event, Point, Rectangle, Settings, Size, mouse,
         widget::{Row, text},
     };
     use iced_controller_diagram::ControllerArtwork;
@@ -393,7 +393,7 @@ mod tests {
     };
     use sottomano_toml_config::{Config, screen_edges::Position};
 
-    use super::{GroupEvent, GroupMenuView, InspectionCard};
+    use super::{GroupEvent, GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard};
     use crate::{
         clock::Clock,
         desktop_index::DesktopIndex,
@@ -401,7 +401,7 @@ mod tests {
             group_item::{
                 ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
             },
-            group_item_reading::GroupItemReading,
+            group_item_reading::NamedTestReading,
         },
         group_menus::{
             cascading_layout::{
@@ -416,20 +416,78 @@ mod tests {
         },
         hover_cards::{
             HoverAnnouncement, HoverTarget, MenuHandleIndicator, PopupMessage, PressHints,
-            hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+            hover_card_body::hover_card_source_delivery::HoverCard,
         },
         widget_groups::{
             widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
             widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         },
         widgets::{
-            favicon::Favicons,
-            icon_glyph::IconGlyph,
-            phosphor::{Phosphor, Weight},
-            shell_layer_appearance::ShellLayer,
-            window_icon::WindowAssets,
+            favicon::Favicons, shell_layer_appearance::ShellLayer, window_icon::WindowAssets,
         },
     };
+
+    struct MenuTestBench {
+        config: Config,
+        hover_card: HoverCard,
+        entries: DesktopIndex,
+        favicons: Favicons,
+        controller_artwork: ControllerArtwork,
+        clock: Clock,
+    }
+
+    impl Default for MenuTestBench {
+        fn default() -> Self {
+            MenuTestBench {
+                config: Config::default(),
+                hover_card: HoverCard::empty(),
+                entries: DesktopIndex::default(),
+                favicons: Favicons::default(),
+                controller_artwork: ControllerArtwork::decoded(),
+                clock: Clock::real(),
+            }
+        }
+    }
+
+    impl MenuTestBench {
+        fn inspection_card(&self) -> InspectionCard<'_, '_> {
+            InspectionCard {
+                hover_card: &self.hover_card,
+                card_appearance: ShellLayer::Overlays.default_appearance(),
+                assets: WindowAssets {
+                    entries: &self.entries,
+                    favicons: &self.favicons,
+                    controller_artwork: &self.controller_artwork,
+                },
+                clock: self.clock,
+            }
+        }
+    }
+
+    impl<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 'a> GroupMenuView<'a, M> {
+        fn bench_surfaces(
+            self,
+            bench: &'a MenuTestBench,
+            orientation: CascadeOrientation,
+        ) -> GroupMenuCascadeSurfaces<'a, M> {
+            self.surfaces(
+                &bench.config,
+                &ShellLayer::Overlays.default_appearance(),
+                &bench.inspection_card(),
+                orientation,
+            )
+            .expect("an opened menu has a surface")
+        }
+    }
+
+    impl<'a, M> GroupMenuCascadeSurfaces<'a, M> {
+        fn first_item_list(self) -> Element<'a, M> {
+            self.satellites
+                .into_iter()
+                .next()
+                .expect("the open group has an item list")
+        }
+    }
 
     #[derive(Debug, Clone)]
     struct SmokeMessage;
@@ -443,22 +501,6 @@ mod tests {
     impl From<PopupMessage> for SmokeMessage {
         fn from(_: PopupMessage) -> Self {
             SmokeMessage
-        }
-    }
-
-    struct SmokeReading;
-
-    impl GroupItemReading for SmokeReading {
-        fn name(&self) -> &'static str {
-            "Smoke item"
-        }
-
-        fn icon(&self) -> IconGlyph {
-            Phosphor::Question(Weight::Regular).into()
-        }
-
-        fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-            HoverCardBody::sections([])
         }
     }
 
@@ -493,46 +535,31 @@ mod tests {
     }
 
     fn row_tops(
-        config: &Config,
         group_menus: &GroupMenuState,
         orientation: CascadeOrientation,
         clock: Clock,
     ) -> (f32, Option<f32>) {
+        let bench = MenuTestBench {
+            clock,
+            ..MenuTestBench::default()
+        };
         let expansion = WidgetGroupExpansion::default();
         let group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Gpu,
             &expansion,
             |_| SmokeMessage,
-            [GroupItem::reading(SmokeReading, HoverTarget::Workspace(7))],
+            [GroupItem::reading(
+                NamedTestReading("Smoke item"),
+                HoverTarget::Workspace(7),
+            )],
         );
-        let (entries, favicons, controller_artwork) = (
-            DesktopIndex::default(),
-            Favicons::default(),
-            ControllerArtwork::decoded(),
-        );
-        let hover_card = HoverCard::empty();
         let surfaces = GroupMenuView::new(
             GroupMenuTopic::Hardware,
             group_menus,
             |_| SmokeMessage,
             [group],
         )
-        .surfaces(
-            config,
-            &ShellLayer::Overlays.default_appearance(),
-            &InspectionCard {
-                hover_card: &hover_card,
-                card_appearance: ShellLayer::Overlays.default_appearance(),
-                assets: WindowAssets {
-                    entries: &entries,
-                    favicons: &favicons,
-                    controller_artwork: &controller_artwork,
-                },
-                clock,
-            },
-            orientation,
-        )
-        .expect("an opened menu has a surface");
+        .bench_surfaces(&bench, orientation);
         let mut primary = Simulator::with_size(
             Settings::default(),
             Size::new(1200.0, 800.0),
@@ -554,15 +581,13 @@ mod tests {
 
     #[test]
     fn every_presentation_lays_out_in_every_direction() {
-        let config = Config::default();
         let clock = Clock::real();
         for presentation in every_presentation() {
             let group_menus = opened_menu_state(presentation);
             for direction in [CascadeDirection::Rightward, CascadeDirection::Leftward] {
                 for growth in [PanelGrowth::Downward, PanelGrowth::Upward] {
                     let orientation = CascadeOrientation { direction, growth };
-                    let (header_top, item_top) =
-                        row_tops(&config, &group_menus, orientation, clock);
+                    let (header_top, item_top) = row_tops(&group_menus, orientation, clock);
                     match (presentation.layout, growth) {
                         (GroupMenuLayout::Cascading, _) => assert_eq!(item_top, None),
                         (GroupMenuLayout::Accordion, PanelGrowth::Downward) => {
@@ -582,7 +607,6 @@ mod tests {
         item_list_scrolled_px: f32,
         row_name: &str,
     ) -> f32 {
-        let config = Config::default();
         let expansion = WidgetGroupExpansion::default();
         let long_list = (0..40).map(|position| {
             GroupItem::composed(
@@ -615,42 +639,21 @@ mod tests {
             menu: GroupMenuTopic::Media,
             scrolled_px: item_list_scrolled_px,
         });
-        let (entries, favicons, controller_artwork) = (
-            DesktopIndex::default(),
-            Favicons::default(),
-            ControllerArtwork::decoded(),
-        );
-        let hover_card = HoverCard::empty();
+        let bench = MenuTestBench::default();
         let surfaces = GroupMenuView::new(
             GroupMenuTopic::Media,
             &group_menus,
             |_| SmokeMessage,
             [group],
         )
-        .surfaces(
-            &config,
-            &ShellLayer::Overlays.default_appearance(),
-            &InspectionCard {
-                hover_card: &hover_card,
-                card_appearance: ShellLayer::Overlays.default_appearance(),
-                assets: WindowAssets {
-                    entries: &entries,
-                    favicons: &favicons,
-                    controller_artwork: &controller_artwork,
-                },
-                clock: Clock::real(),
-            },
+        .bench_surfaces(
+            &bench,
             CascadeOrientation {
                 direction: CascadeDirection::Rightward,
                 growth: PanelGrowth::Downward,
             },
-        )
-        .expect("an opened menu has a surface");
-        let item_list = surfaces
-            .satellites
-            .into_iter()
-            .next()
-            .expect("the open group has an item list");
+        );
+        let item_list = surfaces.first_item_list();
         Simulator::with_size(
             Settings::default(),
             Size::new(600.0, screen_height),
@@ -680,24 +683,12 @@ mod tests {
         assert!((first_row_of_the_last_page - first_row_top).abs() < 1.0);
     }
 
-    fn inspection_card_shown(hover_card: &HoverCard) -> bool {
-        let (entries, favicons, controller_artwork) = (
-            DesktopIndex::default(),
-            Favicons::default(),
-            ControllerArtwork::decoded(),
-        );
-        InspectionCard {
+    fn inspection_card_shown(hover_card: HoverCard) -> bool {
+        let bench = MenuTestBench {
             hover_card,
-            card_appearance: ShellLayer::Overlays.default_appearance(),
-            assets: WindowAssets {
-                entries: &entries,
-                favicons: &favicons,
-                controller_artwork: &controller_artwork,
-            },
-            clock: Clock::real(),
-        }
-        .view(&Config::default())
-        .is_some()
+            ..MenuTestBench::default()
+        };
+        bench.inspection_card().view(&bench.config).is_some()
     }
 
     #[test]
@@ -707,12 +698,12 @@ mod tests {
                 left: Some("switch something"),
                 ..PressHints::default()
             }));
-        assert!(inspection_card_shown(&announced));
+        assert!(inspection_card_shown(announced));
     }
 
     #[test]
     fn a_card_without_sections_or_announcement_stays_hidden() {
-        assert!(!inspection_card_shown(&HoverCard::empty()));
+        assert!(!inspection_card_shown(HoverCard::empty()));
     }
 
     #[derive(Debug, Clone, PartialEq)]
@@ -776,23 +767,21 @@ mod tests {
         pointer_target: impl Fn(&mut Simulator<'_, RowPointerMessage>) -> Point,
         pressed: bool,
     ) -> Vec<RowPointerMessage> {
-        let config = Config::default();
+        let bench = MenuTestBench::default();
         let expansion = WidgetGroupExpansion::default();
         let group_menus = opened_menu_state(GroupMenuPresentation::default());
-        let hover_card = HoverCard::empty();
-        let (entries, favicons, controller_artwork) = (
-            DesktopIndex::default(),
-            Favicons::default(),
-            ControllerArtwork::decoded(),
-        );
         let group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Gpu,
             &expansion,
             |_| RowPointerMessage::Unrelated,
             [match row_press {
-                PointedRowPress::PerformsAction => GroupItem::reading(SmokeReading, POINTED_ROW)
-                    .on_press("act", RowPointerMessage::RowAction),
-                PointedRowPress::ReadOnly => GroupItem::reading(SmokeReading, POINTED_ROW),
+                PointedRowPress::PerformsAction => {
+                    GroupItem::reading(NamedTestReading("Smoke item"), POINTED_ROW)
+                        .on_press("act", RowPointerMessage::RowAction)
+                }
+                PointedRowPress::ReadOnly => {
+                    GroupItem::reading(NamedTestReading("Smoke item"), POINTED_ROW)
+                }
             }],
         );
         let surfaces = GroupMenuView::new(
@@ -806,30 +795,14 @@ mod tests {
             },
             [group],
         )
-        .surfaces(
-            &config,
-            &ShellLayer::Overlays.default_appearance(),
-            &InspectionCard {
-                hover_card: &hover_card,
-                card_appearance: ShellLayer::Overlays.default_appearance(),
-                assets: WindowAssets {
-                    entries: &entries,
-                    favicons: &favicons,
-                    controller_artwork: &controller_artwork,
-                },
-                clock: Clock::real(),
-            },
+        .bench_surfaces(
+            &bench,
             CascadeOrientation {
                 direction: CascadeDirection::Rightward,
                 growth: PanelGrowth::Downward,
             },
-        )
-        .expect("an opened menu has a surface");
-        let item_list = surfaces
-            .satellites
-            .into_iter()
-            .next()
-            .expect("the open group has an item list");
+        );
+        let item_list = surfaces.first_item_list();
         let mut simulator =
             Simulator::with_size(Settings::default(), Size::new(1200.0, 800.0), item_list);
         let pointer = pointer_target(&mut simulator);
@@ -862,21 +835,18 @@ mod tests {
 
     #[test]
     fn pointing_across_a_cascading_group_row_intends_its_reveal_then_cancels_it() {
-        let config = Config::default();
+        let bench = MenuTestBench::default();
         let expansion = WidgetGroupExpansion::default();
         let group_menus = opened_menu_state(GroupMenuPresentation::default());
-        let hover_card = HoverCard::empty();
-        let (entries, favicons, controller_artwork) = (
-            DesktopIndex::default(),
-            Favicons::default(),
-            ControllerArtwork::decoded(),
-        );
         let groups = [WidgetGroupFamily::Gpu, WidgetGroupFamily::Compute].map(|family| {
             WidgetGroupContent::expandable(
                 family,
                 &expansion,
                 |_| RowPointerMessage::Unrelated,
-                [GroupItem::reading(SmokeReading, POINTED_ROW)],
+                [GroupItem::reading(
+                    NamedTestReading("Smoke item"),
+                    POINTED_ROW,
+                )],
             )
         });
         let surfaces = GroupMenuView::new(
@@ -893,25 +863,13 @@ mod tests {
             },
             groups,
         )
-        .surfaces(
-            &config,
-            &ShellLayer::Overlays.default_appearance(),
-            &InspectionCard {
-                hover_card: &hover_card,
-                card_appearance: ShellLayer::Overlays.default_appearance(),
-                assets: WindowAssets {
-                    entries: &entries,
-                    favicons: &favicons,
-                    controller_artwork: &controller_artwork,
-                },
-                clock: Clock::real(),
-            },
+        .bench_surfaces(
+            &bench,
             CascadeOrientation {
                 direction: CascadeDirection::Rightward,
                 growth: PanelGrowth::Downward,
             },
-        )
-        .expect("an opened menu has a surface");
+        );
         let mut simulator = Simulator::with_size(
             Settings::default(),
             Size::new(1200.0, 800.0),
@@ -1007,20 +965,17 @@ mod tests {
     }
 
     fn info_icon_precedes_row_name(direction: CascadeDirection) -> bool {
-        let config = Config::default();
+        let bench = MenuTestBench::default();
         let expansion = WidgetGroupExpansion::default();
         let group_menus = opened_menu_state(GroupMenuPresentation::default());
-        let hover_card = HoverCard::empty();
-        let (entries, favicons, controller_artwork) = (
-            DesktopIndex::default(),
-            Favicons::default(),
-            ControllerArtwork::decoded(),
-        );
         let group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Gpu,
             &expansion,
             |_| RowPointerMessage::Unrelated,
-            [GroupItem::reading(SmokeReading, POINTED_ROW)],
+            [GroupItem::reading(
+                NamedTestReading("Smoke item"),
+                POINTED_ROW,
+            )],
         );
         let surfaces = GroupMenuView::new(
             GroupMenuTopic::Hardware,
@@ -1028,30 +983,14 @@ mod tests {
             |_| RowPointerMessage::Unrelated,
             [group],
         )
-        .surfaces(
-            &config,
-            &ShellLayer::Overlays.default_appearance(),
-            &InspectionCard {
-                hover_card: &hover_card,
-                card_appearance: ShellLayer::Overlays.default_appearance(),
-                assets: WindowAssets {
-                    entries: &entries,
-                    favicons: &favicons,
-                    controller_artwork: &controller_artwork,
-                },
-                clock: Clock::real(),
-            },
+        .bench_surfaces(
+            &bench,
             CascadeOrientation {
                 direction,
                 growth: PanelGrowth::Downward,
             },
-        )
-        .expect("an opened menu has a surface");
-        let item_list = surfaces
-            .satellites
-            .into_iter()
-            .next()
-            .expect("the open group has an item list");
+        );
+        let item_list = surfaces.first_item_list();
         let mut simulator =
             Simulator::with_size(Settings::default(), Size::new(1200.0, 800.0), item_list);
         info_icon_center(&mut simulator).x < row_name_center(&mut simulator).x
