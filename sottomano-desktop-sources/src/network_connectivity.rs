@@ -8,6 +8,7 @@ pub mod interface_bus_attachment;
 pub mod interface_throughput;
 pub mod internet_connectivity_gate;
 pub mod modem_manager_mobile;
+pub mod nearby_wifi_networks;
 pub mod network_manager_proxies;
 pub mod network_manager_vpn_connections;
 pub mod nm_uplink_connectivity;
