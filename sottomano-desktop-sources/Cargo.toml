@@ -74,6 +74,7 @@ wayrs-protocols = { version = "0.14.11", features = [
   "wlr-virtual-pointer-unstable-v1",
 ] }
 zbus.workspace = true
+zbus_xml.workspace = true
 
 [features]
 hyprland = []

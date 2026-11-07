@@ -120,6 +120,7 @@ zbus = { version = "5.19.0", default-features = false, features = [
   "tokio",
   "blocking-api",
 ] }
+zbus_xml = "5.2.1"
 
 [patch.crates-io]
 iced = { git = "https://github.com/wvhulle/iced.git", branch = "sottomano" }

@@ -129,7 +129,8 @@ pub fn on_hover(target: VoiceDictationTarget) -> Vec<VoiceDictationMessage> {
         VoiceDictationTarget::SpeechModel => vec![VoiceDictationMessage::ModelCardFetched(
             SnapshotDelivery::single_read(Ok(whisper_model_card())),
         )],
-        VoiceDictationTarget::Dictation
+        VoiceDictationTarget::InterfaceMismatch
+        | VoiceDictationTarget::Dictation
         | VoiceDictationTarget::Pipeline
         | VoiceDictationTarget::Runtime
         | VoiceDictationTarget::RuntimeConfiguration

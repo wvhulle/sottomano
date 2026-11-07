@@ -7,7 +7,7 @@ use std::{
 
 use futures::{Stream, StreamExt, future::select, stream};
 use zbus::{
-    fdo::DBusProxy,
+    fdo::{DBusProxy, IntrospectableProxy},
     names::BusName,
     zvariant::{OwnedObjectPath, OwnedValue},
 };
@@ -212,6 +212,73 @@ async fn owner_changes(
     Ok(stream::iter([owned]).chain(changes).map(Ok))
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InterfaceOffer {
+    ExpectedInterfaceOffered,
+    OtherVersionsOffered {
+        expected_interface: String,
+        offered_versions: Vec<String>,
+    },
+}
+
+#[must_use]
+pub fn interface_offer_among<'names>(
+    expected_interface: &str,
+    offered_interface_names: impl IntoIterator<Item = &'names str>,
+) -> InterfaceOffer {
+    let interface_family =
+        expected_interface.trim_end_matches(|character: char| character.is_ascii_digit());
+    let mut offered_versions = Vec::new();
+    for offered_name in offered_interface_names {
+        if offered_name == expected_interface {
+            return InterfaceOffer::ExpectedInterfaceOffered;
+        }
+        let same_family =
+            offered_name
+                .strip_prefix(interface_family)
+                .is_some_and(|version_suffix| {
+                    version_suffix
+                        .chars()
+                        .all(|character| character.is_ascii_digit())
+                });
+        if same_family {
+            offered_versions.push(offered_name.to_owned());
+        }
+    }
+    InterfaceOffer::OtherVersionsOffered {
+        expected_interface: expected_interface.to_owned(),
+        offered_versions,
+    }
+}
+
+pub async fn introspected_interface_offer(
+    connection: &zbus::Connection,
+    bus_name: &'static str,
+    object_path: &'static str,
+    expected_interface: &str,
+) -> Result<InterfaceOffer, Error> {
+    let introspection = IntrospectableProxy::builder(connection)
+        .destination(bus_name)?
+        .path(object_path)?
+        .build()
+        .await?;
+    let introspection_xml = introspection
+        .introspect()
+        .await
+        .map_err(zbus::Error::from)?;
+    let object_node = zbus_xml::Node::from_reader(introspection_xml.as_bytes())
+        .map_err(|parse_error| Error::Call(format!("{bus_name}: introspection: {parse_error}")))?;
+    let offered_names: Vec<String> = object_node
+        .interfaces()
+        .iter()
+        .map(|interface| interface.name().to_string())
+        .collect();
+    Ok(interface_offer_among(
+        expected_interface,
+        offered_names.iter().map(String::as_str),
+    ))
+}
+
 pub const SERVICE_ABSENT_ERRORS: [&str; 3] = [
     "org.freedesktop.DBus.Error.ServiceUnknown",
     "org.freedesktop.DBus.Error.NameHasNoOwner",
@@ -228,5 +295,52 @@ impl From<zbus::Error> for Error {
             }
             _ => Error::Call(error.to_string()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const EXPECTED_DICTATION: &str = "page.example.Dictation4";
+
+    #[test]
+    fn exact_interface_name_is_offered() {
+        assert_eq!(
+            interface_offer_among(
+                EXPECTED_DICTATION,
+                ["org.freedesktop.DBus.Properties", "page.example.Dictation4"],
+            ),
+            InterfaceOffer::ExpectedInterfaceOffered
+        );
+    }
+
+    #[test]
+    fn other_version_of_the_family_is_reported() {
+        assert_eq!(
+            interface_offer_among(
+                EXPECTED_DICTATION,
+                [
+                    "org.freedesktop.DBus.Introspectable",
+                    "page.example.Dictation5",
+                    "page.example.DictationExtras",
+                ],
+            ),
+            InterfaceOffer::OtherVersionsOffered {
+                expected_interface: EXPECTED_DICTATION.to_owned(),
+                offered_versions: vec!["page.example.Dictation5".to_owned()],
+            }
+        );
+    }
+
+    #[test]
+    fn missing_family_reports_no_offered_versions() {
+        assert_eq!(
+            interface_offer_among(EXPECTED_DICTATION, ["org.freedesktop.DBus.Peer"]),
+            InterfaceOffer::OtherVersionsOffered {
+                expected_interface: EXPECTED_DICTATION.to_owned(),
+                offered_versions: Vec::new(),
+            }
+        );
     }
 }
