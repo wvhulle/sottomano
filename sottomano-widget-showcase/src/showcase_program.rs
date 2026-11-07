@@ -283,7 +283,7 @@ impl ShowcaseState {
                 self.appearance = preset.applied_to(self.appearance);
                 self.theme =
                     configured_theme(&scheme_palette(&self.config, self.appearance.scheme));
-                self.dismiss_hover_card();
+                self.group.update(message, self.clock);
                 Task::none()
             }
             other => {
@@ -549,17 +549,11 @@ impl ShowcaseState {
                 if let HoverTarget::GroupMenu(kind) = target {
                     return self.menu_cascade(*kind);
                 }
-                let described = self
-                    .group
-                    .hover_card_for(target, &self.config, self.clock)
-                    .unwrap_or_else(HoverCard::empty);
-                match self
-                    .group
-                    .interactive_panel(target, &self.config, &self.appearance)
-                {
-                    Some(panel) => HoverContent::Interactive { described, panel },
-                    None => HoverContent::Described(described),
-                }
+                HoverContent::Described(
+                    self.group
+                        .hover_card_for(target, &self.config, self.clock)
+                        .unwrap_or_else(HoverCard::empty),
+                )
             },
             self.clock,
         )

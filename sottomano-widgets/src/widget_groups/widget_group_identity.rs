@@ -10,6 +10,7 @@ use strum::IntoStaticStr;
 #[strum(serialize_all = "snake_case")]
 pub enum WidgetGroupFamily {
     AppLauncher,
+    AppearancePresets,
     Audio,
     BluetoothAdapters,
     Caldav,
@@ -64,6 +65,7 @@ impl WidgetGroupFamily {
     pub const fn title(self) -> &'static str {
         match self {
             WidgetGroupFamily::AppLauncher => "Applications",
+            WidgetGroupFamily::AppearancePresets => "Looks",
             WidgetGroupFamily::Audio => "Audio",
             WidgetGroupFamily::BluetoothAdapters => "Bluetooth",
             WidgetGroupFamily::Caldav => "Calendar",

@@ -47,7 +47,14 @@ impl DesktopShell {
             GroupMenuTopic::Behaviour => self.group_menu(
                 GroupMenuTopic::Behaviour,
                 self.settings_groups()
-                    .map(WidgetGroupContent::only_unaligned_items),
+                    .map(WidgetGroupContent::only_unaligned_items)
+                    .into_iter()
+                    .chain(once(
+                        self.widget_groups
+                            .appearance_presets_group
+                            .group_content(&self.widget_groups.shell_appearance())
+                            .map(Message::AppearancePresets),
+                    )),
             ),
         }
     }
@@ -62,11 +69,6 @@ impl DesktopShell {
                 .session_power_group
                 .group_content()
                 .map(Message::Session),
-            FixedPanelEntry::AppearancePresets => self
-                .widget_groups
-                .appearance_presets_group
-                .group_content()
-                .map(Message::AppearancePresets),
         }
     }
 

@@ -142,7 +142,7 @@ impl ShellWidgetGroups {
             physical_drive_group: PhysicalDriveGroup::default(),
             panel_settings_group: PanelSettingsGroup::default(),
             sidebar_settings_group: SidebarSettingsGroup::default(),
-            appearance_presets_group: AppearancePresetsGroup,
+            appearance_presets_group: AppearancePresetsGroup::default(),
             overlay_settings_group: OverlaySettingsGroup::default(),
             niri_window_group: NiriWindowGroup::new(niri_rules),
             clock_group: ClockGroup::default(),
@@ -462,6 +462,7 @@ impl ShellWidgetGroups {
         self.idle_pause_groups.collapse();
         self.audio_group.collapse();
         self.wallpaper_group.collapse();
+        self.appearance_presets_group.collapse();
         self.caldav_group.collapse();
         self.gamepad_group.collapse();
         self.clock_group.collapse();
