@@ -147,6 +147,8 @@ pub trait Device {
     fn mtu(&self) -> zbus::Result<u32>;
     #[zbus(property)]
     fn ip_interface(&self) -> zbus::Result<String>;
+    #[zbus(property)]
+    fn available_connections(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
 }
 
 #[proxy(
@@ -163,6 +165,8 @@ trait Wired {
     default_service = "org.freedesktop.NetworkManager"
 )]
 trait Wireless {
+    fn get_all_access_points(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
+    fn request_scan(&self, options: HashMap<&str, OwnedValue>) -> zbus::Result<()>;
     #[zbus(property)]
     fn active_access_point(&self) -> zbus::Result<OwnedObjectPath>;
     #[zbus(property)]
@@ -1040,6 +1044,78 @@ pub async fn access_point(
         frequency: Frequency::new::<megahertz>(f64::from(frequency)),
         security: security(flags, wpa, rsn),
     })
+}
+
+pub async fn visible_access_points(
+    connection: &Connection,
+    device: &DeviceInfo,
+) -> zbus::Result<Vec<ApInfo>> {
+    let wireless: WirelessProxy = uncached(connection, device.path.clone()).await?;
+    let paths = wireless.get_all_access_points().await?;
+    let access_points = join_all(
+        paths
+            .into_iter()
+            .map(|path| access_point(connection, path)),
+    )
+    .await;
+    Ok(access_points.into_iter().filter_map(Result::ok).collect())
+}
+
+pub async fn request_wireless_scan(
+    connection: &Connection,
+    device: &DeviceInfo,
+) -> zbus::Result<()> {
+    let wireless: WirelessProxy = uncached(connection, device.path.clone()).await?;
+    wireless.request_scan(HashMap::new()).await
+}
+
+pub struct WirelessProfile {
+    pub settings_connection: OwnedObjectPath,
+    pub profile_name: String,
+    pub ssid: String,
+}
+
+pub async fn available_wireless_profiles(
+    connection: &Connection,
+    device: &DeviceInfo,
+) -> zbus::Result<Vec<WirelessProfile>> {
+    let paths = device.proxy.available_connections().await?;
+    let profiles = join_all(
+        paths
+            .into_iter()
+            .map(|path| wireless_profile(connection, path)),
+    )
+    .await;
+    Ok(profiles
+        .into_iter()
+        .filter_map(Result::ok)
+        .flatten()
+        .collect())
+}
+
+async fn wireless_profile(
+    connection: &Connection,
+    path: OwnedObjectPath,
+) -> zbus::Result<Option<WirelessProfile>> {
+    let settings: SettingsConnectionProxy = uncached(connection, path.clone()).await?;
+    let profile = settings.get_settings().await?;
+    let ssid = profile
+        .get("802-11-wireless")
+        .and_then(|section| section.get("ssid"))
+        .and_then(|value| Vec::<u8>::try_from(value.try_clone().ok()?).ok())
+        .and_then(|ssid_bytes| non_empty(String::from_utf8_lossy(&ssid_bytes).into_owned()));
+    let Some(ssid) = ssid else {
+        return Ok(None);
+    };
+    let profile_name = profile
+        .get("connection")
+        .and_then(|section| settings_text(section, "id"))
+        .unwrap_or_else(|| ssid.clone());
+    Ok(Some(WirelessProfile {
+        settings_connection: path,
+        profile_name,
+        ssid,
+    }))
 }
 
 const AP_PRIVACY: u32 = 0x1;
