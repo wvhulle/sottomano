@@ -43,10 +43,16 @@ impl FilesystemMount {
     }
 
     #[must_use]
-    pub fn holds_root(&self) -> bool {
-        self.mount_points
+    pub fn mount_role(&self) -> MountRole {
+        if self
+            .mount_points
             .iter()
             .any(|mount_point| mount_point == Path::new(ROOT_MOUNT_POINT))
+        {
+            MountRole::Root
+        } else {
+            MountRole::Secondary
+        }
     }
 
     #[must_use]
@@ -56,13 +62,6 @@ impl FilesystemMount {
         disks.sort();
         disks.dedup();
         disks
-    }
-
-    #[must_use]
-    pub fn sits_on_disk(&self, disk: &KernelDevice) -> bool {
-        self.devices
-            .iter()
-            .any(|device| &device.whole_disk() == disk)
     }
 }
 
@@ -114,7 +113,7 @@ impl BlockFilesystemDiscovery {
     pub fn root_disks(&self) -> Vec<KernelDevice> {
         self.filesystems
             .iter()
-            .filter(|filesystem| filesystem.holds_root())
+            .filter(|filesystem| filesystem.mount_role() == MountRole::Root)
             .flat_map(FilesystemMount::whole_disks)
             .collect()
     }
@@ -308,8 +307,14 @@ pub enum Compression {
     Enabled {
         algorithm: String,
         level: CompressionLevel,
-        forced: bool,
+        enforcement: CompressionEnforcement,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CompressionEnforcement {
+    Forced,
+    Heuristic,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -326,14 +331,14 @@ impl Compression {
                 .map(|value| value.as_deref().unwrap_or(DEFAULT_BTRFS_ALGORITHM))
         };
         if let Some(forced) = setting("compress-force") {
-            return Self::from_setting(forced, true);
+            return Self::from_setting(forced, CompressionEnforcement::Forced);
         }
         setting("compress").map_or(Compression::Disabled, |setting| {
-            Self::from_setting(setting, false)
+            Self::from_setting(setting, CompressionEnforcement::Heuristic)
         })
     }
 
-    fn from_setting(setting: &str, forced: bool) -> Self {
+    fn from_setting(setting: &str, enforcement: CompressionEnforcement) -> Self {
         let (algorithm, level) = setting.split_once(':').map_or(
             (setting, CompressionLevel::Default),
             |(algorithm, level)| (algorithm, CompressionLevel::parse(level)),
@@ -344,7 +349,7 @@ impl Compression {
         Compression::Enabled {
             algorithm: algorithm.to_owned(),
             level,
-            forced,
+            enforcement,
         }
     }
 }
@@ -364,10 +369,10 @@ impl Display for Compression {
             Compression::Enabled {
                 algorithm,
                 level,
-                forced,
+                enforcement,
             } => {
                 write!(f, "{algorithm}{level}")?;
-                if *forced {
+                if *enforcement == CompressionEnforcement::Forced {
                     write!(f, " (forced)")?;
                 }
                 Ok(())
@@ -383,6 +388,12 @@ impl Display for CompressionLevel {
             CompressionLevel::Explicit(level) => write!(f, ":{level}"),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MountRole {
+    Root,
+    Secondary,
 }
 
 #[cfg(test)]
@@ -454,7 +465,7 @@ mod tests {
         assert_eq!(root.primary_mount_point(), Path::new("/"));
         assert_eq!(root.mount_points.len(), 3);
         assert_eq!(root.devices.len(), 2);
-        assert!(root.holds_root());
+        assert_eq!(root.mount_role(), MountRole::Root);
         assert_eq!(filesystems[1].primary_mount_point(), Path::new("/boot"));
     }
 

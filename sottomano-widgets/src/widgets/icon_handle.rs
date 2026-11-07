@@ -21,10 +21,10 @@ pub enum IconHandle {
 impl IconHandle {
     #[must_use]
     pub fn at(path: &Path) -> Self {
-        let is_svg = path
+        if path
             .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("svg") || ext.eq_ignore_ascii_case("svgz"));
-        if is_svg {
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("svg") || ext.eq_ignore_ascii_case("svgz"))
+        {
             Self::Svg(svg::Handle::from_path(path))
         } else {
             Self::Raster(image::Handle::from_path(path))

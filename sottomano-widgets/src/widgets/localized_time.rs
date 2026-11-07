@@ -38,21 +38,31 @@ impl LocalizedTimeFormat {
     {
         match self {
             LocalizedTimeFormat::TimeOfDay => "%X",
-            LocalizedTimeFormat::HourOfDay if uses_twelve_hour_clock(at, locale) => "%-I %p",
+            LocalizedTimeFormat::HourOfDay
+                if clock_convention(at, locale) == ClockConvention::TwelveHour =>
+            {
+                "%-I %p"
+            }
             LocalizedTimeFormat::HourOfDay => "%H",
-            LocalizedTimeFormat::HourAndMinute if uses_twelve_hour_clock(at, locale) => "%-I:%M %p",
+            LocalizedTimeFormat::HourAndMinute
+                if clock_convention(at, locale) == ClockConvention::TwelveHour =>
+            {
+                "%-I:%M %p"
+            }
             LocalizedTimeFormat::HourAndMinute => "%H:%M",
             LocalizedTimeFormat::Date => "%x",
             LocalizedTimeFormat::DateAndTime => "%x %X",
             LocalizedTimeFormat::WeekdayDate => "%a %x",
-            LocalizedTimeFormat::WeekdayDateAndMinute if uses_twelve_hour_clock(at, locale) => {
+            LocalizedTimeFormat::WeekdayDateAndMinute
+                if clock_convention(at, locale) == ClockConvention::TwelveHour =>
+            {
                 "%a %x %-I:%M %p"
             }
             LocalizedTimeFormat::WeekdayDateAndMinute => "%a %x %H:%M",
             LocalizedTimeFormat::Weekday => "%A",
             LocalizedTimeFormat::AbbreviatedWeekday => "%a",
             LocalizedTimeFormat::AbbreviatedWeekdayAndMinute
-                if uses_twelve_hour_clock(at, locale) =>
+                if clock_convention(at, locale) == ClockConvention::TwelveHour =>
             {
                 "%a %-I:%M %p"
             }
@@ -61,11 +71,21 @@ impl LocalizedTimeFormat {
     }
 }
 
-fn uses_twelve_hour_clock<Tz: TimeZone>(at: &DateTime<Tz>, locale: Locale) -> bool
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ClockConvention {
+    TwelveHour,
+    TwentyFourHour,
+}
+
+fn clock_convention<Tz: TimeZone>(at: &DateTime<Tz>, locale: Locale) -> ClockConvention
 where
     Tz::Offset: Display,
 {
-    !at.format_localized("%p", locale).to_string().is_empty()
+    if at.format_localized("%p", locale).to_string().is_empty() {
+        ClockConvention::TwentyFourHour
+    } else {
+        ClockConvention::TwelveHour
+    }
 }
 
 #[cfg(test)]

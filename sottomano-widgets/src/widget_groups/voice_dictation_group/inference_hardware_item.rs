@@ -18,14 +18,27 @@ use crate::{
 pub struct InferenceHardware<'a>(pub &'a DictationEngine);
 
 impl InferenceHardware<'_> {
-    fn runs_on_gpu(&self) -> bool {
-        !self.0.compute_device_name.is_empty()
-    }
-
-    fn gpu_name_mentions(&self, vendor_words: &[&str]) -> bool {
-        vendor_words
-            .iter()
-            .any(|vendor_word| self.0.compute_device_name.contains(vendor_word))
+    fn inference_device(&self) -> InferenceDevice {
+        let backend = self.0.compute_device.as_str();
+        let device_name = self.0.compute_device_name.as_str();
+        let mentions = |vendor_words: &[&str]| {
+            vendor_words
+                .iter()
+                .any(|vendor_word| device_name.contains(vendor_word))
+        };
+        if backend.starts_with("CUDA") || mentions(&["NVIDIA", "GeForce"]) {
+            InferenceDevice::NvidiaGpu
+        } else if backend.starts_with("Metal") {
+            InferenceDevice::AppleGpu
+        } else if mentions(&["AMD", "Radeon"]) {
+            InferenceDevice::AmdGpu
+        } else if mentions(&["Intel"]) {
+            InferenceDevice::IntelGpu
+        } else if device_name.is_empty() {
+            InferenceDevice::Processor
+        } else {
+            InferenceDevice::OtherGpu
+        }
     }
 
     fn hardware_rows(&self) -> impl Iterator<Item = LabeledValue> {
@@ -50,19 +63,13 @@ impl GroupItemReading for InferenceHardware<'_> {
     }
 
     fn icon(&self) -> IconGlyph {
-        let backend = self.0.compute_device.as_str();
-        if backend.starts_with("CUDA") || self.gpu_name_mentions(&["NVIDIA", "GeForce"]) {
-            SimpleIcon::NVIDIA.into()
-        } else if backend.starts_with("Metal") {
-            SimpleIcon::Apple.into()
-        } else if self.gpu_name_mentions(&["AMD", "Radeon"]) {
-            SimpleIcon::AMD.into()
-        } else if self.gpu_name_mentions(&["Intel"]) {
-            SimpleIcon::Intel.into()
-        } else if self.runs_on_gpu() {
-            Phosphor::GraphicsCard(Weight::Regular).into()
-        } else {
-            Phosphor::Cpu(Weight::Regular).into()
+        match self.inference_device() {
+            InferenceDevice::NvidiaGpu => SimpleIcon::NVIDIA.into(),
+            InferenceDevice::AppleGpu => SimpleIcon::Apple.into(),
+            InferenceDevice::AmdGpu => SimpleIcon::AMD.into(),
+            InferenceDevice::IntelGpu => SimpleIcon::Intel.into(),
+            InferenceDevice::OtherGpu => Phosphor::GraphicsCard(Weight::Regular).into(),
+            InferenceDevice::Processor => Phosphor::Cpu(Weight::Regular).into(),
         }
     }
 
@@ -77,6 +84,16 @@ impl GroupItemReading for InferenceHardware<'_> {
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         HoverCardBody::dictionary(self.hardware_rows())
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InferenceDevice {
+    NvidiaGpu,
+    AppleGpu,
+    AmdGpu,
+    IntelGpu,
+    OtherGpu,
+    Processor,
 }
 
 #[cfg(test)]

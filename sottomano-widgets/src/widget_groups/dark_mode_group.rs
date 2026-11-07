@@ -36,7 +36,8 @@ use crate::{
     widget_groups::{
         dark_mode_group::auto_switch_toggle::{AutoSwitchToggle, ScheduleStatus, SwitchDecision},
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -188,7 +189,7 @@ impl DarkModeGroup {
     }
 
     pub fn collapse(&mut self) {
-        if self.expansion.collapse() {
+        if self.expansion.collapse() == ExpansionChange::JustCollapsed {
             self.close_controls();
         }
     }
@@ -233,7 +234,7 @@ impl DarkModeGroup {
                 self.update_offset_slider(edge, control_message)
             }
             DarkModeMessage::Expansion(m) => {
-                if self.expansion.update(m) {
+                if self.expansion.update(m) == ExpansionChange::JustCollapsed {
                     self.close_controls();
                 }
                 Task::none()

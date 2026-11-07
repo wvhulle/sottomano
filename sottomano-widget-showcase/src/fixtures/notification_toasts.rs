@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::{
-        ActionTint, ExpireTimeout, NotifAction, NotificationData,
+        ActionTint, ExpireTimeout, NotifAction, NotificationData, SoundHint,
     },
     desktop_windows_apps::{
         compositor_test_windows::unplaced_compositor_window,
@@ -142,7 +142,7 @@ fn download(tick: u32) -> NotificationData {
 fn quiet_toast() -> NotificationData {
     NotificationData {
         severity: Severity::Normal,
-        suppress_sound: true,
+        sound_hint: SoundHint::Suppressed,
         ..NotificationData::default()
     }
 }

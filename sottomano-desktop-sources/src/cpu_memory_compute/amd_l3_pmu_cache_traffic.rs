@@ -9,7 +9,7 @@ use super::cpu_topology::cpulist;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
-    stream_operators::StreamOperators,
+    stream_operators::{Availability, StreamOperators},
     system_protocol_clients::sysfs_attribute_reads::{Error, read_trimmed},
 };
 
@@ -40,9 +40,10 @@ impl SnapshotSource for L3CacheTraffic {
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let countable = async {
-            spawn_blocking(|| read_l3_cache_traffic().is_ok())
-                .await
-                .unwrap_or(false)
+            match spawn_blocking(read_l3_cache_traffic).await {
+                Ok(Ok(_)) => Availability::Available,
+                Ok(Err(_)) | Err(_) => Availability::Unavailable,
+            }
         };
         stream::once(countable).available_while(move || {
             PeriodicPolling::every(Duration::from_secs(3))

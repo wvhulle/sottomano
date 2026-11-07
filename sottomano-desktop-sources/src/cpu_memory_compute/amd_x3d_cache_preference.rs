@@ -5,7 +5,7 @@ use futures::{Stream, StreamExt, stream};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking_poll,
-    stream_operators::StreamOperators,
+    stream_operators::{Availability, StreamOperators},
     system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_trimmed},
 };
 
@@ -80,7 +80,12 @@ impl SnapshotSource for X3dCachePreference {
     const NAME: &'static str = "X3D cache preference";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let exposed = async { Self::mode_file().is_some() };
+        let exposed = async {
+            match Self::mode_file() {
+                Some(_) => Availability::Available,
+                None => Availability::Unavailable,
+            }
+        };
         stream::once(exposed).available_while(|| {
             stream::once(blocking_poll(Self::read)).map(SnapshotDelivery::single_read)
         })

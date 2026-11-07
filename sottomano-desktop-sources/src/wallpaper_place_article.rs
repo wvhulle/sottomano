@@ -14,7 +14,7 @@ use uom::si::{angle::degree, f64::Angle};
 
 use crate::{
     secret_file_reads::read_secret,
-    stream_operators::restarting,
+    stream_operators::{Availability, restarting},
     system_protocol_clients::{http_json_client, shell_command_output},
 };
 
@@ -206,35 +206,42 @@ impl CacheLayout {
     }
 
     fn change(&self, event: &Event<OsString>) -> CacheChange {
-        if self.reshaped_by(event) {
+        let reshaped = event.mask.contains(EventMask::ISDIR)
+            && (self.roots.contains(&event.wd)
+                || event.wd == self.base
+                    && event
+                        .name
+                        .as_ref()
+                        .is_some_and(|name| WALLPAPER_DAEMONS.iter().any(|daemon| name == daemon)));
+        if reshaped {
             return CacheChange::Layout;
         }
-        let requested = self
-            .requested_path(event)
-            .map_or(WallpaperLookup::QueryDaemon, WallpaperLookup::Cached);
-        CacheChange::Wallpaper(requested)
+        CacheChange::Wallpaper(self.requested_lookup(event))
     }
 
-    fn reshaped_by(&self, event: &Event<OsString>) -> bool {
-        if !event.mask.contains(EventMask::ISDIR) {
-            return false;
+    fn requested_lookup(&self, event: &Event<OsString>) -> WallpaperLookup {
+        let Some(directory) = self.versions.get(&event.wd) else {
+            return WallpaperLookup::QueryDaemon;
+        };
+        let Some(Ok(cached)) = event
+            .name
+            .as_ref()
+            .map(|name| fs::read(directory.join(name)))
+        else {
+            return WallpaperLookup::QueryDaemon;
+        };
+        let Some(Ok(requested)) = cached
+            .rsplit(|byte| *byte == 0)
+            .next()
+            .map(|bytes| String::from_utf8(bytes.to_vec()))
+        else {
+            return WallpaperLookup::QueryDaemon;
+        };
+        if Path::new(&requested).is_file() {
+            WallpaperLookup::Cached(requested)
+        } else {
+            WallpaperLookup::QueryDaemon
         }
-        if self.roots.contains(&event.wd) {
-            return true;
-        }
-        event.wd == self.base
-            && event
-                .name
-                .as_ref()
-                .is_some_and(|name| WALLPAPER_DAEMONS.iter().any(|daemon| name == daemon))
-    }
-
-    fn requested_path(&self, event: &Event<OsString>) -> Option<String> {
-        let directory = self.versions.get(&event.wd)?;
-        let cached = fs::read(directory.join(event.name.as_ref()?)).ok()?;
-        let requested = cached.rsplit(|byte| *byte == 0).next()?;
-        let requested = String::from_utf8(requested.to_vec()).ok()?;
-        Path::new(&requested).is_file().then_some(requested)
     }
 }
 
@@ -287,13 +294,13 @@ async fn displayed_wallpaper() -> Result<DisplayedWallpaper, shell_command_outpu
     )
 }
 
-pub async fn daemon_installed() -> bool {
+pub async fn daemon_availability() -> Availability {
     for daemon in WALLPAPER_DAEMONS {
-        if shell_command_output::exists(daemon).await {
-            return true;
+        if shell_command_output::program_availability(daemon).await == Availability::Available {
+            return Availability::Available;
         }
     }
-    false
+    Availability::Unavailable
 }
 
 #[must_use]

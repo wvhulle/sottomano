@@ -9,7 +9,7 @@ use serde::Deserialize;
 use systemd::journal::Journal;
 
 use crate::{
-    delivery_cadence_drivers::{PeriodicPolling, StampedCadence},
+    delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, StampedCadence},
     podman_container_engine::libpod_running_containers::ENGINE_POLL_PERIOD,
     stream_operators::{StreamOperators, reread_on_trigger_or_deadline},
     system_protocol_clients::journal_follow::{JournalEvent, journal_windows},
@@ -79,7 +79,7 @@ pub(crate) struct ChangeTrackedSample<T> {
 
 pub(crate) fn samples_on_running_set_changes<T, F>(
     read: impl FnMut() -> F + Send + 'static,
-    keeps_sampling: fn(&T) -> bool,
+    sampling_need: fn(&T) -> SamplingNeed,
 ) -> impl Stream<Item = ChangeTrackedSample<T>> + Send
 where
     T: Send + 'static,
@@ -87,11 +87,12 @@ where
 {
     let usage_recheck = PeriodicPolling::every(ENGINE_POLL_PERIOD);
     reread_on_trigger_or_deadline(running_set_triggers(), read, move |sample| {
-        keeps_sampling(sample).then(|| Instant::now() + ENGINE_POLL_PERIOD)
+        (sampling_need(sample) == SamplingNeed::KeepSampling)
+            .then(|| Instant::now() + ENGINE_POLL_PERIOD)
     })
     .map(move |sample| ChangeTrackedSample {
         stamped_cadence: StampedCadence::pushed_with_recheck_while(
-            keeps_sampling(&sample),
+            sampling_need(&sample),
             usage_recheck,
         ),
         sample,

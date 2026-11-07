@@ -321,7 +321,11 @@ impl Pairing {
                 .insert(*sole_niri_window, sole_terminal_window.key);
         }
         for terminal_window in &terminal_windows {
-            if self.awaits_probe(terminal_window.key) {
+            let key = terminal_window.key;
+            let awaits_probe = !self.paired.values().any(|paired| *paired == key)
+                && !self.pending.iter().any(|probe| probe.key == key)
+                && !self.unpairable.contains(&key);
+            if awaits_probe {
                 self.start_probe(terminal_window, compositor, access, now);
             }
         }
@@ -380,12 +384,6 @@ impl Pairing {
         self.paired.retain(|_, key| is_listed(key));
         self.unpairable.retain(is_listed);
         self.pending.retain(|probe| is_listed(&probe.key));
-    }
-
-    fn awaits_probe(&self, key: TerminalWindowKey) -> bool {
-        !self.paired.values().any(|paired| *paired == key)
-            && !self.pending.iter().any(|probe| probe.key == key)
-            && !self.unpairable.contains(&key)
     }
 
     fn compositor_windows_paired_with(&self, key: TerminalWindowKey) -> Vec<u64> {
@@ -516,7 +514,7 @@ pub fn window_pairings(agents: WindowAgentsConfig) -> impl Stream<Item = WindowP
         access: LiveTerminalAgents { home },
     };
     let window_updates = compositor_updates()
-        .filter(|update| ready(update.changed(CompositorChange::Windows)))
+        .filter(|update| ready(update.changes.contains(&CompositorChange::Windows)))
         .boxed();
     stream::unfold(
         (window_updates, worker),

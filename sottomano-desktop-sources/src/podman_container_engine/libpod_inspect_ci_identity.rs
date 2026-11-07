@@ -3,6 +3,7 @@ use std::path::Path;
 use serde::Deserialize;
 
 use crate::{
+    ci_runner_tasks::TaskWebLog,
     podman_container_engine::libpod_running_containers::LIBPOD_API_ROOT,
     system_protocol_clients::http_json_client,
 };
@@ -19,7 +20,7 @@ pub struct WoodpeckerStepIdentity {
     pub pipeline_number: String,
     pub workflow_name: String,
     pub step_name: String,
-    pub pipeline_url: Option<String>,
+    pub pipeline_web_log: TaskWebLog,
 }
 
 #[derive(Deserialize)]
@@ -49,7 +50,10 @@ impl InspectedContainer {
             pipeline_number: allow_listed_value(entries, PIPELINE_NUMBER_KEY)?.to_owned(),
             workflow_name: allow_listed_value(entries, WORKFLOW_NAME_KEY)?.to_owned(),
             step_name: allow_listed_value(entries, STEP_NAME_KEY)?.to_owned(),
-            pipeline_url: allow_listed_value(entries, PIPELINE_URL_KEY).map(str::to_owned),
+            pipeline_web_log: match allow_listed_value(entries, PIPELINE_URL_KEY) {
+                Some(pipeline_url) => TaskWebLog::Linked(pipeline_url.to_owned()),
+                None => TaskWebLog::NotKnown,
+            },
         })
     }
 }
@@ -92,7 +96,9 @@ mod tests {
                 pipeline_number: "185".to_owned(),
                 workflow_name: "checks".to_owned(),
                 step_name: "clone".to_owned(),
-                pipeline_url: Some("https://ci.codeberg.org/repos/1/pipeline/185".to_owned()),
+                pipeline_web_log: TaskWebLog::Linked(
+                    "https://ci.codeberg.org/repos/1/pipeline/185".to_owned()
+                ),
             })
         );
     }
@@ -108,8 +114,8 @@ mod tests {
         assert_eq!(
             inspected
                 .woodpecker_step_identity()
-                .map(|identity| identity.pipeline_url),
-            Some(None)
+                .map(|identity| identity.pipeline_web_log),
+            Some(TaskWebLog::NotKnown)
         );
     }
 

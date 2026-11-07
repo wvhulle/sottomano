@@ -25,7 +25,7 @@ use sottomano_desktop_sources::{
             ButtonEdge, ConnectedGamepad, ControllerIdentity, GamepadOrigin, GamepadPower,
             GamepadTransport, PhysicalGamepadLink, UsbCableState,
         },
-        gamepad_input_machine::{GamepadInput, GamepadStreamSettings, PointerGate},
+        gamepad_input_machine::{ClaimSilencing, GamepadInput, GamepadStreamSettings, PointerGate},
         gamepad_input_stream::gamepad_inputs,
         player_indicator_leds::PlayerIndicator,
     },
@@ -43,9 +43,7 @@ use uom::si::f64::Frequency;
 use self::{
     connected_controller_reading::{ConnectedControllerReading, ControllerMarking},
     controller_battery_reading::ControllerBatteryReading,
-    controller_link_reading::{
-        BandSharing, ControllerLinkReading, WiredFallback, shares_bluetooth_band,
-    },
+    controller_link_reading::{BandSharing, ControllerLinkReading, WiredFallback, wifi_band},
     usb_cable_reading::{UsbCableReading, UsbCableRole},
 };
 use crate::{
@@ -65,6 +63,9 @@ use crate::{
         },
     },
     widget_groups::{
+        gamepad_group::{
+            controller_battery_reading::BatteryLevel, controller_link_reading::WifiBand,
+        },
         widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
@@ -118,13 +119,14 @@ pub enum GamepadWindowClaim<'a> {
 }
 
 impl GamepadWindowClaim<'_> {
-    fn silences_controllers(self, bindings: &GamepadBindingsConfig) -> bool {
+    fn claim_silencing(self, bindings: &GamepadBindingsConfig) -> ClaimSilencing {
         match self {
-            Self::Unclaimed => false,
-            Self::Focused(app_id) => {
-                bindings.focus_behaviour(Some(app_id)) == FocusBehaviour::Passive
-            }
-            Self::Fullscreen(_) => true,
+            Self::Unclaimed => ClaimSilencing::Free,
+            Self::Focused(app_id) => match bindings.focus_behaviour(Some(app_id)) {
+                FocusBehaviour::Passive => ClaimSilencing::Silenced,
+                FocusBehaviour::Active => ClaimSilencing::Free,
+            },
+            Self::Fullscreen(_) => ClaimSilencing::Silenced,
         }
     }
 }
@@ -187,14 +189,18 @@ impl From<&Wifi> for WifiBandUse {
         wifi.adapters
             .iter()
             .filter_map(|adapter| adapter.link.as_ref())
-            .find(|link| shares_bluetooth_band(link.frequency))
-            .map_or(WifiBandUse::ClearOfBluetooth, |link| {
-                WifiBandUse::SharingBluetoothBand {
-                    network_name: link
-                        .ssid
-                        .clone()
-                        .unwrap_or_else(|| "hidden network".to_owned()),
-                    frequency: link.frequency,
+            .fold(WifiBandUse::ClearOfBluetooth, |band_use, link| {
+                match (band_use, wifi_band(link.frequency)) {
+                    (WifiBandUse::ClearOfBluetooth, WifiBand::SharedWithBluetooth) => {
+                        WifiBandUse::SharingBluetoothBand {
+                            network_name: link
+                                .ssid
+                                .clone()
+                                .unwrap_or_else(|| "hidden network".to_owned()),
+                            frequency: link.frequency,
+                        }
+                    }
+                    (band_use, _) => band_use,
                 }
             })
     }
@@ -274,7 +280,9 @@ impl GamepadGroup {
             GamepadWindowClaim::Fullscreen(app_id) => {
                 CompositorControl::PausedForFullscreenApp(app_id)
             }
-            GamepadWindowClaim::Focused(app_id) if window_claim.silences_controllers(bindings) => {
+            GamepadWindowClaim::Focused(app_id)
+                if window_claim.claim_silencing(bindings) == ClaimSilencing::Silenced =>
+            {
                 CompositorControl::PausedForFocusedApp(app_id)
             }
             GamepadWindowClaim::Unclaimed | GamepadWindowClaim::Focused(_) => {
@@ -292,7 +300,7 @@ impl GamepadGroup {
         GamepadStreamSettings {
             steering: bindings.pointer_steering(),
             gate: PointerGate {
-                silenced_by_window_claim: window_claim.silences_controllers(bindings),
+                claim_silencing: window_claim.claim_silencing(bindings),
                 handed_over_slots: self
                     .controllers
                     .iter()
@@ -336,15 +344,6 @@ impl GamepadGroup {
         ])
     }
 
-    fn acts(
-        &self,
-        slot: usize,
-        bindings: &GamepadBindingsConfig,
-        window_claim: GamepadWindowClaim<'_>,
-    ) -> bool {
-        self.control(slot, bindings, window_claim) == CompositorControl::DrivingCompositor
-    }
-
     pub fn update(
         &mut self,
         message: GamepadMessage,
@@ -370,7 +369,10 @@ impl GamepadGroup {
             }) => bindings
                 .navigation
                 .flick_action(stick, direction)
-                .filter(|_| self.acts(slot, bindings, window_claim))
+                .filter(|_| {
+                    self.control(slot, bindings, window_claim)
+                        == CompositorControl::DrivingCompositor
+                })
                 .map_or(Action::Idle, |action| {
                     Action::Compositor(compositor_request_of(action))
                 }),
@@ -458,7 +460,9 @@ impl GamepadGroup {
     ) -> Action {
         let releasing_push_to_talk = edge == ButtonEdge::Released
             && bindings.role_of(button) == Some(ButtonRole::PushToTalk);
-        if !releasing_push_to_talk && !self.acts(slot, bindings, window_claim) {
+        if !releasing_push_to_talk
+            && self.control(slot, bindings, window_claim) != CompositorControl::DrivingCompositor
+        {
             return Action::Idle;
         }
         bindings
@@ -698,7 +702,7 @@ impl GamepadGroup {
         });
         let battery =
             (!shown_in_bluetooth_group && gamepad.power != GamepadPower::NoBattery).then(|| {
-                let battery_running_low = battery_reading.running_low();
+                let battery_running_low = battery_reading.battery_level() == BatteryLevel::Low;
                 let battery_item =
                     GroupItem::reading(battery_reading, GamepadTarget::Battery { slot });
                 if battery_running_low {
@@ -849,7 +853,9 @@ fn compositor_request_of(action: CompositorAction) -> CompositorRequest {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_desktop_sources::gamepad_controller_input::player_indicator_leds::LitPlayer;
+    use sottomano_desktop_sources::gamepad_controller_input::{
+        gamepad_input_machine::ClaimSilencing, player_indicator_leds::LitPlayer,
+    };
     use sottomano_toml_config::widget_groups::gamepad_bindings::{GamepadStick, StickDirection};
 
     use super::*;
@@ -1160,11 +1166,9 @@ mod tests {
             group.control(DUALSENSE, &bindings, claim),
             CompositorControl::PausedForFullscreenApp("slowroads")
         );
-        assert!(
-            group
-                .stream_settings(&bindings, claim)
-                .gate
-                .silenced_by_window_claim
+        assert_eq!(
+            group.stream_settings(&bindings, claim).gate.claim_silencing,
+            ClaimSilencing::Silenced
         );
     }
 
@@ -1184,7 +1188,7 @@ mod tests {
             &GamepadBindingsConfig::default(),
             GamepadWindowClaim::Focused("steam_app_1091500"),
         );
-        assert!(settings.gate.silenced_by_window_claim);
+        assert_eq!(settings.gate.claim_silencing, ClaimSilencing::Silenced);
     }
 
     #[test]

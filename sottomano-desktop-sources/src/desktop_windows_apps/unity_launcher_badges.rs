@@ -80,34 +80,50 @@ struct Registry {
 
 impl Registry {
     fn apply(&mut self, signal: Signal) -> Option<LauncherEntries> {
-        let changed = match signal {
+        let registry_change = match signal {
             Signal::Update { sender, uri, entry } => self.update(sender, &uri, entry),
             Signal::OwnerLost(sender) => self.forget_owner(&sender),
         };
-        changed.then(|| self.entries.clone())
+        (registry_change == RegistryChange::Changed).then(|| self.entries.clone())
     }
 
-    fn update(&mut self, sender: Option<String>, uri: &str, entry: LauncherEntry) -> bool {
+    fn update(
+        &mut self,
+        sender: Option<String>,
+        uri: &str,
+        entry: LauncherEntry,
+    ) -> RegistryChange {
         let Some(key) = app_key(uri) else {
-            return false;
+            return RegistryChange::Unchanged;
         };
         if let Some(sender) = sender {
             self.owners.entry(sender).or_default().insert(key.clone());
         }
-        if entry == LauncherEntry::default() {
-            return self.entries.by_app.remove(&key).is_some();
+        let changed = if entry == LauncherEntry::default() {
+            self.entries.by_app.remove(&key).is_some()
+        } else {
+            self.entries.by_app.insert(key, entry.clone()) != Some(entry)
+        };
+        if changed {
+            RegistryChange::Changed
+        } else {
+            RegistryChange::Unchanged
         }
-        self.entries.by_app.insert(key, entry.clone()) != Some(entry)
     }
 
-    fn forget_owner(&mut self, sender: &str) -> bool {
+    fn forget_owner(&mut self, sender: &str) -> RegistryChange {
         let Some(keys) = self.owners.remove(sender) else {
-            return false;
+            return RegistryChange::Unchanged;
         };
-        keys.iter()
+        let removed_count = keys
+            .iter()
             .filter_map(|key| self.entries.by_app.remove(key))
-            .count()
-            > 0
+            .count();
+        if removed_count > 0 {
+            RegistryChange::Changed
+        } else {
+            RegistryChange::Unchanged
+        }
     }
 }
 
@@ -173,4 +189,10 @@ fn update_signal(message: &zbus::Message) -> Option<Signal> {
         uri,
         entry: LauncherEntry::parse(&props),
     })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RegistryChange {
+    Changed,
+    Unchanged,
 }

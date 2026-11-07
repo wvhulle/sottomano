@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    mem,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, mem, time::Instant};
 
 use chrono::{DateTime, Local};
 use futures::{Stream, future::join_all};
@@ -11,8 +7,8 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     caldav_tasks_events::{
         caldav_agenda::{
-            AgendaSnapshotPolling, CaldavAccount, CalendarEntryQuery, CalendarHomePoller, Error,
-            push_or_poll_deliveries,
+            AgendaSnapshotPolling, CaldavAccount, CalendarEntryQuery, CalendarHolding,
+            CalendarHomePoller, Error, push_or_poll_deliveries,
         },
         caldav_calendar_discovery::{CalendarCollection, CalendarHome},
         caldav_event_query::{EventPhase, EventWindow, UpcomingEvent, query_upcoming_events},
@@ -42,8 +38,12 @@ impl UpcomingEventList {
 }
 
 impl CalendarEntryQuery for UpcomingEvent {
-    fn held_by(calendar: &CalendarCollection) -> bool {
-        calendar.holds_events
+    fn holding(calendar: &CalendarCollection) -> CalendarHolding {
+        if calendar.holds_events {
+            CalendarHolding::Holds
+        } else {
+            CalendarHolding::Lacks
+        }
     }
 
     async fn queried(
@@ -65,10 +65,6 @@ struct FetchedSubscription {
 }
 
 impl FetchedSubscription {
-    fn still_fresh(&self, window: EventWindow, refresh_interval: Duration) -> bool {
-        self.window == window && self.downloaded_at.elapsed() < refresh_interval
-    }
-
     async fn first_download(
         http_client: &reqwest::Client,
         subscription: &SubscribedCalendar,
@@ -138,7 +134,12 @@ impl UpcomingEventPoller {
             let cached = previous_subscriptions.remove(&subscription.href);
             async move {
                 match cached {
-                    Some(cached) if cached.still_fresh(window, refresh_interval) => cached,
+                    Some(cached)
+                        if cached.window == window
+                            && cached.downloaded_at.elapsed() < refresh_interval =>
+                    {
+                        cached
+                    }
                     Some(cached) => cached.redownloaded(http_client, subscription, window).await,
                     None => {
                         FetchedSubscription::first_download(http_client, subscription, window).await

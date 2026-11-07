@@ -68,10 +68,15 @@ impl AgendaMoment {
     }
 
     #[must_use]
-    pub fn ends_before(self, now: DateTime<Local>) -> bool {
-        match self {
+    pub fn passage_at(self, now: DateTime<Local>) -> DeadlinePassage {
+        let passed = match self {
             AgendaMoment::AllDay(day) => day < now.date_naive(),
             AgendaMoment::Floating(_) | AgendaMoment::Zoned(_) => self.starts_at() < now,
+        };
+        if passed {
+            DeadlinePassage::Passed
+        } else {
+            DeadlinePassage::Ahead
         }
     }
 
@@ -106,6 +111,12 @@ fn wall_clock_in<Z: TimeZone>(viewer: &Z, wall_clock: NaiveDateTime) -> DateTime
         .from_local_datetime(&wall_clock)
         .earliest()
         .unwrap_or_else(|| viewer.from_utc_datetime(&wall_clock))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeadlinePassage {
+    Passed,
+    Ahead,
 }
 
 #[cfg(test)]

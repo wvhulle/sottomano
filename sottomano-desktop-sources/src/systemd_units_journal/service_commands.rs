@@ -38,10 +38,8 @@ pub struct ServiceCommand {
 
 impl ServiceCommand {
     #[must_use]
-    pub fn runs(&self, program_name: &str) -> bool {
-        self.program
-            .file_name()
-            .is_some_and(|name| name == program_name)
+    pub fn program_name(&self) -> Option<&str> {
+        self.program.file_name().and_then(|name| name.to_str())
     }
 
     pub fn argument(&self, flag: &str) -> Option<&str> {

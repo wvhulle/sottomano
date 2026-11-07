@@ -19,7 +19,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking,
-    delivery_cadence_drivers::{PeriodicPolling, StampedCadence},
+    delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, StampedCadence},
     qemu_virtual_machines::{
         libvirt_domain_control::{LIBVIRT_DOMAIN_CONTROL_BUILT, libvirt_run_states},
         machined_libvirt_machines::libvirt_leader_pids,
@@ -380,7 +380,7 @@ impl SnapshotSource for VirtualMachinesReadout {
         virtual_machine_samples(buses.system)
             .map(|readout| {
                 StampedCadence::pushed_with_recheck_while(
-                    true,
+                    SamplingNeed::KeepSampling,
                     PeriodicPolling::every(VIRTUAL_MACHINE_POLL_PERIOD),
                 )
                 .delivered(Ok(readout))

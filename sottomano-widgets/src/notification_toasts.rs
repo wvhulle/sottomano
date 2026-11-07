@@ -39,8 +39,9 @@ use window_anchored_toasts::WindowAnchoredToasts;
 
 use crate::{
     clock::Clock,
-    hover_cards::PopupMessage,
+    hover_cards::{PointerPresence, PopupMessage},
     layer_surfaces::SurfaceRequest,
+    notification_toasts::toast_lifecycle::ToastSender,
     toast_messages::NotificationMessage,
     widget_groups::{
         notification_group::AlertSound, overlay_settings_group::ToastArrangement,
@@ -201,7 +202,11 @@ impl<Routed: Clone> NotificationLayer<Routed> {
                 anchor: notif.place.anchor,
                 card: reveal_y(
                     ToastCard::new(notif, config, theme, overlay_appearance, clock.wall)
-                        .hovered(self.hovered == Some(notif.data.id))
+                        .pointer_presence(if self.hovered == Some(notif.data.id) {
+                            PointerPresence::PointedAt
+                        } else {
+                            PointerPresence::NotPointedAt
+                        })
                         .background_fade(background_fade)
                         .reveal(notif.opacity(now)),
                     notif.slot(now),
@@ -221,11 +226,10 @@ impl<Routed: Clone> NotificationLayer<Routed> {
 
     #[must_use]
     pub fn motion(&self, now: Instant) -> MotionState {
-        let transitioning = self.live.iter().any(|notif| {
+        if self.live.iter().any(|notif| {
             notif.motion(now) == MotionState::Moving
                 || notif.presence() == ToastPresence::Withdrawing
-        });
-        if transitioning {
+        }) {
             MotionState::Moving
         } else {
             MotionState::Settled
@@ -265,20 +269,16 @@ impl<Routed: Clone> NotificationLayer<Routed> {
             .filter(|notif| notif.presence() == ToastPresence::Shown)
     }
 
-    fn sent_by_dbus_client(&self, id: u32) -> bool {
+    fn sender_of(&self, id: u32) -> Option<ToastSender> {
         self.live
             .iter()
-            .any(|n| n.data.id == id && n.sent_by_dbus_client())
+            .find(|notif| notif.data.id == id)
+            .map(Notification::toast_sender)
     }
 
     fn window_of(&self, id: u32, placement: &Placement) -> Option<u64> {
         let notif = self.showing().find(|n| n.data.id == id)?;
         notif.place.window.open_in(placement)
-    }
-
-    fn declares_default_action(&self, id: u32) -> bool {
-        self.showing()
-            .any(|n| n.data.id == id && n.data.actions.iter().any(|a| a.key == DEFAULT_ACTION))
     }
 
     fn routed_message_for(&self, toast_id: u32, action_key: &str) -> Option<Routed> {

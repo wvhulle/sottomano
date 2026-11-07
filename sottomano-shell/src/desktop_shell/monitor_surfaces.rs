@@ -39,11 +39,29 @@ pub enum SurfaceRole {
     Reservation(Position),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HoverCardPresence {
+    OnThisOutput,
+    Elsewhere,
+}
+
+impl HoverCardPresence {
+    fn on_output(hover_card_output: Option<&str>, output: &str) -> Self {
+        if hover_card_output == Some(output) {
+            HoverCardPresence::OnThisOutput
+        } else {
+            HoverCardPresence::Elsewhere
+        }
+    }
+}
+
 impl SurfaceRole {
-    fn layer(self, output_shows_hover_card: bool) -> Layer {
-        match (self, output_shows_hover_card) {
-            (Self::Panel, false) | (Self::NotificationToasts, true) => Layer::Top,
-            (Self::Panel, true) | (Self::NotificationToasts, false) => Layer::Overlay,
+    fn layer(self, hover_card_presence: HoverCardPresence) -> Layer {
+        match (self, hover_card_presence) {
+            (Self::Panel, HoverCardPresence::Elsewhere)
+            | (Self::NotificationToasts, HoverCardPresence::OnThisOutput) => Layer::Top,
+            (Self::Panel, HoverCardPresence::OnThisOutput)
+            | (Self::NotificationToasts, HoverCardPresence::Elsewhere) => Layer::Overlay,
             (Self::Reservation(_), _) => Layer::Bottom,
         }
     }
@@ -68,9 +86,10 @@ fn restack_around_hover_card(
     surfaces
         .iter_mut()
         .filter_map(|(&id, surface)| {
-            let layer = surface
-                .role
-                .layer(hover_card_output == Some(surface.output.as_str()));
+            let layer = surface.role.layer(HoverCardPresence::on_output(
+                hover_card_output,
+                surface.output.as_str(),
+            ));
             (surface.layer != layer).then(|| {
                 surface.layer = layer;
                 Message::LayerChange { id, layer }
@@ -252,7 +271,10 @@ impl DesktopShell {
 
     fn track_new_surface(&mut self, output: &str, role: SurfaceRole) -> TrackedSurface {
         let id = Id::unique();
-        let layer = role.layer(self.hover_card_output() == Some(output));
+        let layer = role.layer(HoverCardPresence::on_output(
+            self.hover_card_output(),
+            output,
+        ));
         self.surfaces.insert(
             id,
             Surface {
@@ -417,12 +439,13 @@ mod tests {
     use sottomano_toml_config::screen_edges::Position;
 
     use super::{Surface, SurfaceRole, restack_around_hover_card};
+    use crate::desktop_shell::monitor_surfaces::HoverCardPresence;
 
     fn resting_surface(output: &str, role: SurfaceRole) -> Surface {
         Surface {
             output: output.to_owned(),
             role,
-            layer: role.layer(false),
+            layer: role.layer(HoverCardPresence::Elsewhere),
         }
     }
 

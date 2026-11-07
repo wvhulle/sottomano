@@ -4,11 +4,12 @@ use iced::{Task, window::Id};
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     hover_cards::{
-        HandlePointing, HoverAnnouncement, HoverCardMessage, HoverTarget,
+        HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence,
         hover_card_body::{
             HoverCardBody,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
+        hover_card_surfaces::{CardSubstance, HoverEffect, ShownWidgetPresence},
         hover_card_transition::{CardRetention, Departed},
     },
     layer_surfaces::PanelEdge,
@@ -88,7 +89,7 @@ impl DesktopShell {
                 HoverCardMessage::ConfirmShownWidgetDropped,
             )),
             HoverCardMessage::ConfirmShownWidgetDropped => {
-                if self.hover_card.shown_widget_was_dropped() {
+                if self.hover_card.shown_widget_presence() == ShownWidgetPresence::Dropped {
                     self.dismiss_hover_card()
                 } else {
                     Task::none()
@@ -120,7 +121,7 @@ impl DesktopShell {
         surface: Id,
         position: Position,
         target: HoverTarget,
-        pointing: HandlePointing,
+        pointing: PointerPresence,
         announcement: HoverAnnouncement,
     ) -> Task<Message> {
         let Some(output) = self.surfaces.get(&surface).map(|host| host.output.clone()) else {
@@ -128,8 +129,8 @@ impl DesktopShell {
         };
         self.hover_card
             .set_handle_pointing(&output, &target, pointing);
-        if pointing == HandlePointing::PointedAt
-            && self.hover_card.hover_switches_menu(&target, &output)
+        if pointing == PointerPresence::PointedAt
+            && self.hover_card.hover_effect(&target, &output) == HoverEffect::SwitchesMenu
             && let Some(parent) = self.hover_card_parent(surface, position, &target, &announcement)
         {
             self.hover_card
@@ -149,7 +150,7 @@ impl DesktopShell {
             return Task::none();
         };
         self.hover_card
-            .set_handle_pointing(&output, &target, HandlePointing::PointedAt);
+            .set_handle_pointing(&output, &target, PointerPresence::PointedAt);
         if self.hover_card.target() == Some(&target) {
             return self.dismiss_hover_card();
         }
@@ -171,8 +172,9 @@ impl DesktopShell {
             return None;
         }
         let host = self.surfaces.get(&surface).filter(|_| {
-            self.hover_content(target)
-                .is_some_and(|content| content.shows_anything(announcement))
+            self.hover_content(target).is_some_and(|content| {
+                content.card_substance(announcement) == CardSubstance::HasContent
+            })
         })?;
         Some(PanelEdge {
             output: host.output.clone(),

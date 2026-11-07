@@ -78,7 +78,7 @@ impl SnapshotSource for Lookup {
             source_inputs: unsplash_key,
         }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(wallpaper_place_article::daemon_installed()).available_while(move || {
+        stream::once(wallpaper_place_article::daemon_availability()).available_while(move || {
             let unsplash_key = unsplash_key.clone();
             internet_connectivity_gate::while_online(buses.clone(), move || {
                 let unsplash_key = unsplash_key.clone();

@@ -17,38 +17,36 @@ pub struct OutputMode {
 }
 
 #[must_use]
-pub fn describes_a_product(edid_field: &str) -> bool {
-    let trimmed = edid_field.trim();
-    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("unknown") {
-        return false;
-    }
-    !trimmed
-        .strip_prefix("0x")
-        .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_hexdigit()))
-}
-
-#[must_use]
 pub fn product_field(edid_field: String) -> Option<String> {
-    describes_a_product(&edid_field).then_some(edid_field)
+    let trimmed = edid_field.trim();
+    let hexadecimal_code = trimmed.strip_prefix("0x").is_some_and(|rest| {
+        !rest.is_empty() && rest.chars().all(|character| character.is_ascii_hexdigit())
+    });
+    let placeholder = trimmed.is_empty() || trimmed.eq_ignore_ascii_case("unknown");
+    (!placeholder && !hexadecimal_code).then_some(edid_field)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::describes_a_product;
+    use super::product_field;
+
+    fn named_product(edid_field: &str) -> Option<String> {
+        product_field(edid_field.to_owned())
+    }
 
     #[test]
     fn edid_product_codes_are_not_product_names() {
-        assert!(!describes_a_product("0x07BE"));
-        assert!(!describes_a_product("0x0000ffa1"));
-        assert!(!describes_a_product(""));
-        assert!(!describes_a_product("   "));
-        assert!(!describes_a_product("Unknown"));
+        assert_eq!(named_product("0x07BE"), None);
+        assert_eq!(named_product("0x0000ffa1"), None);
+        assert_eq!(named_product(""), None);
+        assert_eq!(named_product("   "), None);
+        assert_eq!(named_product("Unknown"), None);
     }
 
     #[test]
     fn real_edid_strings_are_product_names() {
-        assert!(describes_a_product("LG Display"));
-        assert!(describes_a_product("U2720Q"));
-        assert!(describes_a_product("0xSomething"));
+        assert!(named_product("LG Display").is_some());
+        assert!(named_product("U2720Q").is_some());
+        assert!(named_product("0xSomething").is_some());
     }
 }

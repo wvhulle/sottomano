@@ -5,7 +5,8 @@ use sottomano_toml_config::{Config, severity::Severity};
 use crate::{
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
+        group_item::GroupItem,
+        group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
@@ -110,8 +111,12 @@ impl GroupItemReading for Vec<KernelOccurrence> {
         ))])
     }
 
-    fn visible_on_panel(&self) -> bool {
-        !self.is_empty()
+    fn panel_visibility(&self) -> PanelVisibility {
+        if self.is_empty() {
+            PanelVisibility::Hidden
+        } else {
+            PanelVisibility::Shown
+        }
     }
 }
 

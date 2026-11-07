@@ -1,7 +1,10 @@
 use std::time::{Duration, Instant};
 
 use reqwest::Url;
-use sottomano_desktop_sources::media_playback_audio::mpris_players::Media;
+use sottomano_desktop_sources::{
+    desktop_windows_apps::desktop_entry_app_icons::SchemeHandling,
+    media_playback_audio::mpris_players::Media,
+};
 
 use crate::{
     desktop_index::DesktopIndex,
@@ -65,7 +68,7 @@ impl SearchPlatform {
     }
 
     fn spotify_link(self, path: &str, index: &DesktopIndex) -> String {
-        if index.handles_scheme("spotify") {
+        if index.scheme_handling("spotify") == SchemeHandling::Handled {
             format!("spotify{}", path.replace('/', ":"))
         } else {
             format!("https://{}{path}", self.host())

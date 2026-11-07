@@ -39,7 +39,7 @@ pub struct LlamaServerOnBus {
 impl LlamaServerUnit {
     #[must_use]
     pub fn discovered(scope: SystemdUnitScope, command: &ServiceCommand) -> Option<Self> {
-        command.runs(PROGRAM_NAME).then(|| Self {
+        (command.program_name() == Some(PROGRAM_NAME)).then(|| Self {
             unit: ScopedSystemdUnit {
                 scope,
                 unit_name: command.unit.clone(),

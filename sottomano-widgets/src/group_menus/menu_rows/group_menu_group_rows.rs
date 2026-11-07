@@ -129,7 +129,7 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
         name: group_title.to_string().into(),
         trailing,
     };
-    if layout.presentation.reveals_on_hover() {
+    if layout.presentation.layout == GroupMenuLayout::Cascading {
         hovered_menu_row(
             layout.config,
             content,

@@ -141,7 +141,7 @@ fn read_drive_health(inputs: &DriveHealthInputs) -> Result<DriveHealth, Error> {
     let errors = discovery
         .filesystems
         .iter()
-        .filter(|filesystem| filesystem.sits_on_disk(disk))
+        .filter(|filesystem| filesystem.whole_disks().contains(disk))
         .map(|filesystem| errors_on_disk(filesystem, disk))
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()

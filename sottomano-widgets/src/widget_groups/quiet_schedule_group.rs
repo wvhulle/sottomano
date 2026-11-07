@@ -43,8 +43,8 @@ use crate::{
             weekday_picker::{WeekdayPicker, WeekdayPickerMessages, weekday_name},
         },
         widget_group_content::{
-            GroupEvent, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
+            ExpansionChange, GroupEvent, WidgetGroupContent, WidgetGroupExpansion,
+            WidgetGroupExpansionMessage, WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -342,7 +342,7 @@ impl QuietScheduleGroup {
             }
             QuietScheduleMessage::Slider(slider, control) => self.update_slider(slider, control),
             QuietScheduleMessage::Expansion(m) => {
-                if self.expansion.update(m) {
+                if self.expansion.update(m) == ExpansionChange::JustCollapsed {
                     self.close_sliders();
                 }
                 Task::none()
@@ -444,7 +444,7 @@ impl QuietScheduleGroup {
     }
 
     pub fn collapse(&mut self) {
-        if self.expansion.collapse() {
+        if self.expansion.collapse() == ExpansionChange::JustCollapsed {
             self.close_sliders();
         }
     }

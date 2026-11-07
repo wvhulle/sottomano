@@ -7,7 +7,10 @@ use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
-    group_items::{gauge::percent_fill, group_item_reading::GroupItemReading},
+    group_items::{
+        gauge::percent_fill,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+    },
     hover_cards::hover_card_body::HoverCardBody,
     widgets::{
         icon_glyph::IconGlyph,
@@ -99,8 +102,8 @@ impl GroupItemReading for BcachefsSubvolumeUsage {
         Phosphor::FolderSimple(Weight::Regular).into()
     }
 
-    fn visible_on_panel(&self) -> bool {
-        false
+    fn panel_visibility(&self) -> PanelVisibility {
+        PanelVisibility::Hidden
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {

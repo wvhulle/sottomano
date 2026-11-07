@@ -7,7 +7,8 @@ use sottomano_desktop_sources::ai_usage_spend::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+        reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
@@ -96,8 +97,12 @@ impl GroupItemReading for OpenRouterSpend {
         ])
     }
 
-    fn visible_on_panel(&self) -> bool {
-        self.month.cost().is_positive()
+    fn panel_visibility(&self) -> PanelVisibility {
+        if self.month.cost().is_positive() {
+            PanelVisibility::Shown
+        } else {
+            PanelVisibility::Hidden
+        }
     }
 
     fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {

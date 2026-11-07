@@ -167,7 +167,7 @@ impl SnapshotSource for NixPackageFacts {
     const NAME: &'static str = "Nix";
 
     fn delivery_stream(inputs: PackageWatch) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(shell_command_output::exists("nix")).available_while(move || {
+        stream::once(shell_command_output::program_availability("nix")).available_while(move || {
             PeriodicPolling::every(Duration::from_secs(600))
                 .poll_deliveries_after_setup(
                     InstalledPackage::read(inputs.clone()),

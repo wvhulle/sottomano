@@ -33,7 +33,8 @@ use crate::{
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -99,7 +100,7 @@ impl MonitorGroup {
     }
 
     pub fn collapse(&mut self) {
-        if self.expansion.collapse() {
+        if self.expansion.collapse() == ExpansionChange::JustCollapsed {
             self.close_controls();
         }
     }
@@ -110,7 +111,7 @@ impl MonitorGroup {
                 self.scroll_all_backlights(delta)
             }
             MonitorMessage::Expansion(m) => {
-                if self.expansion.update(m) {
+                if self.expansion.update(m) == ExpansionChange::JustCollapsed {
                     self.close_controls();
                 }
                 Task::none()

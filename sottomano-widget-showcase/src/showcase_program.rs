@@ -29,9 +29,11 @@ use sottomano_widgets::{
         group_menu_view::{GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard},
     },
     hover_cards::{
-        HandlePointing, HoverAnnouncement, HoverCardHost, HoverCardMessage, HoverTarget,
+        HoverAnnouncement, HoverCardHost, HoverCardMessage, HoverTarget, PointerPresence,
         hover_card_body::hover_card_source_delivery::HoverCard,
-        hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent},
+        hover_card_surfaces::{
+            HoverCardSurfaceStyle, HoverContent, HoverEffect, ShownWidgetPresence,
+        },
         hover_card_transition::CardRetention,
     },
     layer_surfaces::PanelEdge,
@@ -218,10 +220,9 @@ impl ShowcaseState {
             }) => {
                 self.hover_card
                     .set_handle_pointing(SHOWCASE_OUTPUT, &target, pointing);
-                if pointing == HandlePointing::PointedAt
-                    && self
-                        .hover_card
-                        .hover_switches_menu(&target, SHOWCASE_OUTPUT)
+                if pointing == PointerPresence::PointedAt
+                    && (self.hover_card.hover_effect(&target, SHOWCASE_OUTPUT)
+                        == HoverEffect::SwitchesMenu)
                 {
                     self.open_hover_card_until_dismissed(target, announcement);
                 }
@@ -234,7 +235,7 @@ impl ShowcaseState {
                 self.hover_card.set_handle_pointing(
                     SHOWCASE_OUTPUT,
                     &target,
-                    HandlePointing::PointedAt,
+                    PointerPresence::PointedAt,
                 );
                 if self.hover_card.target() == Some(&target) {
                     self.close_held_open_card();
@@ -247,7 +248,7 @@ impl ShowcaseState {
                 ShowcaseMessage::HoverCard(HoverCardMessage::ConfirmShownWidgetDropped),
             ),
             ShowcaseMessage::HoverCard(HoverCardMessage::ConfirmShownWidgetDropped) => {
-                if self.hover_card.shown_widget_was_dropped() {
+                if self.hover_card.shown_widget_presence() == ShownWidgetPresence::Dropped {
                     self.dismiss_hover_card();
                 }
                 Task::none()

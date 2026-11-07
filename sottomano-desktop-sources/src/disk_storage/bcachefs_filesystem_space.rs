@@ -57,7 +57,7 @@ impl BcachefsSpace {
         let mut metadata_free: Vec<ByteSize> = self
             .devices
             .iter()
-            .filter(|device| device.accepts_metadata_writes())
+            .filter(|device| device.holds_metadata && device.state == WRITABLE_STATE)
             .map(|device| device.free)
             .collect();
         metadata_free.sort_unstable_by(|first, second| second.cmp(first));
@@ -65,12 +65,6 @@ impl BcachefsSpace {
             .checked_sub(1)
             .and_then(|nth_largest| metadata_free.get(nth_largest).copied())
             .unwrap_or_default()
-    }
-}
-
-impl BcachefsDeviceSpace {
-    fn accepts_metadata_writes(&self) -> bool {
-        self.holds_metadata && self.state == WRITABLE_STATE
     }
 }
 

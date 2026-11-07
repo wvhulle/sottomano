@@ -10,7 +10,7 @@ use futures::{Stream, StreamExt};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::{PeriodicPolling, StampedCadence},
+    delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, StampedCadence},
     stream_operators::{StreamOperators, reread_on_trigger_or_deadline},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{
@@ -233,7 +233,7 @@ impl SnapshotSource for NspawnContainersReadout {
         container_listing_reads(buses.system)
             .map(|readout| {
                 StampedCadence::pushed_with_recheck_while(
-                    true,
+                    SamplingNeed::KeepSampling,
                     PeriodicPolling::every(CONTAINER_POLL_PERIOD),
                 )
                 .delivered(Ok(readout))

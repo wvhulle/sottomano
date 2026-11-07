@@ -26,7 +26,11 @@ use super::notification_data::{
     ActionTint, ExpireTimeout, NotifAction, NotifImage, NotificationData, Outbound, ReplyPrompt,
     ServerEvent,
 };
-use crate::{non_empty_text::non_empty, system_protocol_clients::dbus_desktop_buses::OwnerProcess};
+use crate::{
+    desktop_notifications::notification_data::{Residency, SoundHint},
+    non_empty_text::non_empty,
+    system_protocol_clients::dbus_desktop_buses::OwnerProcess,
+};
 
 const PATH: &str = "/org/freedesktop/Notifications";
 const NAME: &str = "org.freedesktop.Notifications";
@@ -86,10 +90,16 @@ impl NotificationServer {
             sender,
             desktop_entry: hint_str(&hints, "desktop-entry"),
             image: hint_image(&hints),
-            suppress_sound: hint_bool(&hints, "suppress-sound"),
+            sound_hint: match hint_flag(&hints, "suppress-sound") {
+                HintFlag::Set => SoundHint::Suppressed,
+                HintFlag::Unset => SoundHint::Allowed,
+            },
             sound_file: hint_str(&hints, "sound-file"),
             category: hint_str(&hints, "category"),
-            resident: hint_bool(&hints, "resident"),
+            residency: match hint_flag(&hints, "resident") {
+                HintFlag::Set => Residency::Resident,
+                HintFlag::Unset => Residency::Transient,
+            },
             progress: hint_progress(&hints),
         };
         if let Err(e) = self.events.send(ServerEvent::Notify(Box::new(data))).await {
@@ -264,11 +274,22 @@ fn hint_str(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {
     non_empty(hints.get(key)?.downcast_ref::<&str>().ok()?.to_owned())
 }
 
-fn hint_bool(hints: &HashMap<String, OwnedValue>, key: &str) -> bool {
-    hints
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HintFlag {
+    Set,
+    Unset,
+}
+
+fn hint_flag(hints: &HashMap<String, OwnedValue>, key: &str) -> HintFlag {
+    let flag_set = hints
         .get(key)
-        .and_then(|v| v.downcast_ref::<bool>().ok())
-        .unwrap_or(false)
+        .and_then(|hint_value| hint_value.downcast_ref::<bool>().ok())
+        .unwrap_or_default();
+    if flag_set {
+        HintFlag::Set
+    } else {
+        HintFlag::Unset
+    }
 }
 
 fn hint_progress(hints: &HashMap<String, OwnedValue>) -> Option<Ratio> {

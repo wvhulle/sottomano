@@ -25,6 +25,12 @@ pub enum OngoingToastThreshold {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PanelVisibility {
+    Shown,
+    Hidden,
+}
+
 pub trait GroupItemReading {
     fn name(&self) -> &'static str;
 
@@ -78,8 +84,8 @@ pub trait GroupItemReading {
         None
     }
 
-    fn visible_on_panel(&self) -> bool {
-        true
+    fn panel_visibility(&self) -> PanelVisibility {
+        PanelVisibility::Shown
     }
 
     fn quota_windows(&self, _now: DateTime<Utc>) -> Vec<Quota> {
@@ -143,8 +149,8 @@ impl<ForwardedReading: GroupItemReading + ?Sized> GroupItemReading for &Forwarde
         (**self).announced_level(locale)
     }
 
-    fn visible_on_panel(&self) -> bool {
-        (**self).visible_on_panel()
+    fn panel_visibility(&self) -> PanelVisibility {
+        (**self).panel_visibility()
     }
 
     fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {

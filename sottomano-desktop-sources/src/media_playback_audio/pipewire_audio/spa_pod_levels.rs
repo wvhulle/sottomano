@@ -18,6 +18,7 @@ use super::{
     audio_graph_state::{AppStream, AudioNode, Levels, LevelsUpdate, RouteLevels, RoutePlacement},
     level_command_writes::LevelChange,
 };
+use crate::media_playback_audio::pipewire_audio::{MuteState, audio_graph_state::StreamActivity};
 
 pub(super) fn node_direction(props: &DictRef) -> Option<Direction> {
     match props.get("media.class")? {
@@ -34,7 +35,7 @@ pub(super) fn stream_pid(props: &DictRef) -> Option<i32> {
 pub(super) fn stream_from_props(props: &DictRef) -> AppStream {
     AppStream {
         pid: stream_pid(props),
-        running: false,
+        stream_activity: StreamActivity::Idle,
         levels: Levels::default(),
     }
 }
@@ -120,7 +121,7 @@ fn parse_object(pod: &Pod, type_: u32) -> Option<Object> {
 fn levels_update(object: &Object) -> LevelsUpdate {
     LevelsUpdate {
         channel_volumes: volumes_of(object),
-        mute: mute_of(object),
+        mute_state: mute_of(object),
     }
 }
 
@@ -138,9 +139,10 @@ fn volumes_of(object: &Object) -> Option<Vec<f32>> {
     }
 }
 
-fn mute_of(object: &Object) -> Option<bool> {
+fn mute_of(object: &Object) -> Option<MuteState> {
     match property_value(object, SPA_PROP_mute)? {
-        Value::Bool(value) => Some(*value),
+        Value::Bool(true) => Some(MuteState::Muted),
+        Value::Bool(false) => Some(MuteState::Audible),
         _ => None,
     }
 }
@@ -166,7 +168,9 @@ pub(super) fn level_property(change: &LevelChange) -> Property {
             SPA_PROP_channelVolumes,
             Value::ValueArray(ValueArray::Float(volumes.clone())),
         ),
-        LevelChange::Mute(mute) => (SPA_PROP_mute, Value::Bool(*mute)),
+        LevelChange::Mute(mute_state) => {
+            (SPA_PROP_mute, Value::Bool(*mute_state == MuteState::Muted))
+        }
     };
     Property {
         key,

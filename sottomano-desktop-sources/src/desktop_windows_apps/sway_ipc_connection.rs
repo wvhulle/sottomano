@@ -1,5 +1,6 @@
 use std::{
     env,
+    ffi::OsString,
     io::{self, Read, Write},
     os::unix::net::UnixStream,
 };
@@ -69,8 +70,8 @@ pub struct SwayIpcConnection {
 }
 
 #[must_use]
-pub fn sway_socket_is_set() -> bool {
-    env::var_os(SWAY_SOCKET_ENV).is_some()
+pub fn sway_socket_variable() -> Option<OsString> {
+    env::var_os(SWAY_SOCKET_ENV)
 }
 
 impl SwayIpcConnection {

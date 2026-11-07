@@ -38,15 +38,6 @@ impl StorePackage {
             },
         })
     }
-
-    fn shares_lineage(&self, other: &Self) -> bool {
-        self.name.starts_with(&other.name) || other.name.starts_with(&self.name)
-    }
-
-    fn identifies(&self, slug: &str) -> bool {
-        let name = self.name.to_lowercase();
-        name.starts_with(slug) || slug.starts_with(&name)
-    }
 }
 
 fn version_start(named: &str) -> Option<usize> {
@@ -85,7 +76,10 @@ impl Provenance {
         let identified = app_id.map(app_slug).and_then(|slug| {
             candidates
                 .iter()
-                .find(|found| found.identifies(&slug))
+                .find(|found| {
+                    let lowered_name = found.name.to_lowercase();
+                    lowered_name.starts_with(&slug) || slug.starts_with(&lowered_name)
+                })
                 .cloned()
         });
         let package = identified.or_else(|| executing.clone());
@@ -164,7 +158,9 @@ fn provider(root: &Path, name: &str, installed: &StorePackage) -> Option<String>
         }
     }
     let terminal = chain.last()?;
-    if !terminal.shares_lineage(installed) {
+    let shares_lineage =
+        terminal.name.starts_with(&installed.name) || installed.name.starts_with(&terminal.name);
+    if !shares_lineage {
         return None;
     }
     chain

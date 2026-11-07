@@ -165,22 +165,12 @@ impl Bluetooth {
     }
 }
 
-fn belongs_to_adapter(device: &Properties, adapter_path: &OwnedObjectPath) -> bool {
-    prop::<OwnedObjectPath>(device, "Adapter").is_some_and(|owner| owner == *adapter_path)
-}
-
 type ObjectInterfaces = HashMap<OwnedInterfaceName, Properties>;
 
 struct AdapterDeviceEntry<'objects> {
     object_path: &'objects OwnedObjectPath,
     interfaces: &'objects ObjectInterfaces,
     device: &'objects Properties,
-}
-
-impl AdapterDeviceEntry<'_> {
-    fn flag(&self, key: &str) -> bool {
-        prop::<bool>(self.device, key).unwrap_or(false)
-    }
 }
 
 fn bluez_battery(interfaces: &ObjectInterfaces) -> DeviceBattery {
@@ -229,13 +219,15 @@ fn powered_adapter(objects: &ManagedObjects, adapter_path: &OwnedObjectPath) -> 
         .iter()
         .filter_map(|(object_path, interfaces)| {
             let device = interface(interfaces, DEVICE)?;
-            belongs_to_adapter(device, adapter_path).then_some(AdapterDeviceEntry {
+            let owned_by_adapter = prop::<OwnedObjectPath>(device, "Adapter")
+                .is_some_and(|owner| owner == *adapter_path);
+            owned_by_adapter.then_some(AdapterDeviceEntry {
                 object_path,
                 interfaces,
                 device,
             })
         })
-        .filter(|entry| entry.flag("Connected"))
+        .filter(|entry| prop::<bool>(entry.device, "Connected").unwrap_or_default())
         .filter_map(|entry| connected_device(&entry))
         .collect();
     connected.sort_by(|left, right| left.name.cmp(&right.name));

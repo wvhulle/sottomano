@@ -1,8 +1,8 @@
 use bytesize::ByteSize;
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::{
-    bcachefs_filesystem_space::{BcachefsSpace, SnapshotDeletion},
-    btrfs_filesystem_space::BtrfsSpace,
+    bcachefs_filesystem_space::BcachefsSpace,
+    btrfs_filesystem_space::{BtrfsSpace, ChunkRoom},
     mounted_filesystem_usage::{Filesystem, FilesystemUsage},
 };
 use sottomano_toml_config::severity::Severity;
@@ -77,7 +77,7 @@ impl From<&BtrfsSpace> for MetadataPressure {
     fn from(space: &BtrfsSpace) -> Self {
         let slack_below_reserve =
             space.metadata_slack().as_u64() < space.global_reserve.as_u64() * 2;
-        if !space.can_allocate_metadata_chunk() && slack_below_reserve {
+        if space.metadata_chunk_room() == ChunkRoom::Exhausted && slack_below_reserve {
             return MetadataPressure::Exhausted;
         }
         let metadata_share = if space.metadata.allocated == ByteSize::default() {
@@ -169,13 +169,6 @@ impl GroupItemReading for FilesystemUsage {
         };
         HoverCardBody::sections([capacity].into_iter().chain(filesystem_sections))
     }
-}
-
-pub(super) fn snapshot_deletion_running(usage: &FilesystemUsage) -> bool {
-    matches!(
-        &usage.filesystem,
-        Filesystem::Bcachefs(space) if space.snapshot_deletion == SnapshotDeletion::Running
-    )
 }
 
 pub(super) struct SnapshotDeletionRow;

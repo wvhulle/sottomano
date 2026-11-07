@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use chrono::Locale;
 use iced::Task;
 use sottomano_desktop_sources::battery_power_profiles::{
-    battery_time_forecast::{ChargeCurve, Estimate, bin_of, time_until_full},
+    battery_time_forecast::{ChargeCurve, CurveHistory, Estimate, bin_of, time_until_full},
     upower_battery_state::{Battery, ChargeStatus, IdleReason},
 };
 use sottomano_toml_config::severity::Severity;
@@ -116,7 +116,7 @@ impl BatteryTimeReading {
         let Some(curve) = &self.curve else {
             return Forecast::Unavailable(Unforecastable::LoadingHistory);
         };
-        if !curve.has_history() {
+        if curve.history() == CurveHistory::Empty {
             return Forecast::Unavailable(Unforecastable::NoChargeHistory);
         }
         Forecast::from_estimate(

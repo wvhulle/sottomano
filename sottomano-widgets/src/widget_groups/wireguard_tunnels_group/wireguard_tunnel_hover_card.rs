@@ -2,8 +2,8 @@ use std::borrow::Cow;
 
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::network_connectivity::wireguard_tunnels::{
-    Peer, PeerEndpoint, PeerTraffic, StatisticsAccess, Tunnel, TunnelAddress, TunnelRole,
-    Wireguard, WireguardSwitch,
+    Peer, PeerEndpoint, PeerLink, PeerTraffic, RouteScope, StatisticsAccess, Tunnel, TunnelAddress,
+    TunnelPhase, TunnelRole, Wireguard, WireguardSwitch,
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -139,12 +139,10 @@ fn statistics_entry(statistics_access: &StatisticsAccess) -> Option<LabeledValue
 }
 
 fn activity_entry(tunnel: &Tunnel) -> Option<LabeledValue> {
-    if tunnel.switching() {
-        Some(LabeledValue::new("State", "switching"))
-    } else if tunnel.up() {
-        None
-    } else {
-        Some(LabeledValue::new("State", "not connected"))
+    match tunnel.tunnel_phase() {
+        TunnelPhase::Switching => Some(LabeledValue::new("State", "switching")),
+        TunnelPhase::Up => None,
+        TunnelPhase::Down => Some(LabeledValue::new("State", "not connected")),
     }
 }
 
@@ -224,7 +222,12 @@ fn undetermined_hover_card(tunnel: &Tunnel) -> HoverCardBody {
 
 fn client_state(tunnel: &Tunnel) -> ReadingDisplayState {
     match tunnel.statistics_access {
-        StatisticsAccess::Read if tunnel.peers.iter().any(Peer::connected) => {
+        StatisticsAccess::Read
+            if tunnel
+                .peers
+                .iter()
+                .any(|peer| peer.traffic.peer_link() == PeerLink::Connected) =>
+        {
             ReadingDisplayState::On
         }
         StatisticsAccess::Read => ReadingDisplayState::Pending,
@@ -256,7 +259,12 @@ impl GroupItemReading for Tunnel {
     fn icon(&self) -> IconGlyph {
         match self.role {
             TunnelRole::Server { .. } => Phosphor::HardDrives(Weight::Regular).into(),
-            TunnelRole::Client if self.peers.iter().any(Peer::routes_all_traffic) => {
+            TunnelRole::Client
+                if self
+                    .peers
+                    .iter()
+                    .any(|peer| peer.route_scope() == RouteScope::AllTraffic) =>
+            {
                 Phosphor::GlobeHemisphereWest(Weight::Regular).into()
             }
             TunnelRole::Client => Phosphor::PlugsConnected(Weight::Regular).into(),
@@ -265,11 +273,10 @@ impl GroupItemReading for Tunnel {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.switching() {
-            return ReadingDisplayState::Pending;
-        }
-        if !self.up() {
-            return ReadingDisplayState::Off;
+        match self.tunnel_phase() {
+            TunnelPhase::Switching => return ReadingDisplayState::Pending,
+            TunnelPhase::Down => return ReadingDisplayState::Off,
+            TunnelPhase::Up => {}
         }
         match self.role {
             TunnelRole::Server { .. } => server_state(self),

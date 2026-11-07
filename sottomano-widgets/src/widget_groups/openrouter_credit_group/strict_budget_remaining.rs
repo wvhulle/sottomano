@@ -1,6 +1,6 @@
 use chrono::Locale;
 use sottomano_desktop_sources::ai_usage_spend::{
-    openrouter_credits::{KeyLimit, LimitReset, OpenRouterStrictBudget},
+    openrouter_credits::{CreditStanding, KeyLimit, LimitReset, OpenRouterStrictBudget},
     spend_money::Money,
 };
 use sottomano_toml_config::severity::Severity;
@@ -8,7 +8,8 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+        reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
@@ -38,10 +39,9 @@ impl GroupItemReading for OpenRouterStrictBudget {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.exhausted() {
-            ReadingDisplayState::Critical
-        } else {
-            ReadingDisplayState::Idle
+        match self.credit_standing() {
+            CreditStanding::Exhausted => ReadingDisplayState::Critical,
+            CreditStanding::Remaining => ReadingDisplayState::Idle,
         }
     }
 
@@ -57,8 +57,12 @@ impl GroupItemReading for OpenRouterStrictBudget {
         )
     }
 
-    fn visible_on_panel(&self) -> bool {
-        self.credits.total.is_positive() || !self.key_limits.is_empty()
+    fn panel_visibility(&self) -> PanelVisibility {
+        if self.credits.total.is_positive() || !self.key_limits.is_empty() {
+            PanelVisibility::Shown
+        } else {
+            PanelVisibility::Hidden
+        }
     }
 }
 

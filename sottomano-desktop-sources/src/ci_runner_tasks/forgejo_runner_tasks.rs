@@ -26,21 +26,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ForgejoTaskOrigin {
     repository: String,
-    instance_url: Option<String>,
-}
-
-impl ForgejoTaskOrigin {
-    fn actions_page(&self) -> TaskWebLog {
-        self.instance_url
-            .as_deref()
-            .map_or(TaskWebLog::NotKnown, |instance_url| {
-                TaskWebLog::Linked(format!(
-                    "{}/{}/actions",
-                    instance_url.trim_end_matches('/'),
-                    self.repository
-                ))
-            })
-    }
+    actions_page: TaskWebLog,
 }
 
 fn forgejo_tasks(
@@ -69,7 +55,7 @@ fn forgejo_tasks(
                 }),
             web_log: origins_by_task
                 .get(&task_id)
-                .map_or(TaskWebLog::NotKnown, ForgejoTaskOrigin::actions_page),
+                .map_or(TaskWebLog::NotKnown, |origin| origin.actions_page.clone()),
             run_label: task_id.to_string(),
             started_at: containers
                 .iter()
@@ -138,7 +124,7 @@ impl SnapshotSource for ForgejoRunnerTasks {
                                             start.task_id,
                                             ForgejoTaskOrigin {
                                                 repository: start.repository,
-                                                instance_url: start.instance_url,
+                                                actions_page: start.actions_page,
                                             },
                                         )
                                     }),
@@ -214,7 +200,9 @@ mod tests {
             7,
             ForgejoTaskOrigin {
                 repository: "wvhulle/bindrune".to_owned(),
-                instance_url: Some("https://codeberg.org/".to_owned()),
+                actions_page: TaskWebLog::Linked(
+                    "https://codeberg.org/wvhulle/bindrune/actions".to_owned(),
+                ),
             },
         )]);
         let tasks = forgejo_tasks(&engine, &origins);

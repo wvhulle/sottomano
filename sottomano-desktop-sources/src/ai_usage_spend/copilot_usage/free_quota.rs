@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use futures::Stream;
 
-use super::{CopilotAccount, Error, UserInfo, plan_polls, user_info};
+use super::{CopilotAccount, CopilotPlan, Error, plan_polls, user_info};
 use crate::{SnapshotDelivery, SnapshotSource};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -21,7 +21,7 @@ impl SnapshotSource for CopilotFree {
     fn delivery_stream(
         inputs: CopilotAccount,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        plan_polls(inputs, UserInfo::free_plan, Self::poll)
+        plan_polls(inputs, CopilotPlan::Free, Self::poll)
     }
 }
 
@@ -41,15 +41,9 @@ impl CopilotFree {
     }
 }
 
-impl UserInfo {
-    fn free_plan(&self) -> bool {
-        self.limited_user_quotas.is_some()
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{super::UserInfo, *};
 
     const FREE_USER_INFO: &str = r#"{
         "access_type_sku": "free",
@@ -60,7 +54,7 @@ mod tests {
     #[test]
     fn limited_quotas_mark_a_free_account() {
         let info: UserInfo = serde_json::from_str(FREE_USER_INFO).unwrap();
-        assert!(info.free_plan());
+        assert_eq!(info.plan_kind(), CopilotPlan::Free);
         let quotas = info.limited_user_quotas.unwrap();
         assert_eq!(quotas.chat, 12);
         assert_eq!(quotas.completions, 900);

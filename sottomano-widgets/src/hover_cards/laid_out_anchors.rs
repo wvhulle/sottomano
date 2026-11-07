@@ -11,7 +11,7 @@ use iced::{
     window,
 };
 
-use crate::hover_cards::{HandlePointing, HoverTarget};
+use crate::hover_cards::{HoverTarget, PointerPresence};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CardOpening {
@@ -30,15 +30,19 @@ pub struct WidgetAnchor {
 
 impl WidgetAnchor {
     #[must_use]
-    pub fn widget_still_exists(&self) -> bool {
-        self.presence.strong_count() > 0
+    pub fn widget_liveness(&self) -> WidgetLiveness {
+        if self.presence.strong_count() > 0 {
+            WidgetLiveness::Alive
+        } else {
+            WidgetLiveness::Dropped
+        }
     }
 }
 
 struct AnchorOnOutput {
     output: String,
     widget_anchor: WidgetAnchor,
-    pointing: HandlePointing,
+    pointing: PointerPresence,
 }
 
 #[derive(Default)]
@@ -59,7 +63,7 @@ impl LaidOutAnchors {
         });
     }
 
-    pub fn set_pointing(&mut self, output: &str, target: &HoverTarget, pointing: HandlePointing) {
+    pub fn set_pointing(&mut self, output: &str, target: &HoverTarget, pointing: PointerPresence) {
         self.anchors
             .iter_mut()
             .filter(|known| known.output == output && known.widget_anchor.target == *target)
@@ -67,17 +71,16 @@ impl LaidOutAnchors {
     }
 
     #[must_use]
-    pub fn handle_pointing(&self, output: &str, target: &HoverTarget) -> HandlePointing {
-        let pointed_at = self.anchors.iter().any(|known| {
-            known.pointing == HandlePointing::PointedAt
+    pub fn handle_pointing(&self, output: &str, target: &HoverTarget) -> PointerPresence {
+        if self.anchors.iter().any(|known| {
+            known.pointing == PointerPresence::PointedAt
                 && known.output == output
                 && known.widget_anchor.target == *target
-                && known.widget_anchor.widget_still_exists()
-        });
-        if pointed_at {
-            HandlePointing::PointedAt
+                && known.widget_anchor.widget_liveness() == WidgetLiveness::Alive
+        }) {
+            PointerPresence::PointedAt
         } else {
-            HandlePointing::NotPointedAt
+            PointerPresence::NotPointedAt
         }
     }
 
@@ -101,9 +104,9 @@ impl LaidOutAnchors {
     }
 
     #[must_use]
-    pub fn widget_exists(&self, output: &str, target: &HoverTarget) -> bool {
+    pub fn anchored_widget_liveness(&self, output: &str, target: &HoverTarget) -> WidgetLiveness {
         self.widget_of(output, target)
-            .is_some_and(WidgetAnchor::widget_still_exists)
+            .map_or(WidgetLiveness::Dropped, WidgetAnchor::widget_liveness)
     }
 
     #[must_use]
@@ -113,7 +116,7 @@ impl LaidOutAnchors {
             .filter(|known| {
                 known.output == output
                     && known.widget_anchor.opening == CardOpening::OnPress
-                    && known.widget_anchor.widget_still_exists()
+                    && known.widget_anchor.widget_liveness() == WidgetLiveness::Alive
             })
             .map(|known| known.widget_anchor.anchor)
             .collect()
@@ -182,6 +185,12 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for DroppedWid
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WidgetLiveness {
+    Alive,
+    Dropped,
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, LazyLock, Weak};
@@ -192,7 +201,7 @@ mod tests {
     use super::{CardOpening, LaidOutAnchors, WidgetAnchor, dropped_widget_watch};
     use crate::{
         clock::Clock,
-        hover_cards::{HandlePointing, HoverTarget},
+        hover_cards::{HoverTarget, PointerPresence, laid_out_anchors::WidgetLiveness},
     };
 
     static LIVE_WIDGET: LazyLock<Arc<()>> = LazyLock::new(|| Arc::new(()));
@@ -247,24 +256,24 @@ mod tests {
         };
         let mut anchors = LaidOutAnchors::default();
         anchors.remember("DP-1", live_handle());
-        anchors.set_pointing("DP-1", &workspace_card(), HandlePointing::PointedAt);
+        anchors.set_pointing("DP-1", &workspace_card(), PointerPresence::PointedAt);
         assert_eq!(
             anchors.handle_pointing("DP-1", &workspace_card()),
-            HandlePointing::PointedAt
+            PointerPresence::PointedAt
         );
         assert_eq!(
             anchors.handle_pointing("DP-2", &workspace_card()),
-            HandlePointing::NotPointedAt
+            PointerPresence::NotPointedAt
         );
         anchors.remember("DP-1", live_handle());
         assert_eq!(
             anchors.handle_pointing("DP-1", &workspace_card()),
-            HandlePointing::PointedAt
+            PointerPresence::PointedAt
         );
         drop(widget);
         assert_eq!(
             anchors.handle_pointing("DP-1", &workspace_card()),
-            HandlePointing::NotPointedAt
+            PointerPresence::NotPointedAt
         );
     }
 
@@ -279,10 +288,16 @@ mod tests {
                 ..handle_at(1.0)
             },
         );
-        assert!(anchors.widget_exists("DP-1", &workspace_card()));
+        assert_eq!(
+            anchors.anchored_widget_liveness("DP-1", &workspace_card()),
+            WidgetLiveness::Alive
+        );
         assert_eq!(anchors.menu_handles_on("DP-1"), [anchor_at(1.0)]);
         drop(widget);
-        assert!(!anchors.widget_exists("DP-1", &workspace_card()));
+        assert_eq!(
+            anchors.anchored_widget_liveness("DP-1", &workspace_card()),
+            WidgetLiveness::Dropped
+        );
         assert!(anchors.menu_handles_on("DP-1").is_empty());
     }
 

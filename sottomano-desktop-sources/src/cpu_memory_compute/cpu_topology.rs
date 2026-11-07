@@ -132,7 +132,7 @@ impl CpuTopology {
     }
 
     fn from_logical_cpus(cpus: &[LogicalCpu]) -> Self {
-        let assigned = if designs_tell_cores_apart(cpus) {
+        let assigned = if design_spread(cpus) == DesignSpread::Mixed {
             roles_by_exposed_design(cpus)
         } else {
             roles_by_cache_domain(cpus)
@@ -215,12 +215,6 @@ impl LogicalCpu {
                 .map_or_else(|| vec![index], |list| cpulist(&list).collect()),
         }
     }
-
-    fn shares_cache_with_any(&self, others: &[u32]) -> bool {
-        self.last_level_cache
-            .as_ref()
-            .is_some_and(|cache| cache.sharing_cpus.iter().any(|cpu| others.contains(cpu)))
-    }
 }
 
 fn highest_peak_clock<'a>(cpus: impl Iterator<Item = &'a LogicalCpu>) -> Option<Frequency> {
@@ -248,13 +242,6 @@ impl CoreDesign {
             _ => None,
         }
     }
-
-    fn same_design_as(&self, other: &CoreDesign) -> bool {
-        match self.arm_part() {
-            Some(part) => other.arm_part() == Some(part),
-            None => self == other,
-        }
-    }
 }
 
 struct AssignedCpu<'a> {
@@ -263,12 +250,26 @@ struct AssignedCpu<'a> {
     chiplet: Option<Chiplet>,
 }
 
-fn designs_tell_cores_apart(cpus: &[LogicalCpu]) -> bool {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DesignSpread {
+    Mixed,
+    Uniform,
+}
+
+fn design_spread(cpus: &[LogicalCpu]) -> DesignSpread {
     let all_exposed = cpus.iter().all(|cpu| cpu.design != CoreDesign::NotExposed);
     let first_design = cpus.first().map(|cpu| &cpu.design);
-    let mixed =
-        first_design.is_some_and(|first| cpus.iter().any(|cpu| !cpu.design.same_design_as(first)));
-    all_exposed && mixed
+    let mixed = first_design.is_some_and(|first| {
+        cpus.iter().any(|cpu| match cpu.design.arm_part() {
+            Some(part) => first.arm_part() != Some(part),
+            None => cpu.design != *first,
+        })
+    });
+    if all_exposed && mixed {
+        DesignSpread::Mixed
+    } else {
+        DesignSpread::Uniform
+    }
 }
 
 fn roles_by_exposed_design(cpus: &[LogicalCpu]) -> Vec<AssignedCpu<'_>> {
@@ -281,8 +282,12 @@ fn roles_by_exposed_design(cpus: &[LogicalCpu]) -> Vec<AssignedCpu<'_>> {
         let role = match &cpu.design {
             CoreDesign::IntelPerformanceCore => CoreRole::PerformanceCores,
             CoreDesign::IntelEfficientCore
-                if cpu.last_level_cache.is_some()
-                    && !cpu.shares_cache_with_any(&intel_performance_cpus) =>
+                if cpu.last_level_cache.as_ref().is_some_and(|cache| {
+                    !cache
+                        .sharing_cpus
+                        .iter()
+                        .any(|sharing_cpu| intel_performance_cpus.contains(sharing_cpu))
+                }) =>
             {
                 CoreRole::LowPowerIslandCores
             }
@@ -377,10 +382,9 @@ fn roles_by_cache_domain(cpus: &[LogicalCpu]) -> Vec<AssignedCpu<'_>> {
                     .flat_map(|domain| domain.members.iter().copied()),
             )
         };
-        let largest_cache_clocks_higher = peak_where_largest_is(true).is_some_and(|largest| {
+        if peak_where_largest_is(true).is_some_and(|largest| {
             peak_where_largest_is(false).is_some_and(|smaller| largest > smaller)
-        });
-        if largest_cache_clocks_higher {
+        }) {
             CacheDomainLayout::FullCoresBesideCompact { largest_size }
         } else {
             CacheDomainLayout::StackedCacheBesideHighClock { largest_size }

@@ -87,11 +87,15 @@ impl ExitNodeOffer {
         status: &TailscaleStatusJson,
         prefs: &TailscalePrefsJson,
     ) -> Self {
+        let advertised = prefs
+            .advertised_routes
+            .iter()
+            .any(|route| INTERNET_ROUTES.contains(&route.as_str()));
         let approved = status
             .own_node
             .as_ref()
             .is_some_and(|own_node| own_node.offers_exit_node);
-        match (prefs.advertises_exit_node(), approved) {
+        match (advertised, approved) {
             (false, _) => ExitNodeOffer::NotOffered,
             (true, false) => ExitNodeOffer::AwaitingApproval,
             (true, true) => ExitNodeOffer::Approved,
@@ -138,14 +142,6 @@ pub(super) struct TailscalePrefsJson {
     advertised_routes: Vec<String>,
     #[serde(rename = "ExitNodeAllowLANAccess", default)]
     pub(super) lan_access_allowed: bool,
-}
-
-impl TailscalePrefsJson {
-    fn advertises_exit_node(&self) -> bool {
-        self.advertised_routes
-            .iter()
-            .any(|route| INTERNET_ROUTES.contains(&route.as_str()))
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -296,9 +292,12 @@ impl SnapshotSource for Tailscale {
     const NAME: &'static str = "Tailscale";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(shell_command_output::exists("tailscale")).available_while(move || {
-            PeriodicPolling::every(Duration::from_secs(10)).poll_deliveries(move || Self::poll(()))
-        })
+        stream::once(shell_command_output::program_availability("tailscale")).available_while(
+            move || {
+                PeriodicPolling::every(Duration::from_secs(10))
+                    .poll_deliveries(move || Self::poll(()))
+            },
+        )
     }
 }
 
@@ -325,11 +324,17 @@ impl Tailscale {
         prefs: &TailscalePrefsJson,
     ) -> Result<Self, Error> {
         let exit_offer = ExitNodeOffer::from_status_and_prefs(&status, prefs);
-        let exit_node_use = if status.peer.values().any(|peer| peer.carries_exit_traffic) {
-            ExitNodeUse::InUse
-        } else {
-            ExitNodeUse::Unused
-        };
+        let exit_node_use =
+            status
+                .peer
+                .values()
+                .fold(ExitNodeUse::Unused, |exit_node_use, peer| {
+                    if peer.carries_exit_traffic {
+                        ExitNodeUse::InUse
+                    } else {
+                        exit_node_use
+                    }
+                });
         let own_node = status.own_node.as_ref().ok_or(Error::Malformed)?;
         let tailnet_name = status.current_tailnet.ok_or(Error::Malformed)?.name;
         let mut online: Vec<Peer> = status

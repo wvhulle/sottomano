@@ -9,6 +9,7 @@ use super::{
     recorded_spans::{FocusPiece, FocusSpan, SpanWrite},
     time_intervals::Interval,
 };
+use crate::login_session_presence::focus_time_ledger::recorded_spans::SpanContinuity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum OngoingWindowFocus {
@@ -31,7 +32,7 @@ impl FocusLedger {
         };
         if self
             .focused_window_span()
-            .is_some_and(|ongoing| ongoing.continues(&next_span))
+            .is_some_and(|ongoing| ongoing.continuity_with(&next_span) == SpanContinuity::Continues)
         {
             return;
         }
@@ -40,7 +41,8 @@ impl FocusLedger {
             shortest_counted_focus,
         );
         let resumed_span = self.finished_window_focus_spans.pop_if(|last| {
-            last.continues(&next_span) && now - last.ended_at < shortest_counted_focus
+            last.continuity_with(&next_span) == SpanContinuity::Continues
+                && now - last.ended_at < shortest_counted_focus
         });
         self.ongoing_window_focus =
             OngoingWindowFocus::FocusedWindowSpan(resumed_span.unwrap_or(next_span));
@@ -75,7 +77,7 @@ impl FocusLedger {
         }
         match self.finished_window_focus_spans.last_mut() {
             Some(last)
-                if last.continues(&finished)
+                if last.continuity_with(&finished) == SpanContinuity::Continues
                     && finished.started_at - last.ended_at < shortest_counted_focus =>
             {
                 last.ended_at = last.ended_at.max(finished.ended_at);

@@ -14,7 +14,7 @@ use zbus::{
 
 use crate::{
     non_empty_text::non_empty,
-    stream_operators::{connected_until_failure, resubscribing_until_failure},
+    stream_operators::{Availability, connected_until_failure, resubscribing_until_failure},
 };
 
 pub type Properties = HashMap<String, OwnedValue>;
@@ -176,11 +176,11 @@ pub enum Bus {
 pub fn name_owned(
     connection: zbus::Connection,
     name: &'static str,
-) -> impl Stream<Item = bool> + Send {
+) -> impl Stream<Item = Availability> + Send {
     connected_until_failure(owner_changes(connection, name)).map(move |owned| {
         owned.unwrap_or_else(|e| {
             tracing::warn!("{name}: owner watch: {e}");
-            false
+            Availability::Unavailable
         })
     })
 }
@@ -188,35 +188,45 @@ pub fn name_owned(
 async fn owner_changes(
     connection: zbus::Connection,
     name: &'static str,
-) -> zbus::Result<impl Stream<Item = zbus::Result<bool>> + Send> {
+) -> zbus::Result<impl Stream<Item = zbus::Result<Availability>> + Send> {
     let dbus = DBusProxy::new(&connection).await?;
-    let owned = dbus.name_has_owner(BusName::try_from(name)?).await?;
+    let owned = if dbus.name_has_owner(BusName::try_from(name)?).await? {
+        Availability::Available
+    } else {
+        Availability::Unavailable
+    };
     let changes = dbus
         .receive_name_owner_changed_with_args(&[(0, name)])
         .await?
-        .filter_map(|signal| ready(signal.args().ok().map(|args| args.new_owner().is_some())));
+        .filter_map(|signal| {
+            ready(
+                signal
+                    .args()
+                    .ok()
+                    .map(|args| match args.new_owner().as_ref() {
+                        Some(_) => Availability::Available,
+                        None => Availability::Unavailable,
+                    }),
+            )
+        });
     Ok(stream::iter([owned]).chain(changes).map(Ok))
 }
 
-#[must_use]
-pub fn service_absent(error: &zbus::Error) -> bool {
-    let zbus::Error::MethodError(name, _, _) = error else {
-        return false;
-    };
-    matches!(
-        name.as_str(),
-        "org.freedesktop.DBus.Error.ServiceUnknown"
-            | "org.freedesktop.DBus.Error.NameHasNoOwner"
-            | "org.freedesktop.DBus.Error.NoReply"
-    )
-}
+pub const SERVICE_ABSENT_ERRORS: [&str; 3] = [
+    "org.freedesktop.DBus.Error.ServiceUnknown",
+    "org.freedesktop.DBus.Error.NameHasNoOwner",
+    "org.freedesktop.DBus.Error.NoReply",
+];
 
 impl From<zbus::Error> for Error {
     fn from(error: zbus::Error) -> Self {
-        if service_absent(&error) {
-            Error::Absent
-        } else {
-            Error::Call(error.to_string())
+        match &error {
+            zbus::Error::MethodError(name, _, _)
+                if SERVICE_ABSENT_ERRORS.contains(&name.as_str()) =>
+            {
+                Error::Absent
+            }
+            _ => Error::Call(error.to_string()),
         }
     }
 }

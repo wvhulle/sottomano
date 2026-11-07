@@ -30,7 +30,8 @@ use crate::{
     },
     widget_groups::{
         widget_group_content::{
-            EdgeIndicator, GroupEvent, GroupMenuRowParts, GroupToastRequests, WidgetGroupContent,
+            EdgeIndicator, GroupEvent, GroupMenuRowParts, GroupToastRequests, PanelPromotion,
+            WidgetGroupContent,
         },
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
     },
@@ -234,7 +235,10 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         let menu = self.messenger.topic;
         self.groups
             .iter()
-            .filter(move |member| member.promoted_by_alert(promotion_severity, clock))
+            .filter(move |member| {
+                member.alert_panel_promotion(promotion_severity, clock)
+                    == PanelPromotion::RisesToPanel
+            })
             .map(move |member| AlertPromotedGroup {
                 menu,
                 group: member.group_identity().clone(),
@@ -301,7 +305,9 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
                     .into_iter()
                     .collect();
             }
-            if member.promoted_by_alert(promotion_severity, clock) {
+            if member.alert_panel_promotion(promotion_severity, clock)
+                == PanelPromotion::RisesToPanel
+            {
                 return member
                     .view(config, panel_position, clock)
                     .into_iter()
@@ -684,12 +690,12 @@ mod tests {
         assert!((first_row_of_the_last_page - first_row_top).abs() < 1.0);
     }
 
-    fn inspection_card_shown(hover_card: HoverCard) -> bool {
+    fn inspection_card_view(hover_card: HoverCard) -> Option<Element<'static, PopupMessage>> {
         let bench = MenuTestBench {
             hover_card,
             ..MenuTestBench::default()
         };
-        bench.inspection_card().view(&bench.config).is_some()
+        bench.inspection_card().view(&bench.config)
     }
 
     #[test]
@@ -699,12 +705,12 @@ mod tests {
                 left: Some("switch something"),
                 ..PressHints::default()
             }));
-        assert!(inspection_card_shown(announced));
+        assert!(inspection_card_view(announced).is_some());
     }
 
     #[test]
     fn a_card_without_sections_or_announcement_stays_hidden() {
-        assert!(!inspection_card_shown(HoverCard::empty()));
+        assert!(inspection_card_view(HoverCard::empty()).is_none());
     }
 
     #[derive(Debug, Clone, PartialEq)]
@@ -965,7 +971,7 @@ mod tests {
         );
     }
 
-    fn info_icon_precedes_row_name(direction: CascadeDirection) -> bool {
+    fn info_icon_offset_from_row_name(direction: CascadeDirection) -> f32 {
         let bench = MenuTestBench::default();
         let expansion = WidgetGroupExpansion::default();
         let group_menus = opened_menu_state(GroupMenuPresentation::default());
@@ -994,17 +1000,17 @@ mod tests {
         let item_list = surfaces.first_item_list();
         let mut simulator =
             Simulator::with_size(Settings::default(), Size::new(1200.0, 800.0), item_list);
-        info_icon_center(&mut simulator).x < row_name_center(&mut simulator).x
+        info_icon_center(&mut simulator).x - row_name_center(&mut simulator).x
     }
 
     #[test]
     fn a_rightward_cascade_shows_the_info_icon_after_the_row_name() {
-        assert!(!info_icon_precedes_row_name(CascadeDirection::Rightward));
+        assert!(info_icon_offset_from_row_name(CascadeDirection::Rightward) > 0.0);
     }
 
     #[test]
     fn a_leftward_cascade_shows_the_info_icon_before_the_row_name() {
-        assert!(info_icon_precedes_row_name(CascadeDirection::Leftward));
+        assert!(info_icon_offset_from_row_name(CascadeDirection::Leftward) < 0.0);
     }
 
     #[test]

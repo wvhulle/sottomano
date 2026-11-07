@@ -26,14 +26,6 @@ impl Answer {
     fn always() -> Self {
         Answer::Granted
     }
-
-    fn when(condition: bool) -> Self {
-        if condition {
-            Answer::Granted
-        } else {
-            Answer::Denied
-        }
-    }
 }
 
 impl From<&zbus::Result<String>> for Answer {
@@ -69,12 +61,14 @@ fn answer_for(proxy: &ManagerProxyBlocking<'static>, action: SessionAction) -> A
         }
         SessionAction::Halt => Answer::from(&proxy.can_halt()),
         SessionAction::PowerOff => Answer::from(&proxy.can_power_off()),
-        SessionAction::CancelScheduledShutdown => Answer::when(
-            proxy
-                .scheduled_shutdown()
-                .is_ok_and(|(kind, _)| !kind.is_empty()),
-        ),
-        SessionAction::RestartShell => Answer::when(env::var_os("INVOCATION_ID").is_some()),
+        SessionAction::CancelScheduledShutdown => match proxy.scheduled_shutdown() {
+            Ok((kind, _)) if !kind.is_empty() => Answer::Granted,
+            Ok(_) | Err(_) => Answer::Denied,
+        },
+        SessionAction::RestartShell => match env::var_os("INVOCATION_ID") {
+            Some(_) => Answer::Granted,
+            None => Answer::Denied,
+        },
     }
 }
 

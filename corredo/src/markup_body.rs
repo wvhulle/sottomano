@@ -73,10 +73,7 @@ impl<'a> MarkupBody<'a> {
     pub fn view<Message: 'static>(self) -> Element<'static, Message> {
         let blocks = parse_blocks(self.markup, self.size, self.upright, self.monospace);
         Column::with_children(blocks.into_iter().map(|block| match block {
-            Block::Paragraph {
-                spans,
-                preformatted,
-            } => self.paragraph(spans, preformatted),
+            Block::Paragraph { spans, text_flow } => self.paragraph(spans, text_flow),
             Block::Rows(rows) => self.rows_table(rows),
         }))
         .spacing(self.block_spacing)
@@ -87,13 +84,13 @@ impl<'a> MarkupBody<'a> {
     fn paragraph<Message: 'static>(
         &self,
         spans: Vec<Span<'static>>,
-        preformatted: bool,
+        text_flow: TextFlow,
     ) -> Element<'static, Message> {
         let flowing = rich_text(spans)
             .line_height(LINE_HEIGHT)
             .wrapping(Wrapping::WordOrGlyph)
             .width(Length::Fill);
-        if !preformatted {
+        if text_flow == TextFlow::Wrapped {
             return flowing.into();
         }
         let corner_radius = self.corner_radius;
@@ -179,10 +176,16 @@ struct Row<'a> {
     value: Vec<Span<'a>>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TextFlow {
+    Wrapped,
+    Preformatted,
+}
+
 enum Block<'a> {
     Paragraph {
         spans: Vec<Span<'a>>,
-        preformatted: bool,
+        text_flow: TextFlow,
     },
     Rows(Vec<Row<'a>>),
 }
@@ -219,15 +222,19 @@ impl<'a> BlockBuilder<'a> {
             }
             return;
         }
-        let preformatted = inside("pre");
+        let text_flow = if inside("pre") {
+            TextFlow::Preformatted
+        } else {
+            TextFlow::Wrapped
+        };
         match self.blocks.last_mut() {
             Some(Block::Paragraph {
                 spans,
-                preformatted: open,
-            }) if *open == preformatted => spans.push(styled),
+                text_flow: open,
+            }) if *open == text_flow => spans.push(styled),
             _ => self.blocks.push(Block::Paragraph {
                 spans: vec![styled],
-                preformatted,
+                text_flow,
             }),
         }
     }

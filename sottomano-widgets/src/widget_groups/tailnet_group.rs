@@ -550,39 +550,42 @@ mod tests {
         }
     }
 
-    fn exit_node_press_is_inert(
-        exit_node_option: &ExitNodeOption,
-        exit_node_choices: &ExitNodeChoices,
-    ) -> bool {
-        matches!(
-            TailnetGroup::exit_node_choice_item(exit_node_option, exit_node_choices)
-                .gestures()
-                .left,
-            GroupItemGesture::Inert
-        )
-    }
-
     #[test]
     fn an_online_exit_node_row_can_be_pressed() {
-        assert!(!exit_node_press_is_inert(
-            &reachable_exit_node(ExitNodeReachability::Online),
-            &exit_node_choices_while(ExitNodeOffer::NotOffered),
+        assert!(!matches!(
+            TailnetGroup::exit_node_choice_item(
+                &reachable_exit_node(ExitNodeReachability::Online),
+                &exit_node_choices_while(ExitNodeOffer::NotOffered)
+            )
+            .gestures()
+            .left,
+            GroupItemGesture::Inert
         ));
     }
 
     #[test]
     fn an_exit_node_row_is_inert_while_this_machine_advertises() {
-        assert!(exit_node_press_is_inert(
-            &reachable_exit_node(ExitNodeReachability::Online),
-            &exit_node_choices_while(ExitNodeOffer::Approved),
+        assert!(matches!(
+            TailnetGroup::exit_node_choice_item(
+                &reachable_exit_node(ExitNodeReachability::Online),
+                &exit_node_choices_while(ExitNodeOffer::Approved)
+            )
+            .gestures()
+            .left,
+            GroupItemGesture::Inert
         ));
     }
 
     #[test]
     fn an_offline_exit_node_row_is_inert() {
-        assert!(exit_node_press_is_inert(
-            &reachable_exit_node(ExitNodeReachability::OfflineNeverSeen),
-            &exit_node_choices_while(ExitNodeOffer::NotOffered),
+        assert!(matches!(
+            TailnetGroup::exit_node_choice_item(
+                &reachable_exit_node(ExitNodeReachability::OfflineNeverSeen),
+                &exit_node_choices_while(ExitNodeOffer::NotOffered)
+            )
+            .gestures()
+            .left,
+            GroupItemGesture::Inert
         ));
     }
 }

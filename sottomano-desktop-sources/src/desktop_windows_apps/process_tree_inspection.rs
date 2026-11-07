@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    iter,
     ops::Add,
     path::PathBuf,
     time::{Duration, Instant},
@@ -70,7 +71,7 @@ impl Process {
             children: self
                 .children
                 .iter()
-                .filter(|child| child.contains_any(kept))
+                .filter(|child| child.subtree_pids().any(|pid| kept.contains(&pid)))
                 .map(|child| {
                     if kept.contains(&child.pid) {
                         child.clone()
@@ -82,8 +83,8 @@ impl Process {
         }
     }
 
-    fn contains_any(&self, pids: &[i32]) -> bool {
-        pids.contains(&self.pid) || self.children.iter().any(|child| child.contains_any(pids))
+    fn subtree_pids(&self) -> Box<dyn Iterator<Item = i32> + '_> {
+        Box::new(iter::once(self.pid).chain(self.children.iter().flat_map(Self::subtree_pids)))
     }
 
     fn born(stat: &Stat, booted: f64) -> Duration {

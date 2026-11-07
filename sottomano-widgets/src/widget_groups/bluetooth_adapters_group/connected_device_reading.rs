@@ -20,7 +20,7 @@ use crate::{
     widget_groups::bluetooth_adapters_group::reconnect_churn_counting::RECONNECT_HORIZON,
     widgets::{
         icon_glyph::IconGlyph,
-        input_report_sections::{KernelErrorListing, MeasuredReportTiming},
+        input_report_sections::{KernelErrorListing, MeasuredReportTiming, ReportHealth},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -96,25 +96,35 @@ fn charging_description(charging: ChargingState) -> Option<&'static str> {
 impl ConnectedDeviceReading<'_> {
     pub const PRESS_DOES: &'static str = "disconnect this device";
 
-    fn battery_draining_to(&self, threshold_percent: u8) -> bool {
+    fn battery_drain_to(&self, threshold_percent: u8) -> BatteryDrain {
         match self.device.battery {
             DeviceBattery::Reported {
                 level_percent,
                 charging,
-            } => {
-                level_percent <= threshold_percent
-                    && !matches!(charging, ChargingState::Charging | ChargingState::Full)
+            } if level_percent <= threshold_percent
+                && !matches!(charging, ChargingState::Charging | ChargingState::Full) =>
+            {
+                BatteryDrain::BelowThreshold
             }
-            DeviceBattery::Unreported => false,
+            DeviceBattery::Reported { .. } | DeviceBattery::Unreported => {
+                BatteryDrain::AboveThreshold
+            }
         }
     }
 
-    fn link_unstable(&self) -> bool {
+    fn connection_stability(&self) -> ConnectionStability {
         let lossy_reports = match self.input_reports {
-            InputReports::Streamed(report_timing) => report_timing.lossy_or_stalling(),
+            InputReports::Streamed(report_timing) => {
+                report_timing.report_health() == ReportHealth::Degraded
+            }
             InputReports::NotStreamed => false,
         };
-        lossy_reports || self.recent_reconnects > 0 || !self.kernel_errors.is_empty()
+
+        if lossy_reports || self.recent_reconnects > 0 || !self.kernel_errors.is_empty() {
+            ConnectionStability::Unstable
+        } else {
+            ConnectionStability::Stable
+        }
     }
 
     fn input_report_section(&self) -> Option<Section> {
@@ -187,9 +197,11 @@ impl GroupItemReading for ConnectedDeviceReading<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.battery_draining_to(CRITICAL_BATTERY_PERCENT) {
+        if self.battery_drain_to(CRITICAL_BATTERY_PERCENT) == BatteryDrain::BelowThreshold {
             ReadingDisplayState::Critical
-        } else if self.battery_draining_to(LOW_BATTERY_PERCENT) || self.link_unstable() {
+        } else if self.battery_drain_to(LOW_BATTERY_PERCENT) == BatteryDrain::BelowThreshold
+            || self.connection_stability() == ConnectionStability::Unstable
+        {
             ReadingDisplayState::Warning
         } else {
             ReadingDisplayState::Idle
@@ -212,6 +224,18 @@ impl GroupItemReading for ConnectedDeviceReading<'_> {
             .flatten(),
         )
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ConnectionStability {
+    Unstable,
+    Stable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BatteryDrain {
+    BelowThreshold,
+    AboveThreshold,
 }
 
 #[cfg(test)]

@@ -377,7 +377,14 @@ async fn device_info(connection: &Connection, path: OwnedObjectPath) -> zbus::Re
 pub struct Uplink {
     pub activated_interfaces: Vec<String>,
     pub connectivity: Option<Connectivity>,
-    pub metered: bool,
+    pub metering: Metering,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Metering {
+    Metered,
+    #[default]
+    Unmetered,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -517,7 +524,10 @@ pub async fn uplink(connection: Connection) -> Result<Uplink, ReadingError> {
             .map(|interface| interface.name)
             .collect(),
         connectivity: Connectivity::try_from(connectivity).ok(),
-        metered: matches!(metered, METERED_YES | METERED_GUESS_YES),
+        metering: match metered {
+            METERED_YES | METERED_GUESS_YES => Metering::Metered,
+            _ => Metering::Unmetered,
+        },
     })
 }
 
@@ -838,15 +848,15 @@ impl RadioPower {
 }
 
 pub async fn wireless_radio_power(connection: &Connection) -> zbus::Result<RadioPower> {
-    let radio_enabled = network_manager_proxy(connection)
+    if network_manager_proxy(connection)
         .await?
         .wireless_enabled()
-        .await?;
-    Ok(if radio_enabled {
-        RadioPower::On
+        .await?
+    {
+        Ok(RadioPower::On)
     } else {
-        RadioPower::Off
-    })
+        Ok(RadioPower::Off)
+    }
 }
 
 #[must_use]

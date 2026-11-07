@@ -8,6 +8,8 @@ use std::{
 
 use image::ImageReader;
 
+use crate::DocsMode;
+
 const RECORDINGS_DIRECTORY: &str = "recordings";
 const PUBLISHED_RECORDINGS_URL: &str =
     "https://codeberg.org/wvhulle/sottomano/raw/branch/recordings";
@@ -116,7 +118,7 @@ fn with_logical_width(markdown: &str, recording_source: &str, width: u32) -> Str
 
 pub fn update_recording_embeds(
     workspace_root: &Path,
-    check: bool,
+    docs_mode: DocsMode,
 ) -> Result<ExitCode, Box<dyn Error>> {
     let recordings = rendered_recordings(workspace_root)?;
     let tour = tour_documents(workspace_root)?;
@@ -168,7 +170,7 @@ pub fn update_recording_embeds(
         println!("the tour documents embed every recording at its logical width");
         return Ok(ExitCode::SUCCESS);
     }
-    if check {
+    if docs_mode == DocsMode::Check {
         stale_documents.iter().for_each(|(document, _)| {
             eprintln!(
                 "{} embeds recordings at outdated widths; run `cargo xtask \

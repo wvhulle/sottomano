@@ -16,7 +16,7 @@ use crate::{
     },
     stream_operators::{read_once_then_per_burst, restarting},
     system_protocol_clients::{
-        dbus_desktop_buses::{DesktopBuses, service_absent},
+        dbus_desktop_buses::{DesktopBuses, SERVICE_ABSENT_ERRORS},
         shell_command_output,
     },
 };
@@ -51,14 +51,29 @@ pub enum PeerTraffic {
     Exchanged(PeerStatistics),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PeerLink {
+    Connected,
+    Stale,
+}
+
 impl PeerTraffic {
     #[must_use]
-    pub fn connected(self) -> bool {
-        matches!(
-            self,
-            Self::Exchanged(statistics) if statistics.handshake_ago <= CONNECTED_WINDOW
-        )
+    pub fn peer_link(self) -> PeerLink {
+        match self {
+            Self::Exchanged(statistics) if statistics.handshake_ago <= CONNECTED_WINDOW => {
+                PeerLink::Connected
+            }
+            Self::Exchanged(_) | Self::Unobserved | Self::NeverHandshaken => PeerLink::Stale,
+        }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RouteScope {
+    AllTraffic,
+    SingleHosts,
+    Subnets,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,23 +86,23 @@ pub struct Peer {
 
 impl Peer {
     #[must_use]
-    pub fn connected(&self) -> bool {
-        self.traffic.connected()
-    }
-
-    #[must_use]
-    pub fn routes_all_traffic(&self) -> bool {
-        self.allowed_ips
+    pub fn route_scope(&self) -> RouteScope {
+        if self
+            .allowed_ips
             .iter()
             .any(|allowed_ip| matches!(allowed_ip.as_str(), "0.0.0.0/0" | "::/0"))
-    }
-
-    fn routes_single_host(&self) -> bool {
-        !self.allowed_ips.is_empty()
+        {
+            RouteScope::AllTraffic
+        } else if !self.allowed_ips.is_empty()
             && self
                 .allowed_ips
                 .iter()
                 .all(|allowed_ip| allowed_ip.ends_with("/32") || allowed_ip.ends_with("/128"))
+        {
+            RouteScope::SingleHosts
+        } else {
+            RouteScope::Subnets
+        }
     }
 
     fn configured(peer_settings: WireguardPeerSettings) -> Self {
@@ -134,7 +149,11 @@ impl TunnelRole {
     }
 
     fn inferred_from_peers(listen_port: u32, peers: &[Peer]) -> Self {
-        if peers.len() > 1 || peers.first().is_some_and(Peer::routes_single_host) {
+        if peers.len() > 1
+            || peers
+                .first()
+                .is_some_and(|peer| peer.route_scope() == RouteScope::SingleHosts)
+        {
             Self::Server { listen_port }
         } else {
             Self::Client
@@ -185,35 +204,44 @@ pub struct Tunnel {
 impl Tunnel {
     #[must_use]
     pub fn connected_peers(&self) -> usize {
-        self.peers.iter().filter(|peer| peer.connected()).count()
+        self.peers
+            .iter()
+            .filter(|peer| peer.traffic.peer_link() == PeerLink::Connected)
+            .count()
     }
 
     #[must_use]
-    pub fn up(&self) -> bool {
+    pub fn tunnel_phase(&self) -> TunnelPhase {
         match &self.origin {
-            TunnelOrigin::NetworkManager { activity, .. } => {
-                matches!(activity, TunnelActivity::Active { .. })
+            TunnelOrigin::NetworkManager {
+                activity: TunnelActivity::Active { .. },
+                ..
             }
-            TunnelOrigin::KernelOnly => true,
+            | TunnelOrigin::KernelOnly => TunnelPhase::Up,
+            TunnelOrigin::NetworkManager {
+                activity: TunnelActivity::Switching { .. },
+                ..
+            } => TunnelPhase::Switching,
+            TunnelOrigin::NetworkManager {
+                activity: TunnelActivity::Inactive,
+                ..
+            } => TunnelPhase::Down,
         }
     }
 
     #[must_use]
-    pub fn switching(&self) -> bool {
-        matches!(
-            &self.origin,
-            TunnelOrigin::NetworkManager {
-                activity: TunnelActivity::Switching { .. },
-                ..
-            }
-        )
-    }
-
-    #[must_use]
-    pub fn routes_all_traffic(&self) -> bool {
-        self.role == TunnelRole::Client
-            && self.up()
-            && self.peers.iter().any(Peer::routes_all_traffic)
+    pub fn traffic_routing(&self) -> TunnelRouting {
+        let default_route = self.role == TunnelRole::Client
+            && self.tunnel_phase() == TunnelPhase::Up
+            && self
+                .peers
+                .iter()
+                .any(|peer| peer.route_scope() == RouteScope::AllTraffic);
+        if default_route {
+            TunnelRouting::DefaultRoute
+        } else {
+            TunnelRouting::Partial
+        }
     }
 
     #[must_use]
@@ -391,7 +419,11 @@ async fn read_wireguard(system: Connection) -> zbus::Result<Wireguard> {
         network_manager_proxies::active_wireguards(&system)
     ) {
         Ok(network_manager_tunnels) => network_manager_tunnels,
-        Err(bus_error) if service_absent(&bus_error) => (Vec::new(), Vec::new()),
+        Err(zbus::Error::MethodError(name, _, _))
+            if SERVICE_ABSENT_ERRORS.contains(&name.as_str()) =>
+        {
+            (Vec::new(), Vec::new())
+        }
         Err(bus_error) => return Err(bus_error),
     };
     let kernel_readings = join_all(kernel_wireguard_interfaces().await.into_iter().map(
@@ -555,6 +587,19 @@ async fn interface_ip(iface: &str) -> Option<String> {
         })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TunnelPhase {
+    Up,
+    Switching,
+    Down,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TunnelRouting {
+    DefaultRoute,
+    Partial,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -704,7 +749,7 @@ mod tests {
         };
         assert_eq!(tunnel.role, TunnelRole::Server { listen_port: 51820 });
         assert_eq!(tunnel.statistics_access, StatisticsAccess::NeedsNetAdmin);
-        assert!(tunnel.up());
+        assert_eq!(tunnel.tunnel_phase(), TunnelPhase::Up);
         assert_eq!(tunnel.peers.len(), 2);
         assert!(
             tunnel
@@ -739,7 +784,7 @@ mod tests {
     fn inactive_profile_switches_to_connect() {
         let wireguard = assemble_tunnels(vec![server_profile()], &[], HashMap::new());
         let tunnel = &wireguard.tunnels[0];
-        assert!(!tunnel.up());
+        assert_eq!(tunnel.tunnel_phase(), TunnelPhase::Down);
         assert_eq!(tunnel.statistics_access, StatisticsAccess::TunnelDown);
         assert_eq!(
             tunnel.switch(),
@@ -759,7 +804,7 @@ mod tests {
         let tunnel = &wireguard.tunnels[0];
         assert_eq!(tunnel.origin, TunnelOrigin::KernelOnly);
         assert_eq!(tunnel.switch(), None);
-        assert!(tunnel.routes_all_traffic());
+        assert_eq!(tunnel.traffic_routing(), TunnelRouting::DefaultRoute);
     }
 
     #[test]

@@ -4,7 +4,8 @@ use sottomano_desktop_sources::voice_dictation_input::notulist_dbus_engine::Notu
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+        reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::HoverCardBody,
     widgets::{
@@ -45,8 +46,12 @@ impl GroupItemReading for NotulistEngine {
         }
     }
 
-    fn visible_on_panel(&self) -> bool {
-        !matches!(self.engine, EngineState::LoadingSpeechModel)
+    fn panel_visibility(&self) -> PanelVisibility {
+        if matches!(self.engine, EngineState::LoadingSpeechModel) {
+            PanelVisibility::Hidden
+        } else {
+            PanelVisibility::Shown
+        }
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
@@ -178,7 +183,9 @@ mod tests {
     use notulist_client::ModelRole;
 
     use super::*;
-    use crate::widgets::value_cells::ValueCell;
+    use crate::{
+        group_items::group_item_reading::PanelVisibility, widgets::value_cells::ValueCell,
+    };
 
     fn keys(rows: impl IntoIterator<Item = LabeledValue>) -> Vec<ValueCell> {
         rows.into_iter().map(|row| row.key().clone()).collect()
@@ -235,8 +242,8 @@ mod tests {
                 ModelLoadError::ModelLoaderStoppedWithoutResult,
             ),
         };
-        assert!(!loading.visible_on_panel());
-        assert!(unavailable.visible_on_panel());
+        assert_eq!(loading.panel_visibility(), PanelVisibility::Hidden);
+        assert_eq!(unavailable.panel_visibility(), PanelVisibility::Shown);
         assert_eq!(
             unavailable.state(Clock::real()),
             ReadingDisplayState::Failed

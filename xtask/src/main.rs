@@ -119,7 +119,13 @@ fn fenced_default_config() -> Result<String, Box<dyn Error>> {
     ))
 }
 
-fn update_config_docs(check: bool) -> Result<ExitCode, Box<dyn Error>> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DocsMode {
+    Check,
+    Write,
+}
+
+fn update_config_docs(docs_mode: DocsMode) -> Result<ExitCode, Box<dyn Error>> {
     let docs_path = Path::new(WORKSPACE_ROOT).join(CONFIGURATION_DOCS);
     let current_markdown = fs::read_to_string(&docs_path)?;
     let updated_markdown =
@@ -128,7 +134,7 @@ fn update_config_docs(check: bool) -> Result<ExitCode, Box<dyn Error>> {
         println!("{CONFIGURATION_DOCS} already shows the current default config");
         return Ok(ExitCode::SUCCESS);
     }
-    if check {
+    if docs_mode == DocsMode::Check {
         eprintln!(
             "{CONFIGURATION_DOCS} shows an outdated default config; run `cargo xtask \
              update-config-docs`"
@@ -141,10 +147,20 @@ fn update_config_docs(check: bool) -> Result<ExitCode, Box<dyn Error>> {
 }
 
 fn main() -> Result<ExitCode, Box<dyn Error>> {
+    let docs_mode = |check_flag: bool| {
+        if check_flag {
+            DocsMode::Check
+        } else {
+            DocsMode::Write
+        }
+    };
     match XtaskCommandLine::parse().task {
-        MaintenanceTask::UpdateConfigDocs { check } => update_config_docs(check),
+        MaintenanceTask::UpdateConfigDocs { check } => update_config_docs(docs_mode(check)),
         MaintenanceTask::UpdateRecordingEmbeds { check } => {
-            recording_embed_widths::update_recording_embeds(Path::new(WORKSPACE_ROOT), check)
+            recording_embed_widths::update_recording_embeds(
+                Path::new(WORKSPACE_ROOT),
+                docs_mode(check),
+            )
         }
         MaintenanceTask::PublishRecordings => {
             recordings_branch::publish_recordings(Path::new(WORKSPACE_ROOT))

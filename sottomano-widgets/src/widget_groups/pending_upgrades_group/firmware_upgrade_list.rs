@@ -9,7 +9,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        group_item_reading::{GroupItemReading, OngoingToastThreshold, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
@@ -96,8 +96,12 @@ impl GroupItemReading for Vec<FirmwareUpgrade> {
         .titled(LABEL)])
     }
 
-    fn visible_on_panel(&self) -> bool {
-        !self.is_empty()
+    fn panel_visibility(&self) -> PanelVisibility {
+        if self.is_empty() {
+            PanelVisibility::Hidden
+        } else {
+            PanelVisibility::Shown
+        }
     }
 }
 

@@ -11,7 +11,8 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+        reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{icon_glyph::IconGlyph, value_cells::LabeledValue},
@@ -59,8 +60,8 @@ impl<S: GroupItemReading> GroupItemReading for OfflineSnapshot<S> {
         self.held_snapshot.identity_ordinal()
     }
 
-    fn visible_on_panel(&self) -> bool {
-        self.held_snapshot.visible_on_panel()
+    fn panel_visibility(&self) -> PanelVisibility {
+        self.held_snapshot.panel_visibility()
     }
 
     fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {

@@ -29,7 +29,7 @@ use self::{
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    stream_operators::{StreamOperators, connected_until_failure},
+    stream_operators::{Availability, StreamOperators, connected_until_failure},
     system_protocol_clients::inotify_file_presence::path_present,
 };
 
@@ -44,13 +44,22 @@ pub use peak_level_meter::Peaks;
 const REPLY_TIMEOUT: Duration = Duration::from_millis(750);
 const DEFAULT_REMOTE: &str = "pipewire-0";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum MuteState {
+    #[default]
     Audible,
     Muted,
 }
 
 impl MuteState {
+    #[must_use]
+    pub const fn toggled(self) -> Self {
+        match self {
+            MuteState::Audible => MuteState::Muted,
+            MuteState::Muted => MuteState::Audible,
+        }
+    }
+
     #[must_use]
     pub const fn label(self) -> &'static str {
         match self {
@@ -239,7 +248,7 @@ pub fn connection_events()
     socket_present().while_held(|| connected_until_failure(connect()).map(Some), None)
 }
 
-fn socket_present() -> impl Stream<Item = bool> + Send {
+fn socket_present() -> impl Stream<Item = Availability> + Send {
     use futures::{StreamExt, stream};
     let socket = pipewire_socket()
         .inspect_err(|e| tracing::warn!("audio: {e}"))

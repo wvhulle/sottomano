@@ -175,12 +175,14 @@ impl StampedCadence {
         self.delivery_cadence
     }
 
-    pub(crate) fn pushed_with_recheck_while(rechecking: bool, recheck: PeriodicPolling) -> Self {
+    pub(crate) fn pushed_with_recheck_while(
+        sampling_need: SamplingNeed,
+        recheck: PeriodicPolling,
+    ) -> Self {
         Self {
-            delivery_cadence: if rechecking {
-                DeliveryCadence::LivePushWithRecheck(recheck)
-            } else {
-                DeliveryCadence::LivePush
+            delivery_cadence: match sampling_need {
+                SamplingNeed::KeepSampling => DeliveryCadence::LivePushWithRecheck(recheck),
+                SamplingNeed::Settled => DeliveryCadence::LivePush,
             },
         }
     }
@@ -335,6 +337,12 @@ fn until_next_boundary(now: DateTime<Local>, period: Duration) -> Duration {
     let subsec_ns = u64::from(now.timestamp_subsec_nanos()) % 1_000_000_000;
     Duration::from_secs(period.as_secs() - secs_into)
         .saturating_sub(Duration::from_nanos(subsec_ns))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SamplingNeed {
+    KeepSampling,
+    Settled,
 }
 
 #[cfg(test)]

@@ -42,12 +42,12 @@ impl IconSource {
         let is_svg = theme_file
             .extension()
             .is_some_and(|extension| extension.eq_ignore_ascii_case("svg"));
-        let is_symbolic = is_svg
+        if is_svg
             && theme_file
                 .file_stem()
                 .and_then(|file_stem| file_stem.to_str())
-                .is_some_and(|file_stem| file_stem.ends_with(SYMBOLIC_ICON_SUFFIX));
-        if is_symbolic {
+                .is_some_and(|file_stem| file_stem.ends_with(SYMBOLIC_ICON_SUFFIX))
+        {
             Self::ThemedSymbolic(trimmed_file)
         } else {
             Self::Themed(trimmed_file)

@@ -914,7 +914,15 @@ mod tests {
         .origin
     }
 
-    fn events_from_pointing_at_pinned_slider(pressed: bool) -> Vec<GroupEvent<ControlMessage>> {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum SliderPointing {
+        Hover,
+        Press,
+    }
+
+    fn events_from_pointing_at_pinned_slider(
+        slider_pointing: SliderPointing,
+    ) -> Vec<GroupEvent<ControlMessage>> {
         let config = Config::default();
         let slider = offset_slider_for(DarkModeTarget::SunriseOffset);
         let item = GroupItem::slider(&slider, &config, |message| message).acting_as_handle(
@@ -933,7 +941,7 @@ mod tests {
         let _moved_inside = panel.simulate([iced::Event::Mouse(MouseEvent::CursorMoved {
             position: inside_slider,
         })]);
-        if pressed {
+        if slider_pointing == SliderPointing::Press {
             let _pressed =
                 panel.simulate([iced::Event::Mouse(MouseEvent::ButtonPressed(Button::Left))]);
         }
@@ -942,7 +950,7 @@ mod tests {
 
     #[test]
     fn hovering_a_pinned_slider_announces_its_pin_and_keeps_its_press_hints() {
-        let entered_announcement = events_from_pointing_at_pinned_slider(false)
+        let entered_announcement = events_from_pointing_at_pinned_slider(SliderPointing::Hover)
             .into_iter()
             .find_map(|event| match event {
                 GroupEvent::HoverCard(HoverCardMessage::EnterAnchor { announcement, .. }) => {
@@ -961,7 +969,7 @@ mod tests {
     #[test]
     fn pressing_a_pinned_slider_toggles_it() {
         assert!(
-            events_from_pointing_at_pinned_slider(true)
+            events_from_pointing_at_pinned_slider(SliderPointing::Press)
                 .iter()
                 .any(|event| matches!(event, GroupEvent::Group(ControlMessage::Press)))
         );

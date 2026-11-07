@@ -427,11 +427,10 @@ impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdenti
     }
 
     fn child_framing(&self) -> ChildFraming {
-        let leading_surface_incoming = self.renderings.iter().any(|rendering| {
+        if self.renderings.iter().any(|rendering| {
             rendering.arrival == PopupArrival::Incoming
                 && matches!(rendering.framing, PopupFraming::LeadingSurface(_))
-        });
-        if leading_surface_incoming {
+        }) {
             ChildFraming::LeadingChild
         } else {
             ChildFraming::WholePopup

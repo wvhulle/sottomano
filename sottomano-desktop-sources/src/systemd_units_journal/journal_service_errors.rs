@@ -42,12 +42,6 @@ pub struct ServiceErrorRecord {
     unit: LoggingUnit,
 }
 
-impl ServiceErrorRecord {
-    fn reported_elsewhere(&self) -> bool {
-        self.transport == JournalTransport::Kernel || self.message_id == Some(MessageId::COREDUMP)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceErrorEntry {
     pub at: SystemTime,
@@ -67,7 +61,9 @@ impl JournalEvent for ServiceErrorEntry {
     }
 
     fn admit(record: ServiceErrorRecord, at: SystemTime) -> Option<Self> {
-        if record.reported_elsewhere() {
+        if record.transport == JournalTransport::Kernel
+            || record.message_id == Some(MessageId::COREDUMP)
+        {
             return None;
         }
         let unit = record

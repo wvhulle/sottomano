@@ -437,12 +437,11 @@ impl GamepadBindingsConfig {
 
     #[must_use]
     pub fn focus_behaviour(&self, app_id: Option<&str>) -> FocusBehaviour {
-        let passive = app_id.is_some_and(|focused_app_id| {
+        if app_id.is_some_and(|focused_app_id| {
             self.passive_app_id_prefixes
                 .iter()
                 .any(|prefix| focused_app_id.starts_with(prefix.as_str()))
-        });
-        if passive {
+        }) {
             FocusBehaviour::Passive
         } else {
             FocusBehaviour::Active

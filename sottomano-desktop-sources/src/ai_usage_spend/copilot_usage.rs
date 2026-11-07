@@ -43,6 +43,21 @@ pub enum Error {
     Ccusage(#[from] ccusage_cli_reports::Error),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CopilotPlan {
+    Free,
+    Metered,
+}
+
+impl UserInfo {
+    fn plan_kind(&self) -> CopilotPlan {
+        match self.limited_user_quotas {
+            Some(_) => CopilotPlan::Free,
+            None => CopilotPlan::Metered,
+        }
+    }
+}
+
 #[derive(Deserialize)]
 struct UserInfo {
     limited_user_quotas: Option<FreeQuotas>,
@@ -92,7 +107,7 @@ pub struct CopilotAccount {
 
 fn plan_polls<S, F>(
     account: CopilotAccount,
-    on_plan: fn(&UserInfo) -> bool,
+    wanted_plan: CopilotPlan,
     poll: impl Fn(CopilotAccount) -> F + Send + Sync + Clone + 'static,
 ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
 where
@@ -108,7 +123,7 @@ where
             let poll = poll.clone();
             stream::once(async move { user_info(&checked).await }).flat_map(
                 move |info| match info {
-                    Ok(info) if on_plan(&info) => {
+                    Ok(info) if info.plan_kind() == wanted_plan => {
                         let polled = polled.clone();
                         let poll = poll.clone();
                         USER_POLLING

@@ -30,7 +30,8 @@ use crate::{
     },
     widget_groups::{
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -198,7 +199,7 @@ impl AudioGroup {
                 self.update_control(ControlKind::Sink, ControlMessage::Scroll(delta))
             }
             AudioMessage::Expansion(m) => {
-                if self.expansion.update(m) {
+                if self.expansion.update(m) == ExpansionChange::JustCollapsed {
                     self.close_sliders();
                 }
                 Task::none()
@@ -339,7 +340,7 @@ impl AudioGroup {
     }
 
     pub fn collapse(&mut self) {
-        if self.expansion.collapse() {
+        if self.expansion.collapse() == ExpansionChange::JustCollapsed {
             self.close_sliders();
         }
     }

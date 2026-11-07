@@ -32,8 +32,10 @@ use crate::{
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
+        power_group::power_draw_gauge::PowerSource,
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -82,7 +84,7 @@ pub enum PowerMessage {
 
 impl PowerGroup {
     pub fn collapse(&mut self) {
-        if self.expansion.collapse() {
+        if self.expansion.collapse() == ExpansionChange::JustCollapsed {
             self.power_profile.close();
         }
     }
@@ -156,7 +158,7 @@ impl PowerGroup {
                 .update(msg, clock)
                 .map(PowerMessage::PowerProfile),
             PowerMessage::Expansion(msg) => {
-                if self.expansion.update(msg) {
+                if self.expansion.update(msg) == ExpansionChange::JustCollapsed {
                     self.power_profile.close();
                 }
                 Task::none()
@@ -201,7 +203,7 @@ impl PowerGroup {
             ),
             PowerTarget::Draw => {
                 let draw = self.draw()?;
-                let charger = if draw.on_battery() {
+                let charger = if draw.power_source() == PowerSource::Battery {
                     None
                 } else {
                     self.charger.sections(clock)

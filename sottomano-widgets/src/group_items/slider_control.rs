@@ -21,7 +21,7 @@ use uom::si::{f64::Ratio, ratio};
 use crate::{
     clock::Clock,
     group_items::{
-        device_setting::{DeviceSetting, Nudge, Write},
+        device_setting::{DeviceSetting, DeviceTracking, Nudge, Write},
         group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
         source_reading::{labeled_reading, source_reading},
@@ -35,7 +35,7 @@ use crate::{
         },
     },
     widgets::{
-        announced_level::{AnnouncedLevel, LevelAnnouncement},
+        announced_level::{AnnouncedLevel, LevelAnnouncement, LevelChangeOrigin},
         configured_theme::text_color,
         flat_button,
         icon_glyph::IconGlyph,
@@ -417,13 +417,19 @@ impl SliderControl {
                 Action::None
             }
             ControlMessage::Reading(reading) => {
-                let followed_device = self.device_setting.follows_device();
+                let tracking_before = self.device_setting.device_tracking();
                 let shown_before = self.current();
                 self.device_setting
                     .device_reported(reading, self.slider_step);
                 let moved = (self.current() - shown_before).abs() >= self.slider_step / 2.0;
+                let change_origin = match tracking_before {
+                    DeviceTracking::FollowingDevice if moved => LevelChangeOrigin::OutsidePanel,
+                    DeviceTracking::FollowingDevice | DeviceTracking::Diverging => {
+                        LevelChangeOrigin::FromPanel
+                    }
+                };
                 if let Some(announcement) = &mut self.level_announcement {
-                    announcement.device_reported(followed_device && moved);
+                    announcement.device_reported(change_origin);
                 }
                 Action::None
             }
@@ -432,10 +438,14 @@ impl SliderControl {
                 Action::None
             }
             ControlMessage::Activity(slider_activity) => {
-                let toggled = slider_activity != self.slider_activity;
+                let change_origin = if slider_activity == self.slider_activity {
+                    LevelChangeOrigin::FromPanel
+                } else {
+                    LevelChangeOrigin::OutsidePanel
+                };
                 self.slider_activity = slider_activity;
                 if let Some(announcement) = &mut self.level_announcement {
-                    announcement.device_reported(toggled);
+                    announcement.device_reported(change_origin);
                 }
                 Action::None
             }

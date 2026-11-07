@@ -56,6 +56,20 @@ pub enum NotifImage {
     Named(String),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SoundHint {
+    #[default]
+    Allowed,
+    Suppressed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Residency {
+    #[default]
+    Transient,
+    Resident,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct NotificationData {
     pub id: u32,
@@ -70,10 +84,10 @@ pub struct NotificationData {
     pub sender: OwnerProcess,
     pub desktop_entry: Option<String>,
     pub image: Option<NotifImage>,
-    pub suppress_sound: bool,
+    pub sound_hint: SoundHint,
     pub sound_file: Option<String>,
     pub category: Option<String>,
-    pub resident: bool,
+    pub residency: Residency,
     pub progress: Option<Ratio>,
     pub reply: ReplyPrompt,
 }

@@ -7,7 +7,7 @@ use uom::{
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::group_item_reading::{GroupItemReading, PanelVisibility},
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
         icon_glyph::IconGlyph,
@@ -31,8 +31,12 @@ fn package_draw(power: &CpuPower) -> Option<Power> {
 }
 
 impl GroupItemReading for CpuPower {
-    fn visible_on_panel(&self) -> bool {
-        package_draw(self).is_some()
+    fn panel_visibility(&self) -> PanelVisibility {
+        if package_draw(self).is_some() {
+            PanelVisibility::Shown
+        } else {
+            PanelVisibility::Hidden
+        }
     }
 
     fn name(&self) -> &'static str {

@@ -1,4 +1,4 @@
-use std::{env, error::Error, fmt, future::ready, process, time::Duration};
+use std::{env, error::Error, ffi::OsString, fmt, future::ready, process, time::Duration};
 
 use futures::{SinkExt, Stream, StreamExt, stream};
 use niri_ipc::{
@@ -22,8 +22,8 @@ fn exit_without_niri(reason: &dyn fmt::Display) -> ! {
 }
 
 #[must_use]
-pub fn niri_socket_is_set() -> bool {
-    env::var_os(SOCKET_PATH_ENV).is_some()
+pub fn niri_socket_variable() -> Option<OsString> {
+    env::var_os(SOCKET_PATH_ENV)
 }
 
 type NiriSubscribeFailure = Box<dyn Error + Send + Sync>;
@@ -79,12 +79,16 @@ struct NiriStreamProgress {
 }
 
 impl NiriStreamProgress {
-    fn received_initial_state(&self) -> bool {
-        self.received_initial_windows && self.received_initial_workspaces
+    fn stream_readiness(&self) -> StreamReadiness {
+        if self.received_initial_windows && self.received_initial_workspaces {
+            StreamReadiness::Ready
+        } else {
+            StreamReadiness::AwaitingInitialState
+        }
     }
 
     fn applied(&mut self, events: Vec<Event>) -> Option<CompositorUpdate> {
-        let was_initialized = self.received_initial_state();
+        let readiness_before = self.stream_readiness();
         self.received_initial_windows |= events
             .iter()
             .any(|event| matches!(event, Event::WindowsChanged { .. }));
@@ -92,13 +96,15 @@ impl NiriStreamProgress {
             .iter()
             .any(|event| matches!(event, Event::WorkspacesChanged { .. }));
         let update = applied_niri_events(&mut self.niri_state, events);
-        match (was_initialized, self.received_initial_state()) {
-            (true, _) => Some(update),
-            (false, true) => Some(CompositorUpdate {
-                changes: CompositorChange::ALL.into(),
-                ..update
-            }),
-            (false, false) => None,
+        match (readiness_before, self.stream_readiness()) {
+            (StreamReadiness::Ready, _) => Some(update),
+            (StreamReadiness::AwaitingInitialState, StreamReadiness::Ready) => {
+                Some(CompositorUpdate {
+                    changes: CompositorChange::ALL.into(),
+                    ..update
+                })
+            }
+            (StreamReadiness::AwaitingInitialState, StreamReadiness::AwaitingInitialState) => None,
         }
     }
 }
@@ -205,4 +211,10 @@ fn compositor_layout_of(layout: &WindowLayout) -> CompositorWindowLayout {
         tile_position_in_view: layout.tile_pos_in_workspace_view,
         window_offset_in_tile: layout.window_offset_in_tile,
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StreamReadiness {
+    Ready,
+    AwaitingInitialState,
 }

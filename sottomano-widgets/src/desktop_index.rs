@@ -7,7 +7,7 @@ use std::{
 use iced::{Task, task::Handle};
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
-    desktop_windows_apps::desktop_entry_app_icons::{self, DesktopEntries},
+    desktop_windows_apps::desktop_entry_app_icons::{self, DesktopEntries, SchemeHandling},
 };
 
 #[derive(Debug, Clone, Default)]
@@ -54,9 +54,10 @@ impl DesktopIndex {
     }
 
     #[must_use]
-    pub fn handles_scheme(&self, scheme: &str) -> bool {
-        self.get()
-            .is_some_and(|entries| entries.handles_scheme(scheme))
+    pub fn scheme_handling(&self, scheme: &str) -> SchemeHandling {
+        self.get().map_or(SchemeHandling::Unhandled, |entries| {
+            entries.scheme_handling(scheme)
+        })
     }
 
     pub fn theme_icon_path(&self, name: &str) -> Option<&Path> {

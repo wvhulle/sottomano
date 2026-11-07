@@ -16,6 +16,7 @@ use tokio::{net::UnixStream, sync::Mutex};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::{Panicked, blocking_poll},
+    delivery_cadence_drivers::SamplingNeed,
     podman_container_engine::{
         libpod_inspect_ci_identity::{WoodpeckerStepIdentity, fetch_woodpecker_step_identity},
         running_set_changes::{ChangeTrackedSample, samples_on_running_set_changes},
@@ -305,8 +306,11 @@ impl EngineSampler {
 
 pub(crate) type EngineRead = Result<EngineContainers, EngineReadError>;
 
-fn engine_keeps_sampling(engine_read: &EngineRead) -> bool {
-    !matches!(engine_read, Ok(engine) if engine.containers.is_empty())
+fn engine_sampling_need(engine_read: &EngineRead) -> SamplingNeed {
+    match engine_read {
+        Ok(engine) if engine.containers.is_empty() => SamplingNeed::Settled,
+        Ok(_) | Err(_) => SamplingNeed::KeepSampling,
+    }
 }
 
 pub(crate) fn shared_engine_sampler(socket_path: PathBuf) -> Arc<Mutex<EngineSampler>> {
@@ -322,7 +326,7 @@ pub(crate) fn engine_samples_on_running_set_changes(
             let sampler = sampler.clone();
             async move { sampler.lock().await.sample().await }
         },
-        engine_keeps_sampling,
+        engine_sampling_need,
     )
 }
 
@@ -367,6 +371,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        delivery_cadence_drivers::SamplingNeed,
         desktop_windows_apps::process_tree_inspection::CpuCapacity,
         system_protocol_clients::procfs_process_tree::ProcessSample,
     };
@@ -469,8 +474,11 @@ mod tests {
         let empty: EngineRead = Ok(EngineContainers {
             containers: Vec::new(),
         });
-        assert!(!engine_keeps_sampling(&empty));
-        assert!(engine_keeps_sampling(&Err(EngineReadError::SocketMissing)));
+        assert_eq!(engine_sampling_need(&empty), SamplingNeed::Settled);
+        assert_eq!(
+            engine_sampling_need(&Err(EngineReadError::SocketMissing)),
+            SamplingNeed::KeepSampling
+        );
     }
 
     #[test]

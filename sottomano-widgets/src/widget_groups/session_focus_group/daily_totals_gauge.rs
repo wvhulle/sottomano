@@ -50,8 +50,9 @@ impl DailyTotalsGauge {
         }
     }
 
-    pub fn computed_in_second_of(&self, now: DateTime<Utc>) -> bool {
-        self.computed_at.timestamp() == now.timestamp()
+    #[must_use]
+    pub fn computed_at(&self) -> DateTime<Utc> {
+        self.computed_at
     }
 
     fn worst(&self) -> Option<Quota> {

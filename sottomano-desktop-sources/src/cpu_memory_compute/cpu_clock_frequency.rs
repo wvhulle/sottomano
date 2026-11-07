@@ -11,8 +11,10 @@ use super::{
     kernel_frequency_limit_causes::{CoreLimitCauses, FrequencyLimitCause, core_limit_causes},
 };
 use crate::{
-    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking_poll,
-    delivery_cadence_drivers::PeriodicPolling, stream_operators::StreamOperators,
+    SnapshotDelivery, SnapshotSource,
+    blocking_background_work::blocking_poll,
+    delivery_cadence_drivers::PeriodicPolling,
+    stream_operators::{Availability, StreamOperators},
     system_protocol_clients::sysfs_attribute_reads::Error,
 };
 
@@ -88,7 +90,7 @@ impl CpuClock {
 
     #[must_use]
     pub fn limit_kind(&self) -> ClockLimitKind {
-        let thermal = self
+        if self
             .limit_causes
             .iter()
             .flat_map(|core| &core.causes)
@@ -99,8 +101,8 @@ impl CpuClock {
                         | FrequencyLimitCause::CoreThermalThrottle { .. }
                         | FrequencyLimitCause::PackageThermalThrottle { .. }
                 )
-            });
-        if thermal {
+            })
+        {
             ClockLimitKind::Thermal
         } else {
             ClockLimitKind::NonThermal
@@ -160,9 +162,10 @@ impl SnapshotSource for CpuClock {
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let exposed = async {
-            spawn_blocking(core_freqs)
-                .await
-                .is_ok_and(|cores| !cores.is_empty())
+            match spawn_blocking(core_freqs).await {
+                Ok(cores) if !cores.is_empty() => Availability::Available,
+                Ok(_) | Err(_) => Availability::Unavailable,
+            }
         };
         stream::once(exposed).available_while(move || {
             PeriodicPolling::every(Duration::from_secs(3)).blocking_poll_deliveries_after_setup(

@@ -4,7 +4,7 @@ use iced::Task;
 use sottomano_desktop_sinks::desktop_windows_apps::compositor_requests::CompositorRequestFailure;
 use sottomano_desktop_sources::desktop_windows_apps::{
     app_launch_history::LaunchScope,
-    compositor_connection::{CompositorKind, missing_compositor_reason},
+    compositor_connection::{CompositorKind, WorkspaceConfigSource, missing_compositor_reason},
     compositor_output_facts::OutputInfo,
     compositor_window_state::{
         CompositorChange, CompositorUpdate, CompositorWindow, CompositorWindowState,
@@ -51,14 +51,16 @@ impl DesktopShell {
     }
 
     pub(super) fn read_niri_workspace_order(&self) -> Task<Message> {
-        if !CompositorKind::detected().is_some_and(CompositorKind::reads_niri_config) {
+        if CompositorKind::detected().map(CompositorKind::workspace_config_source)
+            != Some(WorkspaceConfigSource::NiriKdl)
+        {
             return Task::none();
         }
         Task::perform(self.niri_config.read_workspaces(), Message::NiriConfigRead)
     }
 
     pub(super) fn apply_compositor_update(&mut self, update: CompositorUpdate) -> Task<Message> {
-        let changed = |change| update.changed(change);
+        let changed = |change| update.changes.contains(&change);
         let config_reloaded = changed(CompositorChange::ConfigReload);
         let focus_changed = changed(CompositorChange::Focus);
         let windows_changed = changed(CompositorChange::Windows);
@@ -182,16 +184,26 @@ pub(super) fn report_missing_compositor() -> Task<Message> {
 
 const UNNAMED_FULLSCREEN_WINDOW: &str = "A window without an app ID";
 
-fn fills_output_in_view(window: &CompositorWindow, output: &OutputInfo) -> bool {
+fn output_coverage(window: &CompositorWindow, output: &OutputInfo) -> OutputCoverage {
     let (window_width, window_height) = window.layout.window_size;
     let fills_output = i64::from(window_width) == i64::from(output.logical_width)
         && i64::from(window_height) == i64::from(output.logical_height);
     let half_output_width = f64::from(output.logical_width) / 2.0;
-    fills_output
-        && window
-            .layout
-            .tile_position_in_view
-            .is_none_or(|(tile_x, _)| tile_x.abs() < half_output_width)
+    let in_view = window
+        .layout
+        .tile_position_in_view
+        .is_none_or(|(tile_x, _)| tile_x.abs() < half_output_width);
+    if fills_output && in_view {
+        OutputCoverage::Filled
+    } else {
+        OutputCoverage::Partial
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OutputCoverage {
+    Filled,
+    Partial,
 }
 
 fn focused_workspace_fullscreen_window<'a>(
@@ -201,7 +213,8 @@ fn focused_workspace_fullscreen_window<'a>(
     let workspace = compositor.focused_workspace()?;
     let output = outputs.get(workspace.output.as_deref()?)?;
     compositor.windows.values().find(|window| {
-        window.workspace_id == Some(workspace.id) && fills_output_in_view(window, output)
+        window.workspace_id == Some(workspace.id)
+            && output_coverage(window, output) == OutputCoverage::Filled
     })
 }
 
@@ -225,14 +238,20 @@ pub(crate) fn gamepad_window_claim<'a>(
         .map_or(GamepadWindowClaim::Unclaimed, GamepadWindowClaim::Focused)
 }
 
-pub(super) fn reheats_switch_heat(message: &Message) -> bool {
-    matches!(
-        message,
+pub(super) fn switch_heat_effect(message: &Message) -> SwitchHeatEffect {
+    match message {
         Message::Compositor(_)
-            | Message::SessionFocus(_)
-            | Message::NiriWindow(_)
-            | Message::Clock(_)
-    )
+        | Message::SessionFocus(_)
+        | Message::NiriWindow(_)
+        | Message::Clock(_) => SwitchHeatEffect::Reheats,
+        _ => SwitchHeatEffect::Unaffected,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SwitchHeatEffect {
+    Reheats,
+    Unaffected,
 }
 
 #[cfg(test)]

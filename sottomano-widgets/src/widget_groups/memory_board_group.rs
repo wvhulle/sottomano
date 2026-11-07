@@ -16,7 +16,10 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    group_items::{
+        group_item::GroupItem,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+    },
     hover_cards::{
         HoverTarget,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
@@ -128,7 +131,7 @@ impl MemoryBoardGroup {
                 self.hardware
                     .get()
                     .map(|hardware| &hardware.machine)
-                    .filter(GroupItemReading::visible_on_panel)
+                    .filter(|reading| reading.panel_visibility() == PanelVisibility::Shown)
                     .map(|machine| GroupItem::reading(machine, MemoryBoardTarget::Board)),
             ]
             .into_iter()
@@ -168,8 +171,7 @@ impl MemoryBoardGroup {
             MemoryBoardTarget::Board => {
                 let machine = &self.hardware.get()?.machine;
                 self.hardware.hover_card_with(
-                    machine
-                        .visible_on_panel()
+                    (machine.panel_visibility() == PanelVisibility::Shown)
                         .then(|| machine.hover_card(clock))?,
                 )
             }

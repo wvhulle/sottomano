@@ -510,8 +510,12 @@ impl WindowSlot<'_> {
         }
     }
 
-    fn maximize_toggles(&self) -> bool {
-        self.window_entry.is_focused && !self.window_entry.layout.is_floating
+    fn tile_press(&self) -> TilePress {
+        if self.window_entry.is_focused && !self.window_entry.layout.is_floating {
+            TilePress::TogglesMaximize
+        } else {
+            TilePress::FocusesWindow
+        }
     }
 
     fn audio_pid(&self) -> Option<i32> {
@@ -522,7 +526,7 @@ impl WindowSlot<'_> {
 
     fn press_hints(&self) -> PressHints {
         PressHints {
-            left: Some(if self.maximize_toggles() {
+            left: Some(if self.tile_press() == TilePress::TogglesMaximize {
                 "maximize or restore"
             } else {
                 "focus the window"
@@ -536,7 +540,7 @@ impl WindowSlot<'_> {
         let press = SlotPress {
             item: self.item,
             position: self.position_in_panel,
-            click: if self.maximize_toggles() {
+            click: if self.tile_press() == TilePress::TogglesMaximize {
                 SlotClick::MaximizeColumn
             } else {
                 SlotClick::FocusWindow(self.window_entry.id)
@@ -734,6 +738,12 @@ impl WindowSlot<'_> {
             self.opacity,
         )
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TilePress {
+    TogglesMaximize,
+    FocusesWindow,
 }
 
 #[cfg(test)]

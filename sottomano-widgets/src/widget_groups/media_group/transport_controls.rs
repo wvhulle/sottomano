@@ -1,6 +1,6 @@
 use iced::{Alignment, Element, widget::Row};
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{
-    Command, LoopMode, Media, QueueOrder, Status,
+    Command, LoopMode, Media, PlayerSetting, QueueOrder, Status,
 };
 use sottomano_toml_config::Config;
 
@@ -104,7 +104,9 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
     where
         Message: 'a,
     {
-        let queue_order = self.media.queue_order?;
+        let PlayerSetting::Controllable(queue_order) = self.media.queue_order else {
+            return None;
+        };
         Some(self.toggle(
             Phosphor::Shuffle(Weight::Regular),
             ReadingDisplayState::from(queue_order),
@@ -201,7 +203,9 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
     where
         Message: 'a,
     {
-        let mode = self.media.loop_mode?;
+        let PlayerSetting::Controllable(mode) = self.media.loop_mode else {
+            return None;
+        };
         let glyph = match mode {
             LoopMode::Off | LoopMode::Playlist => Phosphor::Repeat(Weight::Regular),
             LoopMode::Track => Phosphor::RepeatOnce(Weight::Regular),

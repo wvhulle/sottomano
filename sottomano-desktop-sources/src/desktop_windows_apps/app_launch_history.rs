@@ -51,18 +51,6 @@ pub enum LaunchScope<'workspace> {
     EveryWorkspace,
 }
 
-impl LaunchScope<'_> {
-    fn covers(self, launch: &Launch) -> bool {
-        match self {
-            LaunchScope::NamedWorkspace(wanted_name) => matches!(
-                &launch.workspace,
-                LaunchWorkspace::Named(workspace_name) if workspace_name == wanted_name
-            ),
-            LaunchScope::EveryWorkspace => true,
-        }
-    }
-}
-
 #[derive(Default)]
 pub struct LaunchTracker {
     history: Vec<Launch>,
@@ -119,7 +107,13 @@ impl LaunchTracker {
         let frecencies = self
             .history
             .iter()
-            .filter(|launch| scope.covers(launch))
+            .filter(|launch| match scope {
+                LaunchScope::NamedWorkspace(wanted_name) => matches!(
+                    &launch.workspace,
+                    LaunchWorkspace::Named(workspace_name) if workspace_name == wanted_name
+                ),
+                LaunchScope::EveryWorkspace => true,
+            })
             .fold(
                 HashMap::<&str, Frecency>::new(),
                 |mut frecencies, launch| {

@@ -16,7 +16,9 @@ use sottomano_desktop_sinks::{
     desktop_windows_apps::compositor_requests::{CompositorRequest, CompositorRequestFailure},
 };
 use sottomano_desktop_sources::{
-    desktop_notifications::notification_data::{NotificationData, Outbound, close_reason},
+    desktop_notifications::notification_data::{
+        NotificationData, Outbound, Residency, SoundHint, close_reason,
+    },
     desktop_windows_apps::window_edge_placement::Placement,
 };
 use sottomano_toml_config::{Config, LoadError, severity::Severity};
@@ -33,16 +35,19 @@ use super::{
 };
 use crate::{
     background_work::compositor_request,
-    hover_cards::PopupMessage,
+    hover_cards::{PointerPresence, PopupMessage},
     layer_surfaces::SurfaceRequest,
-    notification_toasts::{NotificationSettings, ToastLayerHost},
+    notification_toasts::{
+        NotificationSettings, ToastLayerHost,
+        toast_lifecycle::{CountdownExpiry, FadeState, ToastSender},
+    },
     toast_messages::NotificationMessage,
     widget_groups::{
         notification_group::AlertSound, quiet_schedule_group::quiet_window::QuietPhase,
         widget_group_content::GroupToastRequests,
     },
     widgets::{
-        announced_level::LevelReading,
+        announced_level::{LevelReading, LevelReadingChange},
         ongoing_toast::{OngoingKey, OngoingToast},
     },
 };
@@ -82,11 +87,16 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             NotificationMessage::BodyClicked(id) => {
                 self.activate_action(id, DEFAULT_ACTION, context, toast_surface_on)
             }
-            NotificationMessage::HoverChanged { id, hovered } => {
-                if hovered {
-                    self.hovered = Some(id);
-                } else if self.hovered == Some(id) {
-                    self.hovered = None;
+            NotificationMessage::HoverChanged {
+                id,
+                pointer_presence,
+            } => {
+                match pointer_presence {
+                    PointerPresence::PointedAt => self.hovered = Some(id),
+                    PointerPresence::NotPointedAt if self.hovered == Some(id) => {
+                        self.hovered = None;
+                    }
+                    PointerPresence::NotPointedAt => {}
                 }
                 self.sync_countdowns(context.clock.instant);
                 Task::none()
@@ -163,7 +173,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let level_toasts: Vec<Task<Routed>> = requests
             .levels
             .into_iter()
-            .filter(|reading| reading.changed_since(&previous_levels))
+            .filter(|reading| reading.change_since(&previous_levels) == LevelReadingChange::Changed)
             .map(|reading| self.announce_level(reading, context))
             .collect();
         Task::batch(iter::once(ongoing_toasts).chain(level_toasts))
@@ -200,7 +210,14 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let to_raise: Vec<OngoingToast<Routed>> = active
             .into_iter()
             .filter(|toast| !self.snoozed.iter().any(|snoozed| snoozed.key == toast.key))
-            .filter(|toast| !self.showing().any(|n| n.already_shows(toast)))
+            .filter(|toast| {
+                !self.showing().any(|notif| {
+                    notif.ongoing_key() == Some(&toast.key)
+                        && notif.data.severity >= toast.severity
+                        && notif.data.body == toast.body
+                        && notif.data.progress == toast.progress
+                })
+            })
             .collect();
         let raised: Vec<Task<Routed>> = to_raise
             .into_iter()
@@ -216,7 +233,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     ) -> Task<Routed> {
         let shown = self
             .showing()
-            .find(|n| n.shows_ongoing(&toast.key))
+            .find(|notif| notif.ongoing_key() == Some(&toast.key))
             .map(|n| (n.data.id, n.ongoing_since()));
         let toast_id = match shown {
             Some((id, since)) => {
@@ -235,7 +252,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     ) -> Task<Routed> {
         let toast_id = self
             .showing()
-            .find(|n| n.announces_level_of(&reading.hover_target))
+            .find(|notif| notif.announced_target() == Some(&reading.hover_target))
             .map_or_else(|| self.fresh_shell_toast_id(), |n| n.data.id);
         self.serve(
             ToastContent::level_announcement(reading, toast_id, context.clock.wall),
@@ -328,7 +345,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     pub fn withdraw_config_error(&mut self, config: &Config, now: Instant) -> Task<Routed> {
         let shown: Vec<u32> = self
             .showing()
-            .filter(|n| n.shows_ongoing(&OngoingKey::ConfigFile))
+            .filter(|notif| notif.ongoing_key() == Some(&OngoingKey::ConfigFile))
             .map(|n| n.data.id)
             .collect();
         self.close_all(shown, close_reason::CLOSED_BY_CALL, config, now)
@@ -431,7 +448,9 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         if let Some(shown) = shown {
             shown.replace_content(toast, icons, countdown, place);
         } else {
-            if notifications.alert_sound == AlertSound::Audible && !data.suppress_sound {
+            if notifications.alert_sound == AlertSound::Audible
+                && data.sound_hint == SoundHint::Allowed
+            {
                 tasks.push(
                     Task::future(alert_sound_player::play(data, &self.sound_theme)).discard(),
                 );
@@ -475,14 +494,18 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     }
 
     pub fn prune(&mut self, now: Instant) {
-        self.live.retain(|n| !n.has_faded(now));
+        self.live
+            .retain(|n| n.fade_state(now) == FadeState::Visible);
     }
 
     fn expire(&mut self, context: &ToastContext) -> Task<Routed> {
         let now = context.clock.instant;
         let expired: Vec<u32> = self
             .showing()
-            .filter(|n| n.countdown.is_some_and(|c| c.has_elapsed(now)))
+            .filter(|n| {
+                n.countdown
+                    .is_some_and(|c| c.expiry_at(now) == CountdownExpiry::Elapsed)
+            })
             .map(|n| n.data.id)
             .collect();
         let closed = self.close_all(expired, close_reason::EXPIRED, context.config, now);
@@ -533,7 +556,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let closed = self
             .withdraw_showing(candidates, reason.into(), config, now)
             .into_iter()
-            .filter(|id| self.sent_by_dbus_client(*id))
+            .filter(|id| self.sender_of(*id) == Some(ToastSender::DbusClient))
             .map(|id| Outbound::Closed { id, reason })
             .collect();
         self.emit_in_order(closed)
@@ -564,11 +587,21 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
                 ),
             ]);
         }
-        if key == DEFAULT_ACTION && self.declares_default_action(id) {
+        let declares_default_action = self.showing().any(|notif| {
+            notif.data.id == id
+                && notif
+                    .data
+                    .actions
+                    .iter()
+                    .any(|action| action.key == DEFAULT_ACTION)
+        });
+        if key == DEFAULT_ACTION && declares_default_action {
             return self.hand_default_action_back_to_sender(id, toast_surface_on);
         }
 
-        let survives_action_invocation = self.showing().any(|n| n.data.id == id && n.data.resident);
+        let survives_action_invocation = self
+            .showing()
+            .any(|n| n.data.id == id && n.data.residency == Residency::Resident);
         let window_action = self
             .window_of(id, placement)
             .and_then(|window| action_on_window(key, window, placement));
@@ -641,7 +674,9 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         token: Option<String>,
         context: &ToastContext,
     ) -> Task<Routed> {
-        let survives_action_invocation = self.showing().any(|n| n.data.id == id && n.data.resident);
+        let survives_action_invocation = self
+            .showing()
+            .any(|n| n.data.id == id && n.data.residency == Residency::Resident);
         let mut outbound: Vec<Outbound> = token
             .map(|token| Outbound::ActivationToken { id, token })
             .into_iter()

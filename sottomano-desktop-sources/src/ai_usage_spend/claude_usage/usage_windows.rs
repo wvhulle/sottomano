@@ -107,11 +107,6 @@ impl ClaudeUsageWindows {
             .as_ref()?
             .quota("Claude weekly Sonnet limit", WEEKLY_LENGTH, now)
     }
-
-    fn subscription_exhausted(&self) -> bool {
-        self.all_usage_windows()
-            .any(|window| window.utilization >= Ratio::new::<percent>(100.0))
-    }
 }
 
 impl WindowUsage {
@@ -133,7 +128,10 @@ impl ClaudeUsageWindows {
             .extra
             .as_ref()
             .filter(|extra| extra.status == ExtraStatus::Enabled && extra.monthly_limit.is_some())
-            .filter(|_| self.subscription_exhausted())
+            .filter(|_| {
+                self.all_usage_windows()
+                    .any(|window| window.utilization >= Ratio::new::<percent>(100.0))
+            })
             .and_then(|extra| extra.used_share)
             .and_then(|used| Quota::within_calendar_month("Claude extra usage", used, now));
         [
@@ -307,18 +305,20 @@ mod tests {
         }
     }
 
-    fn has_extra_quota(windows: &ClaudeUsageWindows) -> bool {
+    fn quota_labels(windows: &ClaudeUsageWindows) -> Vec<String> {
         let now: DateTime<Utc> = "2026-10-24T08:30:00Z".parse().unwrap();
         windows
             .quotas(now)
-            .iter()
-            .any(|quota| quota.label == "Claude extra usage")
+            .into_iter()
+            .map(|quota| quota.label.to_string())
+            .collect()
     }
 
     #[test]
     fn extra_usage_only_counts_once_a_subscription_window_is_used_up() {
-        assert!(!has_extra_quota(&windows_with_weekly_use(27.0)));
-        assert!(has_extra_quota(&windows_with_weekly_use(100.0)));
+        let extra_label = "Claude extra usage".to_owned();
+        assert!(!quota_labels(&windows_with_weekly_use(27.0)).contains(&extra_label));
+        assert!(quota_labels(&windows_with_weekly_use(100.0)).contains(&extra_label));
     }
 
     #[test]

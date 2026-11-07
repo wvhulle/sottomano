@@ -1,5 +1,6 @@
 use std::{
     env,
+    ffi::OsString,
     io::{self, BufRead, BufReader, Read, Write},
     net::Shutdown,
     os::unix::net::UnixStream,
@@ -12,8 +13,8 @@ const HYPRLAND_EVENT_SOCKET: &str = ".socket2.sock";
 const HYPRLAND_EVENT_SEPARATOR: &str = ">>";
 
 #[must_use]
-pub fn hyprland_signature_is_set() -> bool {
-    env::var_os(HYPRLAND_SIGNATURE_ENV).is_some()
+pub fn hyprland_signature_variable() -> Option<OsString> {
+    env::var_os(HYPRLAND_SIGNATURE_ENV)
 }
 
 fn hyprland_socket_directory() -> io::Result<PathBuf> {

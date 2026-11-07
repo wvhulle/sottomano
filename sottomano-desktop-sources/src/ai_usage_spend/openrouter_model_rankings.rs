@@ -79,10 +79,6 @@ struct ModelBenchmarkRow {
 }
 
 impl TokenPricing {
-    fn paid(&self) -> bool {
-        self.input_per_million.is_positive() && self.output_per_million.is_positive()
-    }
-
     fn blended_per_million(&self) -> Decimal {
         (self.input_per_million.amount() * Decimal::from(3) + self.output_per_million.amount())
             / Decimal::from(4)
@@ -90,14 +86,6 @@ impl TokenPricing {
 }
 
 impl OpenRouterModel {
-    fn fits_agentic_coding(&self) -> bool {
-        let canonical = !self.id.contains(':') && !self.id.starts_with('~');
-        self.tool_calling
-            && self.pricing.paid()
-            && canonical
-            && self.context_length >= AGENTIC_MINIMUM_CONTEXT_TOKENS
-    }
-
     fn scored(self, benchmark_rows: &[ModelBenchmarkRow]) -> Option<ScoredModel> {
         let intelligence_index = benchmark_rows
             .iter()
@@ -129,7 +117,14 @@ impl OpenRouterModelRankings {
     ) -> Self {
         let mut affordable: Vec<OpenRouterModel> = openrouter_models
             .into_iter()
-            .filter(OpenRouterModel::fits_agentic_coding)
+            .filter(|model| {
+                let canonical = !model.id.contains(':') && !model.id.starts_with('~');
+                model.tool_calling
+                    && model.pricing.input_per_million.is_positive()
+                    && model.pricing.output_per_million.is_positive()
+                    && canonical
+                    && model.context_length >= AGENTIC_MINIMUM_CONTEXT_TOKENS
+            })
             .filter(|model| model.pricing.blended_per_million() <= max_blended_per_million)
             .collect();
         affordable.sort_by(|left, right| left.id.cmp(&right.id));

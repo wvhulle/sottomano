@@ -15,7 +15,8 @@ use crate::{
     widget_groups::{
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
         window_group::WindowRowLayout,
@@ -291,7 +292,7 @@ impl PanelSettingsGroup {
     }
 
     pub fn collapse(&mut self) {
-        if self.expansion.collapse() {
+        if self.expansion.collapse() == ExpansionChange::JustCollapsed {
             self.close_sliders();
         }
     }
@@ -299,7 +300,7 @@ impl PanelSettingsGroup {
     pub fn update(&mut self, msg: PanelSettingsMessage) -> Action {
         match msg {
             PanelSettingsMessage::Expansion(menu) => {
-                if self.expansion.update(menu) {
+                if self.expansion.update(menu) == ExpansionChange::JustCollapsed {
                     self.close_sliders();
                 }
                 Action::Run(Task::none())

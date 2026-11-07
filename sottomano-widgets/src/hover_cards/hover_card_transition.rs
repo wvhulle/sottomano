@@ -125,8 +125,10 @@ impl HoverCardTransition {
 
     #[must_use]
     pub fn shown_retention(&self) -> CardRetention {
-        self.current()
-            .map_or(CardRetention::NothingShown, |current| current.retention)
+        match &self.stage {
+            Stage::Showing { current, .. } => current.retention,
+            Stage::Idle | Stage::Hiding { .. } => CardRetention::NothingShown,
+        }
     }
 
     pub fn cancel_leave(&mut self) {

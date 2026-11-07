@@ -17,8 +17,9 @@ use sottomano_desktop_sources::{
     },
 };
 use sottomano_widgets::{
-    hover_cards::HoverCardMessage, toast_messages::NotificationMessage,
-    widgets::motion_state::MotionState,
+    hover_cards::HoverCardMessage,
+    toast_messages::NotificationMessage,
+    widgets::{motion_state::MotionState, typing_under_cards::CardVisibility},
 };
 use wayland_client::Connection;
 
@@ -101,7 +102,11 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         state
             .typing_under_cards
             .subscription(
-                state.notifications.live_count() > 0 || state.hover_card.placement().is_some(),
+                if state.notifications.live_count() > 0 || state.hover_card.placement().is_some() {
+                    CardVisibility::Shown
+                } else {
+                    CardVisibility::Hidden
+                },
                 &state.config.overlay_surfaces,
             )
             .map(Message::TypingUnderCards),

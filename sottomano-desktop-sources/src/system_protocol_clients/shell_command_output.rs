@@ -5,6 +5,8 @@ use std::{
 
 use tokio::process::Command;
 
+use crate::stream_operators::Availability;
+
 const TRANSIENT_SCOPE_PROGRAM: &str = "systemd-run";
 const BACKGROUND_SCOPE_ARGS: [&str; 6] = [
     "--user",
@@ -103,8 +105,9 @@ pub async fn background_output(program: &str, args: &[&str]) -> Result<String, E
     captured(program, &output)
 }
 
-pub async fn exists(program: &str) -> bool {
-    output("sh", &["-c", &format!("command -v {program}")])
-        .await
-        .is_ok()
+pub async fn program_availability(program: &str) -> Availability {
+    match output("sh", &["-c", &format!("command -v {program}")]).await {
+        Ok(_) => Availability::Available,
+        Err(_) => Availability::Unavailable,
+    }
 }

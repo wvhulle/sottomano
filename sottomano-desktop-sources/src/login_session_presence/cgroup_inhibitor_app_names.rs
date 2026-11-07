@@ -32,11 +32,11 @@ impl InhibitorAppNames {
 
     #[must_use]
     pub fn of_lock_holder(&self, stated_name: &str, pid: u32) -> String {
-        if names_only_the_runtime(stated_name, pid) {
-            self.of_process(pid)
-                .unwrap_or_else(|| stated_name.to_owned())
-        } else {
-            stated_name.to_owned()
+        match stated_name_kind(stated_name, pid) {
+            StatedNameKind::RuntimeOnly => self
+                .of_process(pid)
+                .unwrap_or_else(|| stated_name.to_owned()),
+            StatedNameKind::AppName => stated_name.to_owned(),
         }
     }
 
@@ -65,16 +65,29 @@ fn own_process_name(process: &Proc) -> Option<String> {
     binary_name(process).or_else(|| non_empty(process.stat().ok()?.comm))
 }
 
-fn names_only_the_runtime(stated_name: &str, pid: u32) -> bool {
-    let Some(process) = i32::try_from(pid).ok().and_then(|id| Proc::new(id).ok()) else {
-        return stated_name.is_empty();
-    };
-    let comm = process.stat().ok().map(|stat| stat.comm);
-    stated_name.is_empty()
-        || [binary_name(&process), comm]
-            .into_iter()
-            .flatten()
-            .any(|process_name| process_name.eq_ignore_ascii_case(stated_name))
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StatedNameKind {
+    RuntimeOnly,
+    AppName,
+}
+
+fn stated_name_kind(stated_name: &str, pid: u32) -> StatedNameKind {
+    let runtime_only = stated_name.is_empty()
+        || i32::try_from(pid)
+            .ok()
+            .and_then(|id| Proc::new(id).ok())
+            .is_some_and(|process| {
+                let comm = process.stat().ok().map(|stat| stat.comm);
+                [binary_name(&process), comm]
+                    .into_iter()
+                    .flatten()
+                    .any(|process_name| process_name.eq_ignore_ascii_case(stated_name))
+            });
+    if runtime_only {
+        StatedNameKind::RuntimeOnly
+    } else {
+        StatedNameKind::AppName
+    }
 }
 
 fn app_id_of_cgroup_leaf(leaf: &str) -> Option<String> {

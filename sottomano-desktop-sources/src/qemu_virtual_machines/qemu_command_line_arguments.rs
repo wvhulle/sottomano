@@ -88,7 +88,7 @@ pub enum LaunchedProgram {
 
 impl From<&[String]> for LaunchedProgram {
     fn from(command_line: &[String]) -> Self {
-        let launches_qemu = command_line
+        if command_line
             .first()
             .and_then(|executable| Path::new(executable).file_name())
             .and_then(|file_name| file_name.to_str())
@@ -96,8 +96,8 @@ impl From<&[String]> for LaunchedProgram {
                 QEMU_EXECUTABLE_PREFIXES
                     .iter()
                     .any(|prefix| file_name.starts_with(prefix))
-            });
-        if launches_qemu {
+            })
+        {
             LaunchedProgram::QemuEmulator
         } else {
             LaunchedProgram::OtherProgram
@@ -117,10 +117,21 @@ fn option_values<'a>(command_line: &'a [String], flag: &'a str) -> impl Iterator
     })
 }
 
-fn has_flag(command_line: &[String], flag: &str) -> bool {
-    command_line
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FlagPresence {
+    Given,
+    Absent,
+}
+
+fn flag_presence(command_line: &[String], flag: &str) -> FlagPresence {
+    if command_line
         .iter()
         .any(|argument| normalized_flag(argument) == Some(flag))
+    {
+        FlagPresence::Given
+    } else {
+        FlagPresence::Absent
+    }
 }
 
 fn suboption<'a>(option_value: &'a str, key: &str) -> Option<&'a str> {
@@ -295,8 +306,12 @@ fn display_of(command_line: &[String]) -> GuestDisplay {
             Some("none" | "egl-headless" | "vnc" | "spice-app" | "dbus")
         )
     });
-    let remote_only = has_flag(command_line, "vnc") && !has_flag(command_line, "display");
-    if has_flag(command_line, "nographic") || display_disabled || remote_only {
+    let remote_only = flag_presence(command_line, "vnc") == FlagPresence::Given
+        && flag_presence(command_line, "display") == FlagPresence::Absent;
+    if flag_presence(command_line, "nographic") == FlagPresence::Given
+        || display_disabled
+        || remote_only
+    {
         GuestDisplay::Headless
     } else {
         GuestDisplay::Windowed

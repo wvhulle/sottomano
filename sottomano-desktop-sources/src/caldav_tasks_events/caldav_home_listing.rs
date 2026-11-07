@@ -1,7 +1,7 @@
 use std::{borrow::Cow, collections::HashSet};
 
 use fast_dav_rs::{Depth, Operation};
-use roxmltree::{Document, Node};
+use roxmltree::{Document, ExpandedName, Node};
 
 use crate::caldav_tasks_events::{
     caldav_agenda::Error,
@@ -38,8 +38,12 @@ pub struct CalendarHomeListing {
 
 impl CalendarHomeListing {
     #[must_use]
-    pub fn shows(&self, calendar_href: &str) -> bool {
-        !self.hidden_calendar_hrefs.contains(calendar_href)
+    pub fn visibility_of(&self, calendar_href: &str) -> CalendarVisibility {
+        if self.hidden_calendar_hrefs.contains(calendar_href) {
+            CalendarVisibility::Hidden
+        } else {
+            CalendarVisibility::Shown
+        }
     }
 }
 
@@ -66,19 +70,19 @@ pub fn parsed_home_listing(multistatus: &str) -> Result<CalendarHomeListing, rox
     let document = Document::parse(multistatus)?;
     let responses: Vec<Node> = document
         .descendants()
-        .filter(|node| tagged(*node, DAV_NAMESPACE, "response"))
+        .filter(|node| node.tag_name() == ExpandedName::from((DAV_NAMESPACE, "response")))
         .collect();
     Ok(CalendarHomeListing {
         hidden_calendar_hrefs: responses
             .iter()
             .copied()
-            .filter(|response| hidden_in_nextcloud(*response))
+            .filter(|response| nextcloud_visibility(*response) == CalendarVisibility::Hidden)
             .filter_map(response_href)
             .map(str::to_owned)
             .collect(),
         subscribed_calendars: responses
             .into_iter()
-            .filter(|response| !hidden_in_nextcloud(*response))
+            .filter(|response| nextcloud_visibility(*response) == CalendarVisibility::Shown)
             .filter_map(subscribed_calendar)
             .collect(),
     })
@@ -87,21 +91,21 @@ pub fn parsed_home_listing(multistatus: &str) -> Result<CalendarHomeListing, rox
 fn subscribed_calendar(response: Node) -> Option<SubscribedCalendar> {
     if !response
         .descendants()
-        .any(|node| tagged(node, CALENDARSERVER_NAMESPACE, "subscribed"))
+        .any(|node| node.tag_name() == ExpandedName::from((CALENDARSERVER_NAMESPACE, "subscribed")))
     {
         return None;
     }
     let href = response_href(response)?;
     let source = response
         .descendants()
-        .find(|node| tagged(*node, CALENDARSERVER_NAMESPACE, "source"))?;
+        .find(|node| node.tag_name() == ExpandedName::from((CALENDARSERVER_NAMESPACE, "source")))?;
     let source_url = source
         .children()
-        .find(|node| tagged(*node, DAV_NAMESPACE, "href"))?
+        .find(|node| node.tag_name() == ExpandedName::from((DAV_NAMESPACE, "href")))?
         .text()?;
     let display_name = response
         .descendants()
-        .find(|node| tagged(*node, DAV_NAMESPACE, "displayname"))
+        .find(|node| node.tag_name() == ExpandedName::from((DAV_NAMESPACE, "displayname")))
         .and_then(|node| node.text())
         .map(str::trim)
         .filter(|name| !name.is_empty());
@@ -112,23 +116,32 @@ fn subscribed_calendar(response: Node) -> Option<SubscribedCalendar> {
     })
 }
 
-fn hidden_in_nextcloud(response: Node) -> bool {
-    response
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CalendarVisibility {
+    Shown,
+    Hidden,
+}
+
+fn nextcloud_visibility(response: Node) -> CalendarVisibility {
+    if response
         .descendants()
-        .find(|node| tagged(*node, OWNCLOUD_NAMESPACE, "calendar-enabled"))
+        .find(|node| {
+            node.tag_name() == ExpandedName::from((OWNCLOUD_NAMESPACE, "calendar-enabled"))
+        })
         .and_then(|node| node.text())
         .is_some_and(|enabled| enabled.trim() == HIDDEN_IN_NEXTCLOUD)
+    {
+        CalendarVisibility::Hidden
+    } else {
+        CalendarVisibility::Shown
+    }
 }
 
 fn response_href<'document>(response: Node<'document, '_>) -> Option<&'document str> {
     response
         .children()
-        .find(|node| tagged(*node, DAV_NAMESPACE, "href"))?
+        .find(|node| node.tag_name() == ExpandedName::from((DAV_NAMESPACE, "href")))?
         .text()
-}
-
-fn tagged(node: Node, namespace: &str, local_name: &str) -> bool {
-    node.tag_name().namespace() == Some(namespace) && node.tag_name().name() == local_name
 }
 
 fn fetchable_feed_url(source_url: &str) -> Cow<'_, str> {
@@ -158,7 +171,10 @@ mod tests {
                 "/remote.php/dav/calendars/demo/holidays/".to_owned(),
             ])
         );
-        assert!(listing.shows("/remote.php/dav/calendars/demo/personal/"));
+        assert_eq!(
+            listing.visibility_of("/remote.php/dav/calendars/demo/personal/"),
+            CalendarVisibility::Shown
+        );
     }
 
     #[test]

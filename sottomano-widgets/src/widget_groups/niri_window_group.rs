@@ -32,7 +32,8 @@ use crate::{
             switch_heat_borders::{SwitchHeatBorders, SwitchHeatVisibility},
         },
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
     },
@@ -315,7 +316,7 @@ impl NiriWindowGroup {
     }
 
     pub fn collapse(&mut self) {
-        if self.expansion.collapse() {
+        if self.expansion.collapse() == ExpansionChange::JustCollapsed {
             self.close_sliders();
         }
     }
@@ -323,7 +324,7 @@ impl NiriWindowGroup {
     pub fn update(&mut self, msg: NiriWindowMessage) -> Task<NiriWindowMessage> {
         match msg {
             NiriWindowMessage::Expansion(menu) => {
-                if self.expansion.update(menu) {
+                if self.expansion.update(menu) == ExpansionChange::JustCollapsed {
                     self.close_sliders();
                 }
                 Task::none()
