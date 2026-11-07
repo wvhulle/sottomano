@@ -7,9 +7,9 @@ use crate::widget_groups::ElementVisibility;
 #[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ClickAction {
-    #[default]
     ActivateItem,
     SecondaryActivateItem,
+    #[default]
     FocusAppWindow,
     Ignore,
 }
@@ -40,7 +40,7 @@ impl Default for TrayRule {
     fn default() -> Self {
         Self {
             icon: ElementVisibility::Shown,
-            left_click: ClickAction::ActivateItem,
+            left_click: ClickAction::FocusAppWindow,
             middle_click: ClickAction::SecondaryActivateItem,
             right_click: ClickAction::Ignore,
             window_app_id: None,
@@ -55,7 +55,6 @@ impl TrayRule {
 
     fn focusing(app_id: &str) -> Self {
         Self {
-            left_click: ClickAction::FocusAppWindow,
             window_app_id: Some(String::from(app_id)),
             ..Self::default()
         }
@@ -111,11 +110,6 @@ impl TryFrom<TrayItems> for TrayConfig {
                 (Some(app_id), _) if app_id.is_empty() => {
                     return Err(format!("tray item {id} has an empty window_app_id"));
                 }
-                (None, true) => {
-                    return Err(format!(
-                        "tray item {id} clicks focus_app_window but names no window_app_id"
-                    ));
-                }
                 (Some(app_id), false) => {
                     return Err(format!(
                         "tray item {id} names window_app_id {app_id} but no click focuses a window"
@@ -132,5 +126,47 @@ impl TrayConfig {
     #[must_use]
     pub fn rule(&self, id: &str) -> TrayRule {
         self.items.get(id).cloned().unwrap_or_default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parsed_tray_config(toml_text: &str) -> Result<TrayConfig, String> {
+        toml::from_str::<TrayConfig>(toml_text).map_err(|parse_failure| parse_failure.to_string())
+    }
+
+    #[test]
+    fn unconfigured_item_focuses_its_window_on_left_click() {
+        let unconfigured_rule = TrayConfig::default().rule("page.codeberg.wvhulle.Bindrune");
+        assert_eq!(unconfigured_rule.left_click, ClickAction::FocusAppWindow);
+        assert_eq!(unconfigured_rule.window_app_id, None);
+    }
+
+    #[test]
+    fn focus_without_window_app_id_matches_by_process() {
+        let tray_config = parsed_tray_config("[items.chat]\nleft_click = \"focus_app_window\"\n")
+            .expect("focusing without an app id is valid");
+        assert_eq!(tray_config.rule("chat").window_app_id, None);
+    }
+
+    #[test]
+    fn window_app_id_without_focusing_click_is_rejected() {
+        let rejection = parsed_tray_config(
+            "[items.chat]\nleft_click = \"activate_item\"\nwindow_app_id = \"chat\"\n",
+        )
+        .expect_err("an unused window_app_id is rejected");
+        assert!(
+            rejection.contains("no click focuses a window"),
+            "{rejection}"
+        );
+    }
+
+    #[test]
+    fn empty_window_app_id_is_rejected() {
+        let rejection = parsed_tray_config("[items.chat]\nwindow_app_id = \"\"\n")
+            .expect_err("an empty window_app_id is rejected");
+        assert!(rejection.contains("empty window_app_id"), "{rejection}");
     }
 }

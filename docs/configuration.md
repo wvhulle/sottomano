@@ -235,6 +235,19 @@ color_temperature_service = "screen-temperature.service"
 ```
 <!-- default-config:end -->
 
+## Tray clicks
+
+A left click on a tray icon brings the app's window to the front. The window
+is found through the process that owns the tray icon on D-Bus, or through
+`window_app_id` for apps whose window belongs to another process. When no
+single window matches, the click activates the item instead. The shell first
+gets an XDG activation token from the compositor and passes it to the app, so
+the app may raise the window it opens. Tray menu clicks pass a token the same
+way. The hover hint shows which of the two a click will do.
+
+To keep an app's own activate behaviour, set `left_click = "activate_item"`
+for its item, keyed by the item's StatusNotifierItem id.
+
 ## Secrets
 
 A few widgets need an API key or password. Each one is optional, and the

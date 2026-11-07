@@ -3,10 +3,9 @@ use std::{borrow::Cow, iter, mem, path::Path};
 use iced::{
     Task,
     futures::{StreamExt, stream},
-    time::{Duration, Instant},
+    time::Instant,
     window::Id,
 };
-use iced_exwlshell::reexport::{ActivationTokenSink, XdgActivationTokenV1State};
 use quick_xml::escape::escape;
 use sottomano_desktop_sinks::{
     desktop_notifications::{
@@ -22,7 +21,6 @@ use sottomano_desktop_sources::{
     desktop_windows_apps::window_edge_placement::Placement,
 };
 use sottomano_toml_config::{Config, LoadError, severity::Severity};
-use tokio::{sync::mpsc, time::timeout};
 
 use super::{
     DEFAULT_ACTION, NotificationLayer, SnoozedOngoingToast, ToastContext,
@@ -36,7 +34,7 @@ use super::{
 use crate::{
     background_work::compositor_request,
     hover_cards::{PointerPresence, PopupMessage},
-    layer_surfaces::SurfaceRequest,
+    layer_surfaces::{ActivationTokenOutcome, activation_token_request},
     notification_toasts::{
         NotificationSettings, ToastLayerHost,
         toast_lifecycle::{CountdownExpiry, FadeState, ToastSender},
@@ -51,8 +49,6 @@ use crate::{
         ongoing_toast::{OngoingKey, OngoingToast},
     },
 };
-
-const ACTIVATION_TOKEN_GRACE: Duration = Duration::from_millis(300);
 
 impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     pub fn adopt_sound_theme(&mut self, theme: SoundTheme) {
@@ -642,49 +638,38 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let Some(toast_surface) = toast_surface else {
             return Task::done(Routed::from(NotificationMessage::DefaultActivated {
                 id,
-                token: None,
+                token: ActivationTokenOutcome::Unavailable,
             }));
         };
 
-        let (sender, mut receiver) = mpsc::channel(1);
-        let sink = ActivationTokenSink::callback(move |token_state| {
-            if let XdgActivationTokenV1State::Ready(token_wrapper) = token_state {
-                let _ = sender.try_send(token_wrapper.token().to_owned());
-            }
-        });
-
+        let token_request = activation_token_request(toast_surface);
         Task::batch([
-            Task::done(Routed::from(SurfaceRequest::ActivationToken {
-                surface: toast_surface,
-                sink,
-            })),
-            Task::future(async move {
-                timeout(ACTIVATION_TOKEN_GRACE, receiver.recv())
-                    .await
-                    .ok()
-                    .flatten()
-            })
-            .map(move |token| Routed::from(NotificationMessage::DefaultActivated { id, token })),
+            Task::done(Routed::from(token_request.surface_request)),
+            Task::future(token_request.token_arrival).map(move |token| {
+                Routed::from(NotificationMessage::DefaultActivated { id, token })
+            }),
         ])
     }
 
     fn invoke_default(
         &mut self,
         id: u32,
-        token: Option<String>,
+        token: ActivationTokenOutcome,
         context: &ToastContext,
     ) -> Task<Routed> {
         let survives_action_invocation = self
             .showing()
             .any(|n| n.data.id == id && n.data.residency == Residency::Resident);
-        let mut outbound: Vec<Outbound> = token
-            .map(|token| Outbound::ActivationToken { id, token })
-            .into_iter()
-            .collect();
-        outbound.push(Outbound::ActionInvoked {
+        let action_invoked = Outbound::ActionInvoked {
             id,
             key: DEFAULT_ACTION.to_owned(),
-        });
+        };
+        let mut outbound = match token {
+            ActivationTokenOutcome::Issued(token) => {
+                vec![Outbound::ActivationToken { id, token }, action_invoked]
+            }
+            ActivationTokenOutcome::Unavailable => vec![action_invoked],
+        };
 
         if survives_action_invocation {
             return self.emit_in_order(outbound);

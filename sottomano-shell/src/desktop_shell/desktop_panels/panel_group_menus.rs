@@ -1,5 +1,6 @@
 use std::iter::once;
 
+use sottomano_desktop_sources::desktop_windows_apps::window_edge_placement::Placement;
 use sottomano_widgets::{
     group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
     widget_groups::{
@@ -74,6 +75,7 @@ impl DesktopShell {
         group: StandaloneWidgetGroup,
     ) -> WidgetGroupContent<'_, Message> {
         let config = &self.config;
+        let window_placement = Placement::derive(&self.compositor);
         match group {
             StandaloneWidgetGroup::Clock => self
                 .widget_groups
@@ -88,7 +90,9 @@ impl DesktopShell {
             StandaloneWidgetGroup::Tray => self
                 .widget_groups
                 .tray_group
-                .group_content(config)
+                .group_content(config, &|owner| {
+                    window_placement.window_owned_by(owner).is_some()
+                })
                 .map(Message::Tray),
         }
     }

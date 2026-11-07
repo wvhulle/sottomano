@@ -122,8 +122,8 @@ impl<'a, Message: Clone + 'a> From<ContextMenu<'a, Message>> for Element<'a, Mes
         } = menu;
         let kept_lines = without_redundant_dividers(lines);
         let end_corners = ListEndCorners::new(kept_lines.len(), corners);
-        uniform_width_column(kept_lines.into_iter().enumerate().map(|(position, line)| {
-            match line {
+        uniform_width_column(kept_lines.into_iter().enumerate().map(
+            |(position, line)| match line {
                 ContextMenuLine::Row(row) => entry(
                     &metrics,
                     &*submenu_chevron,
@@ -131,8 +131,8 @@ impl<'a, Message: Clone + 'a> From<ContextMenu<'a, Message>> for Element<'a, Mes
                     end_corners.radius_at(position),
                 ),
                 ContextMenuLine::Divider => divider(),
-            }
-        }))
+            },
+        ))
         .spacing(metrics.item_gap_px)
         .into()
     }
