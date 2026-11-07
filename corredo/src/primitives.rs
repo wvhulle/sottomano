@@ -6,6 +6,7 @@ pub mod expand_animation;
 pub mod fair_widths;
 pub mod flat_button;
 pub mod list_end_corners;
+pub mod motion_state;
 pub mod popup_cascade;
 pub mod popup_connector;
 pub mod rectangle_morph;

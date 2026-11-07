@@ -7,8 +7,9 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-        toggle_control::ToggleableSource,
+        group_item_reading::GroupItemReading,
+        reading_display_state::ReadingDisplayState,
+        toggle_control::{SwitchPosition, ToggleableSource},
     },
     hover_cards::hover_card_body::HoverCardBody,
     widgets::{
@@ -52,8 +53,11 @@ impl ToggleableSource for AutoBrightness {
         clight_calibration_writes::flip()
     }
 
-    fn switched_on(&self) -> bool {
-        self.calibration == BrightnessCalibration::FromWebcam
+    fn switch_position(&self) -> SwitchPosition {
+        match self.calibration {
+            BrightnessCalibration::FromWebcam => SwitchPosition::On,
+            BrightnessCalibration::Fixed => SwitchPosition::Off,
+        }
     }
 
     fn press_action_text(&self) -> &'static str {

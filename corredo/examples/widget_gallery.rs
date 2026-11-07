@@ -5,11 +5,11 @@ use corredo::{
     },
     fill_gauge::FillGauge,
     inline_slider::inline_slider,
-    popup_trigger::popup_trigger,
+    popup_trigger::{PopupVisibility, popup_trigger},
     pressable_text::pressable_text,
     record_table::text_record_table,
     theme_colors::primary_color,
-    toggle_switch::toggle_switch,
+    toggle_switch::{TogglePosition, toggle_switch},
     transitioning_text::animated_text,
     weekday_picker::weekday_picker,
 };
@@ -32,9 +32,9 @@ enum GalleryMessage {
 #[derive(Debug)]
 struct WidgetGallery {
     slider_value: f32,
-    switched_on: bool,
+    toggle_position: TogglePosition,
     chosen_days: WeekdaySet,
-    popup_open: bool,
+    popup_visibility: PopupVisibility,
     menu_presses: u32,
     text_presses: u32,
 }
@@ -43,9 +43,9 @@ impl Default for WidgetGallery {
     fn default() -> Self {
         Self {
             slider_value: 5.0,
-            switched_on: true,
+            toggle_position: TogglePosition::On,
             chosen_days: WeekdaySet::EMPTY,
-            popup_open: false,
+            popup_visibility: PopupVisibility::Closed,
             menu_presses: 0,
             text_presses: 0,
         }
@@ -56,7 +56,12 @@ impl WidgetGallery {
     fn update(&mut self, message: GalleryMessage) {
         match message {
             GalleryMessage::Slid(value) => self.slider_value = value,
-            GalleryMessage::SwitchToggled => self.switched_on = !self.switched_on,
+            GalleryMessage::SwitchToggled => {
+                self.toggle_position = match self.toggle_position {
+                    TogglePosition::On => TogglePosition::Off,
+                    TogglePosition::Off => TogglePosition::On,
+                };
+            }
             GalleryMessage::DayToggled(day) => {
                 self.chosen_days = if self.chosen_days.contains(day) {
                     self.chosen_days.difference(WeekdaySet::single(day))
@@ -64,8 +69,13 @@ impl WidgetGallery {
                     self.chosen_days.union(WeekdaySet::single(day))
                 };
             }
-            GalleryMessage::PopupToggled => self.popup_open = !self.popup_open,
-            GalleryMessage::PopupDismissed => self.popup_open = false,
+            GalleryMessage::PopupToggled => {
+                self.popup_visibility = match self.popup_visibility {
+                    PopupVisibility::Open => PopupVisibility::Closed,
+                    PopupVisibility::Closed => PopupVisibility::Open,
+                };
+            }
+            GalleryMessage::PopupDismissed => self.popup_visibility = PopupVisibility::Closed,
             GalleryMessage::MenuEntryPressed => self.menu_presses += 1,
             GalleryMessage::TextPressed => self.text_presses += 1,
         }
@@ -90,7 +100,7 @@ impl WidgetGallery {
             animated_text(format!("Slider at {:.0}", self.slider_value))
                 .identified_by(&"slider label"),
             inline_slider(0.0..=10.0, self.slider_value, GalleryMessage::Slid),
-            mouse_area(toggle_switch(self.switched_on)).on_press(GalleryMessage::SwitchToggled),
+            mouse_area(toggle_switch(self.toggle_position)).on_press(GalleryMessage::SwitchToggled),
             FillGauge::new(self.slider_value / 10.0, primary_color, 32.0),
             weekday_picker(self.chosen_days, GalleryMessage::DayToggled),
             pressable_text(
@@ -103,7 +113,7 @@ impl WidgetGallery {
             popup_trigger(
                 button(text("Toggle popup")).on_press(GalleryMessage::PopupToggled),
                 text("Anchored to the button"),
-                self.popup_open,
+                self.popup_visibility,
             )
             .on_dismiss(GalleryMessage::PopupDismissed),
         ]

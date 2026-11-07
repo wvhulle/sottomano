@@ -6,6 +6,8 @@ use iced::{
     time::{Duration, Instant},
 };
 
+use crate::primitives::motion_state::MotionState;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScrollPacing {
     Instant,
@@ -19,16 +21,18 @@ impl ScrollPacing {
             Self::Eased(duration) => duration,
         }
     }
-
-    fn is_instant(self) -> bool {
-        self.travel_duration().is_zero()
-    }
 }
 
 fn travel_resting_at(offset: f32, pacing: ScrollPacing) -> Animation<f32> {
     Animation::new(offset)
         .easing(Easing::EaseOutCubic)
         .duration(pacing.travel_duration())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum OffsetChange {
+    Moved,
+    Unchanged,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -80,13 +84,17 @@ impl ScrollMotion {
     }
 
     pub(super) fn settle_if_instant(&mut self, max_offset: f32) {
-        if self.pacing.is_instant() {
+        if self.pacing.travel_duration().is_zero() {
             self.jump_to(self.target_offset.clamp(0.0, max_offset));
         }
     }
 
-    pub(super) fn is_travelling(&self, now: Instant) -> bool {
-        self.travel.is_animating(now)
+    pub(super) fn travel_state(&self, now: Instant) -> MotionState {
+        if self.travel.is_animating(now) {
+            MotionState::Moving
+        } else {
+            MotionState::Settled
+        }
     }
 
     pub(super) fn hover_drift(&self) -> f32 {
@@ -94,7 +102,7 @@ impl ScrollMotion {
             .map_or(0.0, |held_offset| held_offset - self.drawn_offset)
     }
 
-    pub(super) fn advance(&mut self, frame: ScrollFrame) -> bool {
+    pub(super) fn advance(&mut self, frame: ScrollFrame) -> OffsetChange {
         let ScrollFrame {
             now,
             max_offset,
@@ -117,7 +125,11 @@ impl ScrollMotion {
             .hover_held_offset
             .filter(|_| pointer_inside && self.travel.is_animating(now))
             .map(|held_offset| held_offset.clamp(0.0, max_offset));
-        (self.drawn_offset - previously_drawn).abs() > f32::EPSILON
+        if (self.drawn_offset - previously_drawn).abs() > f32::EPSILON {
+            OffsetChange::Moved
+        } else {
+            OffsetChange::Unchanged
+        }
     }
 }
 
@@ -126,7 +138,7 @@ impl ScrollMotion {
 mod tests {
     use iced::time::{Duration, Instant};
 
-    use super::{ScrollFrame, ScrollMotion, ScrollPacing};
+    use super::{MotionState, OffsetChange, ScrollFrame, ScrollMotion, ScrollPacing};
 
     const TRAVEL_DURATION: Duration = Duration::from_millis(160);
     const EASED: ScrollPacing = ScrollPacing::Eased(TRAVEL_DURATION);
@@ -160,7 +172,10 @@ mod tests {
     #[test]
     fn a_resting_list_reports_no_movement() {
         let mut motion = ScrollMotion::resting_at(40.0, EASED);
-        assert!(!motion.advance(frame_at(Instant::now())));
+        assert_eq!(
+            motion.advance(frame_at(Instant::now())),
+            OffsetChange::Unchanged
+        );
     }
 
     #[test]
@@ -169,9 +184,9 @@ mod tests {
             let now = Instant::now();
             let mut motion = ScrollMotion::resting_at(0.0, pacing);
             motion.set_target(70.0);
-            assert!(motion.advance(frame_at(now)));
+            assert_eq!(motion.advance(frame_at(now)), OffsetChange::Moved);
             assert!(close_to(motion.drawn_offset(), 70.0));
-            assert!(!motion.is_travelling(now));
+            assert_eq!(motion.travel_state(now), MotionState::Settled);
         }
     }
 
@@ -180,7 +195,10 @@ mod tests {
         let mut motion = ScrollMotion::resting_at(0.0, EASED);
         motion.jump_to(70.0);
         assert!(close_to(motion.drawn_offset(), 70.0));
-        assert!(!motion.advance(frame_at(Instant::now())));
+        assert_eq!(
+            motion.advance(frame_at(Instant::now())),
+            OffsetChange::Unchanged
+        );
     }
 
     #[test]

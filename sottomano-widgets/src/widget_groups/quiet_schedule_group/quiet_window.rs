@@ -1,6 +1,8 @@
 use chrono::{DateTime, Days, Local, NaiveDate, NaiveTime, TimeDelta, TimeZone};
 
-use crate::group_items::reading_display_state::ReadingDisplayState;
+use crate::group_items::{
+    reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuietPhase {
@@ -14,6 +16,40 @@ impl QuietPhase {
         match self {
             QuietPhase::Active => QuietPhase::Inactive,
             QuietPhase::Inactive => QuietPhase::Active,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuietScheduleAdherence {
+    Followed,
+    Ignored,
+}
+
+impl QuietScheduleAdherence {
+    #[must_use]
+    pub const fn toggled(self) -> Self {
+        match self {
+            QuietScheduleAdherence::Followed => QuietScheduleAdherence::Ignored,
+            QuietScheduleAdherence::Ignored => QuietScheduleAdherence::Followed,
+        }
+    }
+}
+
+impl From<QuietScheduleAdherence> for SwitchPosition {
+    fn from(schedule_adherence: QuietScheduleAdherence) -> Self {
+        match schedule_adherence {
+            QuietScheduleAdherence::Followed => SwitchPosition::On,
+            QuietScheduleAdherence::Ignored => SwitchPosition::Off,
+        }
+    }
+}
+
+impl From<QuietPhase> for SwitchPosition {
+    fn from(quiet_phase: QuietPhase) -> Self {
+        match quiet_phase {
+            QuietPhase::Active => SwitchPosition::On,
+            QuietPhase::Inactive => SwitchPosition::Off,
         }
     }
 }

@@ -166,7 +166,7 @@ impl ComputeGroup {
         sensor: &SensorConfig,
         demand: GroupSourceDemand,
     ) -> Subscription<ComputeMessage> {
-        let demand = demand.expanded_when(self.expansion.is_expanded());
+        let demand = demand.expanded_when(self.expansion.state());
         Subscription::batch([
             demand.while_face_shown(
                 snapshot_subscription::<CpuUsage>(()).map(ComputeMessage::CpuLoad),

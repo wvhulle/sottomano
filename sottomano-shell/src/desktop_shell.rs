@@ -58,7 +58,7 @@ use sottomano_widgets::{
     },
     hover_cards::{
         HoverCardHost, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
-        hover_card_surfaces::HoverContent,
+        hover_card_surfaces::HoverContent, hover_card_transition::CardRetention,
     },
     notification_toasts::{NotificationLayer, ToastSurfaceStyle},
     widget_groups::{
@@ -318,7 +318,7 @@ impl DesktopShell {
                     .surfaces
                     .get(&surface)
                     .is_some_and(|host| matches!(host.role, SurfaceRole::NotificationToasts));
-                if on_toast && self.hover_card.is_held_open() {
+                if on_toast && self.hover_card.shown_retention() == CardRetention::UntilDismissed {
                     self.dismiss_hover_card()
                 } else {
                     Task::none()

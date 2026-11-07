@@ -21,7 +21,7 @@ use crate::{
     group_items::{
         group_item::GroupItem,
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
-        unit_switch::{UnitSwitch, UnitSwitchMessage},
+        unit_switch::{ServiceReadiness, UnitSwitch, UnitSwitchMessage},
     },
     hover_cards::{
         HoverTarget,
@@ -229,7 +229,9 @@ impl ColorTemperatureGroup {
                         self.warmth.readout_cell(),
                     )]))
             }
-            ColorTemperatureTarget::Automatic => self.auto.hover_card(true, clock),
+            ColorTemperatureTarget::Automatic => {
+                self.auto.hover_card(ServiceReadiness::Serving, clock)
+            }
         }
     }
 
@@ -250,7 +252,7 @@ impl ColorTemperatureGroup {
                 gamma_available
                     .then(|| GroupItem::slider(&self.dim, config, ColorTemperatureMessage::Dim)),
                 self.auto.group_item(
-                    true,
+                    ServiceReadiness::Serving,
                     ColorTemperatureTarget::Automatic,
                     ColorTemperatureMessage::Auto(UnitSwitchMessage::Press),
                 ),

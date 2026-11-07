@@ -16,8 +16,9 @@ use crate::{
     system_protocol_clients::journal_follow::{
         JournalEvent, JournalFollowError, decode_record, journal_windows,
     },
-    systemd_units_journal::journal_record_fields::{
-        CoredumpUnit, JournalPriority, MessageId, OwningUnit,
+    systemd_units_journal::{
+        SystemdUnitScope,
+        journal_record_fields::{CoredumpUnit, JournalPriority, MessageId, OwningUnit},
     },
 };
 
@@ -165,15 +166,14 @@ impl CoredumpEntry {
     }
 
     #[must_use]
-    pub fn latest_of_unit(per_user: bool, unit_name: &str) -> Option<Self> {
-        let unit_field = if per_user {
-            "COREDUMP_USER_UNIT"
-        } else {
-            "COREDUMP_UNIT"
+    pub fn latest_of_unit(unit_scope: SystemdUnitScope, unit_name: &str) -> Option<Self> {
+        let unit_field = match unit_scope {
+            SystemdUnitScope::UserSession => "COREDUMP_USER_UNIT",
+            SystemdUnitScope::SystemWide => "COREDUMP_UNIT",
         };
         let mut journal = OpenOptions::default()
             .system(true)
-            .current_user(per_user)
+            .current_user(unit_scope == SystemdUnitScope::UserSession)
             .open()
             .inspect_err(|e| tracing::warn!("coredump of {unit_name}: journal open failed: {e}"))
             .ok()?;

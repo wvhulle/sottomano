@@ -34,11 +34,6 @@ impl StickPosition {
             StickDirection::Down
         })
     }
-
-    #[must_use]
-    pub fn is_deflected(self) -> bool {
-        self.x != 0.0 || self.y != 0.0
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

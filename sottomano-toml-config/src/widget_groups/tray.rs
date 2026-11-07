@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::widget_groups::ElementVisibility;
+
 #[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ClickAction {
@@ -27,7 +29,7 @@ impl ClickAction {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TrayRule {
-    pub hide_icon: bool,
+    pub icon: ElementVisibility,
     pub left_click: ClickAction,
     pub middle_click: ClickAction,
     pub right_click: ClickAction,
@@ -37,7 +39,7 @@ pub struct TrayRule {
 impl Default for TrayRule {
     fn default() -> Self {
         Self {
-            hide_icon: false,
+            icon: ElementVisibility::Shown,
             left_click: ClickAction::ActivateItem,
             middle_click: ClickAction::SecondaryActivateItem,
             right_click: ClickAction::Ignore,
@@ -49,10 +51,6 @@ impl Default for TrayRule {
 impl TrayRule {
     fn clicks(&self) -> [ClickAction; 3] {
         [self.left_click, self.middle_click, self.right_click]
-    }
-
-    fn focuses_window(&self) -> bool {
-        self.clicks().contains(&ClickAction::FocusAppWindow)
     }
 
     fn focusing(app_id: &str) -> Self {
@@ -106,7 +104,10 @@ impl TryFrom<TrayItems> for TrayConfig {
             if id.is_empty() {
                 return Err(String::from("tray item id is empty"));
             }
-            match (&rule.window_app_id, rule.focuses_window()) {
+            match (
+                &rule.window_app_id,
+                rule.clicks().contains(&ClickAction::FocusAppWindow),
+            ) {
                 (Some(app_id), _) if app_id.is_empty() => {
                     return Err(format!("tray item {id} has an empty window_app_id"));
                 }

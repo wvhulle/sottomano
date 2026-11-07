@@ -366,26 +366,28 @@ fn parse_lrc_timestamp(tag_body: &str) -> Option<Duration> {
         .map(|seconds_part| Duration::from_secs(minutes * 60) + seconds_part)
 }
 
-fn needs_search_fallback(fetch_error: &http_json_client::Error) -> bool {
-    matches!(
-        fetch_error,
-        http_json_client::Error::Status {
-            status: NOT_FOUND_STATUS,
-            ..
-        }
-    ) || fetch_error.is_temporary()
-}
-
 async fn fetch_track_lyrics(query: &LyricsQuery) -> Result<TrackLyrics, http_json_client::Error> {
     let exact_lookup = http_json_client::get_json::<LrclibRecord>(
         &query.lookup_url(),
         &[("User-Agent", USER_AGENT)],
     )
     .await;
-    if exact_lookup.as_ref().is_err_and(needs_search_fallback) {
-        return search_track_lyrics(query).await;
+    match exact_lookup {
+        Ok(record) => Ok(TrackLyrics::from(record)),
+        Err(http_json_client::Error::Status { status, .. })
+            if status == NOT_FOUND_STATUS
+                || status == http_json_client::TOO_MANY_REQUESTS_STATUS
+                || status >= http_json_client::SERVER_ERROR_STATUS =>
+        {
+            search_track_lyrics(query).await
+        }
+        Err(
+            http_json_client::Error::HostNotResolved { .. }
+            | http_json_client::Error::TimedOut { .. }
+            | http_json_client::Error::Unreachable { .. },
+        ) => search_track_lyrics(query).await,
+        Err(lookup_failure) => Err(lookup_failure),
     }
-    Ok(TrackLyrics::from(exact_lookup?))
 }
 
 async fn search_track_lyrics(query: &LyricsQuery) -> Result<TrackLyrics, http_json_client::Error> {

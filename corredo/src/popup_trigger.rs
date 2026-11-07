@@ -20,16 +20,23 @@ const TRIGGER_CHILD: usize = 0;
 const POPUP_CHILD: usize = 1;
 const DEFAULT_CONTENT_PADDING_PX: f32 = 8.0;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PopupVisibility {
+    Open,
+    #[default]
+    Closed,
+}
+
 pub struct PopupTrigger<'a, Message> {
     trigger: Element<'a, Message>,
     popup: AnchoredPopup<'a, Message>,
-    open: bool,
+    visibility: PopupVisibility,
 }
 
 pub fn popup_trigger<'a, Message: Clone + 'a>(
     trigger: impl Into<Element<'a, Message>>,
     content: impl Into<Element<'a, Message>>,
-    open: bool,
+    visibility: PopupVisibility,
 ) -> PopupTrigger<'a, Message> {
     PopupTrigger {
         trigger: trigger.into(),
@@ -37,7 +44,7 @@ pub fn popup_trigger<'a, Message: Clone + 'a>(
             container(content).padding(DEFAULT_CONTENT_PADDING_PX),
             Rectangle::default(),
         ),
-        open,
+        visibility,
     }
 }
 
@@ -104,7 +111,7 @@ impl<'a, Message: Clone + 'a> Widget<Message, Theme, iced::Renderer> for PopupTr
         }
         tree.children[TRIGGER_CHILD].diff(&self.trigger);
         let popup: &dyn Widget<Message, Theme, iced::Renderer> = &self.popup;
-        if self.open {
+        if self.visibility == PopupVisibility::Open {
             tree.children[POPUP_CHILD].diff(popup);
         } else {
             tree.children[POPUP_CHILD] = Tree::new(popup);
@@ -206,7 +213,7 @@ impl<'a, Message: Clone + 'a> Widget<Message, Theme, iced::Renderer> for PopupTr
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, iced::Renderer>> {
         let (trigger_tree, popup_tree) = tree.children.split_at_mut(POPUP_CHILD);
-        if !self.open {
+        if self.visibility == PopupVisibility::Closed {
             return self.trigger.as_widget_mut().overlay(
                 &mut trigger_tree[TRIGGER_CHILD],
                 layout,
@@ -329,11 +336,14 @@ mod tests {
     const FIRST_LABEL: &str = "open popup";
     const INSIDE_LABEL: &str = "inside the popup";
 
-    fn window_with_popup<'a>(open: bool, side: PopupSide) -> Element<'a, PopupMessage> {
+    fn window_with_popup<'a>(
+        visibility: PopupVisibility,
+        side: PopupSide,
+    ) -> Element<'a, PopupMessage> {
         let trigger = button(text(FIRST_LABEL)).on_press(PopupMessage::Toggled);
         let content = button(text(INSIDE_LABEL)).on_press(PopupMessage::InsidePressed);
         container(
-            popup_trigger(trigger, content, open)
+            popup_trigger(trigger, content, visibility)
                 .side(side)
                 .on_dismiss(PopupMessage::Dismissed),
         )
@@ -375,7 +385,8 @@ mod tests {
 
     #[test]
     fn a_closed_popup_shows_only_the_trigger() {
-        let mut simulator = settled_simulator(window_with_popup(false, PopupSide::Below));
+        let mut simulator =
+            settled_simulator(window_with_popup(PopupVisibility::Closed, PopupSide::Below));
         assert!(simulator.find(FIRST_LABEL).is_ok());
         assert!(simulator.find(INSIDE_LABEL).is_err());
     }
@@ -383,7 +394,7 @@ mod tests {
     #[test]
     fn each_side_places_the_popup_next_to_the_trigger() {
         let trigger_and_popup = |side| {
-            let mut simulator = settled_simulator(window_with_popup(true, side));
+            let mut simulator = settled_simulator(window_with_popup(PopupVisibility::Open, side));
             (
                 bounds_of(&mut simulator, FIRST_LABEL),
                 bounds_of(&mut simulator, INSIDE_LABEL),
@@ -401,7 +412,8 @@ mod tests {
 
     #[test]
     fn a_press_outside_dismisses_and_a_press_inside_reaches_the_content() {
-        let mut simulator = settled_simulator(window_with_popup(true, PopupSide::Below));
+        let mut simulator =
+            settled_simulator(window_with_popup(PopupVisibility::Open, PopupSide::Below));
         let inside = bounds_of(&mut simulator, INSIDE_LABEL).center();
         press_at(&mut simulator, inside);
         press_at(&mut simulator, Point::new(5.0, 5.0));
@@ -413,7 +425,8 @@ mod tests {
 
     #[test]
     fn the_popup_renders_in_a_plain_window() {
-        let mut simulator = settled_simulator(window_with_popup(true, PopupSide::Below));
+        let mut simulator =
+            settled_simulator(window_with_popup(PopupVisibility::Open, PopupSide::Below));
         let _rendered = simulator.snapshot(&Theme::Dark).expect("the frame renders");
     }
 }

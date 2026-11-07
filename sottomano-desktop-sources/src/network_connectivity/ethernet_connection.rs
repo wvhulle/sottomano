@@ -86,10 +86,11 @@ async fn link(
         network_manager_proxies::wired_speed(connection, device),
         network_manager_proxies::mtu(device)
     )?;
-    let profile = if network_manager_proxies::is_unset(&active_connection) {
-        None
-    } else {
-        Some(network_manager_proxies::connection_id(connection, active_connection).await?)
+    let profile = match network_manager_proxies::assigned_object_path(active_connection) {
+        Some(active_connection) => {
+            Some(network_manager_proxies::connection_id(connection, active_connection).await?)
+        }
+        None => None,
     };
     Ok(Link {
         connection: profile,

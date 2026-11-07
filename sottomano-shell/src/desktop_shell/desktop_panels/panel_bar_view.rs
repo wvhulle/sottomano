@@ -7,10 +7,13 @@ use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     desktop_panels::{
         panel_frame::{OutlinedSides, outlined_sides_inward_of, panel_frame},
-        region_reporter::{RegionRoles, region_reporter},
+        region_reporter::{PointerInput, RegionRoles, region_reporter},
     },
     hover_cards::HoverTarget,
-    widget_groups::{sidebar_settings_group::WorkspacesPlacement, workspaces_group::inline_strip},
+    widget_groups::{
+        panel_settings_group::PanelGroupFraming, sidebar_settings_group::WorkspacesPlacement,
+        workspaces_group::inline_strip,
+    },
 };
 
 use crate::{
@@ -113,16 +116,13 @@ impl DesktopShell {
                 .align_y(Vertical::Center),
         )
         .on_press(Message::DismissPressed);
-        let groups_joined = !self
-            .widget_groups
-            .panel_settings_group
-            .groups_disconnected();
+        let group_framing = self.widget_groups.panel_settings_group.group_framing();
         let band = container(centered)
             .width(Length::Fill)
             .height(Length::Fixed(self.config.desktop_panels.height));
-        if !groups_joined {
+        if group_framing == PanelGroupFraming::Disconnected {
             let roles = RegionRoles {
-                takes_input: true,
+                pointer_input: PointerInput::Accepted,
                 ..RegionRoles::default()
             };
             return region_reporter(column![band], roles).into();
@@ -135,9 +135,9 @@ impl DesktopShell {
         .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
         let strip = panel_frame(band, panels.frame_style())
             .outlined_sides(outlined_sides)
-            .blurred(panels.blurred);
+            .backdrop_blur(panels.backdrop_blur);
         let roles = RegionRoles {
-            takes_input: true,
+            pointer_input: PointerInput::Accepted,
             ..RegionRoles::default()
         };
         region_reporter(column![strip], roles).into()
@@ -150,15 +150,12 @@ impl DesktopShell {
     ) -> Element<'a, Message> {
         let config = &self.config;
         let panels = self.widget_groups.panel_settings_group.panel_appearance();
-        let groups_disconnected = self
-            .widget_groups
-            .panel_settings_group
-            .groups_disconnected();
+        let group_framing = self.widget_groups.panel_settings_group.group_framing();
         let frame_style = panels.frame_style();
         let outlined_sides = outlined_sides_inward_of(position)
             .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
         let framed = groups.into_iter().map(|group| {
-            if !groups_disconnected {
+            if group_framing == PanelGroupFraming::Joined {
                 return group;
             }
             panel_frame(
@@ -169,13 +166,12 @@ impl DesktopShell {
                 frame_style,
             )
             .outlined_sides(outlined_sides)
-            .blurred(panels.blurred)
+            .backdrop_blur(panels.backdrop_blur)
             .into()
         });
-        let spacing = if groups_disconnected {
-            config.theme.spacing.item_gap
-        } else {
-            config.theme.spacing.group_gap
+        let spacing = match group_framing {
+            PanelGroupFraming::Disconnected => config.theme.spacing.item_gap,
+            PanelGroupFraming::Joined => config.theme.spacing.group_gap,
         };
         Row::with_children(framed)
             .spacing(spacing)

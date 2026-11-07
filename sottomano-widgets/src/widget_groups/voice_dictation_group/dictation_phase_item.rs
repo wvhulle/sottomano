@@ -6,6 +6,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::HoverCardBody,
     widgets::{
@@ -37,12 +38,15 @@ pub fn press_does(dictation: &NotulistDictation) -> &'static str {
     }
 }
 
-#[must_use]
-pub fn dictation_switched_on(dictation: &NotulistDictation) -> bool {
-    matches!(
-        dictation.phase,
-        DictationPhase::Listening | DictationPhase::LoadingModel
-    )
+impl From<&NotulistDictation> for SwitchPosition {
+    fn from(dictation: &NotulistDictation) -> Self {
+        match dictation.phase {
+            DictationPhase::Listening | DictationPhase::LoadingModel => SwitchPosition::On,
+            DictationPhase::Idle
+            | DictationPhase::Finishing
+            | DictationPhase::StoppedByError(_) => SwitchPosition::Off,
+        }
+    }
 }
 
 #[must_use]

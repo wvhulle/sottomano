@@ -1,8 +1,11 @@
 use std::path::{Path, PathBuf};
 
 use super::{
-    CPU_FREQ, acpi_processor_cooling::ProcessorCoolingDevices, cpu_clock_frequency::CoreFreq,
-    cpu_dir, intel_pstate_no_turbo, intel_thermal_throttle_counters::ThrottleBaseline,
+    CPU_FREQ,
+    acpi_processor_cooling::ProcessorCoolingDevices,
+    cpu_clock_frequency::{CoreFreq, PolicyRestriction},
+    cpu_dir, intel_pstate_no_turbo,
+    intel_thermal_throttle_counters::ThrottleBaseline,
 };
 use crate::system_protocol_clients::sysfs_attribute_reads::read_trimmed;
 
@@ -13,18 +16,6 @@ pub enum FrequencyLimitCause {
     KernelThermalCooling { level: u64, deepest: u64 },
     CoreThermalThrottle { events: u64 },
     PackageThermalThrottle { events: u64 },
-}
-
-impl FrequencyLimitCause {
-    #[must_use]
-    pub fn is_thermal(self) -> bool {
-        matches!(
-            self,
-            FrequencyLimitCause::KernelThermalCooling { .. }
-                | FrequencyLimitCause::CoreThermalThrottle { .. }
-                | FrequencyLimitCause::PackageThermalThrottle { .. }
-        )
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,8 +47,7 @@ pub(super) fn core_limit_causes(
                 causes: [
                     (cpufreq_boost_enabled(&dir) == Some(false))
                         .then_some(FrequencyLimitCause::BoostDisabled),
-                    core.band
-                        .is_capped()
+                    (core.band.policy_restriction() == PolicyRestriction::Capped)
                         .then_some(FrequencyLimitCause::PolicyCap),
                     cooling.engaged_on(&dir).map(|cooling| {
                         FrequencyLimitCause::KernelThermalCooling {

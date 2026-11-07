@@ -5,7 +5,7 @@ use iced::alignment::Horizontal;
 use sottomano_desktop_sources::caldav_tasks_events::{
     caldav_open_tasks::OpenTaskList,
     caldav_server_provider::CaldavProvider,
-    caldav_task_query::{OpenTask, PriorityBand, TaskDeadline, TaskProgress},
+    caldav_task_query::{OpenTask, PriorityBand, TaskDeadline, TaskDueStatus, TaskProgress},
     nextcloud_web_links::NextcloudWebRoot,
 };
 use sottomano_toml_config::severity::Severity;
@@ -78,13 +78,11 @@ impl IntoTableRecord<5> for &TaskRow<'_> {
 }
 
 fn task_severity(task: &OpenTask, now: DateTime<Local>) -> Severity {
-    if task.is_overdue(now) {
-        return Severity::Critical;
-    }
-    match task.priority.band() {
-        Some(PriorityBand::High) => Severity::Warning,
-        Some(PriorityBand::Low) => Severity::Low,
-        Some(PriorityBand::Medium) | None => Severity::Normal,
+    match (task.due_status(now), task.priority.band()) {
+        (TaskDueStatus::Overdue, _) => Severity::Critical,
+        (TaskDueStatus::NotYetDue, Some(PriorityBand::High)) => Severity::Warning,
+        (TaskDueStatus::NotYetDue, Some(PriorityBand::Low)) => Severity::Low,
+        (TaskDueStatus::NotYetDue, Some(PriorityBand::Medium) | None) => Severity::Normal,
     }
 }
 

@@ -26,7 +26,9 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    group_items::{
+        group_item::GroupItem, group_item_reading::GroupItemReading, toggle_control::SwitchPosition,
+    },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
         HoverTarget,
@@ -204,7 +206,12 @@ impl TailnetGroup {
                     .then(|()| Self::refresh());
             }
             TailnetMessage::OpenAdminConsole => {
-                return Task::future(blocking("tailscale admin", open_admin)).discard();
+                return Task::future(blocking("tailscale admin", || {
+                    if let Err(open_failure) = open_admin() {
+                        tracing::warn!("tailscale admin console: {open_failure}");
+                    }
+                }))
+                .discard();
             }
         }
         Task::none()
@@ -299,12 +306,12 @@ impl TailnetGroup {
             );
         Some(match self.tailscale.get().map(Tailscale::switch) {
             Some(TailscaleSwitch::Up) => item.on_switch_press(
-                false,
+                SwitchPosition::Off,
                 "turn Tailscale on",
                 TailnetMessage::SwitchTailscale(TailscaleSwitch::Up),
             ),
             Some(TailscaleSwitch::Down) => item.on_switch_press(
-                true,
+                SwitchPosition::On,
                 "turn Tailscale off",
                 TailnetMessage::SwitchTailscale(TailscaleSwitch::Down),
             ),
@@ -334,13 +341,13 @@ impl TailnetGroup {
         match tailnet.offer_control() {
             ExitOfferControl::Switchable(exit_offer_switch @ ExitOfferSwitch::StopOffering) => item
                 .on_switch_press(
-                    true,
+                    SwitchPosition::On,
                     "stop offering this machine as an exit node",
                     TailnetMessage::SwitchExitOffer(exit_offer_switch),
                 ),
             ExitOfferControl::Switchable(exit_offer_switch @ ExitOfferSwitch::StartOffering) => {
                 item.on_switch_press(
-                    false,
+                    SwitchPosition::Off,
                     "offer this machine as an exit node",
                     TailnetMessage::SwitchExitOffer(exit_offer_switch),
                 )
@@ -368,11 +375,14 @@ impl TailnetGroup {
             TailnetTarget::ExitNodeChoice {
                 exit_node_ip: Cow::Owned(exit_node_option.ip.clone()),
             },
-        )
-        .previewed_on_handle_if(exit_node_option.node_use == ExitNodeUse::InUse);
+        );
+        let exit_node_item = match exit_node_option.node_use {
+            ExitNodeUse::InUse => exit_node_item.previewed_on_handle(),
+            ExitNodeUse::Unused => exit_node_item,
+        };
         match exit_node_choices.control_for_option(exit_node_option) {
             ExitNodeControl::Switchable(exit_routing_switch) => exit_node_item.on_switch_press(
-                exit_node_option.node_use == ExitNodeUse::InUse,
+                exit_node_option.node_use,
                 match exit_node_option.node_use {
                     ExitNodeUse::InUse => "stop using the exit node",
                     ExitNodeUse::Unused => "use the exit node",
@@ -386,17 +396,15 @@ impl TailnetGroup {
     fn exit_node_lan_access_item(
         exit_node_choices: &ExitNodeChoices,
     ) -> GroupItem<'_, TailnetMessage> {
-        let lan_access_allowed = exit_node_choices.lan_access == ExitNodeLanAccess::Allowed;
         GroupItem::reading(
             ExitNodeLanAccessRow { exit_node_choices },
             TailnetTarget::ExitNodeLanAccess,
         )
         .on_switch_press(
-            lan_access_allowed,
-            if lan_access_allowed {
-                "cut local network access through exit nodes"
-            } else {
-                "keep local network access through exit nodes"
+            exit_node_choices.lan_access,
+            match exit_node_choices.lan_access {
+                ExitNodeLanAccess::Allowed => "cut local network access through exit nodes",
+                ExitNodeLanAccess::Blocked => "keep local network access through exit nodes",
             },
             TailnetMessage::SwitchExitRouting(exit_node_choices.lan_access_switch()),
         )

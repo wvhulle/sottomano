@@ -16,11 +16,12 @@ use iced::{
 };
 
 pub use self::scroll_motion::ScrollPacing;
-use self::scroll_motion::{ScrollFrame, ScrollMotion};
+use self::scroll_motion::{OffsetChange, ScrollFrame, ScrollMotion};
 pub use crate::edge_alpha_fade::ScrollEdgeFade;
 use crate::{
     edge_alpha_fade::{FadedEdge, HiddenScrollEdges},
     frame_style::FrameStyle,
+    primitives::motion_state::MotionState,
     reveal_clip::clip_cursor,
     shared_metrics::SCROLL_LINE_STEP_PX,
 };
@@ -255,15 +256,15 @@ impl<Message> SelectionScroller<'_, Message> {
         now: Instant,
         shell: &mut Shell<'_, Message>,
     ) {
-        let moved = state.scroll_motion.advance(ScrollFrame {
+        let offset_change = state.scroll_motion.advance(ScrollFrame {
             now,
             max_offset: self.max_offset(layout),
             pointer_inside: cursor.position_over(layout.bounds()).is_some(),
         });
-        if moved {
+        if offset_change == OffsetChange::Moved {
             shell.invalidate_layout();
         }
-        if state.scroll_motion.is_travelling(now) {
+        if state.scroll_motion.travel_state(now) == MotionState::Moving {
             shell.request_redraw();
         }
     }

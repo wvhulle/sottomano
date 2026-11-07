@@ -11,7 +11,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
     },
     hover_cards::{
         HoverTarget,
@@ -34,12 +34,16 @@ pub(super) fn wireguard_tunnel_item<Message: Clone + 'static>(
 ) -> GroupItem<'_, Message> {
     let item = GroupItem::reading(tunnel, target);
     match tunnel.switch() {
-        Some(wireguard_switch @ WireguardSwitch::Connect(_)) => {
-            item.on_switch_press(false, "connect the tunnel", on_switch(wireguard_switch))
-        }
-        Some(wireguard_switch @ WireguardSwitch::Disconnect(_)) => {
-            item.on_switch_press(true, "disconnect the tunnel", on_switch(wireguard_switch))
-        }
+        Some(wireguard_switch @ WireguardSwitch::Connect(_)) => item.on_switch_press(
+            SwitchPosition::Off,
+            "connect the tunnel",
+            on_switch(wireguard_switch),
+        ),
+        Some(wireguard_switch @ WireguardSwitch::Disconnect(_)) => item.on_switch_press(
+            SwitchPosition::On,
+            "disconnect the tunnel",
+            on_switch(wireguard_switch),
+        ),
         None => item,
     }
 }

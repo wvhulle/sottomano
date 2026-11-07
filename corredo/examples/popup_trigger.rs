@@ -1,4 +1,7 @@
-use corredo::{anchored_popup::PopupSide, popup_trigger::popup_trigger};
+use corredo::{
+    anchored_popup::PopupSide,
+    popup_trigger::{PopupVisibility, popup_trigger},
+};
 use iced::{
     Element, Length,
     alignment::{Horizontal, Vertical},
@@ -13,14 +16,16 @@ enum PopupMessage {
 
 #[derive(Debug, Default)]
 struct PopupDemo {
-    popup_open: bool,
+    popup_visibility: PopupVisibility,
 }
 
 impl PopupDemo {
     fn update(&mut self, message: PopupMessage) {
-        self.popup_open = match message {
-            PopupMessage::Toggled => !self.popup_open,
-            PopupMessage::Dismissed => false,
+        self.popup_visibility = match (message, self.popup_visibility) {
+            (PopupMessage::Toggled, PopupVisibility::Closed) => PopupVisibility::Open,
+            (PopupMessage::Toggled, PopupVisibility::Open) | (PopupMessage::Dismissed, _) => {
+                PopupVisibility::Closed
+            }
         };
     }
 
@@ -31,7 +36,7 @@ impl PopupDemo {
             text("Press outside to close")
         ];
         container(
-            popup_trigger(trigger, content, self.popup_open)
+            popup_trigger(trigger, content, self.popup_visibility)
                 .side(PopupSide::Below)
                 .on_dismiss(PopupMessage::Dismissed),
         )

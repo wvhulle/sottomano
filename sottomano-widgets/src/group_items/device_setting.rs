@@ -72,16 +72,6 @@ impl UserRequest {
             }
         }
     }
-
-    fn is_dragging(&self) -> bool {
-        matches!(self, Self::DraggingTo { .. })
-    }
-}
-
-impl OutgoingWrite {
-    fn is_outstanding(&self) -> bool {
-        !matches!(self, Self::NothingOutstanding)
-    }
 }
 
 impl DeviceSetting {
@@ -107,7 +97,7 @@ impl DeviceSetting {
     #[must_use]
     pub fn follows_device(&self) -> bool {
         matches!(self.user_request, UserRequest::FollowingDevice)
-            && !self.outgoing_write.is_outstanding()
+            && matches!(self.outgoing_write, OutgoingWrite::NothingOutstanding)
     }
 
     pub fn drag_moved_to(&mut self, requested_value: f32) -> Option<Write> {
@@ -151,12 +141,12 @@ impl DeviceSetting {
         }
     }
 
-    pub fn absolute_write_finished(
+    pub fn absolute_write_finished<WriteFailure>(
         &mut self,
         written_value: f32,
-        succeeded: bool,
+        write_outcome: &Result<(), WriteFailure>,
     ) -> Option<Write> {
-        if succeeded {
+        if write_outcome.is_ok() {
             self.device_feedback.accepted_value = written_value;
         }
         match self.take_queued_nudge() {
@@ -187,7 +177,9 @@ impl DeviceSetting {
 
     pub fn device_reported(&mut self, reported_value: f32, step: f32) {
         self.device_feedback.reported_value = reported_value;
-        if self.user_request.is_dragging() || self.outgoing_write.is_outstanding() {
+        if matches!(self.user_request, UserRequest::DraggingTo { .. })
+            || !matches!(self.outgoing_write, OutgoingWrite::NothingOutstanding)
+        {
             return;
         }
         if self
@@ -216,7 +208,7 @@ impl DeviceSetting {
 
     #[allow(clippy::float_cmp)]
     fn write_requested_value(&mut self) -> Option<Write> {
-        if self.outgoing_write.is_outstanding() {
+        if !matches!(self.outgoing_write, OutgoingWrite::NothingOutstanding) {
             return None;
         }
         match self.user_request.requested_value() {

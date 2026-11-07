@@ -10,21 +10,16 @@ use sottomano_toml_config::{
 };
 
 use crate::{
-    notification_toasts::NotificationSettings, toast_messages::NotificationMessage,
-    widgets::typing_under_cards::viewed_window_bounds,
+    notification_toasts::NotificationSettings,
+    toast_messages::NotificationMessage,
+    widget_groups::overlay_settings_group::ToastArrangement,
+    widgets::{motion_state::MotionState, typing_under_cards::viewed_window_bounds},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ToastAnchor {
     Edge { vertical: VEdge, horizontal: HEdge },
     Window { id: u64, bounds: Rectangle },
-}
-
-impl ToastAnchor {
-    #[must_use]
-    pub fn is_window_bound(self) -> bool {
-        matches!(self, Self::Window { .. })
-    }
 }
 
 pub struct ToastPlacement {
@@ -37,7 +32,7 @@ pub struct AnchoredToast<'a> {
     pub id: u32,
     pub anchor: ToastAnchor,
     pub card: Element<'a, NotificationMessage>,
-    pub animating: bool,
+    pub motion: MotionState,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,10 +78,10 @@ pub fn placement_for(
     notifications: NotificationSettings,
     config: &Config,
 ) -> ToastPlacement {
-    let id = notifications
-        .toast_spatial_layout
-        .then(|| window.open_in(placement))
-        .flatten();
+    let id = match notifications.toast_arrangement {
+        ToastArrangement::BesideSender => window.open_in(placement),
+        ToastArrangement::ScreenCorner => None,
+    };
 
     let Some(id) = id else {
         let fallback_corner = config.notification_toasts.placement.fallback_corner;

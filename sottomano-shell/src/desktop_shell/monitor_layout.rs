@@ -8,7 +8,7 @@ use sottomano_widgets::{
     hover_cards::{HoverCardMessage, WidgetAnchor},
     widget_groups::{window_group::WindowGroupMessage, workspaces_group},
     widgets::pointer_drag::{
-        DraggedPanelSlot,
+        DraggedPanelSlot, ListDeparture,
         drag_ghost::{GhostPlacement, drag_ghost},
     },
 };
@@ -48,13 +48,13 @@ fn anchor_hover_cards_on_surface(
         }),
         Message::HoverCard(HoverCardMessage::MenuHandlePointedAnchor {
             target,
-            pointed_at,
+            pointing,
             announcement,
         }) => Message::HoverCard(HoverCardMessage::MenuHandlePointed {
             surface,
             position,
             target,
-            pointed_at,
+            pointing,
             announcement,
         }),
         Message::HoverCard(HoverCardMessage::MenuHandlePressedAnchor {
@@ -123,7 +123,9 @@ impl DesktopShell {
                 .map(|message| Message::WindowGroup(WindowGroupMessage::WindowList(message))),
         };
         let placement = match drag.item {
-            DraggedPanelSlot::Window { .. } if view.has_left_its_list() => {
+            DraggedPanelSlot::Window { .. }
+                if view.list_departure() == ListDeparture::LeftOwnList =>
+            {
                 GhostPlacement::BesideCursor {
                     gap: self.config.theme.font.icon_size_px,
                 }

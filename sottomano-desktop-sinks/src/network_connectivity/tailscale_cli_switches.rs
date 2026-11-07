@@ -25,8 +25,7 @@ pub async fn switch_exit_offer(exit_offer_switch: ExitOfferSwitch) {
     }
 }
 
-#[must_use]
-pub fn open_admin() -> bool {
+pub fn open_admin() -> Result<(), shell_command_output::Error> {
     shell_command_output::blocking::run("xdg-open", &[ADMIN_CONSOLE_URL])
 }
 

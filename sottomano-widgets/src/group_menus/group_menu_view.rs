@@ -16,7 +16,7 @@ use crate::{
         group_menu_presentation::{GroupMenuLayout, GroupMenuOpenTrigger},
         group_menu_state::{
             AlertPromotedGroup, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
-            OpenGroupMenu,
+            MenuPinState, OpenGroupMenu,
         },
         menu_rows::{
             group_menu_group_rows::{GroupMenuGroupRow, GroupMenuRowContext, one_row_per_identity},
@@ -63,8 +63,9 @@ pub struct InspectionCard<'c, 'a> {
 
 impl InspectionCard<'_, '_> {
     pub(crate) fn view(&self, config: &Config) -> Option<Element<'static, PopupMessage>> {
-        (!self.hover_card.is_empty() || !self.hover_card.announcement.is_empty())
-            .then(|| HoverCardContent::new(self.hover_card, config, self.assets, self.clock).view())
+        (!self.hover_card.is_empty()
+            || self.hover_card.announcement != HoverAnnouncement::default())
+        .then(|| HoverCardContent::new(self.hover_card, config, self.assets, self.clock).view())
     }
 }
 
@@ -293,7 +294,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         let group_menus = self.group_menus;
         once(handle_slot).chain(self.groups.into_iter().flat_map(move |member| {
             let group_entry = GroupMenuPin::Group(member.group_identity().clone());
-            if group_menus.is_pinned(topic, group_entry) {
+            if group_menus.pin_state(topic, group_entry) == MenuPinState::Pinned {
                 return member
                     .pinned_from(topic)
                     .view(config, panel_position, clock)
@@ -334,7 +335,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             .into_iter()
             .filter(|member| {
                 let group_entry = GroupMenuPin::Group(member.group_identity().clone());
-                !group_menus.is_pinned(messenger.topic, group_entry)
+                group_menus.pin_state(messenger.topic, group_entry) == MenuPinState::Unpinned
             })
             .filter_map(|member| {
                 member.menu_member(config, card.clock, group_menus, messenger.topic)

@@ -4,12 +4,12 @@ use iced::{Task, window::Id};
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     hover_cards::{
-        HoverAnnouncement, HoverCardMessage, HoverTarget,
+        HandlePointing, HoverAnnouncement, HoverCardMessage, HoverTarget,
         hover_card_body::{
             HoverCardBody,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
-        hover_card_transition::Departed,
+        hover_card_transition::{CardRetention, Departed},
     },
     layer_surfaces::PanelEdge,
     widget_groups::{
@@ -17,6 +17,7 @@ use sottomano_widgets::{
         window_group::{WindowGroup, WindowTarget},
         workspaces_group::workspace_hover_card,
     },
+    widgets::pointer_drag::PointerDrag,
 };
 use tokio::time::sleep_until;
 
@@ -53,7 +54,7 @@ impl DesktopShell {
                 target,
                 announcement,
             } => {
-                if self.hover_card.is_held_open() {
+                if self.hover_card.shown_retention() == CardRetention::UntilDismissed {
                     return Task::none();
                 }
                 let Some(parent) =
@@ -74,11 +75,9 @@ impl DesktopShell {
                 surface,
                 position,
                 target,
-                pointed_at,
+                pointing,
                 announcement,
-            } => {
-                self.follow_menu_handle_pointer(surface, position, target, pointed_at, announcement)
-            }
+            } => self.follow_menu_handle_pointer(surface, position, target, pointing, announcement),
             HoverCardMessage::MenuHandlePressed {
                 surface,
                 position,
@@ -96,7 +95,7 @@ impl DesktopShell {
                 }
             }
             HoverCardMessage::DismissHeldOpen => {
-                if self.hover_card.is_held_open() {
+                if self.hover_card.shown_retention() == CardRetention::UntilDismissed {
                     self.dismiss_hover_card()
                 } else {
                     Task::none()
@@ -121,15 +120,15 @@ impl DesktopShell {
         surface: Id,
         position: Position,
         target: HoverTarget,
-        pointed_at: bool,
+        pointing: HandlePointing,
         announcement: HoverAnnouncement,
     ) -> Task<Message> {
         let Some(output) = self.surfaces.get(&surface).map(|host| host.output.clone()) else {
             return Task::none();
         };
         self.hover_card
-            .set_handle_pointed_at(&output, &target, pointed_at);
-        if pointed_at
+            .set_handle_pointing(&output, &target, pointing);
+        if pointing == HandlePointing::PointedAt
             && self.hover_card.hover_switches_menu(&target, &output)
             && let Some(parent) = self.hover_card_parent(surface, position, &target, &announcement)
         {
@@ -150,7 +149,7 @@ impl DesktopShell {
             return Task::none();
         };
         self.hover_card
-            .set_handle_pointed_at(&output, &target, true);
+            .set_handle_pointing(&output, &target, HandlePointing::PointedAt);
         if self.hover_card.target() == Some(&target) {
             return self.dismiss_hover_card();
         }
@@ -168,7 +167,7 @@ impl DesktopShell {
         target: &HoverTarget,
         announcement: &HoverAnnouncement,
     ) -> Option<PanelEdge> {
-        if self.is_dragging() {
+        if matches!(self.pointer_drag, PointerDrag::Dragging(_)) {
             return None;
         }
         let host = self.surfaces.get(&surface).filter(|_| {

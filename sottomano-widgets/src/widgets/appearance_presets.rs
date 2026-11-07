@@ -1,8 +1,14 @@
 use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::ColorMode;
 
-use crate::widgets::{
-    phosphor::{Phosphor, Weight},
-    shell_layer_appearance::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer},
+use crate::{
+    desktop_panels::region_reporter::BackdropBlur,
+    widgets::{
+        phosphor::{Phosphor, Weight},
+        shell_layer_appearance::{
+            LayerAppearance, LookComparison, OutlineStyle, OutlineTracing, ShadowCasting,
+            ShadowStyle, ShellLayer,
+        },
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -28,12 +34,22 @@ impl Default for ShellAppearance {
 
 impl ShellAppearance {
     #[must_use]
-    pub fn looks_like(&self, other: &Self) -> bool {
-        self.scheme == other.scheme
-            && self.panels.looks_like(&other.panels)
-            && self.sidebar.looks_like(&other.sidebar)
-            && self.overlays.looks_like(&other.overlays)
-            && self.menus.looks_like(&other.menus)
+    pub fn look_comparison(&self, other: &Self) -> LookComparison {
+        let layer_comparisons = [
+            self.panels.look_comparison(&other.panels),
+            self.sidebar.look_comparison(&other.sidebar),
+            self.overlays.look_comparison(&other.overlays),
+            self.menus.look_comparison(&other.menus),
+        ];
+        if self.scheme == other.scheme
+            && layer_comparisons
+                .iter()
+                .all(|layer_comparison| *layer_comparison == LookComparison::Matching)
+        {
+            LookComparison::Matching
+        } else {
+            LookComparison::Differing
+        }
     }
 }
 
@@ -84,11 +100,11 @@ impl AppearancePreset {
         let shaped = self.shaped_layers(current);
         ShellAppearance {
             overlays: LayerAppearance {
-                blurred: true,
+                backdrop_blur: BackdropBlur::Blurred,
                 ..shaped.overlays
             },
             menus: LayerAppearance {
-                blurred: true,
+                backdrop_blur: BackdropBlur::Blurred,
                 ..shaped.menus
             },
             ..shaped
@@ -101,7 +117,7 @@ impl AppearancePreset {
                 let cleared = |layer: LayerAppearance| LayerAppearance {
                     opacity: 0.0,
                     shadow: ShadowStyle {
-                        cast: false,
+                        casting: ShadowCasting::Omitted,
                         ..layer.shadow
                     },
                     ..layer
@@ -111,18 +127,18 @@ impl AppearancePreset {
                 ShellAppearance {
                     scheme: ColorMode::Dark,
                     panels: LayerAppearance {
-                        blurred: false,
+                        backdrop_blur: BackdropBlur::Clear,
                         outline: OutlineStyle {
-                            drawn: false,
+                            tracing: OutlineTracing::Omitted,
                             ..panels.outline
                         },
                         ..panels
                     },
                     sidebar: LayerAppearance {
                         opacity: 0.4,
-                        blurred: true,
+                        backdrop_blur: BackdropBlur::Blurred,
                         outline: OutlineStyle {
-                            drawn: true,
+                            tracing: OutlineTracing::Drawn,
                             ..sidebar.outline
                         },
                         ..sidebar
@@ -133,7 +149,7 @@ impl AppearancePreset {
             Self::BrightOffice => {
                 let solid = |layer: LayerAppearance| LayerAppearance {
                     opacity: 0.95,
-                    blurred: false,
+                    backdrop_blur: BackdropBlur::Clear,
                     ..layer
                 };
                 ShellAppearance {
@@ -147,7 +163,7 @@ impl AppearancePreset {
             Self::FrostedDark => {
                 let frosted = |layer: LayerAppearance, opacity: f32| LayerAppearance {
                     opacity,
-                    blurred: true,
+                    backdrop_blur: BackdropBlur::Blurred,
                     ..layer
                 };
                 ShellAppearance {
@@ -160,11 +176,6 @@ impl AppearancePreset {
             }
         }
     }
-
-    #[must_use]
-    pub fn is_shown_by(self, current: &ShellAppearance) -> bool {
-        self.applied_to(*current).looks_like(current)
-    }
 }
 
 #[cfg(test)]
@@ -172,17 +183,20 @@ mod tests {
     use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::ColorMode;
 
     use super::{AppearancePreset, ShellAppearance};
-    use crate::widgets::shell_layer_appearance::LayerAppearance;
+    use crate::{
+        desktop_panels::region_reporter::BackdropBlur,
+        widgets::shell_layer_appearance::{LayerAppearance, LookComparison, OutlineTracing},
+    };
 
     #[test]
     fn clear_dark_hides_the_panel_frames_but_keeps_a_frosted_outlined_sidebar() {
         let cleared = AppearancePreset::ClearDark.applied_to(ShellAppearance::default());
         assert!(cleared.panels.opacity.abs() < f32::EPSILON);
-        assert!(!cleared.panels.blurred);
-        assert!(!cleared.panels.outline.drawn);
-        assert!(cleared.sidebar.blurred);
+        assert_eq!(cleared.panels.backdrop_blur, BackdropBlur::Clear);
+        assert_eq!(cleared.panels.outline.tracing, OutlineTracing::Omitted);
+        assert_eq!(cleared.sidebar.backdrop_blur, BackdropBlur::Blurred);
         assert!(cleared.sidebar.opacity > cleared.panels.opacity);
-        assert!(cleared.sidebar.outline.drawn);
+        assert_eq!(cleared.sidebar.outline.tracing, OutlineTracing::Drawn);
         assert_eq!(cleared.overlays, ShellAppearance::default().overlays);
     }
 
@@ -193,7 +207,7 @@ mod tests {
         assert!(
             [office.panels, office.sidebar]
                 .iter()
-                .all(|layer| layer.opacity > 0.9 && !layer.blurred)
+                .all(|layer| layer.opacity > 0.9 && layer.backdrop_blur == BackdropBlur::Clear)
         );
         assert!(office.overlays.opacity > 0.9);
     }
@@ -202,13 +216,17 @@ mod tests {
     fn every_preset_blurs_behind_hover_cards() {
         let unblurred = ShellAppearance {
             overlays: LayerAppearance {
-                blurred: false,
+                backdrop_blur: BackdropBlur::Clear,
                 ..ShellAppearance::default().overlays
             },
             ..ShellAppearance::default()
         };
         for preset in AppearancePreset::ALL {
-            assert!(preset.applied_to(unblurred).overlays.blurred, "{preset:?}");
+            assert_eq!(
+                preset.applied_to(unblurred).overlays.backdrop_blur,
+                BackdropBlur::Blurred,
+                "{preset:?}"
+            );
         }
     }
 
@@ -216,14 +234,28 @@ mod tests {
     fn every_preset_is_shown_once_applied() {
         for preset in AppearancePreset::ALL {
             let applied = preset.applied_to(ShellAppearance::default());
-            assert!(preset.is_shown_by(&applied), "{preset:?}");
+            assert_eq!(
+                preset.applied_to(applied).look_comparison(&applied),
+                LookComparison::Matching,
+                "{preset:?}"
+            );
         }
     }
 
     #[test]
     fn only_the_applied_preset_is_shown() {
         let office = AppearancePreset::BrightOffice.applied_to(ShellAppearance::default());
-        assert!(!AppearancePreset::ClearDark.is_shown_by(&office));
-        assert!(!AppearancePreset::FrostedDark.is_shown_by(&office));
+        assert_eq!(
+            AppearancePreset::ClearDark
+                .applied_to(office)
+                .look_comparison(&office),
+            LookComparison::Differing
+        );
+        assert_eq!(
+            AppearancePreset::FrostedDark
+                .applied_to(office)
+                .look_comparison(&office),
+            LookComparison::Differing
+        );
     }
 }

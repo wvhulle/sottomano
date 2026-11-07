@@ -9,6 +9,31 @@ pub(crate) struct RegisteredMachineListing {
     pub(crate) machine_path: OwnedObjectPath,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MachineClass {
+    Container,
+    VirtualMachine,
+    Host,
+    Unrecognised,
+}
+
+impl From<&str> for MachineClass {
+    fn from(machined_class: &str) -> Self {
+        match machined_class {
+            "container" => MachineClass::Container,
+            "vm" => MachineClass::VirtualMachine,
+            "host" => MachineClass::Host,
+            _ => MachineClass::Unrecognised,
+        }
+    }
+}
+
+impl RegisteredMachineListing {
+    pub(crate) fn class(&self) -> MachineClass {
+        MachineClass::from(self.machine_class.as_str())
+    }
+}
+
 #[proxy(
     interface = "org.freedesktop.machine1.Manager",
     default_service = "org.freedesktop.machine1",
@@ -82,4 +107,17 @@ pub(crate) fn machine_set_changes(system_bus: zbus::Connection) -> impl Stream<I
                 .ok()
         })
         .flatten()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn machine_classes_follow_machined_vocabulary() {
+        assert_eq!(MachineClass::from("container"), MachineClass::Container);
+        assert_eq!(MachineClass::from("vm"), MachineClass::VirtualMachine);
+        assert_eq!(MachineClass::from("host"), MachineClass::Host);
+        assert_eq!(MachineClass::from("lxc"), MachineClass::Unrecognised);
+    }
 }

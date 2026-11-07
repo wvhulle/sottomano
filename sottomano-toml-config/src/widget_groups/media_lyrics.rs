@@ -1,17 +1,17 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct MediaLyricsConfig {
-    pub lrclib_lookup: bool,
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LrclibLookup {
+    #[default]
+    Enabled,
+    Disabled,
 }
 
-impl Default for MediaLyricsConfig {
-    fn default() -> Self {
-        Self {
-            lrclib_lookup: true,
-        }
-    }
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MediaLyricsConfig {
+    pub lrclib_lookup: LrclibLookup,
 }
 
 #[cfg(test)]
@@ -20,9 +20,12 @@ mod tests {
 
     #[test]
     fn lrclib_lookup_is_on_until_disabled() {
-        assert!(MediaLyricsConfig::default().lrclib_lookup);
-        let config: MediaLyricsConfig = toml::from_str("lrclib_lookup = false\n").unwrap();
-        assert!(!config.lrclib_lookup);
+        assert_eq!(
+            MediaLyricsConfig::default().lrclib_lookup,
+            LrclibLookup::Enabled
+        );
+        let config: MediaLyricsConfig = toml::from_str("lrclib_lookup = \"disabled\"\n").unwrap();
+        assert_eq!(config.lrclib_lookup, LrclibLookup::Disabled);
     }
 
     #[test]

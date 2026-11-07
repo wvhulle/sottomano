@@ -19,8 +19,8 @@ use uom::si::{f64::Ratio, ratio::percent};
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const RESOLVE_TIMEOUT: Duration = Duration::from_secs(5);
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
-const TOO_MANY_REQUESTS_STATUS: u16 = 429;
-const SERVER_ERROR_STATUS: u16 = 500;
+pub const TOO_MANY_REQUESTS_STATUS: u16 = 429;
+pub const SERVER_ERROR_STATUS: u16 = 500;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -53,24 +53,6 @@ impl Error {
         Error::Status {
             status,
             message: failure_message(body),
-        }
-    }
-
-    #[must_use]
-    pub fn is_temporary(&self) -> bool {
-        match self {
-            Error::HostNotResolved { .. } | Error::TimedOut { .. } | Error::Unreachable { .. } => {
-                true
-            }
-            Error::Status { status, .. } => {
-                *status == TOO_MANY_REQUESTS_STATUS || *status >= SERVER_ERROR_STATUS
-            }
-            Error::Url(_)
-            | Error::Header(_)
-            | Error::Client(_)
-            | Error::Body(_)
-            | Error::Empty
-            | Error::Decode(_) => false,
         }
     }
 }
@@ -398,21 +380,6 @@ mod tests {
             }
         );
         assert_eq!(failure.to_string(), "HTTP 503");
-    }
-
-    #[test]
-    fn overload_and_timeouts_are_temporary_but_bad_responses_are_not() {
-        assert!(Error::status(503, None).is_temporary());
-        assert!(Error::status(429, None).is_temporary());
-        assert!(
-            Error::TimedOut {
-                host: "api.open-meteo.com".to_owned(),
-                after: REQUEST_TIMEOUT,
-            }
-            .is_temporary()
-        );
-        assert!(!Error::status(404, None).is_temporary());
-        assert!(!Error::Decode("unexpected".to_owned()).is_temporary());
     }
 
     #[test]

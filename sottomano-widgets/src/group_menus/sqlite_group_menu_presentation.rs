@@ -1,4 +1,4 @@
-use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, with_table};
+use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, in_table, with_table};
 
 use crate::group_menus::group_menu_presentation::{
     GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
@@ -44,14 +44,11 @@ pub async fn load() -> GroupMenuPresentation {
     .unwrap_or_default()
 }
 
-pub async fn save(presentation: GroupMenuPresentation) -> bool {
-    with_table(
-        "group menu presentation: save failed",
-        &[DROP_SUPERSEDED_TABLE, CREATE_TABLE],
-        async |connection| write_presentation(connection, presentation).await,
-    )
+pub async fn save(presentation: GroupMenuPresentation) -> Result<(), StoreError> {
+    in_table(&[DROP_SUPERSEDED_TABLE, CREATE_TABLE], async |connection| {
+        write_presentation(connection, presentation).await
+    })
     .await
-    .is_some()
 }
 
 async fn read_presentation(

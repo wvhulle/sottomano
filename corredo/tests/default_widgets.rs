@@ -5,11 +5,11 @@ use corredo::{
     },
     fill_gauge::FillGauge,
     inline_slider::inline_slider,
-    popup_trigger::popup_trigger,
+    popup_trigger::{PopupVisibility, popup_trigger},
     pressable_text::pressable_text,
     selection_scroller::{ScrollAxis, selection_scroller},
     theme_colors::primary_color,
-    toggle_switch::toggle_switch,
+    toggle_switch::{TogglePosition, toggle_switch},
     transitioning_text::animated_text,
     weekday_picker::weekday_picker,
 };
@@ -45,12 +45,16 @@ fn gallery<'a>() -> Element<'a, GalleryMessage> {
         animated_text("animated label"),
         pressable_text(text("pressable label"), (), |()| GalleryMessage::Pressed),
         inline_slider(0.0..=10.0, 5.0, GalleryMessage::Slid),
-        toggle_switch(true),
+        toggle_switch(TogglePosition::On),
         FillGauge::new(0.5, primary_color, 16.0),
         weekday_picker(WeekdaySet::EMPTY, GalleryMessage::DayToggled),
         plain_context_menu(),
         selection_scroller(text("scrolled label"), ScrollAxis::Vertical),
-        popup_trigger(text("trigger label"), text("popup label"), true),
+        popup_trigger(
+            text("trigger label"),
+            text("popup label"),
+            PopupVisibility::Open,
+        ),
     ]
     .into()
 }

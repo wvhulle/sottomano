@@ -25,7 +25,10 @@ use tokio::{sync::mpsc, time::timeout};
 use super::{
     DEFAULT_ACTION, NotificationLayer, SnoozedOngoingToast, ToastContext,
     toast_card::{self, CardIcons},
-    toast_lifecycle::{Countdown, ExitPace, Notification, ToastContent, ToastKind, lifetime},
+    toast_lifecycle::{
+        Countdown, EventSource, ExitPace, Notification, ToastContent, ToastKind, ToastPresence,
+        lifetime,
+    },
     toast_placement::{ToastWindow, placement_for},
 };
 use crate::{
@@ -35,7 +38,8 @@ use crate::{
     notification_toasts::{NotificationSettings, ToastLayerHost},
     toast_messages::NotificationMessage,
     widget_groups::{
-        quiet_schedule_group::quiet_window::QuietPhase, widget_group_content::GroupToastRequests,
+        notification_group::AlertSound, quiet_schedule_group::quiet_window::QuietPhase,
+        widget_group_content::GroupToastRequests,
     },
     widgets::{
         announced_level::LevelReading,
@@ -44,10 +48,6 @@ use crate::{
 };
 
 const ACTIVATION_TOKEN_GRACE: Duration = Duration::from_millis(300);
-
-fn is_window_owned_action(key: &str) -> bool {
-    matches!(key, "move" | "quit")
-}
 
 impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     pub fn adopt_sound_theme(&mut self, theme: SoundTheme) {
@@ -335,7 +335,13 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     }
 
     fn hold_while_quiet(&mut self, toast: ToastContent<Routed>) {
-        if !toast.kind.is_from_dbus_client() {
+        if !matches!(
+            toast.kind,
+            ToastKind::Event {
+                source: EventSource::DbusClient,
+                ..
+            }
+        ) {
             return;
         }
         self.held.retain(|held| held.id != toast.data.id);
@@ -421,11 +427,11 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let shown = self
             .live
             .iter_mut()
-            .find(|n| n.data.id == id && !n.is_withdrawing());
+            .find(|notif| notif.data.id == id && notif.presence() == ToastPresence::Shown);
         if let Some(shown) = shown {
             shown.replace_content(toast, icons, countdown, place);
         } else {
-            if notifications.sound && !data.suppress_sound {
+            if notifications.alert_sound == AlertSound::Audible && !data.suppress_sound {
                 tasks.push(
                     Task::future(alert_sound_player::play(data, &self.sound_theme)).discard(),
                 );
@@ -450,8 +456,18 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     ) -> Task<Routed> {
         let stale: Vec<u32> = self
             .showing()
-            .filter(|n| is_stale(n, placement))
-            .map(|n| n.data.id)
+            .filter(|notif| {
+                let window = notif.place.window;
+                let window_owned = notif
+                    .data
+                    .actions
+                    .iter()
+                    .all(|action| matches!(action.key.as_str(), "move" | "quit"));
+                window != ToastWindow::Unanchored
+                    && window_owned
+                    && window.open_in(placement).is_none()
+            })
+            .map(|notif| notif.data.id)
             .collect();
         let closed = self.close_all(stale, close_reason::UNDEFINED, config, now);
         self.reposition(placement, config, notifications);
@@ -700,14 +716,4 @@ fn action_on_window<Routed: ToastLayerHost>(
         ),
         _ => None,
     }
-}
-
-fn is_stale<Routed>(notif: &Notification<Routed>, placement: &Placement) -> bool {
-    let window = notif.place.window;
-    let window_owned = notif
-        .data
-        .actions
-        .iter()
-        .all(|a| is_window_owned_action(&a.key));
-    window != ToastWindow::Unanchored && window_owned && window.open_in(placement).is_none()
 }

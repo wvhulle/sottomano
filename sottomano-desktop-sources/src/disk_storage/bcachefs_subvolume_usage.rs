@@ -153,7 +153,11 @@ struct SnapshotTreeNode {
 
 impl SnapshotTreeListing {
     fn subvolume_mounted_at(&self, mount_point: &Path) -> BcachefsSubvolume {
-        let snapshot_nodes = || self.nodes.iter().filter(|node| self.is_snapshot(node));
+        let snapshot_nodes = || {
+            self.nodes.iter().filter(|node| {
+                node.subvol != INTERIOR_NODE_SUBVOLUME && node.subvol != self.query_root.subvol
+            })
+        };
         BcachefsSubvolume {
             path: self
                 .query_root
@@ -165,10 +169,6 @@ impl SnapshotTreeListing {
             snapshot_count: snapshot_nodes().count(),
             mounts: Vec::new(),
         }
-    }
-
-    fn is_snapshot(&self, node: &SnapshotTreeNode) -> bool {
-        node.subvol != INTERIOR_NODE_SUBVOLUME && node.subvol != self.query_root.subvol
     }
 }
 

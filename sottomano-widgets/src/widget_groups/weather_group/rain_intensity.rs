@@ -9,6 +9,7 @@ use iced::alignment::Horizontal;
 use sottomano_desktop_sources::weather::{
     buienradar_rain::{Downpour, Rain, RainOutlook, precipitation::millimeter_per_hour},
     open_meteo_precipitation_model::{ModelQuarterHour, PrecipitationModel},
+    open_meteo_temperature::SkyWetness,
 };
 use sottomano_toml_config::{severity::Severity, widget_groups::rain_alerts::RainAlertsConfig};
 use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
@@ -191,15 +192,19 @@ impl RainTimelineRow<'_> {
         }
     }
 
-    fn is_wet(self) -> bool {
+    fn sky_wetness(self) -> SkyWetness {
         match self {
-            RainTimelineRow::RadarFrame { frame, .. } => frame.intensity > Velocity::default(),
-            RainTimelineRow::RadarFrameStartingModelQuarter { frame, quarter, .. } => {
-                frame.intensity > Velocity::default() || quarter.condition.is_precipitation()
+            RainTimelineRow::RadarFrame { frame, .. }
+            | RainTimelineRow::RadarFrameStartingModelQuarter { frame, .. }
+                if frame.intensity > Velocity::default() =>
+            {
+                SkyWetness::Precipitating
             }
-            RainTimelineRow::ModelQuarter { quarter, .. }
+            RainTimelineRow::RadarFrame { .. } => SkyWetness::Dry,
+            RainTimelineRow::RadarFrameStartingModelQuarter { quarter, .. }
+            | RainTimelineRow::ModelQuarter { quarter, .. }
             | RainTimelineRow::ModelQuarterWithoutRadar { quarter, .. } => {
-                quarter.condition.is_precipitation()
+                quarter.condition.sky_wetness()
             }
         }
     }
@@ -418,13 +423,17 @@ impl RainForecast<'_> {
                     .collect()
                 }
             },
-            (None, Some(model)) if model.current.condition.is_precipitation() => vec![
-                LabeledValue::new("Now", model_quarter_text(&model.current)),
-                LabeledValue::new(
-                    "Rain",
-                    Quantity::precipitation_rate(model.current.intensity),
-                ),
-            ],
+            (None, Some(model))
+                if model.current.condition.sky_wetness() == SkyWetness::Precipitating =>
+            {
+                vec![
+                    LabeledValue::new("Now", model_quarter_text(&model.current)),
+                    LabeledValue::new(
+                        "Rain",
+                        Quantity::precipitation_rate(model.current.intensity),
+                    ),
+                ]
+            }
             (None, Some(_)) => vec![LabeledValue::new("Now", "Dry")],
             (None, None) => Vec::new(),
         };
@@ -461,10 +470,8 @@ impl GroupItemReading for RainForecast<'_> {
     fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
         match (self.radar_forecast(), self.sources.model()) {
             (Some(radar), _) => radar.label(clock, locale),
-            (None, Some(model)) => model
-                .current
-                .condition
-                .is_precipitation()
+            (None, Some(model)) => (model.current.condition.sky_wetness()
+                == SkyWetness::Precipitating)
                 .then(|| model.current.condition.to_string()),
             (None, None) => None,
         }
@@ -473,7 +480,9 @@ impl GroupItemReading for RainForecast<'_> {
     fn state(&self, clock: Clock) -> ReadingDisplayState {
         match (self.radar_forecast(), self.sources.model()) {
             (Some(radar), _) => radar.state(clock),
-            (None, Some(model)) if model.current.condition.is_precipitation() => {
+            (None, Some(model))
+                if model.current.condition.sky_wetness() == SkyWetness::Precipitating =>
+            {
                 ReadingDisplayState::Idle
             }
             (None, _) => ReadingDisplayState::Off,
@@ -495,7 +504,7 @@ impl GroupItemReading for RainForecast<'_> {
         let timeline = self.timeline(clock);
         let timeline_section = timeline
             .iter()
-            .any(|row| row.is_wet())
+            .any(|row| row.sky_wetness() == SkyWetness::Precipitating)
             .then(|| rain_timeline_section(&timeline, self.sources.timeline_headings()));
         HoverCardBody::sections(iter::once(self.summary_section()).chain(timeline_section))
     }
@@ -896,10 +905,9 @@ mod tests {
             .zip(conditions)
             .map(|(position, condition)| ModelQuarterHour {
                 starts_at: clock.utc() + MODEL_QUARTER_HOUR * position,
-                intensity: Velocity::new::<millimeter_per_hour>(if condition.is_precipitation() {
-                    1.2
-                } else {
-                    0.0
+                intensity: Velocity::new::<millimeter_per_hour>(match condition.sky_wetness() {
+                    SkyWetness::Precipitating => 1.2,
+                    SkyWetness::Dry => 0.0,
                 }),
                 condition: *condition,
                 daylight: Daylight::Day,

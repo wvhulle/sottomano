@@ -141,7 +141,7 @@ impl GamepadMachine {
             .iter()
             .filter(|(slot, _)| self.settings.gate.allows(**slot))
             .filter_map(move |(_, sticks)| Some(sticks.tracker(pointer_stick?).position()))
-            .filter(|position| position.is_deflected())
+            .filter(|position| position.x != 0.0 || position.y != 0.0)
     }
 
     #[must_use]

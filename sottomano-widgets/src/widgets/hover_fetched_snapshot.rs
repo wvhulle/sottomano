@@ -168,8 +168,8 @@ where
     }
 
     #[must_use]
-    pub fn is_hovered(&self) -> bool {
-        matches!(self.hover_fetch, HoverFetch::Fetching { .. })
+    pub fn hover_fetch(&self) -> &HoverFetch<S> {
+        &self.hover_fetch
     }
 
     pub fn receive(&mut self, delivery: SnapshotDelivery<S>, clock: Clock) {

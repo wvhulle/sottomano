@@ -1,7 +1,11 @@
 use std::time::Duration;
 
 use chrono::{NaiveTime, TimeDelta, Timelike};
-use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, with_table};
+use sottomano_desktop_sources::sqlite_state_store::{
+    Columns, StoreError, flag, in_table, with_table,
+};
+
+use crate::widget_groups::quiet_schedule_group::quiet_window::QuietScheduleAdherence;
 
 pub const SCHEMA: [&str; 2] = [
     "CREATE TABLE IF NOT EXISTS quiet_hours (
@@ -18,7 +22,7 @@ pub const SCHEMA: [&str; 2] = [
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QuietHoursSchedule {
-    pub follows_schedule: bool,
+    pub schedule_adherence: QuietScheduleAdherence,
     pub start: NaiveTime,
     pub end: NaiveTime,
     pub screen_off: Option<Duration>,
@@ -27,7 +31,7 @@ pub struct QuietHoursSchedule {
 impl Default for QuietHoursSchedule {
     fn default() -> Self {
         Self {
-            follows_schedule: true,
+            schedule_adherence: QuietScheduleAdherence::Followed,
             start: NaiveTime::MIN + TimeDelta::hours(23),
             end: NaiveTime::MIN + TimeDelta::hours(7),
             screen_off: Some(Duration::from_mins(1)),
@@ -41,14 +45,11 @@ pub async fn load() -> QuietHoursSchedule {
         .unwrap_or_default()
 }
 
-pub async fn save(schedule: QuietHoursSchedule) -> bool {
-    with_table(
-        "quiet hours schedule: save failed",
-        &SCHEMA,
-        async |connection| write_schedule(connection, schedule).await,
-    )
+pub async fn save(schedule: QuietHoursSchedule) -> Result<(), StoreError> {
+    in_table(&SCHEMA, async |connection| {
+        write_schedule(connection, schedule).await
+    })
     .await
-    .is_some()
 }
 
 fn minutes_since_midnight(time: NaiveTime) -> i64 {
@@ -71,7 +72,10 @@ async fn read_schedule(connection: &turso::Connection) -> Result<QuietHoursSched
         return Ok(QuietHoursSchedule::default());
     };
     Ok(QuietHoursSchedule {
-        follows_schedule: columns.integer(&row, "follows_schedule")? != 0,
+        schedule_adherence: match columns.integer(&row, "follows_schedule")? {
+            0 => QuietScheduleAdherence::Ignored,
+            _ => QuietScheduleAdherence::Followed,
+        },
         start: time_of_minutes(columns.integer(&row, "start_minutes")?),
         end: time_of_minutes(columns.integer(&row, "end_minutes")?),
         screen_off: read_screen_off(connection).await?,
@@ -104,7 +108,7 @@ async fn write_schedule(
          VALUES (0, ?1, ?2, ?3)
          ON CONFLICT(id) DO UPDATE SET follows_schedule = ?1, start_minutes = ?2, end_minutes = ?3",
             (
-                i64::from(schedule.follows_schedule),
+                flag(schedule.schedule_adherence == QuietScheduleAdherence::Followed),
                 minutes_since_midnight(schedule.start),
                 minutes_since_midnight(schedule.end),
             ),
@@ -132,12 +136,13 @@ mod tests {
     use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
 
     use super::{QuietHoursSchedule, SCHEMA, read_schedule, write_schedule};
+    use crate::widget_groups::quiet_schedule_group::quiet_window::QuietScheduleAdherence;
 
     #[tokio::test]
     async fn schedule_survives_a_round_trip() {
         let connection = in_memory_connection(&SCHEMA).await;
         let schedule = QuietHoursSchedule {
-            follows_schedule: false,
+            schedule_adherence: QuietScheduleAdherence::Ignored,
             start: NaiveTime::from_hms_opt(22, 15, 0).unwrap(),
             end: NaiveTime::from_hms_opt(6, 45, 0).unwrap(),
             screen_off: Some(Duration::from_secs(30)),

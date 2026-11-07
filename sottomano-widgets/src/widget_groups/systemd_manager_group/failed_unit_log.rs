@@ -103,7 +103,7 @@ pub(super) fn failed_units_item<'a>(
                     tint: ActionTint::Proceed,
                     on_button_pressed: SystemdManagerMessage::RestartFailedUnit(
                         FailedUnitRestart {
-                            per_user: failed.scope.per_user(),
+                            unit_scope: failed.scope,
                             unit: unit.name.clone(),
                         },
                     ),

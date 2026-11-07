@@ -1,10 +1,13 @@
-use std::pin::pin;
+use std::{pin::pin, sync::Arc};
 
 use futures::{Stream, StreamExt, stream};
 use tokio::select;
 
 use super::{ManagerProxy, SystemdUnitOnBus, UnitProxy, connect_systemd_bus};
-use crate::{SnapshotDelivery, SnapshotSource, stream_operators::connected_until_failure};
+use crate::{
+    SnapshotDelivery, SnapshotSource, stream_operators::connected_until_failure,
+    systemd_units_journal::SystemdUnitScope,
+};
 
 const JOB_DONE: &str = "done";
 
@@ -120,27 +123,33 @@ async fn activity_changes(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnitControl {
-    pub per_user: bool,
+    pub unit_scope: SystemdUnitScope,
     pub unit: String,
 }
 
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum UnitChangeFailure {
+    #[error("the job ended {job_result}")]
+    JobEnded { job_result: String },
+    #[error("the systemd call failed: {0}")]
+    Bus(Arc<zbus::Error>),
+}
+
 impl UnitControl {
-    pub async fn accepts(self, change: UnitChange) -> bool {
-        match self.job_result(change).await {
-            Ok(result) if result == JOB_DONE => true,
-            Ok(result) => {
-                tracing::warn!("systemd: {change:?} {} ended {result}", self.unit);
-                false
-            }
-            Err(e) => {
-                tracing::warn!("systemd: {change:?} {} failed: {e}", self.unit);
-                false
-            }
+    pub async fn apply(self, change: UnitChange) -> Result<(), UnitChangeFailure> {
+        let job_result = self
+            .job_result(change)
+            .await
+            .map_err(|bus_error| UnitChangeFailure::Bus(Arc::new(bus_error)))?;
+        if job_result == JOB_DONE {
+            Ok(())
+        } else {
+            Err(UnitChangeFailure::JobEnded { job_result })
         }
     }
 
     async fn job_result(&self, change: UnitChange) -> zbus::Result<String> {
-        let connection = connect_systemd_bus(self.per_user).await?;
+        let connection = connect_systemd_bus(self.unit_scope).await?;
         let manager = ManagerProxy::new(&connection).await?;
         manager.ensure_subscribed().await?;
         let mut removed_jobs = manager.receive_job_removed().await?;

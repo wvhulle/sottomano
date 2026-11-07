@@ -19,6 +19,12 @@ pub struct SlotGroup<'a, Message> {
     pub enclosure_radius: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum PagerAxis {
+    Horizontal,
+    Vertical,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SlotTileInset {
     pub thickness: f32,
@@ -44,8 +50,8 @@ fn tile_quad(bounds: Rectangle, corners: Radius) -> renderer::Quad {
 }
 
 impl SlotTileInset {
-    fn inner_surface(self, along_vertical_edge: bool, slots: Rectangle) -> Rectangle {
-        if along_vertical_edge {
+    fn inner_surface(self, pager_axis: PagerAxis, slots: Rectangle) -> Rectangle {
+        if pager_axis == PagerAxis::Vertical {
             Rectangle {
                 x: slots.x + self.thickness,
                 width: (slots.width - 2.0 * self.thickness).max(0.0),
@@ -64,39 +70,35 @@ impl SlotTileInset {
         (self.enclosure_radius - self.thickness).max(0.0)
     }
 
-    fn joined_tile_corners(
-        self,
-        along_vertical_edge: bool,
-        tile_neighbours: TileNeighbours,
-    ) -> Radius {
+    fn joined_tile_corners(self, pager_axis: PagerAxis, tile_neighbours: TileNeighbours) -> Radius {
         let rounded = Radius::from(self.inner_radius());
-        let leading_joined = match (tile_neighbours.leading, along_vertical_edge) {
+        let leading_joined = match (tile_neighbours.leading, pager_axis) {
             (false, _) => rounded,
-            (true, false) => rounded.left(0.0),
-            (true, true) => rounded.top(0.0),
+            (true, PagerAxis::Horizontal) => rounded.left(0.0),
+            (true, PagerAxis::Vertical) => rounded.top(0.0),
         };
-        match (tile_neighbours.trailing, along_vertical_edge) {
+        match (tile_neighbours.trailing, pager_axis) {
             (false, _) => leading_joined,
-            (true, false) => leading_joined.right(0.0),
-            (true, true) => leading_joined.bottom(0.0),
+            (true, PagerAxis::Horizontal) => leading_joined.right(0.0),
+            (true, PagerAxis::Vertical) => leading_joined.bottom(0.0),
         }
     }
 
     pub(super) fn tile_on_slot(
         self,
-        along_vertical_edge: bool,
+        pager_axis: PagerAxis,
         slot: Rectangle,
         tile_neighbours: TileNeighbours,
     ) -> renderer::Quad {
         tile_quad(
-            self.inner_surface(along_vertical_edge, slot),
-            self.joined_tile_corners(along_vertical_edge, tile_neighbours),
+            self.inner_surface(pager_axis, slot),
+            self.joined_tile_corners(pager_axis, tile_neighbours),
         )
     }
 }
 
 pub(super) struct SlotGroupFrame {
-    along_vertical_edge: bool,
+    pager_axis: PagerAxis,
     heading: Rectangle,
     inner_surface: Rectangle,
     tile_inset: SlotTileInset,
@@ -104,22 +106,22 @@ pub(super) struct SlotGroupFrame {
 
 impl SlotGroupFrame {
     pub(super) fn around_slots(
-        along_vertical_edge: bool,
+        pager_axis: PagerAxis,
         heading: Rectangle,
         slots: Rectangle,
         tile_inset: SlotTileInset,
     ) -> Self {
         Self {
-            along_vertical_edge,
+            pager_axis,
             heading,
-            inner_surface: tile_inset.inner_surface(along_vertical_edge, slots),
+            inner_surface: tile_inset.inner_surface(pager_axis, slots),
             tile_inset,
         }
     }
 
     fn enclosure(&self) -> Rectangle {
         let around_inner_surface = self.inner_surface.expand(self.tile_inset.thickness);
-        let heading_along_panel = if self.along_vertical_edge {
+        let heading_along_panel = if self.pager_axis == PagerAxis::Vertical {
             Rectangle {
                 y: self.heading.y,
                 height: self.heading.height,
@@ -168,7 +170,7 @@ impl SlotGroupFrame {
         tile_quad(
             bounds,
             self.tile_inset
-                .joined_tile_corners(self.along_vertical_edge, tile_neighbours),
+                .joined_tile_corners(self.pager_axis, tile_neighbours),
         )
     }
 }
@@ -177,7 +179,7 @@ impl SlotGroupFrame {
 mod tests {
     use iced::{Rectangle, border::Radius};
 
-    use super::{SlotGroupFrame, SlotTileInset, TileNeighbours};
+    use super::{PagerAxis, SlotGroupFrame, SlotTileInset, TileNeighbours};
 
     const TILE_INSET: SlotTileInset = SlotTileInset {
         thickness: 3.0,
@@ -190,16 +192,12 @@ mod tests {
         height: 30.0,
     };
 
-    fn assert_tiles_match_across_grouping(along_vertical_edge: bool) {
-        let frame = SlotGroupFrame::around_slots(
-            along_vertical_edge,
-            Rectangle::default(),
-            WINDOW_SLOT,
-            TILE_INSET,
-        );
+    fn assert_tiles_match_across_grouping(pager_axis: PagerAxis) {
+        let frame =
+            SlotGroupFrame::around_slots(pager_axis, Rectangle::default(), WINDOW_SLOT, TILE_INSET);
         let grouped_tile = frame.highlight_inside(WINDOW_SLOT, TileNeighbours::default());
         let ungrouped_tile =
-            TILE_INSET.tile_on_slot(along_vertical_edge, WINDOW_SLOT, TileNeighbours::default());
+            TILE_INSET.tile_on_slot(pager_axis, WINDOW_SLOT, TileNeighbours::default());
         assert_eq!(ungrouped_tile.bounds, grouped_tile.bounds);
         assert_eq!(ungrouped_tile.border, grouped_tile.border);
         assert_eq!(ungrouped_tile.snap, grouped_tile.snap);
@@ -207,17 +205,18 @@ mod tests {
 
     #[test]
     fn ungrouped_tile_matches_grouped_tile_on_horizontal_panels() {
-        assert_tiles_match_across_grouping(false);
+        assert_tiles_match_across_grouping(PagerAxis::Horizontal);
     }
 
     #[test]
     fn ungrouped_tile_matches_grouped_tile_on_vertical_panels() {
-        assert_tiles_match_across_grouping(true);
+        assert_tiles_match_across_grouping(PagerAxis::Vertical);
     }
 
     #[test]
     fn tile_without_neighbours_keeps_every_inner_corner() {
-        let corners = TILE_INSET.joined_tile_corners(false, TileNeighbours::default());
+        let corners =
+            TILE_INSET.joined_tile_corners(PagerAxis::Horizontal, TileNeighbours::default());
         assert_eq!(corners, Radius::from(5.0));
     }
 
@@ -232,11 +231,11 @@ mod tests {
             trailing: true,
         };
         assert_eq!(
-            TILE_INSET.joined_tile_corners(false, leading_only),
+            TILE_INSET.joined_tile_corners(PagerAxis::Horizontal, leading_only),
             Radius::default().right(5.0)
         );
         assert_eq!(
-            TILE_INSET.joined_tile_corners(false, trailing_only),
+            TILE_INSET.joined_tile_corners(PagerAxis::Horizontal, trailing_only),
             Radius::default().left(5.0)
         );
     }
@@ -252,11 +251,11 @@ mod tests {
             trailing: true,
         };
         assert_eq!(
-            TILE_INSET.joined_tile_corners(true, leading_only),
+            TILE_INSET.joined_tile_corners(PagerAxis::Vertical, leading_only),
             Radius::default().bottom(5.0)
         );
         assert_eq!(
-            TILE_INSET.joined_tile_corners(true, trailing_only),
+            TILE_INSET.joined_tile_corners(PagerAxis::Vertical, trailing_only),
             Radius::default().top(5.0)
         );
     }
@@ -268,7 +267,7 @@ mod tests {
             trailing: true,
         };
         assert_eq!(
-            TILE_INSET.joined_tile_corners(false, both_sides),
+            TILE_INSET.joined_tile_corners(PagerAxis::Horizontal, both_sides),
             Radius::default()
         );
     }

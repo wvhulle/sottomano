@@ -135,9 +135,19 @@ impl ListedContainer {
             .unwrap_or_else(|| self.id.clone())
     }
 
-    fn is_measurable(&self) -> bool {
-        self.state == RUNNING_STATE && self.pid > 0
+    fn process_state(&self) -> ContainerProcessState {
+        if self.state == RUNNING_STATE && self.pid > 0 {
+            ContainerProcessState::RunningProcess
+        } else {
+            ContainerProcessState::NoProcess
+        }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ContainerProcessState {
+    RunningProcess,
+    NoProcess,
 }
 
 async fn classified_engine_failure(
@@ -168,7 +178,17 @@ async fn listed_containers_with_one_retry(
     socket_path: &Path,
 ) -> Result<Vec<ListedContainer>, EngineReadError> {
     let attempt = match listed_containers(socket_path).await {
-        Err(failure) if failure.is_temporary() => listed_containers(socket_path).await,
+        Err(http_json_client::Error::Status { status, .. })
+            if status == http_json_client::TOO_MANY_REQUESTS_STATUS
+                || status >= http_json_client::SERVER_ERROR_STATUS =>
+        {
+            listed_containers(socket_path).await
+        }
+        Err(
+            http_json_client::Error::HostNotResolved { .. }
+            | http_json_client::Error::TimedOut { .. }
+            | http_json_client::Error::Unreachable { .. },
+        ) => listed_containers(socket_path).await,
         first_attempt => first_attempt,
     };
     match attempt {
@@ -212,7 +232,7 @@ impl EngineSampler {
         let listed: Vec<ListedContainer> = listed_containers_with_one_retry(&self.socket_path)
             .await?
             .into_iter()
-            .filter(ListedContainer::is_measurable)
+            .filter(|listed| listed.process_state() == ContainerProcessState::RunningProcess)
             .collect();
         if listed.is_empty() {
             self.identities_by_id.clear();
@@ -369,8 +389,11 @@ mod tests {
         let exited: ListedContainer =
             serde_json::from_value(json!({"Id": "abc", "State": "exited", "Pid": 0}))
                 .expect("listing decodes");
-        assert!(!exited.is_measurable());
-        assert!(listed_step_container().is_measurable());
+        assert_eq!(exited.process_state(), ContainerProcessState::NoProcess);
+        assert_eq!(
+            listed_step_container().process_state(),
+            ContainerProcessState::RunningProcess
+        );
     }
 
     #[test]

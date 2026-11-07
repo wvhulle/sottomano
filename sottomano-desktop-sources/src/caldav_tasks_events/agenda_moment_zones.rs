@@ -58,11 +58,6 @@ impl AgendaMoment {
     }
 
     #[must_use]
-    pub fn is_all_day(self) -> bool {
-        matches!(self, AgendaMoment::AllDay(_))
-    }
-
-    #[must_use]
     pub fn day_in<Z: TimeZone>(self, viewer: &Z) -> NaiveDate {
         match self {
             AgendaMoment::AllDay(day) => day,

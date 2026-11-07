@@ -62,10 +62,12 @@ impl SleepState {
             _ => None,
         }
     }
+}
 
-    fn needs_hibernation(self) -> bool {
-        !matches!(self, SleepState::Suspend)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KernelSleepVerdict {
+    Permitted,
+    Blocked,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,11 +87,6 @@ impl LogindCapability {
             _ => Self::Unsupported,
         }
     }
-
-    #[must_use]
-    pub fn is_available(self) -> bool {
-        matches!(self, Self::Allowed | Self::AfterAuthorisation)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,13 +104,6 @@ pub struct SecretMemoryHolder {
     pub name: String,
     pub pid: u32,
     pub has_open_window: bool,
-}
-
-impl KernelHibernation {
-    #[must_use]
-    pub fn is_allowed(&self) -> bool {
-        matches!(self, Self::Allowed)
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -174,21 +164,26 @@ impl SleepObstacles {
     }
 
     #[must_use]
-    pub fn is_available(&self, state: SleepState) -> bool {
-        self.capability_of(state).is_available()
-    }
-
-    #[must_use]
     pub fn sleep_state_that_runs(&self) -> Option<SleepState> {
-        self.sleep_order
-            .iter()
-            .copied()
-            .find(|state| self.is_available(*state))
+        self.sleep_order.iter().copied().find(|state| {
+            matches!(
+                self.capability_of(*state),
+                LogindCapability::Allowed | LogindCapability::AfterAuthorisation
+            )
+        })
     }
 
     #[must_use]
-    pub fn blocked_by_kernel(&self, state: SleepState) -> bool {
-        state.needs_hibernation() && !self.kernel_hibernation.is_allowed()
+    pub fn kernel_verdict(&self, state: SleepState) -> KernelSleepVerdict {
+        match (state, &self.kernel_hibernation) {
+            (SleepState::Suspend, _) | (_, KernelHibernation::Allowed) => {
+                KernelSleepVerdict::Permitted
+            }
+            (
+                SleepState::Hibernate | SleepState::HybridSleep | SleepState::SuspendThenHibernate,
+                _,
+            ) => KernelSleepVerdict::Blocked,
+        }
     }
 
     pub fn inhibitors_of(
@@ -425,9 +420,10 @@ fn pids_in_helper_output(helper_output: &str) -> Vec<u32> {
 #[cfg(test)]
 mod tests {
     use super::{
-        InhibitedOperation, KernelHibernation, LogindCapability, SleepObstacles, SleepState,
-        SleepStateSupport, WindowOwners, active_lockdown_level, disabling_boot_flag,
-        lists_hibernation_disabled, names_resume_device, pids_in_helper_output,
+        InhibitedOperation, KernelHibernation, KernelSleepVerdict, LogindCapability,
+        SleepObstacles, SleepState, SleepStateSupport, WindowOwners, active_lockdown_level,
+        disabling_boot_flag, lists_hibernation_disabled, names_resume_device,
+        pids_in_helper_output,
     };
 
     #[test]
@@ -552,9 +548,19 @@ mod tests {
             kernel_hibernation: KernelHibernation::DisabledWithoutInspection,
             ..obstacles_with([LogindCapability::Allowed; 4])
         };
-        assert!(!obstacles.blocked_by_kernel(SleepState::Suspend));
-        assert!(obstacles.blocked_by_kernel(SleepState::Hibernate));
-        assert!(obstacles.blocked_by_kernel(SleepState::HybridSleep));
-        assert!(obstacles.blocked_by_kernel(SleepState::SuspendThenHibernate));
+        assert_eq!(
+            obstacles.kernel_verdict(SleepState::Suspend),
+            KernelSleepVerdict::Permitted
+        );
+        for hibernating_state in [
+            SleepState::Hibernate,
+            SleepState::HybridSleep,
+            SleepState::SuspendThenHibernate,
+        ] {
+            assert_eq!(
+                obstacles.kernel_verdict(hibernating_state),
+                KernelSleepVerdict::Blocked
+            );
+        }
     }
 }

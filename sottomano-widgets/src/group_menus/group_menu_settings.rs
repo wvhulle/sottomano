@@ -7,9 +7,7 @@ use crate::{
         toggle_control::{IconToggle, SwitchPresses},
     },
     group_menus::{
-        group_menu_presentation::{
-            GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
-        },
+        group_menu_presentation::{GroupMenuLayout, GroupMenuPresentation},
         group_menu_state::{GroupMenuMessage, GroupMenuState},
     },
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
@@ -41,7 +39,7 @@ fn accordion_layout_toggle(presentation: GroupMenuPresentation) -> IconToggle {
     IconToggle::new(
         "Accordion menus",
         Phosphor::Rows(Weight::Regular),
-        presentation.layout == GroupMenuLayout::Accordion,
+        presentation.layout,
         SwitchPresses {
             turning_on: "open a group's items below its row",
             turning_off: "open a group's items in a panel beside its row",
@@ -53,7 +51,7 @@ fn click_to_open_menus_toggle(presentation: GroupMenuPresentation) -> IconToggle
     IconToggle::new(
         "Click to open menus",
         Phosphor::CursorClick(Weight::Regular),
-        presentation.open_trigger == GroupMenuOpenTrigger::Press,
+        presentation.open_trigger,
         SwitchPresses {
             turning_on: "open a menu by clicking its panel icon, until clicked away",
             turning_off: "open a menu by hovering its panel icon, until the pointer leaves",
@@ -65,7 +63,7 @@ fn keep_one_group_open_toggle(presentation: GroupMenuPresentation) -> IconToggle
     IconToggle::new(
         "Keep one group open",
         Phosphor::ListDashes(Weight::Regular),
-        presentation.accordion_open_limit == OpenGroupLimit::One,
+        presentation.accordion_open_limit,
         SwitchPresses {
             turning_on: "close the open group when another opens",
             turning_off: "keep groups open until pressed again",

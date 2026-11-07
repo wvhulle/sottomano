@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 use futures::{Stream, StreamExt, stream, stream::BoxStream};
+use sottomano_toml_config::widget_groups::gamepad_bindings::VirtualPointerNeed;
 use tokio::time::timeout_at;
 
 use super::{
@@ -47,7 +48,7 @@ impl GamepadDriver {
 }
 
 async fn connected_pointer(settings: &GamepadStreamSettings) -> Option<VirtualPointer> {
-    if !settings.steering.needs_virtual_pointer() {
+    if settings.steering.virtual_pointer_need() == VirtualPointerNeed::Unneeded {
         return None;
     }
     VirtualPointer::connect()

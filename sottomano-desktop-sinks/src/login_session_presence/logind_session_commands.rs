@@ -105,11 +105,11 @@ pub fn perform_session_action(session_action: SessionAction) {
         }
         SessionAction::TerminateSession => terminate_session(),
         SessionAction::RestartShell => {
-            if !shell_command_output::blocking::run(
+            if let Err(restart_failure) = shell_command_output::blocking::run(
                 "systemctl",
                 &["--user", "restart", "sottomano.service"],
             ) {
-                tracing::warn!("systemctl: restarting sottomano.service failed");
+                tracing::warn!("restarting sottomano.service: {restart_failure}");
             }
         }
     }

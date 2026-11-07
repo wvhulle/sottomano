@@ -15,13 +15,20 @@ use iced::{
     window,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ExpansionState {
+    Expanded,
+    #[default]
+    Collapsed,
+}
+
 pub fn expand_animation<'a, Message: 'a>(
-    expanded: bool,
+    expansion_state: ExpansionState,
     duration: Duration,
     view: impl Fn(f32) -> Element<'a, Message> + 'a,
 ) -> Element<'a, Message> {
     Element::new(ExpandAnimation {
-        expanded,
+        expansion_state,
         duration,
         view: Box::new(view),
         content: Element::new(space::horizontal().width(0.0)),
@@ -44,7 +51,7 @@ impl State {
 }
 
 struct ExpandAnimation<'a, Message> {
-    expanded: bool,
+    expansion_state: ExpansionState,
     duration: Duration,
     view: Box<dyn Fn(f32) -> Element<'a, Message> + 'a>,
     content: Element<'a, Message>,
@@ -66,7 +73,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ExpandAnimation<'
 
     fn state(&self) -> tree::State {
         tree::State::new(State {
-            animation: Animation::new(self.expanded)
+            animation: Animation::new(self.expansion_state == ExpansionState::Expanded)
                 .easing(Easing::EaseOutCubic)
                 .duration(self.duration),
             at: None,
@@ -144,7 +151,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ExpandAnimation<'
             let state = tree.state.downcast_mut::<State>();
             let laid_out_mid_animation =
                 state.at.is_some_and(|at| state.animation.is_animating(at));
-            state.animation.go_mut(self.expanded, *now);
+            state
+                .animation
+                .go_mut(self.expansion_state == ExpansionState::Expanded, *now);
             state.at = Some(*now);
             let animating = state.animation.is_animating(*now);
             if animating || laid_out_mid_animation {

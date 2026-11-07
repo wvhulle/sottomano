@@ -1,6 +1,10 @@
 use core::f32::consts::FRAC_1_SQRT_2;
 
-pub use corredo::frame_style::{FrameBackground, FrameStyle, OutlineStyle, ShadowStyle};
+pub use corredo::frame_style::{
+    FrameBackground, FrameStyle, OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle,
+};
+
+use crate::desktop_panels::region_reporter::BackdropBlur;
 
 const LOOK_MATCH_TOLERANCE: f32 = 0.005;
 
@@ -21,12 +25,12 @@ impl ShellLayer {
                 opacity: 0.85,
                 corner_radius_px: 12.0,
                 shadow: ShadowStyle {
-                    cast: true,
+                    casting: ShadowCasting::Cast,
                     softness_px: 16.0,
                     opacity: 0.18,
                 },
                 outline: OutlineStyle {
-                    drawn: true,
+                    tracing: OutlineTracing::Drawn,
                     opacity: 1.0,
                 },
                 ..LayerAppearance::default()
@@ -44,7 +48,7 @@ pub struct LayerAppearance {
     pub background: FrameBackground,
     pub opacity: f32,
     pub corner_radius_px: f32,
-    pub blurred: bool,
+    pub backdrop_blur: BackdropBlur,
     pub shadow: ShadowStyle,
     pub outline: OutlineStyle,
 }
@@ -55,7 +59,7 @@ impl Default for LayerAppearance {
             background: FrameBackground::Base,
             opacity: 0.8,
             corner_radius_px: 8.0,
-            blurred: true,
+            backdrop_blur: BackdropBlur::Blurred,
             shadow: ShadowStyle::default(),
             outline: OutlineStyle::default(),
         }
@@ -80,7 +84,11 @@ impl LayerAppearance {
         let remaining = 1.0 - fade_level;
         Self {
             opacity: self.opacity * remaining,
-            blurred: self.blurred && fade_level <= 0.0,
+            backdrop_blur: if fade_level <= 0.0 {
+                self.backdrop_blur
+            } else {
+                BackdropBlur::Clear
+            },
             shadow: ShadowStyle {
                 opacity: self.shadow.opacity * remaining,
                 ..self.shadow
@@ -95,22 +103,34 @@ impl LayerAppearance {
     }
 
     #[must_use]
-    pub fn looks_like(&self, other: &Self) -> bool {
+    pub fn look_comparison(&self, other: &Self) -> LookComparison {
         let close = |current: f32, wanted: f32| (current - wanted).abs() < LOOK_MATCH_TOLERANCE;
-        close(self.opacity, other.opacity)
+        let matching = close(self.opacity, other.opacity)
             && close(self.corner_radius_px, other.corner_radius_px)
-            && self.blurred == other.blurred
-            && self.shadow.cast == other.shadow.cast
+            && self.backdrop_blur == other.backdrop_blur
+            && self.shadow.casting == other.shadow.casting
             && close(self.shadow.softness_px, other.shadow.softness_px)
             && close(self.shadow.opacity, other.shadow.opacity)
-            && self.outline.drawn == other.outline.drawn
-            && close(self.outline.opacity, other.outline.opacity)
+            && self.outline.tracing == other.outline.tracing
+            && close(self.outline.opacity, other.outline.opacity);
+        if matching {
+            LookComparison::Matching
+        } else {
+            LookComparison::Differing
+        }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LookComparison {
+    Matching,
+    Differing,
 }
 
 #[cfg(test)]
 mod tests {
     use super::ShellLayer;
+    use crate::desktop_panels::region_reporter::BackdropBlur;
 
     #[test]
     fn a_fully_faded_background_keeps_only_its_outline() {
@@ -118,7 +138,7 @@ mod tests {
         let faded = resting.with_background_faded(1.0);
         assert!(faded.opacity <= 0.0);
         assert!(faded.shadow.opacity <= 0.0);
-        assert!(!faded.blurred);
+        assert_eq!(faded.backdrop_blur, BackdropBlur::Clear);
         assert_eq!(faded.outline, resting.outline);
     }
 
@@ -131,6 +151,9 @@ mod tests {
     #[test]
     fn blur_drops_as_soon_as_fading_starts() {
         let resting = ShellLayer::Overlays.default_appearance();
-        assert!(!resting.with_background_faded(0.01).blurred);
+        assert_eq!(
+            resting.with_background_faded(0.01).backdrop_blur,
+            BackdropBlur::Clear
+        );
     }
 }

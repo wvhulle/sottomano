@@ -1,3 +1,5 @@
+use crate::group_items::toggle_control::SwitchPosition;
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum GroupMenuLayout {
     #[default]
@@ -17,6 +19,33 @@ pub enum OpenGroupLimit {
     One,
     #[default]
     Several,
+}
+
+impl From<GroupMenuLayout> for SwitchPosition {
+    fn from(layout: GroupMenuLayout) -> Self {
+        match layout {
+            GroupMenuLayout::Accordion => SwitchPosition::On,
+            GroupMenuLayout::Cascading => SwitchPosition::Off,
+        }
+    }
+}
+
+impl From<GroupMenuOpenTrigger> for SwitchPosition {
+    fn from(open_trigger: GroupMenuOpenTrigger) -> Self {
+        match open_trigger {
+            GroupMenuOpenTrigger::Press => SwitchPosition::On,
+            GroupMenuOpenTrigger::Hover => SwitchPosition::Off,
+        }
+    }
+}
+
+impl From<OpenGroupLimit> for SwitchPosition {
+    fn from(open_group_limit: OpenGroupLimit) -> Self {
+        match open_group_limit {
+            OpenGroupLimit::One => SwitchPosition::On,
+            OpenGroupLimit::Several => SwitchPosition::Off,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

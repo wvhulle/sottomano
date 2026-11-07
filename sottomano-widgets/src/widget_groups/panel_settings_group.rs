@@ -4,15 +4,16 @@ use iced::Task;
 use sottomano_toml_config::Config;
 
 use crate::{
+    background_work::logged_failure_task,
     clock::Clock,
     group_items::{
         group_item::GroupItem,
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        toggle_control::{IconToggle, SwitchPresses},
+        toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
-        sqlite_singleton_flag::{self, SingletonFlag},
+        sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
@@ -26,18 +27,83 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PanelGroupFraming {
+    Joined,
+    Disconnected,
+}
+
+impl PanelGroupFraming {
+    #[must_use]
+    pub const fn toggled(self) -> Self {
+        match self {
+            PanelGroupFraming::Joined => PanelGroupFraming::Disconnected,
+            PanelGroupFraming::Disconnected => PanelGroupFraming::Joined,
+        }
+    }
+}
+
+impl From<PanelGroupFraming> for SwitchPosition {
+    fn from(group_framing: PanelGroupFraming) -> Self {
+        match group_framing {
+            PanelGroupFraming::Disconnected => SwitchPosition::On,
+            PanelGroupFraming::Joined => SwitchPosition::Off,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GroupCollapsing {
+    OnFocusLoss,
+    StayExpanded,
+}
+
+impl GroupCollapsing {
+    #[must_use]
+    pub const fn toggled(self) -> Self {
+        match self {
+            GroupCollapsing::OnFocusLoss => GroupCollapsing::StayExpanded,
+            GroupCollapsing::StayExpanded => GroupCollapsing::OnFocusLoss,
+        }
+    }
+}
+
+impl From<GroupCollapsing> for SwitchPosition {
+    fn from(group_collapsing: GroupCollapsing) -> Self {
+        match group_collapsing {
+            GroupCollapsing::StayExpanded => SwitchPosition::On,
+            GroupCollapsing::OnFocusLoss => SwitchPosition::Off,
+        }
+    }
+}
+
+impl SingletonFlagState for WindowRowLayout {
+    const STORED_FLAG: SingletonFlag = SingletonFlag::WindowsGroupedByLocation;
+    const STORED_AS_SET: Self = WindowRowLayout::GroupedByLocation;
+    const STORED_AS_CLEARED: Self = WindowRowLayout::Flat;
+}
+
+impl From<WindowRowLayout> for SwitchPosition {
+    fn from(window_row_layout: WindowRowLayout) -> Self {
+        match window_row_layout {
+            WindowRowLayout::GroupedByLocation => SwitchPosition::On,
+            WindowRowLayout::Flat => SwitchPosition::Off,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PanelLayout {
-    pub disconnected_groups: bool,
-    pub auto_collapse_groups: bool,
+    pub group_framing: PanelGroupFraming,
+    pub group_collapsing: GroupCollapsing,
     pub float_offset_px: f32,
 }
 
 impl Default for PanelLayout {
     fn default() -> Self {
         Self {
-            disconnected_groups: false,
-            auto_collapse_groups: true,
+            group_framing: PanelGroupFraming::Joined,
+            group_collapsing: GroupCollapsing::OnFocusLoss,
             float_offset_px: 0.0,
         }
     }
@@ -48,11 +114,11 @@ pub enum Action {
     Reflow(Task<PanelSettingsMessage>),
 }
 
-fn disconnected_toggle(groups_disconnected: bool) -> IconToggle {
+fn disconnected_toggle(group_framing: PanelGroupFraming) -> IconToggle {
     IconToggle::new(
         "Disconnected groups",
         Phosphor::Pill(Weight::Regular),
-        groups_disconnected,
+        group_framing,
         SwitchPresses {
             turning_on: "draw each group in its own frame",
             turning_off: "join the groups into one panel",
@@ -60,11 +126,11 @@ fn disconnected_toggle(groups_disconnected: bool) -> IconToggle {
     )
 }
 
-fn pinned_groups_toggle(groups_auto_collapse: bool) -> IconToggle {
+fn pinned_groups_toggle(group_collapsing: GroupCollapsing) -> IconToggle {
     IconToggle::new(
         "Stay expanded",
         Phosphor::PushPin(Weight::Regular),
-        !groups_auto_collapse,
+        group_collapsing,
         SwitchPresses {
             turning_on: "keep groups open until their handle is clicked",
             turning_off: "collapse groups when another window takes focus",
@@ -76,20 +142,12 @@ fn window_row_layout_toggle(window_row_layout: WindowRowLayout) -> IconToggle {
     IconToggle::new(
         "Group windows by directory",
         Phosphor::Folders(Weight::Regular),
-        window_row_layout == WindowRowLayout::GroupedByLocation,
+        window_row_layout,
         SwitchPresses {
             turning_on: "enclose neighbouring windows from one directory under one heading",
             turning_off: "show every window on its own with its directory",
         },
     )
-}
-
-async fn load_window_row_layout() -> WindowRowLayout {
-    if sqlite_singleton_flag::load(SingletonFlag::WindowsGroupedByLocation, true).await {
-        WindowRowLayout::GroupedByLocation
-    } else {
-        WindowRowLayout::Flat
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,8 +179,8 @@ pub enum PanelSettingsMessage {
 
 pub struct PanelSettingsGroup {
     expansion: WidgetGroupExpansion,
-    disconnected_groups: bool,
-    auto_collapse_groups: bool,
+    group_framing: PanelGroupFraming,
+    group_collapsing: GroupCollapsing,
     window_row_layout: WindowRowLayout,
     float_offset: SliderControl,
     appearance: LayerAppearanceControls,
@@ -133,8 +191,8 @@ impl Default for PanelSettingsGroup {
         let defaults = PanelLayout::default();
         let mut panel_settings_group = Self {
             expansion: WidgetGroupExpansion::default(),
-            disconnected_groups: defaults.disconnected_groups,
-            auto_collapse_groups: defaults.auto_collapse_groups,
+            group_framing: defaults.group_framing,
+            group_collapsing: defaults.group_collapsing,
             window_row_layout: WindowRowLayout::default(),
             float_offset: SliderControl::new(
                 "Float offset",
@@ -161,7 +219,7 @@ impl PanelSettingsGroup {
                 PanelSettingsMessage::LayoutLoaded,
             ),
             Task::perform(
-                load_window_row_layout(),
+                sqlite_singleton_flag::load(WindowRowLayout::GroupedByLocation),
                 PanelSettingsMessage::WindowRowLayoutLoaded,
             ),
             LayerAppearanceControls::load(ShellLayer::Panels).map(PanelSettingsMessage::Appearance),
@@ -169,13 +227,13 @@ impl PanelSettingsGroup {
     }
 
     #[must_use]
-    pub fn groups_disconnected(&self) -> bool {
-        self.disconnected_groups
+    pub fn group_framing(&self) -> PanelGroupFraming {
+        self.group_framing
     }
 
     #[must_use]
-    pub fn groups_auto_collapse(&self) -> bool {
-        self.auto_collapse_groups
+    pub fn group_collapsing(&self) -> GroupCollapsing {
+        self.group_collapsing
     }
 
     #[must_use]
@@ -197,10 +255,10 @@ impl PanelSettingsGroup {
     pub fn hover_card_for(&self, target: PanelSettingsTarget, clock: Clock) -> HoverCard {
         match target {
             PanelSettingsTarget::DisconnectedGroups => {
-                disconnected_toggle(self.disconnected_groups).switch_hover_card(clock)
+                disconnected_toggle(self.group_framing).switch_hover_card(clock)
             }
             PanelSettingsTarget::AutoCollapseGroups => {
-                pinned_groups_toggle(self.auto_collapse_groups).switch_hover_card(clock)
+                pinned_groups_toggle(self.group_collapsing).switch_hover_card(clock)
             }
             PanelSettingsTarget::WindowRowLayout => {
                 window_row_layout_toggle(self.window_row_layout).switch_hover_card(clock)
@@ -214,15 +272,15 @@ impl PanelSettingsGroup {
 
     fn stored_layout(&self) -> PanelLayout {
         PanelLayout {
-            disconnected_groups: self.disconnected_groups,
-            auto_collapse_groups: self.auto_collapse_groups,
+            group_framing: self.group_framing,
+            group_collapsing: self.group_collapsing,
             float_offset_px: self.float_offset.settled_value(),
         }
     }
 
     fn adopt_layout(&mut self, panel_layout: PanelLayout) {
-        self.disconnected_groups = panel_layout.disconnected_groups;
-        self.auto_collapse_groups = panel_layout.auto_collapse_groups;
+        self.group_framing = panel_layout.group_framing;
+        self.group_collapsing = panel_layout.group_collapsing;
         self.float_offset
             .update(ControlMessage::Reading(panel_layout.float_offset_px));
     }
@@ -247,25 +305,28 @@ impl PanelSettingsGroup {
                 Action::Run(Task::none())
             }
             PanelSettingsMessage::ToggleDisconnectedGroups => {
-                self.disconnected_groups = !self.disconnected_groups;
-                Action::Run(Task::future(sqlite_panel_layout::save(self.stored_layout())).discard())
+                self.group_framing = self.group_framing.toggled();
+                Action::Run(logged_failure_task(
+                    "panel layout: save".to_owned(),
+                    sqlite_panel_layout::save(self.stored_layout()),
+                ))
             }
             PanelSettingsMessage::ToggleAutoCollapseGroups => {
-                self.auto_collapse_groups = !self.auto_collapse_groups;
-                Action::Run(Task::future(sqlite_panel_layout::save(self.stored_layout())).discard())
+                self.group_collapsing = self.group_collapsing.toggled();
+                Action::Run(logged_failure_task(
+                    "panel layout: save".to_owned(),
+                    sqlite_panel_layout::save(self.stored_layout()),
+                ))
             }
             PanelSettingsMessage::ToggleWindowRowLayout => {
                 self.window_row_layout = match self.window_row_layout {
                     WindowRowLayout::Flat => WindowRowLayout::GroupedByLocation,
                     WindowRowLayout::GroupedByLocation => WindowRowLayout::Flat,
                 };
-                Action::Run(
-                    Task::future(sqlite_singleton_flag::save(
-                        SingletonFlag::WindowsGroupedByLocation,
-                        self.window_row_layout == WindowRowLayout::GroupedByLocation,
-                    ))
-                    .discard(),
-                )
+                Action::Run(logged_failure_task(
+                    "singleton flag: save".to_owned(),
+                    sqlite_singleton_flag::save(self.window_row_layout),
+                ))
             }
             PanelSettingsMessage::WindowRowLayoutLoaded(window_row_layout) => {
                 self.window_row_layout = window_row_layout;
@@ -292,8 +353,8 @@ impl PanelSettingsGroup {
                 float_offset_px: value,
                 ..self.stored_layout()
             }))
-            .map(move |ok| {
-                PanelSettingsMessage::FloatOffset(ControlMessage::Persisted { value, ok })
+            .map(move |store_outcome| {
+                PanelSettingsMessage::FloatOffset(ControlMessage::persisted(value, store_outcome))
             }),
             SliderAction::None
             | SliderAction::Opened
@@ -317,12 +378,12 @@ impl PanelSettingsGroup {
             PanelSettingsMessage::Expansion,
             [
                 GroupItem::toggle(
-                    disconnected_toggle(self.disconnected_groups),
+                    disconnected_toggle(self.group_framing),
                     PanelSettingsTarget::DisconnectedGroups,
                     PanelSettingsMessage::ToggleDisconnectedGroups,
                 ),
                 GroupItem::toggle(
-                    pinned_groups_toggle(self.auto_collapse_groups),
+                    pinned_groups_toggle(self.group_collapsing),
                     PanelSettingsTarget::AutoCollapseGroups,
                     PanelSettingsMessage::ToggleAutoCollapseGroups,
                 ),
@@ -354,7 +415,7 @@ mod tests {
     use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
 
     use super::{
-        PanelLayout, PanelSettingsGroup, PanelSettingsMessage,
+        GroupCollapsing, PanelGroupFraming, PanelLayout, PanelSettingsGroup, PanelSettingsMessage,
         sqlite_panel_layout::{CREATE_TABLE, read_layout, write_layout},
     };
     use crate::widget_groups::window_group::WindowRowLayout;
@@ -363,8 +424,8 @@ mod tests {
     async fn panel_layout_survives_a_round_trip() {
         let connection = in_memory_connection(&[CREATE_TABLE]).await;
         let stored = PanelLayout {
-            disconnected_groups: true,
-            auto_collapse_groups: false,
+            group_framing: PanelGroupFraming::Disconnected,
+            group_collapsing: GroupCollapsing::StayExpanded,
             float_offset_px: 3.25,
         };
         write_layout(&connection, stored).await.unwrap();
@@ -412,14 +473,20 @@ mod tests {
     #[test]
     fn a_loaded_panel_layout_reads_back_unchanged() {
         let loaded = PanelLayout {
-            disconnected_groups: true,
-            auto_collapse_groups: false,
+            group_framing: PanelGroupFraming::Disconnected,
+            group_collapsing: GroupCollapsing::StayExpanded,
             float_offset_px: 6.0,
         };
         let mut panel_settings_group = PanelSettingsGroup::default();
         let _ = panel_settings_group.update(PanelSettingsMessage::LayoutLoaded(loaded));
-        assert!(panel_settings_group.groups_disconnected());
-        assert!(!panel_settings_group.groups_auto_collapse());
+        assert_eq!(
+            panel_settings_group.group_framing(),
+            PanelGroupFraming::Disconnected
+        );
+        assert_eq!(
+            panel_settings_group.group_collapsing(),
+            GroupCollapsing::StayExpanded
+        );
         assert!((panel_settings_group.float_offset_px() - 6.0).abs() < f32::EPSILON);
     }
 }

@@ -14,8 +14,8 @@ use crate::{
     clock::Clock,
     group_menus::cascading_layout::cascade_row::{CascadeOrientation, cascade_row},
     hover_cards::{
-        HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator, PopupMessage,
-        WidgetAnchor,
+        HandlePointing, HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator,
+        PopupMessage, WidgetAnchor,
         anchored_popup::{
             OutsidePress, PopupAppearances, PopupFraming, PopupMorph, PopupRendering,
             anchored_popup,
@@ -23,12 +23,13 @@ use crate::{
         hover_card_body::hover_card_source_delivery::HoverCard,
         hover_card_content::HoverCardContent,
         hover_card_transition::{
-            CardRetention, Departed, DepartedContent, HoverCardTransition, Occupant, Placement,
-            ShownTarget,
+            CardRetention, Departed, DepartedContent, HoverCardTransition, LeaveIntent, Occupant,
+            Placement, ShownTarget,
         },
         laid_out_anchors::{LaidOutAnchors, dropped_widget_watch},
     },
     layer_surfaces::{PanelEdge, SurfaceRequest},
+    widget_groups::widget_group_content::ExpansionState,
     widgets::{
         shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade,
         window_icon::WindowAssets,
@@ -104,7 +105,7 @@ impl HoverCardHost {
         announcement: HoverAnnouncement,
     ) -> Option<Task<HoverCardMessage>> {
         let current = self.transition.current()?;
-        if !parent.position.is_vertical() || &current.target == target {
+        if parent.position != Position::Left || &current.target == target {
             return None;
         }
         self.transition.cancel_leave();
@@ -167,9 +168,13 @@ impl HoverCardHost {
         hid_the_shown_card.then(|| self.leave_after_grace(now))
     }
 
-    pub fn set_handle_pointed_at(&mut self, output: &str, target: &HoverTarget, pointed_at: bool) {
-        self.laid_out_anchors
-            .set_pointed_at(output, target, pointed_at);
+    pub fn set_handle_pointing(
+        &mut self,
+        output: &str,
+        target: &HoverTarget,
+        pointing: HandlePointing,
+    ) {
+        self.laid_out_anchors.set_pointing(output, target, pointing);
     }
 
     fn shows_on_output(&self, output: &str) -> bool {
@@ -179,14 +184,20 @@ impl HoverCardHost {
 
     #[must_use]
     pub fn hover_switches_menu(&self, target: &HoverTarget, output: &str) -> bool {
-        self.is_held_open() && self.shows_on_output(output) && self.target() != Some(target)
+        self.shown_retention() == CardRetention::UntilDismissed
+            && self.shows_on_output(output)
+            && self.target() != Some(target)
     }
 
     #[must_use]
     pub fn handle_indicator(&self, target: &HoverTarget, output: &str) -> MenuHandleIndicator {
         MenuHandleIndicator {
-            hovering: self.laid_out_anchors.is_pointed_at(output, target),
-            open: self.target() == Some(target) && self.shows_on_output(output),
+            pointing: self.laid_out_anchors.handle_pointing(output, target),
+            menu_expansion: if self.target() == Some(target) && self.shows_on_output(output) {
+                ExpansionState::Expanded
+            } else {
+                ExpansionState::Collapsed
+            },
         }
     }
 
@@ -206,8 +217,8 @@ impl HoverCardHost {
     }
 
     #[must_use]
-    pub fn is_held_open(&self) -> bool {
-        self.transition.is_held_open()
+    pub fn shown_retention(&self) -> CardRetention {
+        self.transition.shown_retention()
     }
 
     fn occupy(
@@ -239,7 +250,7 @@ impl HoverCardHost {
     }
 
     fn exit(&mut self, target: &HoverTarget, now: Instant) -> Option<Instant> {
-        if self.transition.is_held_open() {
+        if self.transition.shown_retention() == CardRetention::UntilDismissed {
             return None;
         }
         if self
@@ -263,14 +274,16 @@ impl HoverCardHost {
     pub fn leave_after_grace(&mut self, now: Instant) -> Instant {
         self.transition.request_leave();
         let due = now + HIDE_GRACE;
-        if !self.transition.is_held_open() {
+        if self.transition.shown_retention() != CardRetention::UntilDismissed {
             self.hide_due = Some(due);
         }
         due
     }
 
     pub fn leave_elapsed(&mut self, now: Instant, departing: Option<Departed>) {
-        if self.transition.is_leaving() && self.hide_due.take_if(|due| *due <= now).is_some() {
+        if self.transition.leave_intent() == LeaveIntent::Leaving
+            && self.hide_due.take_if(|due| *due <= now).is_some()
+        {
             self.pointer_over_hover_card = false;
             self.transition.hide(departing, now);
         }
@@ -289,8 +302,8 @@ impl HoverCardHost {
     }
 
     #[must_use]
-    pub fn is_hiding(&self) -> bool {
-        self.transition.hiding_since().is_some()
+    pub fn hiding_since(&self) -> Option<Instant> {
+        self.transition.hiding_since()
     }
 
     pub fn reconcile_with_panels(
@@ -320,7 +333,7 @@ impl HoverCardHost {
         let wanted_grab = self
             .transition
             .current()
-            .filter(|_| self.transition.is_held_open())
+            .filter(|current| current.retention == CardRetention::UntilDismissed)
             .and_then(|current| panel_surfaces.get(&current.placement.output).copied());
         if wanted_grab == self.keyboard_grab {
             return Task::none();
@@ -377,7 +390,7 @@ impl HoverCardHost {
     }
 
     fn outside_press_on<Message: From<PopupMessage>>(&self, output: &str) -> OutsidePress<Message> {
-        if !self.transition.is_held_open() {
+        if self.transition.shown_retention() != CardRetention::UntilDismissed {
             return OutsidePress::PassesThrough;
         }
         OutsidePress::Dismisses {
@@ -540,7 +553,7 @@ impl<Message> HoverContent<'_, Message> {
     pub fn shows_anything(&self, announcement: &HoverAnnouncement) -> bool {
         match self {
             HoverContent::Described(hover_card) => {
-                !hover_card.is_empty() || !announcement.is_empty()
+                !hover_card.is_empty() || *announcement != HoverAnnouncement::default()
             }
             HoverContent::Interactive { .. } | HoverContent::GroupMenu { .. } => true,
         }
@@ -582,11 +595,12 @@ mod tests {
     };
     use sottomano_toml_config::screen_edges::Position;
 
-    use super::{HIDE_GRACE, HoverCardHost};
+    use super::{ExpansionState, HIDE_GRACE, HoverCardHost};
     use crate::{
         clock::Clock,
         hover_cards::{
-            CardOpening, HoverAnnouncement, HoverCardMessage, HoverTarget, WidgetAnchor,
+            CardOpening, HandlePointing, HoverAnnouncement, HoverCardMessage, HoverTarget,
+            WidgetAnchor, hover_card_transition::CardRetention,
         },
         layer_surfaces::PanelEdge,
     };
@@ -624,7 +638,7 @@ mod tests {
         host.open_until_dismissed(&top_edge(), workspace_card(), HoverAnnouncement::default());
         let _due = leave_every_way(&mut host, now);
         assert_eq!(host.target(), Some(&workspace_card()));
-        assert!(host.is_held_open());
+        assert_eq!(host.shown_retention(), CardRetention::UntilDismissed);
         assert_eq!(host.hide_due(), None);
     }
 
@@ -633,7 +647,7 @@ mod tests {
         let now = Clock::real().instant;
         let mut host = HoverCardHost::default();
         host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
-        assert!(!host.is_held_open());
+        assert_ne!(host.shown_retention(), CardRetention::UntilDismissed);
         let _due = leave_every_way(&mut host, now);
         assert_eq!(host.target(), None);
     }
@@ -830,22 +844,46 @@ mod tests {
     #[test]
     fn a_handle_indicator_shows_open_only_on_the_output_of_the_card() {
         let host = host_holding_a_menu_open();
-        assert!(host.handle_indicator(&workspace_card(), "DP-1").open);
-        assert!(!host.handle_indicator(&workspace_card(), "DP-2").open);
-        assert!(!host.handle_indicator(&other_menu_handle(), "DP-1").open);
+        assert_eq!(
+            host.handle_indicator(&workspace_card(), "DP-1")
+                .menu_expansion,
+            ExpansionState::Expanded
+        );
+        assert_eq!(
+            host.handle_indicator(&workspace_card(), "DP-2")
+                .menu_expansion,
+            ExpansionState::Collapsed
+        );
+        assert_eq!(
+            host.handle_indicator(&other_menu_handle(), "DP-1")
+                .menu_expansion,
+            ExpansionState::Collapsed
+        );
     }
 
     #[test]
     fn a_handle_indicator_follows_the_pointer_and_survives_a_new_layout() {
         let mut host = HoverCardHost::default();
         remember(&mut host, "DP-1", widget_at(0.0, CardOpening::OnPress));
-        host.set_handle_pointed_at("DP-1", &workspace_card(), true);
-        assert!(host.handle_indicator(&workspace_card(), "DP-1").hovering);
-        assert!(!host.handle_indicator(&workspace_card(), "DP-2").hovering);
+        host.set_handle_pointing("DP-1", &workspace_card(), HandlePointing::PointedAt);
+        assert_eq!(
+            host.handle_indicator(&workspace_card(), "DP-1").pointing,
+            HandlePointing::PointedAt
+        );
+        assert_eq!(
+            host.handle_indicator(&workspace_card(), "DP-2").pointing,
+            HandlePointing::NotPointedAt
+        );
         remember(&mut host, "DP-1", widget_at(5.0, CardOpening::OnPress));
-        assert!(host.handle_indicator(&workspace_card(), "DP-1").hovering);
-        host.set_handle_pointed_at("DP-1", &workspace_card(), false);
-        assert!(!host.handle_indicator(&workspace_card(), "DP-1").hovering);
+        assert_eq!(
+            host.handle_indicator(&workspace_card(), "DP-1").pointing,
+            HandlePointing::PointedAt
+        );
+        host.set_handle_pointing("DP-1", &workspace_card(), HandlePointing::NotPointedAt);
+        assert_eq!(
+            host.handle_indicator(&workspace_card(), "DP-1").pointing,
+            HandlePointing::NotPointedAt
+        );
     }
 
     fn panels_on(outputs: &[&str]) -> BTreeMap<String, Id> {
@@ -886,6 +924,6 @@ mod tests {
         host.open_until_dismissed(&top_edge(), workspace_card(), HoverAnnouncement::default());
         host.dismiss(None, now);
         assert_eq!(host.target(), None);
-        assert!(!host.is_held_open());
+        assert_ne!(host.shown_retention(), CardRetention::UntilDismissed);
     }
 }

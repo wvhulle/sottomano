@@ -1,7 +1,7 @@
 pub mod niri_kdl_rules;
-mod switch_heat_borders;
+pub mod switch_heat_borders;
 
-use std::io;
+use std::{io, sync::Arc};
 
 use iced::Task;
 use sottomano_toml_config::{Config, severity::Severity};
@@ -11,8 +11,10 @@ use crate::{
     group_items::{
         aligned_quantity::AlignedQuantity,
         group_item::GroupItem,
-        slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        toggle_control::{IconToggle, SwitchPresses},
+        slider_control::{
+            Action as SliderAction, ControlMessage, ControlWriteFailure, SliderControl,
+        },
+        toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::{
         HoverTarget,
@@ -25,9 +27,9 @@ use crate::{
         niri_window_group::{
             niri_kdl_rules::{
                 AdoptedRules, HeatedWindow, NiriLayout, NiriRulesFile, NiriStyling, RulesSaveError,
-                SaveStep, StoredRules,
+                SaveStep, ShellBlurDepth, StoredRules,
             },
-            switch_heat_borders::SwitchHeatBorders,
+            switch_heat_borders::{SwitchHeatBorders, SwitchHeatVisibility},
         },
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -41,11 +43,20 @@ use crate::{
     },
 };
 
-fn xray_toggle(xray: bool) -> IconToggle {
+impl From<ShellBlurDepth> for SwitchPosition {
+    fn from(blur_depth: ShellBlurDepth) -> Self {
+        match blur_depth {
+            ShellBlurDepth::WallpaperOnly => SwitchPosition::On,
+            ShellBlurDepth::WindowsBehind => SwitchPosition::Off,
+        }
+    }
+}
+
+fn xray_toggle(blur_depth: ShellBlurDepth) -> IconToggle {
     IconToggle::new(
         "X-ray",
         Phosphor::Eye(Weight::Regular),
-        xray,
+        blur_depth,
         SwitchPresses {
             turning_on: "blur only the wallpaper, hiding windows behind the shell",
             turning_off: "blur the windows behind the shell too",
@@ -74,7 +85,7 @@ pub enum NiriWindowMessage {
     Gaps(ControlMessage),
     ToggleXray,
     ToggleSwitchHeat,
-    SwitchHeatLoaded(bool),
+    SwitchHeatLoaded(SwitchHeatVisibility),
     RulesLoaded(StoredRules),
     RulesWritten(Result<(), io::ErrorKind>),
 }
@@ -86,12 +97,18 @@ enum CommittedSlider {
 }
 
 impl CommittedSlider {
-    fn persisted(self, ok: bool) -> NiriWindowMessage {
+    fn persisted(self, write_outcome: Result<(), ControlWriteFailure>) -> NiriWindowMessage {
         match self {
             Self::CornerRadius(value) => {
-                NiriWindowMessage::CornerRadius(ControlMessage::Persisted { value, ok })
+                NiriWindowMessage::CornerRadius(ControlMessage::Persisted {
+                    value,
+                    write_outcome,
+                })
             }
-            Self::Gaps(value) => NiriWindowMessage::Gaps(ControlMessage::Persisted { value, ok }),
+            Self::Gaps(value) => NiriWindowMessage::Gaps(ControlMessage::Persisted {
+                value,
+                write_outcome,
+            }),
         }
     }
 }
@@ -109,7 +126,7 @@ pub struct NiriWindowGroup {
     expansion: WidgetGroupExpansion,
     rules_file: NiriRulesFile,
     sliders_awaiting_write: Vec<CommittedSlider>,
-    xray: bool,
+    blur_depth: ShellBlurDepth,
     corner_radius: SliderControl,
     gaps: SliderControl,
     switch_heat: SwitchHeatBorders,
@@ -123,7 +140,7 @@ impl NiriWindowGroup {
             expansion: WidgetGroupExpansion::default(),
             rules_file,
             sliders_awaiting_write: Vec::new(),
-            xray: defaults.xray,
+            blur_depth: defaults.blur_depth,
             corner_radius: SliderControl::new(
                 "Window corner radius",
                 0.0..=24.0,
@@ -164,14 +181,14 @@ impl NiriWindowGroup {
     #[must_use]
     pub fn niri_styling(&self) -> NiriStyling {
         NiriStyling {
-            xray: self.xray,
+            blur_depth: self.blur_depth,
             layout: self.niri_layout(),
         }
     }
 
     fn requested_styling(&self) -> NiriStyling {
         NiriStyling {
-            xray: self.xray,
+            blur_depth: self.blur_depth,
             layout: NiriLayout {
                 window_corner_radius_px: self.corner_radius.current(),
                 gaps_px: self.gaps.current(),
@@ -195,7 +212,7 @@ impl NiriWindowGroup {
     }
 
     fn adopt_styling(&mut self, styling: NiriStyling) {
-        self.xray = styling.xray;
+        self.blur_depth = styling.blur_depth;
         self.corner_radius.update(ControlMessage::Reading(
             styling.layout.window_corner_radius_px,
         ));
@@ -227,10 +244,10 @@ impl NiriWindowGroup {
                 Task::perform(rules_write.run(), NiriWindowMessage::RulesWritten)
             }
             Ok(SaveStep::WriteInFlight) => Task::none(),
-            Ok(SaveStep::NothingInFlight) => self.acknowledge_sliders(true),
+            Ok(SaveStep::NothingInFlight) => self.acknowledge_sliders(&Ok(())),
             Err(save_error) => {
                 report_unsaved_rules(&save_error);
-                self.acknowledge_sliders(false)
+                self.acknowledge_sliders(&Err(ControlWriteFailure::Rejected(Arc::new(save_error))))
             }
         }
     }
@@ -249,17 +266,21 @@ impl NiriWindowGroup {
             SaveStep::StartWrite(rules_write) => {
                 Task::perform(rules_write.run(), NiriWindowMessage::RulesWritten)
             }
-            SaveStep::WriteInFlight | SaveStep::NothingInFlight => {
-                self.acknowledge_sliders(written.is_ok())
-            }
+            SaveStep::WriteInFlight | SaveStep::NothingInFlight => self
+                .acknowledge_sliders(&written.map_err(|kind| {
+                    ControlWriteFailure::Rejected(Arc::new(io::Error::from(kind)))
+                })),
         }
     }
 
-    fn acknowledge_sliders(&mut self, ok: bool) -> Task<NiriWindowMessage> {
+    fn acknowledge_sliders(
+        &mut self,
+        write_outcome: &Result<(), ControlWriteFailure>,
+    ) -> Task<NiriWindowMessage> {
         Task::batch(
             self.sliders_awaiting_write
                 .drain(..)
-                .map(|committed| Task::done(committed.persisted(ok)))
+                .map(|committed| Task::done(committed.persisted(write_outcome.clone())))
                 .collect::<Vec<_>>(),
         )
     }
@@ -271,7 +292,7 @@ impl NiriWindowGroup {
                 .corner_radius
                 .readout_hover_card("Window corner radius"),
             NiriWindowTarget::Gaps => self.gaps.readout_hover_card("Window gaps"),
-            NiriWindowTarget::Xray => xray_toggle(self.xray).switch_hover_card(clock),
+            NiriWindowTarget::Xray => xray_toggle(self.blur_depth).switch_hover_card(clock),
             NiriWindowTarget::SwitchHeat => self.switch_heat.toggle().switch_hover_card(clock),
         };
         control.with_groups(self.rules_file.unreadable().map(|unreadable| {
@@ -320,12 +341,12 @@ impl NiriWindowGroup {
                 self.save_committed_slider(CommittedSlider::Gaps(value))
             }
             NiriWindowMessage::ToggleXray => {
-                self.xray = !self.xray;
+                self.blur_depth = self.blur_depth.toggled();
                 self.save_styling()
             }
             NiriWindowMessage::ToggleSwitchHeat => self.switch_heat.flip(),
-            NiriWindowMessage::SwitchHeatLoaded(shown) => {
-                self.switch_heat.adopt_loaded(shown);
+            NiriWindowMessage::SwitchHeatLoaded(heat_visibility) => {
+                self.switch_heat.adopt_loaded(heat_visibility);
                 Task::none()
             }
             NiriWindowMessage::RulesLoaded(stored) => self.adopt_rules(stored),
@@ -346,7 +367,7 @@ impl NiriWindowGroup {
                     .aligned_as(AlignedQuantity::CornerRadius),
                 GroupItem::slider(&self.gaps, config, NiriWindowMessage::Gaps),
                 GroupItem::toggle(
-                    xray_toggle(self.xray),
+                    xray_toggle(self.blur_depth),
                     NiriWindowTarget::Xray,
                     NiriWindowMessage::ToggleXray,
                 ),
@@ -369,7 +390,7 @@ mod tests {
 
     use super::{NiriWindowGroup, NiriWindowMessage};
     use crate::widget_groups::niri_window_group::niri_kdl_rules::{
-        NiriLayout, NiriRulesFile, NiriStyling, StoredRules,
+        NiriLayout, NiriRulesFile, NiriStyling, ShellBlurDepth, StoredRules,
     };
 
     const STORED_RULES: &str = r#"layer-rule {
@@ -406,7 +427,7 @@ window-rule {
         assert_eq!(
             niri_window_group.niri_styling(),
             NiriStyling {
-                xray: true,
+                blur_depth: ShellBlurDepth::WallpaperOnly,
                 layout: NiriLayout {
                     window_corner_radius_px: 7.0,
                     gaps_px: 5.0,

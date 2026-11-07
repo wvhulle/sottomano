@@ -17,7 +17,10 @@ use sottomano_desktop_sources::{
         window_edge_placement::WindowOwner,
     },
 };
-use sottomano_toml_config::{Config, widget_groups::tray::ClickAction};
+use sottomano_toml_config::{
+    Config,
+    widget_groups::{ElementVisibility, tray::ClickAction},
+};
 use system_tray::error;
 
 use self::menu_lines::TrayMenuLines;
@@ -223,7 +226,9 @@ impl TrayGroup {
             .get()
             .into_iter()
             .flatten()
-            .filter(|item| !config.widget_groups.tray.rule(&item.id).hide_icon)
+            .filter(|item| {
+                config.widget_groups.tray.rule(&item.id).icon == ElementVisibility::Shown
+            })
             .collect()
     }
 

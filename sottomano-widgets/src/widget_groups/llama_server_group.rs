@@ -27,7 +27,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot,
+        hover_fetched_snapshot::{HoverFetch, HoverFetchedSnapshot},
         phosphor::{Phosphor, Weight},
     },
 };
@@ -151,7 +151,7 @@ impl LlamaServerGroup {
     }
 
     fn fetch_base_model_card(&mut self, config: &Config, clock: Clock) -> Task<LlamaServerMessage> {
-        if !self.gguf_card.is_hovered() {
+        if matches!(self.gguf_card.hover_fetch(), HoverFetch::Idle) {
             return Task::none();
         }
         let Some(repository) = self

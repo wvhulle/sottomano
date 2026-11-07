@@ -1,13 +1,16 @@
 use std::{
     collections::BTreeSet,
     mem::take,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
 use iced::{Task, task};
+use sottomano_desktop_sources::sqlite_state_store::StoreError;
 use tokio::time::sleep;
 
 use crate::{
+    background_work::logged_failure_task,
     group_menus::{
         group_menu_inspection::GroupMenuInspection, group_menu_presentation::GroupMenuPresentation,
         group_menu_settings::GroupMenuSettingsTarget, group_source_demand::GroupSourceDemand,
@@ -104,6 +107,12 @@ impl GroupMenuTopic {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuPinState {
+    Pinned,
+    Unpinned,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GroupMenuPin {
     Group(WidgetGroupIdentity),
@@ -139,7 +148,7 @@ pub enum GroupMenuMessage {
         menu: GroupMenuTopic,
         entry: GroupMenuPin,
     },
-    PinSaved(bool),
+    PinSaved(Result<(), Arc<StoreError>>),
     RevealMenuGroup {
         menu: GroupMenuTopic,
         group_identity: WidgetGroupIdentity,
@@ -245,8 +254,12 @@ impl GroupMenuState {
     }
 
     #[must_use]
-    pub fn is_pinned(&self, menu: GroupMenuTopic, entry: GroupMenuPin) -> bool {
-        self.pinned.contains(&entry.stored_in(menu))
+    pub fn pin_state(&self, menu: GroupMenuTopic, entry: GroupMenuPin) -> MenuPinState {
+        if self.pinned.contains(&entry.stored_in(menu)) {
+            MenuPinState::Pinned
+        } else {
+            MenuPinState::Unpinned
+        }
     }
 
     pub fn track_source_demand(
@@ -392,18 +405,20 @@ impl GroupMenuState {
             }
             GroupMenuMessage::TogglePin { menu, entry } => {
                 let pin = entry.stored_in(menu);
-                let pinned = !self.pinned.remove(&pin);
-                if pinned {
+                let pin_state = if self.pinned.remove(&pin) {
+                    MenuPinState::Unpinned
+                } else {
                     self.pinned.insert(pin.clone());
-                }
+                    MenuPinState::Pinned
+                };
                 Task::perform(
-                    sqlite_group_menu_pins::save(pin, pinned),
-                    GroupMenuMessage::PinSaved,
+                    sqlite_group_menu_pins::save(pin, pin_state),
+                    |store_outcome| GroupMenuMessage::PinSaved(store_outcome.map_err(Arc::new)),
                 )
             }
-            GroupMenuMessage::PinSaved(saved) => {
-                if !saved {
-                    tracing::warn!("group menu pins: the pin change was not saved");
+            GroupMenuMessage::PinSaved(store_outcome) => {
+                if let Err(store_error) = store_outcome {
+                    tracing::warn!("group menu pins: the pin change was not saved: {store_error}");
                 }
                 Task::none()
             }
@@ -463,7 +478,10 @@ impl GroupMenuState {
             }
             GroupMenuMessage::SwitchPresentation(presentation) => {
                 self.adopt_presentation(presentation);
-                Task::future(sqlite_group_menu_presentation::save(presentation)).discard()
+                logged_failure_task(
+                    "group menu presentation: save".to_owned(),
+                    sqlite_group_menu_presentation::save(presentation),
+                )
             }
             GroupMenuMessage::InspectRow { menu, target } => {
                 self.inspection = take(&mut self.inspection).inspecting_row(menu, target);
@@ -484,10 +502,15 @@ mod tests {
 
     use super::{
         AlertPromotedGroup, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
-        GroupSourceDemand, MENU_SOURCE_LINGER, OpenGroupMenu, WidgetGroupFamily,
+        GroupSourceDemand, MENU_SOURCE_LINGER, MenuPinState, OpenGroupMenu, WidgetGroupFamily,
         WidgetGroupIdentity,
     };
-    use crate::{clock::Clock, widget_groups::widget_group_identity::WidgetGroupInstance};
+    use crate::{
+        clock::Clock,
+        widget_groups::{
+            widget_group_content::ExpansionState, widget_group_identity::WidgetGroupInstance,
+        },
+    };
 
     const GPU_GROUP: WidgetGroupIdentity = WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu);
 
@@ -534,18 +557,33 @@ mod tests {
     fn toggling_twice_unpins_the_group() {
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(GPU_GROUP)));
-        assert!(group_menus.is_pinned(GroupMenuTopic::Hardware, GroupMenuPin::Group(GPU_GROUP)));
-        assert!(!group_menus.is_pinned(GroupMenuTopic::Behaviour, GroupMenuPin::Group(GPU_GROUP)));
+        assert_eq!(
+            group_menus.pin_state(GroupMenuTopic::Hardware, GroupMenuPin::Group(GPU_GROUP)),
+            MenuPinState::Pinned
+        );
+        assert_eq!(
+            group_menus.pin_state(GroupMenuTopic::Behaviour, GroupMenuPin::Group(GPU_GROUP)),
+            MenuPinState::Unpinned
+        );
         let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(GPU_GROUP)));
-        assert!(!group_menus.is_pinned(GroupMenuTopic::Hardware, GroupMenuPin::Group(GPU_GROUP)));
+        assert_eq!(
+            group_menus.pin_state(GroupMenuTopic::Hardware, GroupMenuPin::Group(GPU_GROUP)),
+            MenuPinState::Unpinned
+        );
     }
 
     #[test]
     fn pinning_an_item_leaves_its_group_unpinned() {
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(toggle_in_hardware(gpu_load_item()));
-        assert!(group_menus.is_pinned(GroupMenuTopic::Hardware, gpu_load_item()));
-        assert!(!group_menus.is_pinned(GroupMenuTopic::Hardware, GroupMenuPin::Group(GPU_GROUP)));
+        assert_eq!(
+            group_menus.pin_state(GroupMenuTopic::Hardware, gpu_load_item()),
+            MenuPinState::Pinned
+        );
+        assert_eq!(
+            group_menus.pin_state(GroupMenuTopic::Hardware, GroupMenuPin::Group(GPU_GROUP)),
+            MenuPinState::Unpinned
+        );
     }
 
     #[test]
@@ -555,8 +593,8 @@ mod tests {
         assert_eq!(gpu_demand(&group_menus), collapsed_on_panel());
         let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(GPU_GROUP)));
         assert_ne!(
-            gpu_demand(&group_menus).expanded_when(true),
-            collapsed_on_panel().expanded_when(true)
+            gpu_demand(&group_menus).expanded_when(ExpansionState::Expanded),
+            collapsed_on_panel().expanded_when(ExpansionState::Expanded)
         );
     }
 
@@ -586,14 +624,20 @@ mod tests {
         let _ = group_menus.update(toggle_in_hardware(sibling_item(
             "WireguardTunnel(WireguardTunnelTarget { interface: \"wg0\" })",
         )));
-        assert!(group_menus.is_pinned(
-            GroupMenuTopic::Hardware,
-            sibling_item("WireguardTunnel(WireguardTunnelTarget { interface: \"wg0\" })")
-        ));
-        assert!(!group_menus.is_pinned(
-            GroupMenuTopic::Hardware,
-            sibling_item("WireguardTunnel(WireguardTunnelTarget { interface: \"wg1\" })")
-        ));
+        assert_eq!(
+            group_menus.pin_state(
+                GroupMenuTopic::Hardware,
+                sibling_item("WireguardTunnel(WireguardTunnelTarget { interface: \"wg0\" })")
+            ),
+            MenuPinState::Pinned
+        );
+        assert_eq!(
+            group_menus.pin_state(
+                GroupMenuTopic::Hardware,
+                sibling_item("WireguardTunnel(WireguardTunnelTarget { interface: \"wg1\" })")
+            ),
+            MenuPinState::Unpinned
+        );
     }
 
     #[test]
@@ -646,8 +690,14 @@ mod tests {
         let second_port = WidgetGroupIdentity::durable(WidgetGroupFamily::EthernetPorts, "enp4s0");
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(second_port.clone())));
-        assert!(group_menus.is_pinned(GroupMenuTopic::Hardware, GroupMenuPin::Group(second_port)));
-        assert!(!group_menus.is_pinned(GroupMenuTopic::Hardware, GroupMenuPin::Group(first_port)));
+        assert_eq!(
+            group_menus.pin_state(GroupMenuTopic::Hardware, GroupMenuPin::Group(second_port)),
+            MenuPinState::Pinned
+        );
+        assert_eq!(
+            group_menus.pin_state(GroupMenuTopic::Hardware, GroupMenuPin::Group(first_port)),
+            MenuPinState::Unpinned
+        );
     }
 
     #[test]
@@ -656,14 +706,20 @@ mod tests {
         let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(player_on_bus(
             "Firefox", ":1.40",
         ))));
-        assert!(group_menus.is_pinned(
-            GroupMenuTopic::Hardware,
-            GroupMenuPin::Group(player_on_bus("Firefox", ":1.41"))
-        ));
-        assert!(!group_menus.is_pinned(
-            GroupMenuTopic::Hardware,
-            GroupMenuPin::Group(player_on_bus("Spotify", ":1.42"))
-        ));
+        assert_eq!(
+            group_menus.pin_state(
+                GroupMenuTopic::Hardware,
+                GroupMenuPin::Group(player_on_bus("Firefox", ":1.41"))
+            ),
+            MenuPinState::Pinned
+        );
+        assert_eq!(
+            group_menus.pin_state(
+                GroupMenuTopic::Hardware,
+                GroupMenuPin::Group(player_on_bus("Spotify", ":1.42"))
+            ),
+            MenuPinState::Unpinned
+        );
     }
 
     #[test]

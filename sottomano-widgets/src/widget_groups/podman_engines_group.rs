@@ -142,13 +142,6 @@ impl GroupItemReading for PodmanEngineRow<'_> {
     }
 }
 
-fn is_hidden_engine(readout: &EngineReadout) -> bool {
-    matches!(
-        readout,
-        EngineReadout::Unreadable(EngineReadError::SocketMissing)
-    )
-}
-
 #[derive(Default)]
 pub struct PodmanEnginesGroup {
     services: DiscoveredSystemdServices,
@@ -232,7 +225,11 @@ impl PodmanEnginesGroup {
     pub fn group_content(&self) -> WidgetGroupContent<'_, PodmanEnginesMessage> {
         let rows = self.engines.iter().filter_map(|engine| {
             let readout = self.readouts.get(&engine.socket_path)?.get()?;
-            (!is_hidden_engine(readout)).then(|| {
+            let socket_missing = matches!(
+                readout,
+                EngineReadout::Unreadable(EngineReadError::SocketMissing)
+            );
+            (!socket_missing).then(|| {
                 GroupItem::reading(
                     PodmanEngineRow { engine, readout },
                     PodmanEngineTarget::from(engine),
@@ -254,16 +251,6 @@ impl PodmanEnginesGroup {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_missing_socket_is_hidden_but_a_denied_one_is_not() {
-        assert!(is_hidden_engine(&EngineReadout::Unreadable(
-            EngineReadError::SocketMissing
-        )));
-        assert!(!is_hidden_engine(&EngineReadout::Unreadable(
-            EngineReadError::SocketDenied
-        )));
-    }
 
     #[test]
     fn an_idle_engine_reports_zero_running_without_usage() {

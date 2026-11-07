@@ -50,10 +50,20 @@ impl Folding {
         }
     }
 
-    fn is_unfolded(&self, node: &Process, depth: usize) -> bool {
+    fn branch_folding(&self, node: &Process, depth: usize) -> BranchFolding {
         let unfolded_by_default = depth < UNFOLDED_DEPTH_BY_DEFAULT;
-        unfolded_by_default != self.toggled.contains(&node.pid)
+        if unfolded_by_default == self.toggled.contains(&node.pid) {
+            BranchFolding::Collapsed
+        } else {
+            BranchFolding::Expanded
+        }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BranchFolding {
+    Collapsed,
+    Expanded,
 }
 
 #[derive(Clone, Copy)]
@@ -340,7 +350,7 @@ impl Branch {
 }
 
 fn outline(node: &Process, depth: usize, folding: &Folding, branches: &mut Vec<Branch>) {
-    if !folding.is_unfolded(node, depth) {
+    if folding.branch_folding(node, depth) == BranchFolding::Collapsed {
         branches.push(Branch::folded(node, depth));
         return;
     }

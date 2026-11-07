@@ -17,11 +17,11 @@ use crate::{
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         slider_control::{ControlMessage, SliderControl},
         source_reading::{reading_icon, reading_value, source_reading},
-        toggle_control::IconToggle,
+        toggle_control::{IconToggle, SwitchPosition},
     },
     group_menus::{
         group_menu_presentation::GroupMenuOpenTrigger,
-        group_menu_state::{GroupMenuPin, GroupMenuState, GroupMenuTopic},
+        group_menu_state::{GroupMenuPin, GroupMenuState, GroupMenuTopic, MenuPinState},
     },
     hover_cards::{
         HoverAnnouncement, HoverOrigin, HoverTarget, PressHints, announcing_hoverable,
@@ -106,7 +106,13 @@ impl GroupItemIcon {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ItemSwitchIndicator {
     Absent,
-    Shown { switched_on: bool },
+    Shown(SwitchPosition),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ItemHandlePreview {
+    Shown,
+    Absent,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -228,7 +234,7 @@ pub struct GroupItem<'a, M> {
     gestures: GroupItemGestures<M>,
     switch_indicator: ItemSwitchIndicator,
     handle_announcement: HoverAnnouncement,
-    previewed_on_handle: bool,
+    handle_preview: ItemHandlePreview,
     ongoing_toast_action_buttons: Vec<OngoingToastActionButton<M>>,
     ongoing_toasts: Vec<OngoingToast<M>>,
     alignment: ItemAlignment,
@@ -322,17 +328,21 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     pub fn toggle(toggle: IconToggle, target: impl Into<HoverTarget>, message: M) -> Self {
-        Self::reading(toggle, target).on_switch_press(toggle.enabled, toggle.press_does(), message)
+        Self::reading(toggle, target).on_switch_press(
+            toggle.switch_position,
+            toggle.press_does(),
+            message,
+        )
     }
 
     #[must_use]
     pub fn on_switch_press(
         mut self,
-        switched_on: bool,
+        switch_position: impl Into<SwitchPosition>,
         description: &'static str,
         message: M,
     ) -> Self {
-        self.switch_indicator = ItemSwitchIndicator::Shown { switched_on };
+        self.switch_indicator = ItemSwitchIndicator::Shown(switch_position.into());
         self.on_press(description, message)
     }
 
@@ -356,13 +366,8 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 
     #[must_use]
     pub fn previewed_on_handle(self) -> Self {
-        self.previewed_on_handle_if(true)
-    }
-
-    #[must_use]
-    pub fn previewed_on_handle_if(self, previewed: bool) -> Self {
         Self {
-            previewed_on_handle: previewed,
+            handle_preview: ItemHandlePreview::Shown,
             ..self
         }
     }
@@ -404,7 +409,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             gestures: self.gestures.map(lift),
             switch_indicator: self.switch_indicator,
             handle_announcement: self.handle_announcement,
-            previewed_on_handle: self.previewed_on_handle,
+            handle_preview: self.handle_preview,
             card_opening_trigger: self.card_opening_trigger,
             ongoing_toast_action_buttons: self
                 .ongoing_toast_action_buttons
@@ -433,7 +438,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     pub(crate) fn handle_preview(&self) -> Option<HandlePreview<'_>> {
-        if !self.previewed_on_handle {
+        if self.handle_preview == ItemHandlePreview::Absent {
             return None;
         }
         Some(HandlePreview {
@@ -573,9 +578,9 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     ) -> Element<'a, GroupEvent<M>> {
         match self.switch_indicator {
             ItemSwitchIndicator::Absent => switched_content,
-            ItemSwitchIndicator::Shown { switched_on } => row![
+            ItemSwitchIndicator::Shown(switch_position) => row![
                 switched_content,
-                item_toggle_switch(config, switched_on, opacity)
+                item_toggle_switch(config, switch_position, opacity)
             ]
             .spacing(config.theme.spacing.item_gap)
             .align_y(Alignment::Center)
@@ -614,13 +619,13 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         menu: GroupMenuTopic,
     ) -> Option<String> {
         self.pinnable_key().filter(|item_key| {
-            group_menus.is_pinned(
+            group_menus.pin_state(
                 menu,
                 GroupMenuPin::Item {
                     group: group.clone(),
                     item_key: item_key.clone(),
                 },
-            )
+            ) == MenuPinState::Pinned
         })
     }
 
@@ -721,7 +726,7 @@ impl<'a, M: 'a> From<GroupItemContent<'a, M>> for GroupItem<'a, M> {
             gestures: GroupItemGestures::inert(),
             switch_indicator: ItemSwitchIndicator::Absent,
             handle_announcement: HoverAnnouncement::default(),
-            previewed_on_handle: false,
+            handle_preview: ItemHandlePreview::Absent,
             ongoing_toast_action_buttons: Vec::new(),
             ongoing_toasts: Vec::new(),
             alignment: ItemAlignment::Unaligned,
@@ -820,11 +825,11 @@ mod tests {
         assert_eq!(reading.pinnable_key(), composed.pinnable_key());
     }
 
-    fn toggle_in_state(enabled: bool) -> IconToggle {
+    fn toggle_in_position(switch_position: SwitchPosition) -> IconToggle {
         IconToggle::new(
             "Toggle",
             Phosphor::Question(Weight::Regular),
-            enabled,
+            switch_position,
             SwitchPresses {
                 turning_on: "turn on",
                 turning_off: "turn off",
@@ -840,24 +845,25 @@ mod tests {
 
     #[test]
     fn a_toggle_shows_a_switch_in_its_current_position() {
-        let indicator_of = |enabled| {
+        let indicator_of = |switch_position| {
             let item: GroupItem<'static, ()> =
-                GroupItem::toggle(toggle_in_state(enabled), SessionTarget::Menu, ());
+                GroupItem::toggle(toggle_in_position(switch_position), SessionTarget::Menu, ());
             item.switch_indicator
         };
         assert_eq!(
-            indicator_of(true),
-            ItemSwitchIndicator::Shown { switched_on: true }
+            indicator_of(SwitchPosition::On),
+            ItemSwitchIndicator::Shown(SwitchPosition::On)
         );
         assert_eq!(
-            indicator_of(false),
-            ItemSwitchIndicator::Shown { switched_on: false }
+            indicator_of(SwitchPosition::Off),
+            ItemSwitchIndicator::Shown(SwitchPosition::Off)
         );
     }
 
     #[test]
     fn a_switch_press_announces_the_same_gesture_as_a_plain_press() {
-        let item = composed_with(whole_item_hover()).on_switch_press(true, "turn off", ());
+        let item =
+            composed_with(whole_item_hover()).on_switch_press(SwitchPosition::On, "turn off", ());
         assert_eq!(item.announcement().press_hints.left, Some("turn off"));
     }
 

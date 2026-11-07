@@ -11,7 +11,7 @@ use sottomano_desktop_sources::{
     battery_power_profiles::{
         battery_time_forecast::{Estimate, RegressionState, time_until_empty},
         power_profiles_daemon::{Conditions, Profile, ProfileStatus},
-        upower_battery_state::Battery,
+        upower_battery_state::{Battery, ChargeStatus},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -192,8 +192,8 @@ impl PowerProfileControl {
     }
 
     fn drain_sample(&self, battery: &Battery) -> Option<DrainSample> {
-        let measurable =
-            battery.is_discharging() && battery.power > Power::new::<watt>(MIN_SAMPLE_W);
+        let measurable = battery.status == ChargeStatus::Discharging
+            && battery.power > Power::new::<watt>(MIN_SAMPLE_W);
         Some(DrainSample {
             profile: self.active_profile()?,
             conditions: self.conditions?,
@@ -240,7 +240,7 @@ impl PowerProfileControl {
         let battery = self
             .battery
             .as_ref()
-            .filter(|battery| battery.is_discharging())?;
+            .filter(|battery| battery.status == ChargeStatus::Discharging)?;
         Some(time_until_empty(
             battery,
             self.active_profile()?,

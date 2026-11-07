@@ -5,8 +5,8 @@ use iced::alignment::Horizontal;
 use sottomano_desktop_sources::login_session_presence::{
     idle_session_actions::IdleAction,
     kernel_sleep_obstacles::{
-        InhibitedOperation, KernelHibernation, LogindCapability, ScheduledShutdown,
-        SecretMemoryHolder, SleepObstacles, SleepState,
+        InhibitedOperation, KernelHibernation, KernelSleepVerdict, LogindCapability,
+        ScheduledShutdown, SecretMemoryHolder, SleepObstacles, SleepState,
     },
     screensaver_bus_idle_inhibitors::IdleInhibitor,
 };
@@ -299,10 +299,11 @@ pub(super) fn sleep_state_sections(obstacles: &SleepObstacles) -> Vec<Section> {
     let rows = SleepState::ALL.into_iter().map(|state| {
         let answer = sleep_state_answer(obstacles, state, state_that_runs);
         let row = LabeledValue::new(state.title(), answer);
-        if obstacles.is_available(state) {
-            row
-        } else {
-            row.level(Severity::Warning)
+        match obstacles.capability_of(state) {
+            LogindCapability::Allowed | LogindCapability::AfterAuthorisation => row,
+            LogindCapability::NotPermitted | LogindCapability::Unsupported => {
+                row.level(Severity::Warning)
+            }
         }
     });
     vec![Section::dictionary(rows).titled((
@@ -326,7 +327,7 @@ fn sleep_state_answer(
     match obstacles.capability_of(state) {
         LogindCapability::Allowed => "available".to_owned(),
         LogindCapability::AfterAuthorisation => "available after authorisation".to_owned(),
-        _ if obstacles.blocked_by_kernel(state) => {
+        _ if obstacles.kernel_verdict(state) == KernelSleepVerdict::Blocked => {
             kernel_refusal_text(&obstacles.kernel_hibernation)
         }
         _ if !sleep_lock_holders.is_empty() => {
@@ -396,9 +397,13 @@ pub(super) fn pause_blockers(facts: &PauseFacts<'_>) -> Vec<PauseBlocker> {
 }
 
 fn hibernate_blockers(obstacles: &SleepObstacles, timer_set: bool) -> Vec<PauseBlocker> {
-    let explained_by_sleep_lock = obstacles.kernel_hibernation.is_allowed()
+    let explained_by_sleep_lock = obstacles.kernel_hibernation == KernelHibernation::Allowed
         && obstacles.inhibitors_of(InhibitedOperation::Sleep).count() > 0;
-    if obstacles.is_available(SleepState::Hibernate) || explained_by_sleep_lock {
+    let hibernate_available = matches!(
+        obstacles.capability_of(SleepState::Hibernate),
+        LogindCapability::Allowed | LogindCapability::AfterAuthorisation
+    );
+    if hibernate_available || explained_by_sleep_lock {
         return Vec::new();
     }
     let rises_to_panel = obstacles.resume_device_configured || timer_set;

@@ -26,6 +26,7 @@ use iced::{
 
 use crate::{
     font_faces::TextFace,
+    primitives::motion_state::MotionState,
     shared_metrics::LINE_HEIGHT,
     text_effects::{IntroEffect, PlaceholderEffect, ReplaceEffect, TextEffects},
     theme_colors::{ThemedColor, primary_color, text_color},
@@ -122,16 +123,6 @@ impl<'a> AnimatedText<'a> {
     #[must_use]
     pub fn effects(mut self, effects: TextEffects) -> Self {
         self.style.effects = effects;
-        self
-    }
-
-    #[must_use]
-    pub fn loading(mut self, is_loading: bool) -> Self {
-        self.style.presence = if is_loading {
-            TextPresence::Placeholder
-        } else {
-            TextPresence::Shown
-        };
         self
     }
 
@@ -320,10 +311,10 @@ impl<Message> TransitioningText<'_, Message> {
         })
     }
 
-    fn animating(&self, state: &State) -> bool {
-        match state.shown {
-            ShownText::Placeholder => true,
-            ShownText::Text { .. } => self.running(state).is_some(),
+    fn text_motion(&self, state: &State) -> MotionState {
+        match (&state.shown, self.running(state)) {
+            (ShownText::Placeholder, _) | (ShownText::Text { .. }, Some(_)) => MotionState::Moving,
+            (ShownText::Text { .. }, None) => MotionState::Settled,
         }
     }
 
@@ -419,9 +410,13 @@ impl<Message> TransitioningText<'_, Message> {
             .collect()
     }
 
-    fn locks_by(&self, running: &Running<'_>, position: usize) -> bool {
+    fn letter_lock(&self, running: &Running<'_>, position: usize) -> LetterLock {
         let length = self.text.chars().count().max(1);
-        running.elapsed >= lock_time(running.length, self.seed(), position, length)
+        if running.elapsed >= lock_time(running.length, self.seed(), position, length) {
+            LetterLock::Locked
+        } else {
+            LetterLock::Scrambling
+        }
     }
 
     fn draw_placeholder(
@@ -472,7 +467,7 @@ impl<Message> TransitioningText<'_, Message> {
             }
             IntroEffect::Decode { glyph_change, .. } => {
                 let content = self.scrambled(running.elapsed, glyph_change, |position, _| {
-                    self.locks_by(running, position)
+                    self.letter_lock(running, position) == LetterLock::Locked
                 });
                 self.fill_text(renderer, content, area, area, color);
             }
@@ -514,7 +509,8 @@ impl<Message> TransitioningText<'_, Message> {
             ReplaceEffect::Decode { glyph_change, .. } => {
                 let previous: Vec<char> = from.chars().collect();
                 let content = self.scrambled(running.elapsed, glyph_change, |position, target| {
-                    previous.get(position) == Some(&target) || self.locks_by(running, position)
+                    previous.get(position) == Some(&target)
+                        || self.letter_lock(running, position) == LetterLock::Locked
                 });
                 self.fill_text(renderer, content, area, area, text_colors.text);
             }
@@ -717,7 +713,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for TransitioningText
         if let Event::Window(window::Event::RedrawRequested(now)) = event {
             let state = tree.state.downcast_mut::<State>();
             state.frame(*now);
-            if self.animating(state) {
+            if self.text_motion(state) == MotionState::Moving {
                 shell.request_redraw();
             }
         }
@@ -781,4 +777,10 @@ mod tests {
         state.frame(first_frame + Duration::from_millis(700));
         assert_eq!(state.placeholder_elapsed(), Duration::from_millis(700));
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LetterLock {
+    Locked,
+    Scrambling,
 }

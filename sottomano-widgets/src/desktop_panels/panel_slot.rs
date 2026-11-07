@@ -56,7 +56,7 @@ impl<'a, Message: 'a> PanelSlot<'a, Message> {
             ticks,
             along_panel_padding,
         } = self;
-        let share_of_gap = if position.is_vertical() {
+        let share_of_gap = if position == Position::Left {
             Padding::ZERO.vertical(along_panel_padding)
         } else {
             Padding::ZERO.horizontal(along_panel_padding)

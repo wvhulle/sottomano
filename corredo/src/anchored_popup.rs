@@ -17,6 +17,7 @@ use crate::{
     frame_style::FrameStyle,
     popup_cascade::{CascadeDirection, CascadeOrientation, PanelGrowth},
     popup_connector::{ConnectorSide, ConnectorTriangle, FramedSurface},
+    primitives::motion_state::MotionState,
     rectangle_morph::RectangleMorph,
 };
 
@@ -51,9 +52,21 @@ pub struct PopupRegions {
     pub captures_outside_presses: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ChildFraming {
+    LeadingChild,
+    WholePopup,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PointerPlacement {
+    OverPopup,
+    OutsidePopup,
+}
+
 struct PopupFrame {
     surface_rows: Vec<Rectangle>,
-    settled: bool,
+    motion: MotionState,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,10 +85,16 @@ impl PopupFraming {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PopupArrival {
+    Incoming,
+    Outgoing,
+}
+
 pub struct PopupRendering<'a, Message> {
     element: Element<'a, Message>,
-    incoming: bool,
-    framing: PopupFraming,
+    pub arrival: PopupArrival,
+    pub framing: PopupFraming,
 }
 
 impl<'a, Message> PopupRendering<'a, Message> {
@@ -83,7 +102,7 @@ impl<'a, Message> PopupRendering<'a, Message> {
     pub fn incoming(element: Element<'a, Message>) -> Self {
         Self {
             element,
-            incoming: true,
+            arrival: PopupArrival::Incoming,
             framing: PopupFraming::WholeContent,
         }
     }
@@ -92,7 +111,7 @@ impl<'a, Message> PopupRendering<'a, Message> {
     pub fn outgoing(element: Element<'a, Message>) -> Self {
         Self {
             element,
-            incoming: false,
+            arrival: PopupArrival::Outgoing,
             framing: PopupFraming::WholeContent,
         }
     }
@@ -100,11 +119,6 @@ impl<'a, Message> PopupRendering<'a, Message> {
     #[must_use]
     pub fn framing(self, framing: PopupFraming) -> Self {
         Self { framing, ..self }
-    }
-
-    #[must_use]
-    pub fn is_incoming_leading_surface(&self) -> bool {
-        self.incoming && matches!(self.framing, PopupFraming::LeadingSurface(_))
     }
 }
 
@@ -319,7 +333,7 @@ impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdenti
                 .max(self.gap_px)
         };
         let horizontal = |extent: f32, room: f32| {
-            if self.frames_one_child() {
+            if self.child_framing() == ChildFraming::LeadingChild {
                 (self.anchor.center_x() - self.leading_alignment_px)
                     .min(room - extent)
                     .max(0.0)
@@ -412,18 +426,27 @@ impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdenti
         }
     }
 
-    fn frames_one_child(&self) -> bool {
-        self.renderings.iter().any(|rendering| {
-            rendering.incoming && matches!(rendering.framing, PopupFraming::LeadingSurface(_))
-        })
+    fn child_framing(&self) -> ChildFraming {
+        let leading_surface_incoming = self.renderings.iter().any(|rendering| {
+            rendering.arrival == PopupArrival::Incoming
+                && matches!(rendering.framing, PopupFraming::LeadingSurface(_))
+        });
+        if leading_surface_incoming {
+            ChildFraming::LeadingChild
+        } else {
+            ChildFraming::WholePopup
+        }
     }
 
-    fn is_live(&self) -> bool {
-        self.renderings.iter().any(|rendering| rendering.incoming)
-    }
-
-    fn is_settled(&self, state: &MorphState<ShownIdentity>) -> bool {
-        state.morph.is_settled() && self.is_live()
+    fn frame_motion(&self, state: &MorphState<ShownIdentity>) -> MotionState {
+        let shows_incoming = self
+            .renderings
+            .iter()
+            .any(|rendering| rendering.arrival == PopupArrival::Incoming);
+        match state.morph.motion_state() {
+            MotionState::Settled if shows_incoming => MotionState::Settled,
+            MotionState::Settled | MotionState::Moving => MotionState::Moving,
+        }
     }
 
     fn popup_frame(&self, state: &MorphState<ShownIdentity>, layout: Layout<'_>) -> PopupFrame {
@@ -433,20 +456,20 @@ impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdenti
                 state.morph.current() + origin,
                 Radius::from(self.corner_radius_px),
             ),
-            settled: self.is_settled(state),
+            motion: self.frame_motion(state),
         }
     }
 
-    fn popup_surfaces_contain(&self, tree: &Tree, layout: Layout<'_>, point: Point) -> bool {
+    fn pointer_placement(&self, tree: &Tree, layout: Layout<'_>, point: Point) -> PointerPlacement {
         let state: &MorphState<ShownIdentity> = tree.state.downcast_ref();
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
-        (state.morph.current() + origin).contains(point)
+        let over_popup = (state.morph.current() + origin).contains(point)
             || self
                 .renderings
                 .iter()
                 .zip(layout.children())
                 .filter(|(rendering, _)| {
-                    rendering.incoming
+                    rendering.arrival == PopupArrival::Incoming
                         && matches!(rendering.framing, PopupFraming::LeadingSurface(_))
                 })
                 .flat_map(|(_, cascade)| cascade.children().skip(1))
@@ -460,7 +483,12 @@ impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdenti
                         )
                         .contains(point)
                     })
-                })
+                });
+        if over_popup {
+            PointerPlacement::OverPopup
+        } else {
+            PointerPlacement::OutsidePopup
+        }
     }
 
     fn live_view<'t>(
@@ -472,7 +500,7 @@ impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdenti
             .iter_mut()
             .zip(&mut tree.children)
             .zip(layout.children())
-            .find(|((rendering, _), _)| rendering.incoming)
+            .find(|((rendering, _), _)| rendering.arrival == PopupArrival::Incoming)
             .map(|((rendering, state), layout)| ChildViewMut {
                 widget: &mut rendering.element,
                 state,
@@ -513,7 +541,7 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
             self.renderings
                 .iter()
                 .zip(&mut tree.children)
-                .filter(|(rendering, _)| rendering.incoming)
+                .filter(|(rendering, _)| rendering.arrival == PopupArrival::Incoming)
                 .for_each(|(rendering, child)| *child = Tree::new(&rendering.element));
         }
     }
@@ -569,7 +597,7 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
             .renderings
             .iter()
             .zip(&nodes)
-            .find(|(rendering, _)| rendering.incoming)
+            .find(|(rendering, _)| rendering.arrival == PopupArrival::Incoming)
             .map(|(rendering, node)| rendering.framing.framed_bounds(node).size());
         let at_anchor = self.resting(Size::ZERO, surface);
 
@@ -629,7 +657,9 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
                 shadow: frame.lifted_drop_shadow(),
             },
         );
-        let content_clip = if self.frames_one_child() && self.is_settled(state) {
+        let content_clip = if self.child_framing() == ChildFraming::LeadingChild
+            && self.frame_motion(state) == MotionState::Settled
+        {
             *viewport
         } else {
             box_bounds
@@ -667,8 +697,8 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
                 surface_rows: frame.surface_rows,
                 popup_bounds: state.morph.current() + origin,
                 bounds: layout.bounds(),
-                takes_input: frame.settled,
-                captures_outside_presses: state.morph.is_settled()
+                takes_input: frame.motion == MotionState::Settled,
+                captures_outside_presses: state.morph.motion_state() == MotionState::Settled
                     && matches!(self.outside_press, OutsidePress::Dismisses { .. }),
             },
             operation,
@@ -696,13 +726,12 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
     ) {
         if let Event::Window(window::Event::RedrawRequested(now)) = event {
             let state: &mut MorphState<ShownIdentity> = tree.state.downcast_mut();
-            let was_morphing = !state.morph.is_settled();
+            let motion_before_tick = state.morph.motion_state();
             state.morph.tick(*now, self.morph_duration);
-            let is_morphing = !state.morph.is_settled();
-            if was_morphing {
+            if motion_before_tick == MotionState::Moving {
                 shell.invalidate_layout();
             }
-            if is_morphing {
+            if state.morph.motion_state() == MotionState::Moving {
                 shell.request_redraw();
             }
         }
@@ -724,13 +753,14 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
                 .state
                 .downcast_ref::<MorphState<ShownIdentity>>()
                 .morph
-                .is_settled()
+                .motion_state()
+                == MotionState::Settled
             && let OutsidePress::Dismisses {
                 dismissal,
                 reachable_below,
             } = &self.outside_press
             && let Some(pressed_at) = cursor.position()
-            && !self.popup_surfaces_contain(tree, layout, pressed_at)
+            && self.pointer_placement(tree, layout, pressed_at) == PointerPlacement::OutsidePopup
             && !reachable_below.iter().any(|reachable| {
                 (*reachable + Vector::new(layout.bounds().x, layout.bounds().y))
                     .contains(pressed_at)
@@ -763,7 +793,10 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
             .unwrap_or_else(|| {
                 cursor
                     .position()
-                    .filter(|pointer| self.popup_surfaces_contain(tree, layout, *pointer))
+                    .filter(|pointer| {
+                        self.pointer_placement(tree, layout, *pointer)
+                            == PointerPlacement::OverPopup
+                    })
                     .map_or_else(mouse::Interaction::default, |_| mouse::Interaction::Idle)
             })
     }

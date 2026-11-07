@@ -11,7 +11,7 @@ use iced::{
     window,
 };
 
-use crate::hover_cards::HoverTarget;
+use crate::hover_cards::{HandlePointing, HoverTarget};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CardOpening {
@@ -38,7 +38,7 @@ impl WidgetAnchor {
 struct AnchorOnOutput {
     output: String,
     widget_anchor: WidgetAnchor,
-    pointed_at: bool,
+    pointing: HandlePointing,
 }
 
 #[derive(Default)]
@@ -48,32 +48,37 @@ pub struct LaidOutAnchors {
 
 impl LaidOutAnchors {
     pub fn remember(&mut self, output: &str, widget_anchor: WidgetAnchor) {
-        let pointed_at = self.is_pointed_at(output, &widget_anchor.target);
+        let pointing = self.handle_pointing(output, &widget_anchor.target);
         self.anchors.retain(|known| {
             known.output != output || known.widget_anchor.target != widget_anchor.target
         });
         self.anchors.push(AnchorOnOutput {
             output: output.to_owned(),
             widget_anchor,
-            pointed_at,
+            pointing,
         });
     }
 
-    pub fn set_pointed_at(&mut self, output: &str, target: &HoverTarget, pointed_at: bool) {
+    pub fn set_pointing(&mut self, output: &str, target: &HoverTarget, pointing: HandlePointing) {
         self.anchors
             .iter_mut()
             .filter(|known| known.output == output && known.widget_anchor.target == *target)
-            .for_each(|known| known.pointed_at = pointed_at);
+            .for_each(|known| known.pointing = pointing);
     }
 
     #[must_use]
-    pub fn is_pointed_at(&self, output: &str, target: &HoverTarget) -> bool {
-        self.anchors.iter().any(|known| {
-            known.pointed_at
+    pub fn handle_pointing(&self, output: &str, target: &HoverTarget) -> HandlePointing {
+        let pointed_at = self.anchors.iter().any(|known| {
+            known.pointing == HandlePointing::PointedAt
                 && known.output == output
                 && known.widget_anchor.target == *target
                 && known.widget_anchor.widget_still_exists()
-        })
+        });
+        if pointed_at {
+            HandlePointing::PointedAt
+        } else {
+            HandlePointing::NotPointedAt
+        }
     }
 
     fn widget_of(&self, output: &str, target: &HoverTarget) -> Option<&WidgetAnchor> {
@@ -185,7 +190,10 @@ mod tests {
     use iced_test::Simulator;
 
     use super::{CardOpening, LaidOutAnchors, WidgetAnchor, dropped_widget_watch};
-    use crate::{clock::Clock, hover_cards::HoverTarget};
+    use crate::{
+        clock::Clock,
+        hover_cards::{HandlePointing, HoverTarget},
+    };
 
     static LIVE_WIDGET: LazyLock<Arc<()>> = LazyLock::new(|| Arc::new(()));
 
@@ -239,13 +247,25 @@ mod tests {
         };
         let mut anchors = LaidOutAnchors::default();
         anchors.remember("DP-1", live_handle());
-        anchors.set_pointed_at("DP-1", &workspace_card(), true);
-        assert!(anchors.is_pointed_at("DP-1", &workspace_card()));
-        assert!(!anchors.is_pointed_at("DP-2", &workspace_card()));
+        anchors.set_pointing("DP-1", &workspace_card(), HandlePointing::PointedAt);
+        assert_eq!(
+            anchors.handle_pointing("DP-1", &workspace_card()),
+            HandlePointing::PointedAt
+        );
+        assert_eq!(
+            anchors.handle_pointing("DP-2", &workspace_card()),
+            HandlePointing::NotPointedAt
+        );
         anchors.remember("DP-1", live_handle());
-        assert!(anchors.is_pointed_at("DP-1", &workspace_card()));
+        assert_eq!(
+            anchors.handle_pointing("DP-1", &workspace_card()),
+            HandlePointing::PointedAt
+        );
         drop(widget);
-        assert!(!anchors.is_pointed_at("DP-1", &workspace_card()));
+        assert_eq!(
+            anchors.handle_pointing("DP-1", &workspace_card()),
+            HandlePointing::NotPointedAt
+        );
     }
 
     #[test]

@@ -20,7 +20,10 @@ use crate::{
             ThemedColor, background_strong_color, danger_color, primary_color, primary_weak_color,
             secondary_text_color, text_color,
         },
-        pointer_drag::{DraggedPanelSlot, draggable_slot::draggable_slot},
+        pointer_drag::{
+            DraggedPanelSlot,
+            draggable_slot::{HoverReorder, draggable_slot},
+        },
         shared_metrics::{ACCENT_STROKE_PX, pill_corners},
         text::panel_text,
     },
@@ -106,10 +109,10 @@ impl<'s> WorkspaceSlot<'s> {
         position_in_panel: usize,
         slot_context: PanelSlotContext<'s>,
     ) -> Self {
-        let tone = if slot_context.drag.is_dragging(workspace_slot_key(workspace)) {
-            SlotTone::Dragged
-        } else {
-            SlotTone::Regular
+        let slot_key = workspace_slot_key(workspace);
+        let tone = match slot_context.drag.drag {
+            Some(active_drag) if active_drag.item == slot_key => SlotTone::Dragged,
+            Some(_) | None => SlotTone::Regular,
         };
         Self {
             workspace,
@@ -206,7 +209,7 @@ impl<'s> WorkspaceSlot<'s> {
                 bar: primary_color(theme).into(),
                 border: pill_corners(thickness),
             });
-        if edge.is_vertical() {
+        if edge == Position::Left {
             charge_bar.vertical().into()
         } else {
             charge_bar.into()
@@ -239,7 +242,7 @@ impl<'s> WorkspaceSlot<'s> {
         MarkerTrack::new(
             colors,
             ACCENT_STROKE_PX,
-            if marker_edge.is_vertical() {
+            if marker_edge == Position::Left {
                 TrackAxis::Vertical
             } else {
                 TrackAxis::Horizontal
@@ -259,7 +262,13 @@ impl<'s> WorkspaceSlot<'s> {
                 is_active: self.workspace.is_active,
             },
         };
-        let pressable = draggable_slot(content, press, true, &self.slot_context.drag, dragged);
+        let pressable = draggable_slot(
+            content,
+            press,
+            HoverReorder::ReordersOnHover,
+            &self.slot_context.drag,
+            dragged,
+        );
         hoverable(
             pressable.into(),
             HoverTarget::Workspace(self.workspace.id),

@@ -100,7 +100,7 @@ impl WeatherGroup {
         buses: Option<&DesktopBuses>,
         demand: GroupSourceDemand,
     ) -> Subscription<WeatherMessage> {
-        let demand = demand.expanded_when(self.expansion.is_expanded());
+        let demand = demand.expanded_when(self.expansion.state());
         let location = snapshot_subscription::<Location>(()).map(WeatherMessage::Location);
         let (Some(here), Some(buses)) = (self.location.get().map(Location::position), buses) else {
             return location;

@@ -4,7 +4,7 @@ use chrono::Locale;
 use iced::Task;
 use sottomano_desktop_sources::battery_power_profiles::{
     battery_time_forecast::{ChargeCurve, Estimate, bin_of, time_until_full},
-    upower_battery_state::{Battery, IdleReason},
+    upower_battery_state::{Battery, ChargeStatus, IdleReason},
 };
 use sottomano_toml_config::severity::Severity;
 use uom::si::{
@@ -99,16 +99,17 @@ impl BatteryTimeReading {
     }
 
     fn countdown(&self, battery: &Battery, drain: Option<Estimate>) -> Option<Countdown> {
-        if battery.is_discharging() {
-            return Some(Countdown::UntilEmpty(Forecast::from_estimate(
+        match battery.status {
+            ChargeStatus::Discharging => Some(Countdown::UntilEmpty(Forecast::from_estimate(
                 drain,
                 Unforecastable::NoDrainHistory,
-            )));
+            ))),
+            ChargeStatus::Charging => Some(Countdown::UntilFull {
+                charge_limit: battery.charge_limit,
+                forecast: self.charge_forecast(battery),
+            }),
+            ChargeStatus::Full | ChargeStatus::NotCharging | ChargeStatus::Unreported => None,
         }
-        battery.is_charging().then(|| Countdown::UntilFull {
-            charge_limit: battery.charge_limit,
-            forecast: self.charge_forecast(battery),
-        })
     }
 
     fn charge_forecast(&self, battery: &Battery) -> Forecast {

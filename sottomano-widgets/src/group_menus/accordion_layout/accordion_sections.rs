@@ -13,9 +13,8 @@ use crate::{
         },
     },
     hover_cards::PopupMessage,
-    widget_groups::{
-        widget_group_content::{GroupEvent, GroupMenuItemRow},
-        widget_group_identity::WidgetGroupIdentity,
+    widget_groups::widget_group_content::{
+        ExpansionState, GroupEvent, GroupMenuItemRow, RowInspection,
     },
     widgets::{
         list_end_corners::ListEndCorners,
@@ -27,12 +26,15 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct AccordionSectionRows {
     item_count: usize,
-    open: bool,
+    expansion_state: ExpansionState,
 }
 
 impl AccordionSectionRows {
     const fn shown_rows(self) -> usize {
-        if self.open { self.item_count + 1 } else { 1 }
+        match self.expansion_state {
+            ExpansionState::Expanded => self.item_count + 1,
+            ExpansionState::Collapsed => 1,
+        }
     }
 }
 
@@ -87,7 +89,11 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
         .iter()
         .map(|entry| AccordionSectionRows {
             item_count: entry.items.len(),
-            open: is_open(open_groups, &entry.group_identity),
+            expansion_state: if open_groups.contains(&entry.group_identity) {
+                ExpansionState::Expanded
+            } else {
+                ExpansionState::Collapsed
+            },
         })
         .collect();
     let total_rows = sections.iter().map(|section| section.shown_rows()).sum();
@@ -99,27 +105,32 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
         .into_iter()
         .enumerate()
         .map(|(section, mut entry)| {
-            let open = sections[section].open;
+            let expansion_state = sections[section].expansion_state;
             let group = entry.group_identity.clone();
-            let items: Vec<GroupMenuItemRow<'a, M>> = if open {
-                take(&mut entry.items)
-            } else {
-                Vec::new()
+            let items: Vec<GroupMenuItemRow<'a, M>> = match expansion_state {
+                ExpansionState::Expanded => take(&mut entry.items),
+                ExpansionState::Collapsed => Vec::new(),
             };
             let header_look = MenuRowLook {
-                emphasis: MenuRowEmphasis::selected_when(open),
+                emphasis: match expansion_state {
+                    ExpansionState::Expanded => MenuRowEmphasis::Selected,
+                    ExpansionState::Collapsed => MenuRowEmphasis::Plain,
+                },
                 corners: corners.radius_at(rows_above_header(&sections, section, growth)),
             };
             let header: Element<'a, M> = group_row(layout, entry, header_look).map(M::from);
             let item_views = items.into_iter().enumerate().map(|(item, row)| {
                 let rows_above = rows_above_item(&sections, section, item, growth);
-                let inspected = row.is_inspected(inspected_target);
+                let row_inspection = row.inspection(inspected_target);
                 let look = MenuRowLook {
-                    emphasis: MenuRowEmphasis::selected_when(inspected),
+                    emphasis: MenuRowEmphasis::from(row_inspection),
                     corners: corners.radius_at(rows_above),
                 };
                 let row_view: Element<'a, M> = item_row(layout, &group, row, look).map(M::from);
-                if let Some(card_view) = inspected.then(|| card.view(layout.config)).flatten() {
+                let card_view = (row_inspection == RowInspection::Inspected)
+                    .then(|| card.view(layout.config))
+                    .flatten();
+                if let Some(card_view) = card_view {
                     beside_card = Some(InspectedAccordionRow {
                         rows_above,
                         card_view,
@@ -164,21 +175,19 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
     })
 }
 
-fn is_open(open_groups: &[WidgetGroupIdentity], group: &WidgetGroupIdentity) -> bool {
-    open_groups.contains(group)
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{AccordionSectionRows, PanelGrowth, rows_above_header, rows_above_item};
+    use super::{
+        AccordionSectionRows, ExpansionState, PanelGrowth, rows_above_header, rows_above_item,
+    };
 
     const OPEN_THREE: AccordionSectionRows = AccordionSectionRows {
         item_count: 3,
-        open: true,
+        expansion_state: ExpansionState::Expanded,
     };
     const CLOSED_FOUR: AccordionSectionRows = AccordionSectionRows {
         item_count: 4,
-        open: false,
+        expansion_state: ExpansionState::Collapsed,
     };
 
     #[test]

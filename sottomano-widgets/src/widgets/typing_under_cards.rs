@@ -15,6 +15,8 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::overlay_surfaces::OverlaySurfacesConfig;
 use tokio::time::sleep_until;
 
+use crate::widgets::motion_state::MotionState;
+
 const POINTER_SETTLE_IDLE_DELAYS: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -162,8 +164,12 @@ impl TypingUnderCards {
     }
 
     #[must_use]
-    pub fn is_animating(&self, now: Instant) -> bool {
-        self.background_fading.is_animating(now)
+    pub fn background_motion(&self, now: Instant) -> MotionState {
+        if self.background_fading.is_animating(now) {
+            MotionState::Moving
+        } else {
+            MotionState::Settled
+        }
     }
 
     fn fade_level(&self, now: Instant, overlay_surfaces: &OverlaySurfacesConfig) -> f32 {

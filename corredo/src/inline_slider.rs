@@ -206,6 +206,12 @@ impl Default for SliderAccents<'_> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum KnobEngagement {
+    Engaged,
+    Resting,
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 struct PointerEngagement {
     hovered: bool,
@@ -229,8 +235,12 @@ impl PointerEngagement {
         }
     }
 
-    fn engaged(self) -> bool {
-        self.hovered || self.dragging
+    fn knob_engagement(self) -> KnobEngagement {
+        if self.hovered || self.dragging {
+            KnobEngagement::Engaged
+        } else {
+            KnobEngagement::Resting
+        }
     }
 }
 
@@ -307,16 +317,17 @@ impl<Message> Widget<Message, Theme, iced::Renderer> for SliderFace<'_> {
             bounds.x + (bounds.width - 2.0 * edge_inset) * fraction + edge_inset
         };
 
-        let engaged = engagement.engaged() || self.lagging_value.is_some();
-        let accent = if engaged {
-            (self.accents.engaged)(theme)
-        } else {
-            (self.accents.resting)(theme)
+        let knob_engagement = match self.lagging_value {
+            Some(_) => KnobEngagement::Engaged,
+            None => engagement.knob_engagement(),
         };
-        let knob_radius = if engaged {
-            geometry.engaged_knob_radius
-        } else {
-            geometry.resting_knob_radius
+        let (accent, knob_radius) = match knob_engagement {
+            KnobEngagement::Engaged => {
+                ((self.accents.engaged)(theme), geometry.engaged_knob_radius)
+            }
+            KnobEngagement::Resting => {
+                ((self.accents.resting)(theme), geometry.resting_knob_radius)
+            }
         };
 
         let rail_y = bounds.y + bounds.height / 2.0;

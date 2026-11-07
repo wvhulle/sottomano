@@ -1,6 +1,7 @@
 use chrono::{DateTime, TimeDelta, Utc};
-use sottomano_desktop_sources::weather::open_meteo_precipitation_model::{
-    ModelQuarterHour, PrecipitationModel,
+use sottomano_desktop_sources::weather::{
+    open_meteo_precipitation_model::{ModelQuarterHour, PrecipitationModel},
+    open_meteo_temperature::SkyWetness,
 };
 
 use crate::widgets::{icon_glyph::IconGlyph, weather_icons::WeatherIcon};
@@ -8,18 +9,16 @@ use crate::widgets::{icon_glyph::IconGlyph, weather_icons::WeatherIcon};
 pub const MODEL_QUARTER_HOUR: TimeDelta = TimeDelta::minutes(15);
 
 pub fn model_quarter_text(quarter: &ModelQuarterHour) -> String {
-    if quarter.condition.is_precipitation() {
-        quarter.condition.to_string()
-    } else {
-        "Dry".to_owned()
+    match quarter.condition.sky_wetness() {
+        SkyWetness::Precipitating => quarter.condition.to_string(),
+        SkyWetness::Dry => "Dry".to_owned(),
     }
 }
 
 pub fn model_quarter_glyph(quarter: &ModelQuarterHour, dry_glyph: IconGlyph) -> IconGlyph {
-    if quarter.condition.is_precipitation() {
-        WeatherIcon::Sky(quarter.condition, quarter.daylight).into()
-    } else {
-        dry_glyph
+    match quarter.condition.sky_wetness() {
+        SkyWetness::Precipitating => WeatherIcon::Sky(quarter.condition, quarter.daylight).into(),
+        SkyWetness::Dry => dry_glyph,
     }
 }
 

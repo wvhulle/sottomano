@@ -268,7 +268,7 @@ fn detected_cpu_sensors() -> Vec<ChosenSensors> {
     let chips = HwmonChip::all();
     let package_sensors: Vec<ChosenSensors> = chips
         .iter()
-        .filter(|chip| is_cpu_package_chip(chip))
+        .filter(|chip| CpuChipRole::from(*chip) == CpuChipRole::CpuPackage)
         .map(package_chip_sensors)
         .filter(|chosen| !chosen.sensors.is_empty())
         .collect();
@@ -277,7 +277,7 @@ fn detected_cpu_sensors() -> Vec<ChosenSensors> {
     }
     chips
         .into_iter()
-        .filter(is_soc_thermal_zone)
+        .filter(|chip| CpuChipRole::from(chip) == CpuChipRole::SocThermalZone)
         .map(|chip| ChosenSensors {
             sensors: chip.temperature_sensors(),
             chip,
@@ -285,16 +285,29 @@ fn detected_cpu_sensors() -> Vec<ChosenSensors> {
         .collect()
 }
 
-fn is_cpu_package_chip(chip: &HwmonChip) -> bool {
-    CPU_PACKAGE_CHIPS
-        .iter()
-        .any(|prefix| chip.name.starts_with(prefix))
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CpuChipRole {
+    CpuPackage,
+    SocThermalZone,
+    UnrelatedChip,
 }
 
-fn is_soc_thermal_zone(chip: &HwmonChip) -> bool {
-    SOC_THERMAL_ZONE_MARKERS
-        .iter()
-        .any(|marker| chip.name.contains(marker))
+impl From<&HwmonChip> for CpuChipRole {
+    fn from(chip: &HwmonChip) -> Self {
+        if CPU_PACKAGE_CHIPS
+            .iter()
+            .any(|prefix| chip.name.starts_with(prefix))
+        {
+            CpuChipRole::CpuPackage
+        } else if SOC_THERMAL_ZONE_MARKERS
+            .iter()
+            .any(|marker| chip.name.contains(marker))
+        {
+            CpuChipRole::SocThermalZone
+        } else {
+            CpuChipRole::UnrelatedChip
+        }
+    }
 }
 
 fn package_chip_sensors(chip: &HwmonChip) -> ChosenSensors {

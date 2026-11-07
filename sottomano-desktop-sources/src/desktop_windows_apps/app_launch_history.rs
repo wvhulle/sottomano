@@ -36,13 +36,6 @@ impl LaunchWorkspace {
             LaunchWorkspace::Named(stored_name)
         }
     }
-
-    fn is_named(&self, wanted_name: &str) -> bool {
-        match self {
-            LaunchWorkspace::Named(name) => name == wanted_name,
-            LaunchWorkspace::Unnamed => false,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -61,7 +54,10 @@ pub enum LaunchScope<'workspace> {
 impl LaunchScope<'_> {
     fn covers(self, launch: &Launch) -> bool {
         match self {
-            LaunchScope::NamedWorkspace(workspace) => launch.workspace.is_named(workspace),
+            LaunchScope::NamedWorkspace(wanted_name) => matches!(
+                &launch.workspace,
+                LaunchWorkspace::Named(workspace_name) if workspace_name == wanted_name
+            ),
             LaunchScope::EveryWorkspace => true,
         }
     }

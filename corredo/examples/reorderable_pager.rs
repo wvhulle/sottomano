@@ -1,8 +1,9 @@
 use corredo::{
     frame_style::FrameStyle,
     pointer_drag::{
-        DragEvent, DragOutcome, DragView, PointerDrag, SlotPress, advance_within_one_list,
-        draggable_slot::draggable_slot,
+        DragEvent, DragOutcome, DragView, MoveTracking, PointerDrag, SlotPress,
+        advance_within_one_list,
+        draggable_slot::{HoverReorder, draggable_slot},
         pointer_events,
         slot_pager::{PagerEdge, slot_pager},
     },
@@ -65,8 +66,14 @@ impl PagerDemo {
                 click: *slot,
             };
             let label = container(text(format!("Slot {slot}"))).padding(12);
-            let draggable: Element<'_, PagerMessage> =
-                draggable_slot(label, press, true, &drag_view, PagerMessage::Dragged).into();
+            let draggable: Element<'_, PagerMessage> = draggable_slot(
+                label,
+                press,
+                HoverReorder::ReordersOnHover,
+                &drag_view,
+                PagerMessage::Dragged,
+            )
+            .into();
             (*slot, draggable)
         });
         container(
@@ -80,7 +87,7 @@ impl PagerDemo {
     }
 
     fn subscription(&self) -> Subscription<PagerMessage> {
-        pointer_events(!self.drag.is_idle()).map(PagerMessage::Dragged)
+        pointer_events(MoveTracking::from(&self.drag)).map(PagerMessage::Dragged)
     }
 }
 

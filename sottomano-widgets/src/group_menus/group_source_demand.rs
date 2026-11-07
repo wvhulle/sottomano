@@ -1,5 +1,7 @@
 use iced::Subscription;
 
+use crate::widget_groups::widget_group_content::ExpansionState;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum GroupSurface {
     Hidden,
@@ -32,8 +34,10 @@ impl GroupSourceDemand {
     }
 
     #[must_use]
-    pub fn expanded_when(mut self, expanded: bool) -> Self {
-        if expanded && self.surface == GroupSurface::WidgetGroupFace {
+    pub fn expanded_when(mut self, expansion_state: ExpansionState) -> Self {
+        if expansion_state == ExpansionState::Expanded
+            && self.surface == GroupSurface::WidgetGroupFace
+        {
             self.surface = GroupSurface::AllRows;
         }
         self
@@ -70,7 +74,7 @@ fn subscription_when<M>(wanted: bool, subscription: Subscription<M>) -> Subscrip
 
 #[cfg(test)]
 mod tests {
-    use super::GroupSourceDemand;
+    use super::{ExpansionState, GroupSourceDemand};
 
     #[test]
     fn a_hidden_group_runs_no_reading() {
@@ -95,14 +99,15 @@ mod tests {
     fn an_expanded_panel_group_runs_every_row() {
         assert!(
             GroupSourceDemand::on_panel()
-                .expanded_when(true)
+                .expanded_when(ExpansionState::Expanded)
                 .shows_row_reading()
         );
     }
 
     #[test]
     fn expanding_is_ignored_while_the_group_is_hidden() {
-        let demand = GroupSourceDemand::in_menu(false, false, false).expanded_when(true);
+        let demand =
+            GroupSourceDemand::in_menu(false, false, false).expanded_when(ExpansionState::Expanded);
         assert!(!demand.shows_row_reading());
     }
 

@@ -43,10 +43,6 @@ impl LauncherEntry {
             urgent: props.flag("urgent"),
         }
     }
-
-    fn is_empty(&self) -> bool {
-        self.progress.is_none() && self.count.is_none() && !self.urgent
-    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -98,7 +94,7 @@ impl Registry {
         if let Some(sender) = sender {
             self.owners.entry(sender).or_default().insert(key.clone());
         }
-        if entry.is_empty() {
+        if entry == LauncherEntry::default() {
             return self.entries.by_app.remove(&key).is_some();
         }
         self.entries.by_app.insert(key, entry.clone()) != Some(entry)

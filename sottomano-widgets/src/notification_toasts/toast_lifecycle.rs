@@ -20,6 +20,7 @@ use crate::{
     widgets::{
         announced_level::LevelReading,
         icon_glyph::IconGlyph,
+        motion_state::MotionState,
         ongoing_toast::{OngoingKey, OngoingToast},
     },
 };
@@ -65,6 +66,12 @@ pub enum EventSource {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToastPresence {
+    Shown,
+    Withdrawing,
+}
+
 pub enum ToastKind<Routed> {
     Event {
         at: SystemTime,
@@ -78,16 +85,6 @@ pub enum ToastKind<Routed> {
 }
 
 impl<Routed> ToastKind<Routed> {
-    pub(super) fn is_from_dbus_client(&self) -> bool {
-        matches!(
-            self,
-            Self::Event {
-                source: EventSource::DbusClient,
-                ..
-            }
-        )
-    }
-
     pub(super) fn glyph(&self) -> Option<IconGlyph> {
         match self {
             Self::Event {
@@ -260,7 +257,13 @@ impl<Routed> Notification<Routed> {
     }
 
     pub(super) fn sent_by_dbus_client(&self) -> bool {
-        self.kind.is_from_dbus_client()
+        matches!(
+            self.kind,
+            ToastKind::Event {
+                source: EventSource::DbusClient,
+                ..
+            }
+        )
     }
 
     pub(super) fn withdraw(&mut self, now: Instant, pace: ExitPace, config: &Config) {
@@ -270,16 +273,24 @@ impl<Routed> Notification<Routed> {
         self.slot = collapsing_after_fade(now, fade);
     }
 
-    pub(super) fn is_withdrawing(&self) -> bool {
-        !self.visibility.value()
+    pub(super) fn presence(&self) -> ToastPresence {
+        if self.visibility.value() {
+            ToastPresence::Shown
+        } else {
+            ToastPresence::Withdrawing
+        }
     }
 
     pub(super) fn has_faded(&self, now: Instant) -> bool {
         !self.slot.value() && !self.slot.is_animating(now)
     }
 
-    pub(super) fn is_animating(&self, now: Instant) -> bool {
-        self.visibility.is_animating(now) || self.slot.is_animating(now)
+    pub(super) fn motion(&self, now: Instant) -> MotionState {
+        if self.visibility.is_animating(now) || self.slot.is_animating(now) {
+            MotionState::Moving
+        } else {
+            MotionState::Settled
+        }
     }
 
     pub fn opacity(&self, now: Instant) -> f32 {

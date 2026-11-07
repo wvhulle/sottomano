@@ -13,7 +13,8 @@ use iced::{
 use crate::{
     group_menus::group_menu_state::GroupMenuPin,
     hover_cards::{
-        CardOpening, HoverAnnouncement, HoverCardMessage, HoverTarget, PressHints, WidgetAnchor,
+        CardOpening, HandlePointing, HoverAnnouncement, HoverCardMessage, HoverTarget, PressHints,
+        WidgetAnchor,
     },
 };
 
@@ -104,7 +105,7 @@ impl<M> HoverArea<'_, M> {
                 },
                 CardOpening::OnPress => HoverCardMessage::MenuHandlePointedAnchor {
                     target: replaced.target,
-                    pointed_at: false,
+                    pointing: HandlePointing::NotPointedAt,
                     announcement: replaced.announced,
                 },
             })
@@ -144,10 +145,10 @@ impl<M> HoverArea<'_, M> {
         })
     }
 
-    fn menu_handle_pointed(&self, pointed_at: bool) -> M {
+    fn menu_handle_pointed(&self, pointing: HandlePointing) -> M {
         (self.wrap)(HoverCardMessage::MenuHandlePointedAnchor {
             target: self.target.clone(),
-            pointed_at,
+            pointing,
             announcement: self.announcement.clone(),
         })
     }
@@ -183,9 +184,13 @@ impl<M> HoverArea<'_, M> {
         state.hovered = hovered;
         match (hovered, self.opening) {
             (true, CardOpening::OnHover) => Some(self.enter(state)),
-            (true, CardOpening::OnPress) => Some(self.menu_handle_pointed(true)),
+            (true, CardOpening::OnPress) => {
+                Some(self.menu_handle_pointed(HandlePointing::PointedAt))
+            }
             (false, CardOpening::OnHover) => Some(self.exit()),
-            (false, CardOpening::OnPress) => Some(self.menu_handle_pointed(false)),
+            (false, CardOpening::OnPress) => {
+                Some(self.menu_handle_pointed(HandlePointing::NotPointedAt))
+            }
         }
     }
 }
@@ -494,7 +499,7 @@ mod tests {
 
     use super::{HoverArea, HoverState, announcing_hoverable, press_toggled_hoverable};
     use crate::hover_cards::{
-        CardOpening, HoverAnnouncement, HoverCardMessage, HoverTarget, WidgetAnchor,
+        CardOpening, HandlePointing, HoverAnnouncement, HoverCardMessage, HoverTarget, WidgetAnchor,
     };
 
     const INSIDE_AREA: Point = Point::new(10.0, 10.0);
@@ -548,7 +553,7 @@ mod tests {
                 [
                     HoverCardMessage::AnchorLaidOut(..),
                     HoverCardMessage::MenuHandlePointedAnchor {
-                        pointed_at: true,
+                        pointing: HandlePointing::PointedAt,
                         ..
                     }
                 ]
@@ -695,7 +700,7 @@ mod tests {
             second.exit_of_replaced_target(&mut hovered),
             Some(HoverCardMessage::MenuHandlePointedAnchor {
                 target: HoverTarget::Workspace(7),
-                pointed_at: false,
+                pointing: HandlePointing::NotPointedAt,
                 ..
             })
         ));

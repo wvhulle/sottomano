@@ -258,7 +258,7 @@ impl<'a> HoverCardContent<'a> {
         closing_delivery_state: Option<SectionsDeliveryState>,
     ) -> Element<'static, PopupMessage> {
         let press_hints = self.hover_card.announcement.press_hints;
-        let hints = (!press_hints.is_empty()).then(|| self.gesture_hints(press_hints));
+        let hints = (press_hints != PressHints::default()).then(|| self.gesture_hints(press_hints));
         self.footer_row(
             hints,
             closing_delivery_state.map(|delivery_state| self.delivery_state_view(delivery_state)),

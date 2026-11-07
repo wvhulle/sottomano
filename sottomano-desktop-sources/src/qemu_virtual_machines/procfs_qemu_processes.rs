@@ -8,7 +8,7 @@ use std::{
 use procfs::{CurrentSI, KernelStats, process::all_processes, ticks_per_second};
 
 use crate::{
-    qemu_virtual_machines::qemu_command_line_arguments::is_qemu_command_line,
+    qemu_virtual_machines::qemu_command_line_arguments::LaunchedProgram,
     system_protocol_clients::procfs_process_tree::{ProcessSample, ProcessTable},
 };
 
@@ -62,7 +62,7 @@ pub(crate) fn scanned_qemu_processes() -> QemuProcessScan {
         let Ok(command_line) = process.cmdline() else {
             continue;
         };
-        if !is_qemu_command_line(&command_line) {
+        if LaunchedProgram::from(command_line.as_slice()) != LaunchedProgram::QemuEmulator {
             continue;
         }
         let Ok(owner_uid) = process.uid() else {

@@ -2,7 +2,7 @@ use iced::{Element, border::Radius, time::Duration};
 use sottomano_toml_config::Config;
 
 use crate::{
-    desktop_panels::panel_frame::FrameStyle,
+    desktop_panels::{panel_frame::FrameStyle, region_reporter::BackdropBlur},
     group_menus::{
         cascading_layout::{
             cascade_row::{CascadeDirection, CascadeOrientation},
@@ -19,16 +19,16 @@ use crate::{
 #[derive(Clone, Copy)]
 struct PanelSurface {
     frame: FrameStyle,
-    blurred: bool,
+    backdrop_blur: BackdropBlur,
 }
 
 pub(crate) struct CascadeSatellitePanels {
     notch_side: NotchSide,
     pub growth: PanelGrowth,
     list_frame: FrameStyle,
-    list_blurred: bool,
+    list_backdrop_blur: BackdropBlur,
     card_frame: FrameStyle,
-    card_blurred: bool,
+    card_backdrop_blur: BackdropBlur,
     morph: Duration,
     pub frame_corners: Radius,
     notch_depth: f32,
@@ -48,9 +48,9 @@ impl CascadeSatellitePanels {
                 CascadeDirection::Leftward => NotchSide::Right,
             },
             list_frame: menu_appearance.frame_style(),
-            list_blurred: menu_appearance.blurred,
+            list_backdrop_blur: menu_appearance.backdrop_blur,
             card_frame: card_appearance.frame_style(),
-            card_blurred: card_appearance.blurred,
+            card_backdrop_blur: card_appearance.backdrop_blur,
             morph: config.overlay_surfaces.surface_morph_duration,
             frame_corners: Radius::from(menu_appearance.corner_radius_px),
             notch_depth: config.theme.spacing.group_gap,
@@ -72,7 +72,7 @@ impl CascadeSatellitePanels {
             content,
             PanelSurface {
                 frame: self.card_frame,
-                blurred: self.card_blurred,
+                backdrop_blur: self.card_backdrop_blur,
             },
             NotchRowAnchor::FromPrimaryTop(row_top),
             ResolvedPanelTop::default(),
@@ -91,7 +91,7 @@ impl CascadeSatellitePanels {
             item_list,
             PanelSurface {
                 frame: self.list_frame,
-                blurred: self.list_blurred,
+                backdrop_blur: self.list_backdrop_blur,
             },
             NotchRowAnchor::FromPrimaryTop(row_top),
             list_top,
@@ -110,7 +110,7 @@ impl CascadeSatellitePanels {
             card,
             PanelSurface {
                 frame: self.card_frame,
-                blurred: self.card_blurred,
+                backdrop_blur: self.card_backdrop_blur,
             },
             NotchRowAnchor::WithinPanel {
                 panel_top: list_top,
@@ -131,7 +131,7 @@ impl CascadeSatellitePanels {
         notched_panel(
             content,
             surface.frame,
-            surface.blurred,
+            surface.backdrop_blur,
             NotchPlacement {
                 side: self.notch_side,
                 growth: self.growth,

@@ -85,13 +85,6 @@ pub struct AllergenConcentration {
     pub grains_per_cubic_metre: f64,
 }
 
-impl AllergenConcentration {
-    #[must_use]
-    pub fn is_airborne(&self) -> bool {
-        self.grains_per_cubic_metre > 0.0
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Pollen {
     pub concentrations: Vec<AllergenConcentration>,
@@ -122,7 +115,7 @@ impl Pollen {
     pub fn airborne(&self) -> impl Iterator<Item = &AllergenConcentration> {
         self.concentrations
             .iter()
-            .filter(|concentration| concentration.is_airborne())
+            .filter(|concentration| concentration.grains_per_cubic_metre > 0.0)
     }
 }
 

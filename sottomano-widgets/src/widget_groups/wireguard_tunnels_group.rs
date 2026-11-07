@@ -156,16 +156,18 @@ impl WireguardTunnelsGroup {
             &self.expansion,
             WireguardTunnelsMessage::Expansion,
             self.listed_tunnels().map(move |tunnel| {
-                wireguard_tunnel_item(
+                let tunnel_item = wireguard_tunnel_item(
                     tunnel,
                     WireguardTunnelTarget {
                         interface: Cow::Owned(tunnel.interface.clone()),
                     },
                     WireguardTunnelsMessage::SwitchTunnel,
-                )
-                .previewed_on_handle_if(
-                    previewed_tunnel_interface == Some(tunnel.interface.as_str()),
-                )
+                );
+                if previewed_tunnel_interface == Some(tunnel.interface.as_str()) {
+                    tunnel_item.previewed_on_handle()
+                } else {
+                    tunnel_item
+                }
             }),
         )
         .face(WidgetGroupFace::Icon {

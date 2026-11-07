@@ -16,9 +16,25 @@ pub enum FrameBackground {
     Weak,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShadowCasting {
+    Cast,
+    Omitted,
+}
+
+impl ShadowCasting {
+    #[must_use]
+    pub const fn toggled(self) -> Self {
+        match self {
+            ShadowCasting::Cast => ShadowCasting::Omitted,
+            ShadowCasting::Omitted => ShadowCasting::Cast,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ShadowStyle {
-    pub cast: bool,
+    pub casting: ShadowCasting,
     pub softness_px: f32,
     pub opacity: f32,
 }
@@ -26,23 +42,39 @@ pub struct ShadowStyle {
 impl Default for ShadowStyle {
     fn default() -> Self {
         Self {
-            cast: true,
+            casting: ShadowCasting::Cast,
             softness_px: 20.0,
             opacity: 0.3,
         }
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutlineTracing {
+    Drawn,
+    Omitted,
+}
+
+impl OutlineTracing {
+    #[must_use]
+    pub const fn toggled(self) -> Self {
+        match self {
+            OutlineTracing::Drawn => OutlineTracing::Omitted,
+            OutlineTracing::Omitted => OutlineTracing::Drawn,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct OutlineStyle {
-    pub drawn: bool,
+    pub tracing: OutlineTracing,
     pub opacity: f32,
 }
 
 impl Default for OutlineStyle {
     fn default() -> Self {
         Self {
-            drawn: true,
+            tracing: OutlineTracing::Drawn,
             opacity: 1.0,
         }
     }
@@ -111,34 +143,33 @@ impl FrameStyle {
 
     #[must_use]
     pub fn outline_border(self, theme: &Theme) -> Border {
-        if !self.outline.drawn {
-            return Border::default();
-        }
-        Border {
-            color: background_strong_color(theme).scale_alpha(self.outline.opacity),
-            width: self.outline_width_px,
-            radius: Radius::default(),
+        match self.outline.tracing {
+            OutlineTracing::Drawn => Border {
+                color: background_strong_color(theme).scale_alpha(self.outline.opacity),
+                width: self.outline_width_px,
+                radius: Radius::default(),
+            },
+            OutlineTracing::Omitted => Border::default(),
         }
     }
 
     #[must_use]
     pub fn outline_width(self) -> f32 {
-        if self.outline.drawn {
-            self.outline_width_px
-        } else {
-            0.0
+        match self.outline.tracing {
+            OutlineTracing::Drawn => self.outline_width_px,
+            OutlineTracing::Omitted => 0.0,
         }
     }
 
     #[must_use]
     pub fn drop_shadow(self) -> Shadow {
-        if !self.shadow.cast {
-            return Shadow::default();
-        }
-        Shadow {
-            color: Color::BLACK.scale_alpha(self.shadow.opacity),
-            offset: Vector::ZERO,
-            blur_radius: self.shadow.softness_px,
+        match self.shadow.casting {
+            ShadowCasting::Cast => Shadow {
+                color: Color::BLACK.scale_alpha(self.shadow.opacity),
+                offset: Vector::ZERO,
+                blur_radius: self.shadow.softness_px,
+            },
+            ShadowCasting::Omitted => Shadow::default(),
         }
     }
 

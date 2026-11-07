@@ -7,7 +7,7 @@ use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     desktop_panels::{
         panel_frame::{outlined_sides_inward_of, panel_frame},
-        region_reporter::{RegionRoles, region_reporter},
+        region_reporter::{PointerInput, RegionRoles, region_reporter},
     },
     widget_groups::{
         sidebar_settings_group::WorkspacesPlacement, workspaces_group::sidebar_column,
@@ -50,13 +50,13 @@ impl DesktopShell {
             .map(|workspaces| {
                 panel_frame(container(workspaces.map(Message::from)), frame_style)
                     .outlined_sides(outlined_sides)
-                    .blurred(sidebar.blurred)
+                    .backdrop_blur(sidebar.backdrop_blur)
                     .into()
             });
         region_reporter(
             Column::with_children(framed_workspaces),
             RegionRoles {
-                takes_input: true,
+                pointer_input: PointerInput::Accepted,
                 ..RegionRoles::default()
             },
         )

@@ -9,6 +9,7 @@ use sottomano_widgets::{
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuTopic},
     widget_groups::app_launcher_group::{
         AppLaunchUsage, AppLauncherGroup, FrequentApp, FrequentAppScope, OutputFrequentApps,
+        WorkspaceWindowPresence,
     },
 };
 
@@ -288,7 +289,11 @@ fn frequent_apps(open_windows: &HashMap<String, OpenAppWindows>) -> Vec<Frequent
         .filter_map(|app_id| CATALOG.iter().find(|app| app.app_id == *app_id))
         .map(|app| FrequentApp {
             app: launchable_app(app),
-            open_on_workspace: open_windows.contains_key(app.app_id),
+            window_presence: if open_windows.contains_key(app.app_id) {
+                WorkspaceWindowPresence::Open
+            } else {
+                WorkspaceWindowPresence::Absent
+            },
         })
         .collect()
 }

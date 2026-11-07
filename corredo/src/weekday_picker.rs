@@ -17,9 +17,15 @@ const A_MONDAY: NaiveDate = NaiveDate::from_ymd_opt(2024, 1, 1).expect("valid da
 
 const DEFAULT_SPACING_PX: f32 = 6.0;
 
-type DayColor<'a> = Rc<dyn Fn(bool, &Theme) -> Color + 'a>;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DaySelection {
+    Chosen,
+    Unchosen,
+}
+
+type DayColor<'a> = Rc<dyn Fn(DaySelection, &Theme) -> Color + 'a>;
 type DayWrapper<'a, Message> =
-    Box<dyn Fn(Weekday, bool, Element<'a, Message>) -> Element<'a, Message> + 'a>;
+    Box<dyn Fn(Weekday, DaySelection, Element<'a, Message>) -> Element<'a, Message> + 'a>;
 
 pub struct WeekdayPicker<'a, Message> {
     chosen: WeekdaySet,
@@ -43,12 +49,9 @@ pub fn weekday_picker<'a, Message: Clone + 'a>(
         faces: FontFaces::from(Family::SansSerif),
         spacing_px: DEFAULT_SPACING_PX,
         locale: Locale::POSIX,
-        day_color: Rc::new(|is_chosen, theme| {
-            if is_chosen {
-                primary_color(theme)
-            } else {
-                secondary_text_color(theme)
-            }
+        day_color: Rc::new(|day_selection, theme| match day_selection {
+            DaySelection::Chosen => primary_color(theme),
+            DaySelection::Unchosen => secondary_text_color(theme),
         }),
         wrap_day: Box::new(|_, _, day_button| day_button),
     }
@@ -75,7 +78,7 @@ impl<'a, Message> WeekdayPicker<'a, Message> {
     }
 
     #[must_use]
-    pub fn day_color(self, day_color: impl Fn(bool, &Theme) -> Color + 'a) -> Self {
+    pub fn day_color(self, day_color: impl Fn(DaySelection, &Theme) -> Color + 'a) -> Self {
         Self {
             day_color: Rc::new(day_color),
             ..self
@@ -85,7 +88,7 @@ impl<'a, Message> WeekdayPicker<'a, Message> {
     #[must_use]
     pub fn wrap_day(
         self,
-        wrap_day: impl Fn(Weekday, bool, Element<'a, Message>) -> Element<'a, Message> + 'a,
+        wrap_day: impl Fn(Weekday, DaySelection, Element<'a, Message>) -> Element<'a, Message> + 'a,
     ) -> Self {
         Self {
             wrap_day: Box::new(wrap_day),
@@ -97,26 +100,29 @@ impl<'a, Message> WeekdayPicker<'a, Message> {
 impl<'a, Message: Clone + 'a> From<WeekdayPicker<'a, Message>> for Element<'a, Message> {
     fn from(picker: WeekdayPicker<'a, Message>) -> Self {
         Row::with_children(WeekdaySet::ALL.iter(Weekday::Mon).map(|day| {
-            let is_chosen = picker.chosen.contains(day);
+            let day_selection = if picker.chosen.contains(day) {
+                DaySelection::Chosen
+            } else {
+                DaySelection::Unchosen
+            };
             let text_color = Rc::clone(&picker.day_color);
             let button_color = Rc::clone(&picker.day_color);
             let initial = picker
                 .face
                 .text(weekday_initial(day, picker.locale))
-                .font(if is_chosen {
-                    picker.faces.bold
-                } else {
-                    picker.faces.regular
+                .font(match day_selection {
+                    DaySelection::Chosen => picker.faces.bold,
+                    DaySelection::Unchosen => picker.faces.regular,
                 })
                 .style(move |theme| text::Style {
-                    color: Some(text_color(is_chosen, theme)),
+                    color: Some(text_color(day_selection, theme)),
                 });
             (picker.wrap_day)(
                 day,
-                is_chosen,
+                day_selection,
                 button(initial)
                     .padding(0)
-                    .style(flat_button(move |theme| button_color(is_chosen, theme)))
+                    .style(flat_button(move |theme| button_color(day_selection, theme)))
                     .on_press((picker.on_toggle)(day))
                     .into(),
             )

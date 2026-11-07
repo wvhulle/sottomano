@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 
-use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, with_table};
+use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, in_table, with_table};
+
+use crate::group_menus::group_menu_state::MenuPinState;
 
 pub const CREATE_GROUP_PINS_TABLE: &str = "CREATE TABLE IF NOT EXISTS pinned_widget_groups (
     menu_topic TEXT NOT NULL,
@@ -44,14 +46,11 @@ pub async fn load() -> BTreeSet<StoredGroupMenuPin> {
     .unwrap_or_default()
 }
 
-pub async fn save(pin: StoredGroupMenuPin, pinned: bool) -> bool {
-    with_table(
-        "group menu pins: save failed",
-        &CREATE_PIN_TABLES,
-        async |connection| write_pin(connection, &pin, pinned).await,
-    )
+pub async fn save(pin: StoredGroupMenuPin, pin_state: MenuPinState) -> Result<(), StoreError> {
+    in_table(&CREATE_PIN_TABLES, async |connection| {
+        write_pin(connection, &pin, pin_state).await
+    })
     .await
-    .is_some()
 }
 
 async fn read_pins(
@@ -93,7 +92,7 @@ async fn read_pins(
 async fn write_pin(
     connection: &turso::Connection,
     pin: &StoredGroupMenuPin,
-    pinned: bool,
+    pin_state: MenuPinState,
 ) -> Result<(), StoreError> {
     match pin {
         StoredGroupMenuPin::Group {
@@ -101,12 +100,15 @@ async fn write_pin(
             group_family,
             group_instance,
         } => {
-            let statement = if pinned {
-                "INSERT INTO pinned_widget_groups (menu_topic, group_family, group_instance) \
-                 VALUES (?1, ?2, ?3) ON CONFLICT DO NOTHING"
-            } else {
-                "DELETE FROM pinned_widget_groups WHERE menu_topic = ?1 AND group_family = ?2 AND \
-                 group_instance = ?3"
+            let statement = match pin_state {
+                MenuPinState::Pinned => {
+                    "INSERT INTO pinned_widget_groups (menu_topic, group_family, group_instance) \
+                     VALUES (?1, ?2, ?3) ON CONFLICT DO NOTHING"
+                }
+                MenuPinState::Unpinned => {
+                    "DELETE FROM pinned_widget_groups WHERE menu_topic = ?1 AND group_family = ?2 \
+                     AND group_instance = ?3"
+                }
             };
             connection
                 .execute(
@@ -125,12 +127,15 @@ async fn write_pin(
             group_instance,
             item_key,
         } => {
-            let statement = if pinned {
-                "INSERT INTO pinned_group_items (menu_topic, group_family, group_instance, \
-                 item_key) VALUES (?1, ?2, ?3, ?4) ON CONFLICT DO NOTHING"
-            } else {
-                "DELETE FROM pinned_group_items WHERE menu_topic = ?1 AND group_family = ?2 AND \
-                 group_instance = ?3 AND item_key = ?4"
+            let statement = match pin_state {
+                MenuPinState::Pinned => {
+                    "INSERT INTO pinned_group_items (menu_topic, group_family, group_instance, \
+                     item_key) VALUES (?1, ?2, ?3, ?4) ON CONFLICT DO NOTHING"
+                }
+                MenuPinState::Unpinned => {
+                    "DELETE FROM pinned_group_items WHERE menu_topic = ?1 AND group_family = ?2 \
+                     AND group_instance = ?3 AND item_key = ?4"
+                }
             };
             connection
                 .execute(
@@ -152,7 +157,7 @@ async fn write_pin(
 mod tests {
     use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
 
-    use super::{CREATE_PIN_TABLES, StoredGroupMenuPin, read_pins, write_pin};
+    use super::{CREATE_PIN_TABLES, MenuPinState, StoredGroupMenuPin, read_pins, write_pin};
 
     fn gpu_in_hardware() -> StoredGroupMenuPin {
         StoredGroupMenuPin::Group {
@@ -174,10 +179,10 @@ mod tests {
     #[tokio::test]
     async fn a_pin_survives_a_round_trip() {
         let connection = in_memory_connection(&CREATE_PIN_TABLES).await;
-        write_pin(&connection, &gpu_in_hardware(), true)
+        write_pin(&connection, &gpu_in_hardware(), MenuPinState::Pinned)
             .await
             .unwrap();
-        write_pin(&connection, &gpu_in_hardware(), true)
+        write_pin(&connection, &gpu_in_hardware(), MenuPinState::Pinned)
             .await
             .unwrap();
         let pins = read_pins(&connection).await.unwrap();
@@ -187,10 +192,10 @@ mod tests {
     #[tokio::test]
     async fn unpinning_removes_the_stored_pin() {
         let connection = in_memory_connection(&CREATE_PIN_TABLES).await;
-        write_pin(&connection, &gpu_in_hardware(), true)
+        write_pin(&connection, &gpu_in_hardware(), MenuPinState::Pinned)
             .await
             .unwrap();
-        write_pin(&connection, &gpu_in_hardware(), false)
+        write_pin(&connection, &gpu_in_hardware(), MenuPinState::Unpinned)
             .await
             .unwrap();
         assert!(read_pins(&connection).await.unwrap().is_empty());
@@ -199,13 +204,13 @@ mod tests {
     #[tokio::test]
     async fn item_and_group_pins_of_one_group_coexist() {
         let connection = in_memory_connection(&CREATE_PIN_TABLES).await;
-        write_pin(&connection, &gpu_load_in_hardware(), true)
+        write_pin(&connection, &gpu_load_in_hardware(), MenuPinState::Pinned)
             .await
             .unwrap();
-        write_pin(&connection, &gpu_in_hardware(), true)
+        write_pin(&connection, &gpu_in_hardware(), MenuPinState::Pinned)
             .await
             .unwrap();
-        write_pin(&connection, &gpu_in_hardware(), false)
+        write_pin(&connection, &gpu_in_hardware(), MenuPinState::Unpinned)
             .await
             .unwrap();
         let pins = read_pins(&connection).await.unwrap();

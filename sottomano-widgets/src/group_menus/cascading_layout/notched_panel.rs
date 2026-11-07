@@ -16,9 +16,12 @@ use iced::{
 };
 
 use crate::{
-    desktop_panels::{panel_frame::FrameStyle, region_reporter::RegionRoles},
+    desktop_panels::{
+        panel_frame::FrameStyle,
+        region_reporter::{BackdropBlur, PointerInput, RegionRoles},
+    },
     hover_cards::popup_connector::{ConnectorSide, ConnectorTriangle, FramedSurface},
-    widgets::rectangle_morph::RectangleMorph,
+    widgets::{motion_state::MotionState, rectangle_morph::RectangleMorph},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,7 +97,7 @@ pub struct NotchedPanel<'a, Message> {
     content: Element<'a, Message>,
     frame: FrameStyle,
     corner_radius: f32,
-    blurred: bool,
+    backdrop_blur: BackdropBlur,
     placement: NotchPlacement,
     row_top: f32,
     morph: Duration,
@@ -104,7 +107,7 @@ pub struct NotchedPanel<'a, Message> {
 pub fn notched_panel<'a, Message: 'a>(
     content: Element<'a, Message>,
     frame: FrameStyle,
-    blurred: bool,
+    backdrop_blur: BackdropBlur,
     placement: NotchPlacement,
     morph: Duration,
 ) -> Element<'a, Message> {
@@ -112,7 +115,7 @@ pub fn notched_panel<'a, Message: 'a>(
         content,
         corner_radius: frame.corner_radius().top_left,
         frame,
-        blurred,
+        backdrop_blur,
         row_top: placement.row.row_top(),
         placement,
         morph,
@@ -316,14 +319,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
             .connector(panel, origin)
             .surface_rows(panel, self.panel_corners());
         RegionRoles {
-            takes_input: false,
-            blurred: self.blurred,
+            pointer_input: PointerInput::PassedThrough,
+            backdrop_blur: self.backdrop_blur,
             corner_radius: Radius::default(),
         }
         .report(&drawn_surface, layout.bounds(), operation);
         RegionRoles {
-            takes_input: true,
-            blurred: false,
+            pointer_input: PointerInput::Accepted,
+            backdrop_blur: BackdropBlur::Clear,
             corner_radius: Radius::default(),
         }
         .report(&[self.panel_with_gap(panel)], layout.bounds(), operation);
@@ -367,7 +370,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
             panel_morph.morph.begin(panel_morph.laid_out_folded);
         }
         panel_morph.morph.tick(*now, self.morph);
-        if !panel_morph.morph.is_settled() {
+        if panel_morph.morph.motion_state() == MotionState::Moving {
             shell.invalidate_layout();
             shell.request_redraw();
         }

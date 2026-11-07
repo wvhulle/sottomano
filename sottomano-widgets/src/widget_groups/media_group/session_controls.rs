@@ -7,7 +7,7 @@ use crate::{
     hover_cards::{HoverCardMessage, PressHints, hoverable},
     widget_groups::media_group::{
         MediaTarget, PlayerTarget,
-        confirm_button::{ConfirmButton, configured_confirm_button},
+        confirm_button::{ConfirmButton, ConfirmStage, configured_confirm_button},
     },
     widgets::{
         glyph_button,
@@ -96,10 +96,9 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
                 ),
                 PlayerTarget::of(&self.media.bus, MediaTarget::Quit).into(),
                 PressHints {
-                    left: Some(if self.quit_button.is_armed() {
-                        "confirm quitting the player"
-                    } else {
-                        "quit the player"
+                    left: Some(match self.quit_button.stage() {
+                        ConfirmStage::Armed => "confirm quitting the player",
+                        ConfirmStage::Idle => "quit the player",
                     }),
                     ..PressHints::default()
                 },
@@ -110,10 +109,6 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
 
     fn stoppable(&self) -> bool {
         self.media.capabilities.stop && self.media.status != Status::Stopped
-    }
-
-    pub fn is_empty(&self) -> bool {
-        !self.stoppable() && !self.media.capabilities.quit
     }
 }
 

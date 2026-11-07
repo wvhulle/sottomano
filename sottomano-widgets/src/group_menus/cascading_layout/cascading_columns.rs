@@ -14,7 +14,7 @@ use crate::{
     },
     hover_cards::PopupMessage,
     widget_groups::{
-        widget_group_content::{GroupEvent, GroupMenuItemRow},
+        widget_group_content::{GroupEvent, GroupMenuItemRow, RowInspection},
         widget_group_identity::WidgetGroupIdentity,
     },
     widgets::{
@@ -57,7 +57,11 @@ pub(crate) fn cascading_columns<'a, M: Clone + From<GroupEvent<M>> + From<PopupM
         ListEndCorners::new(entries.len(), layout.cascade_satellite_panels.frame_corners);
     let group_rows = entries.into_iter().enumerate().map(|(position, entry)| {
         let look = MenuRowLook {
-            emphasis: MenuRowEmphasis::selected_when(open_position == Some(position)),
+            emphasis: if open_position == Some(position) {
+                MenuRowEmphasis::Selected
+            } else {
+                MenuRowEmphasis::Plain
+            },
             corners: group_corners.radius_at(position),
         };
         group_row(layout, entry, look)
@@ -96,7 +100,7 @@ fn open_group_satellites<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage>
     let inspected_target = layout.group_menus.inspected_target(layout.menu.topic);
     let card_position = items
         .iter()
-        .position(|item| item.is_inspected(inspected_target));
+        .position(|item| item.inspection(inspected_target) == RowInspection::Inspected);
     let item_corners = layout.cascade_satellite_panels.frame_corners;
     let item_list = item_menu(
         layout,

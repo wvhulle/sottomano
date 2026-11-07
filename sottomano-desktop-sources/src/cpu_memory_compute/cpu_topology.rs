@@ -242,10 +242,6 @@ impl CoreDesign {
             .unwrap_or_default()
     }
 
-    fn is_exposed(&self) -> bool {
-        !matches!(self, CoreDesign::NotExposed)
-    }
-
     fn arm_part(&self) -> Option<&str> {
         match self {
             CoreDesign::ArmCorePart { part, .. } => Some(part),
@@ -268,7 +264,7 @@ struct AssignedCpu<'a> {
 }
 
 fn designs_tell_cores_apart(cpus: &[LogicalCpu]) -> bool {
-    let all_exposed = cpus.iter().all(|cpu| cpu.design.is_exposed());
+    let all_exposed = cpus.iter().all(|cpu| cpu.design != CoreDesign::NotExposed);
     let first_design = cpus.first().map(|cpu| &cpu.design);
     let mixed =
         first_design.is_some_and(|first| cpus.iter().any(|cpu| !cpu.design.same_design_as(first)));

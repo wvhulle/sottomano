@@ -85,29 +85,29 @@ typing_idle_delay = "750ms"
 typing_background_opacity = 0.3
 
 [widget_groups.window]
-audio_indicator = true
-progress = true
-count_badge = true
+audio_indicator = "shown"
+progress = "shown"
+count_badge = "shown"
 nixpkgs_branch = "nixpkgs-unstable"
 maximum_window_title_width = "200px"
 
 [widget_groups.window.agents]
-kitty = true
-wezterm = true
-pty_shells = true
+kitty = "enabled"
+wezterm = "enabled"
+pty_shells = "enabled"
 
 [widget_groups.workspaces]
 preview_scale = 0.19
 
 [widget_groups.tray.items.Signal_status_icon_1]
-hide_icon = false
+icon = "shown"
 left_click = "focus_app_window"
 middle_click = "secondary_activate_item"
 right_click = "ignore"
 window_app_id = "signal"
 
 [widget_groups.tray.items.spotify-client]
-hide_icon = false
+icon = "shown"
 left_click = "focus_app_window"
 middle_click = "secondary_activate_item"
 right_click = "ignore"
@@ -209,7 +209,7 @@ push_safety_recheck_interval = "15m"
 subscription_download_interval = "15m"
 
 [widget_groups.media.lyrics]
-lrclib_lookup = true
+lrclib_lookup = "enabled"
 
 [notification_toasts.placement]
 fallback_corner = "bottom-right"

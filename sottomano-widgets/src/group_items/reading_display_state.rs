@@ -145,16 +145,6 @@ impl From<LoopMode> for ReadingDisplayState {
     }
 }
 
-impl From<bool> for ReadingDisplayState {
-    fn from(on: bool) -> Self {
-        if on {
-            ReadingDisplayState::On
-        } else {
-            ReadingDisplayState::Off
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ReadingStateTint {
     pub state: ReadingDisplayState,
@@ -266,11 +256,5 @@ mod tests {
             ReadingDisplayState::Critical.weight(),
             ReadingDisplayState::On.weight()
         );
-    }
-
-    #[test]
-    fn toggles_map_to_on_and_off() {
-        assert_eq!(ReadingDisplayState::from(true), ReadingDisplayState::On);
-        assert_eq!(ReadingDisplayState::from(false), ReadingDisplayState::Off);
     }
 }

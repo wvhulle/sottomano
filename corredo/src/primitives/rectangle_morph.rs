@@ -6,6 +6,8 @@ use iced::{
     time::{Duration, Instant},
 };
 
+use super::motion_state::MotionState;
+
 enum MorphPhase {
     Settled,
     AwaitingFrame,
@@ -64,8 +66,12 @@ impl RectangleMorph {
     }
 
     #[must_use]
-    pub fn is_settled(&self) -> bool {
-        self.progress() >= 1.0
+    pub fn motion_state(&self) -> MotionState {
+        if self.progress() >= 1.0 {
+            MotionState::Settled
+        } else {
+            MotionState::Moving
+        }
     }
 
     pub fn follow(&mut self, target: Rectangle) -> Rectangle {
@@ -97,7 +103,7 @@ mod tests {
         time::{Duration, Instant},
     };
 
-    use super::RectangleMorph;
+    use super::{MotionState, RectangleMorph};
 
     #[test]
     fn a_fresh_morph_starts_from_the_collapsed_rectangle() {
@@ -106,7 +112,7 @@ mod tests {
         let mut morph = RectangleMorph::default();
         morph.begin(collapsed);
         assert_eq!(morph.follow(target), collapsed);
-        assert!(!morph.is_settled());
+        assert_eq!(morph.motion_state(), MotionState::Moving);
     }
 
     #[test]
@@ -119,6 +125,6 @@ mod tests {
         morph.tick(started, Duration::from_millis(10));
         morph.tick(started + Duration::from_secs(1), Duration::from_millis(10));
         assert_eq!(morph.follow(target), target);
-        assert!(morph.is_settled());
+        assert_eq!(morph.motion_state(), MotionState::Settled);
     }
 }

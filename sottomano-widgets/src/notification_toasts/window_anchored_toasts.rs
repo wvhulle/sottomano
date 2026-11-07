@@ -23,10 +23,11 @@ use super::{
     toast_placement::{AnchoredToast, ToastAnchor},
 };
 use crate::{
-    desktop_panels::region_reporter::RegionRoles,
+    desktop_panels::region_reporter::{PointerInput, RegionRoles},
     toast_messages::NotificationMessage,
     widgets::{
         child_view::{ChildView, ChildViewMut},
+        motion_state::MotionState,
         shell_layer_appearance::LayerAppearance,
         typing_under_cards::CardBackgroundFade,
     },
@@ -46,8 +47,8 @@ impl<'a> WindowAnchoredToasts<'a> {
             Self {
                 panel_clearance,
                 card_roles: RegionRoles {
-                    takes_input: true,
-                    blurred: overlays.blurred,
+                    pointer_input: PointerInput::Accepted,
+                    backdrop_blur: overlays.backdrop_blur,
                     corner_radius: Radius::from(overlays.corner_radius_px),
                 },
                 ids: Vec::new(),
@@ -62,7 +63,7 @@ impl<'a> WindowAnchoredToasts<'a> {
                 toasts.ids.push(toast.id);
                 toasts.anchors.push(toast.anchor);
                 toasts.cards.push(toast.card);
-                toasts.revealing |= toast.animating;
+                toasts.revealing |= toast.motion == MotionState::Moving;
                 toasts
             },
         )
@@ -111,10 +112,6 @@ impl Drift {
             self.x.interpolate_with(identity, frame),
             self.y.interpolate_with(identity, frame),
         );
-    }
-
-    fn is_animating(&self, frame: Instant) -> bool {
-        self.x.is_animating(frame) || self.y.is_animating(frame)
     }
 }
 
@@ -182,7 +179,9 @@ impl Drifts {
         self.by_id
             .values_mut()
             .for_each(|drift| drift.advance(frame));
-        self.by_id.values().any(|drift| drift.is_animating(frame))
+        self.by_id
+            .values()
+            .any(|drift| drift.x.is_animating(frame) || drift.y.is_animating(frame))
     }
 }
 

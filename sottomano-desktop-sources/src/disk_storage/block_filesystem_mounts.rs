@@ -182,7 +182,12 @@ impl MountEntry {
             .split(MULTI_DEVICE_SEPARATOR)
             .map(resolve_device)
             .collect::<Option<_>>()?;
-        if devices.is_empty() || devices.iter().any(KernelDevice::is_virtual) {
+        let backed_by_virtual_device = devices.iter().any(|device| {
+            VIRTUAL_BLOCK_PREFIXES
+                .iter()
+                .any(|prefix| device.name.starts_with(prefix))
+        });
+        if devices.is_empty() || backed_by_virtual_device {
             return None;
         }
         devices.sort();
@@ -258,12 +263,6 @@ impl KernelDevice {
             name: file_name(&node)?,
         };
         device.sysfs_dir().exists().then_some(device)
-    }
-
-    fn is_virtual(&self) -> bool {
-        VIRTUAL_BLOCK_PREFIXES
-            .iter()
-            .any(|prefix| self.name.starts_with(prefix))
     }
 
     #[must_use]

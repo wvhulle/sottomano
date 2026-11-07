@@ -19,8 +19,9 @@ use crate::{
     list_end_corners::ListEndCorners,
     pointer_drag::{
         DragEvent, DragView,
-        slot_group::{SlotGroup, SlotGroupFrame, SlotTileInset, TileNeighbours},
+        slot_group::{PagerAxis, SlotGroup, SlotGroupFrame, SlotTileInset, TileNeighbours},
     },
+    primitives::motion_state::MotionState,
     shared_metrics::{ACCENT_STROKE_PX, pill_corners},
     theme_colors::ThemedColor,
 };
@@ -37,9 +38,18 @@ pub enum PagerEdge {
     Right,
 }
 
-impl PagerEdge {
-    fn is_vertical(self) -> bool {
-        matches!(self, PagerEdge::Left | PagerEdge::Right)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SlotTile {
+    Drawn,
+    Absent,
+}
+
+impl From<PagerEdge> for PagerAxis {
+    fn from(edge: PagerEdge) -> Self {
+        match edge {
+            PagerEdge::Left | PagerEdge::Right => PagerAxis::Vertical,
+            PagerEdge::Top | PagerEdge::Bottom => PagerAxis::Horizontal,
+        }
     }
 }
 
@@ -158,7 +168,7 @@ impl<'a, Message, SlotKey> SlotPager<'a, Message, SlotKey> {
         drag: &DragView<SlotId>,
         on_drag: impl Fn(DragEvent<SlotId, ListId, ClickPayload>) -> Message,
     ) -> Self {
-        self.left_list_message = drag.is_active().then(|| on_drag(DragEvent::LeftList(list)));
+        self.left_list_message = drag.drag.map(|_| on_drag(DragEvent::LeftList(list)));
         self
     }
 }
@@ -172,10 +182,16 @@ struct State<SlotKey> {
 }
 
 impl<SlotKey: Copy + Eq + Hash> State<SlotKey> {
-    fn is_sliding(&self, now: Instant) -> bool {
-        self.slot_starts
+    fn slide_state(&self, now: Instant) -> MotionState {
+        if self
+            .slot_starts
             .values()
             .any(|start| start.is_animating(now))
+        {
+            MotionState::Moving
+        } else {
+            MotionState::Settled
+        }
     }
 }
 
@@ -209,8 +225,12 @@ impl HighlightTravel {
         self.extent.go_mut(span.extent, now);
     }
 
-    fn is_animating(&self, now: Instant) -> bool {
-        self.start.is_animating(now) || self.extent.is_animating(now)
+    fn motion_state(&self, now: Instant) -> MotionState {
+        if self.start.is_animating(now) || self.extent.is_animating(now) {
+            MotionState::Moving
+        } else {
+            MotionState::Settled
+        }
     }
 
     fn travelled(&self, now: Instant) -> TravelledSpan {
@@ -271,24 +291,23 @@ fn band_clear_of_corners(edge: PagerEdge, band: Rectangle, corners: Radius) -> R
 }
 
 fn edge_backdrop(edge: PagerEdge, slots: Rectangle, slot: Rectangle) -> Rectangle {
-    if edge.is_vertical() {
-        Rectangle {
+    match edge {
+        PagerEdge::Left | PagerEdge::Right => Rectangle {
             x: slots.x,
             width: slots.width,
             ..slot
-        }
-    } else {
-        Rectangle {
+        },
+        PagerEdge::Top | PagerEdge::Bottom => Rectangle {
             y: slots.y,
             height: slots.height,
             ..slot
-        }
+        },
     }
 }
 
 impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKey> {
-    fn along_vertical_edge(&self) -> bool {
-        self.edge.is_vertical()
+    fn pager_axis(&self) -> PagerAxis {
+        PagerAxis::from(self.edge)
     }
 
     fn sliding_start(&self, state: &mut State<SlotKey>, key: SlotKey, target: f32) -> f32 {
@@ -311,7 +330,7 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
         renderer: &iced::Renderer,
         limits: &Limits,
     ) -> Vec<Node> {
-        if self.along_vertical_edge() {
+        if self.pager_axis() == PagerAxis::Vertical {
             let intrinsic = Limits::with_compression(
                 Size::ZERO,
                 limits.max(),
@@ -351,7 +370,7 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
     }
 
     fn extent(&self, node: &Node) -> f32 {
-        if self.along_vertical_edge() {
+        if self.pager_axis() == PagerAxis::Vertical {
             node.size().height
         } else {
             node.size().width
@@ -359,7 +378,7 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
     }
 
     fn placed_at(&self, node: Node, start: f32) -> Node {
-        if self.along_vertical_edge() {
+        if self.pager_axis() == PagerAxis::Vertical {
             node.move_to((0.0, start))
         } else {
             let across = node.bounds().y;
@@ -390,7 +409,7 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
     }
 
     fn span(&self, slot: Rectangle) -> TravelledSpan {
-        if self.along_vertical_edge() {
+        if self.pager_axis() == PagerAxis::Vertical {
             TravelledSpan {
                 start: slot.y,
                 extent: slot.height,
@@ -404,7 +423,7 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
     }
 
     fn travelled_slot(&self, slot: Rectangle, travelled: TravelledSpan) -> Rectangle {
-        if self.along_vertical_edge() {
+        if self.pager_axis() == PagerAxis::Vertical {
             Rectangle {
                 y: travelled.start,
                 height: travelled.extent,
@@ -426,16 +445,21 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
         Some(self.travelled_slot(slot, travelled))
     }
 
-    fn aim_highlight(&self, state: &mut State<SlotKey>, layout: Layout<'_>, now: Instant) -> bool {
+    fn aim_highlight(
+        &self,
+        state: &mut State<SlotKey>,
+        layout: Layout<'_>,
+        now: Instant,
+    ) -> MotionState {
         let Some(slot) = self.highlighted_slot(layout) else {
-            return false;
+            return MotionState::Settled;
         };
         let span = self.span(slot);
         let travel = state
             .highlight_travel
             .get_or_insert_with(|| HighlightTravel::resting_at(span, self.motion));
         travel.aim(span, now);
-        travel.is_animating(now)
+        travel.motion_state(now)
     }
 
     fn laid_out_headings(
@@ -444,9 +468,9 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
         renderer: &iced::Renderer,
         limits: &Limits,
     ) -> Vec<Node> {
-        let along_vertical_edge = self.along_vertical_edge();
+        let pager_axis = self.pager_axis();
         let height = limits.max().height;
-        let heading_limits = if along_vertical_edge {
+        let heading_limits = if pager_axis == PagerAxis::Vertical {
             Limits::new(Size::ZERO, limits.max())
         } else {
             Limits::new(Size::ZERO, Size::new(f32::INFINITY, height))
@@ -460,7 +484,7 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
                         .heading
                         .as_widget_mut()
                         .layout(tree, renderer, &heading_limits);
-                if !along_vertical_edge {
+                if pager_axis == PagerAxis::Horizontal {
                     node.align_mut(Alignment::Start, Alignment::Center, Size::new(0.0, height));
                 }
                 node
@@ -478,7 +502,7 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
             .map(|slot| slot.bounds())
             .reduce(|covered, slot| covered.union(&slot))?;
         Some(SlotGroupFrame::around_slots(
-            self.along_vertical_edge(),
+            self.pager_axis(),
             heading.bounds(),
             slots,
             SlotTileInset {
@@ -498,20 +522,25 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
         self.group_index_at(self.highlighted_position()?)
     }
 
-    fn slot_draws_tile(&self, position: usize) -> bool {
-        let is_marked = self.highlighted_position() == Some(position)
+    fn slot_tile(&self, position: usize) -> SlotTile {
+        let marked = self.highlighted_position() == Some(position)
             || self.alarms.iter().any(|alarm| alarm.position == position);
-        is_marked
+        let tiled = marked
             && (self.group_index_at(position).is_some()
                 || matches!(
                     self.ungrouped_highlight_look,
                     UngroupedHighlightLook::AccentTile(_)
-                ))
+                ));
+        if tiled {
+            SlotTile::Drawn
+        } else {
+            SlotTile::Absent
+        }
     }
 
     fn tile_neighbours(&self, position: usize) -> TileNeighbours {
         let joins_tile = |neighbour_position: usize| {
-            self.slot_draws_tile(neighbour_position)
+            self.slot_tile(neighbour_position) == SlotTile::Drawn
                 && self.group_index_at(neighbour_position) == self.group_index_at(position)
         };
         TileNeighbours {
@@ -538,7 +567,7 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
             None => match self.ungrouped_highlight_look {
                 UngroupedHighlightLook::EdgeBand => None,
                 UngroupedHighlightLook::AccentTile(tile_inset) => {
-                    Some(tile_inset.tile_on_slot(self.along_vertical_edge(), slot, tile_neighbours))
+                    Some(tile_inset.tile_on_slot(self.pager_axis(), slot, tile_neighbours))
                 }
             },
         }
@@ -622,7 +651,7 @@ impl<Message: Clone, SlotKey: Copy + Eq + Hash + 'static> Widget<Message, Theme,
     }
 
     fn size(&self) -> Size<Length> {
-        if self.along_vertical_edge() {
+        if self.pager_axis() == PagerAxis::Vertical {
             Size::new(Length::Shrink, Length::Shrink)
         } else {
             Size::new(Length::Shrink, Length::Fill)
@@ -663,7 +692,7 @@ impl<Message: Clone, SlotKey: Copy + Eq + Hash + 'static> Widget<Message, Theme,
                 .map(|(heading, start)| self.placed_at(heading, start)),
         );
         let along = (target - self.spacing).max(0.0);
-        let size = if self.along_vertical_edge() {
+        let size = if self.pager_axis() == PagerAxis::Vertical {
             let widest = placed
                 .iter()
                 .map(|node| node.size().width)
@@ -689,11 +718,11 @@ impl<Message: Clone, SlotKey: Copy + Eq + Hash + 'static> Widget<Message, Theme,
         if let Event::Window(window::Event::RedrawRequested(now)) = event {
             let state = tree.state.downcast_mut::<State<SlotKey>>();
             state.frame = Some(*now);
-            if state.is_sliding(*now) {
+            if state.slide_state(*now) == MotionState::Moving {
                 shell.invalidate_layout();
                 shell.request_redraw();
             }
-            if self.aim_highlight(state, layout, *now) {
+            if self.aim_highlight(state, layout, *now) == MotionState::Moving {
                 shell.request_redraw();
             }
         }
@@ -770,7 +799,7 @@ impl<Message: Clone, SlotKey: Copy + Eq + Hash + 'static> Widget<Message, Theme,
                     UngroupedHighlightLook::AccentTile(tile_inset) => {
                         renderer.fill_quad(
                             tile_inset.tile_on_slot(
-                                self.along_vertical_edge(),
+                                self.pager_axis(),
                                 resting_slot,
                                 tile_neighbours,
                             ),

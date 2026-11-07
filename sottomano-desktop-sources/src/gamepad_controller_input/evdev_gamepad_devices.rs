@@ -181,11 +181,6 @@ impl GamepadOrigin {
         })
     }
 
-    #[must_use]
-    pub const fn is_virtual(&self) -> bool {
-        matches!(self, GamepadOrigin::Virtual)
-    }
-
     fn refreshed(&self, slot: usize, bluetooth_aliases: &HashMap<String, String>) -> Self {
         match self {
             GamepadOrigin::Physical(link) => {
@@ -459,14 +454,26 @@ impl GamepadEventTranslator {
     }
 }
 
-fn is_gamepad(device: &Device) -> bool {
-    let has_face_buttons = device
-        .supported_keys()
-        .is_some_and(|keys| keys.contains(KeyCode::BTN_SOUTH));
-    let has_left_stick = device.supported_absolute_axes().is_some_and(|axes| {
-        axes.contains(AbsoluteAxisCode::ABS_X) && axes.contains(AbsoluteAxisCode::ABS_Y)
-    });
-    has_face_buttons && has_left_stick
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InputDeviceKind {
+    Gamepad,
+    OtherInput,
+}
+
+impl From<&Device> for InputDeviceKind {
+    fn from(device: &Device) -> Self {
+        let has_face_buttons = device
+            .supported_keys()
+            .is_some_and(|keys| keys.contains(KeyCode::BTN_SOUTH));
+        let has_left_stick = device.supported_absolute_axes().is_some_and(|axes| {
+            axes.contains(AbsoluteAxisCode::ABS_X) && axes.contains(AbsoluteAxisCode::ABS_Y)
+        });
+        if has_face_buttons && has_left_stick {
+            InputDeviceKind::Gamepad
+        } else {
+            InputDeviceKind::OtherInput
+        }
+    }
 }
 
 fn input_node_number(path: &Path) -> Option<usize> {
@@ -531,7 +538,7 @@ impl DiscoveredGamepad {
 
 fn discovered_gamepads() -> Vec<DiscoveredGamepad> {
     let mut gamepads: Vec<DiscoveredGamepad> = evdev::enumerate()
-        .filter(|(_, device)| is_gamepad(device))
+        .filter(|(_, device)| InputDeviceKind::from(device) == InputDeviceKind::Gamepad)
         .filter_map(|(path, device): (PathBuf, Device)| {
             let slot = input_node_number(&path)?;
             Some(DiscoveredGamepad {
@@ -542,7 +549,7 @@ fn discovered_gamepads() -> Vec<DiscoveredGamepad> {
             })
         })
         .collect();
-    gamepads.sort_by_key(|gamepad| (gamepad.origin.is_virtual(), gamepad.slot));
+    gamepads.sort_by_key(|gamepad| (gamepad.origin == GamepadOrigin::Virtual, gamepad.slot));
     gamepads
 }
 
@@ -606,7 +613,7 @@ fn connected_gamepad_events(
 ) -> impl Stream<Item = RawGamepadEvent> + Send {
     let physical_gamepads = gamepads
         .iter()
-        .filter(|gamepad| !gamepad.origin.is_virtual());
+        .filter(|gamepad| gamepad.origin != GamepadOrigin::Virtual);
     let button_events = physical_gamepads
         .clone()
         .map(|gamepad| gamepad_events(gamepad).boxed());

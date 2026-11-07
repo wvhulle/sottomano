@@ -16,7 +16,10 @@ use sottomano_desktop_sources::{
         inotify_directory_changes::{WatchTarget, changes},
     },
 };
-use sottomano_widgets::{hover_cards::HoverCardMessage, toast_messages::NotificationMessage};
+use sottomano_widgets::{
+    hover_cards::HoverCardMessage, toast_messages::NotificationMessage,
+    widgets::motion_state::MotionState,
+};
 use wayland_client::Connection;
 
 use crate::{
@@ -40,14 +43,17 @@ fn outputs(wayland: Option<&Connection>) -> Subscription<Message> {
 }
 
 pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
-    let animation = if state.notifications.is_transitioning(state.clock.instant)
-        || state.typing_under_cards.is_animating(state.clock.instant)
+    let animation = if state.notifications.motion(state.clock.instant) == MotionState::Moving
+        || state
+            .typing_under_cards
+            .background_motion(state.clock.instant)
+            == MotionState::Moving
     {
         frames().map(|_| Message::Redraw)
     } else {
         Subscription::none()
     };
-    let hover_card_fade = if state.hover_card.is_hiding() {
+    let hover_card_fade = if state.hover_card.hiding_since().is_some() {
         every(state.config.overlay_surfaces.surface_morph_duration)
             .map(|_| Message::HoverCardFadeElapsed)
     } else {
@@ -95,7 +101,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         state
             .typing_under_cards
             .subscription(
-                state.notifications.is_active() || state.hover_card.placement().is_some(),
+                state.notifications.live_count() > 0 || state.hover_card.placement().is_some(),
                 &state.config.overlay_surfaces,
             )
             .map(Message::TypingUnderCards),

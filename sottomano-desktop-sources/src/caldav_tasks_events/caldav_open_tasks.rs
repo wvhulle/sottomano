@@ -11,7 +11,7 @@ use crate::{
         caldav_calendar_discovery::{CalendarCollection, CalendarHome},
         caldav_event_query::EventWindow,
         caldav_server_provider::CaldavProvider,
-        caldav_task_query::{OpenTask, query_open_tasks},
+        caldav_task_query::{OpenTask, TaskDueStatus, query_open_tasks},
     },
     network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
 };
@@ -28,7 +28,7 @@ impl OpenTaskList {
     pub fn overdue_task_count(&self, now: DateTime<Local>) -> usize {
         self.tasks
             .iter()
-            .filter(|task| task.is_overdue(now))
+            .filter(|task| task.due_status(now) == TaskDueStatus::Overdue)
             .count()
     }
 }

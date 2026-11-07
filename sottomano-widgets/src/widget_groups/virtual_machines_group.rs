@@ -219,13 +219,12 @@ pub enum Action {
 fn power_off_task(power_control: GuestPowerControl) -> Task<VirtualMachinesMessage> {
     match power_control {
         GuestPowerControl::QmpSession(powerdown_sender) => {
-            if powerdown_sender.request_powerdown() {
-                Task::none()
-            } else {
-                Task::done(VirtualMachinesMessage::PowerOffRefused(format!(
+            match powerdown_sender.request_powerdown() {
+                Ok(()) => Task::none(),
+                Err(_) => Task::done(VirtualMachinesMessage::PowerOffRefused(format!(
                     "the QMP session on {} has closed",
                     powerdown_sender.socket_path().display()
-                )))
+                ))),
             }
         }
         GuestPowerControl::LibvirtDomain(domain_name) => Task::perform(
