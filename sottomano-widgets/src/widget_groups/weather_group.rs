@@ -6,6 +6,7 @@ use crate::widget_groups::widget_group_identity::WidgetGroupFamily;
 mod geolocation_fix;
 mod pollen_count_gauge;
 mod precipitation_type_forecast;
+mod rain_forecast_ranking;
 mod rain_intensity;
 mod temperature_forecast;
 mod wind_speed;
