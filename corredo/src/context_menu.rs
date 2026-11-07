@@ -2,7 +2,7 @@ use iced::{
     Background, Border, Color, Element, Length, Padding, Theme,
     alignment::Vertical,
     border::Radius,
-    widget::{Row, button, container, space, text, text::Shaping},
+    widget::{Row, button, space, text, text::Shaping},
 };
 
 use crate::{
@@ -71,8 +71,6 @@ pub struct ContextMenu<'a, Message> {
     submenu_chevron: SubmenuChevron<'a, Message>,
 }
 
-const CONTEXT_MENU_MAX_WIDTH_PX: f32 = 400.0;
-
 pub fn context_menu<'a, Message: Clone + 'a>(
     lines: impl IntoIterator<Item = ContextMenuLine<'a, Message>>,
 ) -> ContextMenu<'a, Message> {
@@ -124,21 +122,18 @@ impl<'a, Message: Clone + 'a> From<ContextMenu<'a, Message>> for Element<'a, Mes
         } = menu;
         let kept_lines = without_redundant_dividers(lines);
         let end_corners = ListEndCorners::new(kept_lines.len(), corners);
-        container(
-            uniform_width_column(kept_lines.into_iter().enumerate().map(|(position, line)| {
-                match line {
-                    ContextMenuLine::Row(row) => entry(
-                        &metrics,
-                        &*submenu_chevron,
-                        row,
-                        end_corners.radius_at(position),
-                    ),
-                    ContextMenuLine::Divider => divider(),
-                }
-            }))
-            .spacing(metrics.item_gap_px),
-        )
-        .max_width(CONTEXT_MENU_MAX_WIDTH_PX)
+        uniform_width_column(kept_lines.into_iter().enumerate().map(|(position, line)| {
+            match line {
+                ContextMenuLine::Row(row) => entry(
+                    &metrics,
+                    &*submenu_chevron,
+                    row,
+                    end_corners.radius_at(position),
+                ),
+                ContextMenuLine::Divider => divider(),
+            }
+        }))
+        .spacing(metrics.item_gap_px)
         .into()
     }
 }
@@ -249,4 +244,68 @@ fn without_redundant_dividers<Message>(
         kept.pop();
     }
     kept
+}
+
+#[cfg(test)]
+mod tests {
+    use iced::{
+        Point, Settings, Size,
+        mouse::{Button, Event as MouseEvent},
+        widget::text,
+    };
+    use iced_test::Simulator;
+
+    use super::*;
+
+    const SHORT_LABEL: &str = "Cairn";
+    const WIDE_SIBLING: &str = "a sibling row far wider than any label in the menu above it";
+
+    #[test]
+    fn a_menu_inside_a_wider_card_spans_the_card_width() {
+        let menu_rows = [
+            ContextMenuLine::Row(ContextMenuRow {
+                leading: None,
+                label: Some(SHORT_LABEL.to_owned()),
+                trailing: ContextMenuTrailing::Nothing,
+                depth: 0,
+                press: ContextMenuRowPress::Enabled(()),
+            }),
+            ContextMenuLine::Divider,
+            ContextMenuLine::Row(ContextMenuRow {
+                leading: None,
+                label: Some("Store".to_owned()),
+                trailing: ContextMenuTrailing::Nothing,
+                depth: 0,
+                press: ContextMenuRowPress::Disabled,
+            }),
+        ];
+        let card: Element<'_, ()> = uniform_width_column([
+            Element::from(context_menu(menu_rows)),
+            text(WIDE_SIBLING).into(),
+        ])
+        .into();
+        let mut simulator =
+            Simulator::with_size(Settings::default(), Size::new(1200.0, 400.0), card);
+        let short_label = simulator
+            .find(SHORT_LABEL)
+            .expect("the short label is laid out")
+            .bounds();
+        let wide_sibling = simulator
+            .find(WIDE_SIBLING)
+            .expect("the wide sibling is laid out")
+            .bounds();
+        let near_card_right_edge = Point::new(
+            wide_sibling.x + wide_sibling.width - 2.0,
+            short_label.center_y(),
+        );
+        simulator.point_at(near_card_right_edge);
+        let _moved = simulator.simulate([iced::Event::Mouse(MouseEvent::CursorMoved {
+            position: near_card_right_edge,
+        })]);
+        let _pressed_and_released = simulator.simulate([
+            iced::Event::Mouse(MouseEvent::ButtonPressed(Button::Left)),
+            iced::Event::Mouse(MouseEvent::ButtonReleased(Button::Left)),
+        ]);
+        assert_eq!(simulator.into_messages().count(), 1);
+    }
 }
