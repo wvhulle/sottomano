@@ -3,7 +3,7 @@ use sottomano_desktop_sources::desktop_notifications::{
     notification_data::{NotificationData, ServerEvent},
 };
 
-use crate::hover_cards::PointerPresence;
+use crate::{hover_cards::PointerPresence, layer_surfaces::ActivationTokenOutcome};
 
 #[derive(Debug, Clone)]
 pub enum ReplyMessage {
@@ -30,7 +30,7 @@ pub enum NotificationMessage {
     },
     DefaultActivated {
         id: u32,
-        token: Option<String>,
+        token: ActivationTokenOutcome,
     },
     Reply {
         id: u32,

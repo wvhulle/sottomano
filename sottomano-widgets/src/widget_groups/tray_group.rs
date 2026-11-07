@@ -8,7 +8,7 @@ use iced::{
     widget::{Column, container, mouse_area},
 };
 use sottomano_desktop_sinks::desktop_windows_apps::status_notifier_tray_activation::{
-    TrayCommand, activate_tray_item,
+    TrayCommand, activate_tray_item, activate_tray_item_with_token,
 };
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -16,10 +16,14 @@ use sottomano_desktop_sources::{
         status_notifier_tray::{self, Status, TrayHost, TrayItem, TrayUpdate},
         window_edge_placement::WindowOwner,
     },
+    system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 use sottomano_toml_config::{
     Config,
-    widget_groups::{ElementVisibility, tray::ClickAction},
+    widget_groups::{
+        ElementVisibility,
+        tray::{ClickAction, TrayRule},
+    },
 };
 use system_tray::error;
 
@@ -39,6 +43,7 @@ use crate::{
         },
         hoverable,
     },
+    layer_surfaces::ActivationTokenOutcome,
     widget_groups::{
         widget_group_content::{
             GroupEvent, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -77,8 +82,12 @@ pub enum TrayMessage {
     Activate(String),
     Secondary(String),
     FocusWindow {
-        window_app_id: String,
+        owner: WindowOwner,
         address: String,
+    },
+    Send {
+        command: TrayCommand,
+        token: ActivationTokenOutcome,
     },
     MenuItemClicked {
         address: String,
@@ -91,8 +100,34 @@ pub enum TrayMessage {
 pub enum Action {
     None,
     Run(Task<TrayMessage>),
-    MenuItemActivated(Task<TrayMessage>),
+    SendWithActivationToken(TrayCommand),
+    MenuItemActivated(TrayCommand),
     FocusAppWindow(AppWindowFocus<TrayMessage>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum TrayItemWindow {
+    Open(WindowOwner),
+    NotOpen,
+}
+
+impl TrayItemWindow {
+    fn resolve(
+        rule: &TrayRule,
+        item: &TrayItem,
+        window_matches: &dyn Fn(&WindowOwner) -> bool,
+    ) -> Self {
+        let owner = match (&rule.window_app_id, item.owner) {
+            (Some(window_app_id), _) => WindowOwner::App(window_app_id.clone()),
+            (None, OwnerProcess::Identified(pid)) => WindowOwner::Process(pid),
+            (None, OwnerProcess::Unidentified) => return Self::NotOpen,
+        };
+        if window_matches(&owner) {
+            Self::Open(owner)
+        } else {
+            Self::NotOpen
+        }
+    }
 }
 
 impl TrayGroup {
@@ -129,29 +164,31 @@ impl TrayGroup {
                 Action::None
             }
             TrayMessage::Activate(address) => {
-                Action::Run(self.command(TrayCommand::Activate(address)))
+                tracing::debug!("tray {address}: click activates the item");
+                Action::SendWithActivationToken(TrayCommand::Activate(address))
             }
             TrayMessage::Secondary(address) => {
-                Action::Run(self.command(TrayCommand::Secondary(address)))
+                Action::SendWithActivationToken(TrayCommand::Secondary(address))
             }
-            TrayMessage::FocusWindow {
-                window_app_id,
-                address,
-            } => Action::FocusAppWindow(AppWindowFocus {
-                owner: WindowOwner::App(window_app_id),
-                unmatched: TrayMessage::Activate(address),
-            }),
+            TrayMessage::FocusWindow { owner, address } => {
+                tracing::debug!("tray {address}: click focuses the window of {owner:?}");
+                Action::FocusAppWindow(AppWindowFocus {
+                    owner,
+                    unmatched: TrayMessage::Activate(address),
+                })
+            }
+            TrayMessage::Send { command, token } => Action::Run(self.command(command, token)),
             TrayMessage::MenuItemClicked {
                 address,
                 menu_path,
                 id,
             } => {
                 self.open_submenus.clear();
-                Action::MenuItemActivated(self.command(TrayCommand::MenuClick {
+                Action::MenuItemActivated(TrayCommand::MenuClick {
                     address,
                     menu_path,
                     id,
-                }))
+                })
             }
             TrayMessage::ToggleSubmenu(id) => {
                 if !self.open_submenus.remove(&id) {
@@ -214,10 +251,19 @@ impl TrayGroup {
         Some(context_menu(config, popup_corners, lines))
     }
 
-    fn command(&self, command: TrayCommand) -> Task<TrayMessage> {
-        self.host.clone().map_or_else(Task::none, |host| {
-            Task::future(activate_tray_item(host, command)).discard()
-        })
+    fn command(&self, command: TrayCommand, token: ActivationTokenOutcome) -> Task<TrayMessage> {
+        let Some(host) = self.host.clone() else {
+            return Task::none();
+        };
+        match token {
+            ActivationTokenOutcome::Issued(activation_token) => Task::future(
+                activate_tray_item_with_token(host, command, activation_token),
+            )
+            .discard(),
+            ActivationTokenOutcome::Unavailable => {
+                Task::future(activate_tray_item(host, command)).discard()
+            }
+        }
     }
 
     #[must_use]
@@ -232,12 +278,20 @@ impl TrayGroup {
             .collect()
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a, TrayMessage> {
-        WidgetGroupContent::expandable(
-            WidgetGroupFamily::Tray,
-            &self.expansion,
-            TrayMessage::Expansion,
-            self.visible(config).into_iter().map(|item| {
+    pub fn group_content<'a>(
+        &'a self,
+        config: &'a Config,
+        window_matches: &dyn Fn(&WindowOwner) -> bool,
+    ) -> WidgetGroupContent<'a, TrayMessage> {
+        let group_items: Vec<_> = self
+            .visible(config)
+            .into_iter()
+            .map(|item| {
+                let item_window = TrayItemWindow::resolve(
+                    &config.widget_groups.tray.rule(&item.id),
+                    item,
+                    window_matches,
+                );
                 GroupItem::composed(
                     ComposedGroupItemFace {
                         name: item.name().to_owned().into(),
@@ -247,10 +301,16 @@ impl TrayGroup {
                         row_target: HoverTarget::Tray(item.address.clone()),
                     },
                     GroupItemValue::drawn(move |reveal| {
-                        item_view(config, &self.pixmap_handles, item, reveal)
+                        item_view(config, &self.pixmap_handles, item, &item_window, reveal)
                     }),
                 )
-            }),
+            })
+            .collect();
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::Tray,
+            &self.expansion,
+            TrayMessage::Expansion,
+            group_items,
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::DotsThreeVertical(Weight::Regular).into(),
@@ -260,17 +320,32 @@ impl TrayGroup {
 
 fn click_message(
     action: ClickAction,
-    window_app_id: Option<&String>,
+    item_window: &TrayItemWindow,
     item: &TrayItem,
 ) -> Option<TrayMessage> {
-    match action {
-        ClickAction::ActivateItem => Some(TrayMessage::Activate(item.address.clone())),
-        ClickAction::SecondaryActivateItem => Some(TrayMessage::Secondary(item.address.clone())),
-        ClickAction::FocusAppWindow => window_app_id.map(|app_id| TrayMessage::FocusWindow {
-            window_app_id: app_id.clone(),
-            address: item.address.clone(),
-        }),
-        ClickAction::Ignore => None,
+    match (action, item_window) {
+        (ClickAction::ActivateItem, _) | (ClickAction::FocusAppWindow, TrayItemWindow::NotOpen) => {
+            Some(TrayMessage::Activate(item.address.clone()))
+        }
+        (ClickAction::SecondaryActivateItem, _) => {
+            Some(TrayMessage::Secondary(item.address.clone()))
+        }
+        (ClickAction::FocusAppWindow, TrayItemWindow::Open(owner)) => {
+            Some(TrayMessage::FocusWindow {
+                owner: owner.clone(),
+                address: item.address.clone(),
+            })
+        }
+        (ClickAction::Ignore, _) => None,
+    }
+}
+
+const fn click_hint(action: ClickAction, item_window: &TrayItemWindow) -> &'static str {
+    match (action, item_window) {
+        (ClickAction::FocusAppWindow, TrayItemWindow::NotOpen) => {
+            ClickAction::ActivateItem.press_hint()
+        }
+        _ => action.press_hint(),
     }
 }
 
@@ -278,6 +353,7 @@ fn item_view<'a>(
     config: &Config,
     pixmap_handles: &PixmapHandles,
     item: &TrayItem,
+    item_window: &TrayItemWindow,
     reveal: f32,
 ) -> Element<'a, GroupEvent<TrayMessage>> {
     let side = config.theme.font.icon_size_px;
@@ -311,14 +387,19 @@ fn item_view<'a>(
     };
 
     let rule = config.widget_groups.tray.rule(&item.id);
-    let app_id = rule.window_app_id.as_ref();
-    let left = click_message(rule.left_click, app_id, item);
-    let middle = click_message(rule.middle_click, app_id, item);
-    let right = click_message(rule.right_click, app_id, item);
+    let left = click_message(rule.left_click, item_window, item);
+    let middle = click_message(rule.middle_click, item_window, item);
+    let right = click_message(rule.right_click, item_window, item);
     let press_hints = PressHints {
-        left: left.as_ref().map(|_| rule.left_click.press_hint()),
-        middle: middle.as_ref().map(|_| rule.middle_click.press_hint()),
-        right: right.as_ref().map(|_| rule.right_click.press_hint()),
+        left: left
+            .as_ref()
+            .map(|_| click_hint(rule.left_click, item_window)),
+        middle: middle
+            .as_ref()
+            .map(|_| click_hint(rule.middle_click, item_window)),
+        right: right
+            .as_ref()
+            .map(|_| click_hint(rule.right_click, item_window)),
         ..PressHints::default()
     };
     let hover = hoverable(
@@ -348,10 +429,19 @@ mod tests {
         widget::{row, text},
     };
     use iced_test::Simulator;
-    use sottomano_desktop_sources::desktop_windows_apps::status_notifier_tray::{Status, TrayItem};
-    use sottomano_toml_config::Config;
+    use sottomano_desktop_sources::{
+        desktop_windows_apps::{
+            status_notifier_tray::{Status, TrayItem},
+            window_edge_placement::WindowOwner,
+        },
+        system_protocol_clients::dbus_desktop_buses::OwnerProcess,
+    };
+    use sottomano_toml_config::{
+        Config,
+        widget_groups::tray::{ClickAction, TrayRule},
+    };
 
-    use super::item_view;
+    use super::{TrayItemWindow, TrayMessage, click_hint, click_message, item_view};
     use crate::widgets::icon_handle::PixmapHandles;
 
     const PANEL_WIDTH: f32 = 800.0;
@@ -360,6 +450,7 @@ mod tests {
     fn item_needing_attention() -> TrayItem {
         TrayItem {
             address: ":1.4167".to_owned(),
+            owner: OwnerProcess::Identified(4167),
             id: "chat".to_owned(),
             title: None,
             status: Status::NeedsAttention,
@@ -375,7 +466,16 @@ mod tests {
         let config = Config::default();
         let pixmap_handles = PixmapHandles::default();
         let item = item_needing_attention();
-        let revealed = reveal_x(item_view(&config, &pixmap_handles, &item, 1.0), 1.0);
+        let revealed = reveal_x(
+            item_view(
+                &config,
+                &pixmap_handles,
+                &item,
+                &TrayItemWindow::NotOpen,
+                1.0,
+            ),
+            1.0,
+        );
         let mut simulator = Simulator::with_size(
             Settings::default(),
             Size::new(PANEL_WIDTH, 40.0),
@@ -389,6 +489,87 @@ mod tests {
             marker.x.is_finite() && marker.x < PANEL_WIDTH,
             "the tray item pushed the marker to x = {}",
             marker.x
+        );
+    }
+
+    fn every_window_matches(_owner: &WindowOwner) -> bool {
+        true
+    }
+
+    fn no_window_matches(_owner: &WindowOwner) -> bool {
+        false
+    }
+
+    #[test]
+    fn item_without_override_is_matched_by_its_process() {
+        let item = item_needing_attention();
+        assert_eq!(
+            TrayItemWindow::resolve(&TrayRule::default(), &item, &every_window_matches),
+            TrayItemWindow::Open(WindowOwner::Process(4167))
+        );
+    }
+
+    #[test]
+    fn window_app_id_overrides_the_process() {
+        let item = item_needing_attention();
+        let overriding_rule = TrayRule {
+            window_app_id: Some("signal".to_owned()),
+            ..TrayRule::default()
+        };
+        assert_eq!(
+            TrayItemWindow::resolve(&overriding_rule, &item, &every_window_matches),
+            TrayItemWindow::Open(WindowOwner::App("signal".to_owned()))
+        );
+    }
+
+    #[test]
+    fn item_with_unidentified_process_has_no_open_window() {
+        let item = TrayItem {
+            owner: OwnerProcess::Unidentified,
+            ..item_needing_attention()
+        };
+        assert_eq!(
+            TrayItemWindow::resolve(&TrayRule::default(), &item, &every_window_matches),
+            TrayItemWindow::NotOpen
+        );
+    }
+
+    #[test]
+    fn item_without_matching_window_has_no_open_window() {
+        let item = item_needing_attention();
+        assert_eq!(
+            TrayItemWindow::resolve(&TrayRule::default(), &item, &no_window_matches),
+            TrayItemWindow::NotOpen
+        );
+    }
+
+    #[test]
+    fn focus_click_on_open_window_focuses_it() {
+        let item = item_needing_attention();
+        let item_window = TrayItemWindow::Open(WindowOwner::Process(4167));
+        assert!(matches!(
+            click_message(ClickAction::FocusAppWindow, &item_window, &item),
+            Some(TrayMessage::FocusWindow {
+                owner: WindowOwner::Process(4167),
+                ..
+            })
+        ));
+        assert_eq!(
+            click_hint(ClickAction::FocusAppWindow, &item_window),
+            "focus its window"
+        );
+    }
+
+    #[test]
+    fn focus_click_without_open_window_activates() {
+        let item = item_needing_attention();
+        assert!(matches!(
+            click_message(ClickAction::FocusAppWindow, &TrayItemWindow::NotOpen, &item),
+            Some(TrayMessage::Activate(_))
+        ));
+        assert_eq!(
+            click_hint(ClickAction::FocusAppWindow, &TrayItemWindow::NotOpen),
+            "activate"
         );
     }
 }

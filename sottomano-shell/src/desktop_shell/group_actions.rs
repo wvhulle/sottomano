@@ -1,7 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use iced::Task;
-use sottomano_desktop_sinks::desktop_windows_apps::compositor_requests::CompositorRequest;
+use sottomano_desktop_sinks::desktop_windows_apps::{
+    compositor_requests::CompositorRequest, status_notifier_tray_activation::TrayCommand,
+};
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::{
@@ -12,6 +14,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     background_work::compositor_request,
+    layer_surfaces::{ActivationTokenOutcome, activation_token_request},
     widget_groups::{
         app_launcher_group::{self, AppLauncherMessage},
         gamepad_group::GamepadMessage,
@@ -165,13 +168,40 @@ impl DesktopShell {
         match self.widget_groups.tray_group.update(msg, self.clock) {
             tray_group::Action::None => Task::none(),
             tray_group::Action::Run(task) => task.map(Message::Tray),
-            tray_group::Action::MenuItemActivated(task) => {
-                Task::batch([self.dismiss_hover_card(), task.map(Message::Tray)])
+            tray_group::Action::SendWithActivationToken(command) => {
+                self.send_tray_command_with_activation_token(command)
+            }
+            tray_group::Action::MenuItemActivated(command) => {
+                let menu_click = self.send_tray_command_with_activation_token(command);
+                Task::batch([self.dismiss_hover_card(), menu_click])
             }
             tray_group::Action::FocusAppWindow(focus) => {
                 self.focus_app_window(focus, Message::Tray)
             }
         }
+    }
+
+    fn send_tray_command_with_activation_token(&self, command: TrayCommand) -> Task<Message> {
+        let hovered_output = self.hovered_output();
+        let Some((panel_surface, _)) = self
+            .panels()
+            .find(|(_, panel_output)| *panel_output == hovered_output)
+        else {
+            return Task::done(Message::Tray(TrayMessage::Send {
+                command,
+                token: ActivationTokenOutcome::Unavailable,
+            }));
+        };
+        let token_request = activation_token_request(panel_surface);
+        Task::batch([
+            Task::done(Message::from(token_request.surface_request)),
+            Task::future(token_request.token_arrival).map(move |token| {
+                Message::Tray(TrayMessage::Send {
+                    command: command.clone(),
+                    token,
+                })
+            }),
+        ])
     }
 
     pub(super) fn update_virtual_machines(&mut self, msg: VirtualMachinesMessage) -> Task<Message> {

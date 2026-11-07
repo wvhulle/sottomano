@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     future::ready,
     path::{Path, PathBuf},
     sync::Arc,
@@ -14,10 +15,12 @@ use system_tray::{
     menu::{MenuItem, MenuType, ToggleState, ToggleType, TrayMenu},
 };
 use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
+use zbus::{fdo::DBusProxy, names::BusName};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     desktop_windows_apps::desktop_entry_app_icons::DesktopEntries, non_empty_text::non_empty,
+    system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -102,6 +105,7 @@ impl Tip {
 #[derive(Debug, Clone)]
 pub struct TrayItem {
     pub address: String,
+    pub owner: OwnerProcess,
     pub id: String,
     pub title: Option<String>,
     pub status: Status,
@@ -133,12 +137,19 @@ pub enum TrayUpdate {
 }
 
 #[derive(Debug, Clone)]
-pub struct TrayHost(Arc<Client>);
+pub struct TrayHost {
+    tray_client: Arc<Client>,
+    session_bus: zbus::Connection,
+}
 
 impl TrayHost {
     #[must_use]
     pub fn tray_client(&self) -> &Client {
-        &self.0
+        &self.tray_client
+    }
+
+    pub fn session_bus(&self) -> &zbus::Connection {
+        &self.session_bus
     }
 }
 
@@ -282,12 +293,14 @@ fn adapt_tooltip(item: &StatusNotifierItem) -> Option<Tip> {
 
 fn build_item(
     address: &str,
+    owner: OwnerProcess,
     item: &StatusNotifierItem,
     menu: Option<&TrayMenu>,
     entries: &DesktopEntries,
 ) -> TrayItem {
     TrayItem {
         address: address.to_string(),
+        owner,
         id: item.id.clone(),
         title: item.title.clone().and_then(non_empty),
         status: item.status,
@@ -303,27 +316,114 @@ fn build_item(
     }
 }
 
+#[derive(Clone)]
+struct TrayOwnerLookup(DBusProxy<'static>);
+
+impl TrayOwnerLookup {
+    async fn connect() -> zbus::Result<Self> {
+        let session_bus = zbus::Connection::session().await?;
+        Ok(Self(DBusProxy::new(&session_bus).await?))
+    }
+
+    fn session_bus(&self) -> zbus::Connection {
+        self.0.inner().connection().clone()
+    }
+
+    async fn owner_of(&self, address: &str) -> OwnerProcess {
+        match BusName::try_from(address) {
+            Ok(bus_name) => OwnerProcess::of_bus(&self.0, bus_name).await,
+            Err(_) => OwnerProcess::Unidentified,
+        }
+    }
+
+    async fn owners_of_listed(&self, client: &Client) -> HashMap<String, OwnerProcess> {
+        let listed_addresses: Vec<String> = client
+            .items()
+            .lock()
+            .map(|map| map.keys().cloned().collect())
+            .unwrap_or_default();
+        let mut listed_owners = HashMap::new();
+        for address in listed_addresses {
+            let owner = self.owner_of(&address).await;
+            listed_owners.insert(address, owner);
+        }
+        listed_owners
+    }
+}
+
+struct ConnectedTrayHost {
+    client: Arc<Client>,
+    owner_lookup: TrayOwnerLookup,
+    item_events: BroadcastStream<Event>,
+    listed: Vec<TrayItem>,
+}
+
+async fn connect_tray_host() -> Result<ConnectedTrayHost, TrayHostError> {
+    let client = Arc::new(Client::new().await?);
+    let item_events = BroadcastStream::new(client.subscribe());
+    let owner_lookup = TrayOwnerLookup::connect().await?;
+    let listed_owners = owner_lookup.owners_of_listed(&client).await;
+    let listed = listed_items(&client, &DesktopEntries::empty(), &|address| {
+        listed_owners
+            .get(address)
+            .copied()
+            .unwrap_or(OwnerProcess::Unidentified)
+    });
+    Ok(ConnectedTrayHost {
+        client,
+        owner_lookup,
+        item_events,
+        listed,
+    })
+}
+
 pub fn updates() -> impl Stream<Item = TrayUpdate> + Send {
-    stream::once(Client::new()).flat_map(|connection| match connection {
-        Ok(client) => hosted_updates(Arc::new(client)).left_stream(),
+    stream::once(connect_tray_host()).flat_map(|connection| match connection {
+        Ok(connected_host) => hosted_updates(connected_host).left_stream(),
         Err(host_failure) => {
             stream::iter([TrayUpdate::HostFailed(Arc::new(host_failure))]).right_stream()
         }
     })
 }
 
-fn hosted_updates(client: Arc<Client>) -> impl Stream<Item = TrayUpdate> + Send {
-    let item_events = BroadcastStream::new(client.subscribe());
+fn hosted_updates(connected_host: ConnectedTrayHost) -> impl Stream<Item = TrayUpdate> + Send {
+    let ConnectedTrayHost {
+        client,
+        owner_lookup,
+        item_events,
+        listed,
+    } = connected_host;
     let entries = DesktopEntries::empty();
-    let listed = listed_items(&client, &entries);
-    let host = TrayHost(client.clone());
-    let item_changes = item_events.scan(listed.clone(), move |items, received| {
-        match received {
-            Ok(event) => apply(items, event, &client, &entries),
-            Err(BroadcastStreamRecvError::Lagged(_)) => *items = listed_items(&client, &entries),
-        }
-        ready(Some(TrayUpdate::Items(items.clone())))
-    });
+    let host = TrayHost {
+        tray_client: client.clone(),
+        session_bus: owner_lookup.session_bus(),
+    };
+    let item_changes = item_events
+        .then(move |received| {
+            let owner_lookup = owner_lookup.clone();
+            async move {
+                let added_owner = match &received {
+                    Ok(Event::Add(address, _)) => owner_lookup.owner_of(address).await,
+                    _ => OwnerProcess::Unidentified,
+                };
+                (received, added_owner)
+            }
+        })
+        .scan(listed.clone(), move |items, (received, added_owner)| {
+            match received {
+                Ok(event) => apply(items, event, added_owner, &client, &entries),
+                Err(BroadcastStreamRecvError::Lagged(_)) => {
+                    let known_items = items.clone();
+                    *items = listed_items(&client, &entries, &|address| {
+                        known_items
+                            .iter()
+                            .find(|known_item| known_item.address == address)
+                            .map_or(OwnerProcess::Unidentified, |known_item| known_item.owner)
+                    });
+                }
+            }
+            ready(Some(TrayUpdate::Items(items.clone())))
+        });
     stream::iter([TrayUpdate::Connected(host), TrayUpdate::Items(listed)]).chain(item_changes)
 }
 
@@ -346,12 +446,18 @@ impl SnapshotSource for Vec<TrayItem> {
     }
 }
 
-fn listed_items(client: &Client, entries: &DesktopEntries) -> Vec<TrayItem> {
+fn listed_items(
+    client: &Client,
+    entries: &DesktopEntries,
+    known_owner: &dyn Fn(&str) -> OwnerProcess,
+) -> Vec<TrayItem> {
     client.items().lock().map_or_else(
         |_| Vec::new(),
         |map| {
             map.iter()
-                .map(|(address, (item, menu))| build_item(address, item, menu.as_ref(), entries))
+                .map(|(address, (item, menu))| {
+                    build_item(address, known_owner(address), item, menu.as_ref(), entries)
+                })
                 .collect()
         },
     )
@@ -374,10 +480,16 @@ fn menu_from_map(client: &Client, address: &str, entries: &DesktopEntries) -> Ve
         .unwrap_or_default()
 }
 
-fn apply(items: &mut Vec<TrayItem>, event: Event, client: &Client, entries: &DesktopEntries) {
+fn apply(
+    items: &mut Vec<TrayItem>,
+    event: Event,
+    added_owner: OwnerProcess,
+    client: &Client,
+    entries: &DesktopEntries,
+) {
     match event {
         Event::Add(address, item) => {
-            let built = build_item(&address, &item, None, entries);
+            let built = build_item(&address, added_owner, &item, None, entries);
             match find_mut(items, &address) {
                 Some(existing) => *existing = built,
                 None => items.push(built),
