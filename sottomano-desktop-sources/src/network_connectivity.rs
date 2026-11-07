@@ -12,7 +12,6 @@ pub mod nearby_wifi_networks;
 pub mod network_manager_proxies;
 pub mod network_manager_vpn_connections;
 pub mod nm_uplink_connectivity;
-pub mod proc_tcp_retransmissions;
 pub mod sysfs_interface_faults;
 pub mod tailscale_exit_nodes;
 pub mod tailscale_inbound_access;

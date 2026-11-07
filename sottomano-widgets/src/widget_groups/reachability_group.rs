@@ -8,7 +8,6 @@ mod icmp_latency_gauge;
 mod metered_volume_tally;
 mod network_throughput_gauge;
 mod sqlite_metered_volume;
-mod tcp_retransmit_reading;
 
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -16,7 +15,6 @@ use sottomano_desktop_sources::{
         icmp_internet_latency::InternetLatency,
         interface_throughput::{InterfaceThroughput, NetworkTrafficDirection, Throughput},
         nm_uplink_connectivity::UplinkConnectivity,
-        proc_tcp_retransmissions::TcpRetransmissions,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -54,7 +52,6 @@ pub enum ReachabilityTarget {
     Up,
     Throughput,
     Latency,
-    TcpRetransmissions,
 }
 
 impl From<ReachabilityTarget> for HoverTarget {
@@ -67,7 +64,6 @@ impl From<ReachabilityTarget> for HoverTarget {
 pub struct ReachabilityGroup {
     throughput: LatestSnapshot<InterfaceThroughput>,
     latency: LatestSnapshot<InternetLatency>,
-    tcp_retransmissions: LatestSnapshot<TcpRetransmissions>,
     connectivity: LatestSnapshot<UplinkConnectivity>,
     metered_volume: MeteredVolumeTally,
     expansion: WidgetGroupExpansion,
@@ -77,7 +73,6 @@ pub struct ReachabilityGroup {
 pub enum ReachabilityMessage {
     Throughput(SnapshotDelivery<InterfaceThroughput>),
     Latency(SnapshotDelivery<InternetLatency>),
-    TcpRetransmissions(SnapshotDelivery<TcpRetransmissions>),
     Connectivity(SnapshotDelivery<UplinkConnectivity>),
     MeteredTotalsLoaded(Option<MeteredVolumeTotals>),
     Expansion(WidgetGroupExpansionMessage),
@@ -106,10 +101,6 @@ impl ReachabilityGroup {
                 snapshot_subscription::<InternetLatency>(config.latency_target)
                     .map(ReachabilityMessage::Latency),
             ),
-            demand.while_rows_shown(
-                snapshot_subscription::<TcpRetransmissions>(())
-                    .map(ReachabilityMessage::TcpRetransmissions),
-            ),
         ])
     }
 
@@ -129,9 +120,6 @@ impl ReachabilityGroup {
                 return self.tally_metered_volume(config, clock);
             }
             ReachabilityMessage::Latency(delivery) => self.latency.receive(delivery, clock),
-            ReachabilityMessage::TcpRetransmissions(delivery) => {
-                self.tcp_retransmissions.receive(delivery, clock);
-            }
             ReachabilityMessage::Connectivity(delivery) => {
                 self.connectivity.receive(delivery, clock);
             }
@@ -192,7 +180,6 @@ impl ReachabilityGroup {
             ReachabilityTarget::Up => self.direction_hover_card(&self.throughput.get()?.up, clock),
             ReachabilityTarget::Throughput => self.throughput.hover_card(clock),
             ReachabilityTarget::Latency => self.latency.hover_card(clock),
-            ReachabilityTarget::TcpRetransmissions => self.tcp_retransmissions.hover_card(clock),
         }
     }
 
@@ -224,11 +211,7 @@ impl ReachabilityGroup {
                         GroupItem::reading(&readings.up, ReachabilityTarget::Up),
                     ]
                 }))
-                .chain(self.latency.group_item(ReachabilityTarget::Latency))
-                .chain(
-                    self.tcp_retransmissions
-                        .group_item(ReachabilityTarget::TcpRetransmissions),
-                ),
+                .chain(self.latency.group_item(ReachabilityTarget::Latency)),
         )
         .face(self.handle_face())
     }
