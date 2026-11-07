@@ -13,7 +13,7 @@ use iced::{
 use crate::{
     group_menus::group_menu_state::GroupMenuPin,
     hover_cards::{
-        CardOpening, HandlePointing, HoverAnnouncement, HoverCardMessage, HoverTarget, PressHints,
+        CardOpening, HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence, PressHints,
         WidgetAnchor,
     },
 };
@@ -72,7 +72,7 @@ struct HoverArea<'a, M> {
 
 struct HoverState {
     target: HoverTarget,
-    hovered: bool,
+    pointer_presence: PointerPresence,
     announced: HoverAnnouncement,
     reported_anchor: Option<Rectangle>,
     reported_visible: bool,
@@ -83,7 +83,7 @@ impl HoverState {
     fn of(target: HoverTarget) -> Self {
         Self {
             target,
-            hovered: false,
+            pointer_presence: PointerPresence::NotPointedAt,
             announced: HoverAnnouncement::default(),
             reported_anchor: None,
             reported_visible: false,
@@ -98,14 +98,14 @@ impl<M> HoverArea<'_, M> {
             return None;
         }
         let replaced = replace(state, HoverState::of(self.target.clone()));
-        replaced.hovered.then(|| {
+        (replaced.pointer_presence == PointerPresence::PointedAt).then(|| {
             (self.wrap)(match self.opening {
                 CardOpening::OnHover => HoverCardMessage::Exit {
                     target: replaced.target,
                 },
                 CardOpening::OnPress => HoverCardMessage::MenuHandlePointedAnchor {
                     target: replaced.target,
-                    pointing: HandlePointing::NotPointedAt,
+                    pointing: PointerPresence::NotPointedAt,
                     announcement: replaced.announced,
                 },
             })
@@ -115,13 +115,14 @@ impl<M> HoverArea<'_, M> {
     fn laid_out_anchor(
         &self,
         state: &mut HoverState,
-        hovered: bool,
+        pointer_presence: PointerPresence,
         anchor: Rectangle,
         viewport: &Rectangle,
     ) -> Option<M> {
+        let pointed_at = pointer_presence == PointerPresence::PointedAt;
         let reports =
-            self.opening == CardOpening::OnPress || hovered || state.reported_anchor.is_some();
-        let visible = hovered || anchor.intersection(viewport).is_some();
+            self.opening == CardOpening::OnPress || pointed_at || state.reported_anchor.is_some();
+        let visible = pointed_at || anchor.intersection(viewport).is_some();
         if !reports || (state.reported_anchor == Some(anchor) && state.reported_visible == visible)
         {
             return None;
@@ -145,7 +146,7 @@ impl<M> HoverArea<'_, M> {
         })
     }
 
-    fn menu_handle_pointed(&self, pointing: HandlePointing) -> M {
+    fn menu_handle_pointed(&self, pointing: PointerPresence) -> M {
         (self.wrap)(HoverCardMessage::MenuHandlePointedAnchor {
             target: self.target.clone(),
             pointing,
@@ -167,7 +168,9 @@ impl<M> HoverArea<'_, M> {
     }
 
     fn revised_announcement(&self, state: &mut HoverState) -> Option<M> {
-        if !state.hovered || state.announced == self.announcement {
+        if state.pointer_presence == PointerPresence::NotPointedAt
+            || state.announced == self.announcement
+        {
             return None;
         }
         state.announced = self.announcement.clone();
@@ -177,19 +180,20 @@ impl<M> HoverArea<'_, M> {
         }))
     }
 
-    fn on_hover_change(&self, state: &mut HoverState, hovered: bool) -> Option<M> {
-        if hovered == state.hovered {
+    fn on_hover_change(
+        &self,
+        state: &mut HoverState,
+        pointer_presence: PointerPresence,
+    ) -> Option<M> {
+        if pointer_presence == state.pointer_presence {
             return None;
         }
-        state.hovered = hovered;
-        match (hovered, self.opening) {
-            (true, CardOpening::OnHover) => Some(self.enter(state)),
-            (true, CardOpening::OnPress) => {
-                Some(self.menu_handle_pointed(HandlePointing::PointedAt))
-            }
-            (false, CardOpening::OnHover) => Some(self.exit()),
-            (false, CardOpening::OnPress) => {
-                Some(self.menu_handle_pointed(HandlePointing::NotPointedAt))
+        state.pointer_presence = pointer_presence;
+        match (pointer_presence, self.opening) {
+            (PointerPresence::PointedAt, CardOpening::OnHover) => Some(self.enter(state)),
+            (PointerPresence::NotPointedAt, CardOpening::OnHover) => Some(self.exit()),
+            (pointer_presence, CardOpening::OnPress) => {
+                Some(self.menu_handle_pointed(pointer_presence))
             }
         }
     }
@@ -270,25 +274,29 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
             shell.publish(exit);
         }
         let anchor = layout.bounds();
-        let hovered = cursor.is_over(anchor);
-        if let Some(laid_out) = self.laid_out_anchor(state, hovered, anchor, viewport) {
+        let pointer_presence = if cursor.is_over(anchor) {
+            PointerPresence::PointedAt
+        } else {
+            PointerPresence::NotPointedAt
+        };
+        if let Some(laid_out) = self.laid_out_anchor(state, pointer_presence, anchor, viewport) {
             shell.publish(laid_out);
         }
         if self.opening == CardOpening::OnPress
-            && hovered
+            && pointer_presence == PointerPresence::PointedAt
             && !shell.is_event_captured()
             && matches!(
                 event,
                 Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
             )
         {
-            state.hovered = true;
+            state.pointer_presence = PointerPresence::PointedAt;
             shell.publish(self.menu_handle_pressed());
             shell.capture_event();
             return;
         }
         let published = self
-            .on_hover_change(state, hovered)
+            .on_hover_change(state, pointer_presence)
             .or_else(|| self.revised_announcement(state));
         if let Some(message) = published {
             shell.publish(message);
@@ -499,7 +507,8 @@ mod tests {
 
     use super::{HoverArea, HoverState, announcing_hoverable, press_toggled_hoverable};
     use crate::hover_cards::{
-        CardOpening, HandlePointing, HoverAnnouncement, HoverCardMessage, HoverTarget, WidgetAnchor,
+        CardOpening, HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence,
+        WidgetAnchor, laid_out_anchors::WidgetLiveness,
     };
 
     const INSIDE_AREA: Point = Point::new(10.0, 10.0);
@@ -523,9 +532,15 @@ mod tests {
         )
     }
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum PointerButtonAction {
+        Hover,
+        Press,
+    }
+
     fn messages_from_pointing_inside(
         area: iced::Element<'_, HoverCardMessage>,
-        pressed: bool,
+        pointer_button: PointerButtonAction,
     ) -> Vec<HoverCardMessage> {
         let mut simulator =
             Simulator::with_size(Settings::default(), Size::new(200.0, 200.0), area);
@@ -537,7 +552,7 @@ mod tests {
         let _moved_inside = simulator.simulate([iced::Event::Mouse(MouseEvent::CursorMoved {
             position: INSIDE_AREA,
         })]);
-        if pressed {
+        if pointer_button == PointerButtonAction::Press {
             let _pressed =
                 simulator.simulate([iced::Event::Mouse(MouseEvent::ButtonPressed(Button::Left))]);
         }
@@ -546,14 +561,15 @@ mod tests {
 
     #[test]
     fn hovering_a_menu_handle_reports_it_without_entering() {
-        let messages = messages_from_pointing_inside(press_toggled_area(), false);
+        let messages =
+            messages_from_pointing_inside(press_toggled_area(), PointerButtonAction::Hover);
         assert!(
             matches!(
                 messages.as_slice(),
                 [
                     HoverCardMessage::AnchorLaidOut(..),
                     HoverCardMessage::MenuHandlePointedAnchor {
-                        pointing: HandlePointing::PointedAt,
+                        pointing: PointerPresence::PointedAt,
                         ..
                     }
                 ]
@@ -564,7 +580,8 @@ mod tests {
 
     #[test]
     fn pressing_a_menu_handle_reports_the_press_after_its_layout() {
-        let messages = messages_from_pointing_inside(press_toggled_area(), true);
+        let messages =
+            messages_from_pointing_inside(press_toggled_area(), PointerButtonAction::Press);
         assert!(
             matches!(
                 messages.as_slice(),
@@ -580,7 +597,7 @@ mod tests {
 
     #[test]
     fn hovering_a_hover_area_opens_its_card() {
-        let messages = messages_from_pointing_inside(hovered_area(), false);
+        let messages = messages_from_pointing_inside(hovered_area(), PointerButtonAction::Hover);
         assert!(
             matches!(
                 messages.as_slice(),
@@ -622,47 +639,124 @@ mod tests {
     fn report_of(
         area: &HoverArea<'_, HoverCardMessage>,
         state: &mut HoverState,
-        hovered: bool,
+        pointer_presence: PointerPresence,
         anchor: Rectangle,
     ) -> Option<HoverCardMessage> {
-        area.laid_out_anchor(state, hovered, anchor, &whole_panel())
+        area.laid_out_anchor(state, pointer_presence, anchor, &whole_panel())
     }
 
     #[test]
     fn a_hover_area_stays_silent_until_first_hovered() {
         let area = area_opening_on(CardOpening::OnHover);
         let mut state = fresh_state();
-        assert!(report_of(&area, &mut state, false, anchor_at(0.0)).is_none());
-        assert!(report_of(&area, &mut state, false, anchor_at(5.0)).is_none());
+        assert!(
+            report_of(
+                &area,
+                &mut state,
+                PointerPresence::NotPointedAt,
+                anchor_at(0.0)
+            )
+            .is_none()
+        );
+        assert!(
+            report_of(
+                &area,
+                &mut state,
+                PointerPresence::NotPointedAt,
+                anchor_at(5.0)
+            )
+            .is_none()
+        );
     }
 
     #[test]
     fn a_menu_handle_reports_before_any_hover() {
         let area = area_opening_on(CardOpening::OnPress);
         let mut state = fresh_state();
-        assert!(report_of(&area, &mut state, false, anchor_at(0.0)).is_some());
+        assert!(
+            report_of(
+                &area,
+                &mut state,
+                PointerPresence::NotPointedAt,
+                anchor_at(0.0)
+            )
+            .is_some()
+        );
     }
 
     #[test]
     fn a_hovered_area_reports_each_move_once_even_after_the_pointer_left() {
         let area = area_opening_on(CardOpening::OnHover);
         let mut state = fresh_state();
-        assert!(report_of(&area, &mut state, true, anchor_at(0.0)).is_some());
-        assert!(report_of(&area, &mut state, true, anchor_at(0.0)).is_none());
-        assert!(report_of(&area, &mut state, true, anchor_at(5.0)).is_some());
-        assert!(report_of(&area, &mut state, false, anchor_at(5.0)).is_none());
-        assert!(report_of(&area, &mut state, false, anchor_at(9.0)).is_some());
+        assert!(
+            report_of(
+                &area,
+                &mut state,
+                PointerPresence::PointedAt,
+                anchor_at(0.0)
+            )
+            .is_some()
+        );
+        assert!(
+            report_of(
+                &area,
+                &mut state,
+                PointerPresence::PointedAt,
+                anchor_at(0.0)
+            )
+            .is_none()
+        );
+        assert!(
+            report_of(
+                &area,
+                &mut state,
+                PointerPresence::PointedAt,
+                anchor_at(5.0)
+            )
+            .is_some()
+        );
+        assert!(
+            report_of(
+                &area,
+                &mut state,
+                PointerPresence::NotPointedAt,
+                anchor_at(5.0)
+            )
+            .is_none()
+        );
+        assert!(
+            report_of(
+                &area,
+                &mut state,
+                PointerPresence::NotPointedAt,
+                anchor_at(9.0)
+            )
+            .is_some()
+        );
     }
 
     #[test]
     fn a_new_target_in_a_reused_slot_with_identical_bounds_reports_again() {
         let mut state = fresh_state();
         let first = area_opening_on(CardOpening::OnHover);
-        assert!(report_of(&first, &mut state, true, anchor_at(0.0)).is_some());
+        assert!(
+            report_of(
+                &first,
+                &mut state,
+                PointerPresence::PointedAt,
+                anchor_at(0.0)
+            )
+            .is_some()
+        );
         let second = area_of(HoverTarget::Workspace(8), CardOpening::OnHover);
         let _replaced = second.exit_of_replaced_target(&mut state);
         assert!(matches!(
-            report_of(&second, &mut state, true, anchor_at(0.0)),
+            report_of(
+                &second,
+                &mut state,
+                PointerPresence::PointedAt,
+                anchor_at(0.0)
+            ),
             Some(HoverCardMessage::AnchorLaidOut(WidgetAnchor {
                 target: HoverTarget::Workspace(8),
                 ..
@@ -676,7 +770,7 @@ mod tests {
         let mut unhovered = fresh_state();
         assert!(second.exit_of_replaced_target(&mut unhovered).is_none());
         let mut hovered = HoverState {
-            hovered: true,
+            pointer_presence: PointerPresence::PointedAt,
             ..fresh_state()
         };
         assert!(matches!(
@@ -685,7 +779,7 @@ mod tests {
                 target: HoverTarget::Workspace(7)
             })
         ));
-        assert!(!hovered.hovered);
+        assert_eq!(hovered.pointer_presence, PointerPresence::NotPointedAt);
         assert!(second.exit_of_replaced_target(&mut hovered).is_none());
     }
 
@@ -693,14 +787,14 @@ mod tests {
     fn a_replaced_menu_handle_stops_being_pointed_at() {
         let second = area_of(HoverTarget::Workspace(8), CardOpening::OnPress);
         let mut hovered = HoverState {
-            hovered: true,
+            pointer_presence: PointerPresence::PointedAt,
             ..fresh_state()
         };
         assert!(matches!(
             second.exit_of_replaced_target(&mut hovered),
             Some(HoverCardMessage::MenuHandlePointedAnchor {
                 target: HoverTarget::Workspace(7),
-                pointing: HandlePointing::NotPointedAt,
+                pointing: PointerPresence::NotPointedAt,
                 ..
             })
         ));
@@ -710,28 +804,34 @@ mod tests {
     fn dropping_the_state_shows_in_the_reported_presence() {
         let area = area_opening_on(CardOpening::OnHover);
         let mut state = fresh_state();
-        let Some(HoverCardMessage::AnchorLaidOut(widget_anchor)) =
-            report_of(&area, &mut state, true, anchor_at(0.0))
-        else {
+        let Some(HoverCardMessage::AnchorLaidOut(widget_anchor)) = report_of(
+            &area,
+            &mut state,
+            PointerPresence::PointedAt,
+            anchor_at(0.0),
+        ) else {
             panic!("a hovered area reports");
         };
-        assert!(widget_anchor.widget_still_exists());
+        assert_eq!(widget_anchor.widget_liveness(), WidgetLiveness::Alive);
         drop(state);
-        assert!(!widget_anchor.widget_still_exists());
+        assert_eq!(widget_anchor.widget_liveness(), WidgetLiveness::Dropped);
     }
 
     #[test]
     fn a_replaced_target_no_longer_counts_as_the_old_widget() {
         let area = area_opening_on(CardOpening::OnHover);
         let mut state = fresh_state();
-        let Some(HoverCardMessage::AnchorLaidOut(widget_anchor)) =
-            report_of(&area, &mut state, true, anchor_at(0.0))
-        else {
+        let Some(HoverCardMessage::AnchorLaidOut(widget_anchor)) = report_of(
+            &area,
+            &mut state,
+            PointerPresence::PointedAt,
+            anchor_at(0.0),
+        ) else {
             panic!("a hovered area reports");
         };
         let replacement = area_of(HoverTarget::Workspace(8), CardOpening::OnHover);
         let _exit = replacement.exit_of_replaced_target(&mut state);
-        assert!(!widget_anchor.widget_still_exists());
+        assert_eq!(widget_anchor.widget_liveness(), WidgetLiveness::Dropped);
     }
 
     #[test]
@@ -743,15 +843,30 @@ mod tests {
             _ => None,
         };
         assert_eq!(
-            visibility(report_of(&area, &mut state, true, anchor_at(0.0))),
+            visibility(report_of(
+                &area,
+                &mut state,
+                PointerPresence::PointedAt,
+                anchor_at(0.0)
+            )),
             Some(true)
         );
         assert_eq!(
-            visibility(report_of(&area, &mut state, false, anchor_at(5000.0))),
+            visibility(report_of(
+                &area,
+                &mut state,
+                PointerPresence::NotPointedAt,
+                anchor_at(5000.0)
+            )),
             Some(false)
         );
         assert_eq!(
-            visibility(report_of(&area, &mut state, true, anchor_at(6000.0))),
+            visibility(report_of(
+                &area,
+                &mut state,
+                PointerPresence::PointedAt,
+                anchor_at(6000.0)
+            )),
             Some(true)
         );
     }

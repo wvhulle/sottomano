@@ -1,5 +1,5 @@
 use sottomano_desktop_sources::network_connectivity::interface_throughput::{
-    InterfaceThroughput, NetworkTrafficDirection, SCALE_END_MB_PER_S, Throughput,
+    InterfaceThroughput, LinkUsage, NetworkTrafficDirection, SCALE_END_MB_PER_S, Throughput,
 };
 use sottomano_toml_config::severity::Severity;
 use uom::si::{
@@ -11,7 +11,8 @@ use uom::si::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+        reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::HoverCardBody,
     widgets::{
@@ -26,7 +27,7 @@ const HI_RES_AUDIO_STREAM_KB_PER_S: f64 = 1_152.0;
 const HI_RES_VIDEO_STREAM_KB_PER_S: f64 = 3_125.0;
 
 fn severity(throughput: &Throughput) -> Severity {
-    if throughput.unused() {
+    if throughput.link_usage() == LinkUsage::Idle {
         Severity::Normal
     } else if throughput.peak_rate
         < InformationRate::new::<kilobyte_per_second>(HI_RES_AUDIO_STREAM_KB_PER_S)
@@ -59,7 +60,9 @@ impl GroupItemReading for Throughput {
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
         let severity = severity(self);
-        if self.interfaces.is_empty() || (self.unused() && severity == Severity::Normal) {
+        if self.interfaces.is_empty()
+            || (self.link_usage() == LinkUsage::Idle && severity == Severity::Normal)
+        {
             ReadingDisplayState::Off
         } else {
             severity.into()
@@ -108,8 +111,8 @@ impl GroupItemReading for InterfaceThroughput {
         Phosphor::ArrowsDownUp(Weight::Regular).into()
     }
 
-    fn visible_on_panel(&self) -> bool {
-        false
+    fn panel_visibility(&self) -> PanelVisibility {
+        PanelVisibility::Hidden
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {

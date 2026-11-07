@@ -6,7 +6,8 @@ use sottomano_desktop_sources::desktop_notifications::notification_data::{Outbou
 
 use super::{NotificationLayer, ToastContext, toast_lifecycle::ExitPace};
 use crate::{
-    layer_surfaces::SurfaceRequest, notification_toasts::ToastLayerHost,
+    layer_surfaces::SurfaceRequest,
+    notification_toasts::{ToastLayerHost, toast_lifecycle::ToastSender},
     toast_messages::ReplyMessage,
 };
 
@@ -110,7 +111,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         );
         let closed = withdrawn
             .into_iter()
-            .filter(|id| self.sent_by_dbus_client(*id))
+            .filter(|id| self.sender_of(*id) == Some(ToastSender::DbusClient))
             .map(|id| Outbound::Closed {
                 id,
                 reason: close_reason::DISMISSED,

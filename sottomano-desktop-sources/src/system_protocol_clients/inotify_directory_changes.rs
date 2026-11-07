@@ -91,14 +91,6 @@ struct Accepted {
 }
 
 impl Accepted {
-    fn matches(&self, event: &inotify::Event<OsString>) -> bool {
-        event.wd == self.descriptor
-            && self
-                .name
-                .as_ref()
-                .is_none_or(|name| event.name.as_ref() == Some(name))
-    }
-
     fn new_subdirectory(&self, event: &inotify::Event<OsString>) -> Option<PathBuf> {
         let root = self.grows_subdirectories.as_ref()?;
         let appeared = event.mask.contains(EventMask::ISDIR)
@@ -168,7 +160,13 @@ fn watch(targets: &[WatchTarget]) -> io::Result<impl Stream<Item = ()> + Send + 
             ready(
                 accepted
                     .iter()
-                    .any(|watched| watched.matches(&event))
+                    .any(|watched| {
+                        event.wd == watched.descriptor
+                            && watched
+                                .name
+                                .as_ref()
+                                .is_none_or(|name| event.name.as_ref() == Some(name))
+                    })
                     .then_some(()),
             )
         }))

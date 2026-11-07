@@ -30,8 +30,8 @@ use crate::{
     },
     group_menus::group_menu_state::{GroupMenuState, GroupMenuTopic},
     hover_cards::{
-        HandlePointing, HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator,
-        PanelPinOrigin, PressHints, announcing_hoverable,
+        HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator, PanelPinOrigin,
+        PointerPresence, PressHints, announcing_hoverable,
     },
     widget_groups::widget_group_identity::{
         WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle,
@@ -60,10 +60,16 @@ pub enum WidgetGroupExpansionMessage {
 
 pub use corredo::primitives::expand_animation::ExpansionState;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExpansionChange {
+    JustCollapsed,
+    Unchanged,
+}
+
 #[derive(Default)]
 pub struct WidgetGroupExpansion {
     state: ExpansionState,
-    cursor_pointing: HandlePointing,
+    cursor_pointing: PointerPresence,
 }
 
 pub struct KeyedExpansions<Key> {
@@ -119,7 +125,7 @@ impl<Key: Ord> KeyedExpansions<Key> {
 }
 
 impl WidgetGroupExpansion {
-    pub fn update(&mut self, msg: WidgetGroupExpansionMessage) -> bool {
+    pub fn update(&mut self, msg: WidgetGroupExpansionMessage) -> ExpansionChange {
         let previous_state = self.state;
         match msg {
             WidgetGroupExpansionMessage::Toggle => {
@@ -130,18 +136,21 @@ impl WidgetGroupExpansion {
             }
             WidgetGroupExpansionMessage::Expand => self.state = ExpansionState::Expanded,
             WidgetGroupExpansionMessage::CursorEntered => {
-                self.cursor_pointing = HandlePointing::PointedAt;
+                self.cursor_pointing = PointerPresence::PointedAt;
             }
             WidgetGroupExpansionMessage::CursorExited => {
-                self.cursor_pointing = HandlePointing::NotPointedAt;
+                self.cursor_pointing = PointerPresence::NotPointedAt;
             }
             WidgetGroupExpansionMessage::Collapse => self.state = ExpansionState::Collapsed,
             WidgetGroupExpansionMessage::HandleScrolled(_) => {}
         }
-        previous_state == ExpansionState::Expanded && self.state == ExpansionState::Collapsed
+        match (previous_state, self.state) {
+            (ExpansionState::Expanded, ExpansionState::Collapsed) => ExpansionChange::JustCollapsed,
+            _ => ExpansionChange::Unchanged,
+        }
     }
 
-    pub fn collapse(&mut self) -> bool {
+    pub fn collapse(&mut self) -> ExpansionChange {
         self.update(WidgetGroupExpansionMessage::Collapse)
     }
 
@@ -328,6 +337,12 @@ impl<M> GroupMenuItemRow<'_, M> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PanelPromotion {
+    RisesToPanel,
+    StaysInMenu,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AlertPromotion {
     OntoPanel,
     OntoPanelNow,
@@ -391,22 +406,29 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     }
 
     #[must_use]
-    pub fn on_panel_while(self, condition_holds: bool) -> Self {
-        if condition_holds {
-            Self {
+    pub fn with_panel_promotion(self, panel_promotion: PanelPromotion) -> Self {
+        match panel_promotion {
+            PanelPromotion::RisesToPanel => Self {
                 alert_promotion: AlertPromotion::OntoPanelNow,
                 ..self
-            }
-        } else {
-            self
+            },
+            PanelPromotion::StaysInMenu => self,
         }
     }
 
-    pub(crate) fn promoted_by_alert(&self, promotion_severity: Severity, clock: Clock) -> bool {
+    pub(crate) fn alert_panel_promotion(
+        &self,
+        promotion_severity: Severity,
+        clock: Clock,
+    ) -> PanelPromotion {
         match self.alert_promotion {
-            AlertPromotion::OntoPanel => self.highest_alert_severity(clock) >= promotion_severity,
-            AlertPromotion::OntoPanelNow => true,
-            AlertPromotion::StaysInMenu => false,
+            AlertPromotion::OntoPanel
+                if self.highest_alert_severity(clock) >= promotion_severity =>
+            {
+                PanelPromotion::RisesToPanel
+            }
+            AlertPromotion::OntoPanelNow => PanelPromotion::RisesToPanel,
+            AlertPromotion::OntoPanel | AlertPromotion::StaysInMenu => PanelPromotion::StaysInMenu,
         }
     }
 
@@ -514,8 +536,8 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     }
 
     #[cfg(test)]
-    pub(crate) fn has_items(&self) -> bool {
-        !self.items.is_empty()
+    pub(crate) fn is_empty(&self) -> bool {
+        self.items.is_empty()
     }
 
     #[cfg(test)]
@@ -751,7 +773,7 @@ pub(crate) fn fixed_view<'a, M: Clone + 'a>(
 #[derive(Clone, Copy)]
 pub(crate) struct EdgeIndicator {
     pub highest_alert_severity: Severity,
-    pub cursor_pointing: HandlePointing,
+    pub cursor_pointing: PointerPresence,
     pub expansion_state: ExpansionState,
 }
 
@@ -775,8 +797,8 @@ impl EdgeIndicator {
     pub(crate) fn view<'a, M: 'a>(self, reveal: f32) -> Element<'a, M> {
         let thickness = ACCENT_STROKE_PX;
         let base = match self.cursor_pointing {
-            HandlePointing::PointedAt => 0.5,
-            HandlePointing::NotPointedAt => 0.2,
+            PointerPresence::PointedAt => 0.5,
+            PointerPresence::NotPointedAt => 0.2,
         };
         let revealing_opacity = base + (1.0 - base) * reveal;
         match self.highest_alert_severity {
@@ -786,7 +808,7 @@ impl EdgeIndicator {
                 activity_line(primary_color, revealing_opacity, thickness)
             }
             Severity::Low | Severity::Normal
-                if self.cursor_pointing == HandlePointing::PointedAt =>
+                if self.cursor_pointing == PointerPresence::PointedAt =>
             {
                 activity_line(secondary_text_color, 1.0, thickness)
             }
@@ -870,7 +892,9 @@ mod tests {
             reading_display_state::ReadingDisplayState,
         },
         hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
-        widget_groups::widget_group_identity::WidgetGroupFamily,
+        widget_groups::{
+            widget_group_content::PanelPromotion, widget_group_identity::WidgetGroupFamily,
+        },
         widgets::{
             icon_glyph::IconGlyph,
             phosphor::{Phosphor, Weight},
@@ -923,14 +947,20 @@ mod tests {
     #[test]
     fn an_alert_promotes_a_group_onto_the_panel_by_default() {
         let expansion = WidgetGroupExpansion::default();
-        assert!(alerting_group(&expansion).promoted_by_alert(Severity::Warning, Clock::real()));
+        assert_eq!(
+            alerting_group(&expansion).alert_panel_promotion(Severity::Warning, Clock::real()),
+            PanelPromotion::RisesToPanel
+        );
     }
 
     #[test]
     fn a_group_staying_in_its_menu_is_not_promoted_by_its_alert() {
         let expansion = WidgetGroupExpansion::default();
         let group = alerting_group(&expansion).staying_in_menu_during_alerts();
-        assert!(!group.promoted_by_alert(Severity::Warning, Clock::real()));
+        assert_eq!(
+            group.alert_panel_promotion(Severity::Warning, Clock::real()),
+            PanelPromotion::StaysInMenu
+        );
         assert_eq!(
             group.highest_alert_severity(Clock::real()),
             Severity::Warning

@@ -48,9 +48,25 @@ enum OutgoingWrite {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DeviceArrival {
+    Reached,
+    Lagging,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeviceTracking {
+    FollowingDevice,
+    Diverging,
+}
+
 impl DeviceFeedback {
-    fn has_reached(&self, value: f32, step: f32) -> bool {
-        (self.reported_value - value).abs() <= step / 2.0
+    fn arrival_at(&self, value: f32, step: f32) -> DeviceArrival {
+        if (self.reported_value - value).abs() <= step / 2.0 {
+            DeviceArrival::Reached
+        } else {
+            DeviceArrival::Lagging
+        }
     }
 }
 
@@ -90,14 +106,18 @@ impl DeviceSetting {
     #[must_use]
     pub fn lagging_device_value(&self, step: f32) -> Option<f32> {
         let requested_value = self.user_request.requested_value()?;
-        (!self.device_feedback.has_reached(requested_value, step))
+        (self.device_feedback.arrival_at(requested_value, step) == DeviceArrival::Lagging)
             .then_some(self.device_feedback.reported_value)
     }
 
     #[must_use]
-    pub fn follows_device(&self) -> bool {
-        matches!(self.user_request, UserRequest::FollowingDevice)
-            && matches!(self.outgoing_write, OutgoingWrite::NothingOutstanding)
+    pub fn device_tracking(&self) -> DeviceTracking {
+        match (&self.user_request, &self.outgoing_write) {
+            (UserRequest::FollowingDevice, OutgoingWrite::NothingOutstanding) => {
+                DeviceTracking::FollowingDevice
+            }
+            _ => DeviceTracking::Diverging,
+        }
     }
 
     pub fn drag_moved_to(&mut self, requested_value: f32) -> Option<Write> {
@@ -184,7 +204,8 @@ impl DeviceSetting {
         }
         if self
             .device_feedback
-            .has_reached(self.device_feedback.accepted_value, step)
+            .arrival_at(self.device_feedback.accepted_value, step)
+            == DeviceArrival::Reached
         {
             self.user_request = UserRequest::FollowingDevice;
         } else if self.user_request.requested_value().is_none() {

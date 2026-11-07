@@ -7,7 +7,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     stream_operators::{StreamOperators, connected_until_failure, read_once_then_per_burst},
     system_protocol_clients::dbus_desktop_buses::{
-        self, DesktopBuses, Properties, name_owned, prop, service_absent,
+        self, DesktopBuses, Properties, SERVICE_ABSENT_ERRORS, name_owned, prop,
     },
 };
 
@@ -135,13 +135,20 @@ async fn pending_upgrades(system: &zbus::Connection) -> PendingUpgrades {
         Err(error) => return Err(error),
     };
     let mut upgrades = Vec::new();
-    for device in devices.iter().filter(|device| updatable(device)) {
+    for device in devices.iter().filter(|device| {
+        prop::<u64>(device, "Flags").is_some_and(|flags| flags & UPDATABLE_DEVICE_FLAG != 0)
+    }) {
         let Some(device_id) = prop::<String>(device, "DeviceId") else {
             continue;
         };
         let releases = match fwupd.get_upgrades(&device_id).await {
             Ok(releases) => releases,
-            Err(error) if no_upgrade(&error) || service_absent(&error) => continue,
+            Err(zbus::Error::MethodError(name, _, _))
+                if NO_UPGRADE_ERRORS.contains(&name.as_str())
+                    || SERVICE_ABSENT_ERRORS.contains(&name.as_str()) =>
+            {
+                continue;
+            }
             Err(error) => return Err(dbus_desktop_buses::Error::Call(error.to_string())),
         };
         upgrades.extend(
@@ -153,21 +160,11 @@ async fn pending_upgrades(system: &zbus::Connection) -> PendingUpgrades {
     Ok(upgrades)
 }
 
-fn updatable(device: &Properties) -> bool {
-    prop::<u64>(device, "Flags").is_some_and(|flags| flags & UPDATABLE_DEVICE_FLAG != 0)
-}
-
-fn no_upgrade(error: &zbus::Error) -> bool {
-    let zbus::Error::MethodError(name, _, _) = error else {
-        return false;
-    };
-    matches!(
-        name.as_str(),
-        "org.freedesktop.fwupd.NothingToDo"
-            | "org.freedesktop.fwupd.NotSupported"
-            | "org.freedesktop.fwupd.NotFound"
-    )
-}
+const NO_UPGRADE_ERRORS: [&str; 3] = [
+    "org.freedesktop.fwupd.NothingToDo",
+    "org.freedesktop.fwupd.NotSupported",
+    "org.freedesktop.fwupd.NotFound",
+];
 
 impl FirmwareUpgrade {
     fn offered(device: &Properties, release: &Properties) -> Option<Self> {

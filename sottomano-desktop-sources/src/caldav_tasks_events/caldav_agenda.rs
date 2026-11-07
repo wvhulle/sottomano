@@ -20,10 +20,11 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     caldav_tasks_events::{
         caldav_calendar_discovery::{
-            CaldavLogin, CalendarCollection, CalendarHome, ChangeTracking, connect_calendar_home,
+            CaldavLogin, CalendarChange, CalendarCollection, CalendarHome, ChangeTracking,
+            connect_calendar_home,
         },
         caldav_event_query::EventWindow,
-        caldav_home_listing::CalendarHomeListing,
+        caldav_home_listing::{CalendarHomeListing, CalendarVisibility},
         caldav_server_provider::CaldavProvider,
         nextcloud_notify_push::{PushLogin, activity_pings},
     },
@@ -103,8 +104,14 @@ pub struct CaldavAccount {
     pub subscription_download_interval: Duration,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CalendarHolding {
+    Holds,
+    Lacks,
+}
+
 pub(super) trait CalendarEntryQuery: Clone + Send + Sync + 'static {
-    fn held_by(calendar: &CalendarCollection) -> bool;
+    fn holding(calendar: &CalendarCollection) -> CalendarHolding;
 
     fn queried(
         home: &CalendarHome,
@@ -177,13 +184,6 @@ struct FetchedCalendar<Entry> {
 }
 
 impl<Entry: CalendarEntryQuery> FetchedCalendar<Entry> {
-    fn still_current(&self, calendar: &CalendarCollection, window: EventWindow) -> bool {
-        self.window == window
-            && calendar
-                .change_tracking
-                .unchanged_since(&self.change_tracking)
-    }
-
     async fn fetch(
         home: &CalendarHome,
         calendar: &CalendarCollection,
@@ -276,7 +276,7 @@ impl<Entry: CalendarEntryQuery> CalendarHomePoller<Entry> {
         };
         let shown_calendars: Vec<&CalendarCollection> = calendars
             .iter()
-            .filter(|calendar| listing.shows(&calendar.href))
+            .filter(|calendar| listing.visibility_of(&calendar.href) == CalendarVisibility::Shown)
             .collect();
         let provider = CaldavProvider::detected(
             &self.account.server_url,
@@ -287,12 +287,20 @@ impl<Entry: CalendarEntryQuery> CalendarHomePoller<Entry> {
         let mut previous_calendars = mem::take(&mut self.fetched_calendars);
         let calendar_fetches = shown_calendars
             .into_iter()
-            .filter(|calendar| Entry::held_by(calendar))
+            .filter(|calendar| Entry::holding(calendar) == CalendarHolding::Holds)
             .map(|calendar| {
                 let cached = previous_calendars.remove(&calendar.href);
                 async move {
                     match cached {
-                        Some(cached) if cached.still_current(calendar, window) => Ok(cached),
+                        Some(cached)
+                            if cached.window == window
+                                && calendar
+                                    .change_tracking
+                                    .change_since(&cached.change_tracking)
+                                    == CalendarChange::Unchanged =>
+                        {
+                            Ok(cached)
+                        }
                         _ => FetchedCalendar::fetch(home, calendar, window).await,
                     }
                 }

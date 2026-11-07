@@ -41,7 +41,10 @@ use crate::{
         hoverable,
     },
     widget_groups::{
-        media_group::confirm_button::{ConfirmButton, ConfirmPolicy, ConfirmPress},
+        media_group::{
+            confirm_button::{ConfirmButton, ConfirmPolicy, ConfirmPress},
+            seek_bar::SeekAvailability,
+        },
         widget_group_content::{
             ExpansionState, GroupEvent, WidgetGroupContent, WidgetGroupExpansion,
             WidgetGroupExpansionMessage,
@@ -524,12 +527,15 @@ fn player_group<'a>(
     lyrics_snapshot: Option<&'a LatestSnapshot<TrackLyrics>>,
 ) -> WidgetGroupContent<'a, MediaMessage> {
     let bus = media.bus.as_str();
-    let seekable = SeekBar::seekable(media, clock.instant);
+    let seek_availability = SeekBar::seek_availability(media, clock.instant);
     let gauge_fraction = media
         .progress
         .fraction(media.status, clock.instant)
-        .filter(|_| !(seekable && session.expansion.state() == ExpansionState::Expanded));
-    let seek = seekable.then(|| {
+        .filter(|_| {
+            !(seek_availability == SeekAvailability::Seekable
+                && session.expansion.state() == ExpansionState::Expanded)
+        });
+    let seek = (seek_availability == SeekAvailability::Seekable).then(|| {
         GroupItem::composed(
             ComposedGroupItemFace {
                 name: "Position".into(),
@@ -610,7 +616,9 @@ fn player_group<'a>(
         .into_iter()
         .flatten(),
     )
-    .forwards_scroll(seekable.then_some("seek in the track"))
+    .forwards_scroll(
+        (seek_availability == SeekAvailability::Seekable).then_some("seek in the track"),
+    )
 }
 
 fn session_controls<'a>(
@@ -716,7 +724,7 @@ fn dispatch(media: &Media, command: Command) -> Task<Result<(), MprisDispatchFai
 #[cfg(test)]
 mod tests {
     use sottomano_desktop_sources::{
-        media_playback_audio::mpris_players::{Capabilities, SeekMode},
+        media_playback_audio::mpris_players::{Capabilities, PlayerSetting, SeekMode},
         system_protocol_clients::http_json_client,
     };
 
@@ -736,8 +744,8 @@ mod tests {
             progress: Progress::Untimed,
             art_url: None,
             capabilities: Capabilities::default(),
-            queue_order: None,
-            loop_mode: None,
+            queue_order: PlayerSetting::Uncontrollable,
+            loop_mode: PlayerSetting::Uncontrollable,
             seek_mode: SeekMode::Relative,
         }
     }

@@ -11,7 +11,9 @@ fn main() -> io::Result<()> {
         .collect();
     let mut holder_pids = Vec::new();
     for process_id in process_ids {
-        if process_holds_secret_memory(&Path::new("/proc").join(process_id.to_string()))? {
+        if process_mapping_kind(&Path::new("/proc").join(process_id.to_string()))?
+            == MappingKind::SecretMemory
+        {
             holder_pids.push(process_id);
         }
     }
@@ -22,49 +24,73 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn process_holds_secret_memory(process_directory: &Path) -> io::Result<bool> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MappingKind {
+    SecretMemory,
+    Ordinary,
+}
+
+fn process_mapping_kind(process_directory: &Path) -> io::Result<MappingKind> {
     match fs::read(process_directory.join("maps")) {
-        Ok(memory_maps) => Ok(memory_maps
-            .split(|byte| *byte == b'\n')
-            .any(maps_secret_memory)),
+        Ok(memory_maps) => Ok(
+            if memory_maps
+                .split(|byte| *byte == b'\n')
+                .any(|map_line| mapping_kind(map_line) == MappingKind::SecretMemory)
+            {
+                MappingKind::SecretMemory
+            } else {
+                MappingKind::Ordinary
+            },
+        ),
         Err(read_failure) if read_failure.kind() == ErrorKind::PermissionDenied => {
             Err(read_failure)
         }
-        Err(_) => Ok(false),
+        Err(_) => Ok(MappingKind::Ordinary),
     }
 }
 
-fn maps_secret_memory(map_line: &[u8]) -> bool {
+fn mapping_kind(map_line: &[u8]) -> MappingKind {
     let mapped_path = String::from_utf8_lossy(map_line)
         .split_whitespace()
         .skip(5)
         .collect::<Vec<_>>()
         .join(" ");
-    mapped_path.contains("secretmem") && mapped_path.matches('/').count() <= 1
+    if mapped_path.contains("secretmem") && mapped_path.matches('/').count() <= 1 {
+        MappingKind::SecretMemory
+    } else {
+        MappingKind::Ordinary
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::maps_secret_memory;
+    use super::{MappingKind, mapping_kind};
 
     #[test]
     fn a_secret_memory_mapping_is_recognised() {
-        assert!(maps_secret_memory(
-            b"7f00-7f01 rw-s 00000000 00:01 12345    /secretmem (deleted)"
-        ));
-        assert!(maps_secret_memory(
-            b"7f00-7f01 rw-s 00000000 00:0f 12345    anon_inode:[secretmem]"
-        ));
+        assert_eq!(
+            mapping_kind(b"7f00-7f01 rw-s 00000000 00:01 12345    /secretmem (deleted)"),
+            MappingKind::SecretMemory
+        );
+        assert_eq!(
+            mapping_kind(b"7f00-7f01 rw-s 00000000 00:0f 12345    anon_inode:[secretmem]"),
+            MappingKind::SecretMemory
+        );
     }
 
     #[test]
     fn ordinary_files_named_alike_are_not_secret_memory() {
-        assert!(!maps_secret_memory(
-            b"7f00-7f01 r--p 00000000 103:02 777    /home/user/secretmem"
-        ));
-        assert!(!maps_secret_memory(
-            b"7f00-7f01 r--p 00000000 103:02 777    /nix/store/abc/libfoo.so"
-        ));
-        assert!(!maps_secret_memory(b"7f00-7f01 rw-p 00000000 00:00 0"));
+        assert_eq!(
+            mapping_kind(b"7f00-7f01 r--p 00000000 103:02 777    /home/user/secretmem"),
+            MappingKind::Ordinary
+        );
+        assert_eq!(
+            mapping_kind(b"7f00-7f01 r--p 00000000 103:02 777    /nix/store/abc/libfoo.so"),
+            MappingKind::Ordinary
+        );
+        assert_eq!(
+            mapping_kind(b"7f00-7f01 rw-p 00000000 00:00 0"),
+            MappingKind::Ordinary
+        );
     }
 }

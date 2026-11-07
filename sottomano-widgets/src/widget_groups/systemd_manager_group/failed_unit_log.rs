@@ -18,7 +18,8 @@ use sottomano_toml_config::Config;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
+        group_item::GroupItem,
+        group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
@@ -183,8 +184,12 @@ fn failure_summary(unit: &FailedUnitInfo, now: DateTime<Utc>, locale: Locale) ->
 }
 
 impl GroupItemReading for FailedUnits {
-    fn visible_on_panel(&self) -> bool {
-        !self.is_empty()
+    fn panel_visibility(&self) -> PanelVisibility {
+        if self.is_empty() {
+            PanelVisibility::Hidden
+        } else {
+            PanelVisibility::Shown
+        }
     }
 
     fn name(&self) -> &'static str {

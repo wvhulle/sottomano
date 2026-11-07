@@ -21,6 +21,7 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{Notification, toast_card_backdrop::ToastCardBackdrop, toast_lifecycle::ToastKind};
 use crate::{
+    hover_cards::PointerPresence,
     notification_toasts::markup_body::MarkupBody,
     toast_messages::{NotificationMessage, ReplyMessage},
     widgets::{
@@ -187,7 +188,7 @@ pub struct ToastCard<'a, Routed> {
     theme: &'a Theme,
     overlay_appearance: LayerAppearance,
     now: SystemTime,
-    hovered: bool,
+    pointer_presence: PointerPresence,
     reveal: f32,
     background_fade: CardBackgroundFade,
 }
@@ -206,15 +207,15 @@ impl<'a, Routed> ToastCard<'a, Routed> {
             theme,
             overlay_appearance,
             now,
-            hovered: false,
+            pointer_presence: PointerPresence::NotPointedAt,
             reveal: 1.0,
             background_fade: CardBackgroundFade::Resting,
         }
     }
 
     #[must_use]
-    pub fn hovered(mut self, hovered: bool) -> Self {
-        self.hovered = hovered;
+    pub fn pointer_presence(mut self, pointer_presence: PointerPresence) -> Self {
+        self.pointer_presence = pointer_presence;
         self
     }
 
@@ -254,8 +255,14 @@ impl<Routed> From<ToastCard<'_, Routed>> for Element<'_, NotificationMessage> {
         let backdropped_card = ToastCardBackdrop::new(framed_card, style, card.background_fade);
 
         mouse_area(backdropped_card)
-            .on_enter(NotificationMessage::HoverChanged { id, hovered: true })
-            .on_exit(NotificationMessage::HoverChanged { id, hovered: false })
+            .on_enter(NotificationMessage::HoverChanged {
+                id,
+                pointer_presence: PointerPresence::PointedAt,
+            })
+            .on_exit(NotificationMessage::HoverChanged {
+                id,
+                pointer_presence: PointerPresence::NotPointedAt,
+            })
             .on_press(NotificationMessage::BodyClicked(id))
             .on_right_press(NotificationMessage::Dismiss(id))
             .into()
@@ -268,13 +275,10 @@ impl<Routed> ToastCard<'_, Routed> {
     }
 
     fn style(&self) -> container::Style {
-        let hovered = self.hovered;
         let family = self.urgency_family();
-        let urgency = if hovered { family.strong } else { family.base };
-        let opacity = if hovered {
-            1.0
-        } else {
-            self.overlay_appearance.opacity
+        let (urgency, opacity) = match self.pointer_presence {
+            PointerPresence::PointedAt => (family.strong, 1.0),
+            PointerPresence::NotPointedAt => (family.base, self.overlay_appearance.opacity),
         };
         let shadow = self.overlay_appearance.frame_style().drop_shadow();
         container::Style::default()
@@ -312,8 +316,8 @@ impl<Routed> ToastCard<'_, Routed> {
             .iter()
             .filter(|a| a.key != "default" && !a.label.trim().is_empty())
             .collect();
-        let previewed = self.notif.icons.previewed_file().is_some();
-        let has_actions = !button_actions.is_empty() || previewed;
+        let previewed_file = self.notif.icons.previewed_file();
+        let has_actions = !button_actions.is_empty() || previewed_file.is_some();
         let now = self.now;
         let body_text = &data.body;
         let has_body = body_text.is_some();
@@ -393,7 +397,7 @@ impl<Routed> ToastCard<'_, Routed> {
         }
         if has_actions {
             let actions = self
-                .actions_row(&button_actions, previewed)
+                .actions_row(&button_actions, previewed_file)
                 .push(space::horizontal());
             column = column.push(match reltime_span(true) {
                 Some(time) => actions.push(time),
@@ -406,7 +410,7 @@ impl<Routed> ToastCard<'_, Routed> {
     fn actions_row<'b>(
         &self,
         button_actions: &[&NotifAction],
-        previewed: bool,
+        previewed_file: Option<&Path>,
     ) -> Row<'b, NotificationMessage> {
         let id = self.notif.data.id;
         let palette = self.theme.extended_palette();
@@ -421,8 +425,8 @@ impl<Routed> ToastCard<'_, Routed> {
                 action_family(palette, action.tint),
             )
         });
-        let file_buttons = previewed
-            .then(|| {
+        let file_buttons = previewed_file
+            .map(|_| {
                 [
                     self.action_button(
                         "Open".to_owned(),

@@ -5,7 +5,7 @@ use fast_dav_rs::caldav::{CalendarQueryFilter, PropFilter};
 use icalendar::{Component, Todo, TodoStatus};
 
 use crate::caldav_tasks_events::{
-    agenda_moment_zones::AgendaMoment,
+    agenda_moment_zones::{AgendaMoment, DeadlinePassage},
     caldav_agenda::{CalendarResource, Error, parsed_calendar_data},
     caldav_calendar_discovery::{CalendarCollection, CalendarHome},
     caldav_event_query::displayed_summary,
@@ -121,7 +121,9 @@ impl OpenTask {
     #[must_use]
     pub fn due_status(&self, now: DateTime<Local>) -> TaskDueStatus {
         match self.deadline {
-            TaskDeadline::Due(due) if due.ends_before(now) => TaskDueStatus::Overdue,
+            TaskDeadline::Due(due) if due.passage_at(now) == DeadlinePassage::Passed => {
+                TaskDueStatus::Overdue
+            }
             _ => TaskDueStatus::NotYetDue,
         }
     }
@@ -154,7 +156,13 @@ fn open_tasks(resources: &[CalendarResource], calendar_name: &str) -> Vec<OpenTa
             resource
                 .calendar
                 .todos()
-                .filter(|todo| still_open(todo))
+                .filter(|todo| {
+                    todo.get_completed().is_none()
+                        && !matches!(
+                            todo.get_status(),
+                            Some(TodoStatus::Completed | TodoStatus::Cancelled)
+                        )
+                })
                 .map(move |todo| open_task(&resource.href, todo, calendar_name))
         })
         .collect()
@@ -181,14 +189,6 @@ fn task_progress(todo: &Todo) -> TaskProgress {
         _ if todo.get_status() == Some(TodoStatus::InProcess) => TaskProgress::Started,
         _ => TaskProgress::NotStarted,
     }
-}
-
-fn still_open(todo: &Todo) -> bool {
-    todo.get_completed().is_none()
-        && !matches!(
-            todo.get_status(),
-            Some(TodoStatus::Completed | TodoStatus::Cancelled)
-        )
 }
 
 #[cfg(test)]

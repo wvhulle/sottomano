@@ -7,7 +7,10 @@ use sottomano_desktop_sources::{
         LlamaServer, LlamaServerOnBus, LlamaServerUnit, ModelInstance,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
-    systemd_units_journal::{SystemdOnBus, SystemdUnitScope, service_commands::ServiceCommands},
+    systemd_units_journal::{
+        SystemdOnBus, SystemdUnitScope, service_commands::ServiceCommands,
+        unit_active_state::UnitActivity,
+    },
 };
 
 use super::{
@@ -239,7 +242,7 @@ impl ScopedLlamaServers {
                 reading,
             };
             let running = Some(readings)
-                .filter(|readings| readings.switch.running())
+                .filter(|readings| readings.switch.activity() == Some(UnitActivity::Running))
                 .and_then(|readings| readings.server.get());
             let busy = running.filter(|server| server.busy_slots().next().is_some());
             [

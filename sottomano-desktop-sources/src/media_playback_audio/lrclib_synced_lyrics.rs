@@ -260,10 +260,11 @@ impl LrclibRecord {
         (self.duration - query.duration().as_secs_f64()).abs()
     }
 
-    fn has_synced_lyrics(&self) -> bool {
-        self.synced_lyrics
-            .as_deref()
-            .is_some_and(|lrc_text| !lrc_text.trim().is_empty())
+    fn lyrics_timing(&self) -> LyricsTiming {
+        match self.synced_lyrics.as_deref() {
+            Some(lrc_text) if !lrc_text.trim().is_empty() => LyricsTiming::Synced,
+            Some(_) | None => LyricsTiming::Unsynced,
+        }
     }
 }
 
@@ -272,13 +273,10 @@ fn closest_search_match(candidate_records: Vec<LrclibRecord>, query: &LyricsQuer
         .into_iter()
         .filter(|record| record.duration_mismatch_secs(query) <= DURATION_TOLERANCE_SECS)
         .min_by(|left, right| {
-            right
-                .has_synced_lyrics()
-                .cmp(&left.has_synced_lyrics())
-                .then(
-                    left.duration_mismatch_secs(query)
-                        .total_cmp(&right.duration_mismatch_secs(query)),
-                )
+            right.lyrics_timing().cmp(&left.lyrics_timing()).then(
+                left.duration_mismatch_secs(query)
+                    .total_cmp(&right.duration_mismatch_secs(query)),
+            )
         })
         .map_or(TrackLyrics::Missing, TrackLyrics::from)
 }
@@ -418,6 +416,12 @@ impl SnapshotSource for TrackLyrics {
             )
         })
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum LyricsTiming {
+    Unsynced,
+    Synced,
 }
 
 #[cfg(test)]

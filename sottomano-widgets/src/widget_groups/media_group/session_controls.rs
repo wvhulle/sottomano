@@ -57,7 +57,7 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
     where
         Message: 'a,
     {
-        self.stoppable().then(|| {
+        (self.media.capabilities.stop && self.media.status != Status::Stopped).then(|| {
             let state = ReadingDisplayState::Off;
             let tint = ReadingStateTint {
                 state,
@@ -105,10 +105,6 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
                 self.on_hover_card,
             )
         })
-    }
-
-    fn stoppable(&self) -> bool {
-        self.media.capabilities.stop && self.media.status != Status::Stopped
     }
 }
 

@@ -244,8 +244,12 @@ impl OpenRouterStrictBudget {
     }
 
     #[must_use]
-    pub fn exhausted(&self) -> bool {
-        !self.tightest_remaining().is_positive()
+    pub fn credit_standing(&self) -> CreditStanding {
+        if self.tightest_remaining().is_positive() {
+            CreditStanding::Remaining
+        } else {
+            CreditStanding::Exhausted
+        }
     }
 }
 
@@ -336,6 +340,12 @@ fn short_model(slug: &str) -> String {
         _ => base.to_owned(),
     }
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CreditStanding {
+    Remaining,
+    Exhausted,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -366,7 +376,7 @@ mod tests {
             key_limits: Vec::new(),
         };
         assert_eq!(reading.tightest_remaining(), usd(Decimal::new(205, 1)));
-        assert!(!reading.exhausted());
+        assert_eq!(reading.credit_standing(), CreditStanding::Remaining);
     }
 
     #[test]

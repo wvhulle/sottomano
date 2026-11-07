@@ -21,7 +21,9 @@ use uom::si::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::{PeriodicPolling, PollTick},
-    network_connectivity::{network_manager_proxies, nm_readings},
+    network_connectivity::{
+        network_manager_proxies, network_manager_proxies::Metering, nm_readings,
+    },
     stream_operators::StreamOperators,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -77,8 +79,14 @@ impl Throughput {
     }
 
     #[must_use]
-    pub fn unused(&self) -> bool {
-        self.peak_rate <= InformationRate::new::<kilobyte_per_second>(BACKGROUND_CHATTER_KB_PER_S)
+    pub fn link_usage(&self) -> LinkUsage {
+        if self.peak_rate
+            <= InformationRate::new::<kilobyte_per_second>(BACKGROUND_CHATTER_KB_PER_S)
+        {
+            LinkUsage::Idle
+        } else {
+            LinkUsage::Carrying
+        }
     }
 }
 
@@ -86,7 +94,7 @@ impl Throughput {
 pub struct InterfaceThroughput {
     pub down: Throughput,
     pub up: Throughput,
-    pub metered: bool,
+    pub metering: Metering,
     pub cumulative_counters: BTreeMap<String, InterfaceByteCounters>,
 }
 
@@ -141,7 +149,7 @@ enum ThroughputEvent {
 #[derive(Default)]
 struct ThroughputSampler {
     interfaces: Vec<String>,
-    metered: bool,
+    metering: Metering,
     latest: Option<Sample>,
     rates: Rates,
     peak: Rates,
@@ -150,12 +158,14 @@ struct ThroughputSampler {
 impl ThroughputSampler {
     fn observed(self, event: ThroughputEvent) -> Self {
         match event {
-            ThroughputEvent::UplinkChanged(uplink) => Self {
-                interfaces: uplink
-                    .as_ref()
-                    .map(|uplink| physical(&uplink.activated_interfaces))
-                    .unwrap_or_default(),
-                metered: uplink.is_some_and(|uplink| uplink.metered),
+            ThroughputEvent::UplinkChanged(Some(uplink)) => Self {
+                interfaces: physical(&uplink.activated_interfaces),
+                metering: uplink.metering,
+                ..self
+            },
+            ThroughputEvent::UplinkChanged(None) => Self {
+                interfaces: Vec::default(),
+                metering: Metering::Unmetered,
                 ..self
             },
             ThroughputEvent::Tick(_) => {
@@ -178,7 +188,7 @@ impl ThroughputSampler {
     fn readings(&self) -> Option<InterfaceThroughput> {
         self.latest
             .as_ref()
-            .map(|latest| readings(latest, self.rates, self.peak, self.metered))
+            .map(|latest| readings(latest, self.rates, self.peak, self.metering))
     }
 }
 
@@ -251,7 +261,12 @@ impl Sample {
     }
 }
 
-fn readings(current: &Sample, rates: Rates, peak: Rates, metered: bool) -> InterfaceThroughput {
+fn readings(
+    current: &Sample,
+    rates: Rates,
+    peak: Rates,
+    metering: Metering,
+) -> InterfaceThroughput {
     let interfaces: Vec<String> = current.counters.keys().cloned().collect();
     InterfaceThroughput {
         down: Throughput {
@@ -266,7 +281,7 @@ fn readings(current: &Sample, rates: Rates, peak: Rates, metered: bool) -> Inter
             peak_rate: peak.tx,
             direction: NetworkTrafficDirection::Upload,
         },
-        metered,
+        metering,
         cumulative_counters: current.counters.clone(),
     }
 }
@@ -300,4 +315,10 @@ fn physical(interfaces: &[String]) -> Vec<String> {
         })
         .cloned()
         .collect()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LinkUsage {
+    Idle,
+    Carrying,
 }

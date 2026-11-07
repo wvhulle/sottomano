@@ -65,13 +65,6 @@ pub struct Downpour {
     pub at: DateTime<Local>,
 }
 
-impl Downpour {
-    #[must_use]
-    pub fn exceeds(&self, threshold: Velocity) -> bool {
-        self.intensity > threshold
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RainOutlook {
     Dry,
@@ -90,7 +83,7 @@ impl RainOutlook {
         let Some((now, later)) = forecast.split_first() else {
             return RainOutlook::Dry;
         };
-        if now.exceeds(threshold) {
+        if now.intensity > threshold {
             Self::while_raining(now, later, threshold)
         } else {
             Self::while_dry(later, threshold)
@@ -100,7 +93,7 @@ impl RainOutlook {
     fn while_dry(later: &[Downpour], threshold: Velocity) -> Self {
         later
             .iter()
-            .find(|downpour| downpour.exceeds(threshold))
+            .find(|downpour| downpour.intensity > threshold)
             .map_or(RainOutlook::Dry, |first_wet| {
                 RainOutlook::StartsAt(first_wet.at)
             })
@@ -109,7 +102,7 @@ impl RainOutlook {
     fn while_raining(now: &Downpour, later: &[Downpour], threshold: Velocity) -> Self {
         later
             .iter()
-            .find(|downpour| !downpour.exceeds(threshold))
+            .find(|downpour| downpour.intensity <= threshold)
             .map_or_else(
                 || RainOutlook::OutlastsForecastUntil(later.last().unwrap_or(now).at),
                 |first_dry| RainOutlook::StopsAt(first_dry.at),

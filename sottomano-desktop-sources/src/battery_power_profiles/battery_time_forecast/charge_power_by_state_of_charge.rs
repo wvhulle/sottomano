@@ -1,3 +1,9 @@
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CurveHistory {
+    Recorded,
+    Empty,
+}
+
 #[cfg(test)]
 use std::iter::repeat_n;
 use std::time::Duration;
@@ -67,8 +73,13 @@ impl ChargeCurve {
         ChargeCurve { bins }
     }
 
-    pub fn has_history(&self) -> bool {
-        self.bins.iter().any(Option::is_some)
+    #[must_use]
+    pub fn history(&self) -> CurveHistory {
+        if self.bins.iter().any(Option::is_some) {
+            CurveHistory::Recorded
+        } else {
+            CurveHistory::Empty
+        }
     }
 
     pub(super) fn learned(&self) -> Option<LearnedCurve> {
@@ -164,6 +175,6 @@ mod tests {
     #[test]
     fn empty_curve_knows_nothing() {
         assert!(ChargeCurve::default().learned().is_none());
-        assert!(!ChargeCurve::default().has_history());
+        assert_eq!(ChargeCurve::default().history(), CurveHistory::Empty);
     }
 }

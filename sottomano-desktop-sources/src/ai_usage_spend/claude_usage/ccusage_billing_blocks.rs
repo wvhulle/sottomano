@@ -8,6 +8,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     ai_usage_spend::{
         ccusage_cli_reports::{self, Agent, BillingBlock, RecentUsage},
+        claude_usage::SubscriptionCoverage,
         usage_quota::Quota,
         working_time_forecast::SpendBudget,
     },
@@ -44,7 +45,7 @@ impl SnapshotSource for ClaudeCcusagePeriods {
     const NAME: &'static str = "Claude Code local usage";
 
     fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        local_log_readings(logs, false, |logs| {
+        local_log_readings(logs, SubscriptionCoverage::Uncovered, |logs| {
             SnapshotDelivery::live_push_deliveries(ready(Ok(reread_on_trigger_or_deadline(
                 ccusage_cli_reports::transcript_changes(Agent::ClaudeCode),
                 move || Self::read(logs.clone()),
@@ -75,7 +76,7 @@ impl SnapshotSource for ClaudeCcusageBlock {
     const NAME: &'static str = "Claude Code billing block";
 
     fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        local_log_readings(logs, true, |_| {
+        local_log_readings(logs, SubscriptionCoverage::Covered, |_| {
             SnapshotDelivery::live_push_deliveries(ready(Ok(reread_on_trigger_or_deadline(
                 ccusage_cli_reports::transcript_changes(Agent::ClaudeCode),
                 Self::read,

@@ -10,6 +10,7 @@ use sottomano_toml_config::Config;
 use crate::{
     group_items::group_item::MenuParts,
     group_menus::menu_rows::pointer_tracked_row::PointerTrackedRow,
+    hover_cards::PointerPresence,
     widget_groups::widget_group_content::{GroupEvent, RowInspection},
     widgets::{
         configured_theme::{background_strong_color, primary_weak_color, text_color},
@@ -139,12 +140,14 @@ fn menu_row_padding(config: &Config) -> Padding {
 pub(crate) fn menu_row_background(
     theme: &Theme,
     emphasis: MenuRowEmphasis,
-    pointer_over: bool,
+    pointer_presence: PointerPresence,
 ) -> Option<Color> {
-    match (emphasis, pointer_over) {
+    match (emphasis, pointer_presence) {
         (MenuRowEmphasis::Selected, _) => Some(primary_weak_color(theme)),
-        (MenuRowEmphasis::Plain, true) => Some(background_strong_color(theme)),
-        (MenuRowEmphasis::Plain, false) => None,
+        (MenuRowEmphasis::Plain, PointerPresence::PointedAt) => {
+            Some(background_strong_color(theme))
+        }
+        (MenuRowEmphasis::Plain, PointerPresence::NotPointedAt) => None,
     }
 }
 
@@ -153,8 +156,11 @@ mod tests {
     use sottomano_toml_config::theme::palette::Palette;
 
     use super::{MenuRowEmphasis, menu_row_background};
-    use crate::widgets::configured_theme::{
-        background_strong_color, configured_theme, primary_weak_color,
+    use crate::{
+        hover_cards::PointerPresence,
+        widgets::configured_theme::{
+            background_strong_color, configured_theme, primary_weak_color,
+        },
     };
 
     #[test]
@@ -162,11 +168,19 @@ mod tests {
         let theme = configured_theme(&Palette::default());
         let selected_color = Some(primary_weak_color(&theme));
         assert_eq!(
-            menu_row_background(&theme, MenuRowEmphasis::Selected, false),
+            menu_row_background(
+                &theme,
+                MenuRowEmphasis::Selected,
+                PointerPresence::NotPointedAt
+            ),
             selected_color
         );
         assert_eq!(
-            menu_row_background(&theme, MenuRowEmphasis::Selected, true),
+            menu_row_background(
+                &theme,
+                MenuRowEmphasis::Selected,
+                PointerPresence::PointedAt
+            ),
             selected_color
         );
     }
@@ -175,11 +189,15 @@ mod tests {
     fn a_plain_row_lights_up_only_under_the_pointer() {
         let theme = configured_theme(&Palette::default());
         assert_eq!(
-            menu_row_background(&theme, MenuRowEmphasis::Plain, true),
+            menu_row_background(&theme, MenuRowEmphasis::Plain, PointerPresence::PointedAt),
             Some(background_strong_color(&theme))
         );
         assert_eq!(
-            menu_row_background(&theme, MenuRowEmphasis::Plain, false),
+            menu_row_background(
+                &theme,
+                MenuRowEmphasis::Plain,
+                PointerPresence::NotPointedAt
+            ),
             None
         );
     }

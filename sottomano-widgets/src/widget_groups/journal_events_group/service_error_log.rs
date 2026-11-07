@@ -6,7 +6,8 @@ use sottomano_desktop_sources::systemd_units_journal::journal_service_errors::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+        reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::journal_events_group::MESSAGE_CAP,
@@ -75,7 +76,11 @@ impl GroupItemReading for ServiceErrors {
         ))])
     }
 
-    fn visible_on_panel(&self) -> bool {
-        !self.is_empty()
+    fn panel_visibility(&self) -> PanelVisibility {
+        if self.is_empty() {
+            PanelVisibility::Hidden
+        } else {
+            PanelVisibility::Shown
+        }
     }
 }

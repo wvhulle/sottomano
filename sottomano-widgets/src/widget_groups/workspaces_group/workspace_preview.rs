@@ -105,7 +105,11 @@ impl<'a> WorkspaceSchematic<'a> {
 
         let outline = tile_outline(tile);
         let radius = Radius::from(self.preview.niri_layout.window_corner_radius_px);
-        let floating = tile.is_floating;
+        let tile_layer = if tile.is_floating {
+            TileLayer::Floating
+        } else {
+            TileLayer::Tiled
+        };
 
         button(content)
             .width(width)
@@ -132,7 +136,7 @@ impl<'a> WorkspaceSchematic<'a> {
                         width: OUTLINE_WIDTH_PX,
                         radius,
                     },
-                    shadow: floating_lift(theme, floating),
+                    shadow: floating_lift(theme, tile_layer),
                     ..button::Style::default()
                 }
             })
@@ -158,8 +162,14 @@ fn tile_outline(tile: &PreviewTile) -> fn(&Theme) -> Color {
     }
 }
 
-fn floating_lift(theme: &Theme, floating: bool) -> Shadow {
-    if !floating {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TileLayer {
+    Floating,
+    Tiled,
+}
+
+fn floating_lift(theme: &Theme, tile_layer: TileLayer) -> Shadow {
+    if tile_layer == TileLayer::Tiled {
         return Shadow::default();
     }
     Shadow {

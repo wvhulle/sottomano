@@ -26,7 +26,7 @@ use crate::{
     ai_usage_spend::ccusage_cli_reports,
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
-    stream_operators::StreamOperators,
+    stream_operators::{Availability, StreamOperators},
     system_protocol_clients::{http_json_client, inotify_file_presence::path_present},
 };
 
@@ -90,39 +90,50 @@ struct Oauth {
     scopes: Vec<String>,
 }
 
-impl Oauth {
-    fn grants_subscription_usage(&self) -> bool {
-        self.access_token.is_some() && self.scopes.iter().any(|scope| scope == SUBSCRIPTION_SCOPE)
-    }
-}
-
 fn read_credentials(path: &Path) -> Result<Credentials, Error> {
     let raw = fs::read_to_string(path).map_err(|_| Error::Credentials)?;
     serde_json::from_str(&raw).map_err(|_| Error::Credentials)
 }
 
 fn subscription_login(path: &Path) -> Option<Oauth> {
-    read_credentials(path)
-        .ok()?
-        .oauth
-        .filter(Oauth::grants_subscription_usage)
+    read_credentials(path).ok()?.oauth.filter(|oauth| {
+        oauth.access_token.is_some() && oauth.scopes.iter().any(|scope| scope == SUBSCRIPTION_SCOPE)
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LoginKind {
     Subscription,
     Enterprise,
+    LoggedOut,
 }
 
-fn login_kind(path: &Path) -> Option<LoginKind> {
-    let oauth = subscription_login(path)?;
-    Some(match oauth.subscription_type.as_deref() {
-        Some(ENTERPRISE_SUBSCRIPTION) => LoginKind::Enterprise,
-        _ => LoginKind::Subscription,
-    })
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SubscriptionCoverage {
+    Covered,
+    Uncovered,
 }
 
-fn logins(credentials: PathBuf) -> impl Stream<Item = Option<LoginKind>> + Send {
+impl From<LoginKind> for SubscriptionCoverage {
+    fn from(login_kind: LoginKind) -> Self {
+        match login_kind {
+            LoginKind::Subscription => SubscriptionCoverage::Covered,
+            LoginKind::Enterprise | LoginKind::LoggedOut => SubscriptionCoverage::Uncovered,
+        }
+    }
+}
+
+fn login_kind(path: &Path) -> LoginKind {
+    match subscription_login(path) {
+        Some(oauth) => match oauth.subscription_type.as_deref() {
+            Some(ENTERPRISE_SUBSCRIPTION) => LoginKind::Enterprise,
+            _ => LoginKind::Subscription,
+        },
+        None => LoginKind::LoggedOut,
+    }
+}
+
+fn logins(credentials: PathBuf) -> impl Stream<Item = LoginKind> + Send {
     path_present(credentials.clone()).map(move |_| login_kind(&credentials))
 }
 
@@ -140,7 +151,13 @@ where
     F: Future<Output = Result<S, S::Error>> + Send + 'static,
 {
     logins(credentials.clone())
-        .map(move |kind| kind == Some(wanted))
+        .map(move |kind| {
+            if kind == wanted {
+                Availability::Available
+            } else {
+                Availability::Unavailable
+            }
+        })
         .while_held(
             move || {
                 let credentials = credentials.clone();
@@ -157,22 +174,25 @@ where
 
 fn local_log_readings<S, R>(
     logs: ClaudeLocalLogs,
-    metered_by_subscription: bool,
+    wanted_coverage: SubscriptionCoverage,
     readings: impl Fn(ClaudeLocalLogs) -> R + Send + Clone + 'static,
 ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
 where
     S: SnapshotSource<StreamInputs = ClaudeLocalLogs> + PartialEq,
     R: Stream<Item = SnapshotDelivery<S>> + Send,
 {
-    stream::once(ccusage_cli_reports::installed()).while_held(
+    stream::once(ccusage_cli_reports::ccusage_availability()).while_held(
         move || {
+            let coverage_availability = move |kind: LoginKind| {
+                if SubscriptionCoverage::from(kind) == wanted_coverage {
+                    Availability::Available
+                } else {
+                    Availability::Unavailable
+                }
+            };
             let login_matches = match logs.credentials.clone() {
-                Some(credentials) => logins(credentials)
-                    .map(move |kind| {
-                        (kind == Some(LoginKind::Subscription)) == metered_by_subscription
-                    })
-                    .left_stream(),
-                None => stream::iter([!metered_by_subscription]).right_stream(),
+                Some(credentials) => logins(credentials).map(coverage_availability).left_stream(),
+                None => stream::iter([coverage_availability(LoginKind::LoggedOut)]).right_stream(),
             };
             let logs = logs.clone();
             let readings = readings.clone();

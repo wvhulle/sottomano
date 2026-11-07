@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use sottomano_desktop_sources::desktop_notifications::notification_data::{
-    ExpireTimeout, NotificationData,
+    ExpireTimeout, NotificationData, SoundHint,
 };
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
@@ -27,11 +27,15 @@ pub struct LevelReading<Message> {
 }
 
 impl<Message> LevelReading<Message> {
-    pub fn changed_since(&self, previous: &[LevelReading<Message>]) -> bool {
-        previous.iter().any(|seen| {
+    pub fn change_since(&self, previous: &[LevelReading<Message>]) -> LevelReadingChange {
+        if previous.iter().any(|seen| {
             seen.hover_target == self.hover_target
                 && seen.level.external_change_count != self.level.external_change_count
-        })
+        }) {
+            LevelReadingChange::Changed
+        } else {
+            LevelReadingChange::Unchanged
+        }
     }
 
     pub fn toast_notification_data(&self, toast_id: u32) -> NotificationData {
@@ -40,7 +44,7 @@ impl<Message> LevelReading<Message> {
             body: Some(self.level.body_text.clone()),
             progress: Some(self.level.fill),
             severity: Severity::Low,
-            suppress_sound: true,
+            sound_hint: SoundHint::Suppressed,
             expire_timeout: ExpireTimeout::After(LEVEL_TOAST_LIFETIME),
             ..NotificationData::from_shell(toast_id, self.level.summary_text)
         }
@@ -61,10 +65,14 @@ impl LevelAnnouncement {
         }
     }
 
-    pub fn device_reported(&mut self, changed_outside_the_panel: bool) {
+    pub fn device_reported(&mut self, change_origin: LevelChangeOrigin) {
+        let external_increment = match change_origin {
+            LevelChangeOrigin::OutsidePanel => 1,
+            LevelChangeOrigin::FromPanel => 0,
+        };
         self.external_change_count = Some(
             self.external_change_count
-                .map_or(0, |count| count + u64::from(changed_outside_the_panel)),
+                .map_or(0, |count| count + external_increment),
         );
     }
 
@@ -80,6 +88,18 @@ impl LevelAnnouncement {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LevelChangeOrigin {
+    OutsidePanel,
+    FromPanel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LevelReadingChange {
+    Changed,
+    Unchanged,
+}
+
 #[cfg(test)]
 mod tests {
     use uom::si::ratio::percent;
@@ -90,11 +110,11 @@ mod tests {
         widgets::phosphor::{Phosphor, Weight},
     };
 
-    fn count_after(reports: &[bool]) -> Option<u64> {
+    fn count_after(reports: &[LevelChangeOrigin]) -> Option<u64> {
         let mut announcement = LevelAnnouncement::new("level");
         reports
             .iter()
-            .for_each(|changed| announcement.device_reported(*changed));
+            .for_each(|change_origin| announcement.device_reported(*change_origin));
         announcement
             .level(Ratio::new::<percent>(50.0), String::new())
             .map(|level| level.external_change_count)
@@ -117,8 +137,16 @@ mod tests {
     #[test]
     fn only_changes_outside_the_panel_after_the_first_report_are_counted() {
         assert_eq!(count_after(&[]), None);
-        assert_eq!(count_after(&[true]), Some(0));
-        assert_eq!(count_after(&[false, true, false, true]), Some(2));
+        assert_eq!(count_after(&[LevelChangeOrigin::OutsidePanel]), Some(0));
+        assert_eq!(
+            count_after(&[
+                LevelChangeOrigin::FromPanel,
+                LevelChangeOrigin::OutsidePanel,
+                LevelChangeOrigin::FromPanel,
+                LevelChangeOrigin::OutsidePanel,
+            ]),
+            Some(2)
+        );
     }
 
     #[test]
@@ -127,8 +155,17 @@ mod tests {
             reading(ControlKind::Sink, 3),
             reading(ControlKind::Source, 1),
         ];
-        assert!(!reading(ControlKind::Sink, 3).changed_since(&[]));
-        assert!(!reading(ControlKind::Sink, 3).changed_since(&seen));
-        assert!(reading(ControlKind::Sink, 4).changed_since(&seen));
+        assert_eq!(
+            reading(ControlKind::Sink, 3).change_since(&[]),
+            LevelReadingChange::Unchanged
+        );
+        assert_eq!(
+            reading(ControlKind::Sink, 3).change_since(&seen),
+            LevelReadingChange::Unchanged
+        );
+        assert_eq!(
+            reading(ControlKind::Sink, 4).change_since(&seen),
+            LevelReadingChange::Changed
+        );
     }
 }

@@ -3,7 +3,8 @@ use std::mem;
 use iced::{Subscription, Task, window::frames};
 use sottomano_desktop_sinks::desktop_windows_apps::compositor_requests::CompositorRequest;
 use sottomano_desktop_sources::desktop_windows_apps::{
-    compositor_connection::CompositorKind, workspace_window_snapshot,
+    compositor_connection::{CompositorKind, OverviewSupport},
+    workspace_window_snapshot,
 };
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
@@ -225,7 +226,9 @@ fn click_slot(click: SlotClick) -> Task<Message> {
         SlotClick::Workspace {
             is_active: true, ..
         } => {
-            if CompositorKind::detected().is_some_and(CompositorKind::has_overview) {
+            if CompositorKind::detected().map(CompositorKind::overview_support)
+                == Some(OverviewSupport::Available)
+            {
                 compositor_request(CompositorRequest::ToggleOverview)
             } else {
                 Task::none()

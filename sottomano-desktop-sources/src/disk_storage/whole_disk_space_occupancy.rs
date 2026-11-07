@@ -81,7 +81,7 @@ fn read_disk_occupancy(inputs: &DiskOccupancyInputs) -> Result<DiskSpaceOccupanc
         filesystem_shares: inputs
             .filesystems
             .iter()
-            .filter(|filesystem| filesystem.sits_on_disk(&inputs.disk))
+            .filter(|filesystem| filesystem.whole_disks().contains(&inputs.disk))
             .map(|filesystem| filesystem_share_on_disk(filesystem, &inputs.disk))
             .collect::<Result<_, _>>()?,
     })

@@ -5,8 +5,8 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     caldav_tasks_events::{
         caldav_agenda::{
-            AgendaSnapshotPolling, CaldavAccount, CalendarEntryQuery, CalendarHomePoller, Error,
-            push_or_poll_deliveries,
+            AgendaSnapshotPolling, CaldavAccount, CalendarEntryQuery, CalendarHolding,
+            CalendarHomePoller, Error, push_or_poll_deliveries,
         },
         caldav_calendar_discovery::{CalendarCollection, CalendarHome},
         caldav_event_query::EventWindow,
@@ -34,8 +34,12 @@ impl OpenTaskList {
 }
 
 impl CalendarEntryQuery for OpenTask {
-    fn held_by(calendar: &CalendarCollection) -> bool {
-        calendar.holds_tasks
+    fn holding(calendar: &CalendarCollection) -> CalendarHolding {
+        if calendar.holds_tasks {
+            CalendarHolding::Holds
+        } else {
+            CalendarHolding::Lacks
+        }
     }
 
     async fn queried(

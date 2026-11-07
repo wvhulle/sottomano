@@ -73,7 +73,7 @@ pub struct DiscoveredPodmanEngine {
 impl DiscoveredPodmanEngine {
     #[must_use]
     pub fn discovered(scope: SystemdUnitScope, command: &ServiceCommand) -> Option<Self> {
-        if !command.runs(PODMAN_PROGRAM) {
+        if command.program_name() != Some(PODMAN_PROGRAM) {
             return None;
         }
         let service_arguments: Vec<&str> = command.arguments_after(&SERVICE_SUBCOMMAND)?.collect();

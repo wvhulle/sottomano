@@ -24,7 +24,7 @@ use crate::{
     blocking_background_work::blocking_poll,
     delivery_cadence_drivers::{PeriodicPolling, TriggeredRereadCadence},
     host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
-    stream_operators::{StreamOperators, connected_until_failure, restarting},
+    stream_operators::{Availability, StreamOperators, connected_until_failure, restarting},
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses,
         sysfs_attribute_reads::{Error, list_dir, parse_field, read_field, read_i64, read_trimmed},
@@ -239,18 +239,25 @@ trait UPower {
     fn device_removed(&self, device: OwnedObjectPath) -> zbus::Result<()>;
 }
 
-fn present(system: Connection) -> impl Stream<Item = bool> + Send {
+fn present(system: Connection) -> impl Stream<Item = Availability> + Send {
     connected_until_failure(device_changes(system)).map(|present| {
         present.unwrap_or_else(|e| {
             tracing::warn!("upower device watch: {e}");
-            first_power_supply("BAT").is_some()
+            battery_availability()
         })
     })
 }
 
+fn battery_availability() -> Availability {
+    match first_power_supply("BAT") {
+        Some(_) => Availability::Available,
+        None => Availability::Unavailable,
+    }
+}
+
 async fn device_changes(
     system: Connection,
-) -> zbus::Result<impl Stream<Item = zbus::Result<bool>> + Send> {
+) -> zbus::Result<impl Stream<Item = zbus::Result<Availability>> + Send> {
     let upower = UPowerProxy::new(&system).await?;
     let changes = select(
         upower.receive_device_added().await?.map(drop),
@@ -258,7 +265,7 @@ async fn device_changes(
     );
     Ok(stream::once(ready(()))
         .chain(changes)
-        .map(|()| Ok(first_power_supply("BAT").is_some())))
+        .map(|()| Ok(battery_availability())))
 }
 
 fn supply_state_changes(system: Connection) -> impl Stream<Item = ()> + Send {

@@ -286,12 +286,12 @@ impl HoverAnnouncement {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct MenuHandleIndicator {
-    pub pointing: HandlePointing,
+    pub pointing: PointerPresence,
     pub menu_expansion: ExpansionState,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum HandlePointing {
+pub enum PointerPresence {
     PointedAt,
     #[default]
     NotPointedAt,
@@ -316,14 +316,14 @@ pub enum HoverCardMessage {
     },
     MenuHandlePointedAnchor {
         target: HoverTarget,
-        pointing: HandlePointing,
+        pointing: PointerPresence,
         announcement: HoverAnnouncement,
     },
     MenuHandlePointed {
         surface: Id,
         position: Position,
         target: HoverTarget,
-        pointing: HandlePointing,
+        pointing: PointerPresence,
         announcement: HoverAnnouncement,
     },
     MenuHandlePressedAnchor {

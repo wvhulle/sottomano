@@ -108,9 +108,10 @@ impl DesktopEntries {
     }
 
     #[must_use]
-    pub fn handles_scheme(&self, scheme: &str) -> bool {
+    pub fn scheme_handling(&self, scheme: &str) -> SchemeHandling {
         let handler = format!("x-scheme-handler/{scheme}");
-        self.entries
+        if self
+            .entries
             .iter()
             .filter(|entry| !entry.hidden())
             .any(|entry| {
@@ -118,6 +119,11 @@ impl DesktopEntries {
                     .mime_type()
                     .is_some_and(|mime_types| mime_types.contains(&handler.as_str()))
             })
+        {
+            SchemeHandling::Handled
+        } else {
+            SchemeHandling::Unhandled
+        }
     }
 
     #[must_use]
@@ -187,4 +193,10 @@ pub fn resolve_theme_icons(
                 .map(|path| (name, super::icon_whitespace_trim::trimmed(&path)))
         })
         .collect()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SchemeHandling {
+    Handled,
+    Unhandled,
 }

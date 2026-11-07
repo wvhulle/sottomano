@@ -235,7 +235,7 @@ pub trait StreamOperators: Stream + Sized {
         start: impl FnMut() -> R + Send,
     ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
     where
-        Self: Stream<Item = bool> + Send,
+        Self: Stream<Item = Availability> + Send,
         S: SnapshotSource,
         R: Stream<Item = SnapshotDelivery<S>> + Send,
     {
@@ -248,17 +248,15 @@ pub trait StreamOperators: Stream + Sized {
         released: R::Item,
     ) -> impl Stream<Item = R::Item> + Send
     where
-        Self: Stream<Item = bool> + Send,
+        Self: Stream<Item = Availability> + Send,
         R: Stream + Send,
         R::Item: Clone + Send,
     {
-        self.distinct_until_changed().switch_map(move |held| {
-            if held {
-                start().left_stream()
-            } else {
-                stream::iter([released.clone()]).right_stream()
-            }
-        })
+        self.distinct_until_changed()
+            .switch_map(move |availability| match availability {
+                Availability::Available => start().left_stream(),
+                Availability::Unavailable => stream::iter([released.clone()]).right_stream(),
+            })
     }
 }
 
@@ -304,6 +302,12 @@ where
             polled => polled,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Availability {
+    Available,
+    Unavailable,
 }
 
 #[cfg(test)]

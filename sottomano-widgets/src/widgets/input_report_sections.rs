@@ -28,29 +28,35 @@ pub struct KernelErrorListing<'a> {
 }
 
 #[must_use]
-pub fn noticeable_loss(lost_share: Ratio) -> bool {
-    lost_share.get::<percent>() >= NOTICEABLE_LOSS_PERCENT
-}
-
-const fn warning_when(warning: bool) -> Severity {
-    if warning {
+pub fn loss_severity(lost_share: Ratio) -> Severity {
+    if lost_share.get::<percent>() >= NOTICEABLE_LOSS_PERCENT {
         Severity::Warning
     } else {
         Severity::Normal
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReportHealth {
+    Degraded,
+    Healthy,
+}
+
 impl MeasuredReportTiming {
     #[must_use]
-    pub fn lossy_or_stalling(self) -> bool {
+    pub fn report_health(self) -> ReportHealth {
         match self {
-            MeasuredReportTiming::Pending => false,
-            MeasuredReportTiming::Measured(timing) => {
-                timing.stalls > 0
+            MeasuredReportTiming::Measured(timing)
+                if timing.stalls > 0
                     || matches!(
                         timing.device_clock,
-                        DeviceClock::Present(sent) if noticeable_loss(sent.lost_share)
-                    )
+                        DeviceClock::Present(sent) if loss_severity(sent.lost_share) == Severity::Warning
+                    ) =>
+            {
+                ReportHealth::Degraded
+            }
+            MeasuredReportTiming::Measured(_) | MeasuredReportTiming::Pending => {
+                ReportHealth::Healthy
             }
         }
     }
@@ -67,12 +73,16 @@ impl MeasuredReportTiming {
                         LabeledValue::new("Sent", Quantity::refresh_hertz(sent.sent_rate)),
                         arriving,
                         LabeledValue::new("Lost", Quantity::share(sent.lost_share))
-                            .level(warning_when(noticeable_loss(sent.lost_share))),
+                            .level(loss_severity(sent.lost_share)),
                         LabeledValue::new("Most delayed", ValueCell::duration(sent.most_delayed)),
                     ],
                     DeviceClock::Absent => vec![arriving],
                 };
-                let stalling = warning_when(timing.stalls > 0);
+                let stalling = if timing.stalls > 0 {
+                    Severity::Warning
+                } else {
+                    Severity::Normal
+                };
                 clocked
                     .into_iter()
                     .chain([

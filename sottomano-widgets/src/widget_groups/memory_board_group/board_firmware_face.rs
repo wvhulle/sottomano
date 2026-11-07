@@ -5,7 +5,7 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::group_item_reading::{GroupItemReading, PanelVisibility},
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
         icon_glyph::IconGlyph,
@@ -18,8 +18,12 @@ use crate::{
 };
 
 impl GroupItemReading for MachineInfo {
-    fn visible_on_panel(&self) -> bool {
-        self.hardware_vendor.is_some() || self.hardware_model.is_some()
+    fn panel_visibility(&self) -> PanelVisibility {
+        if self.hardware_vendor.is_some() || self.hardware_model.is_some() {
+            PanelVisibility::Shown
+        } else {
+            PanelVisibility::Hidden
+        }
     }
 
     fn name(&self) -> &'static str {

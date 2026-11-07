@@ -39,14 +39,14 @@ impl HwmonChip {
     pub fn of_device(device: &Path) -> Vec<Self> {
         let multipath_controllers = list_dir(device)
             .into_iter()
-            .filter(|entry| has_numbered_name(entry, "nvme"));
+            .filter(|entry| numbered_suffix(entry, "nvme").is_some());
         let candidates = [device.to_path_buf()]
             .into_iter()
             .chain(multipath_controllers)
             .flat_map(|dir| {
                 list_dir(&dir)
                     .into_iter()
-                    .filter(|entry| has_numbered_name(entry, "hwmon"))
+                    .filter(|entry| numbered_suffix(entry, "hwmon").is_some())
                     .chain(list_dir(dir.join("hwmon")))
             })
             .collect();
@@ -162,12 +162,13 @@ pub struct ChosenSensors {
     pub sensors: Vec<TemperatureSensor>,
 }
 
-fn has_numbered_name(entry: &Path, prefix: &str) -> bool {
+fn numbered_suffix(entry: &Path, prefix: &str) -> Option<u32> {
     entry
         .file_name()
         .and_then(|name| name.to_str())
         .and_then(|name| name.strip_prefix(prefix))
-        .is_some_and(|digits| !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
+        .filter(|digits| digits.bytes().all(|digit_byte| digit_byte.is_ascii_digit()))
+        .and_then(|digits| digits.parse().ok())
 }
 
 #[must_use]

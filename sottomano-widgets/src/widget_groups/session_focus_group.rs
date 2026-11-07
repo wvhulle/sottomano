@@ -100,7 +100,7 @@ impl SessionFocusGroup {
 
     pub fn refresh_daily_totals(&mut self, config: &SessionFocusConfig, clock: Clock) {
         let now = clock.utc();
-        if !self.daily_totals.computed_in_second_of(now) {
+        if self.daily_totals.computed_at().timestamp() != now.timestamp() {
             self.recompute_daily_totals(config, now);
         }
     }

@@ -26,19 +26,21 @@ pub enum AddressFamily {
     Ipv6,
 }
 
+impl From<IpAddr> for AddressFamily {
+    fn from(host: IpAddr) -> Self {
+        match host {
+            IpAddr::V4(_) => AddressFamily::Ipv4,
+            IpAddr::V6(_) => AddressFamily::Ipv6,
+        }
+    }
+}
+
 impl AddressFamily {
     #[must_use]
     pub fn title(self) -> &'static str {
         match self {
             AddressFamily::Ipv4 => "IPv4",
             AddressFamily::Ipv6 => "IPv6",
-        }
-    }
-
-    fn contains_host(self, host: IpAddr) -> bool {
-        match self {
-            AddressFamily::Ipv4 => host.is_ipv4(),
-            AddressFamily::Ipv6 => host.is_ipv6(),
         }
     }
 }
@@ -185,7 +187,7 @@ pub fn family_router_sections(
         .iter()
         .filter(|gateway_latency| {
             gateway_latency.interface == interface_name
-                && family.contains_host(gateway_latency.window.host)
+                && family == AddressFamily::from(gateway_latency.window.host)
         })
         .map(|gateway_latency| probe_window_section(&gateway_latency.window).titled("Router"))
         .collect()

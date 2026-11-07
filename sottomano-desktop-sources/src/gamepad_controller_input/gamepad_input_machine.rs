@@ -18,16 +18,32 @@ use super::{
 const POINTER_TICK: Duration = Duration::from_millis(8);
 const LONGEST_POINTER_STEP: Duration = Duration::from_millis(32);
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum ClaimSilencing {
+    Silenced,
+    #[default]
+    Free,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SlotAccess {
+    Allowed,
+    Blocked,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct PointerGate {
-    pub silenced_by_window_claim: bool,
+    pub claim_silencing: ClaimSilencing,
     pub handed_over_slots: BTreeSet<usize>,
 }
 
 impl PointerGate {
     #[must_use]
-    pub fn allows(&self, slot: usize) -> bool {
-        !self.silenced_by_window_claim && !self.handed_over_slots.contains(&slot)
+    pub fn slot_access(&self, slot: usize) -> SlotAccess {
+        match self.claim_silencing {
+            ClaimSilencing::Free if !self.handed_over_slots.contains(&slot) => SlotAccess::Allowed,
+            ClaimSilencing::Free | ClaimSilencing::Silenced => SlotAccess::Blocked,
+        }
     }
 }
 
@@ -139,7 +155,7 @@ impl GamepadMachine {
         let pointer_stick = self.pointer_stick();
         self.sticks
             .iter()
-            .filter(|(slot, _)| self.settings.gate.allows(**slot))
+            .filter(|(slot, _)| self.settings.gate.slot_access(**slot) == SlotAccess::Allowed)
             .filter_map(move |(_, sticks)| Some(sticks.tracker(pointer_stick?).position()))
             .filter(|position| position.x != 0.0 || position.y != 0.0)
     }
@@ -214,7 +230,8 @@ impl GamepadMachine {
         };
         let pressed = match edge {
             ButtonEdge::Pressed => {
-                self.settings.gate.allows(slot) && self.held_pointer_buttons.insert(held)
+                self.settings.gate.slot_access(slot) == SlotAccess::Allowed
+                    && self.held_pointer_buttons.insert(held)
             }
             ButtonEdge::Released => {
                 return self
@@ -332,7 +349,7 @@ mod tests {
     fn a_focused_game_leaves_the_pointer_alone() {
         let start = Instant::now();
         let mut machine = machine_with(PointerGate {
-            silenced_by_window_claim: true,
+            claim_silencing: ClaimSilencing::Silenced,
             ..PointerGate::default()
         });
         machine.step(right_stick_right(31), start);

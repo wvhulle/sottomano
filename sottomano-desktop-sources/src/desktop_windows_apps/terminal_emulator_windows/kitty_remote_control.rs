@@ -55,21 +55,26 @@ pub fn list(socket: &Path, kitty_pid: i32, home: &Path) -> io::Result<Vec<Termin
 }
 
 pub fn hold_title(socket: &Path, kitty_window: u64, title: &str) -> io::Result<()> {
-    retitle(socket, kitty_window, title, false)
+    retitle(socket, kitty_window, title, TitleLifetime::Held)
 }
 
 pub fn yield_title(socket: &Path, kitty_window: u64, title: &str) -> io::Result<()> {
-    retitle(socket, kitty_window, title, true)
+    retitle(socket, kitty_window, title, TitleLifetime::Temporary)
 }
 
-fn retitle(socket: &Path, kitty_window: u64, title: &str, temporary: bool) -> io::Result<()> {
+fn retitle(
+    socket: &Path,
+    kitty_window: u64,
+    title: &str,
+    title_lifetime: TitleLifetime,
+) -> io::Result<()> {
     exchange(
         socket,
         "set-window-title",
         TitlePayload {
             title,
             r#match: format!("id:{kitty_window}"),
-            temporary,
+            temporary: title_lifetime == TitleLifetime::Temporary,
         },
     )
     .map(drop)
@@ -164,14 +169,6 @@ struct ForegroundProcess {
     cmdline: Vec<String>,
 }
 
-impl ForegroundProcess {
-    fn leads_its_group(&self) -> bool {
-        Proc::new(self.pid)
-            .and_then(|process| process.stat())
-            .is_ok_and(|stat| stat.pgrp == self.pid)
-    }
-}
-
 impl KittyWindow {
     fn window_label(&self, home: &Path) -> Option<TerminalShellLabel> {
         let shell_name = program_name(&self.cmdline)?;
@@ -179,7 +176,11 @@ impl KittyWindow {
             .foreground_processes
             .iter()
             .filter(|process| process.pid != self.pid)
-            .find(|process| process.leads_its_group())
+            .find(|process| {
+                Proc::new(process.pid)
+                    .and_then(|procfs_process| procfs_process.stat())
+                    .is_ok_and(|stat| stat.pgrp == process.pid)
+            })
             .map(|process| process.cmdline.as_slice());
         let active_window = ActiveTerminalShell {
             shell: ShellState {
@@ -228,6 +229,12 @@ impl OsWindow {
                 .collect(),
         })
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TitleLifetime {
+    Held,
+    Temporary,
 }
 
 #[cfg(test)]

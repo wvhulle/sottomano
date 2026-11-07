@@ -3,6 +3,8 @@ use sottomano_desktop_sources::desktop_notifications::{
     notification_data::{NotificationData, ServerEvent},
 };
 
+use crate::hover_cards::PointerPresence;
+
 #[derive(Debug, Clone)]
 pub enum ReplyMessage {
     PointerEntered,
@@ -17,11 +19,23 @@ pub enum NotificationMessage {
     Served(Box<NotificationData>),
     CloseRequested(u32),
     BodyClicked(u32),
-    HoverChanged { id: u32, hovered: bool },
+    HoverChanged {
+        id: u32,
+        pointer_presence: PointerPresence,
+    },
     Dismiss(u32),
-    ActionClicked { id: u32, key: String },
-    DefaultActivated { id: u32, token: Option<String> },
-    Reply { id: u32, message: ReplyMessage },
+    ActionClicked {
+        id: u32,
+        key: String,
+    },
+    DefaultActivated {
+        id: u32,
+        token: Option<String>,
+    },
+    Reply {
+        id: u32,
+        message: ReplyMessage,
+    },
     OpenFile(u32),
     CopyFilePath(u32),
     ExpiryDue,

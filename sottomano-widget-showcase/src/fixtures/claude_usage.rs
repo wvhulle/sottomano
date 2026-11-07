@@ -9,7 +9,7 @@ use sottomano_desktop_sources::{
         ccusage_cli_reports::{BillingBlock, Period, RecentUsage, Usage},
         claude_usage::{
             ClaudeCcusageBlock, ClaudeCcusageModels, ClaudeCcusagePeriods, ClaudeUsageWindows,
-            ExtraStatus, ExtraUsage, WindowUsage,
+            ExtraStatus, ExtraUsage, SubscriptionCoverage, WindowUsage,
         },
         model_spend_ranking::{ModelRanking, ModelSpend},
         spend_money::{Money, usd},
@@ -186,7 +186,7 @@ fn active_billing_block(clock: Clock) -> ClaudeCcusageBlock {
 
 fn subscription_model_ranking() -> ClaudeCcusageModels {
     ClaudeCcusageModels {
-        covered_by_subscription: true,
+        subscription_coverage: SubscriptionCoverage::Covered,
         today: ranked_models(&today_model_cents()),
         week: ranked_models(&week_model_cents()),
         month: ranked_models(&month_model_cents()),

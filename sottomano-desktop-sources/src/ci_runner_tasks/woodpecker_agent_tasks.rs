@@ -46,11 +46,14 @@ fn containers_of_pipeline<'engine>(
 fn pipeline_web_log(containers: &[&RunningContainer]) -> TaskWebLog {
     containers
         .iter()
-        .find_map(|container| match &container.ci_identity {
-            ContainerCiIdentity::WoodpeckerStep(identity) => identity.pipeline_url.clone(),
-            ContainerCiIdentity::NotWoodpecker => None,
+        .fold(TaskWebLog::NotKnown, |found_log, container| {
+            match (found_log, &container.ci_identity) {
+                (TaskWebLog::NotKnown, ContainerCiIdentity::WoodpeckerStep(identity)) => {
+                    identity.pipeline_web_log.clone()
+                }
+                (found_log, _) => found_log,
+            }
         })
-        .map_or(TaskWebLog::NotKnown, TaskWebLog::Linked)
 }
 
 fn woodpecker_tasks(varz: &AgentVarz, engine: &EngineContainers) -> Vec<CiTask> {
@@ -75,11 +78,15 @@ fn woodpecker_tasks(varz: &AgentVarz, engine: &EngineContainers) -> Vec<CiTask> 
                 .map(|workflow| workflow.started_at())
                 .min()
                 .unwrap_or_else(SystemTime::now);
-            let deadline = workflows
-                .iter()
-                .map(|workflow| workflow.deadline())
-                .min()
-                .map_or(TaskDeadline::NotExposed, TaskDeadline::At);
+            let deadline = workflows.iter().map(|workflow| workflow.deadline()).fold(
+                TaskDeadline::NotExposed,
+                |earliest, workflow_deadline| match earliest {
+                    TaskDeadline::NotExposed => TaskDeadline::At(workflow_deadline),
+                    TaskDeadline::At(earliest_at) => {
+                        TaskDeadline::At(earliest_at.min(workflow_deadline))
+                    }
+                },
+            );
             let containers = containers_of_pipeline(engine, &key);
             CiTask {
                 run_label: format!("#{}", key.pipeline_number),
@@ -162,7 +169,7 @@ impl SnapshotSource for WoodpeckerAgentTasks {
                         })
                 }
             },
-            CiRunnerTasks::keeps_sampling,
+            CiRunnerTasks::sampling_need,
         )
         .map(|tracked| {
             tracked.stamped_cadence.delivered(Ok(WoodpeckerAgentTasks {
@@ -185,6 +192,7 @@ mod tests {
     use super::*;
     use crate::{
         ci_runner_tasks::woodpecker_agent_varz::captured_varz,
+        delivery_cadence_drivers::SamplingNeed,
         podman_container_engine::libpod_inspect_ci_identity::WoodpeckerStepIdentity,
         system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad,
     };
@@ -205,7 +213,7 @@ mod tests {
                 pipeline_number: pipeline_number.to_owned(),
                 workflow_name: "checks".to_owned(),
                 step_name: step_name.to_owned(),
-                pipeline_url: Some(format!(
+                pipeline_web_log: TaskWebLog::Linked(format!(
                     "https://ci.codeberg.org/repos/{repository}/pipeline/{pipeline_number}"
                 )),
             }),
@@ -303,13 +311,20 @@ mod tests {
                 containers: Vec::new(),
             })
         };
-        assert!(joined_agent_tasks(&captured_varz(), empty_engine()).keeps_sampling());
+        assert_eq!(
+            joined_agent_tasks(&captured_varz(), empty_engine()).sampling_need(),
+            SamplingNeed::KeepSampling
+        );
         let idle_varz = AgentVarz {
             running: HashMap::new(),
         };
-        assert!(!joined_agent_tasks(&idle_varz, empty_engine()).keeps_sampling());
-        assert!(
-            joined_agent_tasks(&idle_varz, Err(EngineReadError::SocketDenied)).keeps_sampling()
+        assert_eq!(
+            joined_agent_tasks(&idle_varz, empty_engine()).sampling_need(),
+            SamplingNeed::Settled
+        );
+        assert_eq!(
+            joined_agent_tasks(&idle_varz, Err(EngineReadError::SocketDenied)).sampling_need(),
+            SamplingNeed::KeepSampling
         );
     }
 

@@ -5,7 +5,7 @@ use sottomano_desktop_sinks::network_connectivity::network_manager_activations::
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::network_manager_vpn_connections::{
-        NetworkManagerVpns, VpnConnection, VpnSwitch,
+        NetworkManagerVpns, VpnActivation, VpnConnection, VpnSwitch,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -143,7 +143,7 @@ impl NetworkManagerVpnGroup {
         let previewed_connection_name = self
             .vpn_connections()
             .iter()
-            .find(|vpn_connection| vpn_connection.activated())
+            .find(|vpn_connection| vpn_connection.activation() == VpnActivation::Activated)
             .map(|vpn_connection| vpn_connection.name.as_str());
         WidgetGroupContent::expandable(
             WidgetGroupFamily::NetworkManagerVpns,

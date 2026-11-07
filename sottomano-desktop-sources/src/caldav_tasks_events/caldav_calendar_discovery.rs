@@ -26,11 +26,15 @@ pub enum ChangeTracking {
 
 impl ChangeTracking {
     #[must_use]
-    pub fn unchanged_since(&self, earlier: &Self) -> bool {
-        matches!(
-            (self, earlier),
-            (ChangeTracking::Token(current), ChangeTracking::Token(previous)) if current == previous
-        )
+    pub fn change_since(&self, earlier: &Self) -> CalendarChange {
+        match (self, earlier) {
+            (ChangeTracking::Token(current), ChangeTracking::Token(previous))
+                if current == previous =>
+            {
+                CalendarChange::Unchanged
+            }
+            _ => CalendarChange::Changed,
+        }
     }
 }
 
@@ -113,6 +117,12 @@ pub(super) fn last_path_segment(href: &str) -> String {
         .to_owned()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CalendarChange {
+    Unchanged,
+    Changed,
+}
+
 #[cfg(test)]
 mod tests {
     use fast_dav_rs::map_calendar_list;
@@ -154,8 +164,14 @@ mod tests {
 
     #[test]
     fn an_untracked_calendar_never_counts_as_unchanged() {
-        assert!(!ChangeTracking::Untracked.unchanged_since(&ChangeTracking::Untracked));
+        assert_eq!(
+            ChangeTracking::Untracked.change_since(&ChangeTracking::Untracked),
+            CalendarChange::Changed
+        );
         let token = ChangeTracking::Token("42".to_owned());
-        assert!(token.unchanged_since(&token.clone()));
+        assert_eq!(
+            token.change_since(&token.clone()),
+            CalendarChange::Unchanged
+        );
     }
 }

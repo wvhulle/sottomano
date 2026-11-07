@@ -54,11 +54,16 @@ impl UpcomingEvent {
     }
 
     #[must_use]
-    pub fn overlaps(&self, window: EventWindow) -> bool {
-        let Some(window_end) = window.last_day_exclusive() else {
-            return false;
-        };
-        self.start.day_in(&Local) < window_end && self.end.day_in(&Local) >= window.first_day
+    pub fn window_overlap(&self, window: EventWindow) -> WindowOverlap {
+        match window.last_day_exclusive() {
+            Some(window_end)
+                if self.start.day_in(&Local) < window_end
+                    && self.end.day_in(&Local) >= window.first_day =>
+            {
+                WindowOverlap::Overlapping
+            }
+            Some(_) | None => WindowOverlap::Outside,
+        }
     }
 }
 
@@ -162,6 +167,12 @@ fn calendar_object_event(
             .map_or_else(|| start.default_event_end(), AgendaMoment::of),
         location: event.get_location().unwrap_or_default().trim().to_owned(),
     })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowOverlap {
+    Overlapping,
+    Outside,
 }
 
 #[cfg(test)]

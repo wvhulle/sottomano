@@ -2,7 +2,9 @@ use chrono::{DateTime, Utc};
 use futures::Stream;
 use uom::si::{f64::Ratio, ratio::percent};
 
-use super::{CopilotAccount, Error, QuotaSnapshot, UserInfo, plan_polls, quota_reset, user_info};
+use super::{
+    CopilotAccount, CopilotPlan, Error, QuotaSnapshot, UserInfo, plan_polls, quota_reset, user_info,
+};
 use crate::{SnapshotDelivery, SnapshotSource, ai_usage_spend::usage_quota::Quota};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,7 +44,7 @@ impl SnapshotSource for CopilotMetered {
     fn delivery_stream(
         inputs: CopilotAccount,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        plan_polls(inputs, UserInfo::metered_plan, Self::poll)
+        plan_polls(inputs, CopilotPlan::Metered, Self::poll)
     }
 }
 
@@ -63,10 +65,6 @@ impl CopilotMetered {
 }
 
 impl UserInfo {
-    fn metered_plan(&self) -> bool {
-        self.limited_user_quotas.is_none()
-    }
-
     fn metered_quota(&self) -> Option<(&QuotaSnapshot, &'static str)> {
         let snapshots = self.quota_snapshots.as_ref()?;
         usable(snapshots.premium_interactions.as_ref(), "Premium requests")
@@ -135,7 +133,7 @@ mod tests {
     #[test]
     fn token_billed_account_is_metered_on_its_chat_snapshot() {
         let info: UserInfo = serde_json::from_str(TOKEN_BILLED_USER_INFO).unwrap();
-        assert!(info.metered_plan());
+        assert_eq!(info.plan_kind(), CopilotPlan::Metered);
         assert_eq!(info.plan().as_deref(), Some("free_limited_copilot"));
         let (snapshot, label) = info.metered_quota().unwrap();
         assert_eq!(label, "Chat");

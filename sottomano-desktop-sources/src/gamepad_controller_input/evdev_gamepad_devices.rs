@@ -81,11 +81,7 @@ impl GamepadTransport {
                     hardware_address, ..
                 },
             ) => GamepadTransport::Bluetooth {
-                usb_cable: if has_unbound_usb_cable(hardware_address) {
-                    UsbCableState::IgnoredByKernel
-                } else {
-                    UsbCableState::Absent
-                },
+                usb_cable: usb_cable_state(hardware_address),
             },
             (transport, _) => transport,
         }
@@ -301,7 +297,7 @@ impl HatAxis {
 pub struct GamepadEventTranslator {
     slot: usize,
     ranges: HashMap<AbsoluteAxisCode, AxisRange>,
-    digital_triggers: bool,
+    trigger_kind: TriggerKind,
     hat_positions: HashMap<AbsoluteAxisCode, i32>,
     analog_triggers_held: HashMap<AbsoluteAxisCode, bool>,
 }
@@ -311,12 +307,12 @@ impl GamepadEventTranslator {
     pub fn new(
         slot: usize,
         ranges: HashMap<AbsoluteAxisCode, AxisRange>,
-        digital_triggers: bool,
+        trigger_kind: TriggerKind,
     ) -> Self {
         Self {
             slot,
             ranges,
-            digital_triggers,
+            trigger_kind,
             ..Self::default()
         }
     }
@@ -336,10 +332,15 @@ impl GamepadEventTranslator {
                 )
             })
             .collect();
-        let digital_triggers = device
+        let trigger_kind = if device
             .supported_keys()
-            .is_some_and(|keys| keys.contains(KeyCode::BTN_TL2));
-        Self::new(slot, ranges, digital_triggers)
+            .is_some_and(|keys| keys.contains(KeyCode::BTN_TL2))
+        {
+            TriggerKind::Digital
+        } else {
+            TriggerKind::Analog
+        };
+        Self::new(slot, ranges, trigger_kind)
     }
 
     fn button(&self, button: GamepadButton, edge: ButtonEdge) -> RawGamepadEvent {
@@ -392,7 +393,7 @@ impl GamepadEventTranslator {
         button: GamepadButton,
         raw: i32,
     ) -> Option<RawGamepadEvent> {
-        if self.digital_triggers {
+        if self.trigger_kind == TriggerKind::Digital {
             return None;
         }
         let pull = self.ranges.get(&axis)?.pull(raw);
@@ -496,8 +497,8 @@ fn kernel_device_of_input_node(slot: usize) -> Option<String> {
     ))
 }
 
-fn has_unbound_usb_cable(hardware_address: &str) -> bool {
-    sysfs_attribute_reads::list_dir(HID_DEVICE_DIRECTORY)
+fn usb_cable_state(hardware_address: &str) -> UsbCableState {
+    if sysfs_attribute_reads::list_dir(HID_DEVICE_DIRECTORY)
         .into_iter()
         .filter(|hid_device| {
             hid_device
@@ -510,6 +511,11 @@ fn has_unbound_usb_cable(hardware_address: &str) -> bool {
                 && sysfs_attribute_reads::uevent_field(&hid_device.join("uevent"), "HID_UNIQ")
                     .is_some_and(|unique| unique.eq_ignore_ascii_case(hardware_address))
         })
+    {
+        UsbCableState::IgnoredByKernel
+    } else {
+        UsbCableState::Absent
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -637,6 +643,13 @@ pub fn raw_gamepad_events() -> impl Stream<Item = RawGamepadEvent> + Send {
     .switch_map(connected_gamepad_events)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TriggerKind {
+    Digital,
+    #[default]
+    Analog,
+}
+
 #[cfg(test)]
 mod tests {
     use evdev::{AbsoluteAxisEvent, KeyEvent};
@@ -655,7 +668,7 @@ mod tests {
                 (AbsoluteAxisCode::ABS_Y, byte_range),
                 (AbsoluteAxisCode::ABS_Z, byte_range),
             ]),
-            false,
+            TriggerKind::Analog,
         )
     }
 

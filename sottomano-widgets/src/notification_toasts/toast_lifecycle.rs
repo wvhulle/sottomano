@@ -72,6 +72,12 @@ pub enum ToastPresence {
     Withdrawing,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToastSender {
+    DbusClient,
+    Shell,
+}
+
 pub enum ToastKind<Routed> {
     Event {
         at: SystemTime,
@@ -228,8 +234,11 @@ impl<Routed> Notification<Routed> {
         self.place = place;
     }
 
-    pub(super) fn shows_ongoing(&self, key: &OngoingKey) -> bool {
-        matches!(&self.kind, ToastKind::Ongoing { key: shown, .. } if shown == key)
+    pub(super) fn ongoing_key(&self) -> Option<&OngoingKey> {
+        match &self.kind {
+            ToastKind::Ongoing { key, .. } => Some(key),
+            ToastKind::Event { .. } => None,
+        }
     }
 
     pub(super) fn ongoing_since(&self) -> Option<SystemTime> {
@@ -239,31 +248,24 @@ impl<Routed> Notification<Routed> {
         }
     }
 
-    pub(super) fn already_shows(&self, toast: &OngoingToast<Routed>) -> bool {
-        self.shows_ongoing(&toast.key)
-            && self.data.severity >= toast.severity
-            && self.data.body == toast.body
-            && self.data.progress == toast.progress
-    }
-
-    pub(super) fn announces_level_of(&self, hover_target: &HoverTarget) -> bool {
-        matches!(
-            &self.kind,
+    pub(super) fn announced_target(&self) -> Option<&HoverTarget> {
+        match &self.kind {
             ToastKind::Event {
-                source: EventSource::LevelAnnouncement { hover_target: shown, .. },
+                source: EventSource::LevelAnnouncement { hover_target, .. },
                 ..
-            } if shown == hover_target
-        )
+            } => Some(hover_target),
+            ToastKind::Event { .. } | ToastKind::Ongoing { .. } => None,
+        }
     }
 
-    pub(super) fn sent_by_dbus_client(&self) -> bool {
-        matches!(
-            self.kind,
+    pub(super) fn toast_sender(&self) -> ToastSender {
+        match self.kind {
             ToastKind::Event {
                 source: EventSource::DbusClient,
                 ..
-            }
-        )
+            } => ToastSender::DbusClient,
+            ToastKind::Event { .. } | ToastKind::Ongoing { .. } => ToastSender::Shell,
+        }
     }
 
     pub(super) fn withdraw(&mut self, now: Instant, pace: ExitPace, config: &Config) {
@@ -281,8 +283,12 @@ impl<Routed> Notification<Routed> {
         }
     }
 
-    pub(super) fn has_faded(&self, now: Instant) -> bool {
-        !self.slot.value() && !self.slot.is_animating(now)
+    pub(super) fn fade_state(&self, now: Instant) -> FadeState {
+        if !self.slot.value() && !self.slot.is_animating(now) {
+            FadeState::Faded
+        } else {
+            FadeState::Visible
+        }
     }
 
     pub(super) fn motion(&self, now: Instant) -> MotionState {
@@ -361,10 +367,10 @@ impl Countdown {
     }
 
     #[must_use]
-    pub fn has_elapsed(self, now: Instant) -> bool {
+    pub fn expiry_at(self, now: Instant) -> CountdownExpiry {
         match self {
-            Self::Running { deadline } => deadline <= now,
-            Self::Paused { .. } => false,
+            Self::Running { deadline } if deadline <= now => CountdownExpiry::Elapsed,
+            Self::Running { .. } | Self::Paused { .. } => CountdownExpiry::Pending,
         }
     }
 
@@ -388,6 +394,18 @@ pub fn lifetime(
         ExpireTimeout::After(requested) => Some(requested),
         ExpireTimeout::ServerDefault => config.default_timeout_for(severity),
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FadeState {
+    Faded,
+    Visible,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CountdownExpiry {
+    Elapsed,
+    Pending,
 }
 
 #[cfg(test)]
@@ -470,15 +488,24 @@ mod tests {
         assert_eq!(remaining, Duration::from_secs(6));
 
         let resumed = paused.resumed(start + Duration::from_secs(100));
-        assert!(!resumed.has_elapsed(start + Duration::from_secs(105)));
-        assert!(resumed.has_elapsed(start + Duration::from_secs(106)));
+        assert_eq!(
+            resumed.expiry_at(start + Duration::from_secs(105)),
+            CountdownExpiry::Pending
+        );
+        assert_eq!(
+            resumed.expiry_at(start + Duration::from_secs(106)),
+            CountdownExpiry::Elapsed
+        );
     }
 
     #[test]
     fn paused_countdowns_never_elapse() {
         let start = Clock::real().instant;
         let paused = Countdown::started(Duration::from_secs(1), start).paused(start);
-        assert!(!paused.has_elapsed(start + Duration::from_secs(600)));
+        assert_eq!(
+            paused.expiry_at(start + Duration::from_secs(600)),
+            CountdownExpiry::Pending
+        );
         assert_eq!(paused.deadline(), None);
     }
 }

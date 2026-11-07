@@ -10,7 +10,8 @@ use uom::si::{f64::Ratio, ratio::percent};
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+        reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
@@ -76,8 +77,12 @@ impl GroupItemReading for ClaudeUsageWindows {
         )
     }
 
-    fn visible_on_panel(&self) -> bool {
-        self.fullest_window_used().get::<percent>() > 0.0
+    fn panel_visibility(&self) -> PanelVisibility {
+        if self.fullest_window_used().get::<percent>() > 0.0 {
+            PanelVisibility::Shown
+        } else {
+            PanelVisibility::Hidden
+        }
     }
 
     fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {

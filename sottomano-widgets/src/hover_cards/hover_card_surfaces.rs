@@ -14,7 +14,7 @@ use crate::{
     clock::Clock,
     group_menus::cascading_layout::cascade_row::{CascadeOrientation, cascade_row},
     hover_cards::{
-        HandlePointing, HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator,
+        HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator, PointerPresence,
         PopupMessage, WidgetAnchor,
         anchored_popup::{
             OutsidePress, PopupAppearances, PopupFraming, PopupMorph, PopupRendering,
@@ -26,7 +26,7 @@ use crate::{
             CardRetention, Departed, DepartedContent, HoverCardTransition, LeaveIntent, Occupant,
             Placement, ShownTarget,
         },
-        laid_out_anchors::{LaidOutAnchors, dropped_widget_watch},
+        laid_out_anchors::{LaidOutAnchors, WidgetLiveness, dropped_widget_watch},
     },
     layer_surfaces::{PanelEdge, SurfaceRequest},
     widget_groups::widget_group_content::ExpansionState,
@@ -123,8 +123,10 @@ impl HoverCardHost {
 
     pub fn take_pending_switch(&mut self) -> Option<PendingSwitch> {
         let pending = self.pending_switch.take()?;
-        self.laid_out_anchors
-            .widget_exists(&pending.parent.output, &pending.target)
+        (self
+            .laid_out_anchors
+            .anchored_widget_liveness(&pending.parent.output, &pending.target)
+            == WidgetLiveness::Alive)
             .then_some(pending)
     }
 
@@ -172,28 +174,41 @@ impl HoverCardHost {
         &mut self,
         output: &str,
         target: &HoverTarget,
-        pointing: HandlePointing,
+        pointing: PointerPresence,
     ) {
         self.laid_out_anchors.set_pointing(output, target, pointing);
     }
 
-    fn shows_on_output(&self, output: &str) -> bool {
-        self.placement()
+    fn output_placement(&self, output: &str) -> OutputPlacement {
+        if self
+            .placement()
             .is_some_and(|placement| placement.output == output)
+        {
+            OutputPlacement::OnOutput
+        } else {
+            OutputPlacement::Elsewhere
+        }
     }
 
     #[must_use]
-    pub fn hover_switches_menu(&self, target: &HoverTarget, output: &str) -> bool {
-        self.shown_retention() == CardRetention::UntilDismissed
-            && self.shows_on_output(output)
+    pub fn hover_effect(&self, target: &HoverTarget, output: &str) -> HoverEffect {
+        if self.shown_retention() == CardRetention::UntilDismissed
+            && self.output_placement(output) == OutputPlacement::OnOutput
             && self.target() != Some(target)
+        {
+            HoverEffect::SwitchesMenu
+        } else {
+            HoverEffect::KeepsMenu
+        }
     }
 
     #[must_use]
     pub fn handle_indicator(&self, target: &HoverTarget, output: &str) -> MenuHandleIndicator {
         MenuHandleIndicator {
             pointing: self.laid_out_anchors.handle_pointing(output, target),
-            menu_expansion: if self.target() == Some(target) && self.shows_on_output(output) {
+            menu_expansion: if self.target() == Some(target)
+                && self.output_placement(output) == OutputPlacement::OnOutput
+            {
                 ExpansionState::Expanded
             } else {
                 ExpansionState::Collapsed
@@ -208,12 +223,16 @@ impl HoverCardHost {
     }
 
     #[must_use]
-    pub fn shown_widget_was_dropped(&self) -> bool {
-        self.transition.current().is_some_and(|current| {
-            !self
-                .laid_out_anchors
-                .widget_exists(&current.placement.output, &current.target)
-        })
+    pub fn shown_widget_presence(&self) -> ShownWidgetPresence {
+        if self.transition.current().is_some_and(|current| {
+            self.laid_out_anchors
+                .anchored_widget_liveness(&current.placement.output, &current.target)
+                == WidgetLiveness::Dropped
+        }) {
+            ShownWidgetPresence::Dropped
+        } else {
+            ShownWidgetPresence::Present
+        }
     }
 
     #[must_use]
@@ -550,12 +569,16 @@ impl<Message> HoverContent<'_, Message> {
     }
 
     #[must_use]
-    pub fn shows_anything(&self, announcement: &HoverAnnouncement) -> bool {
-        match self {
+    pub fn card_substance(&self, announcement: &HoverAnnouncement) -> CardSubstance {
+        if match self {
             HoverContent::Described(hover_card) => {
                 !hover_card.is_empty() || *announcement != HoverAnnouncement::default()
             }
             HoverContent::Interactive { .. } | HoverContent::GroupMenu { .. } => true,
+        } {
+            CardSubstance::HasContent
+        } else {
+            CardSubstance::Empty
         }
     }
 }
@@ -581,6 +604,30 @@ fn hoverable_content<'a, Message: From<PopupMessage> + Clone + 'a>(
         .into()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OutputPlacement {
+    OnOutput,
+    Elsewhere,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HoverEffect {
+    SwitchesMenu,
+    KeepsMenu,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShownWidgetPresence {
+    Dropped,
+    Present,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CardSubstance {
+    HasContent,
+    Empty,
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -599,8 +646,10 @@ mod tests {
     use crate::{
         clock::Clock,
         hover_cards::{
-            CardOpening, HandlePointing, HoverAnnouncement, HoverCardMessage, HoverTarget,
-            WidgetAnchor, hover_card_transition::CardRetention,
+            CardOpening, HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence,
+            WidgetAnchor,
+            hover_card_surfaces::{HoverEffect, ShownWidgetPresence},
+            hover_card_transition::CardRetention,
         },
         layer_surfaces::PanelEdge,
     };
@@ -679,9 +728,9 @@ mod tests {
             },
         );
         host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
-        assert!(!host.shown_widget_was_dropped());
+        assert_eq!(host.shown_widget_presence(), ShownWidgetPresence::Present);
         drop(widget);
-        assert!(host.shown_widget_was_dropped());
+        assert_eq!(host.shown_widget_presence(), ShownWidgetPresence::Dropped);
     }
 
     #[test]
@@ -700,7 +749,7 @@ mod tests {
             );
             host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
         }
-        assert!(host.shown_widget_was_dropped());
+        assert_eq!(host.shown_widget_presence(), ShownWidgetPresence::Dropped);
         remember(
             &mut host,
             "DP-1",
@@ -709,7 +758,7 @@ mod tests {
                 ..widget_at(1.0, CardOpening::OnHover)
             },
         );
-        assert!(!host.shown_widget_was_dropped());
+        assert_eq!(host.shown_widget_presence(), ShownWidgetPresence::Present);
     }
 
     #[test]
@@ -718,7 +767,7 @@ mod tests {
         let mut host = HoverCardHost::default();
         host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
         host.dismiss(None, now);
-        assert!(!host.shown_widget_was_dropped());
+        assert_eq!(host.shown_widget_presence(), ShownWidgetPresence::Present);
     }
 
     fn remember(host: &mut HoverCardHost, output: &str, widget_anchor: WidgetAnchor) {
@@ -830,15 +879,27 @@ mod tests {
     #[test]
     fn with_no_menu_open_hovering_a_handle_opens_nothing() {
         let host = HoverCardHost::default();
-        assert!(!host.hover_switches_menu(&workspace_card(), "DP-1"));
+        assert_eq!(
+            host.hover_effect(&workspace_card(), "DP-1"),
+            HoverEffect::KeepsMenu
+        );
     }
 
     #[test]
     fn an_open_menu_switches_on_hovering_another_handle_on_its_output_only() {
         let host = host_holding_a_menu_open();
-        assert!(host.hover_switches_menu(&other_menu_handle(), "DP-1"));
-        assert!(!host.hover_switches_menu(&workspace_card(), "DP-1"));
-        assert!(!host.hover_switches_menu(&other_menu_handle(), "DP-2"));
+        assert_eq!(
+            host.hover_effect(&other_menu_handle(), "DP-1"),
+            HoverEffect::SwitchesMenu
+        );
+        assert_eq!(
+            host.hover_effect(&workspace_card(), "DP-1"),
+            HoverEffect::KeepsMenu
+        );
+        assert_eq!(
+            host.hover_effect(&other_menu_handle(), "DP-2"),
+            HoverEffect::KeepsMenu
+        );
     }
 
     #[test]
@@ -865,24 +926,24 @@ mod tests {
     fn a_handle_indicator_follows_the_pointer_and_survives_a_new_layout() {
         let mut host = HoverCardHost::default();
         remember(&mut host, "DP-1", widget_at(0.0, CardOpening::OnPress));
-        host.set_handle_pointing("DP-1", &workspace_card(), HandlePointing::PointedAt);
+        host.set_handle_pointing("DP-1", &workspace_card(), PointerPresence::PointedAt);
         assert_eq!(
             host.handle_indicator(&workspace_card(), "DP-1").pointing,
-            HandlePointing::PointedAt
+            PointerPresence::PointedAt
         );
         assert_eq!(
             host.handle_indicator(&workspace_card(), "DP-2").pointing,
-            HandlePointing::NotPointedAt
+            PointerPresence::NotPointedAt
         );
         remember(&mut host, "DP-1", widget_at(5.0, CardOpening::OnPress));
         assert_eq!(
             host.handle_indicator(&workspace_card(), "DP-1").pointing,
-            HandlePointing::PointedAt
+            PointerPresence::PointedAt
         );
-        host.set_handle_pointing("DP-1", &workspace_card(), HandlePointing::NotPointedAt);
+        host.set_handle_pointing("DP-1", &workspace_card(), PointerPresence::NotPointedAt);
         assert_eq!(
             host.handle_indicator(&workspace_card(), "DP-1").pointing,
-            HandlePointing::NotPointedAt
+            PointerPresence::NotPointedAt
         );
     }
 

@@ -9,19 +9,19 @@ use crate::desktop_windows_apps::{
 };
 #[cfg(feature = "hyprland")]
 use crate::desktop_windows_apps::{
-    hyprland_socket_connection::hyprland_signature_is_set,
+    hyprland_socket_connection::hyprland_signature_variable,
     hyprland_socket_events::{
         follow_hyprland_events, hyprland_outputs, hyprland_version, hyprland_window_pids,
     },
 };
 #[cfg(feature = "niri")]
 use crate::desktop_windows_apps::{
-    niri_event_stream::{niri_compositor_updates, niri_socket_is_set},
+    niri_event_stream::{niri_compositor_updates, niri_socket_variable},
     niri_output_facts::{niri_outputs, niri_version, niri_window_pids},
 };
 #[cfg(feature = "sway")]
 use crate::desktop_windows_apps::{
-    sway_ipc_connection::sway_socket_is_set,
+    sway_ipc_connection::sway_socket_variable,
     sway_ipc_events::{follow_sway_events, sway_outputs, sway_version, sway_window_pids},
 };
 
@@ -39,15 +39,15 @@ impl CompositorKind {
     #[must_use]
     pub fn detected() -> Option<Self> {
         #[cfg(feature = "niri")]
-        if niri_socket_is_set() {
+        if niri_socket_variable().is_some() {
             return Some(CompositorKind::Niri);
         }
         #[cfg(feature = "hyprland")]
-        if hyprland_signature_is_set() {
+        if hyprland_signature_variable().is_some() {
             return Some(CompositorKind::Hyprland);
         }
         #[cfg(feature = "sway")]
-        if sway_socket_is_set() {
+        if sway_socket_variable().is_some() {
             return Some(CompositorKind::Sway);
         }
         None
@@ -66,26 +66,26 @@ impl CompositorKind {
     }
 
     #[must_use]
-    pub fn has_overview(self) -> bool {
+    pub fn overview_support(self) -> OverviewSupport {
         match self {
             #[cfg(feature = "niri")]
-            CompositorKind::Niri => true,
+            CompositorKind::Niri => OverviewSupport::Available,
             #[cfg(feature = "sway")]
-            CompositorKind::Sway => false,
+            CompositorKind::Sway => OverviewSupport::Missing,
             #[cfg(feature = "hyprland")]
-            CompositorKind::Hyprland => false,
+            CompositorKind::Hyprland => OverviewSupport::Missing,
         }
     }
 
     #[must_use]
-    pub fn reads_niri_config(self) -> bool {
+    pub fn workspace_config_source(self) -> WorkspaceConfigSource {
         match self {
             #[cfg(feature = "niri")]
-            CompositorKind::Niri => true,
+            CompositorKind::Niri => WorkspaceConfigSource::NiriKdl,
             #[cfg(feature = "sway")]
-            CompositorKind::Sway => false,
+            CompositorKind::Sway => WorkspaceConfigSource::Unread,
             #[cfg(feature = "hyprland")]
-            CompositorKind::Hyprland => false,
+            CompositorKind::Hyprland => WorkspaceConfigSource::Unread,
         }
     }
 }
@@ -181,4 +181,16 @@ pub fn compositor_window_pids() -> Option<Vec<i32>> {
         #[cfg(feature = "hyprland")]
         CompositorKind::Hyprland => hyprland_window_pids(),
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OverviewSupport {
+    Available,
+    Missing,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkspaceConfigSource {
+    NiriKdl,
+    Unread,
 }

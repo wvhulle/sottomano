@@ -13,7 +13,8 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+        reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::caldav_group::upcoming_events_reading::{
@@ -116,8 +117,12 @@ impl GroupItemReading for OpenTaskList {
         }
     }
 
-    fn visible_on_panel(&self) -> bool {
-        !self.tasks.is_empty()
+    fn panel_visibility(&self) -> PanelVisibility {
+        if self.tasks.is_empty() {
+            PanelVisibility::Hidden
+        } else {
+            PanelVisibility::Shown
+        }
     }
 
     fn hover_card(&self, clock: Clock) -> HoverCardBody {

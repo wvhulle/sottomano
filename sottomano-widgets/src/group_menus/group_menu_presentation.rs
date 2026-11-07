@@ -57,11 +57,6 @@ pub struct GroupMenuPresentation {
 
 impl GroupMenuPresentation {
     #[must_use]
-    pub const fn reveals_on_hover(self) -> bool {
-        matches!(self.layout, GroupMenuLayout::Cascading)
-    }
-
-    #[must_use]
     pub const fn open_group_limit(self) -> OpenGroupLimit {
         match self.layout {
             GroupMenuLayout::Cascading => OpenGroupLimit::One,
@@ -105,24 +100,7 @@ impl GroupMenuPresentation {
 
 #[cfg(test)]
 mod tests {
-    use super::{GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit};
-
-    #[test]
-    fn only_a_cascading_menu_reveals_on_hover_whatever_the_open_trigger() {
-        for open_trigger in [GroupMenuOpenTrigger::Hover, GroupMenuOpenTrigger::Press] {
-            let cascading = GroupMenuPresentation {
-                open_trigger,
-                ..GroupMenuPresentation::default()
-            };
-            assert!(cascading.reveals_on_hover());
-            let accordion = GroupMenuPresentation {
-                layout: GroupMenuLayout::Accordion,
-                open_trigger,
-                ..GroupMenuPresentation::default()
-            };
-            assert!(!accordion.reveals_on_hover());
-        }
-    }
+    use super::{GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit};
 
     #[test]
     fn menus_open_on_press_until_a_stored_choice_says_otherwise() {

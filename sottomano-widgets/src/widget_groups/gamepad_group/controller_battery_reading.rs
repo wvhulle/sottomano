@@ -22,8 +22,13 @@ pub struct ControllerBatteryReading {
 }
 
 impl ControllerBatteryReading {
-    pub(super) const fn running_low(&self) -> bool {
-        matches!(self.power, GamepadPower::Discharging(percent) if percent <= LOW_BATTERY_PERCENT)
+    pub(super) fn battery_level(&self) -> BatteryLevel {
+        if matches!(self.power, GamepadPower::Discharging(percent) if percent <= LOW_BATTERY_PERCENT)
+        {
+            BatteryLevel::Low
+        } else {
+            BatteryLevel::Comfortable
+        }
     }
 
     fn charge_description(&self) -> String {
@@ -68,7 +73,7 @@ impl GroupItemReading for ControllerBatteryReading {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.running_low() {
+        if self.battery_level() == BatteryLevel::Low {
             ReadingDisplayState::Warning
         } else {
             ReadingDisplayState::Idle
@@ -77,11 +82,19 @@ impl GroupItemReading for ControllerBatteryReading {
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         HoverCardBody::dictionary([
-            LabeledValue::new("Battery", self.charge_description()).level(if self.running_low() {
-                Severity::Warning
-            } else {
-                Severity::Normal
-            }),
+            LabeledValue::new("Battery", self.charge_description()).level(
+                if self.battery_level() == BatteryLevel::Low {
+                    Severity::Warning
+                } else {
+                    Severity::Normal
+                },
+            ),
         ])
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BatteryLevel {
+    Low,
+    Comfortable,
 }

@@ -18,16 +18,15 @@ pub struct ChipletLiveState<'a> {
 
 impl ChipletLiveState<'_> {
     pub fn title(&self, group: &CoreGroup) -> String {
-        if self.scheduler_prefers(group) {
-            format!("{} ★", group.title())
-        } else {
-            group.title()
+        match self.scheduler_preference(group) {
+            SchedulerPreference::Preferred => format!("{} ★", group.title()),
+            SchedulerPreference::Ordinary => group.title(),
         }
     }
 
-    fn scheduler_prefers(&self, group: &CoreGroup) -> bool {
+    fn scheduler_preference(&self, group: &CoreGroup) -> SchedulerPreference {
         let Some(clock) = self.clock else {
-            return false;
+            return SchedulerPreference::Ordinary;
         };
         let ranks: Vec<u32> = clock
             .topology
@@ -36,9 +35,14 @@ impl ChipletLiveState<'_> {
             .filter_map(|other| highest_preference_rank(clock, other))
             .collect();
         let differ = ranks.iter().any(|rank| Some(rank) != ranks.first());
-        differ
+        if differ
             && highest_preference_rank(clock, group)
                 .is_some_and(|rank| ranks.iter().all(|other| *other <= rank))
+        {
+            SchedulerPreference::Preferred
+        } else {
+            SchedulerPreference::Ordinary
+        }
     }
 
     pub fn temperature_text(&self, group: &CoreGroup) -> Option<String> {
@@ -86,4 +90,10 @@ fn highest_preference_rank(clock: &CpuClock, group: &CoreGroup) -> Option<u32> {
         .filter(|core| group.contains(core.core))
         .filter_map(|core| core.preference_rank)
         .max()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SchedulerPreference {
+    Preferred,
+    Ordinary,
 }

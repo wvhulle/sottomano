@@ -11,7 +11,7 @@ use tokio::time::Duration;
 use uom::si::{f64::Ratio, ratio::ratio};
 use zbus::{
     Connection, MatchRule, MessageStream,
-    fdo::{DBusProxy, NameOwnerChanged, PropertiesProxy},
+    fdo::{DBusProxy, PropertiesProxy},
     message::Type,
     names::{BusName, InterfaceName},
     proxy,
@@ -281,13 +281,34 @@ pub struct Media {
     pub progress: Progress,
     pub art_url: Option<String>,
     pub capabilities: Capabilities,
-    pub queue_order: Option<QueueOrder>,
-    pub loop_mode: Option<LoopMode>,
+    pub queue_order: PlayerSetting<QueueOrder>,
+    pub loop_mode: PlayerSetting<LoopMode>,
     pub seek_mode: SeekMode,
 }
 
-fn controllable_setting<T>(player: &Properties, declared: Option<T>) -> Option<T> {
-    declared.filter(|_| player.flag("CanControl"))
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerSetting<Setting> {
+    Controllable(Setting),
+    Uncontrollable,
+}
+
+fn controllable_setting<Setting>(
+    player: &Properties,
+    declared: Option<Setting>,
+) -> PlayerSetting<Setting> {
+    match declared {
+        Some(setting) if player.flag("CanControl") => PlayerSetting::Controllable(setting),
+        Some(_) | None => PlayerSetting::Uncontrollable,
+    }
+}
+
+fn declared_queue_order(player: &Properties) -> Option<QueueOrder> {
+    let shuffled = player.boolean("Shuffle")?;
+    Some(if shuffled {
+        QueueOrder::Shuffled
+    } else {
+        QueueOrder::InOrder
+    })
 }
 
 impl Media {
@@ -408,13 +429,7 @@ async fn read_media(
         progress: Progress::declared(&player, &metadata),
         art_url: metadata.text("mpris:artUrl"),
         capabilities: Capabilities::declared(&player, &root),
-        queue_order: controllable_setting(&player, player.boolean("Shuffle")).map(|shuffled| {
-            if shuffled {
-                QueueOrder::Shuffled
-            } else {
-                QueueOrder::InOrder
-            }
-        }),
+        queue_order: controllable_setting(&player, declared_queue_order(&player)),
         loop_mode: controllable_setting(&player, parsed(&player, "LoopStatus")),
         seek_mode: SeekMode::declared(&metadata),
     })
@@ -496,7 +511,13 @@ async fn connect(
     let owners = dbus
         .receive_name_owner_changed()
         .await?
-        .filter(|signal| ready(names_player(signal)))
+        .filter(|signal| {
+            ready(
+                signal
+                    .args()
+                    .is_ok_and(|args| args.name().as_str().starts_with(PREFIX)),
+            )
+        })
         .map(drop);
     Ok(read_once_then_per_burst(
         select(select(properties, seeks), owners),
@@ -520,12 +541,6 @@ async fn signals(
         .member(member)?
         .build();
     MessageStream::for_match_rule(rule, connection, Some(16)).await
-}
-
-fn names_player(signal: &NameOwnerChanged) -> bool {
-    signal
-        .args()
-        .is_ok_and(|args| args.name().as_str().starts_with(PREFIX))
 }
 
 #[must_use]
@@ -572,8 +587,8 @@ mod tests {
             }
         );
         assert_eq!(
-            controllable_setting(&player, player.boolean("Shuffle")),
-            None
+            controllable_setting(&player, declared_queue_order(&player)),
+            PlayerSetting::Uncontrollable
         );
     }
 
@@ -582,11 +597,11 @@ mod tests {
         let player = all_player_capabilities(true);
         assert_eq!(
             controllable_setting(&player, parsed(&player, "LoopStatus")),
-            Some(LoopMode::Track)
+            PlayerSetting::Controllable(LoopMode::Track)
         );
         assert_eq!(
-            controllable_setting(&player, player.boolean("Shuffle")),
-            Some(true)
+            controllable_setting(&player, declared_queue_order(&player)),
+            PlayerSetting::Controllable(QueueOrder::Shuffled)
         );
     }
 

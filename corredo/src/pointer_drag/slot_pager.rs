@@ -525,13 +525,13 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
     fn slot_tile(&self, position: usize) -> SlotTile {
         let marked = self.highlighted_position() == Some(position)
             || self.alarms.iter().any(|alarm| alarm.position == position);
-        let tiled = marked
+        if marked
             && (self.group_index_at(position).is_some()
                 || matches!(
                     self.ungrouped_highlight_look,
                     UngroupedHighlightLook::AccentTile(_)
-                ));
-        if tiled {
+                ))
+        {
             SlotTile::Drawn
         } else {
             SlotTile::Absent

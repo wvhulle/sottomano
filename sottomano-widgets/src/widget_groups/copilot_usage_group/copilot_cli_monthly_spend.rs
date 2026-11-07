@@ -1,13 +1,15 @@
 use chrono::{DateTime, Locale, Utc};
 use rust_decimal::Decimal;
 use sottomano_desktop_sources::ai_usage_spend::{
-    copilot_usage::CopilotCcusage, spend_money::usd, usage_quota::Quota,
+    ccusage_cli_reports::UsageActivity, copilot_usage::CopilotCcusage, spend_money::usd,
+    usage_quota::Quota,
 };
 
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+        reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
@@ -77,8 +79,12 @@ impl GroupItemReading for CopilotCcusage {
         ])
     }
 
-    fn visible_on_panel(&self) -> bool {
-        self.period.usage.active()
+    fn panel_visibility(&self) -> PanelVisibility {
+        if self.period.usage.activity() == UsageActivity::Active {
+            PanelVisibility::Shown
+        } else {
+            PanelVisibility::Hidden
+        }
     }
 
     fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {

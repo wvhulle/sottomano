@@ -44,7 +44,11 @@ pub fn card_origins(
                 .filter_map(|direction| {
                     nearest_free_card(wanted_card, direction, &settled_cards, spacing.card_gap)
                 })
-                .find(|free_card| fits_free_area(*free_card, free_area, spacing))
+                .find(|free_card| {
+                    free_card.y >= free_area.y + spacing.edge_gap
+                        && free_card.y + free_card.height
+                            <= free_area.y + free_area.height - spacing.edge_gap
+                })
                 .unwrap_or(wanted_card);
             settled_cards.push(free_card);
             settled_cards
@@ -71,13 +75,6 @@ impl StackingDirection {
         match self {
             Self::Downward => blocked_range.first_top_below,
             Self::Upward => blocked_range.last_top_above,
-        }
-    }
-
-    fn top_lies_ahead(self, wanted_top: f32, candidate_top: f32) -> bool {
-        match self {
-            Self::Downward => candidate_top >= wanted_top,
-            Self::Upward => candidate_top <= wanted_top,
         }
     }
 
@@ -114,10 +111,6 @@ impl BlockedTopRange {
             first_top_below: settled_card.y + settled_card.height + card_gap,
         }
     }
-
-    fn admits_top(self, card_top: f32) -> bool {
-        card_top <= self.last_top_above || card_top >= self.first_top_below
-    }
 }
 
 fn nearest_free_card(
@@ -128,7 +121,12 @@ fn nearest_free_card(
 ) -> Option<Rectangle> {
     let blocked_ranges: Vec<_> = settled_cards
         .iter()
-        .filter(|settled_card| shares_column(wanted_card, **settled_card, card_gap))
+        .filter(|settled_card| {
+            let overlap_left = (wanted_card.x - card_gap).max(settled_card.x);
+            let overlap_right = (wanted_card.x + wanted_card.width + card_gap)
+                .min(settled_card.x + settled_card.width);
+            overlap_right > overlap_left
+        })
         .map(|settled_card| {
             BlockedTopRange::around_settled_card(*settled_card, wanted_card.height, card_gap)
         })
@@ -139,27 +137,20 @@ fn nearest_free_card(
             .map(|blocked_range| direction.clearing_top(*blocked_range)),
     );
     let free_tops = candidate_tops
-        .filter(|candidate_top| direction.top_lies_ahead(wanted_card.y, *candidate_top))
+        .filter(|candidate_top| match direction {
+            StackingDirection::Downward => *candidate_top >= wanted_card.y,
+            StackingDirection::Upward => *candidate_top <= wanted_card.y,
+        })
         .filter(|candidate_top| {
-            blocked_ranges
-                .iter()
-                .all(|blocked_range| blocked_range.admits_top(*candidate_top))
+            blocked_ranges.iter().all(|blocked_range| {
+                *candidate_top <= blocked_range.last_top_above
+                    || *candidate_top >= blocked_range.first_top_below
+            })
         });
     direction.nearest_top(free_tops).map(|free_top| Rectangle {
         y: free_top,
         ..wanted_card
     })
-}
-
-fn shares_column(card: Rectangle, settled_card: Rectangle, card_gap: f32) -> bool {
-    let overlap_left = (card.x - card_gap).max(settled_card.x);
-    let overlap_right = (card.x + card.width + card_gap).min(settled_card.x + settled_card.width);
-    overlap_right > overlap_left
-}
-
-fn fits_free_area(card: Rectangle, free_area: Rectangle, spacing: &ToastAnchorSpacing) -> bool {
-    let gap = spacing.edge_gap;
-    card.y >= free_area.y + gap && card.y + card.height <= free_area.y + free_area.height - gap
 }
 
 fn wanted_origin(
@@ -283,10 +274,6 @@ mod tests {
         )
     }
 
-    fn overlap(a: Point, b: Point) -> bool {
-        Rectangle::new(a, CARD).intersects(&Rectangle::new(b, CARD))
-    }
-
     #[test]
     fn scrolling_a_window_off_screen_moves_its_toast_sideways_only() {
         assert_eq!(
@@ -302,7 +289,7 @@ mod tests {
     #[test]
     fn toasts_of_windows_scrolled_off_screen_stack_instead_of_piling_up() {
         let origins = placed(&[window(1, -1300.0), window(2, -500.0)]);
-        assert!(!overlap(origins[0], origins[1]));
+        assert!(!Rectangle::new(origins[0], CARD).intersects(&Rectangle::new(origins[1], CARD)));
         assert_eq!(origins[0], Point::new(24.0, WINDOW_TOP));
         assert_eq!(
             origins[1],
@@ -334,15 +321,18 @@ mod tests {
         }
     }
 
-    fn no_cards_overlap(card_positions: &[Point]) -> bool {
+    fn overlapping_cards(card_positions: &[Point]) -> Vec<Point> {
         card_positions
             .iter()
             .enumerate()
-            .all(|(index, card_position)| {
-                card_positions[index + 1..]
-                    .iter()
-                    .all(|later_position| !overlap(*card_position, *later_position))
+            .filter(|(index, card_position)| {
+                card_positions[index + 1..].iter().any(|later_position| {
+                    Rectangle::new(**card_position, CARD)
+                        .intersects(&Rectangle::new(*later_position, CARD))
+                })
             })
+            .map(|(_, card_position)| *card_position)
+            .collect()
     }
 
     #[test]
@@ -350,21 +340,21 @@ mod tests {
         let upper_window = window_with_bounds(1, 600.0, 40.0, 800.0, 200.0);
         let lower_window = window_with_bounds(2, 600.0, 240.0, 800.0, 800.0);
         let card_positions = placed(&[upper_window, upper_window, upper_window, lower_window]);
-        assert!(no_cards_overlap(&card_positions));
+        assert!(overlapping_cards(&card_positions).is_empty());
     }
 
     #[test]
     fn centred_cards_of_narrow_neighbouring_windows_do_not_overlap() {
         let left_window = window_with_bounds(1, 600.0, 40.0, 200.0, 1000.0);
         let right_window = window_with_bounds(2, 800.0, 40.0, 200.0, 1000.0);
-        assert!(no_cards_overlap(&placed(&[left_window, right_window])));
+        assert!(overlapping_cards(&placed(&[left_window, right_window])).is_empty());
     }
 
     #[test]
     fn a_fallback_corner_stack_clears_a_window_card_in_that_corner() {
         let corner_window = window_with_bounds(1, 1100.0, 900.0, 800.0, 180.0);
         let card_positions = placed(&[corner_window, bottom_right_corner(), bottom_right_corner()]);
-        assert!(no_cards_overlap(&card_positions));
+        assert!(overlapping_cards(&card_positions).is_empty());
     }
 
     #[test]
@@ -428,7 +418,7 @@ mod tests {
     fn a_stack_without_room_below_continues_above_its_anchor() {
         let low_window = window_with_bounds(1, 600.0, 800.0, 800.0, 240.0);
         let card_positions = placed(&[low_window, low_window, low_window]);
-        assert!(no_cards_overlap(&card_positions));
+        assert!(overlapping_cards(&card_positions).is_empty());
         let above_first_card = card_positions[0].y - CARD.height - DEFAULT_ANCHOR_SPACING.card_gap;
         assert_eq!(
             card_positions[2],

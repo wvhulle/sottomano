@@ -11,7 +11,8 @@ use super::core_grid_sections::cpu_ranges;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+        reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
@@ -132,8 +133,12 @@ impl GroupItemReading for ClockLimitCauses<'_> {
         .titled("Published limits")])
     }
 
-    fn visible_on_panel(&self) -> bool {
-        self.clock.limited_cores() > 0
+    fn panel_visibility(&self) -> PanelVisibility {
+        if self.clock.limited_cores() > 0 {
+            PanelVisibility::Shown
+        } else {
+            PanelVisibility::Hidden
+        }
     }
 }
 
@@ -144,6 +149,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::group_items::group_item_reading::PanelVisibility;
 
     fn clock_with(causes: [Vec<FrequencyLimitCause>; 4]) -> CpuClock {
         CpuClock {
@@ -160,7 +166,10 @@ mod tests {
     #[test]
     fn hidden_without_published_causes() {
         let clock = clock_with([Vec::new(), Vec::new(), Vec::new(), Vec::new()]);
-        assert!(!ClockLimitCauses { clock: &clock }.visible_on_panel());
+        assert_eq!(
+            ClockLimitCauses { clock: &clock }.panel_visibility(),
+            PanelVisibility::Hidden
+        );
     }
 
     #[test]

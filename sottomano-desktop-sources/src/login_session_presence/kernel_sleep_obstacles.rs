@@ -103,7 +103,7 @@ pub enum KernelHibernation {
 pub struct SecretMemoryHolder {
     pub name: String,
     pub pid: u32,
-    pub has_open_window: bool,
+    pub window_ownership: WindowOwnership,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,9 +148,9 @@ pub struct SleepObstacles {
     pub sleep_states: Vec<SleepStateSupport>,
     pub sleep_order: Vec<SleepState>,
     pub kernel_hibernation: KernelHibernation,
-    pub resume_device_configured: bool,
+    pub resume_device: ResumeDevice,
     pub blocking_inhibitors: Vec<BlockingInhibitor>,
-    pub logind_idle_action_enabled: bool,
+    pub idle_action_setting: IdleActionSetting,
     pub scheduled_shutdown: Option<ScheduledShutdown>,
 }
 
@@ -258,9 +258,13 @@ async fn read_obstacles(
             .filter_map(|operation| SleepState::from_logind_operation(operation))
             .collect(),
         kernel_hibernation: read_kernel_hibernation(&app_names).await,
-        resume_device_configured: names_resume_device(&read_kernel_text(RESUME_DEVICE_PATH)),
+        resume_device: ResumeDevice::from(read_kernel_text(RESUME_DEVICE_PATH).as_str()),
         blocking_inhibitors: blocking_inhibitors(manager.list_inhibitors().await?, &app_names),
-        logind_idle_action_enabled: manager.idle_action().await? != "ignore",
+        idle_action_setting: if manager.idle_action().await? == "ignore" {
+            IdleActionSetting::Ignored
+        } else {
+            IdleActionSetting::Acting
+        },
         scheduled_shutdown: non_empty(shutdown_kind).map(|kind| ScheduledShutdown {
             kind,
             at: at_micros(shutdown_usec),
@@ -273,7 +277,9 @@ fn read_kernel_text(path: &str) -> String {
 }
 
 async fn read_kernel_hibernation(app_names: &InhibitorAppNames) -> KernelHibernation {
-    if !lists_hibernation_disabled(&read_kernel_text(HIBERNATION_MODES_PATH)) {
+    if HibernationModes::from(read_kernel_text(HIBERNATION_MODES_PATH).as_str())
+        == HibernationModes::Offered
+    {
         return KernelHibernation::Allowed;
     }
     if let Some(flag) = disabling_boot_flag(&read_kernel_text(KERNEL_COMMAND_LINE_PATH)) {
@@ -282,32 +288,35 @@ async fn read_kernel_hibernation(app_names: &InhibitorAppNames) -> KernelHiberna
     if let Some(level) = active_lockdown_level(&read_kernel_text(KERNEL_LOCKDOWN_PATH)) {
         return KernelHibernation::DisabledByLockdown(level);
     }
-    match secret_memory_holder_pids().await {
-        None => KernelHibernation::DisabledWithoutInspection,
-        Some(pids) if pids.is_empty() => KernelHibernation::DisabledForUnidentifiedCause,
-        Some(pids) => KernelHibernation::DisabledBySecretMemory(secret_memory_holders(
-            &pids,
-            app_names,
-            open_window_owners().await.as_ref(),
-        )),
+    match secret_memory_scan().await {
+        SecretMemoryScan::Unavailable => KernelHibernation::DisabledWithoutInspection,
+        SecretMemoryScan::Scanned(pids) if pids.is_empty() => {
+            KernelHibernation::DisabledForUnidentifiedCause
+        }
+        SecretMemoryScan::Scanned(pids) => KernelHibernation::DisabledBySecretMemory(
+            secret_memory_holders(&pids, app_names, &open_window_owners().await),
+        ),
     }
 }
 
-async fn secret_memory_holder_pids() -> Option<Vec<u32>> {
-    let output = Command::new(SECRET_MEMORY_HELPER_PATH)
-        .output()
-        .await
-        .ok()
-        .filter(|output| output.status.success())?;
-    Some(pids_in_helper_output(&String::from_utf8_lossy(
-        &output.stdout,
-    )))
+enum SecretMemoryScan {
+    Scanned(Vec<u32>),
+    Unavailable,
+}
+
+async fn secret_memory_scan() -> SecretMemoryScan {
+    match Command::new(SECRET_MEMORY_HELPER_PATH).output().await {
+        Ok(output) if output.status.success() => SecretMemoryScan::Scanned(pids_in_helper_output(
+            &String::from_utf8_lossy(&output.stdout),
+        )),
+        Ok(_) | Err(_) => SecretMemoryScan::Unavailable,
+    }
 }
 
 fn secret_memory_holders(
     pids: &[u32],
     app_names: &InhibitorAppNames,
-    window_owners: Option<&WindowOwners>,
+    window_owners: &CompositorWindows,
 ) -> Vec<SecretMemoryHolder> {
     let mut holders: Vec<SecretMemoryHolder> = pids
         .iter()
@@ -316,15 +325,28 @@ fn secret_memory_holders(
                 .of_process(*pid)
                 .unwrap_or_else(|| format!("Process {pid}")),
             pid: *pid,
-            has_open_window: window_owners
-                .as_ref()
-                .is_none_or(|owners| owners.own_window(*pid, process_scope(*pid).as_deref())),
+            window_ownership: window_owners.window_ownership(*pid),
         })
         .collect();
     holders.sort_by(|earlier, later| {
         (earlier.name.as_str(), earlier.pid).cmp(&(later.name.as_str(), later.pid))
     });
     holders
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CompositorWindows {
+    Listed(WindowOwners),
+    Unavailable,
+}
+
+impl CompositorWindows {
+    fn window_ownership(&self, pid: u32) -> WindowOwnership {
+        match self {
+            Self::Listed(owners) => owners.window_ownership(pid, process_scope(pid).as_deref()),
+            Self::Unavailable => WindowOwnership::OwnsWindow,
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -334,9 +356,14 @@ struct WindowOwners {
 }
 
 impl WindowOwners {
-    fn own_window(&self, pid: u32, scope: Option<&str>) -> bool {
-        self.window_pids.contains(&pid)
-            || scope.is_some_and(|scope| self.window_scopes.iter().any(|owned| owned == scope))
+    fn window_ownership(&self, pid: u32, scope: Option<&str>) -> WindowOwnership {
+        let owns = self.window_pids.contains(&pid)
+            || scope.is_some_and(|scope| self.window_scopes.iter().any(|owned| owned == scope));
+        if owns {
+            WindowOwnership::OwnsWindow
+        } else {
+            WindowOwnership::Windowless
+        }
     }
 }
 
@@ -344,12 +371,17 @@ fn process_scope(pid: u32) -> Option<String> {
     launch(i32::try_from(pid).ok()?)?.scope
 }
 
-async fn open_window_owners() -> Option<WindowOwners> {
-    spawn_blocking(read_window_owners).await.ok().flatten()
+async fn open_window_owners() -> CompositorWindows {
+    spawn_blocking(read_window_owners)
+        .await
+        .unwrap_or(CompositorWindows::Unavailable)
 }
 
-fn read_window_owners() -> Option<WindowOwners> {
-    let window_pids: Vec<u32> = compositor_window_pids()?
+fn read_window_owners() -> CompositorWindows {
+    let Some(compositor_pids) = compositor_window_pids() else {
+        return CompositorWindows::Unavailable;
+    };
+    let window_pids: Vec<u32> = compositor_pids
         .into_iter()
         .filter_map(|pid| u32::try_from(pid).ok())
         .collect();
@@ -358,7 +390,7 @@ fn read_window_owners() -> Option<WindowOwners> {
         .filter_map(|pid| process_scope(*pid))
         .filter(|scope| scope.starts_with("app-"))
         .collect();
-    Some(WindowOwners {
+    CompositorWindows::Listed(WindowOwners {
         window_pids,
         window_scopes,
     })
@@ -386,13 +418,47 @@ fn blocking_inhibitors(
         .collect()
 }
 
-fn lists_hibernation_disabled(hibernation_modes: &str) -> bool {
-    hibernation_modes.contains("[disabled]")
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HibernationModes {
+    Disabled,
+    Offered,
 }
 
-fn names_resume_device(resume_device: &str) -> bool {
-    let device = resume_device.trim();
-    !device.is_empty() && device != "0:0"
+impl From<&str> for HibernationModes {
+    fn from(hibernation_modes: &str) -> Self {
+        if hibernation_modes.contains("[disabled]") {
+            HibernationModes::Disabled
+        } else {
+            HibernationModes::Offered
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResumeDevice {
+    Configured,
+    Unset,
+}
+
+impl From<&str> for ResumeDevice {
+    fn from(resume_device: &str) -> Self {
+        match resume_device.trim() {
+            "" | "0:0" => ResumeDevice::Unset,
+            _ => ResumeDevice::Configured,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdleActionSetting {
+    Acting,
+    Ignored,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowOwnership {
+    OwnsWindow,
+    Windowless,
 }
 
 fn disabling_boot_flag(command_line: &str) -> Option<String> {
@@ -422,8 +488,10 @@ mod tests {
     use super::{
         InhibitedOperation, KernelHibernation, KernelSleepVerdict, LogindCapability,
         SleepObstacles, SleepState, SleepStateSupport, WindowOwners, active_lockdown_level,
-        disabling_boot_flag, lists_hibernation_disabled, names_resume_device,
-        pids_in_helper_output,
+        disabling_boot_flag, pids_in_helper_output,
+    };
+    use crate::login_session_presence::kernel_sleep_obstacles::{
+        HibernationModes, IdleActionSetting, ResumeDevice, WindowOwnership,
     };
 
     #[test]
@@ -432,10 +500,22 @@ mod tests {
             window_pids: vec![6627],
             window_scopes: vec!["app-bitwarden-6370.scope".to_owned()],
         };
-        assert!(owners.own_window(6627, None));
-        assert!(owners.own_window(7365, Some("app-bitwarden-6370.scope")));
-        assert!(!owners.own_window(9000, Some("app-signal-12.scope")));
-        assert!(!owners.own_window(9001, None));
+        assert_eq!(
+            owners.window_ownership(6627, None),
+            WindowOwnership::OwnsWindow
+        );
+        assert_eq!(
+            owners.window_ownership(7365, Some("app-bitwarden-6370.scope")),
+            WindowOwnership::OwnsWindow
+        );
+        assert_eq!(
+            owners.window_ownership(9000, Some("app-signal-12.scope")),
+            WindowOwnership::Windowless
+        );
+        assert_eq!(
+            owners.window_ownership(9001, None),
+            WindowOwnership::Windowless
+        );
     }
 
     fn obstacles_with(capabilities: [LogindCapability; 4]) -> SleepObstacles {
@@ -451,26 +531,30 @@ mod tests {
                 SleepState::Hibernate,
             ],
             kernel_hibernation: KernelHibernation::Allowed,
-            resume_device_configured: true,
+            resume_device: ResumeDevice::Configured,
             blocking_inhibitors: Vec::new(),
-            logind_idle_action_enabled: false,
+            idle_action_setting: IdleActionSetting::Ignored,
             scheduled_shutdown: None,
         }
     }
 
     #[test]
     fn only_the_disabled_marker_counts_as_disabled_hibernation() {
-        assert!(lists_hibernation_disabled("[disabled]\n"));
-        assert!(!lists_hibernation_disabled(
-            "[platform] shutdown reboot suspend test_resume\n"
-        ));
+        assert_eq!(
+            HibernationModes::from("[disabled]\n"),
+            HibernationModes::Disabled
+        );
+        assert_eq!(
+            HibernationModes::from("[platform] shutdown reboot suspend test_resume\n"),
+            HibernationModes::Offered
+        );
     }
 
     #[test]
     fn a_zero_resume_device_means_hibernation_was_never_set_up() {
-        assert!(names_resume_device("259:2\n"));
-        assert!(!names_resume_device("0:0\n"));
-        assert!(!names_resume_device(""));
+        assert_eq!(ResumeDevice::from("259:2\n"), ResumeDevice::Configured);
+        assert_eq!(ResumeDevice::from("0:0\n"), ResumeDevice::Unset);
+        assert_eq!(ResumeDevice::from(""), ResumeDevice::Unset);
     }
 
     #[test]

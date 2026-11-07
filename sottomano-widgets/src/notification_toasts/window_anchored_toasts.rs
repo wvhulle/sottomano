@@ -57,13 +57,15 @@ impl<'a> WindowAnchoredToasts<'a> {
                 background_fade,
                 motion: card.motion,
                 anchor_spacing: ToastAnchorSpacing::from_config(config),
-                revealing: false,
+                reveal_motion: MotionState::Settled,
             },
             |mut toasts, toast| {
                 toasts.ids.push(toast.id);
                 toasts.anchors.push(toast.anchor);
                 toasts.cards.push(toast.card);
-                toasts.revealing |= toast.motion == MotionState::Moving;
+                if toast.motion == MotionState::Moving {
+                    toasts.reveal_motion = MotionState::Moving;
+                }
                 toasts
             },
         )
@@ -85,7 +87,7 @@ pub struct WindowAnchoredToasts<'a> {
     background_fade: CardBackgroundFade,
     motion: Duration,
     anchor_spacing: ToastAnchorSpacing,
-    revealing: bool,
+    reveal_motion: MotionState,
 }
 
 struct Drift {
@@ -175,13 +177,19 @@ impl Drifts {
             .collect()
     }
 
-    fn advance(&mut self, frame: Instant) -> bool {
+    fn advance(&mut self, frame: Instant) -> MotionState {
         self.by_id
             .values_mut()
             .for_each(|drift| drift.advance(frame));
-        self.by_id
+        if self
+            .by_id
             .values()
             .any(|drift| drift.x.is_animating(frame) || drift.y.is_animating(frame))
+        {
+            MotionState::Moving
+        } else {
+            MotionState::Settled
+        }
     }
 }
 
@@ -377,11 +385,11 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
             return;
         }
         state.frame = Some(*frame);
-        let drifting = state.drift.advance(*frame);
-        if drifting {
+        let drift_motion = state.drift.advance(*frame);
+        if drift_motion == MotionState::Moving {
             shell.invalidate_layout();
         }
-        if drifting || self.revealing {
+        if drift_motion == MotionState::Moving || self.reveal_motion == MotionState::Moving {
             shell.request_redraw();
         }
     }

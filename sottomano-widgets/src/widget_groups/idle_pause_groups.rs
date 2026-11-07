@@ -35,8 +35,10 @@ use crate::{
         hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
+        idle_pause_groups::pause_blocker_rows::TimerArming,
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            ExpansionChange, PanelPromotion, WidgetGroupContent, WidgetGroupExpansion,
+            WidgetGroupExpansionMessage, WidgetGroupFace,
         },
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
@@ -161,7 +163,7 @@ impl IdlePauseGroups {
     pub fn collapse(&mut self) {
         for kind in IdleAction::ALL {
             let pause = self.pause_mut(kind);
-            if pause.expansion.collapse() {
+            if pause.expansion.collapse() == ExpansionChange::JustCollapsed {
                 pause.timer.close();
             }
         }
@@ -187,7 +189,7 @@ impl IdlePauseGroups {
             }
             IdlePauseMessage::Expansion(kind, message) => {
                 let pause = self.pause_mut(kind);
-                if pause.expansion.update(message) {
+                if pause.expansion.update(message) == ExpansionChange::JustCollapsed {
                     pause.timer.close();
                 }
                 Task::none()
@@ -254,7 +256,10 @@ impl IdlePauseGroups {
                 .get()
                 .map_or(&[], |held| held.inhibitors.as_slice()),
             armed_triggers: &armed_triggers,
-            hibernate_timer_set: self.hibernate.timer.timeout().is_some(),
+            hibernate_timer: match self.hibernate.timer.timeout() {
+                Some(_) => TimerArming::Armed,
+                None => TimerArming::Unarmed,
+            },
         });
     }
 
@@ -359,9 +364,14 @@ impl IdlePauseGroups {
         config: &'a Config,
     ) -> WidgetGroupContent<'a, IdlePauseMessage> {
         let first_blocker = self.blockers_of(pause).next();
-        let rises_to_panel = self
+        let panel_promotion = if self
             .blockers_of(pause)
-            .any(|blocker| blocker.rises_to_panel);
+            .any(|blocker| blocker.panel_promotion == PanelPromotion::RisesToPanel)
+        {
+            PanelPromotion::RisesToPanel
+        } else {
+            PanelPromotion::StaysInMenu
+        };
         let timeout_slider =
             GroupItem::slider(self.pause(pause).timer.slider(), config, move |message| {
                 IdlePauseMessage::Timer(pause, message)
@@ -427,6 +437,6 @@ impl IdlePauseGroups {
                 .chain(scheduled_shutdown),
         )
         .face(face)
-        .on_panel_while(rises_to_panel)
+        .with_panel_promotion(panel_promotion)
     }
 }

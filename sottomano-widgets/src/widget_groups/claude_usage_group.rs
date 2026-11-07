@@ -13,7 +13,7 @@ use sottomano_desktop_sources::{
         claude_usage::{
             self, ClaudeCcusageBlock, ClaudeCcusageModels, ClaudeCcusagePeriods,
             ClaudeEnterpriseAccount, ClaudeEnterpriseSpend, ClaudeLocalLogs, ClaudeOrganization,
-            ClaudeUsageWindows,
+            ClaudeUsageWindows, SubscriptionCoverage,
         },
         working_time_forecast::{SpendBudget, SpendPacing, WorkingTime},
     },
@@ -288,7 +288,7 @@ impl ClaudeUsageGroup {
     fn billed_model_ranking(&self) -> Option<ModelSpendRanking<'_, 3>> {
         self.ccusage_models
             .get()
-            .filter(|models| !models.covered_by_subscription)
+            .filter(|models| models.subscription_coverage == SubscriptionCoverage::Uncovered)
             .and(self.model_ranking())
     }
 

@@ -11,20 +11,21 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     disk_storage::{
         self,
+        bcachefs_filesystem_space::SnapshotDeletion,
         bcachefs_subvolume_usage::BcachefsSubvolumeUsage,
         block_filesystem_mounts::{BlockFilesystemDiscovery, FilesystemMount},
-        mounted_filesystem_usage::FilesystemUsage,
+        mounted_filesystem_usage::{Filesystem, FilesystemUsage},
     },
 };
 
-use self::{
-    filesystem_usage_gauge::{SnapshotDeletionRow, snapshot_deletion_running},
-    subvolume_usage_row::SubvolumeUsageRow,
-};
+use self::{filesystem_usage_gauge::SnapshotDeletionRow, subvolume_usage_row::SubvolumeUsageRow};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    group_items::{
+        group_item::GroupItem,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+    },
     hover_cards::{
         HoverTarget,
         hover_card_body::{
@@ -76,8 +77,8 @@ impl GroupItemReading for BlockFilesystemDiscovery {
         Phosphor::Folders(Weight::Regular).into()
     }
 
-    fn visible_on_panel(&self) -> bool {
-        false
+    fn panel_visibility(&self) -> PanelVisibility {
+        PanelVisibility::Hidden
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
@@ -271,7 +272,12 @@ impl StorageSpaceGroup {
         });
         let snapshot_deletion_item =
             usage
-                .filter(|usage| snapshot_deletion_running(usage))
+                .filter(|usage| {
+                    matches!(
+                        &usage.filesystem,
+                        Filesystem::Bcachefs(space) if space.snapshot_deletion == SnapshotDeletion::Running
+                    )
+                })
                 .map(|_| {
                     GroupItem::reading(
                         SnapshotDeletionRow,
@@ -350,7 +356,12 @@ impl StorageSpaceGroup {
                 filesystem
                     .usage
                     .get()
-                    .filter(|usage| snapshot_deletion_running(usage))?;
+                    .filter(|usage| {
+                    matches!(
+                        &usage.filesystem,
+                        Filesystem::Bcachefs(space) if space.snapshot_deletion == SnapshotDeletion::Running
+                    )
+                })?;
                 filesystem
                     .usage
                     .hover_card_with(SnapshotDeletionRow.hover_card(clock))

@@ -76,7 +76,7 @@ impl WoodpeckerAgentWatch {
         scope: SystemdUnitScope,
         command: &ServiceCommand,
     ) -> Option<DiscoveredCiRunner<Self>> {
-        if !command.runs(WOODPECKER_AGENT_PROGRAM) {
+        if command.program_name() != Some(WOODPECKER_AGENT_PROGRAM) {
             return None;
         }
         let watch = WoodpeckerAgentWatch {
@@ -102,7 +102,7 @@ impl ForgejoRunnerWatch {
         scope: SystemdUnitScope,
         command: &ServiceCommand,
     ) -> Option<DiscoveredCiRunner<Self>> {
-        let runs_daemon = command.runs(FORGEJO_RUNNER_PROGRAM)
+        let runs_daemon = (command.program_name() == Some(FORGEJO_RUNNER_PROGRAM))
             && command
                 .arguments_after(&FORGEJO_DAEMON_SUBCOMMAND)
                 .is_some();

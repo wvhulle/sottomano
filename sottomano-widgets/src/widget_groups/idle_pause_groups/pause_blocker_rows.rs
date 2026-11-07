@@ -5,8 +5,9 @@ use iced::alignment::Horizontal;
 use sottomano_desktop_sources::login_session_presence::{
     idle_session_actions::IdleAction,
     kernel_sleep_obstacles::{
-        InhibitedOperation, KernelHibernation, KernelSleepVerdict, LogindCapability,
-        ScheduledShutdown, SecretMemoryHolder, SleepObstacles, SleepState,
+        IdleActionSetting, InhibitedOperation, KernelHibernation, KernelSleepVerdict,
+        LogindCapability, ResumeDevice, ScheduledShutdown, SecretMemoryHolder, SleepObstacles,
+        SleepState, WindowOwnership,
     },
     screensaver_bus_idle_inhibitors::IdleInhibitor,
 };
@@ -18,6 +19,7 @@ use crate::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
+    widget_groups::widget_group_content::PanelPromotion,
     widgets::{
         icon_glyph::IconGlyph,
         idle::ActionTrigger,
@@ -84,13 +86,6 @@ impl BlockerCause {
             ),
         }
     }
-
-    fn holds_only_idle_timers(self) -> bool {
-        matches!(
-            self,
-            BlockerCause::LogindIdleLock | BlockerCause::ScreenSaverHold
-        )
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,14 +94,14 @@ pub(super) struct PauseBlocker {
     pub holder: String,
     pub why: String,
     pub cause: BlockerCause,
-    pub rises_to_panel: bool,
+    pub panel_promotion: PanelPromotion,
     pub holder_process: Option<HolderProcess>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct HolderProcess {
     pub pid: u32,
-    pub has_open_window: bool,
+    pub window_ownership: WindowOwnership,
 }
 
 impl PauseBlocker {
@@ -150,7 +145,10 @@ impl GroupItemReading for PauseBlocker {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.cause.holds_only_idle_timers() {
+        if matches!(
+            self.cause,
+            BlockerCause::LogindIdleLock | BlockerCause::ScreenSaverHold
+        ) {
             ReadingDisplayState::Idle
         } else {
             ReadingDisplayState::Warning
@@ -178,10 +176,9 @@ impl IntoTableRecord<2> for SecretMemoryHolderRecord<'_> {
             |process| {
                 (
                     process.pid.to_string(),
-                    if process.has_open_window {
-                        "open"
-                    } else {
-                        "none"
+                    match process.window_ownership {
+                        WindowOwnership::OwnsWindow => "open",
+                        WindowOwnership::Windowless => "none",
                     }
                     .to_owned(),
                 )
@@ -378,12 +375,12 @@ pub(super) struct PauseFacts<'a> {
     pub obstacles: Option<&'a SleepObstacles>,
     pub idle_inhibitors: &'a [IdleInhibitor],
     pub armed_triggers: &'a [ActionTrigger],
-    pub hibernate_timer_set: bool,
+    pub hibernate_timer: TimerArming,
 }
 
 pub(super) fn pause_blockers(facts: &PauseFacts<'_>) -> Vec<PauseBlocker> {
     let logind_and_kernel = facts.obstacles.into_iter().flat_map(|obstacles| {
-        hibernate_blockers(obstacles, facts.hibernate_timer_set)
+        hibernate_blockers(obstacles, facts.hibernate_timer)
             .into_iter()
             .chain(lock_blockers(obstacles))
             .chain(no_sleep_state_blocker(obstacles))
@@ -396,7 +393,10 @@ pub(super) fn pause_blockers(facts: &PauseFacts<'_>) -> Vec<PauseBlocker> {
         .collect()
 }
 
-fn hibernate_blockers(obstacles: &SleepObstacles, timer_set: bool) -> Vec<PauseBlocker> {
+fn hibernate_blockers(
+    obstacles: &SleepObstacles,
+    hibernate_timer: TimerArming,
+) -> Vec<PauseBlocker> {
     let explained_by_sleep_lock = obstacles.kernel_hibernation == KernelHibernation::Allowed
         && obstacles.inhibitors_of(InhibitedOperation::Sleep).count() > 0;
     let hibernate_available = matches!(
@@ -406,13 +406,16 @@ fn hibernate_blockers(obstacles: &SleepObstacles, timer_set: bool) -> Vec<PauseB
     if hibernate_available || explained_by_sleep_lock {
         return Vec::new();
     }
-    let rises_to_panel = obstacles.resume_device_configured || timer_set;
+    let panel_promotion = match (obstacles.resume_device, hibernate_timer) {
+        (ResumeDevice::Unset, TimerArming::Unarmed) => PanelPromotion::StaysInMenu,
+        (ResumeDevice::Configured, _) | (_, TimerArming::Armed) => PanelPromotion::RisesToPanel,
+    };
     let blocker = |holder: String, why: String, cause: BlockerCause| PauseBlocker {
         pause: IdleAction::Hibernate,
         holder,
         why,
         cause,
-        rises_to_panel,
+        panel_promotion,
         holder_process: None,
     };
     let refusal = kernel_refusal_text(&obstacles.kernel_hibernation);
@@ -436,7 +439,7 @@ fn hibernate_blockers(obstacles: &SleepObstacles, timer_set: bool) -> Vec<PauseB
             .map(|holder| PauseBlocker {
                 holder_process: Some(HolderProcess {
                     pid: holder.pid,
-                    has_open_window: holder.has_open_window,
+                    window_ownership: holder.window_ownership,
                 }),
                 ..blocker(
                     holder.name.clone(),
@@ -469,16 +472,18 @@ fn lock_blockers(obstacles: &SleepObstacles) -> impl Iterator<Item = PauseBlocke
             .inhibitors_of(InhibitedOperation::Sleep)
             .flat_map(move |inhibitor| {
                 let why = stated_reason(&inhibitor.reason, "holds a sleep lock");
-                [(IdleAction::Sleep, true), (IdleAction::Hibernate, false)].map(
-                    |(pause, rises_to_panel)| PauseBlocker {
-                        pause,
-                        holder: inhibitor.holder.clone(),
-                        why: why.clone(),
-                        cause: BlockerCause::SleepLock,
-                        rises_to_panel,
-                        holder_process: None,
-                    },
-                )
+                [
+                    (IdleAction::Sleep, PanelPromotion::RisesToPanel),
+                    (IdleAction::Hibernate, PanelPromotion::StaysInMenu),
+                ]
+                .map(|(pause, panel_promotion)| PauseBlocker {
+                    pause,
+                    holder: inhibitor.holder.clone(),
+                    why: why.clone(),
+                    cause: BlockerCause::SleepLock,
+                    panel_promotion,
+                    holder_process: None,
+                })
             });
     let shutdown_locks =
         obstacles
@@ -488,7 +493,7 @@ fn lock_blockers(obstacles: &SleepObstacles) -> impl Iterator<Item = PauseBlocke
                 holder: inhibitor.holder.clone(),
                 why: stated_reason(&inhibitor.reason, "holds a shutdown lock"),
                 cause: BlockerCause::ShutdownLock,
-                rises_to_panel: true,
+                panel_promotion: PanelPromotion::RisesToPanel,
                 holder_process: None,
             });
     let idle_locks = obstacles
@@ -498,7 +503,10 @@ fn lock_blockers(obstacles: &SleepObstacles) -> impl Iterator<Item = PauseBlocke
             holder: inhibitor.holder.clone(),
             why: stated_reason(&inhibitor.reason, "holds an idle lock"),
             cause: BlockerCause::LogindIdleLock,
-            rises_to_panel: obstacles.logind_idle_action_enabled,
+            panel_promotion: match obstacles.idle_action_setting {
+                IdleActionSetting::Acting => PanelPromotion::RisesToPanel,
+                IdleActionSetting::Ignored => PanelPromotion::StaysInMenu,
+            },
             holder_process: None,
         });
     sleep_locks.chain(shutdown_locks).chain(idle_locks)
@@ -514,7 +522,7 @@ fn no_sleep_state_blocker(obstacles: &SleepObstacles) -> Option<PauseBlocker> {
         holder: "logind".to_owned(),
         why: "no configured sleep state is available".to_owned(),
         cause: BlockerCause::LogindRefusal,
-        rises_to_panel: true,
+        panel_promotion: PanelPromotion::RisesToPanel,
         holder_process: None,
     })
 }
@@ -536,10 +544,20 @@ fn screensaver_blockers<'a>(
                 .clone()
                 .unwrap_or_else(|| "asked the compositor to hold idle timers".to_owned()),
             cause: BlockerCause::ScreenSaverHold,
-            rises_to_panel: Some(trigger.tag) == first_to_fire,
+            panel_promotion: if Some(trigger.tag) == first_to_fire {
+                PanelPromotion::RisesToPanel
+            } else {
+                PanelPromotion::StaysInMenu
+            },
             holder_process: None,
         })
     })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum TimerArming {
+    Armed,
+    Unarmed,
 }
 
 #[cfg(test)]
@@ -549,8 +567,9 @@ mod tests {
     use sottomano_desktop_sources::login_session_presence::{
         idle_session_actions::IdleAction,
         kernel_sleep_obstacles::{
-            BlockingInhibitor, InhibitedOperation, KernelHibernation, LogindCapability,
-            SecretMemoryHolder, SleepObstacles, SleepState, SleepStateSupport,
+            BlockingInhibitor, IdleActionSetting, InhibitedOperation, KernelHibernation,
+            LogindCapability, ResumeDevice, SecretMemoryHolder, SleepObstacles, SleepState,
+            SleepStateSupport, WindowOwnership,
         },
         screensaver_bus_idle_inhibitors::IdleInhibitor,
     };
@@ -558,7 +577,13 @@ mod tests {
     use super::{
         BlockerCause, HolderProcess, PauseBlocker, PauseFacts, pause_blockers, sleep_state_answer,
     };
-    use crate::widgets::idle::ActionTrigger;
+    use crate::{
+        widget_groups::{
+            idle_pause_groups::pause_blocker_rows::TimerArming,
+            widget_group_content::PanelPromotion,
+        },
+        widgets::idle::ActionTrigger,
+    };
 
     fn clear_obstacles() -> SleepObstacles {
         SleepObstacles {
@@ -570,9 +595,9 @@ mod tests {
                 .to_vec(),
             sleep_order: vec![SleepState::Suspend],
             kernel_hibernation: KernelHibernation::Allowed,
-            resume_device_configured: true,
+            resume_device: ResumeDevice::Configured,
             blocking_inhibitors: Vec::new(),
-            logind_idle_action_enabled: false,
+            idle_action_setting: IdleActionSetting::Ignored,
             scheduled_shutdown: None,
         }
     }
@@ -593,19 +618,19 @@ mod tests {
                 SecretMemoryHolder {
                     name: "Bitwarden".to_owned(),
                     pid: 6627,
-                    has_open_window: false,
+                    window_ownership: WindowOwnership::Windowless,
                 },
             ]),
             ..clear_obstacles()
         }
     }
 
-    fn blockers_of(obstacles: &SleepObstacles, hibernate_timer_set: bool) -> Vec<PauseBlocker> {
+    fn blockers_of(obstacles: &SleepObstacles, hibernate_timer: TimerArming) -> Vec<PauseBlocker> {
         pause_blockers(&PauseFacts {
             obstacles: Some(obstacles),
             idle_inhibitors: &[],
             armed_triggers: &[],
-            hibernate_timer_set,
+            hibernate_timer,
         })
     }
 
@@ -619,12 +644,12 @@ mod tests {
 
     #[test]
     fn nothing_blocks_a_clear_machine() {
-        assert!(blockers_of(&clear_obstacles(), false).is_empty());
+        assert!(blockers_of(&clear_obstacles(), TimerArming::Unarmed).is_empty());
     }
 
     #[test]
     fn secret_memory_names_the_exact_app_under_hibernate_only() {
-        let blockers = blockers_of(&secret_memory_obstacles(), false);
+        let blockers = blockers_of(&secret_memory_obstacles(), TimerArming::Unarmed);
         assert_eq!(blockers.len(), 1);
         assert_eq!(blockers[0].pause, IdleAction::Hibernate);
         assert_eq!(blockers[0].holder, "Bitwarden");
@@ -633,10 +658,10 @@ mod tests {
             blockers[0].holder_process,
             Some(HolderProcess {
                 pid: 6627,
-                has_open_window: false,
+                window_ownership: WindowOwnership::Windowless,
             })
         );
-        assert!(blockers[0].rises_to_panel);
+        assert_eq!(blockers[0].panel_promotion, PanelPromotion::RisesToPanel);
     }
 
     #[test]
@@ -645,7 +670,7 @@ mod tests {
             kernel_hibernation: KernelHibernation::DisabledWithoutInspection,
             ..secret_memory_obstacles()
         };
-        let blockers = blockers_of(&obstacles, false);
+        let blockers = blockers_of(&obstacles, TimerArming::Unarmed);
         assert_eq!(blockers[0].holder, "Kernel");
         assert_eq!(blockers[0].cause, BlockerCause::KernelUninspected);
     }
@@ -653,11 +678,17 @@ mod tests {
     #[test]
     fn a_machine_never_set_up_for_hibernation_stays_off_the_panel() {
         let obstacles = SleepObstacles {
-            resume_device_configured: false,
+            resume_device: ResumeDevice::Unset,
             ..secret_memory_obstacles()
         };
-        assert!(!blockers_of(&obstacles, false)[0].rises_to_panel);
-        assert!(blockers_of(&obstacles, true)[0].rises_to_panel);
+        assert_eq!(
+            blockers_of(&obstacles, TimerArming::Unarmed)[0].panel_promotion,
+            PanelPromotion::StaysInMenu
+        );
+        assert_eq!(
+            blockers_of(&obstacles, TimerArming::Armed)[0].panel_promotion,
+            PanelPromotion::RisesToPanel
+        );
     }
 
     #[test]
@@ -666,10 +697,10 @@ mod tests {
             blocking_inhibitors: vec![lock_of(InhibitedOperation::Sleep)],
             ..clear_obstacles()
         };
-        let blockers = blockers_of(&obstacles, false);
+        let blockers = blockers_of(&obstacles, TimerArming::Unarmed);
         let rising: Vec<IdleAction> = blockers
             .iter()
-            .filter(|blocker| blocker.rises_to_panel)
+            .filter(|blocker| blocker.panel_promotion == PanelPromotion::RisesToPanel)
             .map(|blocker| blocker.pause)
             .collect();
         assert_eq!(rising, vec![IdleAction::Sleep]);
@@ -687,9 +718,9 @@ mod tests {
             blocking_inhibitors: vec![lock_of(InhibitedOperation::Shutdown)],
             ..clear_obstacles()
         };
-        let blockers = blockers_of(&obstacles, false);
+        let blockers = blockers_of(&obstacles, TimerArming::Unarmed);
         assert_eq!(blockers[0].pause, IdleAction::PowerOff);
-        assert!(blockers[0].rises_to_panel);
+        assert_eq!(blockers[0].panel_promotion, PanelPromotion::RisesToPanel);
     }
 
     #[test]
@@ -699,11 +730,17 @@ mod tests {
             ..clear_obstacles()
         };
         let with_action = SleepObstacles {
-            logind_idle_action_enabled: true,
+            idle_action_setting: IdleActionSetting::Acting,
             ..without_action.clone()
         };
-        assert!(!blockers_of(&without_action, false)[0].rises_to_panel);
-        assert!(blockers_of(&with_action, false)[0].rises_to_panel);
+        assert_eq!(
+            blockers_of(&without_action, TimerArming::Unarmed)[0].panel_promotion,
+            PanelPromotion::StaysInMenu
+        );
+        assert_eq!(
+            blockers_of(&with_action, TimerArming::Unarmed)[0].panel_promotion,
+            PanelPromotion::RisesToPanel
+        );
     }
 
     #[test]
@@ -726,12 +763,12 @@ mod tests {
             obstacles: None,
             idle_inhibitors: &idle_inhibitors,
             armed_triggers: &armed_triggers,
-            hibernate_timer_set: false,
+            hibernate_timer: TimerArming::Unarmed,
         });
         assert_eq!(blockers.len(), 2);
         let rising: Vec<IdleAction> = blockers
             .iter()
-            .filter(|blocker| blocker.rises_to_panel)
+            .filter(|blocker| blocker.panel_promotion == PanelPromotion::RisesToPanel)
             .map(|blocker| blocker.pause)
             .collect();
         assert_eq!(rising, vec![IdleAction::Lock]);
@@ -767,7 +804,7 @@ mod tests {
             sleep_state_answer(&obstacles, SleepState::Suspend, None),
             "blocked by a sleep lock from Backup"
         );
-        let blockers = blockers_of(&obstacles, false);
+        let blockers = blockers_of(&obstacles, TimerArming::Unarmed);
         assert!(blockers.iter().all(|blocker| blocker.holder == "Backup"));
     }
 
@@ -802,6 +839,9 @@ mod tests {
             sleep_state_answer(&obstacles, SleepState::Hibernate, Some(SleepState::Suspend)),
             "logind reports this isn't supported on this machine"
         );
-        assert_eq!(blockers_of(&obstacles, false)[0].holder, "logind");
+        assert_eq!(
+            blockers_of(&obstacles, TimerArming::Unarmed)[0].holder,
+            "logind"
+        );
     }
 }

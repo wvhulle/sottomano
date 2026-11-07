@@ -57,6 +57,12 @@ pub enum TypingSignal {
     RecheckDue,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CardVisibility {
+    Shown,
+    Hidden,
+}
+
 pub struct TypingUnderCards {
     input_is_active: bool,
     last_shell_pointer_motion: Instant,
@@ -130,12 +136,12 @@ impl TypingUnderCards {
 
     pub fn subscription(
         &self,
-        cards_are_shown: bool,
+        card_visibility: CardVisibility,
         overlay_surfaces: &OverlaySurfacesConfig,
     ) -> Subscription<TypingSignal> {
         let input_edges =
             Subscription::run_with(overlay_surfaces.typing_idle_delay, input_edge_signals);
-        if !cards_are_shown {
+        if card_visibility == CardVisibility::Hidden {
             return input_edges;
         }
         let pointer_motion = listen_with(|event, _status, _window| match event {

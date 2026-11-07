@@ -5,7 +5,7 @@ use sottomano_desktop_sinks::network_connectivity::network_manager_activations::
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::wireguard_tunnels::{
-        Tunnel, TunnelAddress, TunnelOnBus, Wireguard, WireguardSwitch,
+        Tunnel, TunnelAddress, TunnelOnBus, TunnelRouting, Wireguard, WireguardSwitch,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -129,7 +129,7 @@ impl WireguardTunnelsGroup {
 
     fn previewed_tunnel_interface(&self) -> Option<&str> {
         self.listed_tunnels()
-            .find(|tunnel| tunnel.routes_all_traffic())
+            .find(|tunnel| tunnel.traffic_routing() == TunnelRouting::DefaultRoute)
             .map(|tunnel| tunnel.interface.as_str())
     }
 

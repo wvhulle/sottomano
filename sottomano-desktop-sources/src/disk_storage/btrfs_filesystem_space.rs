@@ -37,8 +37,12 @@ impl BtrfsSpace {
     }
 
     #[must_use]
-    pub fn can_allocate_metadata_chunk(&self) -> bool {
-        self.unallocated >= self.metadata_chunk
+    pub fn metadata_chunk_room(&self) -> ChunkRoom {
+        if self.unallocated >= self.metadata_chunk {
+            ChunkRoom::Allocatable
+        } else {
+            ChunkRoom::Exhausted
+        }
     }
 }
 
@@ -183,6 +187,12 @@ impl ErrorStats {
             ErrorCount::new("Generation", self.generation),
         ]
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChunkRoom {
+    Allocatable,
+    Exhausted,
 }
 
 #[cfg(test)]

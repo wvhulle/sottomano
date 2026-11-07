@@ -25,8 +25,12 @@ impl FocusSpan {
         }
     }
 
-    pub(super) fn continues(&self, other: &FocusSpan) -> bool {
-        self.window == other.window && self.units == other.units
+    pub(super) fn continuity_with(&self, other: &FocusSpan) -> SpanContinuity {
+        if self.window == other.window && self.units == other.units {
+            SpanContinuity::Continues
+        } else {
+            SpanContinuity::Breaks
+        }
     }
 }
 
@@ -67,4 +71,10 @@ pub enum SpanWrite {
 pub struct LoadedSpans {
     pub window_focus_spans: Vec<FocusSpan>,
     pub presence_spans: Vec<PresenceSpan>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SpanContinuity {
+    Continues,
+    Breaks,
 }

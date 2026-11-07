@@ -129,10 +129,6 @@ impl UnitSwitch {
         self.active_state.get().map(|state| state.activity)
     }
 
-    pub fn running(&self) -> bool {
-        self.activity().is_some_and(UnitActivity::running)
-    }
-
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<UnitSwitchMessage> {
         snapshot_subscription::<UnitActiveState>(SystemdUnitOnBus {
             buses: buses.clone(),

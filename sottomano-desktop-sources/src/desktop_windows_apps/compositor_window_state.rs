@@ -119,13 +119,6 @@ pub struct CompositorUpdate {
     pub changes: BTreeSet<CompositorChange>,
 }
 
-impl CompositorUpdate {
-    #[must_use]
-    pub fn changed(&self, change: CompositorChange) -> bool {
-        self.changes.contains(&change)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::time::Duration;

@@ -17,7 +17,7 @@ use crate::{
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
         icon_glyph::IconGlyph,
-        input_report_sections::{KernelErrorListing, MeasuredReportTiming},
+        input_report_sections::{KernelErrorListing, MeasuredReportTiming, ReportHealth},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -44,8 +44,12 @@ pub enum BandSharing<'a> {
 }
 
 #[must_use]
-pub fn shares_bluetooth_band(frequency: Frequency) -> bool {
-    frequency.get::<megahertz>() < LOWEST_FIVE_GIGAHERTZ_MEGAHERTZ
+pub fn wifi_band(frequency: Frequency) -> WifiBand {
+    if frequency.get::<megahertz>() < LOWEST_FIVE_GIGAHERTZ_MEGAHERTZ {
+        WifiBand::SharedWithBluetooth
+    } else {
+        WifiBand::ClearOfBluetooth
+    }
 }
 
 fn two_point_four_gigahertz_channel(frequency: Frequency) -> u32 {
@@ -66,12 +70,14 @@ pub struct ControllerLinkReading<'a> {
 }
 
 impl ControllerLinkReading<'_> {
-    const fn over_bluetooth(&self) -> bool {
-        matches!(self.transport, GamepadTransport::Bluetooth { .. })
-    }
-
-    fn unstable(&self) -> bool {
-        self.report_timing.lossy_or_stalling() || !self.kernel_errors.is_empty()
+    fn link_stability(&self) -> LinkStability {
+        if self.report_timing.report_health() == ReportHealth::Degraded
+            || !self.kernel_errors.is_empty()
+        {
+            LinkStability::Unstable
+        } else {
+            LinkStability::Stable
+        }
     }
 
     fn interference_sections(&self) -> Vec<Section> {
@@ -80,7 +86,7 @@ impl ControllerLinkReading<'_> {
                 network_name,
                 frequency,
                 wired_fallback,
-            } if self.over_bluetooth() => {
+            } if matches!(self.transport, GamepadTransport::Bluetooth { .. }) => {
                 let ethernet = match wired_fallback {
                     WiredFallback::Connected => Some(LabeledValue::new("Ethernet", "connected")),
                     WiredFallback::Absent => None,
@@ -112,10 +118,14 @@ impl ControllerLinkReading<'_> {
                     Section::detailed_note("Shared radio band", remedy),
                 ]
             }
-            _ if self.over_bluetooth() && self.unstable() => vec![Section::detailed_note(
-                "Unstable Bluetooth link",
-                "Move the controller closer to the Bluetooth adapter, or connect it by cable.",
-            )],
+            _ if matches!(self.transport, GamepadTransport::Bluetooth { .. })
+                && self.link_stability() == LinkStability::Unstable =>
+            {
+                vec![Section::detailed_note(
+                    "Unstable Bluetooth link",
+                    "Move the controller closer to the Bluetooth adapter, or connect it by cable.",
+                )]
+            }
             _ => Vec::new(),
         }
     }
@@ -127,7 +137,7 @@ impl GroupItemReading for ControllerLinkReading<'_> {
     }
 
     fn icon(&self) -> IconGlyph {
-        if self.unstable() {
+        if self.link_stability() == LinkStability::Unstable {
             Phosphor::LinkBreak(Weight::Regular).into()
         } else {
             Phosphor::Link(Weight::Regular).into()
@@ -148,7 +158,7 @@ impl GroupItemReading for ControllerLinkReading<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.unstable() {
+        if self.link_stability() == LinkStability::Unstable {
             ReadingDisplayState::Warning
         } else {
             ReadingDisplayState::Idle
@@ -174,6 +184,18 @@ impl GroupItemReading for ControllerLinkReading<'_> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WifiBand {
+    SharedWithBluetooth,
+    ClearOfBluetooth,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LinkStability {
+    Unstable,
+    Stable,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,7 +213,10 @@ mod tests {
 
     #[test]
     fn only_two_point_four_gigahertz_wifi_shares_the_bluetooth_band() {
-        assert!(shares_bluetooth_band(at_megahertz(2437.0)));
-        assert!(!shares_bluetooth_band(at_megahertz(5180.0)));
+        assert_eq!(
+            wifi_band(at_megahertz(2437.0)),
+            WifiBand::SharedWithBluetooth
+        );
+        assert_eq!(wifi_band(at_megahertz(5180.0)), WifiBand::ClearOfBluetooth);
     }
 }

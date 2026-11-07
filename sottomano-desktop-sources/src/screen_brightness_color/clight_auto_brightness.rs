@@ -101,10 +101,15 @@ pub fn config_file() -> Option<PathBuf> {
 }
 
 #[must_use]
-pub fn no_auto_calib() -> Option<bool> {
+pub fn current_calibration() -> Option<BrightnessCalibration> {
     let connection = Connection::session().ok()?;
-    ConfBacklightProxyBlocking::new(&connection)
+    let no_auto_calibration = ConfBacklightProxyBlocking::new(&connection)
         .ok()?
         .no_auto_calib()
-        .ok()
+        .ok()?;
+    Some(if no_auto_calibration {
+        BrightnessCalibration::Fixed
+    } else {
+        BrightnessCalibration::FromWebcam
+    })
 }

@@ -7,7 +7,7 @@ mod speech_model_item;
 mod speech_runtime_sections;
 
 use iced::{Subscription, Task};
-use notulist_client::{DictationCommand, DictationEngine, EngineState};
+use notulist_client::{DictationCommand, DictationEngine, DictationPhase, EngineState};
 use sottomano_desktop_sinks::voice_dictation_input::notulist_dictation_commands::send_logged_dictation_command;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -34,7 +34,7 @@ use crate::{
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         voice_dictation_group::{
-            dictation_phase_item::{press_does, shows_pipeline},
+            dictation_phase_item::press_does,
             inference_hardware_item::InferenceHardware,
             runtime_configuration_item::RuntimeConfiguration,
             speech_runtime_sections::{SpeechRuntime, idle_runtime_glyph},
@@ -239,10 +239,6 @@ impl VoiceDictationGroup {
         }
     }
 
-    fn dictating(&self) -> bool {
-        self.dictation.get().is_some_and(shows_pipeline)
-    }
-
     fn runtime_hover_card(&self, clock: Clock) -> Option<HoverCard> {
         let runtime_sections = self
             .engine
@@ -307,7 +303,14 @@ impl VoiceDictationGroup {
                     }),
                 self.pipeline
                     .group_item(VoiceDictationTarget::Pipeline)
-                    .filter(|_| self.dictating() || self.pipeline.failure().is_some()),
+                    .filter(|_| {
+                        self.dictation.get().is_some_and(|dictation| {
+                            matches!(
+                                dictation.phase,
+                                DictationPhase::Listening | DictationPhase::Finishing
+                            )
+                        }) || self.pipeline.failure().is_some()
+                    }),
                 self.runtime.group_item_with_glyph(
                     runtime_glyph,
                     dictation.map_or(ServiceReadiness::NotYetServing, |_| {

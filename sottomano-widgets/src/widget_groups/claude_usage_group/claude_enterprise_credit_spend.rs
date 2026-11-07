@@ -8,7 +8,8 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+        reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section},
     widgets::{
@@ -72,8 +73,12 @@ impl GroupItemReading for ClaudeEnterpriseSpend {
         .titled("Usage Credits")])
     }
 
-    fn visible_on_panel(&self) -> bool {
-        self.used.is_positive() || self.limit.is_some()
+    fn panel_visibility(&self) -> PanelVisibility {
+        if self.used.is_positive() || self.limit.is_some() {
+            PanelVisibility::Shown
+        } else {
+            PanelVisibility::Hidden
+        }
     }
 
     fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {

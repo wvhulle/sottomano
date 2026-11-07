@@ -17,10 +17,10 @@ use crate::{
         usage_quota::Quota,
         working_time_forecast::{CalendarSpan, SpendBudget},
     },
-    stream_operators::StreamOperators,
+    stream_operators::{Availability, StreamOperators},
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
-        shell_command_output::{self, exists},
+        shell_command_output::{self, program_availability},
     },
 };
 
@@ -106,8 +106,12 @@ pub struct Usage {
 
 impl Usage {
     #[must_use]
-    pub fn active(&self) -> bool {
-        self.tokens > 0 || self.cost.is_positive()
+    pub fn activity(&self) -> UsageActivity {
+        if self.tokens > 0 || self.cost.is_positive() {
+            UsageActivity::Active
+        } else {
+            UsageActivity::Idle
+        }
     }
 }
 
@@ -250,8 +254,8 @@ impl DailyReport {
     }
 }
 
-pub async fn installed() -> bool {
-    exists(PROGRAM).await
+pub async fn ccusage_availability() -> Availability {
+    program_availability(PROGRAM).await
 }
 
 pub async fn recent(agent: Agent) -> Result<RecentUsage, Error> {
@@ -276,6 +280,12 @@ async fn report(agent: Agent, period: &'static str, since: &str) -> Result<Strin
     let mut args = agent.report_args(period);
     args.extend(["--since", since, "--json"]);
     Ok(shell_command_output::background_output(PROGRAM, &args).await?)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UsageActivity {
+    Active,
+    Idle,
 }
 
 #[cfg(test)]
@@ -340,7 +350,10 @@ mod tests {
     #[test]
     fn an_idle_day_reports_no_usage() {
         let report: DailyReport = serde_json::from_str(DAILY_REPORT).unwrap();
-        assert!(!report.recent(date("2026-10-02")).today.usage.active());
+        assert_eq!(
+            report.recent(date("2026-10-02")).today.usage.activity(),
+            UsageActivity::Idle
+        );
     }
 
     fn budget_working(days: WeekdaySet) -> SpendBudget {

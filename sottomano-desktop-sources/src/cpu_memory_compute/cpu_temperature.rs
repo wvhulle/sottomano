@@ -27,7 +27,7 @@ use crate::{
     blocking_background_work::blocking_poll,
     cpu_memory_compute::temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
     delivery_cadence_drivers::PeriodicPolling,
-    stream_operators::StreamOperators,
+    stream_operators::{Availability, StreamOperators},
     system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_trimmed},
 };
 
@@ -137,11 +137,6 @@ impl Temperature {
         cpu_thresholds(self.throttle_limit, self.overrides)
     }
 
-    #[must_use]
-    pub fn critical(&self) -> bool {
-        self.thresholds().level(self.hottest()) == Severity::Critical
-    }
-
     fn temperatures(&self) -> impl Iterator<Item = ThermodynamicTemperature> + '_ {
         self.readings.iter().map(|reading| reading.temperature)
     }
@@ -183,9 +178,10 @@ impl SnapshotSource for Temperature {
     fn delivery_stream(config: SensorConfig) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let choice = config.sensor.clone();
         let exposed = async move {
-            spawn_blocking(move || cpu_sensors(&choice))
-                .await
-                .is_ok_and(|sensors| !sensors.is_empty())
+            match spawn_blocking(move || cpu_sensors(&choice)).await {
+                Ok(sensors) if !sensors.is_empty() => Availability::Available,
+                Ok(_) | Err(_) => Availability::Unavailable,
+            }
         };
         holding_earliest_critical(stream::once(exposed).available_while(move || {
             let config = config.clone();
@@ -252,7 +248,9 @@ fn read_temperature(probe: &TemperatureProbe) -> Result<Temperature, Error> {
         critical_since: None,
     };
     Ok(Temperature {
-        critical_since: temperature.critical().then(SystemTime::now),
+        critical_since: (temperature.thresholds().level(temperature.hottest())
+            == Severity::Critical)
+            .then(SystemTime::now),
         ..temperature
     })
 }

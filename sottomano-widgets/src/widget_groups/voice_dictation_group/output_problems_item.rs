@@ -4,7 +4,8 @@ use sottomano_desktop_sources::voice_dictation_input::notulist_dbus_output_probl
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+        reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
@@ -41,8 +42,12 @@ impl GroupItemReading for NotulistOutputProblems {
             .filter(|count| *count > 1)
     }
 
-    fn visible_on_panel(&self) -> bool {
-        !self.problems.is_empty()
+    fn panel_visibility(&self) -> PanelVisibility {
+        if self.problems.is_empty() {
+            PanelVisibility::Hidden
+        } else {
+            PanelVisibility::Shown
+        }
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
@@ -91,13 +96,14 @@ mod tests {
     use notulist_client::InputMethodError;
 
     use super::*;
+    use crate::group_items::group_item_reading::PanelVisibility;
 
     #[test]
     fn no_problems_stay_off_the_panel() {
         let quiet = NotulistOutputProblems {
             problems: Vec::new(),
         };
-        assert!(!quiet.visible_on_panel());
+        assert_eq!(quiet.panel_visibility(), PanelVisibility::Hidden);
     }
 
     #[test]

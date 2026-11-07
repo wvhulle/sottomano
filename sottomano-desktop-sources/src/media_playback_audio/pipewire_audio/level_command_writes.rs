@@ -6,10 +6,11 @@ use super::{
     graph_proxy_listeners::BoundAudioSession,
     spa_pod_levels::{level_property, pod_bytes, props_object, route_object},
 };
+use crate::media_playback_audio::pipewire_audio::MuteState;
 
 pub(super) enum LevelChange {
     Volumes(Vec<f32>),
-    Mute(bool),
+    Mute(MuteState),
 }
 
 struct Resolved {
@@ -30,7 +31,7 @@ fn resolve(levels: &Levels, kind: CommandKind) -> Option<Resolved> {
         CommandKind::SetVolume(percent) => uniform(percent),
         CommandKind::AdjustVolume(delta) => uniform((current + delta).clamp(0, 100)),
         CommandKind::ToggleMute => Some(Resolved {
-            change: LevelChange::Mute(!levels.mute),
+            change: LevelChange::Mute(levels.mute_state.toggled()),
             percent: current,
         }),
     }
@@ -71,13 +72,21 @@ fn apply_to_streams(session: &BoundAudioSession, pid: i32, kind: CommandKind) ->
         .iter()
         .filter(|(_, stream)| stream.pid == Some(pid))
         .collect();
-    let muted = !app_streams.is_empty() && app_streams.iter().all(|(_, stream)| stream.levels.mute);
+    let app_mute_state = if !app_streams.is_empty()
+        && app_streams
+            .iter()
+            .all(|(_, stream)| stream.levels.mute_state == MuteState::Muted)
+    {
+        MuteState::Muted
+    } else {
+        MuteState::Audible
+    };
     app_streams
         .iter()
         .filter_map(|(id, stream)| {
             let resolved = match kind {
                 CommandKind::ToggleMute => Resolved {
-                    change: LevelChange::Mute(!muted),
+                    change: LevelChange::Mute(app_mute_state.toggled()),
                     percent: stream.levels.percent(),
                 },
                 CommandKind::SetVolume(_) | CommandKind::AdjustVolume(_) => {
@@ -114,12 +123,13 @@ fn write_to_node_props(session: &BoundAudioSession, id: u32, change: &LevelChang
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::media_playback_audio::pipewire_audio::MuteState;
 
     #[test]
     fn adjust_resolves_against_current_level() {
         let levels = Levels {
             channel_volumes: vec![cubic(33), cubic(33)],
-            mute: false,
+            mute_state: MuteState::Audible,
         };
         let resolved = resolve(&levels, CommandKind::AdjustVolume(5)).unwrap();
         assert_eq!(resolved.percent, 38);
@@ -133,7 +143,7 @@ mod tests {
     fn adjust_clamps_at_the_ceiling() {
         let levels = Levels {
             channel_volumes: vec![cubic(98)],
-            mute: false,
+            mute_state: MuteState::Audible,
         };
         assert_eq!(
             resolve(&levels, CommandKind::AdjustVolume(5))

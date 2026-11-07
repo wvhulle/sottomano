@@ -33,7 +33,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
+        group_item_reading::{GroupItemReading, PanelVisibility},
         toggle_control::{ToggleControl, ToggleMessage},
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -233,18 +233,18 @@ impl ComputeGroup {
                 self.cpu_clock
                     .get()
                     .map(|clock| ClockLimitCauses { clock })
-                    .filter(GroupItemReading::visible_on_panel)
+                    .filter(|reading| reading.panel_visibility() == PanelVisibility::Shown)
                     .map(|limits| GroupItem::reading(limits, ComputeTarget::CpuClockLimits)),
                 self.cpu_temperature
                     .group_item(ComputeTarget::CpuTemperature),
                 self.cpu_power_draw
                     .get()
-                    .filter(GroupItemReading::visible_on_panel)
+                    .filter(|reading| reading.panel_visibility() == PanelVisibility::Shown)
                     .map(|power| GroupItem::reading(power, ComputeTarget::CpuPowerDraw)),
                 self.host_hardware
                     .get()
                     .map(|hardware| &hardware.cpu)
-                    .filter(GroupItemReading::visible_on_panel)
+                    .filter(|reading| reading.panel_visibility() == PanelVisibility::Shown)
                     .map(|model| GroupItem::reading(model, ComputeTarget::CpuModel)),
                 self.x3d_cache_preference.group_item(
                     ComputeTarget::X3dCachePreference,
@@ -299,8 +299,7 @@ impl ComputeGroup {
                     clock: self.cpu_clock.get()?,
                 };
                 self.cpu_clock.hover_card_with(
-                    limits
-                        .visible_on_panel()
+                    (limits.panel_visibility() == PanelVisibility::Shown)
                         .then(|| limits.hover_card(clock))?,
                 )
             }
@@ -314,8 +313,10 @@ impl ComputeGroup {
             ComputeTarget::CpuPowerDraw => self.cpu_power_draw.hover_card(clock),
             ComputeTarget::CpuModel => {
                 let model = &self.host_hardware.get()?.cpu;
-                self.host_hardware
-                    .hover_card_with(model.visible_on_panel().then(|| model.hover_card(clock))?)
+                self.host_hardware.hover_card_with(
+                    (model.panel_visibility() == PanelVisibility::Shown)
+                        .then(|| model.hover_card(clock))?,
+                )
             }
             ComputeTarget::X3dCachePreference => {
                 self.x3d_cache_preference

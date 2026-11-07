@@ -171,14 +171,19 @@ impl EmptyWorkspaceFolding {
         self.temporarily_revealed = false;
     }
 
-    fn hides(
+    fn workspace_visibility(
         &self,
         compositor: &workspace_window_snapshot::Snapshot,
         workspace: &workspace_window_snapshot::WorkspaceIndicator,
-    ) -> bool {
-        self.mode == EmptyWorkspaces::Folded
+    ) -> WorkspaceVisibility {
+        if self.mode == EmptyWorkspaces::Folded
             && !self.temporarily_revealed
             && workspace_usage(compositor, workspace) == WorkspaceUsage::Unused
+        {
+            WorkspaceVisibility::Hidden
+        } else {
+            WorkspaceVisibility::Shown
+        }
     }
 }
 
@@ -240,7 +245,9 @@ pub fn shown_workspaces<'s>(
     compositor
         .workspaces_for_output(output)
         .iter()
-        .filter(|workspace| !folding.hides(compositor, workspace))
+        .filter(|workspace| {
+            folding.workspace_visibility(compositor, workspace) == WorkspaceVisibility::Shown
+        })
         .collect()
 }
 
@@ -345,6 +352,12 @@ fn order_restore<'a>(
         },
         WorkspacesMessage::HoverCard,
     ))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WorkspaceVisibility {
+    Hidden,
+    Shown,
 }
 
 #[cfg(test)]

@@ -39,11 +39,15 @@ impl PowerDraw {
         }
     }
 
-    pub fn on_battery(&self) -> bool {
-        matches!(
+    pub fn power_source(&self) -> PowerSource {
+        if matches!(
             self.status,
             ChargeStatus::Discharging | ChargeStatus::Unreported
-        )
+        ) {
+            PowerSource::Battery
+        } else {
+            PowerSource::Mains
+        }
     }
 
     fn breakdown_on_battery(&self) -> HoverCardBody {
@@ -85,7 +89,7 @@ impl GroupItemReading for PowerDraw {
     }
 
     fn icon(&self) -> IconGlyph {
-        if self.on_battery() {
+        if self.power_source() == PowerSource::Battery {
             Phosphor::Plugs(Weight::Regular).into()
         } else {
             Phosphor::PlugsConnected(Weight::Regular).into()
@@ -109,12 +113,18 @@ impl GroupItemReading for PowerDraw {
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        if self.on_battery() {
+        if self.power_source() == PowerSource::Battery {
             self.breakdown_on_battery()
         } else {
             self.breakdown_on_ac()
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PowerSource {
+    Battery,
+    Mains,
 }
 
 #[cfg(test)]

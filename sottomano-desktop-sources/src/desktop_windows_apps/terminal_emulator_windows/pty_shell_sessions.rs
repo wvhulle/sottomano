@@ -63,8 +63,12 @@ struct ProcessSessionFacts {
 }
 
 impl ProcessSessionFacts {
-    fn leads_a_session_under(self, terminal_pid: i32) -> bool {
-        self.parent_pid == terminal_pid && self.session_id == self.pid
+    fn session_role_under(self, terminal_pid: i32) -> SessionRole {
+        if self.parent_pid == terminal_pid && self.session_id == self.pid {
+            SessionRole::SessionLeader
+        } else {
+            SessionRole::Member
+        }
     }
 }
 
@@ -106,7 +110,7 @@ fn read_shell_session(pid: i32, terminal_pid: i32, our_uid: u32) -> Option<Shell
         parent_pid: stat.ppid,
         session_id: stat.session,
     };
-    if !session_facts.leads_a_session_under(terminal_pid) {
+    if session_facts.session_role_under(terminal_pid) == SessionRole::Member {
         return None;
     }
     let (tty_major, tty_minor) = stat.tty_nr();
@@ -159,6 +163,12 @@ pub fn terminal_windows(terminal_pid: i32, niri_window_count: usize) -> Vec<Term
         .collect()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SessionRole {
+    SessionLeader,
+    Member,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -184,13 +194,13 @@ mod tests {
             parent_pid: 700,
             session_id: 900,
         };
-        assert!(shell.leads_a_session_under(700));
-        assert!(!shell.leads_a_session_under(701));
+        assert_eq!(shell.session_role_under(700), SessionRole::SessionLeader);
+        assert_eq!(shell.session_role_under(701), SessionRole::Member);
         let helper = ProcessSessionFacts {
             session_id: 899,
             ..shell
         };
-        assert!(!helper.leads_a_session_under(700));
+        assert_eq!(helper.session_role_under(700), SessionRole::Member);
     }
 
     #[test]

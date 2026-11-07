@@ -120,8 +120,13 @@ impl VpnConnection {
     }
 
     #[must_use]
-    pub fn activated(&self) -> bool {
-        matches!(&self.activity, VpnActivity::Active(tunnel) if tunnel.vpn_state == VpnState::Activated)
+    pub fn activation(&self) -> VpnActivation {
+        match &self.activity {
+            VpnActivity::Active(tunnel) if tunnel.vpn_state == VpnState::Activated => {
+                VpnActivation::Activated
+            }
+            _ => VpnActivation::NotActivated,
+        }
     }
 
     fn from_profile(profile: VpnProfile, active_vpns: &mut Vec<ActiveVpn>) -> Self {
@@ -193,6 +198,12 @@ impl SnapshotSource for NetworkManagerVpns {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VpnActivation {
+    Activated,
+    NotActivated,
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -240,7 +251,7 @@ mod tests {
             vpn_connection.remote_gateway.as_deref(),
             Some("vpn.example.com")
         );
-        assert!(vpn_connection.activated());
+        assert_eq!(vpn_connection.activation(), VpnActivation::Activated);
         assert_eq!(
             vpn_connection.switch(),
             VpnSwitch::Disconnect(object_path(
@@ -258,7 +269,7 @@ mod tests {
     fn inactive_profile_switches_to_connect() {
         let vpn_connection = VpnConnection::from_profile(globalprotect_profile(), &mut Vec::new());
         assert_eq!(vpn_connection.activity, VpnActivity::Inactive);
-        assert!(!vpn_connection.activated());
+        assert_eq!(vpn_connection.activation(), VpnActivation::NotActivated);
         assert_eq!(
             vpn_connection.switch(),
             VpnSwitch::Connect(object_path("/org/freedesktop/NetworkManager/Settings/1"))

@@ -101,11 +101,16 @@ struct SwayVersion {
 }
 
 impl SwayNode {
-    fn holds_a_window(&self) -> bool {
-        matches!(self.node_type.as_str(), "con" | "floating_con")
+    fn node_role(&self) -> SwayNodeRole {
+        if matches!(self.node_type.as_str(), "con" | "floating_con")
             && self.nodes.is_empty()
             && self.floating_nodes.is_empty()
             && (self.pid.is_some() || self.app_id.is_some() || self.window_properties.is_some())
+        {
+            SwayNodeRole::Window
+        } else {
+            SwayNodeRole::Container
+        }
     }
 
     fn children(&self) -> impl Iterator<Item = &SwayNode> {
@@ -113,7 +118,7 @@ impl SwayNode {
     }
 
     fn focused_window(&self) -> Option<u64> {
-        if self.holds_a_window() {
+        if self.node_role() == SwayNodeRole::Window {
             return Some(self.id);
         }
         let focused_child_id = self.focus.first()?;
@@ -163,7 +168,7 @@ fn collect_windows(
     is_floating: bool,
     windows: &mut Vec<CompositorWindow>,
 ) {
-    if node.holds_a_window() {
+    if node.node_role() == SwayNodeRole::Window {
         windows.push(sway_window_of(node, workspace_id, output_rect, is_floating));
         return;
     }
@@ -349,6 +354,12 @@ pub fn sway_window_pids() -> Option<Vec<i32>> {
             .filter_map(|window| window.pid)
             .collect(),
     )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SwayNodeRole {
+    Window,
+    Container,
 }
 
 #[cfg(test)]

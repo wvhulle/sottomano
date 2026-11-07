@@ -6,7 +6,8 @@ use sottomano_desktop_sources::ai_usage_spend::openrouter_model_rankings::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+        reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
@@ -96,8 +97,12 @@ impl GroupItemReading for OpenRouterModelRankings {
         )
     }
 
-    fn visible_on_panel(&self) -> bool {
-        !self.best_first.is_empty()
+    fn panel_visibility(&self) -> PanelVisibility {
+        if self.best_first.is_empty() {
+            PanelVisibility::Hidden
+        } else {
+            PanelVisibility::Shown
+        }
     }
 }
 

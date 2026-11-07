@@ -11,20 +11,30 @@ use iced::{
     mouse::Cursor,
 };
 
-use crate::group_menus::cascading_layout::notched_panel::PanelGrowth;
+use crate::{
+    group_menus::cascading_layout::notched_panel::PanelGrowth, hover_cards::PointerPresence,
+};
 
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct HeldHeight {
     tallest_px: f32,
-    pointer_inside: bool,
+    pointer_presence: PointerPresence,
+}
+
+impl Default for HeldHeight {
+    fn default() -> Self {
+        Self {
+            tallest_px: 0.0,
+            pointer_presence: PointerPresence::NotPointedAt,
+        }
+    }
 }
 
 impl HeldHeight {
     fn holding(self, natural_px: f32) -> f32 {
-        if self.pointer_inside {
-            natural_px.max(self.tallest_px)
-        } else {
-            natural_px
+        match self.pointer_presence {
+            PointerPresence::PointedAt => natural_px.max(self.tallest_px),
+            PointerPresence::NotPointedAt => natural_px,
         }
     }
 
@@ -35,10 +45,13 @@ impl HeldHeight {
         }
     }
 
-    fn after_pointer(self, pointer_inside: bool) -> Self {
+    fn after_pointer(self, pointer_presence: PointerPresence) -> Self {
         Self {
-            pointer_inside,
-            tallest_px: if pointer_inside { self.tallest_px } else { 0.0 },
+            pointer_presence,
+            tallest_px: match pointer_presence {
+                PointerPresence::PointedAt => self.tallest_px,
+                PointerPresence::NotPointedAt => 0.0,
+            },
         }
     }
 }
@@ -128,11 +141,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PointerHeldHeight
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        let pointer_inside = cursor.position_over(layout.bounds()).is_some();
+        let pointer_presence = match cursor.position_over(layout.bounds()) {
+            Some(_) => PointerPresence::PointedAt,
+            None => PointerPresence::NotPointedAt,
+        };
         let held = tree.state.downcast_mut::<HeldHeight>();
-        if held.pointer_inside != pointer_inside {
-            *held = held.after_pointer(pointer_inside);
-            if !pointer_inside {
+        if held.pointer_presence != pointer_presence {
+            *held = held.after_pointer(pointer_presence);
+            if pointer_presence == PointerPresence::NotPointedAt {
                 shell.invalidate_layout();
             }
         }
@@ -200,22 +216,22 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PointerHeldHeight
 
 #[cfg(test)]
 mod tests {
-    use super::HeldHeight;
+    use super::{HeldHeight, PointerPresence};
 
     #[test]
     fn height_holds_only_while_the_pointer_is_inside() {
         let inside = HeldHeight::default()
-            .after_pointer(true)
+            .after_pointer(PointerPresence::PointedAt)
             .after_layout(300.0);
         assert!((inside.holding(100.0) - 300.0).abs() < f32::EPSILON);
-        let outside = inside.after_pointer(false);
+        let outside = inside.after_pointer(PointerPresence::NotPointedAt);
         assert!((outside.holding(100.0) - 100.0).abs() < f32::EPSILON);
     }
 
     #[test]
     fn growing_content_is_never_cut_while_held() {
         let inside = HeldHeight::default()
-            .after_pointer(true)
+            .after_pointer(PointerPresence::PointedAt)
             .after_layout(100.0);
         assert!((inside.holding(250.0) - 250.0).abs() < f32::EPSILON);
     }

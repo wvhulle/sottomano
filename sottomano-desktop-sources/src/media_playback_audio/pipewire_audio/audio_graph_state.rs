@@ -5,7 +5,7 @@ use super::{AudioState, ChannelLevels, Direction, MuteState, OutputKind, WindowA
 #[derive(Debug, Default, PartialEq)]
 pub(super) struct Levels {
     pub(super) channel_volumes: Vec<f32>,
-    pub(super) mute: bool,
+    pub(super) mute_state: MuteState,
 }
 
 impl Levels {
@@ -22,8 +22,8 @@ impl Levels {
         if let Some(volumes) = update.channel_volumes {
             self.channel_volumes = volumes;
         }
-        if let Some(mute) = update.mute {
-            self.mute = mute;
+        if let Some(mute_state) = update.mute_state {
+            self.mute_state = mute_state;
         }
     }
 }
@@ -31,7 +31,7 @@ impl Levels {
 #[derive(Debug, Default, PartialEq)]
 pub(super) struct LevelsUpdate {
     pub(super) channel_volumes: Option<Vec<f32>>,
-    pub(super) mute: Option<bool>,
+    pub(super) mute_state: Option<MuteState>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -62,7 +62,7 @@ pub(super) struct Route {
 #[derive(Debug)]
 pub(super) struct AppStream {
     pub(super) pid: Option<i32>,
-    pub(super) running: bool,
+    pub(super) stream_activity: StreamActivity,
     pub(super) levels: Levels,
 }
 
@@ -114,12 +114,17 @@ impl AudioGraph {
         self.streams.insert(id, stream);
     }
 
-    pub(super) fn set_stream_info(&mut self, id: u32, pid: Option<i32>, running: bool) {
+    pub(super) fn set_stream_info(
+        &mut self,
+        id: u32,
+        pid: Option<i32>,
+        stream_activity: StreamActivity,
+    ) {
         if let Some(stream) = self.streams.get_mut(&id) {
             if pid.is_some() {
                 stream.pid = pid;
             }
-            stream.running = running;
+            stream.stream_activity = stream_activity;
         }
     }
 
@@ -197,7 +202,7 @@ impl AudioGraph {
         let percent = levels.percent();
         Some(ChannelLevels {
             percent,
-            mute_state: if levels.mute || percent == 0 {
+            mute_state: if levels.mute_state == MuteState::Muted || percent == 0 {
                 MuteState::Muted
             } else {
                 MuteState::Audible
@@ -223,9 +228,15 @@ impl AudioGraph {
         streams_by_pid
             .into_iter()
             .map(|(pid, window_streams)| {
-                let window_audio = if window_streams.iter().all(|stream| stream.levels.mute) {
+                let window_audio = if window_streams
+                    .iter()
+                    .all(|stream| stream.levels.mute_state == MuteState::Muted)
+                {
                     WindowAudio::Muted
-                } else if window_streams.iter().any(|stream| stream.running) {
+                } else if window_streams
+                    .iter()
+                    .any(|stream| stream.stream_activity == StreamActivity::Running)
+                {
                     WindowAudio::Audible
                 } else {
                     WindowAudio::Silent
@@ -262,6 +273,13 @@ pub(super) struct RouteLevels {
     pub(super) update: LevelsUpdate,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(super) enum StreamActivity {
+    Running,
+    #[default]
+    Idle,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -280,7 +298,7 @@ mod tests {
             placement: None,
             levels: Levels {
                 channel_volumes: volumes.to_vec(),
-                mute: false,
+                mute_state: MuteState::Audible,
             },
         }
     }
@@ -304,7 +322,7 @@ mod tests {
                 port_kind: None,
                 update: LevelsUpdate {
                     channel_volumes: Some(vec![cubic(29)]),
-                    mute: None,
+                    mute_state: None,
                 },
             },
         );
@@ -392,7 +410,7 @@ mod tests {
                 port_kind: None,
                 update: LevelsUpdate {
                     channel_volumes: Some(vec![cubic(35)]),
-                    mute: Some(false),
+                    mute_state: Some(MuteState::Audible),
                 },
             },
         );
@@ -468,7 +486,7 @@ mod tests {
                 port_kind: None,
                 update: LevelsUpdate {
                     channel_volumes: Some(vec![cubic(29)]),
-                    mute: None,
+                    mute_state: None,
                 },
             },
         );

@@ -16,7 +16,8 @@ use crate::{
     widget_groups::{
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+            ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
         workspaces_group::{EmptyWorkspaceFolding, EmptyWorkspaces, RevealFoldTimer},
@@ -218,7 +219,7 @@ impl SidebarSettingsGroup {
     }
 
     pub fn collapse(&mut self) {
-        if self.expansion.collapse() {
+        if self.expansion.collapse() == ExpansionChange::JustCollapsed {
             self.appearance.close();
         }
     }
@@ -226,7 +227,7 @@ impl SidebarSettingsGroup {
     pub fn update(&mut self, msg: SidebarSettingsMessage) -> Task<SidebarSettingsMessage> {
         match msg {
             SidebarSettingsMessage::Expansion(menu) => {
-                if self.expansion.update(menu) {
+                if self.expansion.update(menu) == ExpansionChange::JustCollapsed {
                     self.appearance.close();
                 }
                 Task::none()

@@ -38,7 +38,7 @@ impl SnapshotSource for CopilotCcusage {
     const NAME: &'static str = "Copilot local usage";
 
     fn delivery_stream(budget: SpendBudget) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(ccusage_cli_reports::installed()).available_while(move || {
+        stream::once(ccusage_cli_reports::ccusage_availability()).available_while(move || {
             let budget = budget.clone();
             SnapshotDelivery::live_push_deliveries(ready(Ok(reread_on_trigger_or_deadline(
                 ccusage_cli_reports::transcript_changes(Agent::CopilotCli),

@@ -2,7 +2,7 @@ use bytesize::ByteSize;
 use chrono::{DateTime, TimeDelta, Utc};
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::network_connectivity::tailscale_status::{
-    ADMIN_CONSOLE_URL, KeyExpiry, Peer, PeerPath, Tailnet, Tailscale,
+    ADMIN_CONSOLE_URL, KeyExpiry, Peer, PeerPath, Tailscale,
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -23,25 +23,28 @@ use crate::{
 
 const KEY_EXPIRY_WARNING_WINDOW: TimeDelta = TimeDelta::days(14);
 
-fn key_expires_soon(key_expiry: KeyExpiry, now: DateTime<Utc>) -> bool {
-    match key_expiry {
-        KeyExpiry::Disabled => false,
-        KeyExpiry::At(expires_at) => expires_at - now < KEY_EXPIRY_WARNING_WINDOW,
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum KeyExpiryUrgency {
+    ExpiresSoon,
+    Distant,
 }
 
-fn tailnet_needs_attention(tailnet: &Tailnet, now: DateTime<Utc>) -> bool {
-    !tailnet.health_warnings.is_empty() || key_expires_soon(tailnet.key_expiry, now)
+fn key_expiry_urgency(key_expiry: KeyExpiry, now: DateTime<Utc>) -> KeyExpiryUrgency {
+    match key_expiry {
+        KeyExpiry::At(expires_at) if expires_at - now < KEY_EXPIRY_WARNING_WINDOW => {
+            KeyExpiryUrgency::ExpiresSoon
+        }
+        KeyExpiry::At(_) | KeyExpiry::Disabled => KeyExpiryUrgency::Distant,
+    }
 }
 
 fn key_expiry_entry(key_expiry: KeyExpiry, now: DateTime<Utc>) -> LabeledValue {
     match key_expiry {
         KeyExpiry::Disabled => LabeledValue::new("Key expires", "never"),
         KeyExpiry::At(expires_at) => {
-            let expiry_severity = if key_expires_soon(key_expiry, now) {
-                Severity::Warning
-            } else {
-                Severity::Normal
+            let expiry_severity = match key_expiry_urgency(key_expiry, now) {
+                KeyExpiryUrgency::ExpiresSoon => Severity::Warning,
+                KeyExpiryUrgency::Distant => Severity::Normal,
             };
             LabeledValue::new("Key expires", ValueCell::RelativeMoment(expires_at))
                 .level(expiry_severity)
@@ -101,7 +104,11 @@ impl GroupItemReading for Tailscale {
         match self {
             Tailscale::Stopped => ReadingDisplayState::Off,
             Tailscale::Starting => ReadingDisplayState::Pending,
-            Tailscale::Running(tailnet) if tailnet_needs_attention(tailnet, clock.utc()) => {
+            Tailscale::Running(tailnet)
+                if !tailnet.health_warnings.is_empty()
+                    || key_expiry_urgency(tailnet.key_expiry, clock.utc())
+                        == KeyExpiryUrgency::ExpiresSoon =>
+            {
                 ReadingDisplayState::Warning
             }
             Tailscale::Running(_) => ReadingDisplayState::On,

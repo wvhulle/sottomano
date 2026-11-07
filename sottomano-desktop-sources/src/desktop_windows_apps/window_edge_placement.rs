@@ -36,17 +36,6 @@ pub enum WindowOwner {
     Process(u32),
 }
 
-impl WindowIdentity {
-    fn owned_by(&self, owner: &WindowOwner) -> bool {
-        match owner {
-            WindowOwner::App(app_id) => self.app_id.as_ref() == Some(app_id),
-            WindowOwner::Process(pid) => self
-                .pid
-                .is_some_and(|window_pid| u32::try_from(window_pid) == Ok(*pid)),
-        }
-    }
-}
-
 impl Placement {
     #[must_use]
     pub fn derive(state: &CompositorWindowState) -> Self {
@@ -87,7 +76,8 @@ impl Placement {
                 workspace_by_window.insert(w.id, ws);
             }
             if !state.overview_is_open
-                && on_viewed_workspace(w, &output_by_workspace, &active_ws_by_output)
+                && workspace_viewing(w, &output_by_workspace, &active_ws_by_output)
+                    == WorkspaceViewing::Viewed
             {
                 viewed_layouts.insert(w.id, w.layout.clone());
             }
@@ -181,7 +171,12 @@ impl Placement {
 
     #[must_use]
     pub fn window_owned_by(&self, owner: &WindowOwner) -> Option<u64> {
-        let mut matching = self.windows.iter().filter(|window| window.owned_by(owner));
+        let mut matching = self.windows.iter().filter(|window| match owner {
+            WindowOwner::App(app_id) => window.app_id.as_ref() == Some(app_id),
+            WindowOwner::Process(pid) => window
+                .pid
+                .is_some_and(|window_pid| u32::try_from(window_pid) == Ok(*pid)),
+        });
         unique(&mut matching).map(|window| window.id)
     }
 }
@@ -191,17 +186,27 @@ struct OutputActiveWorkspace {
     idx: u8,
 }
 
-fn on_viewed_workspace(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WorkspaceViewing {
+    Viewed,
+    Hidden,
+}
+
+fn workspace_viewing(
     window: &CompositorWindow,
     output_by_workspace: &HashMap<u64, String>,
     active_ws_by_output: &HashMap<String, OutputActiveWorkspace>,
-) -> bool {
-    window.workspace_id.is_some_and(|workspace| {
+) -> WorkspaceViewing {
+    if window.workspace_id.is_some_and(|workspace| {
         output_by_workspace
             .get(&workspace)
             .and_then(|output| active_ws_by_output.get(output))
             .is_some_and(|active| active.id == workspace)
-    })
+    }) {
+        WorkspaceViewing::Viewed
+    } else {
+        WorkspaceViewing::Hidden
+    }
 }
 
 fn vertical_edge(window_ws_idx: Option<u8>, active_ws_idx: Option<u8>) -> VEdge {

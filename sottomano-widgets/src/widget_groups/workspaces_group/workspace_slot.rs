@@ -11,7 +11,9 @@ use super::{WorkspacesMessage, dragged};
 use crate::{
     desktop_panels::{
         panel_slot::PanelSlot,
-        panel_slot_drag::{PanelSlotContext, SlotClick, SlotPress, awaits_window_on},
+        panel_slot_drag::{
+            PanelSlotContext, SlotClick, SlotPress, WindowArrival, window_arrival_on,
+        },
     },
     hover_cards::{HoverTarget, PressHints, hoverable},
     widgets::{
@@ -150,8 +152,12 @@ impl<'s> WorkspaceSlot<'s> {
             .map_or_else(|| self.workspace.idx.to_string(), str::to_string)
     }
 
-    fn has_superscript(&self) -> bool {
-        self.given_name().is_some() && self.workspace.idx <= 9
+    fn superscript_label(&self) -> SuperscriptLabel {
+        if self.given_name().is_some() && self.workspace.idx <= 9 {
+            SuperscriptLabel::Shown
+        } else {
+            SuperscriptLabel::Omitted
+        }
     }
 
     fn superscript<'a>(&self) -> Text<'a> {
@@ -164,7 +170,7 @@ impl<'s> WorkspaceSlot<'s> {
     pub(super) fn label<'a>(&self) -> Element<'a, WorkspacesMessage> {
         let name = panel_text(&self.slot_context.config.theme.font, self.display_name())
             .style(tinted_text(self.tone.tint(text_color)));
-        if !self.has_superscript() {
+        if self.superscript_label() == SuperscriptLabel::Omitted {
             return name.into();
         }
         row![self.superscript(), name]
@@ -173,16 +179,15 @@ impl<'s> WorkspaceSlot<'s> {
     }
 
     fn drop_tint(&self, highlight_radius: Radius) -> impl Fn(&Theme) -> container::Style + 'static {
-        let awaits_window = awaits_window_on(&self.slot_context.drag, self.workspace.id);
-        move |theme| {
-            if awaits_window {
+        let window_arrival = window_arrival_on(&self.slot_context.drag, self.workspace.id);
+        move |theme| match window_arrival {
+            WindowArrival::Awaited => {
                 container::background(primary_weak_color(theme)).border(Border {
                     radius: highlight_radius,
                     ..Border::default()
                 })
-            } else {
-                container::Style::default()
             }
+            WindowArrival::NotAwaited => container::Style::default(),
         }
     }
 
@@ -227,8 +232,10 @@ impl<'s> WorkspaceSlot<'s> {
     }
 
     fn window_markers(&self, marker_edge: Position) -> MarkerTrack {
-        let incoming = awaits_window_on(&self.slot_context.drag, self.workspace.id)
-            .then(|| -> ThemedColor<'static> { Box::new(primary_color) });
+        let incoming = match window_arrival_on(&self.slot_context.drag, self.workspace.id) {
+            WindowArrival::Awaited => Some(Box::new(primary_color) as ThemedColor<'static>),
+            WindowArrival::NotAwaited => None,
+        };
         let tone = self.tone;
         let colors = self
             .compositor
@@ -317,4 +324,10 @@ impl<'s> WorkspaceSlot<'s> {
                 .into(),
         )
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SuperscriptLabel {
+    Shown,
+    Omitted,
 }

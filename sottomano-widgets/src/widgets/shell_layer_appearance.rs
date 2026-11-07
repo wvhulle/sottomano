@@ -105,15 +105,15 @@ impl LayerAppearance {
     #[must_use]
     pub fn look_comparison(&self, other: &Self) -> LookComparison {
         let close = |current: f32, wanted: f32| (current - wanted).abs() < LOOK_MATCH_TOLERANCE;
-        let matching = close(self.opacity, other.opacity)
+        if close(self.opacity, other.opacity)
             && close(self.corner_radius_px, other.corner_radius_px)
             && self.backdrop_blur == other.backdrop_blur
             && self.shadow.casting == other.shadow.casting
             && close(self.shadow.softness_px, other.shadow.softness_px)
             && close(self.shadow.opacity, other.shadow.opacity)
             && self.outline.tracing == other.outline.tracing
-            && close(self.outline.opacity, other.outline.opacity);
-        if matching {
+            && close(self.outline.opacity, other.outline.opacity)
+        {
             LookComparison::Matching
         } else {
             LookComparison::Differing

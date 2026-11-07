@@ -57,7 +57,9 @@ async fn inhibitor_changes(
     let held_changes = messages
         .filter_map(|message| ready(message.ok().and_then(|received| bus_event(&received))))
         .scan(InhibitCallLedger::default(), |ledger, event| {
-            ready(Some(ledger.apply(event).then(|| ledger.held.clone())))
+            ready(Some(
+                (ledger.apply(event) == HeldChange::Changed).then(|| ledger.held.clone()),
+            ))
         })
         .filter_map(ready);
     let snapshots = held_changes.then(move |held| {
@@ -206,7 +208,7 @@ struct InhibitCallLedger {
 }
 
 impl InhibitCallLedger {
-    fn apply(&mut self, event: ScreenSaverBusEvent) -> bool {
+    fn apply(&mut self, event: ScreenSaverBusEvent) -> HeldChange {
         let held_before = self.held.len();
         match event {
             ScreenSaverBusEvent::InhibitCalled {
@@ -249,15 +251,25 @@ impl InhibitCallLedger {
                 self.held.retain(|inhibit| inhibit.caller != connection);
             }
         }
-        self.held.len() != held_before
+        if self.held.len() == held_before {
+            HeldChange::Unchanged
+        } else {
+            HeldChange::Changed
+        }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HeldChange {
+    Changed,
+    Unchanged,
 }
 
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU32;
 
-    use super::{InhibitCallLedger, ScreenSaverBusEvent};
+    use super::{HeldChange, InhibitCallLedger, ScreenSaverBusEvent};
 
     const CALL_SERIAL: NonZeroU32 = NonZeroU32::MIN;
 
@@ -281,9 +293,9 @@ mod tests {
     #[test]
     fn an_inhibit_is_held_only_once_its_cookie_returns() {
         let mut ledger = InhibitCallLedger::default();
-        assert!(!ledger.apply(called(":1.5")));
+        assert_eq!(ledger.apply(called(":1.5")), HeldChange::Unchanged);
         assert!(ledger.held.is_empty());
-        assert!(ledger.apply(returned(":1.5", 7)));
+        assert_eq!(ledger.apply(returned(":1.5", 7)), HeldChange::Changed);
         assert_eq!(ledger.held[0].stated_name, "Firefox");
         assert_eq!(ledger.held[0].reason, "Playing video");
     }
@@ -291,9 +303,9 @@ mod tests {
     #[test]
     fn unrelated_replies_from_the_service_are_ignored() {
         let mut ledger = InhibitCallLedger::default();
-        assert!(!ledger.apply(returned(":1.5", 7)));
+        assert_eq!(ledger.apply(returned(":1.5", 7)), HeldChange::Unchanged);
         ledger.apply(called(":1.5"));
-        assert!(!ledger.apply(returned(":1.6", 7)));
+        assert_eq!(ledger.apply(returned(":1.6", 7)), HeldChange::Unchanged);
         assert!(ledger.held.is_empty());
     }
 
@@ -302,14 +314,20 @@ mod tests {
         let mut ledger = InhibitCallLedger::default();
         ledger.apply(called(":1.5"));
         ledger.apply(returned(":1.5", 7));
-        assert!(!ledger.apply(ScreenSaverBusEvent::UnInhibitCalled {
-            caller: ":1.6".to_owned(),
-            cookie: 7,
-        }));
-        assert!(ledger.apply(ScreenSaverBusEvent::UnInhibitCalled {
-            caller: ":1.5".to_owned(),
-            cookie: 7,
-        }));
+        assert_eq!(
+            ledger.apply(ScreenSaverBusEvent::UnInhibitCalled {
+                caller: ":1.6".to_owned(),
+                cookie: 7,
+            }),
+            HeldChange::Unchanged
+        );
+        assert_eq!(
+            ledger.apply(ScreenSaverBusEvent::UnInhibitCalled {
+                caller: ":1.5".to_owned(),
+                cookie: 7,
+            }),
+            HeldChange::Changed
+        );
         assert!(ledger.held.is_empty());
     }
 
@@ -319,9 +337,12 @@ mod tests {
         ledger.apply(called(":1.5"));
         ledger.apply(returned(":1.5", 7));
         ledger.apply(called(":1.5"));
-        assert!(ledger.apply(ScreenSaverBusEvent::ConnectionClosed {
-            connection: ":1.5".to_owned(),
-        }));
+        assert_eq!(
+            ledger.apply(ScreenSaverBusEvent::ConnectionClosed {
+                connection: ":1.5".to_owned(),
+            }),
+            HeldChange::Changed
+        );
         assert!(ledger.held.is_empty());
         assert!(ledger.awaiting_cookies.is_empty());
     }

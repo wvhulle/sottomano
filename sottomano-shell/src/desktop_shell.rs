@@ -80,7 +80,9 @@ pub(crate) use self::compositor_update_handling::gamepad_window_claim;
 use self::notification_updates::GroupAlertScan;
 use crate::{
     desktop_shell::{
-        compositor_update_handling::{reheats_switch_heat, report_missing_compositor},
+        compositor_update_handling::{
+            SwitchHeatEffect, report_missing_compositor, switch_heat_effect,
+        },
         monitor_surfaces::{Surface, SurfaceRole, query_outputs},
         pointer_drag::ShellDrag,
         shell_widget_groups::ShellWidgetGroups,
@@ -180,12 +182,12 @@ impl DesktopShell {
         self.clock = Clock::real();
         let hover_card_target_before = self.hover_card.target().cloned();
         let hovered_before = self.hovered_reading_target().cloned();
-        let reheat_due = reheats_switch_heat(&message);
+        let heat_effect = switch_heat_effect(&message);
         let dispatched = self.dispatch_message(message);
         self.widget_groups
             .session_focus_group
             .refresh_daily_totals(&self.config.widget_groups.session_focus, self.clock);
-        let reheated = if reheat_due {
+        let reheated = if heat_effect == SwitchHeatEffect::Reheats {
             self.widget_groups
                 .reheat_switch_heat(&self.config, &self.compositor, self.clock)
         } else {

@@ -27,6 +27,7 @@ use super::{
         route_placement, stream_from_props, stream_pid,
     },
 };
+use crate::media_playback_audio::pipewire_audio::audio_graph_state::StreamActivity;
 
 pub(super) struct Bound<Proxy, Listener> {
     pub(super) proxy: Proxy,
@@ -227,8 +228,11 @@ fn track_node(
             let live_graph = live_graph.clone();
             move |info: &NodeInfoRef| {
                 let pid = info.props().and_then(stream_pid);
-                let running = matches!(info.state(), NodeState::Running);
-                live_graph.update(|graph| graph.set_stream_info(id, pid, running));
+                let stream_activity = match info.state() {
+                    NodeState::Running => StreamActivity::Running,
+                    _ => StreamActivity::Idle,
+                };
+                live_graph.update(|graph| graph.set_stream_info(id, pid, stream_activity));
             }
         };
         if let Some(bound_stream) =

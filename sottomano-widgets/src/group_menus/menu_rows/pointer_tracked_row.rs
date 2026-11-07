@@ -13,6 +13,7 @@ use iced::{
 
 use crate::{
     group_menus::menu_rows::menu_row::{MenuRowLook, menu_row_background},
+    hover_cards::PointerPresence,
     widgets::configured_theme::text_color,
 };
 
@@ -38,7 +39,7 @@ impl<'a, Message: 'a> From<PointerTrackedRow<'a, Message>> for Element<'a, Messa
 
 #[derive(Default)]
 struct RowPointerState {
-    pointer_over: bool,
+    pointer_presence: PointerPresence,
 }
 
 impl<Message> Widget<Message, Theme, iced::Renderer> for PointerTrackedRow<'_, Message> {
@@ -91,10 +92,14 @@ impl<Message> Widget<Message, Theme, iced::Renderer> for PointerTrackedRow<'_, M
             shell,
             viewport,
         );
-        let pointer_over = cursor.is_over(layout.bounds());
+        let pointer_presence = if cursor.is_over(layout.bounds()) {
+            PointerPresence::PointedAt
+        } else {
+            PointerPresence::NotPointedAt
+        };
         let state = tree.state.downcast_mut::<RowPointerState>();
-        if state.pointer_over != pointer_over {
-            state.pointer_over = pointer_over;
+        if state.pointer_presence != pointer_presence {
+            state.pointer_presence = pointer_presence;
             shell.request_redraw();
         }
     }
@@ -110,7 +115,8 @@ impl<Message> Widget<Message, Theme, iced::Renderer> for PointerTrackedRow<'_, M
         viewport: &Rectangle,
     ) {
         let state = tree.state.downcast_ref::<RowPointerState>();
-        if let Some(background) = menu_row_background(theme, self.look.emphasis, state.pointer_over)
+        if let Some(background) =
+            menu_row_background(theme, self.look.emphasis, state.pointer_presence)
         {
             renderer.fill_quad(
                 renderer::Quad {

@@ -10,7 +10,8 @@ use uom::si::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        group_item_reading::{GroupItemReading, PanelVisibility},
+        reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::HoverCardBody,
     widgets::{
@@ -87,8 +88,8 @@ impl GroupItemReading for DiskActivity {
         self.read.icon()
     }
 
-    fn visible_on_panel(&self) -> bool {
-        false
+    fn panel_visibility(&self) -> PanelVisibility {
+        PanelVisibility::Hidden
     }
 
     fn hover_card(&self, clock: Clock) -> HoverCardBody {

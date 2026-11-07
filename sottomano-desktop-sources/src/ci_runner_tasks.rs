@@ -10,6 +10,7 @@ use std::time::SystemTime;
 use bytesize::ByteSize;
 
 use crate::{
+    delivery_cadence_drivers::SamplingNeed,
     podman_container_engine::libpod_running_containers::{EngineReadError, RunningContainer},
     system_protocol_clients::{
         http_json_client,
@@ -94,8 +95,11 @@ pub struct CiRunnerTasks {
 }
 
 impl CiRunnerTasks {
-    pub(crate) fn keeps_sampling(&self) -> bool {
-        !self.tasks.is_empty() || !matches!(self.access, RunnerAccess::Complete)
+    pub(crate) fn sampling_need(&self) -> SamplingNeed {
+        match (self.tasks.is_empty(), &self.access) {
+            (true, RunnerAccess::Complete) => SamplingNeed::Settled,
+            _ => SamplingNeed::KeepSampling,
+        }
     }
 }
 

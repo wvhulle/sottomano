@@ -1,4 +1,5 @@
 use iced::{Subscription, Task};
+use sottomano_desktop_sources::network_connectivity::network_manager_proxies::Metering;
 
 use crate::widget_groups::widget_group_identity::WidgetGroupFamily;
 
@@ -175,7 +176,7 @@ impl ReachabilityGroup {
         let metered_section = self
             .throughput
             .get()
-            .filter(|readings| readings.metered)
+            .filter(|readings| readings.metering == Metering::Metered)
             .and_then(|_| self.metered_volume.displayed_totals())
             .map(|totals| metered_section(&totals, throughput.direction));
         self.throughput

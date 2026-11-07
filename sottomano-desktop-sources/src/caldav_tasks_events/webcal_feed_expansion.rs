@@ -17,7 +17,9 @@ use tokio::task::spawn_blocking;
 use crate::{
     caldav_tasks_events::{
         agenda_moment_zones::AgendaMoment,
-        caldav_event_query::{EventOrigin, EventWindow, UpcomingEvent, displayed_summary},
+        caldav_event_query::{
+            EventOrigin, EventWindow, UpcomingEvent, WindowOverlap, displayed_summary,
+        },
         caldav_home_listing::SubscribedCalendar,
     },
     system_protocol_clients::http_json_client,
@@ -85,7 +87,7 @@ pub fn expanded_feed_events(
     Ok(series_calendars(&feed)
         .iter()
         .flat_map(|series| series_events(series, calendar_name, viewer_zone))
-        .filter(|event| event.overlaps(window))
+        .filter(|event| event.window_overlap(window) == WindowOverlap::Overlapping)
         .collect())
 }
 
@@ -181,10 +183,9 @@ fn feed_event(
         TimeOrDelta::Time(end) => end,
         TimeOrDelta::Delta(duration) => occurrence.start + duration,
     };
-    let moment_of: fn(DateTime<CalendarZone>) -> AgendaMoment = if starts_on_date(component) {
-        all_day_moment
-    } else {
-        AgendaMoment::from
+    let moment_of: fn(DateTime<CalendarZone>) -> AgendaMoment = match start_precision(component) {
+        StartPrecision::DateOnly => all_day_moment,
+        StartPrecision::DateAndTime => AgendaMoment::from,
     };
     Some(UpcomingEvent {
         summary: displayed_summary(
@@ -205,12 +206,23 @@ fn all_day_moment(midnight: DateTime<CalendarZone>) -> AgendaMoment {
     AgendaMoment::AllDay(midnight.date_naive())
 }
 
-fn starts_on_date(component: &ICalendarComponent) -> bool {
-    component
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StartPrecision {
+    DateOnly,
+    DateAndTime,
+}
+
+fn start_precision(component: &ICalendarComponent) -> StartPrecision {
+    if component
         .property(&ICalendarProperty::Dtstart)
         .and_then(|entry| entry.values.first())
         .and_then(ICalendarValue::as_partial_date_time)
         .is_some_and(|start| !start.has_time())
+    {
+        StartPrecision::DateOnly
+    } else {
+        StartPrecision::DateAndTime
+    }
 }
 
 fn text_property<'component>(

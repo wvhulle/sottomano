@@ -4,7 +4,7 @@ use serde::Deserialize;
 use systemd::journal::Journal;
 
 use crate::{
-    system_protocol_clients::journal_follow::JournalEvent,
+    ci_runner_tasks::TaskWebLog, system_protocol_clients::journal_follow::JournalEvent,
     systemd_units_journal::journal_record_fields::LoggingUnit,
 };
 
@@ -25,13 +25,13 @@ pub struct ForgejoTaskStart {
     pub(super) unit_name: String,
     pub(super) task_id: u64,
     pub(super) repository: String,
-    pub(super) instance_url: Option<String>,
+    pub(super) actions_page: TaskWebLog,
 }
 
 struct ParsedTaskStart<'message> {
     task_id: u64,
     repository: &'message str,
-    instance_url: Option<&'message str>,
+    actions_page: TaskWebLog,
 }
 
 fn parse_task_start_message(message: &str) -> Option<ParsedTaskStart<'_>> {
@@ -39,13 +39,23 @@ fn parse_task_start_message(message: &str) -> Option<ParsedTaskStart<'_>> {
     let (task_id, after_repo) = after_task.split_once(" repo is ")?;
     let mut repo_words = after_repo.split_whitespace();
     let repository = repo_words.next()?;
-    let instance_url = repo_words
-        .map(|word| word.trim_end_matches('"'))
-        .rfind(|word| word.starts_with("http"));
+    let actions_page = repo_words.map(|word| word.trim_end_matches('"')).fold(
+        TaskWebLog::NotKnown,
+        |actions_page, word| {
+            if word.starts_with("http") {
+                TaskWebLog::Linked(format!(
+                    "{}/{repository}/actions",
+                    word.trim_end_matches('/')
+                ))
+            } else {
+                actions_page
+            }
+        },
+    );
     Some(ParsedTaskStart {
         task_id: task_id.parse().ok()?,
         repository,
-        instance_url,
+        actions_page,
     })
 }
 
@@ -66,7 +76,7 @@ impl JournalEvent for ForgejoTaskStart {
             at,
             task_id: parsed.task_id,
             repository: parsed.repository.to_owned(),
-            instance_url: parsed.instance_url.map(str::to_owned),
+            actions_page: parsed.actions_page,
             unit_name: record.unit.owning_unit()?.name().to_owned(),
         })
     }
@@ -86,7 +96,10 @@ mod tests {
         let parsed = parse_task_start_message(message).expect("the line is a task start");
         assert_eq!(parsed.task_id, 11_282_424);
         assert_eq!(parsed.repository, "wvhulle/bindrune");
-        assert_eq!(parsed.instance_url, Some("https://codeberg.org/"));
+        assert_eq!(
+            parsed.actions_page,
+            TaskWebLog::Linked("https://codeberg.org/wvhulle/bindrune/actions".to_owned())
+        );
     }
 
     #[test]
@@ -94,7 +107,7 @@ mod tests {
         let parsed = parse_task_start_message("task 7 repo is wvhulle/bindrune")
             .expect("the line is a task start");
         assert_eq!(parsed.repository, "wvhulle/bindrune");
-        assert_eq!(parsed.instance_url, None);
+        assert_eq!(parsed.actions_page, TaskWebLog::NotKnown);
     }
 
     #[test]

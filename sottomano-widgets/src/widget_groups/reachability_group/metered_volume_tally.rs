@@ -6,8 +6,9 @@ use std::{
 
 use bytesize::ByteSize;
 use chrono::NaiveDate;
-use sottomano_desktop_sources::network_connectivity::interface_throughput::{
-    InterfaceByteCounters, InterfaceThroughput,
+use sottomano_desktop_sources::network_connectivity::{
+    interface_throughput::{InterfaceByteCounters, InterfaceThroughput},
+    network_manager_proxies::Metering,
 };
 
 use super::sqlite_metered_volume::{MeteredVolumeTotals, TransferTotals};
@@ -74,7 +75,7 @@ impl MeteredVolumeTally {
             transferred_between(&self.previous_counters, &throughput.cumulative_counters);
         self.previous_counters
             .clone_from(&throughput.cumulative_counters);
-        if !throughput.metered {
+        if throughput.metering == Metering::Unmetered {
             return TallyFollowUp::Nothing;
         }
         self.unsaved = self.unsaved + transferred;
@@ -127,8 +128,9 @@ impl MeteredVolumeTally {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_desktop_sources::network_connectivity::interface_throughput::{
-        NetworkTrafficDirection, Throughput,
+    use sottomano_desktop_sources::network_connectivity::{
+        interface_throughput::{NetworkTrafficDirection, Throughput},
+        network_manager_proxies::Metering,
     };
     use uom::si::f64::InformationRate;
 
@@ -144,11 +146,11 @@ mod tests {
         }
     }
 
-    fn throughput_at(received: u64, sent: u64, metered: bool) -> InterfaceThroughput {
+    fn throughput_at(received: u64, sent: u64, metering: Metering) -> InterfaceThroughput {
         InterfaceThroughput {
             down: idle_direction(NetworkTrafficDirection::Download),
             up: idle_direction(NetworkTrafficDirection::Upload),
-            metered,
+            metering,
             cumulative_counters: BTreeMap::from([(
                 "wlan0".to_owned(),
                 InterfaceByteCounters {
@@ -166,7 +168,7 @@ mod tests {
     fn loaded_tally(started_at: Instant) -> MeteredVolumeTally {
         let mut tally = MeteredVolumeTally::default();
         assert_eq!(
-            tally.observe(&throughput_at(1_000, 100, true), started_at),
+            tally.observe(&throughput_at(1_000, 100, Metering::Metered), started_at),
             TallyFollowUp::LoadTotals
         );
         tally.totals_loaded(None, today(), started_at);
@@ -177,7 +179,7 @@ mod tests {
     fn growth_is_counted_while_metered() {
         let started_at = Clock::real().instant;
         let mut tally = loaded_tally(started_at);
-        tally.observe(&throughput_at(1_500, 160, true), started_at);
+        tally.observe(&throughput_at(1_500, 160, Metering::Metered), started_at);
         assert_eq!(
             tally.displayed_totals().unwrap().today,
             TransferTotals {
@@ -191,8 +193,8 @@ mod tests {
     fn unmetered_traffic_is_not_counted() {
         let started_at = Clock::real().instant;
         let mut tally = loaded_tally(started_at);
-        tally.observe(&throughput_at(9_000, 900, false), started_at);
-        tally.observe(&throughput_at(9_100, 910, true), started_at);
+        tally.observe(&throughput_at(9_000, 900, Metering::Unmetered), started_at);
+        tally.observe(&throughput_at(9_100, 910, Metering::Metered), started_at);
         assert_eq!(
             tally.displayed_totals().unwrap().today,
             TransferTotals {
@@ -206,7 +208,7 @@ mod tests {
     fn counter_reset_adds_nothing() {
         let started_at = Clock::real().instant;
         let mut tally = loaded_tally(started_at);
-        tally.observe(&throughput_at(10, 1, true), started_at);
+        tally.observe(&throughput_at(10, 1, Metering::Metered), started_at);
         assert_eq!(
             tally.displayed_totals().unwrap().today,
             TransferTotals::default()
@@ -223,7 +225,7 @@ mod tests {
             sent: ByteSize::b(20),
         };
         assert_eq!(
-            tally.observe(&throughput_at(1_200, 120, true), later),
+            tally.observe(&throughput_at(1_200, 120, Metering::Metered), later),
             TallyFollowUp::SaveUnsaved(saved)
         );
         assert_eq!(tally.displayed_totals().unwrap().today, saved);

@@ -760,7 +760,7 @@ mod tests {
                 .group_contents(&index, &config, output)
                 .into_iter()
                 .next()
-                .is_some_and(|frequent| frequent.has_items())
+                .is_some_and(|frequent| !frequent.is_empty())
         };
 
         assert!(items_on("DP-1"));

@@ -9,7 +9,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
+        group_item_reading::{GroupItemReading, PanelVisibility},
         offline_internet_reading::{OfflineSnapshot, PlaceholderCause, SnapshotPlaceholder},
         reading_display_state::ReadingDisplayState,
     },
@@ -418,19 +418,19 @@ impl<S: SnapshotSource + GroupItemReading, Policy: FetchFailurePolicy<S>>
 {
     pub fn visible_reading(&self) -> Option<&S> {
         self.get()
-            .filter(|held_snapshot| S::visible_on_panel(held_snapshot))
+            .filter(|held_snapshot| held_snapshot.panel_visibility() == PanelVisibility::Shown)
     }
 
     pub fn display(&self) -> Option<&dyn GroupItemReading> {
         match self {
-            LatestSnapshot::SnapshotHeld { held_snapshot, .. } => held_snapshot
-                .visible_on_panel()
-                .then_some(held_snapshot as &dyn GroupItemReading),
+            LatestSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                (held_snapshot.panel_visibility() == PanelVisibility::Shown)
+                    .then_some(held_snapshot as &dyn GroupItemReading)
+            }
             LatestSnapshot::SnapshotFetchFailed { fetch_failure, .. } => Some(fetch_failure),
             LatestSnapshot::SnapshotHeldOffline {
                 offline_snapshot, ..
-            } => offline_snapshot
-                .visible_on_panel()
+            } => (offline_snapshot.panel_visibility() == PanelVisibility::Shown)
                 .then_some(offline_snapshot as &dyn GroupItemReading),
             LatestSnapshot::OfflineBeforeSnapshot {
                 offline_placeholder,

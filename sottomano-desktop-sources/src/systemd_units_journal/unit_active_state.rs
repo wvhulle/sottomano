@@ -5,7 +5,8 @@ use tokio::select;
 
 use super::{ManagerProxy, SystemdUnitOnBus, UnitProxy, connect_systemd_bus};
 use crate::{
-    SnapshotDelivery, SnapshotSource, stream_operators::connected_until_failure,
+    SnapshotDelivery, SnapshotSource,
+    stream_operators::{Availability, connected_until_failure},
     systemd_units_journal::SystemdUnitScope,
 };
 
@@ -31,11 +32,6 @@ impl From<&str> for UnitActivity {
 }
 
 impl UnitActivity {
-    #[must_use]
-    pub fn running(self) -> bool {
-        self == Self::Running
-    }
-
     #[must_use]
     pub fn press_change(self) -> UnitChange {
         match self {
@@ -89,11 +85,14 @@ impl SnapshotSource for UnitActiveState {
     }
 }
 
-pub fn unit_running(unit: SystemdUnitOnBus) -> impl Stream<Item = bool> + Send {
-    unit_activity(unit).map(|activity| {
-        activity
-            .inspect_err(|e| tracing::warn!("systemd unit activity: {e}"))
-            .is_ok_and(UnitActivity::running)
+pub fn unit_running(unit: SystemdUnitOnBus) -> impl Stream<Item = Availability> + Send {
+    unit_activity(unit).map(|activity| match activity {
+        Ok(UnitActivity::Running) => Availability::Available,
+        Ok(_) => Availability::Unavailable,
+        Err(activity_error) => {
+            tracing::warn!("systemd unit activity: {activity_error}");
+            Availability::Unavailable
+        }
     })
 }
 

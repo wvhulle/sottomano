@@ -569,7 +569,7 @@ impl RadarRainForecast<'_> {
         let peak = remaining
             .iter()
             .skip_while(|frame| frame.at < starts_at)
-            .take_while(|frame| frame.exceeds(minimum))
+            .take_while(|frame| frame.intensity > minimum)
             .max_by(|earlier, later| earlier.intensity.value.total_cmp(&later.intensity.value))?;
         Some(RainSpell {
             outlook,
@@ -727,6 +727,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        group_items::group_item_reading::PanelVisibility,
         hover_cards::HoverTarget,
         widget_groups::weather_group::WeatherTarget,
         widgets::{keyed_record_table::RecordCells, ongoing_toast::OngoingToast},
@@ -770,7 +771,7 @@ mod tests {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 0.0]);
         let forecast = RadarRainForecast::with_default_alerts(&rain);
-        assert!(forecast.visible_on_panel());
+        assert_eq!(forecast.panel_visibility(), PanelVisibility::Shown);
         assert_eq!(forecast.state(clock), ReadingDisplayState::Off);
         assert_eq!(
             forecast.icon(),

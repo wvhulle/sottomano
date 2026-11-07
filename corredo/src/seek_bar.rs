@@ -38,11 +38,11 @@ struct Arrival<PlaybackSession> {
 
 impl<PlaybackSession: PartialEq> Arrival<PlaybackSession> {
     fn arrival_state(&self, timeline: &PlaybackTimeline<PlaybackSession>) -> SeekArrival {
-        let arrived = self.session != timeline.session
+        if self.session != timeline.session
             || timeline
                 .played
-                .is_none_or(|played| played.abs_diff(self.position) <= ARRIVAL_TOLERANCE);
-        if arrived {
+                .is_none_or(|played| played.abs_diff(self.position) <= ARRIVAL_TOLERANCE)
+        {
             SeekArrival::Arrived
         } else {
             SeekArrival::Pending

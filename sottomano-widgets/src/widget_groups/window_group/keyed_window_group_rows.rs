@@ -34,32 +34,24 @@ struct WindowGroupIdentity<'a> {
     favicon_key: Option<&'a str>,
 }
 
-impl WindowGroupIdentity<'_> {
-    fn continues_group_of(&self, previous: &WindowGroupIdentity<'_>) -> bool {
-        self.group_key.is_some()
-            && self.group_key == previous.group_key
-            && self.icon_path == previous.icon_path
-            && self.favicon_key == previous.favicon_key
-    }
-
-    fn opens_group_of(&self, window_count: usize) -> bool {
-        match self.group_key {
-            None => false,
-            Some(WindowGroupKey::Application(_)) => window_count >= 2,
-            Some(_) => true,
-        }
-    }
-}
-
 fn keyed_group_positions(identities: &[WindowGroupIdentity<'_>]) -> Vec<Range<usize>> {
     identities
-        .chunk_by(|previous, current| current.continues_group_of(previous))
+        .chunk_by(|previous, current| {
+            current.group_key.is_some()
+                && current.group_key == previous.group_key
+                && current.icon_path == previous.icon_path
+                && current.favicon_key == previous.favicon_key
+        })
         .scan(0, |next_start, run| {
             let start = *next_start;
             *next_start += run.len();
             Some(start..*next_start)
         })
-        .filter(|positions| identities[positions.start].opens_group_of(positions.len()))
+        .filter(|positions| match identities[positions.start].group_key {
+            None => false,
+            Some(WindowGroupKey::Application(_)) => positions.len() >= 2,
+            Some(_) => true,
+        })
         .collect()
 }
 

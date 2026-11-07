@@ -33,10 +33,15 @@ impl SeekBar {
         self.playback.player_reported(&timeline_of(media, now));
     }
 
-    pub fn seekable(media: &Media, now: Instant) -> bool {
-        media.capabilities.seek
+    pub fn seek_availability(media: &Media, now: Instant) -> SeekAvailability {
+        if media.capabilities.seek
             && media.progress.length().is_some()
             && media.progress.played(media.status, now).is_some()
+        {
+            SeekAvailability::Seekable
+        } else {
+            SeekAvailability::Fixed
+        }
     }
 
     pub fn view<'a>(
@@ -63,10 +68,16 @@ fn seek_to(media: &Media, target: Duration, now: Instant) -> Option<Command> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SeekAvailability {
+    Seekable,
+    Fixed,
+}
+
 #[cfg(test)]
 mod tests {
     use sottomano_desktop_sources::{
-        media_playback_audio::mpris_players::{Capabilities, Progress, Status},
+        media_playback_audio::mpris_players::{Capabilities, PlayerSetting, Progress, Status},
         system_protocol_clients::dbus_desktop_buses::OwnerProcess,
     };
     use zbus::zvariant::{ObjectPath, OwnedObjectPath};
@@ -100,8 +111,8 @@ mod tests {
                 seek: true,
                 ..Capabilities::default()
             },
-            queue_order: None,
-            loop_mode: None,
+            queue_order: PlayerSetting::Uncontrollable,
+            loop_mode: PlayerSetting::Uncontrollable,
             seek_mode,
         }
     }

@@ -49,14 +49,6 @@ impl From<&NotulistDictation> for SwitchPosition {
     }
 }
 
-#[must_use]
-pub fn shows_pipeline(dictation: &NotulistDictation) -> bool {
-    matches!(
-        dictation.phase,
-        DictationPhase::Listening | DictationPhase::Finishing
-    )
-}
-
 impl GroupItemReading for NotulistDictation {
     fn name(&self) -> &'static str {
         "Dictation"
@@ -199,16 +191,5 @@ mod tests {
                 .map(ValueCell::from)
                 .to_vec()
         );
-    }
-
-    #[test]
-    fn only_listening_and_finishing_show_the_pipeline() {
-        let dictation = |phase| NotulistDictation { phase };
-        assert!(shows_pipeline(&dictation(DictationPhase::Listening)));
-        assert!(shows_pipeline(&dictation(DictationPhase::Finishing)));
-        assert!(!shows_pipeline(&dictation(DictationPhase::Idle)));
-        assert!(!shows_pipeline(&dictation(DictationPhase::StoppedByError(
-            DictationError::MicrophoneDeliveredSilence(MicrophoneSilence::NoSamplesDelivered)
-        ))));
     }
 }

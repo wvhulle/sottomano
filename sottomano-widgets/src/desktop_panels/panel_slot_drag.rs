@@ -43,12 +43,23 @@ pub fn window_source_workspace(drag: &DragView) -> Option<u64> {
 }
 
 #[must_use]
-pub fn awaits_window_on(drag: &DragView, workspace: u64) -> bool {
-    window_source_workspace(drag).is_some()
+pub fn window_arrival_on(drag: &DragView, workspace: u64) -> WindowArrival {
+    if window_source_workspace(drag).is_some()
         && drag
             .hovers(DraggedPanelSlot::Workspace(workspace))
             .is_some()
+    {
+        WindowArrival::Awaited
+    } else {
+        WindowArrival::NotAwaited
+    }
 }
 
 #[cfg(test)]
 pub(crate) mod pager_drag_simulation;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowArrival {
+    Awaited,
+    NotAwaited,
+}

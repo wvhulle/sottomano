@@ -12,14 +12,19 @@ use tokio::time::sleep;
 use crate::{
     background_work::logged_failure_task,
     group_menus::{
-        group_menu_inspection::GroupMenuInspection, group_menu_presentation::GroupMenuPresentation,
-        group_menu_settings::GroupMenuSettingsTarget, group_source_demand::GroupSourceDemand,
-        sqlite_group_menu_pins, sqlite_group_menu_pins::StoredGroupMenuPin,
+        group_menu_inspection::GroupMenuInspection,
+        group_menu_presentation::GroupMenuPresentation,
+        group_menu_settings::GroupMenuSettingsTarget,
+        group_source_demand::{GroupSourceDemand, GroupSurface},
+        sqlite_group_menu_pins,
+        sqlite_group_menu_pins::StoredGroupMenuPin,
         sqlite_group_menu_presentation,
     },
     hover_cards::{HoverTarget, hover_card_surfaces::SWITCH_INTENT},
     widget_groups::{
-        widget_group_content::{WidgetGroupExpansion, WidgetGroupExpansionMessage},
+        widget_group_content::{
+            ExpansionChange, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
     },
     widgets::{
@@ -301,7 +306,14 @@ impl GroupMenuState {
             StoredGroupMenuPin::Item { group_family, .. } => group_family == stored_family,
             StoredGroupMenuPin::Group { .. } => false,
         });
-        GroupSourceDemand::in_menu(menu_open, group_pinned || group_promoted, item_pinned)
+        let surface = if menu_open || item_pinned {
+            GroupSurface::AllRows
+        } else if group_pinned || group_promoted {
+            GroupSurface::WidgetGroupFace
+        } else {
+            GroupSurface::Hidden
+        };
+        GroupSourceDemand::showing(surface)
     }
 
     #[must_use]
@@ -310,7 +322,7 @@ impl GroupMenuState {
     }
 
     pub fn collapse_settings(&mut self) {
-        if self.settings_expansion.collapse() {
+        if self.settings_expansion.collapse() == ExpansionChange::JustCollapsed {
             self.menu_appearance.close();
         }
     }
@@ -463,7 +475,7 @@ impl GroupMenuState {
                 Task::none()
             }
             GroupMenuMessage::SettingsExpansion(expansion) => {
-                if self.settings_expansion.update(expansion) {
+                if self.settings_expansion.update(expansion) == ExpansionChange::JustCollapsed {
                     self.menu_appearance.close();
                 }
                 Task::none()
