@@ -1,6 +1,5 @@
 use iced::{
-    Color, Element, Font, Length, Padding, Theme,
-    border::{self, Radius},
+    Color, Element, Font, Length, Padding, Theme, border,
     widget::{Column, Row, container, stack, text},
 };
 use iced_controller_diagram::ControllerArtwork;
@@ -20,15 +19,11 @@ use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
     desktop_panels::{panel_frame::outlined_sides_inward_of, panel_slot_drag::PanelSlotContext},
-    group_menus::{
-        group_menu_presentation::GroupMenuOpenTrigger, group_menu_state::GroupMenuState,
-    },
-    hover_cards::{
-        HoverTarget, MenuHandleIndicator, hover_card_body::hover_card_source_delivery::HoverCard,
-    },
+    group_menus::group_menu_state::GroupMenuState,
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         app_launcher_group::AppLauncherGroup,
-        appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsTarget},
+        appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsMessage},
         audio_group::AudioGroup,
         caldav_group::CaldavGroup,
         ci_runs_group::CiRunsGroup,
@@ -119,7 +114,7 @@ pub enum ShowcasedGroup {
     Media(Box<ShowcasedMedia>),
     IdleTimeouts(Box<IdlePauseGroups>),
     AppLauncher(Box<ShowcasedAppLauncher>),
-    AppearancePresets(AppearancePresetsGroup),
+    AppearancePresets(Box<ShowcasedAppearancePresets>),
     Wallpaper(Box<WallpaperGroup>),
     Audio(Box<AudioGroup>),
     Gamepad(Box<ShowcasedGamepad>),
@@ -137,6 +132,11 @@ pub enum ShowcasedGroup {
     Toasts(Box<ShowcasedToasts>),
     MenuMembers(Vec<ShowcasedGroup>),
     ShellSettings(Box<ShowcasedShellSettings>),
+}
+
+pub struct ShowcasedAppearancePresets {
+    pub group: AppearancePresetsGroup,
+    pub appearance: ShellAppearance,
 }
 
 pub struct ShowcasedShellSettings {
@@ -395,12 +395,12 @@ impl ShowcasedGroup {
             | ShowcasedGroup::IdleTimeouts(_)
             | ShowcasedGroup::AppearancePresets(_)
             | ShowcasedGroup::LoginSession(_)
-            | ShowcasedGroup::ShellSettings(_)
-            | ShowcasedGroup::Wallpaper(_) => Position::Bottom,
+            | ShowcasedGroup::ShellSettings(_) => Position::Bottom,
             ShowcasedGroup::WorkspaceSidebar(_) => Position::Left,
             ShowcasedGroup::Compute(_)
             | ShowcasedGroup::MemoryBoard(_)
             | ShowcasedGroup::Weather(_)
+            | ShowcasedGroup::Wallpaper(_)
             | ShowcasedGroup::Media(_)
             | ShowcasedGroup::Audio(_)
             | ShowcasedGroup::Gamepad(_)
@@ -501,8 +501,13 @@ impl ShowcasedGroup {
                 .flat_map(|member| member.group_contents(config, clock))
                 .collect(),
             ShowcasedGroup::ShellSettings(settings) => settings.group_contents(config),
-            ShowcasedGroup::AppearancePresets(_)
-            | ShowcasedGroup::BottomPanel(_)
+            ShowcasedGroup::AppearancePresets(presets) => vec![
+                presets
+                    .group
+                    .group_content(&presets.appearance)
+                    .map(ShowcaseMessage::AppearancePresets),
+            ],
+            ShowcasedGroup::BottomPanel(_)
             | ShowcasedGroup::WorkspaceSidebar(_)
             | ShowcasedGroup::Toasts(_) => Vec::new(),
         }
@@ -516,18 +521,6 @@ impl ShowcasedGroup {
         let position = self.position();
         match self {
             ShowcasedGroup::BottomPanel(session) => session.workspaces_and_windows(config, clock),
-            ShowcasedGroup::AppearancePresets(menu) => menu
-                .group_content()
-                .map(ShowcaseMessage::AppearancePresets)
-                .view(
-                    config,
-                    position,
-                    GroupMenuOpenTrigger::Hover,
-                    MenuHandleIndicator::default(),
-                    clock,
-                )
-                .into_iter()
-                .collect(),
             ShowcasedGroup::WorkspaceSidebar(session) => session.sidebar_groups(config, clock),
             _ => self
                 .group_contents(config, clock)
@@ -644,8 +637,16 @@ impl ShowcasedGroup {
                     member.update(message.clone(), clock);
                 }
             }
+            ShowcasedGroup::AppearancePresets(presets) => match message {
+                ShowcaseMessage::AppearancePresets(AppearancePresetsMessage::Apply(preset)) => {
+                    presets.appearance = preset.applied_to(presets.appearance);
+                }
+                ShowcaseMessage::AppearancePresets(AppearancePresetsMessage::Expansion(
+                    expansion,
+                )) => presets.group.update_expansion(expansion),
+                _ => {}
+            },
             ShowcasedGroup::AppLauncher(_)
-            | ShowcasedGroup::AppearancePresets(_)
             | ShowcasedGroup::Toasts(_)
             | ShowcasedGroup::ShellSettings(_) => {}
         }
@@ -889,39 +890,17 @@ impl ShowcasedGroup {
             ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 session.hover_card_for(target, clock)
             }
-            ShowcasedGroup::AppearancePresets(menu) => {
+            ShowcasedGroup::AppearancePresets(presets) => {
                 let HoverTarget::AppearancePresets(target) = target else {
                     return None;
                 };
-                Some(menu.hover_card_for(*target))
+                Some(presets.group.hover_card_for(*target))
             }
             ShowcasedGroup::MenuMembers(groups) => groups
                 .iter()
                 .find_map(|member| member.hover_card_for(target, config, clock)),
             ShowcasedGroup::ShellSettings(settings) => settings.hover_card_for(target, clock),
             ShowcasedGroup::Toasts(_) => None,
-        }
-    }
-
-    pub fn interactive_panel<'a>(
-        &self,
-        target: &HoverTarget,
-        config: &'a Config,
-        appearance: &ShellAppearance,
-    ) -> Option<Element<'a, ShowcaseMessage>> {
-        match (self, target) {
-            (
-                ShowcasedGroup::AppearancePresets(menu),
-                HoverTarget::AppearancePresets(AppearancePresetsTarget::Menu),
-            ) => Some(
-                menu.menu_panel(
-                    config,
-                    Radius::from(appearance.overlays.corner_radius_px),
-                    appearance,
-                )
-                .map(ShowcaseMessage::AppearancePresets),
-            ),
-            _ => None,
         }
     }
 

@@ -82,6 +82,15 @@ impl AppearancePreset {
     }
 
     #[must_use]
+    pub fn press_does(self) -> &'static str {
+        match self {
+            Self::ClearDark => "switch to the clear dark look",
+            Self::BrightOffice => "switch to the bright office look",
+            Self::FrostedDark => "switch to the frosted dark look",
+        }
+    }
+
+    #[must_use]
     pub fn description(self) -> &'static str {
         match self {
             Self::ClearDark => {

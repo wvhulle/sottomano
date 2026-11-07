@@ -2,7 +2,7 @@ use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::group_menus::group_menu_state::GroupMenuTopic;
 
 use self::{
-    FixedPanelEntry::{AppearancePresets, SessionPower},
+    FixedPanelEntry::SessionPower,
     PanelZoneEntry::{Fixed, InlineWorkspaces, Menu, OutputWindows, Standalone},
     StandaloneWidgetGroup::{Clock, Notifications, Tray},
 };
@@ -24,7 +24,6 @@ pub(in crate::desktop_shell) enum StandaloneWidgetGroup {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::desktop_shell) enum FixedPanelEntry {
     SessionPower,
-    AppearancePresets,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,7 +73,11 @@ pub(in crate::desktop_shell) const TOP_PANEL: PanelBarComposition = PanelBarComp
         Menu(GroupMenuTopic::Agenda),
         Standalone(Notifications),
     ],
-    end: &[Menu(GroupMenuTopic::Media), Fixed(SessionPower)],
+    end: &[
+        Menu(GroupMenuTopic::Display),
+        Menu(GroupMenuTopic::Media),
+        Fixed(SessionPower),
+    ],
 };
 
 pub(in crate::desktop_shell) const BOTTOM_PANEL: PanelBarComposition = PanelBarComposition {
@@ -82,8 +85,6 @@ pub(in crate::desktop_shell) const BOTTOM_PANEL: PanelBarComposition = PanelBarC
     start: &[
         Menu(GroupMenuTopic::Appearance),
         Menu(GroupMenuTopic::Behaviour),
-        Menu(GroupMenuTopic::Display),
-        Fixed(AppearancePresets),
         InlineWorkspaces,
     ],
     center: &[Menu(GroupMenuTopic::Applications), OutputWindows],

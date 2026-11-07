@@ -62,10 +62,8 @@ use sottomano_widgets::{
     },
     notification_toasts::{NotificationLayer, ToastSurfaceStyle},
     widget_groups::{
-        appearance_presets_group::{AppearancePresetsMessage, AppearancePresetsTarget},
-        idle_pause_groups::IdlePauseMessage,
-        niri_window_group::niri_kdl_rules::NiriRulesFile,
-        session_power_group,
+        appearance_presets_group::AppearancePresetsMessage, idle_pause_groups::IdlePauseMessage,
+        niri_window_group::niri_kdl_rules::NiriRulesFile, session_power_group,
     },
     widgets::{
         configured_theme::{configured_theme, text_color},
@@ -264,10 +262,15 @@ impl DesktopShell {
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
             Message::QuietSchedule(msg) => self.update_quiet_schedule(msg),
             Message::Session(msg) => self.update_session(msg),
-            Message::AppearancePresets(AppearancePresetsMessage::Apply(preset)) => Task::batch([
-                self.dismiss_hover_card(),
-                self.widget_groups.apply_appearance_preset(preset),
-            ]),
+            Message::AppearancePresets(AppearancePresetsMessage::Apply(preset)) => {
+                self.widget_groups.apply_appearance_preset(preset)
+            }
+            Message::AppearancePresets(AppearancePresetsMessage::Expansion(expansion)) => {
+                self.widget_groups
+                    .appearance_presets_group
+                    .update_expansion(expansion);
+                Task::none()
+            }
             Message::Media(msg) => self.update_media(msg),
             Message::Tray(msg) => self.update_tray(msg),
             Message::VirtualMachines(msg) => self.update_virtual_machines(msg),
@@ -552,16 +555,6 @@ impl DesktopShell {
                 .tray_group
                 .menu_panel(address, &self.config, popup_corners)
                 .map(|panel| panel.map(Message::Tray)),
-            HoverTarget::AppearancePresets(AppearancePresetsTarget::Menu) => Some(
-                self.widget_groups
-                    .appearance_presets_group
-                    .menu_panel(
-                        &self.config,
-                        popup_corners,
-                        &self.widget_groups.shell_appearance(),
-                    )
-                    .map(Message::AppearancePresets),
-            ),
             HoverTarget::Session(session_power_group::SessionTarget::Menu) => Some(
                 self.widget_groups
                     .session_power_group

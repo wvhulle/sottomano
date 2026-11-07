@@ -31,6 +31,7 @@ use sottomano_widgets::{
         window_group::WindowTarget,
         wireguard_tunnels_group::WireguardTunnelTarget,
     },
+    widgets::appearance_presets::AppearancePreset,
 };
 
 use crate::{
@@ -298,10 +299,12 @@ pub const DEMOS: &[Demo] = &[
         name: "appearance_looks",
         group: appearance_presets::group,
         live: unchanging,
-        shown: GroupShown::OnPanel,
+        shown: GroupShown::InMenu(GroupMenuTopic::Behaviour),
         script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Behaviour)),
+            Step::PressText("Looks"),
             Step::Hover(HoverTarget::AppearancePresets(
-                AppearancePresetsTarget::Menu,
+                AppearancePresetsTarget::Preset(AppearancePreset::ClearDark),
             )),
             Step::PressText("Clear dark"),
             Step::RestFor(Duration::from_millis(1200)),

@@ -1,6 +1,3 @@
-use iced::{Element, border::Radius};
-use sottomano_toml_config::Config;
-
 use crate::{
     group_items::{
         group_item::{
@@ -11,26 +8,25 @@ use crate::{
     hover_cards::{
         HoverTarget,
         hover_card_body::{
-            HoverCardBody,
+            HoverCardBody, Section,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
     },
-    widget_groups::fixed_panel_group::FixedPanelGroup,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
+        widget_group_identity::WidgetGroupFamily,
+    },
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
-        configured_theme::text_color,
-        context_menu::{
-            ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing, context_menu,
-        },
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
         shell_layer_appearance::LookComparison,
     },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppearancePresetsTarget {
-    Menu,
+    Preset(AppearancePreset),
 }
 
 impl From<AppearancePresetsTarget> for HoverTarget {
@@ -39,75 +35,70 @@ impl From<AppearancePresetsTarget> for HoverTarget {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum AppearancePresetsMessage {
     Apply(AppearancePreset),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
-fn preset_menu_row<'a>(
+fn preset_group_item<'a>(
     preset: AppearancePreset,
     current: &ShellAppearance,
-    config: &Config,
-) -> ContextMenuLine<'a, AppearancePresetsMessage> {
-    ContextMenuLine::Row(ContextMenuRow {
-        leading: Some(
-            IconGlyph::from(preset.icon()).view(config.theme.font.icon_size_px, text_color),
-        ),
-        label: Some(preset.name().to_owned()),
-        trailing: if preset.applied_to(*current).look_comparison(current)
-            == LookComparison::Matching
-        {
-            ContextMenuTrailing::Note("current".to_owned())
-        } else {
-            ContextMenuTrailing::Nothing
+) -> GroupItem<'a, AppearancePresetsMessage> {
+    let display_state = match preset.applied_to(*current).look_comparison(current) {
+        LookComparison::Matching => ReadingDisplayState::On,
+        LookComparison::Differing => ReadingDisplayState::Idle,
+    };
+    GroupItem::composed(
+        ComposedGroupItemFace {
+            name: preset.name().into(),
+            icon: GroupItemIcon::IconGlyph {
+                glyph: preset.icon().into(),
+                state: display_state,
+            },
         },
-        depth: 0,
-        press: ContextMenuRowPress::Enabled(AppearancePresetsMessage::Apply(preset)),
-    })
+        GroupItemHoverArea::WholeItem(AppearancePresetsTarget::Preset(preset).into()),
+        GroupItemValue::Nothing,
+    )
+    .on_press(preset.press_does(), AppearancePresetsMessage::Apply(preset))
 }
 
 #[derive(Default)]
-pub struct AppearancePresetsGroup;
+pub struct AppearancePresetsGroup {
+    expansion: WidgetGroupExpansion,
+}
 
 impl AppearancePresetsGroup {
+    pub fn collapse(&mut self) {
+        self.expansion.collapse();
+    }
+
+    pub fn update_expansion(&mut self, message: WidgetGroupExpansionMessage) {
+        self.expansion.update(message);
+    }
+
     #[must_use]
     pub fn hover_card_for(&self, target: AppearancePresetsTarget) -> HoverCard {
         match target {
-            AppearancePresetsTarget::Menu => {
-                HoverCard::sourced(HoverCardBody::sections([]), DeliveryTiming::LivePush)
-            }
+            AppearancePresetsTarget::Preset(preset) => HoverCard::sourced(
+                HoverCardBody::sections([Section::note(preset.description())]),
+                DeliveryTiming::LivePush,
+            ),
         }
     }
 
-    #[must_use]
-    pub fn menu_panel<'a>(
-        &self,
-        config: &'a Config,
-        popup_corners: Radius,
+    pub fn group_content<'a>(
+        &'a self,
         current: &ShellAppearance,
-    ) -> Element<'a, AppearancePresetsMessage> {
-        context_menu(
-            config,
-            popup_corners,
+    ) -> WidgetGroupContent<'a, AppearancePresetsMessage> {
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::AppearancePresets,
+            &self.expansion,
+            AppearancePresetsMessage::Expansion,
             AppearancePreset::ALL
                 .into_iter()
-                .map(|preset| preset_menu_row(preset, current, config))
-                .collect::<Vec<_>>(),
+                .map(|preset| preset_group_item(preset, current)),
         )
-    }
-
-    #[must_use]
-    pub fn group_content<'a>(&self) -> FixedPanelGroup<'a, AppearancePresetsMessage> {
-        FixedPanelGroup::new(Some(GroupItem::composed(
-            ComposedGroupItemFace {
-                name: "Looks".into(),
-                icon: GroupItemIcon::IconGlyph {
-                    glyph: Phosphor::Palette(Weight::Regular).into(),
-                    state: ReadingDisplayState::Idle,
-                },
-            },
-            GroupItemHoverArea::WholeItem(AppearancePresetsTarget::Menu.into()),
-            GroupItemValue::Nothing,
-        )))
+        .staying_in_menu_during_alerts()
     }
 }
