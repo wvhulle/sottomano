@@ -1,4 +1,4 @@
-use notulist_client::{OutputProblem, VirtualKeyboardError};
+use notulist_client::OutputProblem;
 use sottomano_desktop_sources::voice_dictation_input::notulist_dbus_output_problems::NotulistOutputProblems;
 
 use crate::{
@@ -59,41 +59,19 @@ const fn output_problem_label(problem: &OutputProblem) -> &'static str {
     match problem {
         OutputProblem::TextFieldTypingUnavailable(_) => "No input method",
         OutputProblem::AnotherInputMethodOwnsSeat => "Seat taken",
-        OutputProblem::DotoolTypingUnavailable(_) => "Virtual keyboard failed",
+        OutputProblem::VirtualKeyboardTypingUnavailable(_) => "Virtual keyboard failed",
         OutputProblem::TranscriptDiscardedWithoutTarget => "Transcript discarded",
     }
 }
 
 fn output_problem_section(problem: &OutputProblem) -> Section {
-    let field_rows = match problem {
-        OutputProblem::DotoolTypingUnavailable(VirtualKeyboardError::DotoolExitedWithError {
-            exit_code,
-            stderr,
-        }) => vec![
-            exit_code
-                .map(|code| code.to_string())
-                .map(|exit_code| LabeledValue::new("Exit code", exit_code)),
-            Some(stderr.trim())
-                .filter(|text| !text.is_empty())
-                .map(|stderr_text| LabeledValue::new("Stderr", stderr_text)),
-        ],
-        OutputProblem::TextFieldTypingUnavailable(_)
-        | OutputProblem::AnotherInputMethodOwnsSeat
-        | OutputProblem::DotoolTypingUnavailable(VirtualKeyboardError::DotoolNotRunnable)
-        | OutputProblem::TranscriptDiscardedWithoutTarget => Vec::new(),
-    };
-    Section::dictionary(
-        field_rows
-            .into_iter()
-            .flatten()
-            .chain([LabeledValue::new("Details", problem.to_string())]),
-    )
-    .titled(output_problem_label(problem))
+    Section::dictionary([LabeledValue::new("Details", problem.to_string())])
+        .titled(output_problem_label(problem))
 }
 
 #[cfg(test)]
 mod tests {
-    use notulist_client::InputMethodError;
+    use notulist_client::{InputMethodError, VirtualKeyboardError};
 
     use super::*;
     use crate::group_items::group_item_reading::PanelVisibility;
@@ -128,10 +106,9 @@ mod tests {
     fn each_problem_gets_its_own_titled_section() {
         let problems = [
             OutputProblem::AnotherInputMethodOwnsSeat,
-            OutputProblem::DotoolTypingUnavailable(VirtualKeyboardError::DotoolExitedWithError {
-                exit_code: Some(1),
-                stderr: "uinput: permission denied\n".to_owned(),
-            }),
+            OutputProblem::VirtualKeyboardTypingUnavailable(
+                VirtualKeyboardError::VirtualKeyboardProtocolNotOffered,
+            ),
         ];
         let titles: Vec<Option<String>> = problems
             .iter()
