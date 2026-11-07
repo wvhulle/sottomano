@@ -21,8 +21,14 @@ use crate::{
         reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
-    widget_groups::weather_group::precipitation_type_forecast::{
-        MODEL_QUARTER_HOUR, model_quarter_glyph, model_quarter_text, quarters_not_yet_over,
+    widget_groups::weather_group::{
+        precipitation_type_forecast::{
+            MODEL_QUARTER_HOUR, model_quarter_glyph, model_quarter_text, quarters_not_yet_over,
+        },
+        rain_forecast_ranking::{
+            RainRateReading, RankedRainProvider, RankedRateSource, frames_not_yet_over,
+            ranked_by_method, rate_readings_by_rank,
+        },
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -129,63 +135,28 @@ fn outlook_turn(outlook: RainOutlook) -> Option<OutlookTurn> {
     Some(OutlookTurn { label, at })
 }
 
-const RADAR_FRAME_LENGTH: TimeDelta = TimeDelta::minutes(5);
-
-fn frames_not_yet_over(forecast: &[Downpour], now: DateTime<Local>) -> &[Downpour] {
-    let elapsed = forecast
-        .iter()
-        .take_while(|frame| frame.at + RADAR_FRAME_LENGTH <= now)
-        .count();
-    &forecast[elapsed..]
-}
-
 const TIMELINE_HEADINGS: [ColumnHeading; 3] = [
-    ColumnHeading::titled("Radar"),
-    ColumnHeading::untitled(),
-    ColumnHeading::titled("Model").align_x(Horizontal::Left),
-];
-
-const MODEL_TIMELINE_HEADINGS: [ColumnHeading; 3] = [
     ColumnHeading::titled("Rain"),
     ColumnHeading::untitled(),
     ColumnHeading::titled("Type").align_x(Horizontal::Left),
 ];
 
 #[derive(Debug, Clone, Copy)]
-enum RainTimelineRow<'a> {
-    RadarFrame {
-        frame: &'a Downpour,
-        scale: RainIntensityScale,
-    },
-    RadarFrameStartingModelQuarter {
-        frame: &'a Downpour,
-        scale: RainIntensityScale,
-        quarter: &'a ModelQuarterHour,
-    },
-    ModelQuarter {
-        quarter: &'a ModelQuarterHour,
-        scale: RainIntensityScale,
-    },
-    ModelQuarterWithoutRadar {
-        quarter: &'a ModelQuarterHour,
-        scale: RainIntensityScale,
-    },
+enum PrecipitationTypeMarker<'a> {
+    Unmarked,
+    StartsQuarter(&'a ModelQuarterHour),
+}
+
+#[derive(Debug, Clone, Copy)]
+struct RainTimelineRow<'a> {
+    reading: RainRateReading<'a>,
+    type_marker: PrecipitationTypeMarker<'a>,
+    scale: RainIntensityScale,
 }
 
 impl RainTimelineRow<'_> {
-    fn starts_at(self) -> DateTime<Local> {
-        match self {
-            RainTimelineRow::RadarFrame { frame, .. }
-            | RainTimelineRow::RadarFrameStartingModelQuarter { frame, .. } => frame.at,
-            RainTimelineRow::ModelQuarter { quarter, .. }
-            | RainTimelineRow::ModelQuarterWithoutRadar { quarter, .. } => {
-                quarter.starts_at.with_timezone(&Local)
-            }
-        }
-    }
-
     fn starting_hour(self) -> TimelineHour {
-        let starts_at = self.starts_at();
+        let starts_at = self.reading.starts_at().with_timezone(&Local);
         TimelineHour {
             date: starts_at.date_naive(),
             hour: starts_at.hour(),
@@ -193,19 +164,27 @@ impl RainTimelineRow<'_> {
     }
 
     fn sky_wetness(self) -> SkyWetness {
-        match self {
-            RainTimelineRow::RadarFrame { frame, .. }
-            | RainTimelineRow::RadarFrameStartingModelQuarter { frame, .. }
-                if frame.intensity > Velocity::default() =>
+        self.reading.sky_wetness()
+    }
+
+    fn glyph(self) -> IconGlyph {
+        let strength_glyph = self.scale.strength(self.reading.intensity()).glyph();
+        match self.reading {
+            RainRateReading::RadarFrame(_) => strength_glyph,
+            RainRateReading::ModelQuarter(quarter) => model_quarter_glyph(quarter, strength_glyph),
+        }
+    }
+
+    fn precipitation_type_cell(self) -> ValueCell {
+        match (self.reading, self.type_marker) {
+            (RainRateReading::ModelQuarter(quarter), _) => model_quarter_text(quarter).into(),
+            (reading, PrecipitationTypeMarker::StartsQuarter(quarter))
+                if reading.sky_wetness() == SkyWetness::Precipitating
+                    && quarter.condition.sky_wetness() == SkyWetness::Precipitating =>
             {
-                SkyWetness::Precipitating
+                model_quarter_text(quarter).into()
             }
-            RainTimelineRow::RadarFrame { .. } => SkyWetness::Dry,
-            RainTimelineRow::RadarFrameStartingModelQuarter { quarter, .. }
-            | RainTimelineRow::ModelQuarter { quarter, .. }
-            | RainTimelineRow::ModelQuarterWithoutRadar { quarter, .. } => {
-                quarter.condition.sky_wetness()
-            }
+            (RainRateReading::RadarFrame(_), _) => ValueCell::Blank,
         }
     }
 }
@@ -220,42 +199,17 @@ fn rain_amount_cell(intensity: Velocity, scale: RainIntensityScale) -> ValueCell
 impl IntoTableRecord<3> for &RainTimelineRow<'_> {
     fn into_table_record(self) -> TableRecord<3> {
         let time = ValueCell::Time {
-            at: self.starts_at().to_utc(),
+            at: self.reading.starts_at(),
             format: LocalizedTimeFormat::HourAndMinute,
         };
-        let cells = match *self {
-            RainTimelineRow::RadarFrame { frame, scale } => [
-                rain_amount_cell(frame.intensity, scale),
-                ValueCell::IconGlyph(scale.strength(frame.intensity).glyph()),
-                ValueCell::Blank,
+        TableRecord::new(
+            time,
+            [
+                rain_amount_cell(self.reading.intensity(), self.scale),
+                ValueCell::IconGlyph(self.glyph()),
+                self.precipitation_type_cell(),
             ],
-            RainTimelineRow::RadarFrameStartingModelQuarter {
-                frame,
-                scale,
-                quarter,
-            } => [
-                rain_amount_cell(frame.intensity, scale),
-                ValueCell::IconGlyph(scale.strength(frame.intensity).glyph()),
-                model_quarter_text(quarter).into(),
-            ],
-            RainTimelineRow::ModelQuarter { quarter, scale } => [
-                ValueCell::Blank,
-                ValueCell::IconGlyph(model_quarter_glyph(
-                    quarter,
-                    scale.strength(quarter.intensity).glyph(),
-                )),
-                model_quarter_text(quarter).into(),
-            ],
-            RainTimelineRow::ModelQuarterWithoutRadar { quarter, scale } => [
-                rain_amount_cell(quarter.intensity, scale),
-                ValueCell::IconGlyph(model_quarter_glyph(
-                    quarter,
-                    scale.strength(quarter.intensity).glyph(),
-                )),
-                model_quarter_text(quarter).into(),
-            ],
-        };
-        TableRecord::new(time, cells)
+        )
     }
 }
 
@@ -276,44 +230,32 @@ struct TimelineHour {
 }
 
 fn rain_timeline<'a>(
-    radar_frames: &'a [Downpour],
-    model_quarters: &[&'a ModelQuarterHour],
+    rate_sources: Vec<RankedRateSource<'a>>,
+    type_quarters: &[&'a ModelQuarterHour],
     scale: RainIntensityScale,
 ) -> Vec<RainTimelineRow<'a>> {
-    let radar_rows = radar_frames
-        .iter()
-        .scan(None, |previous_quarter_start, frame| {
-            let row = match model_quarter_containing(model_quarters, frame.at.to_utc()) {
+    rate_readings_by_rank(rate_sources)
+        .into_iter()
+        .scan(None, |previous_quarter_start, reading| {
+            let type_marker = match model_quarter_containing(type_quarters, reading.starts_at()) {
                 Some(quarter) if *previous_quarter_start != Some(quarter.starts_at) => {
                     *previous_quarter_start = Some(quarter.starts_at);
-                    RainTimelineRow::RadarFrameStartingModelQuarter {
-                        frame,
-                        scale,
-                        quarter,
-                    }
+                    PrecipitationTypeMarker::StartsQuarter(quarter)
                 }
-                _ => RainTimelineRow::RadarFrame { frame, scale },
+                _ => PrecipitationTypeMarker::Unmarked,
             };
-            Some(row)
-        });
-    let radar_horizon = radar_frames.last().map(|frame| frame.at.to_utc());
-    let model_rows =
-        model_quarters
-            .iter()
-            .copied()
-            .filter_map(move |quarter| match radar_horizon {
-                None => Some(RainTimelineRow::ModelQuarterWithoutRadar { quarter, scale }),
-                Some(horizon) if quarter.starts_at > horizon => {
-                    Some(RainTimelineRow::ModelQuarter { quarter, scale })
-                }
-                Some(_) => None,
-            });
-    radar_rows.chain(model_rows).collect()
+            Some(RainTimelineRow {
+                reading,
+                type_marker,
+                scale,
+            })
+        })
+        .collect()
 }
 
-fn rain_timeline_section(rows: &[RainTimelineRow<'_>], headings: [ColumnHeading; 3]) -> Section {
+fn rain_timeline_section(rows: &[RainTimelineRow<'_>]) -> Section {
     Section::grouped_column_table(
-        headings,
+        TIMELINE_HEADINGS,
         rows.chunk_by(|earlier, later| earlier.starting_hour() == later.starting_hour()),
     )
     .marked_as_continuing()
@@ -345,19 +287,18 @@ impl<'a> RainSources<'a> {
         }
     }
 
-    fn timeline_headings(self) -> [ColumnHeading; 3] {
-        match self {
-            RainSources::Model(_) => MODEL_TIMELINE_HEADINGS,
-            RainSources::RadarAndModel { .. } | RainSources::Radar(_) => TIMELINE_HEADINGS,
-        }
+    fn rate_sources(self, clock: Clock) -> Vec<RankedRateSource<'a>> {
+        let radar_source = self.radar().map(|rain| rain.ranked_rate_source(clock));
+        let model_source = self.model().map(|model| model.ranked_rate_source(clock));
+        radar_source.into_iter().chain(model_source).collect()
     }
 
-    fn caption(self) -> &'static str {
-        match self {
-            RainSources::RadarAndModel { .. } => "radar: Buienradar · model: Open-Meteo",
-            RainSources::Radar(_) => "radar: Buienradar",
-            RainSources::Model(_) => "model: Open-Meteo",
-        }
+    fn caption(self, clock: Clock) -> String {
+        ranked_by_method(self.rate_sources(clock))
+            .iter()
+            .map(|source| format!("{}: {}", source.method, source.provider_name))
+            .collect::<Vec<_>>()
+            .join(" · ")
     }
 }
 
@@ -383,19 +324,20 @@ impl RainForecast<'_> {
     }
 
     fn timeline(&self, clock: Clock) -> Vec<RainTimelineRow<'_>> {
-        let radar_frames = self.sources.radar().map_or(&[][..], |rain| {
-            frames_not_yet_over(&rain.forecast, clock.local())
-        });
-        let model_quarters: Vec<_> = self
+        let type_quarters: Vec<_> = self
             .sources
             .model()
             .into_iter()
             .flat_map(|model| quarters_not_yet_over(model, clock.utc()))
             .collect();
-        rain_timeline(radar_frames, &model_quarters, self.intensity_scale())
+        rain_timeline(
+            self.sources.rate_sources(clock),
+            &type_quarters,
+            self.intensity_scale(),
+        )
     }
 
-    fn summary_section(&self) -> Section {
+    fn summary_section(&self, clock: Clock) -> Section {
         let time_of_day = |at: DateTime<Local>| ValueCell::Time {
             at: at.to_utc(),
             format: LocalizedTimeFormat::HourAndMinute,
@@ -441,7 +383,7 @@ impl RainForecast<'_> {
             RainSources::Model(_) => "Next 3 hours",
             RainSources::RadarAndModel { .. } | RainSources::Radar(_) => "Next 2 hours",
         };
-        Section::dictionary(entries).titled((title, self.sources.caption()))
+        Section::dictionary(entries).titled((title, self.sources.caption(clock)))
     }
 }
 
@@ -505,8 +447,8 @@ impl GroupItemReading for RainForecast<'_> {
         let timeline_section = timeline
             .iter()
             .any(|row| row.sky_wetness() == SkyWetness::Precipitating)
-            .then(|| rain_timeline_section(&timeline, self.sources.timeline_headings()));
-        HoverCardBody::sections(iter::once(self.summary_section()).chain(timeline_section))
+            .then(|| rain_timeline_section(&timeline));
+        HoverCardBody::sections(iter::once(self.summary_section(clock)).chain(timeline_section))
     }
 }
 
@@ -729,7 +671,7 @@ mod tests {
     use crate::{
         group_items::group_item_reading::PanelVisibility,
         hover_cards::HoverTarget,
-        widget_groups::weather_group::WeatherTarget,
+        widget_groups::weather_group::{WeatherTarget, rain_forecast_ranking::RADAR_FRAME_LENGTH},
         widgets::{keyed_record_table::RecordCells, ongoing_toast::OngoingToast},
     };
 
@@ -928,13 +870,36 @@ mod tests {
         .intensity_scale()
     }
 
+    fn timeline_of<'a>(forecast: &'a RainForecast<'a>, clock: Clock) -> Vec<RainTimelineRow<'a>> {
+        forecast.timeline(clock)
+    }
+
+    fn type_cells(timeline: &[RainTimelineRow<'_>]) -> Vec<ValueCell> {
+        timeline
+            .iter()
+            .map(|row| {
+                RecordCells::from(row.into_table_record())
+                    .cell(2)
+                    .cloned()
+                    .unwrap()
+            })
+            .collect()
+    }
+
     #[test]
     fn radar_rows_read_intensity_or_dry_without_a_model_type() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[2.0, 0.0]);
         let scale = default_scale();
         let row = |frame| {
-            RecordCells::from((&RainTimelineRow::RadarFrame { frame, scale }).into_table_record())
+            RecordCells::from(
+                (&RainTimelineRow {
+                    reading: RainRateReading::RadarFrame(frame),
+                    type_marker: PrecipitationTypeMarker::Unmarked,
+                    scale,
+                })
+                    .into_table_record(),
+            )
         };
         let wet = row(&rain.forecast[0]);
         assert_eq!(
@@ -954,26 +919,24 @@ mod tests {
     }
 
     #[test]
-    fn the_model_type_marks_the_first_radar_frame_of_each_quarter_and_continues_past_the_radar() {
+    fn the_model_names_the_type_where_both_see_rain_and_continues_past_the_radar() {
         let clock = Clock::real();
-        let rain = radar_frames(clock, &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+        let rain = radar_frames(clock, &[0.0, 0.0, 0.0, 0.4, 0.4, 0.4]);
         let drizzle = WeatherCondition::Drizzle(Intensity::Light);
-        let model = model_quarters(clock, &[WeatherCondition::Overcast, drizzle, drizzle]);
-        let quarters: Vec<_> = model.quarters.iter().collect();
-        let timeline = rain_timeline(&rain.forecast, &quarters, default_scale());
-        let model_texts: Vec<_> = timeline
-            .iter()
-            .map(|row| {
-                RecordCells::from(row.into_table_record())
-                    .cell(2)
-                    .cloned()
-                    .unwrap()
-            })
-            .collect();
+        let model = model_quarters(clock, &[drizzle, drizzle, drizzle]);
+        let alerts = RainAlertsConfig::default();
+        let forecast = RainForecast {
+            sources: RainSources::RadarAndModel {
+                radar: &rain,
+                model: &model,
+            },
+            alerts: &alerts,
+        };
+        let timeline = timeline_of(&forecast, clock);
         assert_eq!(
-            model_texts,
+            type_cells(&timeline),
             [
-                ValueCell::from("Dry"),
+                ValueCell::Blank,
                 ValueCell::Blank,
                 ValueCell::Blank,
                 ValueCell::from("Light drizzle"),
@@ -983,9 +946,53 @@ mod tests {
             ]
         );
         assert!(matches!(
-            timeline.last(),
-            Some(RainTimelineRow::ModelQuarter { .. })
+            timeline.last().map(|row| row.reading),
+            Some(RainRateReading::ModelQuarter(_))
         ));
+    }
+
+    #[test]
+    fn a_dry_model_stays_silent_beside_radar_rain() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.4, 0.4, 0.4]);
+        let model = model_quarters(clock, &[WeatherCondition::Overcast]);
+        let alerts = RainAlertsConfig::default();
+        let forecast = RainForecast {
+            sources: RainSources::RadarAndModel {
+                radar: &rain,
+                model: &model,
+            },
+            alerts: &alerts,
+        };
+        assert_eq!(
+            type_cells(&timeline_of(&forecast, clock)),
+            [ValueCell::Blank, ValueCell::Blank, ValueCell::Blank]
+        );
+    }
+
+    #[test]
+    fn a_wet_model_does_not_wet_a_dry_radar_frame() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.0, 0.0, 0.0]);
+        let model = model_quarters(clock, &[WeatherCondition::Drizzle(Intensity::Light)]);
+        let alerts = RainAlertsConfig::default();
+        let forecast = RainForecast {
+            sources: RainSources::RadarAndModel {
+                radar: &rain,
+                model: &model,
+            },
+            alerts: &alerts,
+        };
+        let timeline = timeline_of(&forecast, clock);
+        assert_eq!(
+            type_cells(&timeline),
+            [ValueCell::Blank, ValueCell::Blank, ValueCell::Blank]
+        );
+        assert!(
+            timeline
+                .iter()
+                .all(|row| row.sky_wetness() == SkyWetness::Dry)
+        );
     }
 
     #[test]
@@ -995,13 +1002,13 @@ mod tests {
             clock,
             &[WeatherCondition::Overcast, WeatherCondition::Overcast],
         );
-        let quarters: Vec<_> = model.quarters.iter().collect();
-        let timeline = rain_timeline(&[], &quarters, default_scale());
+        let forecast = RainForecast::modelled_with_default_alerts(&model);
+        let timeline = timeline_of(&forecast, clock);
         assert_eq!(timeline.len(), 2);
         assert!(
             timeline
                 .iter()
-                .all(|row| matches!(row, RainTimelineRow::ModelQuarterWithoutRadar { .. }))
+                .all(|row| matches!(row.reading, RainRateReading::ModelQuarter(_)))
         );
     }
 
@@ -1009,12 +1016,31 @@ mod tests {
     fn without_a_model_the_timeline_lists_radar_frames_only() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 1.0, 0.0]);
-        let timeline = rain_timeline(&rain.forecast, &[], default_scale());
+        let forecast = RainForecast {
+            sources: RainSources::Radar(&rain),
+            alerts: &RainAlertsConfig::default(),
+        };
+        let timeline = timeline_of(&forecast, clock);
         assert_eq!(timeline.len(), 3);
         assert!(
             timeline
                 .iter()
-                .all(|row| matches!(row, RainTimelineRow::RadarFrame { .. }))
+                .all(|row| matches!(row.reading, RainRateReading::RadarFrame(_)))
+        );
+    }
+
+    #[test]
+    fn the_caption_lists_providers_from_most_to_least_trusted() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.0]);
+        let model = model_quarters(clock, &[WeatherCondition::Overcast]);
+        let sources = RainSources::RadarAndModel {
+            radar: &rain,
+            model: &model,
+        };
+        assert_eq!(
+            sources.caption(clock),
+            "radar: Buienradar · model: Open-Meteo"
         );
     }
 
