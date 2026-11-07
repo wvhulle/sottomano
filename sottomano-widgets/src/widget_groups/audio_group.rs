@@ -284,7 +284,7 @@ impl AudioGroup {
             ControlKind::Sink => (state.sink.as_ref()?, &self.sink_control),
             ControlKind::Source => (state.source.as_ref()?, &self.source_control),
         };
-        let state = if reading.muted { "muted" } else { "active" };
+        let state = reading.mute_state.label();
         let device = reading
             .device
             .as_deref()

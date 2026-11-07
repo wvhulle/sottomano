@@ -82,8 +82,10 @@ impl TaskPriority {
             TaskPriority::Unranked => None,
         }
     }
+}
 
-    fn of_ical_priority(priority: u32) -> Self {
+impl From<u32> for TaskPriority {
+    fn from(priority: u32) -> Self {
         if (1..=LOWEST_PRIORITY).contains(&priority) {
             TaskPriority::Ranked(priority)
         } else {
@@ -159,7 +161,7 @@ fn open_task(object_href: &str, todo: &Todo, calendar_name: &str) -> OpenTask {
         }),
         priority: todo
             .get_priority()
-            .map_or(TaskPriority::Unranked, TaskPriority::of_ical_priority),
+            .map_or(TaskPriority::Unranked, TaskPriority::from),
         progress: task_progress(todo),
     }
 }

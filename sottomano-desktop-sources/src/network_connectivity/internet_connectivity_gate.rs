@@ -117,10 +117,11 @@ async fn ensure_networking_enabled(system: &Connection) -> Result<(), InternetAc
 }
 
 async fn ensure_wireless_radio_on(system: &Connection) -> Result<(), InternetAccessFailure> {
-    if network_manager_proxies::wireless_enabled(system).await? {
-        Ok(())
-    } else {
-        Err(InternetUnreachable::WirelessRadioOff.into())
+    match network_manager_proxies::wireless_radio_power(system).await? {
+        network_manager_proxies::RadioPower::On => Ok(()),
+        network_manager_proxies::RadioPower::Off => {
+            Err(InternetUnreachable::WirelessRadioOff.into())
+        }
     }
 }
 

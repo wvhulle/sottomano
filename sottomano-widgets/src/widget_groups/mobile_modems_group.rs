@@ -6,13 +6,16 @@ use sottomano_desktop_sinks::network_connectivity::network_manager_activations::
 };
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    network_connectivity::modem_manager_mobile::{Mobile, MobileModems},
+    network_connectivity::{
+        modem_manager_mobile::{Mobile, MobileModems},
+        network_manager_proxies::{DeviceLinkState, RadioPower},
+    },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 use self::modem_signal_reading::{
     AllMobileRadiosSwitch, ModemConnectionSwitch, ModemDataReading, ModemSignalReading,
-    modem_connected, modem_family_address, modem_radio_on,
+    modem_family_address,
 };
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
@@ -135,10 +138,18 @@ impl MobileModemsGroup {
             .find(|modem| modem.modem_path == modem_path)
     }
 
-    fn any_radio_on(&self) -> bool {
-        self.mobile_modems
-            .get()
-            .is_some_and(|mobile_modems| mobile_modems.modems.iter().any(modem_radio_on))
+    fn any_radio_power(&self) -> RadioPower {
+        let any_radio_on = self.mobile_modems.get().is_some_and(|mobile_modems| {
+            mobile_modems
+                .modems
+                .iter()
+                .any(|modem| modem.radio_power() == RadioPower::On)
+        });
+        if any_radio_on {
+            RadioPower::On
+        } else {
+            RadioPower::Off
+        }
     }
 
     #[must_use]
@@ -161,7 +172,7 @@ impl MobileModemsGroup {
             }
             .hover_card(clock),
             MobileModemTarget::AllRadios => AllMobileRadiosSwitch {
-                radio_on: self.any_radio_on(),
+                radio_power: self.any_radio_power(),
             }
             .hover_card(clock),
         };
@@ -181,7 +192,7 @@ impl MobileModemsGroup {
                 modem_path: modem_path(),
             },
         );
-        let connection_item = modem_radio_on(modem).then(|| {
+        let connection_item = (modem.radio_power() == RadioPower::On).then(|| {
             let connection_switch = ModemConnectionSwitch { modem };
             let connection_press_does = connection_switch.press_does();
             GroupItem::reading(
@@ -191,7 +202,7 @@ impl MobileModemsGroup {
                 },
             )
             .on_switch_press(
-                modem_connected(modem),
+                modem.link_state() == DeviceLinkState::Connected,
                 connection_press_does,
                 MobileModemsMessage::ToggleModem(modem_path()),
             )
@@ -199,7 +210,8 @@ impl MobileModemsGroup {
         let address_items = [AddressFamily::Ipv4, AddressFamily::Ipv6]
             .into_iter()
             .filter(|family| {
-                modem_connected(modem) && modem_family_address(modem, *family).is_some()
+                modem.link_state() == DeviceLinkState::Connected
+                    && modem_family_address(modem, *family).is_some()
             })
             .map(|family| {
                 GroupItem::reading(
@@ -218,14 +230,14 @@ impl MobileModemsGroup {
                 },
             )
         });
-        let any_radio_on = self.any_radio_on();
+        let any_radio_power = self.any_radio_power();
         let radios_switch = AllMobileRadiosSwitch {
-            radio_on: any_radio_on,
+            radio_power: any_radio_power,
         };
         let radios_press_does = radios_switch.press_does();
         let radios_item = GroupItem::reading(radios_switch, MobileModemTarget::AllRadios)
             .on_switch_press(
-                any_radio_on,
+                any_radio_power == RadioPower::On,
                 radios_press_does,
                 MobileModemsMessage::ToggleAllRadios,
             );

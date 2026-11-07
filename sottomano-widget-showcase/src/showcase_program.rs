@@ -38,7 +38,10 @@ use sottomano_widgets::{
         NotificationLayer, NotificationSettings, ToastContext, ToastSurfaceStyle,
     },
     toast_messages::NotificationMessage,
-    widget_groups::appearance_presets_group::AppearancePresetsMessage,
+    widget_groups::{
+        appearance_presets_group::AppearancePresetsMessage,
+        quiet_schedule_group::quiet_window::QuietPhase,
+    },
     widgets::{
         appearance_presets::ShellAppearance,
         configured_theme::{configured_theme, text_color},
@@ -473,7 +476,7 @@ impl ShowcaseState {
             self.desktop_entries.get(),
             &self.config,
             self.notification_settings,
-            false,
+            QuietPhase::Inactive,
             self.clock,
         );
         self.notifications.update(message, &context, &|_| None)

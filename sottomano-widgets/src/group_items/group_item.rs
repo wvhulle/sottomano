@@ -236,20 +236,6 @@ pub struct GroupItem<'a, M> {
 }
 
 impl<'a, M: 'a> GroupItem<'a, M> {
-    fn of_kind(kind: GroupItemContent<'a, M>) -> Self {
-        Self {
-            kind,
-            gestures: GroupItemGestures::inert(),
-            switch_indicator: ItemSwitchIndicator::Absent,
-            handle_announcement: HoverAnnouncement::default(),
-            previewed_on_handle: false,
-            ongoing_toast_action_buttons: Vec::new(),
-            ongoing_toasts: Vec::new(),
-            alignment: ItemAlignment::Unaligned,
-            card_opening_trigger: GroupMenuOpenTrigger::Hover,
-        }
-    }
-
     #[must_use]
     pub(crate) fn whole_item_target(&self) -> Option<&HoverTarget> {
         match &self.kind {
@@ -271,7 +257,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     pub fn reading(widget: impl GroupItemReading + 'a, target: impl Into<HoverTarget>) -> Self {
-        Self::of_kind(GroupItemContent::Reading {
+        Self::from(GroupItemContent::Reading {
             widget: Box::new(widget),
             target: target.into(),
         })
@@ -283,7 +269,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         on_control: impl Fn(ControlMessage) -> M + 'a,
     ) -> Self {
         let on_control = Rc::new(on_control);
-        Self::of_kind(GroupItemContent::Slider {
+        Self::from(GroupItemContent::Slider {
             widget: slider,
             target: slider.target().clone(),
             draw: Box::new(move |reveal, clock, placement, hover_origin| {
@@ -306,7 +292,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         hover: GroupItemHoverArea,
         value: GroupItemValue<'a, M>,
     ) -> Self {
-        Self::of_kind(GroupItemContent::Composed {
+        Self::from(GroupItemContent::Composed {
             identity,
             hover,
             value,
@@ -319,7 +305,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         target: impl Into<HoverTarget>,
         value: GroupItemValue<'a, M>,
     ) -> Self {
-        Self::of_kind(GroupItemContent::Composed {
+        Self::from(GroupItemContent::Composed {
             identity,
             hover: GroupItemHoverArea::WholeItem(target.into()),
             value,
@@ -725,6 +711,22 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 .into();
         }
         element
+    }
+}
+
+impl<'a, M: 'a> From<GroupItemContent<'a, M>> for GroupItem<'a, M> {
+    fn from(kind: GroupItemContent<'a, M>) -> Self {
+        Self {
+            kind,
+            gestures: GroupItemGestures::inert(),
+            switch_indicator: ItemSwitchIndicator::Absent,
+            handle_announcement: HoverAnnouncement::default(),
+            previewed_on_handle: false,
+            ongoing_toast_action_buttons: Vec::new(),
+            ongoing_toasts: Vec::new(),
+            alignment: ItemAlignment::Unaligned,
+            card_opening_trigger: GroupMenuOpenTrigger::Hover,
+        }
     }
 }
 

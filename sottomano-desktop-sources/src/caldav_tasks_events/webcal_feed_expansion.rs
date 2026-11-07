@@ -184,7 +184,7 @@ fn feed_event(
     let moment_of: fn(DateTime<CalendarZone>) -> AgendaMoment = if starts_on_date(component) {
         all_day_moment
     } else {
-        AgendaMoment::of_expanded
+        AgendaMoment::from
     };
     Some(UpcomingEvent {
         summary: displayed_summary(

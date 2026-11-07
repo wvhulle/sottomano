@@ -1,5 +1,6 @@
-use sottomano_desktop_sources::network_connectivity::wifi_connection::{
-    WifiAdapter, WifiAdapterDetails,
+use sottomano_desktop_sources::network_connectivity::{
+    network_manager_proxies::{DeviceLinkState, RadioPower},
+    wifi_connection::{WifiAdapter, WifiAdapterDetails},
 };
 use uom::si::f64::Ratio;
 
@@ -21,7 +22,7 @@ use crate::{
 
 pub struct AdapterSignalReading<'a> {
     pub adapter: &'a WifiAdapter,
-    pub radio_enabled: bool,
+    pub radio_power: RadioPower,
 }
 
 pub struct AdapterConnectionSwitch<'a> {
@@ -29,17 +30,7 @@ pub struct AdapterConnectionSwitch<'a> {
 }
 
 pub struct AllWifiRadiosSwitch {
-    pub radio_enabled: bool,
-}
-
-fn connection_description(adapter: &WifiAdapter) -> &'static str {
-    if adapter.switching {
-        "switching"
-    } else if adapter.connected {
-        "connected"
-    } else {
-        "disconnected"
-    }
+    pub radio_power: RadioPower,
 }
 
 impl GroupItemReading for AdapterSignalReading<'_> {
@@ -52,7 +43,7 @@ impl GroupItemReading for AdapterSignalReading<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.adapter.switching {
+        if self.adapter.link_state == DeviceLinkState::Switching {
             return ReadingDisplayState::Pending;
         }
         self.adapter
@@ -72,10 +63,9 @@ impl GroupItemReading for AdapterSignalReading<'_> {
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let Some(link) = &self.adapter.link else {
-            let radio_state = if self.radio_enabled {
-                "disconnected"
-            } else {
-                "radio off"
+            let radio_state = match self.radio_power {
+                RadioPower::On => "disconnected",
+                RadioPower::Off => "radio off",
             };
             return HoverCardBody::dictionary([
                 LabeledValue::new("Interface Name", self.adapter.device.as_str()),
@@ -103,7 +93,7 @@ impl GroupItemReading for AdapterSignalReading<'_> {
 impl AdapterConnectionSwitch<'_> {
     #[must_use]
     pub fn press_does(&self) -> &'static str {
-        if self.adapter.connected {
+        if self.adapter.link_state == DeviceLinkState::Connected {
             "disconnect this Wi-Fi adapter"
         } else {
             "connect this Wi-Fi adapter"
@@ -117,7 +107,7 @@ impl GroupItemReading for AdapterConnectionSwitch<'_> {
     }
 
     fn icon(&self) -> IconGlyph {
-        if self.adapter.connected {
+        if self.adapter.link_state == DeviceLinkState::Connected {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {
             Phosphor::ToggleLeft(Weight::Regular).into()
@@ -125,16 +115,13 @@ impl GroupItemReading for AdapterConnectionSwitch<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.adapter.switching {
-            return ReadingDisplayState::Pending;
-        }
-        ReadingDisplayState::of_toggle(self.adapter.connected)
+        ReadingDisplayState::from(self.adapter.link_state)
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         HoverCardBody::dictionary([
             LabeledValue::new("Interface Name", self.adapter.device.as_str()),
-            LabeledValue::new("Connection", connection_description(self.adapter)),
+            LabeledValue::new("Connection", self.adapter.link_state.label()),
         ])
     }
 }
@@ -142,10 +129,9 @@ impl GroupItemReading for AdapterConnectionSwitch<'_> {
 impl AllWifiRadiosSwitch {
     #[must_use]
     pub fn press_does(&self) -> &'static str {
-        if self.radio_enabled {
-            "turn all Wi-Fi radios off"
-        } else {
-            "turn all Wi-Fi radios on"
+        match self.radio_power {
+            RadioPower::On => "turn all Wi-Fi radios off",
+            RadioPower::Off => "turn all Wi-Fi radios on",
         }
     }
 }
@@ -156,20 +142,21 @@ impl GroupItemReading for AllWifiRadiosSwitch {
     }
 
     fn icon(&self) -> IconGlyph {
-        if self.radio_enabled {
-            Phosphor::WifiHigh(Weight::Regular).into()
-        } else {
-            Phosphor::WifiSlash(Weight::Regular).into()
+        match self.radio_power {
+            RadioPower::On => Phosphor::WifiHigh(Weight::Regular).into(),
+            RadioPower::Off => Phosphor::WifiSlash(Weight::Regular).into(),
         }
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::of_toggle(self.radio_enabled)
+        ReadingDisplayState::from(self.radio_power)
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        let radio_state = if self.radio_enabled { "on" } else { "off" };
-        HoverCardBody::dictionary([LabeledValue::new("All Wi-Fi radios", radio_state)])
+        HoverCardBody::dictionary([LabeledValue::new(
+            "All Wi-Fi radios",
+            self.radio_power.label(),
+        )])
     }
 }
 

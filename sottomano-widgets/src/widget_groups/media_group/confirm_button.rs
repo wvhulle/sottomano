@@ -16,7 +16,6 @@ pub fn configured_confirm_button<'a, Message: 'a + Clone>(
     button: &ConfirmButton,
     config: &Config,
     opacity: f32,
-    active: bool,
     idle_glyph: Phosphor,
     on_press: Message,
     on_cancel: Message,
@@ -26,7 +25,7 @@ pub fn configured_confirm_button<'a, Message: 'a + Clone>(
         let tint = ReadingStateTint { state, opacity };
         IconGlyph::from(glyph).view(size, move |theme: &Theme| tint.color(theme))
     };
-    let idle_state = ReadingDisplayState::of_toggle(active);
+    let idle_state = ReadingDisplayState::Off;
     button.view(
         ConfirmButtonIcons {
             idle: tinted_icon(idle_glyph.with_weight(idle_state.weight()), idle_state),

@@ -42,8 +42,8 @@ pub enum SwayEventKind {
     Other,
 }
 
-impl SwayEventKind {
-    fn of_code(code: u32) -> Self {
+impl From<u32> for SwayEventKind {
+    fn from(code: u32) -> Self {
         match code & !0x8000_0000 {
             0 => SwayEventKind::Workspace,
             1 => SwayEventKind::Output,
@@ -136,7 +136,7 @@ impl SwayEventSubscription {
     pub fn next_event(&mut self) -> io::Result<SwayEvent> {
         let (code, payload) = self.connection.read_message()?;
         Ok(SwayEvent {
-            kind: SwayEventKind::of_code(code),
+            kind: SwayEventKind::from(code),
             payload,
         })
     }

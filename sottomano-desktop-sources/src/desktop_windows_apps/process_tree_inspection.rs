@@ -162,13 +162,7 @@ pub(crate) struct CpuCapacity {
 impl CpuCapacity {
     pub(crate) fn current() -> Self {
         let cores = KernelStats::current().map_or(1, |stats| stats.cpu_time.len().max(1));
-        Self::of_logical_cpus(cores as u64)
-    }
-
-    pub(crate) fn of_logical_cpus(logical_cpus: u64) -> Self {
-        Self {
-            ticks_per_second: ticks_per_second() * logical_cpus,
-        }
+        Self::from(cores as u64)
     }
 
     #[allow(clippy::cast_precision_loss)]
@@ -180,6 +174,14 @@ impl CpuCapacity {
             0.0
         };
         Ratio::new::<ratio>(fraction)
+    }
+}
+
+impl From<u64> for CpuCapacity {
+    fn from(logical_cpus: u64) -> Self {
+        Self {
+            ticks_per_second: ticks_per_second() * logical_cpus,
+        }
     }
 }
 

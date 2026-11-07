@@ -143,7 +143,7 @@ impl GroupItemReading for AutoSwitchToggle {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::of_toggle(self.saved_schedule.auto_switch_armed)
+        ReadingDisplayState::from(self.saved_schedule.auto_switch_armed)
     }
 
     fn hover_card(&self, clock: Clock) -> HoverCardBody {

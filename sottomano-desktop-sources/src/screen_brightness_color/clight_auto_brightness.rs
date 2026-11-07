@@ -38,7 +38,23 @@ pub trait ClightDaemon {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AutoBrightness {
-    pub auto: bool,
+    pub calibration: BrightnessCalibration,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrightnessCalibration {
+    FromWebcam,
+    Fixed,
+}
+
+impl BrightnessCalibration {
+    #[must_use]
+    pub const fn flipped(self) -> Self {
+        match self {
+            BrightnessCalibration::FromWebcam => BrightnessCalibration::Fixed,
+            BrightnessCalibration::Fixed => BrightnessCalibration::FromWebcam,
+        }
+    }
 }
 
 impl SnapshotSource for AutoBrightness {
@@ -66,7 +82,11 @@ async fn calibration_changes(
         let conf = conf.clone();
         async move {
             Ok(AutoBrightness {
-                auto: !conf.no_auto_calib().await?,
+                calibration: if conf.no_auto_calib().await? {
+                    BrightnessCalibration::Fixed
+                } else {
+                    BrightnessCalibration::FromWebcam
+                },
             })
         }
     }))

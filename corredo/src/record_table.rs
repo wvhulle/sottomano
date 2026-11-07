@@ -293,9 +293,10 @@ pub struct RecordTableStyle<CellValue, RowLevel, Message> {
     pub row_spacing_px: f32,
 }
 
-impl<RowLevel: 'static, Message: 'static> RecordTableStyle<String, RowLevel, Message> {
-    #[must_use]
-    pub fn of_text(face: TextFace) -> Self {
+impl<RowLevel: 'static, Message: 'static> From<TextFace>
+    for RecordTableStyle<String, RowLevel, Message>
+{
+    fn from(face: TextFace) -> Self {
         Self {
             key_cell: Rc::new(move |record| face.text(record.key().clone()).into()),
             value_cell: Rc::new(move |record, position| {
@@ -431,7 +432,7 @@ pub fn text_record_table<'label, Message: 'static>(
         rows.into_iter()
             .map(|(key, cells)| RecordCells::new(key, cells, ())),
     )
-    .view(&RecordTableStyle::of_text(TextFace::default()))
+    .view(&RecordTableStyle::from(TextFace::default()))
 }
 
 #[cfg(test)]

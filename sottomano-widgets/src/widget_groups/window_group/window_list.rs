@@ -611,15 +611,16 @@ impl WindowSlot<'_> {
     }
 
     fn audio_glyph<'a>(&self) -> Option<Element<'a, WindowListMessage>> {
-        let audio = self.extras.audio?;
-        if !audio.playing && !audio.muted {
-            return None;
-        }
-        let state = ReadingDisplayState::of_toggle(!audio.muted);
-        let icon = if audio.muted {
-            Phosphor::SpeakerX(Weight::Regular)
-        } else {
-            Phosphor::SpeakerHigh(Weight::Regular)
+        let (state, icon) = match self.extras.audio? {
+            WindowAudio::Silent => return None,
+            WindowAudio::Audible => (
+                ReadingDisplayState::On,
+                Phosphor::SpeakerHigh(Weight::Regular),
+            ),
+            WindowAudio::Muted => (
+                ReadingDisplayState::Off,
+                Phosphor::SpeakerX(Weight::Regular),
+            ),
         };
         let tint = ReadingStateTint {
             state,

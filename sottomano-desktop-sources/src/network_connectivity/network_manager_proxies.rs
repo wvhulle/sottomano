@@ -283,11 +283,40 @@ pub async fn network_manager_proxy(connection: &Connection) -> zbus::Result<Mana
         .await
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeviceLinkState {
+    Connected,
+    Switching,
+    Disconnected,
+}
+
+impl From<u32> for DeviceLinkState {
+    fn from(state_code: u32) -> Self {
+        if state_code == STATE_ACTIVATED {
+            DeviceLinkState::Connected
+        } else if STATES_ACTIVATING.contains(&state_code) || state_code == STATE_DEACTIVATING {
+            DeviceLinkState::Switching
+        } else {
+            DeviceLinkState::Disconnected
+        }
+    }
+}
+
+impl DeviceLinkState {
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            DeviceLinkState::Connected => "connected",
+            DeviceLinkState::Switching => "switching",
+            DeviceLinkState::Disconnected => "disconnected",
+        }
+    }
+}
+
 pub struct DeviceInfo {
     pub interface: String,
     pub kind: DeviceKind,
-    pub connected: bool,
-    pub switching: bool,
+    pub link_state: DeviceLinkState,
     pub path: OwnedObjectPath,
     pub proxy: DeviceProxy<'static>,
 }
@@ -339,8 +368,7 @@ async fn device_info(connection: &Connection, path: OwnedObjectPath) -> zbus::Re
     Ok(DeviceInfo {
         kind: DeviceKind::from(kind),
         interface,
-        connected: state == STATE_ACTIVATED,
-        switching: STATES_ACTIVATING.contains(&state) || state == STATE_DEACTIVATING,
+        link_state: DeviceLinkState::from(state),
         path,
         proxy,
     })
@@ -483,7 +511,9 @@ pub async fn uplink(connection: Connection) -> Result<Uplink, ReadingError> {
     Ok(Uplink {
         activated_interfaces: interfaces
             .into_iter()
-            .filter(|interface| interface.activated && !interface.name.is_empty())
+            .filter(|interface| {
+                interface.link_state == DeviceLinkState::Connected && !interface.name.is_empty()
+            })
             .map(|interface| interface.name)
             .collect(),
         connectivity: Connectivity::try_from(connectivity).ok(),
@@ -501,7 +531,8 @@ pub async fn manager_connectivity(connection: Connection) -> Result<Connectivity
 
 pub async fn device_gateways(connection: Connection) -> Result<Vec<DeviceGateway>, ReadingError> {
     let routed_devices = devices(&connection).await?.into_iter().filter(|device| {
-        device.connected && matches!(device.kind, DeviceKind::Ethernet | DeviceKind::Wifi)
+        device.link_state == DeviceLinkState::Connected
+            && matches!(device.kind, DeviceKind::Ethernet | DeviceKind::Wifi)
     });
     let gateways_per_device = try_join_all(routed_devices.map(|device| {
         let connection = &connection;
@@ -525,7 +556,7 @@ pub async fn device_gateways(connection: Connection) -> Result<Vec<DeviceGateway
 }
 
 struct DeviceInterface {
-    activated: bool,
+    link_state: DeviceLinkState,
     name: String,
 }
 
@@ -536,7 +567,7 @@ async fn device_interface(
     let device: DeviceProxy = uncached(connection, path).await?;
     let (state, name) = try_join!(device.state(), device.ip_interface())?;
     Ok(DeviceInterface {
-        activated: state == STATE_ACTIVATED,
+        link_state: DeviceLinkState::from(state),
         name,
     })
 }
@@ -790,11 +821,32 @@ async fn active_wireguard(
     }))
 }
 
-pub async fn wireless_enabled(connection: &Connection) -> zbus::Result<bool> {
-    network_manager_proxy(connection)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RadioPower {
+    On,
+    Off,
+}
+
+impl RadioPower {
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            RadioPower::On => "on",
+            RadioPower::Off => "off",
+        }
+    }
+}
+
+pub async fn wireless_radio_power(connection: &Connection) -> zbus::Result<RadioPower> {
+    let radio_enabled = network_manager_proxy(connection)
         .await?
         .wireless_enabled()
-        .await
+        .await?;
+    Ok(if radio_enabled {
+        RadioPower::On
+    } else {
+        RadioPower::Off
+    })
 }
 
 #[must_use]

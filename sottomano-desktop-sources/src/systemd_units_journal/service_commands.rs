@@ -17,8 +17,8 @@ pub enum ServiceAccount {
     NamedUser(String),
 }
 
-impl ServiceAccount {
-    fn of_user_property(user: String) -> Self {
+impl From<String> for ServiceAccount {
+    fn from(user: String) -> Self {
         if user.is_empty() {
             ServiceAccount::ManagerOwner
         } else {
@@ -176,6 +176,6 @@ async fn service_command(
         program: PathBuf::from(program),
         arguments: argv.into_iter().skip(1).collect(),
         environment: environment_assignments(service.environment().await.unwrap_or_default()),
-        account: ServiceAccount::of_user_property(service.user().await.unwrap_or_default()),
+        account: ServiceAccount::from(service.user().await.unwrap_or_default()),
     })
 }

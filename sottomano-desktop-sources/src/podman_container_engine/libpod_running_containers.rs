@@ -385,8 +385,7 @@ mod tests {
     #[test]
     fn cpu_load_needs_two_samples_and_memory_is_the_tree_sum() {
         let mut sampler = EngineSampler::new(PathBuf::from("/nonexistent"));
-        sampler.checkpoints_by_id =
-            CpuTickCheckpoints::with_capacity(CpuCapacity::of_logical_cpus(4));
+        sampler.checkpoints_by_id = CpuTickCheckpoints::with_capacity(CpuCapacity::from(4));
         let started = Instant::now();
         let first_table = ProcessTable::from_samples([ProcessSample {
             pid: 10,

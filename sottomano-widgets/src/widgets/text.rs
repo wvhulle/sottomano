@@ -48,7 +48,7 @@ pub fn panel_text<'a>(
 
 #[must_use]
 pub fn font_faces_of(font: &ResolvedFont) -> FontFaces {
-    FontFaces::of_family(match font.role {
+    FontFaces::from(match font.role {
         FontRole::Text => Family::SansSerif,
         FontRole::Monospace => Family::Monospace,
     })

@@ -101,18 +101,6 @@ pub enum AdapterPlacement {
 }
 
 impl AdapterPlacement {
-    fn of_controller(controller_name: &str) -> Self {
-        let device = Path::new(BLUETOOTH_CLASS_DIRECTORY)
-            .join(controller_name)
-            .join("device");
-        match read_trimmed(device.join("../removable")).as_deref() {
-            Some("fixed") => AdapterPlacement::BuiltIn,
-            Some("removable") => AdapterPlacement::PluggedIn,
-            _ if device.join("vendor").exists() => AdapterPlacement::BuiltIn,
-            _ => AdapterPlacement::Unknown,
-        }
-    }
-
     #[must_use]
     pub fn label(self) -> Option<&'static str> {
         match self {
@@ -123,13 +111,27 @@ impl AdapterPlacement {
     }
 }
 
+impl From<&str> for AdapterPlacement {
+    fn from(controller_name: &str) -> Self {
+        let device = Path::new(BLUETOOTH_CLASS_DIRECTORY)
+            .join(controller_name)
+            .join("device");
+        match read_trimmed(device.join("../removable")).as_deref() {
+            Some("fixed") => AdapterPlacement::BuiltIn,
+            Some("removable") => AdapterPlacement::PluggedIn,
+            _ if device.join("vendor").exists() => AdapterPlacement::BuiltIn,
+            _ => AdapterPlacement::Unknown,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Bluetooth {
     pub adapters: Vec<BluetoothAdapter>,
 }
 
-impl DeviceKind {
-    fn of_icon_name(icon_name: &str) -> Self {
+impl From<&str> for DeviceKind {
+    fn from(icon_name: &str) -> Self {
         match icon_name {
             "input-gaming" => DeviceKind::Gamepad,
             "audio-headset" => DeviceKind::Headset,
@@ -212,7 +214,7 @@ fn connected_device(entry: &AdapterDeviceEntry<'_>) -> Option<ConnectedDevice> {
         name,
         kind: prop::<String>(device, "Icon")
             .as_deref()
-            .map_or(DeviceKind::Unclassified, DeviceKind::of_icon_name),
+            .map_or(DeviceKind::Unclassified, DeviceKind::from),
         address,
         battery,
         kernel_devices: hid_peripherals
@@ -264,7 +266,7 @@ fn reading(objects: &ManagedObjects) -> Bluetooth {
             Some(BluetoothAdapter {
                 object_path: adapter_path.clone(),
                 power: adapter_power(objects, adapter_path, adapter),
-                placement: AdapterPlacement::of_controller(&controller_name),
+                placement: AdapterPlacement::from(controller_name.as_str()),
                 controller_name,
             })
         })

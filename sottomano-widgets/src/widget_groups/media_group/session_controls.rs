@@ -58,7 +58,7 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
         Message: 'a,
     {
         self.stoppable().then(|| {
-            let state = ReadingDisplayState::of_toggle(false);
+            let state = ReadingDisplayState::Off;
             let tint = ReadingStateTint {
                 state,
                 opacity: self.reveal,
@@ -90,7 +90,6 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
                     self.quit_button,
                     self.config,
                     self.reveal,
-                    false,
                     Phosphor::Power(Weight::Regular),
                     self.on_quit.clone(),
                     self.on_cancel_quit.clone(),

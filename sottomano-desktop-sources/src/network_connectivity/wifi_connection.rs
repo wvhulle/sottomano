@@ -34,14 +34,13 @@ pub struct Link {
 pub struct WifiAdapter {
     pub device: String,
     pub attachment: InterfaceAttachment,
-    pub connected: bool,
-    pub switching: bool,
+    pub link_state: network_manager_proxies::DeviceLinkState,
     pub link: Option<Link>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Wifi {
-    pub radio_enabled: bool,
+    pub radio_power: network_manager_proxies::RadioPower,
     pub adapters: Vec<WifiAdapter>,
 }
 
@@ -79,7 +78,7 @@ async fn adapter_link(
     connection: &Connection,
     device: &network_manager_proxies::DeviceInfo,
 ) -> zbus::Result<Option<Link>> {
-    let ap_path = if device.connected {
+    let ap_path = if device.link_state == network_manager_proxies::DeviceLinkState::Connected {
         Some(network_manager_proxies::active_access_point(connection, device).await?)
     } else {
         None
@@ -105,17 +104,16 @@ async fn wifi_adapter(
 ) -> zbus::Result<WifiAdapter> {
     let link = adapter_link(connection, &device).await?;
     Ok(WifiAdapter {
-        attachment: InterfaceAttachment::of_interface(&device.interface),
-        connected: device.connected,
-        switching: device.switching,
+        attachment: InterfaceAttachment::from(device.interface.as_str()),
+        link_state: device.link_state,
         device: device.interface,
         link,
     })
 }
 
 async fn read(connection: Connection) -> Result<Wifi, ReadingError> {
-    let (devices, radio_enabled) = try_join!(wifi_devices(&connection), async {
-        Ok(network_manager_proxies::wireless_enabled(&connection).await?)
+    let (devices, radio_power) = try_join!(wifi_devices(&connection), async {
+        Ok(network_manager_proxies::wireless_radio_power(&connection).await?)
     })?;
     let adapters = try_join_all(
         devices
@@ -124,7 +122,7 @@ async fn read(connection: Connection) -> Result<Wifi, ReadingError> {
     )
     .await?;
     Ok(Wifi {
-        radio_enabled,
+        radio_power,
         adapters,
     })
 }
@@ -133,7 +131,7 @@ async fn adapter_details(
     connection: &Connection,
     device: network_manager_proxies::DeviceInfo,
 ) -> zbus::Result<WifiAdapterDetails> {
-    let addressing = if device.connected {
+    let addressing = if device.link_state == network_manager_proxies::DeviceLinkState::Connected {
         let (ip, mac, bitrate, mtu) = try_join!(
             network_manager_proxies::ip(connection, &device),
             network_manager_proxies::hw_address(&device),
@@ -147,7 +145,7 @@ async fn adapter_details(
             dns: ip.dns,
             bitrate,
             mtu,
-            fault_counters: InterfaceFaultCounters::of_interface(&device.interface),
+            fault_counters: InterfaceFaultCounters::from(device.interface.as_str()),
         })
     } else {
         None

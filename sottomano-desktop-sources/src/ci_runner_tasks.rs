@@ -54,8 +54,8 @@ pub enum TaskUsage {
     },
 }
 
-impl TaskUsage {
-    fn of_containers(containers: &[&RunningContainer]) -> Self {
+impl From<&[&RunningContainer]> for TaskUsage {
+    fn from(containers: &[&RunningContainer]) -> Self {
         if containers.is_empty() {
             return TaskUsage::NoContainerNow;
         }

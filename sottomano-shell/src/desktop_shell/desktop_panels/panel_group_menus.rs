@@ -383,7 +383,7 @@ impl DesktopShell {
 
     pub(in crate::desktop_shell) fn notification_status(&self) -> NotificationStatus {
         NotificationStatus {
-            quiet: self.widget_groups.quiet_schedule_group.is_quiet(),
+            quiet_phase: self.widget_groups.quiet_schedule_group.quiet_phase(),
             live: self.notifications.live_count(),
             held: self.notifications.held_count(),
         }

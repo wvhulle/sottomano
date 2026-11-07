@@ -38,7 +38,7 @@ use crate::{
     },
     widget_groups::{
         quiet_schedule_group::{
-            quiet_window::{Phase, QuietWindow},
+            quiet_window::{QuietPhase, QuietWindow},
             weekday_picker::{WeekdayPicker, WeekdayPickerMessages, weekday_name},
         },
         widget_group_content::{
@@ -112,7 +112,7 @@ pub struct QuietUpdate {
 }
 
 struct ManualOverride {
-    quiet: bool,
+    phase: QuietPhase,
     until: Option<DateTime<Local>>,
 }
 
@@ -128,7 +128,7 @@ pub struct QuietScheduleGroup {
     end_slider: SliderControl,
     screen_off_slider: SliderControl,
     manual: Option<ManualOverride>,
-    phase: Phase,
+    phase: QuietPhase,
     armed_edge: Option<ArmedEdge>,
     expansion: WidgetGroupExpansion,
 }
@@ -161,7 +161,7 @@ impl Default for QuietScheduleGroup {
             })
             .label(|value, locale| timeout_at(value).map(|timeout| duration_text(timeout, locale))),
             manual: None,
-            phase: Phase::Inactive,
+            phase: QuietPhase::Inactive,
             armed_edge: None,
             expansion: WidgetGroupExpansion::default(),
         };
@@ -190,8 +190,8 @@ impl QuietScheduleGroup {
     }
 
     #[must_use]
-    pub fn is_quiet(&self) -> bool {
-        self.phase.is_quiet()
+    pub fn quiet_phase(&self) -> QuietPhase {
+        self.phase
     }
 
     #[must_use]
@@ -238,20 +238,20 @@ impl QuietScheduleGroup {
         }
     }
 
-    fn manual_at(&self, now: DateTime<Local>) -> Option<bool> {
+    fn manual_at(&self, now: DateTime<Local>) -> Option<QuietPhase> {
         self.manual
             .as_ref()
             .filter(|manual| manual.until.is_none_or(|until| now < until))
-            .map(|manual| manual.quiet)
+            .map(|manual| manual.phase)
     }
 
-    fn phase_at(&self, now: DateTime<Local>) -> Phase {
-        if let Some(quiet) = self.manual_at(now) {
-            Phase::of_quiet(quiet)
+    fn phase_at(&self, now: DateTime<Local>) -> QuietPhase {
+        if let Some(manual_phase) = self.manual_at(now) {
+            manual_phase
         } else if self.follows_schedule {
             self.window().phase_at(now)
         } else {
-            Phase::Inactive
+            QuietPhase::Inactive
         }
     }
 
@@ -276,20 +276,22 @@ impl QuietScheduleGroup {
 
     fn quiet_change_since(
         &self,
-        phase_before: Phase,
+        phase_before: QuietPhase,
         screen_off_before: Option<Duration>,
     ) -> QuietChange {
         let screen_off = self.schedule().screen_off;
-        let quiet_began = !phase_before.is_quiet() && self.phase.is_quiet();
-        let retimed_while_quiet = self.phase.is_quiet() && screen_off != screen_off_before;
-        if phase_before.is_quiet() && !self.phase.is_quiet() {
-            QuietChange::Ended
-        } else if !quiet_began && !retimed_while_quiet {
-            QuietChange::Unchanged
-        } else if let Some(timeout) = screen_off {
-            QuietChange::ScreenOffAfter(timeout)
-        } else {
-            QuietChange::ScreenOffFollowsIdleTimer
+        let screen_off_change = || match screen_off {
+            Some(timeout) => QuietChange::ScreenOffAfter(timeout),
+            None => QuietChange::ScreenOffFollowsIdleTimer,
+        };
+        match (phase_before, self.phase) {
+            (QuietPhase::Active, QuietPhase::Inactive) => QuietChange::Ended,
+            (QuietPhase::Inactive, QuietPhase::Active) => screen_off_change(),
+            (QuietPhase::Active, QuietPhase::Active) if screen_off != screen_off_before => {
+                screen_off_change()
+            }
+            (QuietPhase::Active, QuietPhase::Active)
+            | (QuietPhase::Inactive, QuietPhase::Inactive) => QuietChange::Unchanged,
         }
     }
 
@@ -335,16 +337,11 @@ impl QuietScheduleGroup {
     }
 
     fn toggle_quiet_now(&mut self, now: DateTime<Local>) {
-        let quiet = !self.phase_at(now).is_quiet();
-        let until = self.follows_schedule.then(|| {
-            let returns_to = if quiet {
-                Phase::Inactive
-            } else {
-                Phase::Active
-            };
-            self.window().next_transition_into(returns_to, now)
-        });
-        self.manual = Some(ManualOverride { quiet, until });
+        let phase = self.phase_at(now).opposite();
+        let until = self
+            .follows_schedule
+            .then(|| self.window().next_transition_into(phase.opposite(), now));
+        self.manual = Some(ManualOverride { phase, until });
     }
 
     fn update_slider(
@@ -483,10 +480,9 @@ impl QuietScheduleGroup {
             .manual_at(now)
             .map(|_| LabeledValue::new("Set", "by hand, until the schedule next changes"));
         let upcoming = self.next_change(now).map(|at| {
-            let label = if self.is_quiet() {
-                "Quiet until"
-            } else {
-                "Quiet from"
+            let label = match self.phase {
+                QuietPhase::Active => "Quiet until",
+                QuietPhase::Inactive => "Quiet from",
             };
             [
                 LabeledValue::new(
@@ -578,10 +574,10 @@ mod tests {
 
     use super::{QuietChange, QuietScheduleGroup};
     use crate::widget_groups::quiet_schedule_group::{
-        quiet_window::Phase, sqlite_quiet_hours::QuietHoursSchedule,
+        quiet_window::QuietPhase, sqlite_quiet_hours::QuietHoursSchedule,
     };
 
-    fn group_in_phase(phase: Phase, screen_off: Option<Duration>) -> QuietScheduleGroup {
+    fn group_in_phase(phase: QuietPhase, screen_off: Option<Duration>) -> QuietScheduleGroup {
         let mut group = QuietScheduleGroup::default();
         group.adopt_schedule(QuietHoursSchedule {
             screen_off,
@@ -614,36 +610,36 @@ mod tests {
 
     #[test]
     fn retiming_screen_off_while_quiet_overrides_the_idle_timer() {
-        let group = group_in_phase(Phase::Active, Some(Duration::from_mins(1)));
-        let change = group.quiet_change_since(Phase::Active, Some(Duration::from_mins(10)));
+        let group = group_in_phase(QuietPhase::Active, Some(Duration::from_mins(1)));
+        let change = group.quiet_change_since(QuietPhase::Active, Some(Duration::from_mins(10)));
         assert_eq!(change, QuietChange::ScreenOffAfter(Duration::from_mins(1)));
     }
 
     #[test]
     fn retiming_screen_off_outside_quiet_hours_changes_nothing() {
-        let group = group_in_phase(Phase::Inactive, Some(Duration::from_mins(1)));
-        let change = group.quiet_change_since(Phase::Inactive, Some(Duration::from_mins(10)));
+        let group = group_in_phase(QuietPhase::Inactive, Some(Duration::from_mins(1)));
+        let change = group.quiet_change_since(QuietPhase::Inactive, Some(Duration::from_mins(10)));
         assert_eq!(change, QuietChange::Unchanged);
     }
 
     #[test]
     fn entering_quiet_hours_without_screen_off_follows_the_idle_timer() {
-        let group = group_in_phase(Phase::Active, None);
-        let change = group.quiet_change_since(Phase::Inactive, None);
+        let group = group_in_phase(QuietPhase::Active, None);
+        let change = group.quiet_change_since(QuietPhase::Inactive, None);
         assert_eq!(change, QuietChange::ScreenOffFollowsIdleTimer);
     }
 
     #[test]
     fn entering_quiet_hours_applies_the_screen_off_timeout() {
-        let group = group_in_phase(Phase::Active, Some(Duration::from_mins(1)));
-        let change = group.quiet_change_since(Phase::Inactive, Some(Duration::from_mins(1)));
+        let group = group_in_phase(QuietPhase::Active, Some(Duration::from_mins(1)));
+        let change = group.quiet_change_since(QuietPhase::Inactive, Some(Duration::from_mins(1)));
         assert_eq!(change, QuietChange::ScreenOffAfter(Duration::from_mins(1)));
     }
 
     #[test]
     fn leaving_quiet_hours_ends_the_override() {
-        let group = group_in_phase(Phase::Inactive, Some(Duration::from_mins(1)));
-        let change = group.quiet_change_since(Phase::Active, Some(Duration::from_mins(1)));
+        let group = group_in_phase(QuietPhase::Inactive, Some(Duration::from_mins(1)));
+        let change = group.quiet_change_since(QuietPhase::Active, Some(Duration::from_mins(1)));
         assert_eq!(change, QuietChange::Ended);
     }
 }

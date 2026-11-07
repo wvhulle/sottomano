@@ -180,8 +180,8 @@ enum WifiBandUse {
     },
 }
 
-impl WifiBandUse {
-    fn of_wifi(wifi: &Wifi) -> Self {
+impl From<&Wifi> for WifiBandUse {
+    fn from(wifi: &Wifi) -> Self {
         wifi.adapters
             .iter()
             .filter_map(|adapter| adapter.link.as_ref())
@@ -362,7 +362,7 @@ impl GamepadGroup {
                     SnapshotDelivery::SnapshotDelivered {
                         snapshot_fetch: Ok(wifi),
                         ..
-                    } => self.wifi_band_use = WifiBandUse::of_wifi(&wifi),
+                    } => self.wifi_band_use = WifiBandUse::from(&wifi),
                     SnapshotDelivery::SourceUnavailable
                     | SnapshotDelivery::InternetUnreachable(_)
                     | SnapshotDelivery::SnapshotDelivered {

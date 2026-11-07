@@ -38,7 +38,7 @@ pub fn card_origins(
                 wanted_origin(anchor, card_size, free_area, spacing),
                 card_size,
             );
-            let stacking = StackingDirection::of_anchor(anchor);
+            let stacking = StackingDirection::from(anchor);
             let free_card = [stacking, stacking.opposite()]
                 .into_iter()
                 .filter_map(|direction| {
@@ -60,16 +60,6 @@ enum StackingDirection {
 }
 
 impl StackingDirection {
-    fn of_anchor(anchor: ToastAnchor) -> Self {
-        match anchor {
-            ToastAnchor::Edge {
-                vertical: VEdge::Bottom,
-                ..
-            } => Self::Upward,
-            ToastAnchor::Edge { .. } | ToastAnchor::Window { .. } => Self::Downward,
-        }
-    }
-
     fn opposite(self) -> Self {
         match self {
             Self::Downward => Self::Upward,
@@ -95,6 +85,18 @@ impl StackingDirection {
         match self {
             Self::Downward => candidate_tops.min_by(f32::total_cmp),
             Self::Upward => candidate_tops.max_by(f32::total_cmp),
+        }
+    }
+}
+
+impl From<ToastAnchor> for StackingDirection {
+    fn from(anchor: ToastAnchor) -> Self {
+        match anchor {
+            ToastAnchor::Edge {
+                vertical: VEdge::Bottom,
+                ..
+            } => Self::Upward,
+            ToastAnchor::Edge { .. } | ToastAnchor::Window { .. } => Self::Downward,
         }
     }
 }

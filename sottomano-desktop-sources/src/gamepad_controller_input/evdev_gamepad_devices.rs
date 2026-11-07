@@ -41,8 +41,8 @@ pub enum GamepadPower {
     Full,
 }
 
-impl GamepadPower {
-    fn of_input_node(slot: usize) -> Self {
+impl From<usize> for GamepadPower {
+    fn from(slot: usize) -> Self {
         let supplies = sysfs_attribute_reads::list_dir(format!(
             "/sys/class/input/event{slot}/device/device/power_supply"
         ));
@@ -73,16 +73,6 @@ pub enum GamepadTransport {
 }
 
 impl GamepadTransport {
-    fn of_bus(bus: BusType) -> Self {
-        match bus {
-            BusType::BUS_BLUETOOTH => GamepadTransport::Bluetooth {
-                usb_cable: UsbCableState::Absent,
-            },
-            BusType::BUS_USB => GamepadTransport::Usb,
-            _ => GamepadTransport::Other,
-        }
-    }
-
     fn refreshed(self, identity: &ControllerIdentity) -> Self {
         match (self, identity) {
             (
@@ -102,6 +92,18 @@ impl GamepadTransport {
     }
 }
 
+impl From<BusType> for GamepadTransport {
+    fn from(bus: BusType) -> Self {
+        match bus {
+            BusType::BUS_BLUETOOTH => GamepadTransport::Bluetooth {
+                usb_cable: UsbCableState::Absent,
+            },
+            BusType::BUS_USB => GamepadTransport::Usb,
+            _ => GamepadTransport::Other,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ControllerIdentity {
     Addressed {
@@ -112,16 +114,6 @@ pub enum ControllerIdentity {
 }
 
 impl ControllerIdentity {
-    fn of_device(device: &Device) -> Self {
-        match device.unique_name().filter(|unique| !unique.is_empty()) {
-            Some(hardware_address) => ControllerIdentity::Addressed {
-                hardware_address: hardware_address.to_owned(),
-                alias: device.name().unwrap_or(hardware_address).to_owned(),
-            },
-            None => ControllerIdentity::Unaddressed,
-        }
-    }
-
     fn refreshed(&self, bluetooth_aliases: &HashMap<String, String>) -> Self {
         match self {
             ControllerIdentity::Addressed {
@@ -135,6 +127,18 @@ impl ControllerIdentity {
                     .clone(),
             },
             ControllerIdentity::Unaddressed => ControllerIdentity::Unaddressed,
+        }
+    }
+}
+
+impl From<&Device> for ControllerIdentity {
+    fn from(device: &Device) -> Self {
+        match device.unique_name().filter(|unique| !unique.is_empty()) {
+            Some(hardware_address) => ControllerIdentity::Addressed {
+                hardware_address: hardware_address.to_owned(),
+                alias: device.name().unwrap_or(hardware_address).to_owned(),
+            },
+            None => ControllerIdentity::Unaddressed,
         }
     }
 }
@@ -154,7 +158,7 @@ impl PhysicalGamepadLink {
             kernel_device: self.kernel_device.clone(),
             transport: self.transport.refreshed(&identity),
             identity,
-            player_indicator: PlayerIndicator::of_input_node(slot),
+            player_indicator: PlayerIndicator::from(slot),
         }
     }
 }
@@ -170,9 +174,9 @@ impl GamepadOrigin {
         kernel_device_of_input_node(slot).map_or(GamepadOrigin::Virtual, |kernel_device| {
             GamepadOrigin::Physical(PhysicalGamepadLink {
                 kernel_device,
-                transport: GamepadTransport::of_bus(device.input_id().bus_type()),
-                identity: ControllerIdentity::of_device(device),
-                player_indicator: PlayerIndicator::of_input_node(slot),
+                transport: GamepadTransport::from(device.input_id().bus_type()),
+                identity: ControllerIdentity::from(device),
+                player_indicator: PlayerIndicator::from(slot),
             })
         })
     }
@@ -519,7 +523,7 @@ impl DiscoveredGamepad {
             slot: self.slot,
             name: self.name.clone(),
             vendor_id: self.vendor_id,
-            power: GamepadPower::of_input_node(self.slot),
+            power: GamepadPower::from(self.slot),
             origin: self.origin.refreshed(self.slot, bluetooth_aliases),
         }
     }

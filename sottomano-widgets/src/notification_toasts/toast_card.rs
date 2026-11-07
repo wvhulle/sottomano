@@ -97,17 +97,19 @@ pub enum CardImage {
 }
 
 impl CardImage {
-    fn of_file(file: PathBuf) -> Self {
+    fn named(name: &str, entries: Option<&DesktopEntries>) -> Option<Self> {
+        match icon_file(name) {
+            Some(file) => Some(Self::from(file)),
+            None => themed_icon(name, entries).map(Self::Icon),
+        }
+    }
+}
+
+impl From<PathBuf> for CardImage {
+    fn from(file: PathBuf) -> Self {
         Self::Preview {
             icon: CardIcon::at(&file),
             file,
-        }
-    }
-
-    fn named(name: &str, entries: Option<&DesktopEntries>) -> Option<Self> {
-        match icon_file(name) {
-            Some(file) => Some(Self::of_file(file)),
-            None => themed_icon(name, entries).map(Self::Icon),
         }
     }
 }
@@ -119,18 +121,19 @@ pub struct CardIcons {
 }
 
 impl CardIcons {
-    #[must_use]
-    pub fn of_glyph(glyph: IconGlyph) -> Self {
-        Self {
-            image: Some(CardImage::Icon(CardIcon::IconGlyph(glyph))),
-            badge: None,
-        }
-    }
-
     pub fn previewed_file(&self) -> Option<&Path> {
         match self.image.as_ref()? {
             CardImage::Preview { file, .. } => Some(file),
             CardImage::Icon(_) => None,
+        }
+    }
+}
+
+impl From<IconGlyph> for CardIcons {
+    fn from(glyph: IconGlyph) -> Self {
+        Self {
+            image: Some(CardImage::Icon(CardIcon::IconGlyph(glyph))),
+            badge: None,
         }
     }
 }
@@ -148,7 +151,7 @@ pub fn resolve_icons(data: &NotificationData, entries: Option<&DesktopEntries>) 
             IconHandle::from(pixels.as_ref()),
         ))),
         Some(NotifImage::Named(name)) => CardImage::named(name, entries),
-        None => app_icon_file.map(CardImage::of_file),
+        None => app_icon_file.map(CardImage::from),
     };
     let badge = data
         .app_icon

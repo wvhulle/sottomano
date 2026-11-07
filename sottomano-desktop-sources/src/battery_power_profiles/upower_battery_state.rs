@@ -298,7 +298,7 @@ fn read_battery() -> Result<Battery, Error> {
             .and_then(|choices| ChargeBehaviour::selected_in(&choices))
             .unwrap_or(ChargeBehaviour::Auto),
         serial: read_trimmed(dir.join("serial_number")).unwrap_or_default(),
-        identity: PowerSupplyIdentity::of_supply(&dir),
+        identity: PowerSupplyIdentity::from(dir.as_path()),
     })
 }
 

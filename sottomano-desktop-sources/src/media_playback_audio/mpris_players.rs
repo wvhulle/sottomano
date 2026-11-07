@@ -70,6 +70,22 @@ impl Status {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueueOrder {
+    InOrder,
+    Shuffled,
+}
+
+impl QueueOrder {
+    #[must_use]
+    pub const fn flipped(self) -> Self {
+        match self {
+            QueueOrder::InOrder => QueueOrder::Shuffled,
+            QueueOrder::Shuffled => QueueOrder::InOrder,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LoopMode {
     Off,
     Track,
@@ -169,7 +185,7 @@ pub enum Command {
     Previous,
     SetPosition(OwnedObjectPath, Duration),
     Seek(i64),
-    SetShuffle(bool),
+    SetQueueOrder(QueueOrder),
     SetLoopMode(LoopMode),
     Raise,
     Quit,
@@ -265,7 +281,7 @@ pub struct Media {
     pub progress: Progress,
     pub art_url: Option<String>,
     pub capabilities: Capabilities,
-    pub shuffle: Option<bool>,
+    pub queue_order: Option<QueueOrder>,
     pub loop_mode: Option<LoopMode>,
     pub seek_mode: SeekMode,
 }
@@ -392,7 +408,13 @@ async fn read_media(
         progress: Progress::declared(&player, &metadata),
         art_url: metadata.text("mpris:artUrl"),
         capabilities: Capabilities::declared(&player, &root),
-        shuffle: controllable_setting(&player, player.boolean("Shuffle")),
+        queue_order: controllable_setting(&player, player.boolean("Shuffle")).map(|shuffled| {
+            if shuffled {
+                QueueOrder::Shuffled
+            } else {
+                QueueOrder::InOrder
+            }
+        }),
         loop_mode: controllable_setting(&player, parsed(&player, "LoopStatus")),
         seek_mode: SeekMode::declared(&metadata),
     })

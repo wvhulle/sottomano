@@ -57,7 +57,7 @@ pub struct Tailnet {
     pub total_peers: usize,
     pub own_capabilities: Vec<String>,
     pub exit_offer: ExitNodeOffer,
-    pub exit_node_in_use: bool,
+    pub exit_node_use: ExitNodeUse,
     pub key_expiry: KeyExpiry,
     pub health_warnings: Vec<String>,
 }
@@ -70,6 +70,12 @@ pub enum Tailscale {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExitNodeUse {
+    InUse,
+    Unused,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExitNodeOffer {
     NotOffered,
     AwaitingApproval,
@@ -77,11 +83,6 @@ pub enum ExitNodeOffer {
 }
 
 impl ExitNodeOffer {
-    #[must_use]
-    pub fn is_offered(self) -> bool {
-        self != ExitNodeOffer::NotOffered
-    }
-
     pub(super) fn from_status_and_prefs(
         status: &TailscaleStatusJson,
         prefs: &TailscalePrefsJson,
@@ -113,12 +114,16 @@ pub enum ExitOfferControl {
 impl Tailnet {
     #[must_use]
     pub fn offer_control(&self) -> ExitOfferControl {
-        if self.exit_offer.is_offered() {
-            ExitOfferControl::Switchable(ExitOfferSwitch::StopOffering)
-        } else if self.exit_node_in_use {
-            ExitOfferControl::BlockedByExitNodeInUse
-        } else {
-            ExitOfferControl::Switchable(ExitOfferSwitch::StartOffering)
+        match (self.exit_offer, self.exit_node_use) {
+            (ExitNodeOffer::AwaitingApproval | ExitNodeOffer::Approved, _) => {
+                ExitOfferControl::Switchable(ExitOfferSwitch::StopOffering)
+            }
+            (ExitNodeOffer::NotOffered, ExitNodeUse::InUse) => {
+                ExitOfferControl::BlockedByExitNodeInUse
+            }
+            (ExitNodeOffer::NotOffered, ExitNodeUse::Unused) => {
+                ExitOfferControl::Switchable(ExitOfferSwitch::StartOffering)
+            }
         }
     }
 }
@@ -320,7 +325,11 @@ impl Tailscale {
         prefs: &TailscalePrefsJson,
     ) -> Result<Self, Error> {
         let exit_offer = ExitNodeOffer::from_status_and_prefs(&status, prefs);
-        let exit_node_in_use = status.peer.values().any(|peer| peer.carries_exit_traffic);
+        let exit_node_use = if status.peer.values().any(|peer| peer.carries_exit_traffic) {
+            ExitNodeUse::InUse
+        } else {
+            ExitNodeUse::Unused
+        };
         let own_node = status.own_node.as_ref().ok_or(Error::Malformed)?;
         let tailnet_name = status.current_tailnet.ok_or(Error::Malformed)?.name;
         let mut online: Vec<Peer> = status
@@ -338,7 +347,7 @@ impl Tailscale {
             total_peers: status.peer.len(),
             own_capabilities: own_node.sorted_capability_names(),
             exit_offer,
-            exit_node_in_use,
+            exit_node_use,
             key_expiry: own_node
                 .key_expiry
                 .map_or(KeyExpiry::Disabled, KeyExpiry::At),
@@ -415,7 +424,7 @@ mod tests {
     #[test]
     fn using_an_exit_node_blocks_starting_to_offer() {
         let tailnet = parsed_tailnet(STATUS_FIXTURE, PLAIN_PREFS);
-        assert!(tailnet.exit_node_in_use);
+        assert_eq!(tailnet.exit_node_use, ExitNodeUse::InUse);
         assert_eq!(tailnet.exit_offer, ExitNodeOffer::NotOffered);
         assert_eq!(
             tailnet.offer_control(),

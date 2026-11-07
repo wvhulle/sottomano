@@ -41,9 +41,8 @@ fn driver_name(hid_device: &Path) -> Option<String> {
     )
 }
 
-impl PlayerIndicator {
-    #[must_use]
-    pub fn of_input_node(slot: usize) -> Self {
+impl From<usize> for PlayerIndicator {
+    fn from(slot: usize) -> Self {
         let hid_device =
             Path::new(&format!("/sys/class/input/event{slot}/device/device")).to_owned();
         let leds = player_leds_by_position(&hid_device);

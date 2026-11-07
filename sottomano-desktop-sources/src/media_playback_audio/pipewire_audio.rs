@@ -44,17 +44,34 @@ pub use peak_level_meter::Peaks;
 const REPLY_TIMEOUT: Duration = Duration::from_millis(750);
 const DEFAULT_REMOTE: &str = "pipewire-0";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MuteState {
+    Audible,
+    Muted,
+}
+
+impl MuteState {
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            MuteState::Audible => "active",
+            MuteState::Muted => "muted",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChannelLevels {
     pub percent: i64,
-    pub muted: bool,
+    pub mute_state: MuteState,
     pub device: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct WindowAudio {
-    pub playing: bool,
-    pub muted: bool,
+pub enum WindowAudio {
+    Silent,
+    Audible,
+    Muted,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -108,8 +125,10 @@ impl OutputKind {
             _ => None,
         }
     }
+}
 
-    fn of_node_name(node_name: &str) -> Self {
+impl From<&str> for OutputKind {
+    fn from(node_name: &str) -> Self {
         let name = node_name.to_ascii_lowercase();
         if name.contains("headphone") {
             Self::Headphones
@@ -413,15 +432,15 @@ mod tests {
     fn output_kind_helpers_map_pipewire_vocabulary() {
         let ucm = "alsa_output.pci-0000_00_1f.3-platform-sof_sdw.HiFi__";
         assert_eq!(
-            OutputKind::of_node_name(&format!("{ucm}Headphones__sink")),
+            OutputKind::from(format!("{ucm}Headphones__sink").as_str()),
             OutputKind::Headphones
         );
         assert_eq!(
-            OutputKind::of_node_name(&format!("{ucm}HDMI1__sink")),
+            OutputKind::from(format!("{ucm}HDMI1__sink").as_str()),
             OutputKind::Display
         );
         assert_eq!(
-            OutputKind::of_node_name("bluez_output.00_11_22.1"),
+            OutputKind::from("bluez_output.00_11_22.1"),
             OutputKind::Speaker
         );
         assert_eq!(

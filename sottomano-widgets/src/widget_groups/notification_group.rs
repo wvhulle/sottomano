@@ -16,7 +16,7 @@ use crate::{
         },
     },
     widget_groups::{
-        quiet_schedule_group::QuietScheduleTarget,
+        quiet_schedule_group::{QuietScheduleTarget, quiet_window::QuietPhase},
         sqlite_singleton_flag::{self, SingletonFlag},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -146,7 +146,7 @@ impl NotificationGroup {
         &self,
         status: NotificationStatus,
     ) -> WidgetGroupContent<'_, NotificationGroupMessage> {
-        let quiet = status.quiet;
+        let quiet_phase = status.quiet_phase;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Notification,
             &self.expansion,
@@ -154,15 +154,14 @@ impl NotificationGroup {
             [
                 GroupItem::reading(status, NotificationTarget::Status),
                 GroupItem::reading(
-                    DoNotDisturbStatus { quiet },
+                    DoNotDisturbStatus { quiet_phase },
                     QuietScheduleTarget::DoNotDisturb,
                 )
                 .on_switch_press(
-                    quiet,
-                    if quiet {
-                        "end do not disturb now"
-                    } else {
-                        "start do not disturb now"
+                    quiet_phase == QuietPhase::Active,
+                    match quiet_phase {
+                        QuietPhase::Active => "end do not disturb now",
+                        QuietPhase::Inactive => "start do not disturb now",
                     },
                     NotificationGroupMessage::ToggleDoNotDisturb,
                 ),
@@ -178,7 +177,7 @@ impl NotificationGroup {
 
 #[derive(Clone, Copy)]
 pub struct NotificationStatus {
-    pub quiet: bool,
+    pub quiet_phase: QuietPhase,
     pub live: usize,
     pub held: usize,
 }
@@ -189,10 +188,9 @@ impl GroupItemReading for NotificationStatus {
     }
 
     fn icon(&self) -> IconGlyph {
-        if self.quiet {
-            Phosphor::ChatCircleSlash(Weight::Regular).into()
-        } else {
-            Phosphor::ChatCircle(Weight::Regular).into()
+        match self.quiet_phase {
+            QuietPhase::Active => Phosphor::ChatCircleSlash(Weight::Regular).into(),
+            QuietPhase::Inactive => Phosphor::ChatCircle(Weight::Regular).into(),
         }
     }
 
@@ -203,12 +201,10 @@ impl GroupItemReading for NotificationStatus {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.quiet {
-            ReadingDisplayState::Off
-        } else if self.live > 0 {
-            ReadingDisplayState::On
-        } else {
-            ReadingDisplayState::Idle
+        match self.quiet_phase {
+            QuietPhase::Active => ReadingDisplayState::Off,
+            QuietPhase::Inactive if self.live > 0 => ReadingDisplayState::On,
+            QuietPhase::Inactive => ReadingDisplayState::Idle,
         }
     }
 
@@ -226,7 +222,7 @@ impl GroupItemReading for NotificationStatus {
 
 #[derive(Clone, Copy)]
 struct DoNotDisturbStatus {
-    quiet: bool,
+    quiet_phase: QuietPhase,
 }
 
 impl GroupItemReading for DoNotDisturbStatus {
@@ -239,7 +235,7 @@ impl GroupItemReading for DoNotDisturbStatus {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::of_toggle(self.quiet)
+        ReadingDisplayState::from(self.quiet_phase)
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {

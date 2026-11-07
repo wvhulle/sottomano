@@ -1,6 +1,6 @@
 use sottomano_desktop_sinks::screen_brightness_color::clight_calibration_writes;
 use sottomano_desktop_sources::{
-    screen_brightness_color::clight_auto_brightness::AutoBrightness,
+    screen_brightness_color::clight_auto_brightness::{AutoBrightness, BrightnessCalibration},
     system_protocol_clients::dbus_desktop_buses,
 };
 
@@ -23,15 +23,17 @@ impl GroupItemReading for AutoBrightness {
     }
 
     fn icon(&self) -> IconGlyph {
-        if self.auto {
-            Phosphor::Eye(Weight::Regular).into()
-        } else {
-            Phosphor::EyeSlash(Weight::Regular).into()
+        match self.calibration {
+            BrightnessCalibration::FromWebcam => Phosphor::Eye(Weight::Regular).into(),
+            BrightnessCalibration::Fixed => Phosphor::EyeSlash(Weight::Regular).into(),
         }
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::of_toggle(self.auto)
+        match self.calibration {
+            BrightnessCalibration::FromWebcam => ReadingDisplayState::On,
+            BrightnessCalibration::Fixed => ReadingDisplayState::Off,
+        }
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
@@ -41,7 +43,9 @@ impl GroupItemReading for AutoBrightness {
 
 impl ToggleableSource for AutoBrightness {
     fn toggled_value(&self) -> Self {
-        AutoBrightness { auto: !self.auto }
+        AutoBrightness {
+            calibration: self.calibration.flipped(),
+        }
     }
 
     fn apply_toggle(&self) -> Result<(), dbus_desktop_buses::Error> {
@@ -49,14 +53,15 @@ impl ToggleableSource for AutoBrightness {
     }
 
     fn switched_on(&self) -> bool {
-        self.auto
+        self.calibration == BrightnessCalibration::FromWebcam
     }
 
     fn press_action_text(&self) -> &'static str {
-        if self.auto {
-            "stop setting brightness from webcam light; keep the current level"
-        } else {
-            "set brightness from the light the webcam sees"
+        match self.calibration {
+            BrightnessCalibration::FromWebcam => {
+                "stop setting brightness from webcam light; keep the current level"
+            }
+            BrightnessCalibration::Fixed => "set brightness from the light the webcam sees",
         }
     }
 }

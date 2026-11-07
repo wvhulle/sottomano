@@ -149,7 +149,7 @@ fn read_drive_health(inputs: &DriveHealthInputs) -> Result<DriveHealth, Error> {
         .collect();
     Ok(DriveHealth {
         device_name: disk.name.clone(),
-        identity: DriveIdentity::of_controller(&controller),
+        identity: DriveIdentity::from(controller.as_path()),
         temperature: DriveTemperature::read(&sensor_choice, disk, &controller),
         overrides: inputs.sensor.overrides(),
         errors,
