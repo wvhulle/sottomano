@@ -113,6 +113,13 @@ middle_click = "secondary_activate_item"
 right_click = "ignore"
 window_app_id = "spotify"
 
+[widget_groups.tray.items.steam]
+icon = "shown"
+left_click = "focus_app_window"
+middle_click = "secondary_activate_item"
+right_click = "ignore"
+window_app_id = "steam"
+
 [widget_groups.compute.temperature_sensors]
 
 [widget_groups.physical_drive.temperature_sensors]
@@ -244,6 +251,12 @@ single window matches, the click activates the item instead. The shell first
 gets an XDG activation token from the compositor and passes it to the app, so
 the app may raise the window it opens. Tray menu clicks pass a token the same
 way. The hover hint shows which of the two a click will do.
+
+X11 apps run through xwayland-satellite, so the compositor reports the
+satellite as the owner of their windows. They need `window_app_id`, as the
+default rule for Steam has. Apps whose tray item cannot take an activation
+token, such as libappindicator items and X11 apps, may still fail to come to
+the front from their own menu items. That limit is in the app.
 
 To keep an app's own activate behaviour, set `left_click = "activate_item"`
 for its item, keyed by the item's StatusNotifierItem id.
