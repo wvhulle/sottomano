@@ -79,6 +79,7 @@ impl Default for TrayItems {
             items: [
                 ("Signal_status_icon_1", TrayRule::focusing("signal")),
                 ("spotify-client", TrayRule::focusing("spotify")),
+                ("steam", TrayRule::focusing("steam")),
             ]
             .into_iter()
             .map(|(id, rule)| (String::from(id), rule))
@@ -142,6 +143,14 @@ mod tests {
         let unconfigured_rule = TrayConfig::default().rule("page.codeberg.wvhulle.Bindrune");
         assert_eq!(unconfigured_rule.left_click, ClickAction::FocusAppWindow);
         assert_eq!(unconfigured_rule.window_app_id, None);
+    }
+
+    #[test]
+    fn steam_window_is_found_by_its_app_id() {
+        assert_eq!(
+            TrayConfig::default().rule("steam").window_app_id.as_deref(),
+            Some("steam")
+        );
     }
 
     #[test]
