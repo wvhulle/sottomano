@@ -1,5 +1,6 @@
 mod dictation_phase_item;
 mod inference_hardware_item;
+mod interface_mismatch_item;
 mod output_problems_item;
 mod pipeline_stage_item;
 mod runtime_configuration_item;
@@ -16,6 +17,7 @@ use sottomano_desktop_sources::{
     voice_dictation_input::{
         huggingface_model_card::HuggingFaceModelCard, notulist_dbus_dictation::NotulistDictation,
         notulist_dbus_engine::NotulistEngine,
+        notulist_dbus_interface_mismatch::NotulistInterfaceMismatch,
         notulist_dbus_output_problems::NotulistOutputProblems,
         notulist_dbus_pipeline_activity::NotulistPipeline,
     },
@@ -64,6 +66,7 @@ const SPEECH_RUNTIME: UnitSwitchFace = UnitSwitchFace {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VoiceDictationTarget {
+    InterfaceMismatch,
     Dictation,
     Pipeline,
     Runtime,
@@ -80,6 +83,7 @@ impl From<VoiceDictationTarget> for HoverTarget {
 }
 
 pub struct VoiceDictationGroup {
+    interface_mismatch: LatestSnapshot<NotulistInterfaceMismatch, HidesFailuresAfterSuccess>,
     dictation: LatestSnapshot<NotulistDictation, HidesFailuresAfterSuccess>,
     engine: LatestSnapshot<NotulistEngine, HidesFailuresAfterSuccess>,
     pipeline: LatestSnapshot<NotulistPipeline, HidesFailuresAfterSuccess>,
@@ -91,6 +95,7 @@ pub struct VoiceDictationGroup {
 
 #[derive(Debug, Clone)]
 pub enum VoiceDictationMessage {
+    InterfaceMismatch(SnapshotDelivery<NotulistInterfaceMismatch>),
     Dictation(SnapshotDelivery<NotulistDictation>),
     Engine(SnapshotDelivery<NotulistEngine>),
     Pipeline(SnapshotDelivery<NotulistPipeline>),
@@ -115,6 +120,7 @@ impl VoiceDictationGroup {
             unit_name: DICTATION_UNIT.to_owned(),
         };
         Self {
+            interface_mismatch: LatestSnapshot::default(),
             dictation: LatestSnapshot::default(),
             engine: LatestSnapshot::default(),
             pipeline: LatestSnapshot::default(),
@@ -127,6 +133,8 @@ impl VoiceDictationGroup {
 
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<VoiceDictationMessage> {
         Subscription::batch([
+            snapshot_subscription::<NotulistInterfaceMismatch>(buses.clone())
+                .map(VoiceDictationMessage::InterfaceMismatch),
             snapshot_subscription::<NotulistDictation>(buses.clone())
                 .map(VoiceDictationMessage::Dictation),
             snapshot_subscription::<NotulistEngine>(buses.clone())
@@ -146,6 +154,10 @@ impl VoiceDictationGroup {
         buses: &DesktopBuses,
     ) -> Task<VoiceDictationMessage> {
         match target {
+            VoiceDictationTarget::InterfaceMismatch => {
+                first_delivery::<NotulistInterfaceMismatch>(buses.clone())
+                    .map(VoiceDictationMessage::InterfaceMismatch)
+            }
             VoiceDictationTarget::Dictation => first_delivery::<NotulistDictation>(buses.clone())
                 .map(VoiceDictationMessage::Dictation),
             VoiceDictationTarget::Pipeline => first_delivery::<NotulistPipeline>(buses.clone())
@@ -198,6 +210,10 @@ impl VoiceDictationGroup {
         clock: Clock,
     ) -> Task<VoiceDictationMessage> {
         match msg {
+            VoiceDictationMessage::InterfaceMismatch(delivery) => {
+                self.interface_mismatch.receive(delivery, clock);
+                Task::none()
+            }
             VoiceDictationMessage::Dictation(delivery) => {
                 self.dictation.receive(delivery, clock);
                 Task::none()
@@ -265,6 +281,7 @@ impl VoiceDictationGroup {
     #[must_use]
     pub fn hover_card_for(&self, target: VoiceDictationTarget, clock: Clock) -> Option<HoverCard> {
         match target {
+            VoiceDictationTarget::InterfaceMismatch => self.interface_mismatch.hover_card(clock),
             VoiceDictationTarget::Dictation => self.dictation.hover_card(clock),
             VoiceDictationTarget::Pipeline => self.pipeline.hover_card(clock),
             VoiceDictationTarget::Runtime => self.runtime_hover_card(clock),
@@ -291,6 +308,8 @@ impl VoiceDictationGroup {
             &self.expansion,
             VoiceDictationMessage::Expansion,
             [
+                self.interface_mismatch
+                    .group_item(VoiceDictationTarget::InterfaceMismatch),
                 self.dictation
                     .group_item(VoiceDictationTarget::Dictation)
                     .map(|item| {
