@@ -15,7 +15,8 @@ use sottomano_widgets::{
     widgets::{
         pointer_drag,
         pointer_drag::{
-            ActiveDrag, DragOutcome, DragTransition, DragView, DraggedPanelSlot, PointerDrag,
+            ActiveDrag, DragOutcome, DragTransition, DragView, DraggedPanelSlot, MoveTracking,
+            PointerDrag,
         },
     },
 };
@@ -64,13 +65,8 @@ impl DesktopShell {
         }
     }
 
-    #[must_use]
-    pub fn is_dragging(&self) -> bool {
-        self.pointer_drag.is_dragging()
-    }
-
     pub fn pointer_drag_subscription(&self) -> Subscription<Message> {
-        let pointer = pointer_drag::pointer_events(!self.pointer_drag.is_idle())
+        let pointer = pointer_drag::pointer_events(MoveTracking::from(&self.pointer_drag))
             .map(|event| Message::PointerDrag(DragMessage::Pointer(event)));
         let spring_charging = match self.drag_view().drag.and_then(|drag| drag.hovered()) {
             Some(_) => frames().map(|_| Message::Redraw),

@@ -106,8 +106,8 @@ impl WifiAdaptersGroup {
         buses: &DesktopBuses,
         demand: GroupSourceDemand,
     ) -> Subscription<WifiAdaptersMessage> {
-        let any_adapter_expanded = self.expansions.any_expanded();
-        let demand = demand.expanded_when(any_adapter_expanded);
+        let adapter_expansion = self.expansions.combined_state();
+        let demand = demand.expanded_when(adapter_expansion);
         Subscription::batch([
             snapshot_subscription::<Wifi>(buses.clone()).map(WifiAdaptersMessage::Snapshot),
             demand.while_rows_shown(
@@ -302,7 +302,7 @@ impl WifiAdaptersGroup {
                 },
             )
             .on_switch_press(
-                adapter.link_state == DeviceLinkState::Connected,
+                adapter.link_state,
                 connection_press_does,
                 WifiAdaptersMessage::ToggleAdapter(adapter.device.clone()),
             )
@@ -331,7 +331,7 @@ impl WifiAdaptersGroup {
         let radios_press_does = radios_switch.press_does();
         let radios_item = GroupItem::reading(radios_switch, WifiAdapterTarget::AllRadios)
             .on_switch_press(
-                radio_power == RadioPower::On,
+                radio_power,
                 radios_press_does,
                 WifiAdaptersMessage::ToggleAllRadios,
             );

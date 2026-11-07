@@ -1,4 +1,6 @@
-use sottomano_desktop_sources::battery_power_profiles::upower_battery_state::Battery;
+use sottomano_desktop_sources::battery_power_profiles::upower_battery_state::{
+    Battery, ChargeStatus,
+};
 use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
@@ -42,8 +44,8 @@ impl GroupItemReading for Battery {
         HoverCardBody::dictionary(
             [
                 Some(LabeledValue::new("Battery", Quantity::share(self.capacity))),
-                self.status
-                    .map(|status| LabeledValue::new("Status", status.as_str())),
+                (self.status != ChargeStatus::Unreported)
+                    .then(|| LabeledValue::new("Status", self.status.as_str())),
                 Some(LabeledValue::new(
                     "Remaining",
                     Quantity::energy(self.energy),

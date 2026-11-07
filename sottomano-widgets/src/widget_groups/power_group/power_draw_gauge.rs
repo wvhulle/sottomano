@@ -26,7 +26,7 @@ const POWER_GAUGE_MAX_W: f64 = 40.0;
 
 pub struct PowerDraw {
     power: Power,
-    status: Option<ChargeStatus>,
+    status: ChargeStatus,
     expected_laptop: Option<Power>,
 }
 
@@ -40,7 +40,10 @@ impl PowerDraw {
     }
 
     pub fn on_battery(&self) -> bool {
-        matches!(self.status, Some(ChargeStatus::Discharging) | None)
+        matches!(
+            self.status,
+            ChargeStatus::Discharging | ChargeStatus::Unreported
+        )
     }
 
     fn breakdown_on_battery(&self) -> HoverCardBody {
@@ -90,7 +93,7 @@ impl GroupItemReading for PowerDraw {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.status != Some(ChargeStatus::Discharging) {
+        if self.status != ChargeStatus::Discharging {
             ReadingDisplayState::Idle
         } else if self.power > Power::new::<watt>(POWER_CRITICAL_W) {
             ReadingDisplayState::Critical
@@ -130,7 +133,7 @@ mod tests {
     fn draw(status: ChargeStatus) -> PowerDraw {
         PowerDraw {
             power: Power::new::<watt>(19.7),
-            status: Some(status),
+            status,
             expected_laptop: Some(Power::new::<watt>(8.9)),
         }
     }

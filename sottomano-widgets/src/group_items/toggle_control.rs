@@ -1,6 +1,12 @@
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
-    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking,
+    SnapshotDelivery, SnapshotSource,
+    blocking_background_work::blocking,
+    network_connectivity::{
+        network_manager_proxies::{DeviceLinkState, RadioPower},
+        tailscale_exit_nodes::ExitNodeLanAccess,
+        tailscale_status::ExitNodeUse,
+    },
 };
 
 use crate::{
@@ -24,6 +30,57 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SwitchPosition {
+    On,
+    Off,
+}
+
+impl From<SwitchPosition> for ReadingDisplayState {
+    fn from(switch_position: SwitchPosition) -> Self {
+        match switch_position {
+            SwitchPosition::On => ReadingDisplayState::On,
+            SwitchPosition::Off => ReadingDisplayState::Off,
+        }
+    }
+}
+
+impl From<DeviceLinkState> for SwitchPosition {
+    fn from(link_state: DeviceLinkState) -> Self {
+        match link_state {
+            DeviceLinkState::Connected => SwitchPosition::On,
+            DeviceLinkState::Switching | DeviceLinkState::Disconnected => SwitchPosition::Off,
+        }
+    }
+}
+
+impl From<RadioPower> for SwitchPosition {
+    fn from(radio_power: RadioPower) -> Self {
+        match radio_power {
+            RadioPower::On => SwitchPosition::On,
+            RadioPower::Off => SwitchPosition::Off,
+        }
+    }
+}
+
+impl From<ExitNodeUse> for SwitchPosition {
+    fn from(node_use: ExitNodeUse) -> Self {
+        match node_use {
+            ExitNodeUse::InUse => SwitchPosition::On,
+            ExitNodeUse::Unused => SwitchPosition::Off,
+        }
+    }
+}
+
+impl From<ExitNodeLanAccess> for SwitchPosition {
+    fn from(lan_access: ExitNodeLanAccess) -> Self {
+        match lan_access {
+            ExitNodeLanAccess::Allowed => SwitchPosition::On,
+            ExitNodeLanAccess::Blocked => SwitchPosition::Off,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct SwitchPresses {
     pub turning_on: &'static str,
@@ -34,27 +91,31 @@ pub struct SwitchPresses {
 pub struct IconToggle {
     pub name: &'static str,
     pub icon: Phosphor,
-    pub enabled: bool,
+    pub switch_position: SwitchPosition,
     pub presses: SwitchPresses,
 }
 
 impl IconToggle {
     #[must_use]
-    pub fn new(name: &'static str, icon: Phosphor, enabled: bool, presses: SwitchPresses) -> Self {
+    pub fn new(
+        name: &'static str,
+        icon: Phosphor,
+        switch_position: impl Into<SwitchPosition>,
+        presses: SwitchPresses,
+    ) -> Self {
         Self {
             name,
             icon,
-            enabled,
+            switch_position: switch_position.into(),
             presses,
         }
     }
 
     #[must_use]
     pub fn press_does(&self) -> &'static str {
-        if self.enabled {
-            self.presses.turning_off
-        } else {
-            self.presses.turning_on
+        match self.switch_position {
+            SwitchPosition::On => self.presses.turning_off,
+            SwitchPosition::Off => self.presses.turning_on,
         }
     }
 
@@ -74,7 +135,7 @@ impl GroupItemReading for IconToggle {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(self.enabled)
+        ReadingDisplayState::from(self.switch_position)
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
@@ -87,7 +148,7 @@ pub trait ToggleableSource: SnapshotSource<Error: Into<Section>> + GroupItemRead
     fn toggled_value(&self) -> Self;
     fn apply_toggle(&self) -> Result<(), Self::Error>;
     fn press_action_text(&self) -> &'static str;
-    fn switched_on(&self) -> bool;
+    fn switch_position(&self) -> SwitchPosition;
 }
 
 pub struct ToggleControl<S: ToggleableSource> {
@@ -174,7 +235,7 @@ impl<S: ToggleableSource> ToggleControl<S> {
         let shown = self.reading.group_item(target)?;
         Some(match self.reading.get() {
             Some(current) => shown.on_switch_press(
-                current.switched_on(),
+                current.switch_position(),
                 current.press_action_text(),
                 on_toggle(ToggleMessage::Press),
             ),

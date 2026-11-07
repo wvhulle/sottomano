@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     collections::HashMap,
+    fmt::{self, Display, Formatter},
     iter,
     time::{Duration, Instant},
 };
@@ -9,7 +10,7 @@ use iced::{Element, Subscription, Task, time::every, widget::Row};
 use sottomano_desktop_sinks::media_playback_audio::mpris_player_commands;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    blocking_background_work::blocking,
+    blocking_background_work::{Panicked, blocking_poll},
     desktop_windows_apps::window_edge_placement::WindowOwner,
     media_playback_audio::{
         lrclib_synced_lyrics::{LyricsQuery, TrackLyrics},
@@ -18,7 +19,10 @@ use sottomano_desktop_sources::{
     network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OwnerProcess},
 };
-use sottomano_toml_config::{Config, widget_groups::media_lyrics::MediaLyricsConfig};
+use sottomano_toml_config::{
+    Config,
+    widget_groups::media_lyrics::{LrclibLookup, MediaLyricsConfig},
+};
 
 use crate::{
     background_work::snapshot_subscription,
@@ -37,9 +41,10 @@ use crate::{
         hoverable,
     },
     widget_groups::{
-        media_group::confirm_button::{ConfirmButton, ConfirmPress},
+        media_group::confirm_button::{ConfirmButton, ConfirmPolicy, ConfirmPress},
         widget_group_content::{
-            GroupEvent, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            ExpansionState, GroupEvent, WidgetGroupContent, WidgetGroupExpansion,
+            WidgetGroupExpansionMessage,
         },
         widget_group_identity::{
             WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupInstance, WidgetGroupTitle,
@@ -115,6 +120,13 @@ impl From<PlayerTarget> for HoverTarget {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PlaybackPace {
+    Singing,
+    Progressing,
+    Still,
+}
+
 #[derive(Default)]
 pub struct MediaGroup {
     players: LatestSnapshot<Vec<Media>, HidesFetchFailures>,
@@ -134,7 +146,7 @@ impl Default for PlayerSession {
         Self {
             cover_art: None,
             seek_bar: SeekBar::default(),
-            quit_button: ConfirmButton::new(true),
+            quit_button: ConfirmButton::new(ConfirmPolicy::ConfirmFirst),
             expansion: WidgetGroupExpansion::default(),
         }
     }
@@ -220,7 +232,7 @@ impl MediaGroup {
             snapshot_subscription::<Vec<Media>>(buses.clone()).map(MediaMessage::Reading);
         let lyrics_lookups = self
             .unfetched_lyrics_queries()
-            .filter(|_| lyrics_config.lrclib_lookup)
+            .filter(|_| lyrics_config.lrclib_lookup == LrclibLookup::Enabled)
             .map(|query| {
                 snapshot_subscription::<TrackLyrics>(OnlineSourceInputs {
                     buses: buses.clone(),
@@ -229,12 +241,14 @@ impl MediaGroup {
                 .with(query)
                 .map(|(query, delivery)| MediaMessage::LyricsReading { query, delivery })
             });
-        let progress_tick = if self.is_singing() {
-            Some(every(LYRICS_TICK).map(|_| MediaMessage::ProgressAdvanced))
-        } else if self.is_progressing() {
-            Some(every(PROGRESS_TICK).map(|_| MediaMessage::ProgressAdvanced))
-        } else {
-            None
+        let progress_tick = match self.playback_pace() {
+            PlaybackPace::Singing => {
+                Some(every(LYRICS_TICK).map(|_| MediaMessage::ProgressAdvanced))
+            }
+            PlaybackPace::Progressing => {
+                Some(every(PROGRESS_TICK).map(|_| MediaMessage::ProgressAdvanced))
+            }
+            PlaybackPace::Still => None,
         }
         .map(|tick| demand.while_any_reading_shown(tick));
         Subscription::batch(
@@ -258,25 +272,27 @@ impl MediaGroup {
         })
     }
 
-    fn is_singing(&self) -> bool {
-        self.playing_lyrics_queries().any(|query| {
+    fn playback_pace(&self) -> PlaybackPace {
+        let singing = self.playing_lyrics_queries().any(|query| {
             matches!(
                 self.lyrics_snapshots
                     .get(&query)
                     .and_then(LatestSnapshot::get),
                 Some(TrackLyrics::Synced(_))
             )
-        })
+        });
+        let progressing = self.all_players().any(|media| {
+            media.status == Status::Playing && matches!(media.progress, Progress::Timed { .. })
+        });
+        match (singing, progressing) {
+            (true, _) => PlaybackPace::Singing,
+            (false, true) => PlaybackPace::Progressing,
+            (false, false) => PlaybackPace::Still,
+        }
     }
 
     fn lyrics_of(&self, media: &Media) -> Option<&LatestSnapshot<TrackLyrics>> {
         self.lyrics_snapshots.get(&media.lyrics_query()?)
-    }
-
-    fn is_progressing(&self) -> bool {
-        self.all_players().any(|media| {
-            media.status == Status::Playing && matches!(media.progress, Progress::Timed { .. })
-        })
     }
 
     fn all_players(&self) -> impl Iterator<Item = &Media> {
@@ -481,7 +497,9 @@ fn session_buttons_item<'a>(
     session: &'a PlayerSession,
 ) -> Option<GroupItem<'a, MediaMessage>> {
     let bus = media.bus.as_str();
-    (!session_controls(config, media, session, 1.0).is_empty()).then(|| {
+    let offers_session_buttons =
+        (media.capabilities.stop && media.status != Status::Stopped) || media.capabilities.quit;
+    offers_session_buttons.then(|| {
         GroupItem::composed(
             ComposedGroupItemFace {
                 name: "Session".into(),
@@ -510,7 +528,7 @@ fn player_group<'a>(
     let gauge_fraction = media
         .progress
         .fraction(media.status, clock.instant)
-        .filter(|_| !(seekable && session.expansion.is_expanded()));
+        .filter(|_| !(seekable && session.expansion.state() == ExpansionState::Expanded));
     let seek = seekable.then(|| {
         GroupItem::composed(
             ComposedGroupItemFace {
@@ -625,10 +643,10 @@ fn seek_by(
         return Task::none();
     };
     let bus = media.bus.clone();
-    dispatch(media, command).then(move |accepted| {
-        if accepted {
-            Task::none()
-        } else {
+    dispatch(media, command).then(move |dispatched| match dispatched {
+        Ok(()) => Task::none(),
+        Err(dispatch_failure) => {
+            tracing::warn!("mpris {bus}: seeking: {dispatch_failure}");
             Task::done(player_message(
                 &bus,
                 PlayerMessage::Seek(SeekMessage::Rejected),
@@ -656,13 +674,42 @@ fn raise_by_mpris(media: &Media) -> Task<MediaMessage> {
 }
 
 fn send(media: &Media, command: Command) -> Task<MediaMessage> {
-    dispatch(media, command).discard()
+    let bus = media.bus.clone();
+    dispatch(media, command).then(move |dispatched| {
+        if let Err(dispatch_failure) = dispatched {
+            tracing::warn!("mpris {bus}: {dispatch_failure}");
+        }
+        Task::none()
+    })
 }
 
-fn dispatch(media: &Media, command: Command) -> Task<bool> {
+#[derive(Debug)]
+enum MprisDispatchFailure {
+    WorkerPanicked,
+    Bus(zbus::Error),
+}
+
+impl From<Panicked> for MprisDispatchFailure {
+    fn from(_: Panicked) -> Self {
+        MprisDispatchFailure::WorkerPanicked
+    }
+}
+
+impl Display for MprisDispatchFailure {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            MprisDispatchFailure::WorkerPanicked => {
+                formatter.write_str("the command task panicked")
+            }
+            MprisDispatchFailure::Bus(bus_error) => write!(formatter, "{bus_error}"),
+        }
+    }
+}
+
+fn dispatch(media: &Media, command: Command) -> Task<Result<(), MprisDispatchFailure>> {
     let bus = media.bus.clone();
-    Task::future(blocking("mpris control", move || {
-        mpris_player_commands::control(&bus, command)
+    Task::future(blocking_poll(move || {
+        mpris_player_commands::control(&bus, command).map_err(MprisDispatchFailure::Bus)
     }))
 }
 
@@ -721,14 +768,17 @@ mod tests {
             ),
             clock,
         );
-        let expanded: Vec<bool> = [
+        let expansion_states: Vec<ExpansionState> = [
             "org.mpris.MediaPlayer2.firefox",
             "org.mpris.MediaPlayer2.spotify",
         ]
         .iter()
-        .map(|bus| group.sessions[*bus].expansion.is_expanded())
+        .map(|bus| group.sessions[*bus].expansion.state())
         .collect();
-        assert_eq!(expanded, [true, false]);
+        assert_eq!(
+            expansion_states,
+            [ExpansionState::Expanded, ExpansionState::Collapsed]
+        );
         assert_eq!(group.titled_players().len(), 2);
     }
 
@@ -819,11 +869,11 @@ mod tests {
         reported(&mut group, vec![low_tide.clone()], clock);
         assert_eq!(group.unfetched_lyrics_queries().count(), 1);
         lyrics_delivered(&mut group, &low_tide, clock);
-        assert!(group.is_singing());
+        assert_eq!(group.playback_pace(), PlaybackPace::Singing);
         assert_eq!(group.unfetched_lyrics_queries().count(), 0);
         reported(&mut group, vec![singing_player("High Water", clock)], clock);
         assert!(group.lyrics_snapshots.is_empty());
-        assert!(!group.is_singing());
+        assert_ne!(group.playback_pace(), PlaybackPace::Singing);
     }
 
     #[test]

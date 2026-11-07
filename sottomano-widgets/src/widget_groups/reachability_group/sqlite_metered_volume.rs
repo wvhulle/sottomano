@@ -29,13 +29,6 @@ impl Add for TransferTotals {
     }
 }
 
-impl TransferTotals {
-    #[must_use]
-    pub fn is_empty(self) -> bool {
-        self == Self::default()
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MeteredVolumeTotals {
     pub today: TransferTotals,

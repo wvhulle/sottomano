@@ -1,7 +1,12 @@
-use std::ops::RangeInclusive;
+use std::{
+    error::Error,
+    fmt::{self, Display, Formatter},
+    ops::RangeInclusive,
+    sync::Arc,
+};
 
 use chrono::Locale;
-use corredo::primitives::expand_animation::expand_animation;
+use corredo::primitives::expand_animation::{ExpansionState, expand_animation};
 pub use corredo::primitives::scroll_steps::scroll_direction;
 use iced::{
     Alignment, Element, Length, Padding, Task,
@@ -9,7 +14,7 @@ use iced::{
     mouse::ScrollDelta,
     widget::{Row, button, container, mouse_area, text, text::Wrapping},
 };
-use sottomano_desktop_sources::blocking_background_work::blocking;
+use sottomano_desktop_sources::blocking_background_work::{Panicked, blocking_poll};
 use sottomano_toml_config::{Config, severity::Severity};
 use uom::si::{f64::Ratio, ratio};
 
@@ -43,13 +48,24 @@ use crate::{
     },
 };
 
-#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SliderActivity {
+    Active,
+    Inactive,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SeverityDirection {
+    HigherWorse,
+    LowerWorse,
+}
+
 pub struct SliderControl {
     name: &'static str,
-    open: bool,
+    expansion_state: ExpansionState,
     accum: f32,
     device_setting: DeviceSetting,
-    disabled: bool,
+    slider_activity: SliderActivity,
     live: f32,
     range: RangeInclusive<f32>,
     scroll_step: f32,
@@ -58,7 +74,7 @@ pub struct SliderControl {
     gauge: bool,
     label: Option<fn(f32, Locale) -> Option<String>>,
     icon: IconGlyph,
-    glyph: Option<fn(f32, bool) -> Phosphor>,
+    glyph: Option<fn(f32, SliderActivity) -> Phosphor>,
     thresholds: Option<SeverityThresholds>,
     target: HoverTarget,
     right_click: Option<&'static str>,
@@ -69,17 +85,14 @@ pub struct SliderControl {
 struct SeverityThresholds {
     warn: f32,
     urgent: f32,
-    higher_worse: bool,
+    severity_direction: SeverityDirection,
 }
 
 impl SeverityThresholds {
     fn level(&self, value: f32) -> Severity {
-        let hit = |t: f32| {
-            if self.higher_worse {
-                value >= t
-            } else {
-                value <= t
-            }
+        let hit = |threshold: f32| match self.severity_direction {
+            SeverityDirection::HigherWorse => value >= threshold,
+            SeverityDirection::LowerWorse => value <= threshold,
         };
         if hit(self.urgent) {
             Severity::Critical
@@ -97,26 +110,73 @@ pub enum ControlMessage {
     Scroll(ScrollDelta),
     Set(f32),
     Release,
-    DeviceAccepted { value: f32, ok: bool },
-    Persisted { value: f32, ok: bool },
+    DeviceAccepted {
+        value: f32,
+        write_outcome: Result<(), ControlWriteFailure>,
+    },
+    Persisted {
+        value: f32,
+        write_outcome: Result<(), ControlWriteFailure>,
+    },
     Adjusted(f32),
     AdjustFailed,
     Reading(f32),
     Level(f32),
-    Disabled(bool),
+    Activity(SliderActivity),
     Right,
     HoverCard(HoverCardMessage),
 }
 
+#[derive(Debug, Clone)]
+pub enum ControlWriteFailure {
+    WorkerPanicked,
+    Rejected(Arc<dyn Error + Send + Sync>),
+}
+
+impl From<Panicked> for ControlWriteFailure {
+    fn from(_: Panicked) -> Self {
+        ControlWriteFailure::WorkerPanicked
+    }
+}
+
+impl Display for ControlWriteFailure {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            ControlWriteFailure::WorkerPanicked => formatter.write_str("the write task panicked"),
+            ControlWriteFailure::Rejected(write_error) => write!(formatter, "{write_error}"),
+        }
+    }
+}
+
 impl ControlMessage {
-    pub fn commit(
+    pub fn commit<WriteError: Error + Send + Sync + 'static>(
         label: &'static str,
         value: f32,
-        write: impl FnOnce() -> bool + Send + 'static,
+        write: impl FnOnce() -> Result<(), WriteError> + Send + 'static,
     ) -> Task<ControlMessage> {
-        Task::perform(blocking(label, write), move |ok| {
-            ControlMessage::DeviceAccepted { value, ok }
+        let device_write = blocking_poll(move || {
+            write().map_err(|write_error| ControlWriteFailure::Rejected(Arc::new(write_error)))
+        });
+        Task::perform(device_write, move |write_outcome| {
+            if let Err(write_failure) = &write_outcome {
+                tracing::warn!("{label}: {write_failure}");
+            }
+            ControlMessage::DeviceAccepted {
+                value,
+                write_outcome,
+            }
         })
+    }
+
+    pub fn persisted<StoreFailure: Error + Send + Sync + 'static>(
+        value: f32,
+        store_outcome: Result<(), StoreFailure>,
+    ) -> ControlMessage {
+        ControlMessage::Persisted {
+            value,
+            write_outcome: store_outcome
+                .map_err(|store_failure| ControlWriteFailure::Rejected(Arc::new(store_failure))),
+        }
     }
 }
 
@@ -137,10 +197,10 @@ impl SliderControl {
     ) -> Self {
         Self {
             name,
-            open: false,
+            expansion_state: ExpansionState::Collapsed,
             accum: 0.0,
             device_setting: DeviceSetting::default(),
-            disabled: false,
+            slider_activity: SliderActivity::Active,
             live: 1.0,
             range,
             scroll_step: 1.0,
@@ -196,17 +256,22 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn glyph(mut self, glyph: fn(f32, bool) -> Phosphor) -> Self {
+    pub fn glyph(mut self, glyph: fn(f32, SliderActivity) -> Phosphor) -> Self {
         self.glyph = Some(glyph);
         self
     }
 
     #[must_use]
-    pub fn thresholds(mut self, warn: f32, urgent: f32, higher_worse: bool) -> Self {
+    pub fn thresholds(
+        mut self,
+        warn: f32,
+        urgent: f32,
+        severity_direction: SeverityDirection,
+    ) -> Self {
         self.thresholds = Some(SeverityThresholds {
             warn,
             urgent,
-            higher_worse,
+            severity_direction,
         });
         self
     }
@@ -239,7 +304,7 @@ impl SliderControl {
     }
 
     pub fn close(&mut self) {
-        self.open = false;
+        self.expansion_state = ExpansionState::Collapsed;
     }
 
     #[must_use]
@@ -288,21 +353,23 @@ impl SliderControl {
 
     fn effective_icon(&self) -> IconGlyph {
         self.glyph.map_or(self.icon, |glyph| {
-            glyph(self.current(), self.disabled).into()
+            glyph(self.current(), self.slider_activity).into()
         })
     }
 
     #[allow(clippy::needless_pass_by_value)]
     pub fn update(&mut self, msg: ControlMessage) -> Action {
         match msg {
-            ControlMessage::Press => {
-                self.open = !self.open;
-                if self.open {
+            ControlMessage::Press => match self.expansion_state {
+                ExpansionState::Collapsed => {
+                    self.expansion_state = ExpansionState::Expanded;
                     Action::Opened
-                } else {
+                }
+                ExpansionState::Expanded => {
+                    self.expansion_state = ExpansionState::Collapsed;
                     Action::None
                 }
-            }
+            },
             ControlMessage::Scroll(delta) => {
                 let Some(step) = scroll_direction(&mut self.accum, delta) else {
                     return Action::None;
@@ -322,13 +389,23 @@ impl SliderControl {
             }
             ControlMessage::Set(pos) => into_action(self.device_setting.drag_moved_to(pos)),
             ControlMessage::Release => into_action(self.device_setting.drag_ended()),
-            ControlMessage::DeviceAccepted { value, ok } => {
-                into_action(self.device_setting.absolute_write_finished(value, ok))
-            }
-            ControlMessage::Persisted { value, ok } => {
-                let follow_up = self.device_setting.absolute_write_finished(value, ok);
-                if ok {
-                    self.device_setting.device_reported(value, self.slider_step);
+            ControlMessage::DeviceAccepted {
+                value,
+                write_outcome,
+            } => into_action(
+                self.device_setting
+                    .absolute_write_finished(value, &write_outcome),
+            ),
+            ControlMessage::Persisted {
+                value,
+                write_outcome,
+            } => {
+                let follow_up = self
+                    .device_setting
+                    .absolute_write_finished(value, &write_outcome);
+                match write_outcome {
+                    Ok(()) => self.device_setting.device_reported(value, self.slider_step),
+                    Err(store_failure) => tracing::warn!("slider value not saved: {store_failure}"),
                 }
                 into_action(follow_up)
             }
@@ -354,9 +431,9 @@ impl SliderControl {
                 self.live = level;
                 Action::None
             }
-            ControlMessage::Disabled(disabled) => {
-                let toggled = disabled != self.disabled;
-                self.disabled = disabled;
+            ControlMessage::Activity(slider_activity) => {
+                let toggled = slider_activity != self.slider_activity;
+                self.slider_activity = slider_activity;
                 if let Some(announcement) = &mut self.level_announcement {
                     announcement.device_reported(toggled);
                 }
@@ -377,7 +454,7 @@ impl SliderControl {
     ) -> Element<'a, ControlMessage> {
         let expansion = config.group_items.slider_expansion_duration;
         let hover_origin = hover_origin.clone();
-        expand_animation(self.open, expansion, move |expand| {
+        expand_animation(self.expansion_state, expansion, move |expand| {
             if expand > 0.0 {
                 self.expanded_view(config, expand, clock, hover_origin.clone())
             } else {
@@ -569,10 +646,9 @@ impl GroupItemReading for SliderControl {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.disabled {
-            ReadingDisplayState::Off
-        } else {
-            self.severity().into()
+        match self.slider_activity {
+            SliderActivity::Active => self.severity().into(),
+            SliderActivity::Inactive => ReadingDisplayState::Off,
         }
     }
 
@@ -588,10 +664,9 @@ impl GroupItemReading for SliderControl {
     fn announced_level(&self, locale: Locale) -> Option<AnnouncedLevel> {
         let announcement = self.level_announcement.as_ref()?;
         let readout = self.readout_text(locale);
-        let body_text = if self.disabled {
-            format!("Muted · {readout}")
-        } else {
-            readout
+        let body_text = match self.slider_activity {
+            SliderActivity::Active => readout,
+            SliderActivity::Inactive => format!("Muted · {readout}"),
         };
         announcement.level(self.range_fill(), body_text)
     }

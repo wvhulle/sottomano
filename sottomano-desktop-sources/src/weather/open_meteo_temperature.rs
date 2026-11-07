@@ -84,16 +84,22 @@ pub enum WeatherCondition {
     ThunderstormWithHail(Intensity),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkyWetness {
+    Dry,
+    Precipitating,
+}
+
 impl WeatherCondition {
     #[must_use]
-    pub const fn is_precipitation(self) -> bool {
+    pub const fn sky_wetness(self) -> SkyWetness {
         match self {
             Self::Clear
             | Self::MainlyClear
             | Self::PartlyCloudy
             | Self::Overcast
             | Self::Fog
-            | Self::RimeFog => false,
+            | Self::RimeFog => SkyWetness::Dry,
             Self::Drizzle(_)
             | Self::FreezingDrizzle(_)
             | Self::Rain(_)
@@ -103,7 +109,7 @@ impl WeatherCondition {
             | Self::RainShowers(_)
             | Self::SnowShowers(_)
             | Self::Thunderstorm
-            | Self::ThunderstormWithHail(_) => true,
+            | Self::ThunderstormWithHail(_) => SkyWetness::Precipitating,
         }
     }
 }
@@ -342,7 +348,12 @@ mod tests {
     fn only_codes_from_drizzle_upward_are_precipitation() {
         for code in 0..=99 {
             if let Ok(condition) = WeatherCondition::try_from(code) {
-                assert_eq!(condition.is_precipitation(), code >= 51, "code {code}");
+                let expected_wetness = if code >= 51 {
+                    SkyWetness::Precipitating
+                } else {
+                    SkyWetness::Dry
+                };
+                assert_eq!(condition.sky_wetness(), expected_wetness, "code {code}");
             }
         }
     }

@@ -6,7 +6,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item_reading::GroupItemReading,
-        slider_control::{Action, ControlMessage, SliderControl},
+        slider_control::{Action, ControlMessage, SliderActivity, SliderControl},
     },
     hover_cards::{
         HoverTarget,
@@ -35,7 +35,7 @@ pub struct IdleTimer {
     timeout: Option<Duration>,
     control: SliderControl,
     action: IdleAction,
-    unavailable: bool,
+    availability: ActionAvailability,
 }
 
 impl IdleTimer {
@@ -57,7 +57,7 @@ impl IdleTimer {
             target,
             timeout: None,
             action,
-            unavailable: false,
+            availability: ActionAvailability::Available,
         }
     }
 
@@ -74,23 +74,31 @@ impl IdleTimer {
     #[must_use]
     pub fn trigger(&self) -> Option<ActionTrigger> {
         self.timeout
-            .filter(|_| !self.unavailable)
+            .filter(|_| self.availability == ActionAvailability::Available)
             .map(|after| ActionTrigger {
                 after,
                 tag: self.action,
             })
     }
 
-    pub fn set_unavailable(&mut self, unavailable: bool) -> bool {
-        let changed = self.unavailable != unavailable;
-        self.unavailable = unavailable;
+    pub fn set_availability(&mut self, availability: ActionAvailability) -> AvailabilityChange {
+        let change = if self.availability == availability {
+            AvailabilityChange::Unchanged
+        } else {
+            AvailabilityChange::Changed
+        };
+        self.availability = availability;
         self.show_as_off_when_inactive();
-        changed
+        change
     }
 
     fn show_as_off_when_inactive(&mut self) {
-        self.control.update(ControlMessage::Disabled(
-            self.timeout.is_none() || self.unavailable,
+        self.control.update(ControlMessage::Activity(
+            if self.timeout.is_none() || self.availability == ActionAvailability::Unavailable {
+                SliderActivity::Inactive
+            } else {
+                SliderActivity::Active
+            },
         ));
     }
 
@@ -143,8 +151,10 @@ impl IdleTimer {
         overrider: Option<&'static str>,
         clock: Clock,
     ) -> HoverCard {
-        let when = match timeout.filter(|_| !self.unavailable) {
-            None if self.unavailable => LabeledValue::new("State", "unavailable"),
+        let when = match timeout.filter(|_| self.availability == ActionAvailability::Available) {
+            None if self.availability == ActionAvailability::Unavailable => {
+                LabeledValue::new("State", "unavailable")
+            }
             None => LabeledValue::new("State", "disabled"),
             Some(timeout) => LabeledValue::new(
                 format!("{} at", self.action.session_action().verb()),
@@ -174,4 +184,16 @@ impl IdleTimer {
     pub fn slider(&self) -> &SliderControl {
         &self.control
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionAvailability {
+    Available,
+    Unavailable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AvailabilityChange {
+    Changed,
+    Unchanged,
 }

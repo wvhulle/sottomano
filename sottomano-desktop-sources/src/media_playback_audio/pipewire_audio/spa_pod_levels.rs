@@ -27,10 +27,6 @@ pub(super) fn node_direction(props: &DictRef) -> Option<Direction> {
     }
 }
 
-pub(super) fn is_output_stream(props: &DictRef) -> bool {
-    props.get("media.class") == Some("Stream/Output/Audio")
-}
-
 pub(super) fn stream_pid(props: &DictRef) -> Option<i32> {
     props.get("application.process.id")?.parse().ok()
 }

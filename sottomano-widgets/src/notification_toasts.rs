@@ -31,8 +31,8 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::{Config, severity::Severity};
 use toast_card::ToastCard;
 pub use toast_lifecycle::Notification;
-use toast_lifecycle::{BodyClick, Countdown, ToastKind};
-use toast_placement::AnchoredToast;
+use toast_lifecycle::{BodyClick, Countdown, ToastKind, ToastPresence};
+use toast_placement::{AnchoredToast, ToastAnchor};
 use toast_reply::ReplyFocus;
 use tokio::time::sleep_until;
 use window_anchored_toasts::WindowAnchoredToasts;
@@ -42,10 +42,14 @@ use crate::{
     hover_cards::PopupMessage,
     layer_surfaces::SurfaceRequest,
     toast_messages::NotificationMessage,
-    widget_groups::quiet_schedule_group::quiet_window::QuietPhase,
+    widget_groups::{
+        notification_group::AlertSound, overlay_settings_group::ToastArrangement,
+        quiet_schedule_group::quiet_window::QuietPhase,
+    },
     widgets::{
-        announced_level::LevelReading, ongoing_toast::OngoingKey, reveal_clip::reveal_y,
-        shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade,
+        announced_level::LevelReading, motion_state::MotionState, ongoing_toast::OngoingKey,
+        reveal_clip::reveal_y, shell_layer_appearance::LayerAppearance,
+        typing_under_cards::CardBackgroundFade,
     },
 };
 
@@ -53,15 +57,15 @@ const DEFAULT_ACTION: &str = "default";
 
 #[derive(Debug, Clone, Copy)]
 pub struct NotificationSettings {
-    pub sound: bool,
-    pub toast_spatial_layout: bool,
+    pub alert_sound: AlertSound,
+    pub toast_arrangement: ToastArrangement,
 }
 
 impl Default for NotificationSettings {
     fn default() -> Self {
         Self {
-            sound: true,
-            toast_spatial_layout: true,
+            alert_sound: AlertSound::Audible,
+            toast_arrangement: ToastArrangement::BesideSender,
         }
     }
 }
@@ -184,7 +188,12 @@ impl<Routed: Clone> NotificationLayer<Routed> {
             .iter()
             .filter(|n| n.place.output.as_deref() == Some(output))
             .collect();
-        ordered.sort_by_key(|n| Reverse((n.place.anchor.is_window_bound(), n.seq)));
+        ordered.sort_by_key(|notif| {
+            Reverse((
+                matches!(notif.place.anchor, ToastAnchor::Window { .. }),
+                notif.seq,
+            ))
+        });
         let toasts = ordered
             .into_iter()
             .map(|notif| AnchoredToast {
@@ -198,7 +207,7 @@ impl<Routed: Clone> NotificationLayer<Routed> {
                     notif.slot(now),
                     notif.scale(now),
                 ),
-                animating: notif.is_animating(now),
+                motion: notif.motion(now),
             })
             .collect();
         WindowAnchoredToasts::new(
@@ -211,15 +220,16 @@ impl<Routed: Clone> NotificationLayer<Routed> {
     }
 
     #[must_use]
-    pub fn is_active(&self) -> bool {
-        !self.live.is_empty()
-    }
-
-    #[must_use]
-    pub fn is_transitioning(&self, now: Instant) -> bool {
-        self.live
-            .iter()
-            .any(|n| n.is_animating(now) || n.is_withdrawing())
+    pub fn motion(&self, now: Instant) -> MotionState {
+        let transitioning = self.live.iter().any(|notif| {
+            notif.motion(now) == MotionState::Moving
+                || notif.presence() == ToastPresence::Withdrawing
+        });
+        if transitioning {
+            MotionState::Moving
+        } else {
+            MotionState::Settled
+        }
     }
 
     #[must_use]
@@ -250,7 +260,9 @@ impl<Routed: Clone> NotificationLayer<Routed> {
     }
 
     fn showing(&self) -> impl Iterator<Item = &Notification<Routed>> {
-        self.live.iter().filter(|n| !n.is_withdrawing())
+        self.live
+            .iter()
+            .filter(|notif| notif.presence() == ToastPresence::Shown)
     }
 
     fn sent_by_dbus_client(&self, id: u32) -> bool {

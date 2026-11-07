@@ -477,9 +477,9 @@ async fn uplink_identity(
     connection: &Connection,
     active_connection: OwnedObjectPath,
 ) -> zbus::Result<UplinkIdentity> {
-    if is_unset(&active_connection) {
+    let Some(active_connection) = assigned_object_path(active_connection) else {
         return Ok(UplinkIdentity::Unnamed);
-    }
+    };
     let active: ActiveConnectionProxy = uncached(connection, active_connection).await?;
     let (connection_name, device_paths) = try_join!(active.id(), active.devices())?;
     let interface = match device_paths.into_iter().next() {
@@ -850,8 +850,8 @@ pub async fn wireless_radio_power(connection: &Connection) -> zbus::Result<Radio
 }
 
 #[must_use]
-pub fn is_unset(path: &OwnedObjectPath) -> bool {
-    path.as_str() == "/"
+pub fn assigned_object_path(path: OwnedObjectPath) -> Option<OwnedObjectPath> {
+    (path.as_str() != "/").then_some(path)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -909,9 +909,9 @@ fn first_address(entries: &[HashMap<String, OwnedValue>]) -> Option<(String, u32
 }
 
 async fn ip4_config(connection: &Connection, path: OwnedObjectPath) -> zbus::Result<FamilyConfig> {
-    if is_unset(&path) {
+    let Some(path) = assigned_object_path(path) else {
         return Ok(FamilyConfig::unconfigured());
-    }
+    };
     let config: Ip4ConfigProxy = uncached(connection, path).await?;
     let (servers, addresses, gateway) = try_join!(
         config.nameserver_data(),
@@ -932,9 +932,9 @@ async fn ip4_config(connection: &Connection, path: OwnedObjectPath) -> zbus::Res
 }
 
 async fn ip6_config(connection: &Connection, path: OwnedObjectPath) -> zbus::Result<FamilyConfig> {
-    if is_unset(&path) {
+    let Some(path) = assigned_object_path(path) else {
         return Ok(FamilyConfig::unconfigured());
-    }
+    };
     let config: Ip6ConfigProxy = uncached(connection, path).await?;
     let (servers, addresses, gateway) = try_join!(
         config.nameservers(),

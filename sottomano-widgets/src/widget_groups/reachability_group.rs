@@ -93,7 +93,7 @@ impl ReachabilityGroup {
         buses: &DesktopBuses,
         demand: GroupSourceDemand,
     ) -> Subscription<ReachabilityMessage> {
-        let demand = demand.expanded_when(self.expansion.is_expanded());
+        let demand = demand.expanded_when(self.expansion.state());
         Subscription::batch([
             snapshot_subscription::<InterfaceThroughput>(buses.clone())
                 .map(ReachabilityMessage::Throughput),

@@ -92,10 +92,12 @@ struct CellState {
 }
 
 impl CellState {
-    fn holding(&self, hold: Duration) -> bool {
+    fn hold_phase(&self, hold: Duration) -> HoldPhase {
         match (&self.press, self.frame) {
-            (Press::Held { since }, Some(frame)) => frame.duration_since(*since) < hold,
-            _ => false,
+            (Press::Held { since }, Some(frame)) if frame.duration_since(*since) < hold => {
+                HoldPhase::Holding
+            }
+            _ => HoldPhase::Released,
         }
     }
 }
@@ -191,24 +193,24 @@ impl<PressPayload: Clone, Message> Widget<Message, iced::Theme, iced::Renderer>
         viewport: &Rectangle,
     ) {
         let state = tree.state.downcast_ref::<CellState>();
-        let copied = state.holding(self.hold);
-        if copied || state.hovered {
+        let hold_phase = state.hold_phase(self.hold);
+        if hold_phase == HoldPhase::Holding || state.hovered {
             let accent = (self.accent)(theme);
+            let (outline_color, fill_color) = match hold_phase {
+                HoldPhase::Holding => (accent.base, accent.weak),
+                HoldPhase::Released => (accent.weak, Color::TRANSPARENT),
+            };
             renderer.fill_quad(
                 renderer::Quad {
                     bounds: layout.bounds(),
                     border: Border {
-                        color: if copied { accent.base } else { accent.weak },
+                        color: outline_color,
                         width: OUTLINE_WIDTH_PX,
                         radius: Radius::new(SMALL_CORNER_RADIUS_PX),
                     },
                     ..renderer::Quad::default()
                 },
-                if copied {
-                    accent.weak
-                } else {
-                    Color::TRANSPARENT
-                },
+                fill_color,
             );
         }
         self.content.as_widget().draw(
@@ -273,4 +275,10 @@ impl<PressPayload: Clone, Message> Widget<Message, iced::Theme, iced::Renderer>
             translation,
         )
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HoldPhase {
+    Holding,
+    Released,
 }

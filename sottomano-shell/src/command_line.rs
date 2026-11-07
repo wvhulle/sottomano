@@ -1,7 +1,10 @@
 use std::{error::Error, path::Path};
 
 use clap::{Parser, Subcommand};
-use sottomano_toml_config::{SecretPaths, default_config_toml, secrets::SecretFile};
+use sottomano_toml_config::{
+    SecretPaths, default_config_toml,
+    secrets::{SecretFile, SecretPresence},
+};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -45,10 +48,9 @@ fn print_secrets(config_home: &Path) {
         SecretFile::directory(config_home).display()
     );
     for secret in SecretFile::ALL {
-        let state = if present.contains(secret) {
-            "present"
-        } else {
-            "absent"
+        let state = match present.presence_of(secret) {
+            SecretPresence::Present => "present",
+            SecretPresence::Absent => "absent",
         };
         println!("\n{} ({state})\n  {}", secret.file_name(), secret.purpose());
     }

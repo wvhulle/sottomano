@@ -14,7 +14,7 @@ use std::{
 
 use futures::{Stream, StreamExt, future::ready, stream};
 use pty_shell_sessions::ShellSession;
-use sottomano_toml_config::widget_groups::WindowAgentsConfig;
+use sottomano_toml_config::widget_groups::{TerminalAgentUse, WindowAgentsConfig};
 use terminal_shell_label::TerminalShellLabel;
 use tokio::task::spawn_blocking;
 
@@ -153,9 +153,15 @@ enum TerminalAgent {
 impl TerminalAgent {
     fn serving(app_id: &str, agents: &WindowAgentsConfig) -> Option<Self> {
         match app_id {
-            KITTY_APP_ID if agents.kitty => Some(TerminalAgent::KittyRemoteControl),
-            WEZTERM_APP_ID if agents.wezterm => Some(TerminalAgent::WeztermCli),
-            _ if agents.pty_shells && PTY_SHELL_APP_IDS.contains(&app_id) => {
+            KITTY_APP_ID if agents.kitty == TerminalAgentUse::Enabled => {
+                Some(TerminalAgent::KittyRemoteControl)
+            }
+            WEZTERM_APP_ID if agents.wezterm == TerminalAgentUse::Enabled => {
+                Some(TerminalAgent::WeztermCli)
+            }
+            _ if agents.pty_shells == TerminalAgentUse::Enabled
+                && PTY_SHELL_APP_IDS.contains(&app_id) =>
+            {
                 Some(TerminalAgent::PtyShells)
             }
             _ => None,
@@ -532,7 +538,7 @@ mod tests {
         time::{Duration, Instant},
     };
 
-    use sottomano_toml_config::widget_groups::WindowAgentsConfig;
+    use sottomano_toml_config::widget_groups::{TerminalAgentUse, WindowAgentsConfig};
 
     use super::{
         Pairing, TerminalAgent, TerminalAgentAccess, TerminalLabelReading, TerminalWindow,
@@ -682,7 +688,7 @@ mod tests {
         let mut pairing = Pairing::new(
             PathBuf::from("/home/user"),
             WindowAgentsConfig {
-                pty_shells: false,
+                pty_shells: TerminalAgentUse::Disabled,
                 ..WindowAgentsConfig::default()
             },
         );

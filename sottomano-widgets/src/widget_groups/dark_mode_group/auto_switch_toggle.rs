@@ -13,7 +13,9 @@ use crate::{
         HoverCardBody,
         hover_card_source_delivery::{DeliveryTiming, HoverCard},
     },
-    widget_groups::dark_mode_group::sqlite_dark_mode_schedule::DarkModeSchedule,
+    widget_groups::dark_mode_group::sqlite_dark_mode_schedule::{
+        AutoSwitchArming, DarkModeSchedule,
+    },
     widgets::{
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
@@ -63,10 +65,11 @@ impl AutoSwitchToggle {
     }
 
     pub fn press_does(&self) -> &'static str {
-        if self.saved_schedule.auto_switch_armed {
-            "stop switching between light and dark at sunrise and sunset"
-        } else {
-            "switch to light at sunrise and to dark at sunset"
+        match self.saved_schedule.auto_switch_arming {
+            AutoSwitchArming::Armed => {
+                "stop switching between light and dark at sunrise and sunset"
+            }
+            AutoSwitchArming::Disarmed => "switch to light at sunrise and to dark at sunset",
         }
     }
 
@@ -75,7 +78,7 @@ impl AutoSwitchToggle {
     }
 
     pub fn toggle_auto_switch(&mut self) {
-        self.saved_schedule.auto_switch_armed = !self.saved_schedule.auto_switch_armed;
+        self.saved_schedule.auto_switch_arming = self.saved_schedule.auto_switch_arming.toggled();
     }
 
     pub fn change_sun_event_offsets(&mut self, offsets: SunEventOffsets) {
@@ -88,7 +91,7 @@ impl AutoSwitchToggle {
 
     pub fn status_at(&self, now: DateTime<Utc>) -> ScheduleStatus {
         let saved = self.saved_schedule;
-        if !saved.auto_switch_armed {
+        if saved.auto_switch_arming == AutoSwitchArming::Disarmed {
             return ScheduleStatus::Disarmed;
         }
         let Observer::Located(observer_location) = self.observer else {
@@ -143,7 +146,7 @@ impl GroupItemReading for AutoSwitchToggle {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(self.saved_schedule.auto_switch_armed)
+        ReadingDisplayState::from(self.saved_schedule.auto_switch_arming)
     }
 
     fn hover_card(&self, clock: Clock) -> HoverCardBody {

@@ -98,14 +98,25 @@ impl SecretPaths {
     }
 
     #[must_use]
-    pub fn contains(&self, secret: SecretFile) -> bool {
-        match secret {
+    pub fn presence_of(&self, secret: SecretFile) -> SecretPresence {
+        let found = match secret {
             SecretFile::OpenrouterManagement => self.openrouter_management.is_some(),
             SecretFile::ClaudeCodeOauth => self.claude_code_oauth.is_some(),
             SecretFile::GhAuthToken => self.gh_auth_token.is_some(),
             SecretFile::UnsplashAccessKey => self.unsplash_access_key.is_some(),
             SecretFile::CaldavPassword => self.caldav_password.is_some(),
             SecretFile::TailscaleApiToken => self.tailscale_api_token.is_some(),
+        };
+        if found {
+            SecretPresence::Present
+        } else {
+            SecretPresence::Absent
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SecretPresence {
+    Present,
+    Absent,
 }

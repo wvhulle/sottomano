@@ -86,10 +86,15 @@ impl<Message> Reveal<'_, Message> {
         }
     }
 
-    fn measures_finite(&self, natural: Size) -> bool {
-        match self.axis {
-            Axis::Horizontal => natural.width.is_finite(),
-            Axis::Vertical => natural.height.is_finite(),
+    fn natural_extent(&self, natural: Size) -> NaturalExtent {
+        let revealed_length = match self.axis {
+            Axis::Horizontal => natural.width,
+            Axis::Vertical => natural.height,
+        };
+        if revealed_length.is_finite() {
+            NaturalExtent::Finite
+        } else {
+            NaturalExtent::Unbounded
         }
     }
 
@@ -152,7 +157,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Reveal<'_, Messag
             .content
             .as_widget_mut()
             .layout(tree, renderer, &natural_limits);
-        let child = if self.measures_finite(unbounded_child.size()) {
+        let child = if self.natural_extent(unbounded_child.size()) == NaturalExtent::Finite {
             unbounded_child
         } else {
             self.content.as_widget_mut().layout(tree, renderer, limits)
@@ -298,4 +303,10 @@ mod tests {
             marker.x
         );
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NaturalExtent {
+    Finite,
+    Unbounded,
 }

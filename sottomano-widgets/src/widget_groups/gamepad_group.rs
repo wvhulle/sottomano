@@ -36,7 +36,7 @@ use sottomano_desktop_sources::{
     },
 };
 use sottomano_toml_config::widget_groups::gamepad_bindings::{
-    ButtonRole, CompositorAction, GamepadBindingsConfig, GamepadButton,
+    ButtonRole, CompositorAction, FocusBehaviour, GamepadBindingsConfig, GamepadButton,
 };
 use uom::si::f64::Frequency;
 
@@ -54,7 +54,7 @@ use crate::{
     group_items::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
-        toggle_control::{IconToggle, SwitchPresses},
+        toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
@@ -121,7 +121,9 @@ impl GamepadWindowClaim<'_> {
     fn silences_controllers(self, bindings: &GamepadBindingsConfig) -> bool {
         match self {
             Self::Unclaimed => false,
-            Self::Focused(app_id) => !bindings.acts_while_focused(Some(app_id)),
+            Self::Focused(app_id) => {
+                bindings.focus_behaviour(Some(app_id)) == FocusBehaviour::Passive
+            }
             Self::Fullscreen(_) => true,
         }
     }
@@ -218,11 +220,26 @@ fn handover_key(link: &PhysicalGamepadLink) -> &str {
     }
 }
 
-fn compositor_driving_toggle(driving_compositor: bool) -> IconToggle {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ControllerCustody {
+    Compositor,
+    HandedOver,
+}
+
+impl From<ControllerCustody> for SwitchPosition {
+    fn from(controller_custody: ControllerCustody) -> Self {
+        match controller_custody {
+            ControllerCustody::Compositor => SwitchPosition::On,
+            ControllerCustody::HandedOver => SwitchPosition::Off,
+        }
+    }
+}
+
+fn compositor_driving_toggle(controller_custody: ControllerCustody) -> IconToggle {
     IconToggle::new(
         "Compositor control",
         Phosphor::AppWindow(Weight::Regular),
-        driving_compositor,
+        controller_custody,
         SwitchPresses {
             turning_on: "let this controller drive the compositor again",
             turning_off: "hand this controller to the focused window",
@@ -235,9 +252,13 @@ impl GamepadGroup {
         self.expansions.collapse();
     }
 
-    fn handed_over(&self, slot: usize) -> bool {
-        self.physical_link(slot)
-            .is_some_and(|link| self.handed_over_controllers.contains(handover_key(link)))
+    fn controller_custody(&self, slot: usize) -> ControllerCustody {
+        match self.physical_link(slot) {
+            Some(link) if self.handed_over_controllers.contains(handover_key(link)) => {
+                ControllerCustody::HandedOver
+            }
+            _ => ControllerCustody::Compositor,
+        }
     }
 
     fn control<'a>(
@@ -246,7 +267,7 @@ impl GamepadGroup {
         bindings: &GamepadBindingsConfig,
         window_claim: GamepadWindowClaim<'a>,
     ) -> CompositorControl<'a> {
-        if self.handed_over(slot) {
+        if self.controller_custody(slot) == ControllerCustody::HandedOver {
             return CompositorControl::HandedOverByHand;
         }
         match window_claim {
@@ -276,7 +297,7 @@ impl GamepadGroup {
                     .controllers
                     .iter()
                     .map(|controller| controller.slot)
-                    .filter(|slot| self.handed_over(*slot))
+                    .filter(|slot| self.controller_custody(*slot) == ControllerCustody::HandedOver)
                     .collect(),
             },
         }
@@ -301,8 +322,8 @@ impl GamepadGroup {
         buses: &DesktopBuses,
         demand: GroupSourceDemand,
     ) -> Subscription<GamepadMessage> {
-        let any_session_expanded = self.expansions.any_expanded();
-        let demand = demand.expanded_when(any_session_expanded);
+        let session_expansion = self.expansions.combined_state();
+        let demand = demand.expanded_when(session_expansion);
         Subscription::batch([
             demand.while_rows_shown(
                 snapshot_subscription::<Wifi>(buses.clone())
@@ -667,7 +688,6 @@ impl GamepadGroup {
         let battery_reading = ControllerBatteryReading {
             power: gamepad.power,
         };
-        let battery_low = battery_reading.running_low();
         let face = GroupItem::reading(
             self.face_reading(gamepad, link, bindings, window_claim),
             GamepadTarget::Controller { slot },
@@ -678,11 +698,17 @@ impl GamepadGroup {
         });
         let battery =
             (!shown_in_bluetooth_group && gamepad.power != GamepadPower::NoBattery).then(|| {
-                GroupItem::reading(battery_reading, GamepadTarget::Battery { slot })
-                    .previewed_on_handle_if(battery_low)
+                let battery_running_low = battery_reading.running_low();
+                let battery_item =
+                    GroupItem::reading(battery_reading, GamepadTarget::Battery { slot });
+                if battery_running_low {
+                    battery_item.previewed_on_handle()
+                } else {
+                    battery_item
+                }
             });
         let compositor_driving = GroupItem::toggle(
-            compositor_driving_toggle(!self.handed_over(slot)),
+            compositor_driving_toggle(self.controller_custody(slot)),
             GamepadTarget::CompositorDriving { slot },
             GamepadMessage::ToggleCompositorDriving { slot },
         );

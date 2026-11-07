@@ -83,7 +83,7 @@ async fn adapter_link(
     } else {
         None
     };
-    match ap_path.filter(|path| !network_manager_proxies::is_unset(path)) {
+    match ap_path.and_then(network_manager_proxies::assigned_object_path) {
         Some(path) => {
             let ap = network_manager_proxies::access_point(connection, path.clone()).await?;
             Ok(Some(Link {

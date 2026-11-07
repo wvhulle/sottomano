@@ -6,10 +6,9 @@ pub fn write(text: &str) {
     if text.is_empty() {
         return;
     }
-    if !shell_command_output::blocking::run(COPY_PROGRAM, &["--trim-newline", "--", text]) {
-        tracing::warn!(
-            "clipboard: {COPY_PROGRAM} failed to copy {} bytes",
-            text.len()
-        );
+    if let Err(copy_failure) =
+        shell_command_output::blocking::run(COPY_PROGRAM, &["--trim-newline", "--", text])
+    {
+        tracing::warn!("clipboard: copying {} bytes: {copy_failure}", text.len());
     }
 }

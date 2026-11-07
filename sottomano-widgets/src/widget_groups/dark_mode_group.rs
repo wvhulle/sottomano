@@ -24,7 +24,7 @@ use self::{
     sqlite_dark_mode_schedule::DarkModeSchedule,
 };
 use crate::{
-    background_work::{first_delivery, snapshot_subscription},
+    background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_items::{
         group_item::GroupItem,
@@ -148,10 +148,9 @@ impl DarkModeGroup {
 
     #[must_use]
     pub fn scheme(&self) -> ColorMode {
-        match self.mode_toggle.snapshot() {
-            Some(DarkMode { dark: false }) => ColorMode::Light,
-            Some(DarkMode { dark: true }) | None => ColorMode::Dark,
-        }
+        self.mode_toggle
+            .snapshot()
+            .map_or(ColorMode::Dark, |dark_mode| dark_mode.color_mode)
     }
 
     fn upcoming_switch(&self, clock: Clock) -> Option<DateTime<Utc>> {
@@ -263,8 +262,11 @@ impl DarkModeGroup {
                 Task::future(sqlite_dark_mode_schedule::save(
                     self.auto_switch_toggle.saved_schedule,
                 ))
-                .map(move |ok| {
-                    DarkModeMessage::OffsetSlider(edge, ControlMessage::Persisted { value, ok })
+                .map(move |store_outcome| {
+                    DarkModeMessage::OffsetSlider(
+                        edge,
+                        ControlMessage::persisted(value, store_outcome),
+                    )
                 })
             }
             Action::None | Action::Right | Action::Adjust(_) => Task::none(),
@@ -282,18 +284,21 @@ impl DarkModeGroup {
 
     fn apply_color_mode(&mut self, mode: ColorMode) -> Task<DarkModeMessage> {
         self.mode_toggle.apply_command(CommandOutcome::Applied {
-            expected_snapshot: DarkMode {
-                dark: mode == ColorMode::Dark,
-            },
+            expected_snapshot: DarkMode { color_mode: mode },
         });
-        Task::future(blocking("umbra set", move || set_mode(mode))).discard()
+        Task::future(blocking("umbra set", move || {
+            if let Err(umbra_failure) = set_mode(mode) {
+                tracing::warn!("umbra set {}: {umbra_failure}", mode.umbra_name());
+            }
+        }))
+        .discard()
     }
 
     fn persist_saved_schedule(&self) -> Task<DarkModeMessage> {
-        Task::future(sqlite_dark_mode_schedule::save(
-            self.auto_switch_toggle.saved_schedule,
-        ))
-        .discard()
+        logged_failure_task(
+            "dark mode schedule: save".to_owned(),
+            sqlite_dark_mode_schedule::save(self.auto_switch_toggle.saved_schedule),
+        )
     }
 
     fn offset_slider_for(&self, edge: ColorMode) -> &SliderControl {
@@ -351,7 +356,7 @@ impl DarkModeGroup {
                         DarkModeTarget::Schedule,
                     )
                     .on_switch_press(
-                        self.auto_switch_toggle.saved_schedule.auto_switch_armed,
+                        self.auto_switch_toggle.saved_schedule.auto_switch_arming,
                         self.auto_switch_toggle.press_does(),
                         DarkModeMessage::ToggleAutoSwitch,
                     )

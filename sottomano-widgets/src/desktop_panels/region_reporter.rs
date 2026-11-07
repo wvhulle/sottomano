@@ -14,10 +14,34 @@ use iced::{
 };
 use iced_exwlshell::{BlurRegions, InputRegionActions, IntoRegionAction, reexport::BlurRegion};
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum BackdropBlur {
+    Blurred,
+    #[default]
+    Clear,
+}
+
+impl BackdropBlur {
+    #[must_use]
+    pub const fn toggled(self) -> Self {
+        match self {
+            BackdropBlur::Blurred => BackdropBlur::Clear,
+            BackdropBlur::Clear => BackdropBlur::Blurred,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PointerInput {
+    Accepted,
+    #[default]
+    PassedThrough,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct RegionRoles {
-    pub takes_input: bool,
-    pub blurred: bool,
+    pub pointer_input: PointerInput,
+    pub backdrop_blur: BackdropBlur,
     pub corner_radius: Radius,
 }
 
@@ -38,7 +62,10 @@ impl RegionRoles {
     }
 
     fn input_region_actions(self, rects: &[Rectangle]) -> InputRegionActions {
-        let input_rects = if self.takes_input { rects } else { &[] };
+        let input_rects = match self.pointer_input {
+            PointerInput::Accepted => rects,
+            PointerInput::PassedThrough => &[],
+        };
         InputRegionActions(
             input_rects
                 .iter()
@@ -51,15 +78,15 @@ impl RegionRoles {
     }
 
     fn blur_rows(self, rects: &[Rectangle]) -> BlurRegions {
-        if !self.blurred {
-            return replacing_blur_regions(Vec::new());
+        match self.backdrop_blur {
+            BackdropBlur::Blurred => replacing_blur_regions(
+                rects
+                    .iter()
+                    .flat_map(|rect| rounded_blur_rows(*rect, self.corner_radius))
+                    .collect(),
+            ),
+            BackdropBlur::Clear => replacing_blur_regions(Vec::new()),
         }
-        replacing_blur_regions(
-            rects
-                .iter()
-                .flat_map(|rect| rounded_blur_rows(*rect, self.corner_radius))
-                .collect(),
-        )
     }
 }
 
@@ -318,7 +345,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RegionReporter<'_
 mod tests {
     use iced::{Rectangle, border::Radius};
 
-    use super::{RegionRoles, rounded_blur_rows};
+    use super::{PointerInput, RegionRoles, rounded_blur_rows};
 
     fn widget_group_frame() -> Rectangle {
         Rectangle {
@@ -340,7 +367,7 @@ mod tests {
     #[test]
     fn taking_input_adds_collapsed_rects_only_as_the_empty_replacement() {
         let roles = RegionRoles {
-            takes_input: true,
+            pointer_input: PointerInput::Accepted,
             ..RegionRoles::default()
         };
         let collapsed = Rectangle {

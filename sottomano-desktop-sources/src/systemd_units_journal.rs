@@ -81,14 +81,6 @@ pub enum SystemdUnitScope {
 
 impl SystemdUnitScope {
     #[must_use]
-    pub const fn per_user(self) -> bool {
-        match self {
-            SystemdUnitScope::UserSession => true,
-            SystemdUnitScope::SystemWide => false,
-        }
-    }
-
-    #[must_use]
     pub const fn bus(self) -> Bus {
         match self {
             SystemdUnitScope::UserSession => Bus::Session,
@@ -270,11 +262,10 @@ impl ManagerProxy<'_> {
     }
 }
 
-pub async fn connect_systemd_bus(user: bool) -> zbus::Result<zbus::Connection> {
-    if user {
-        zbus::Connection::session().await
-    } else {
-        zbus::Connection::system().await
+pub async fn connect_systemd_bus(unit_scope: SystemdUnitScope) -> zbus::Result<zbus::Connection> {
+    match unit_scope {
+        SystemdUnitScope::UserSession => zbus::Connection::session().await,
+        SystemdUnitScope::SystemWide => zbus::Connection::system().await,
     }
 }
 

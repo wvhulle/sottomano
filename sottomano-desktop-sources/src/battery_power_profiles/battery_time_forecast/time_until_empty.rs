@@ -9,7 +9,7 @@ use crate::battery_power_profiles::{
         time_stepped_simulation::{Scenario, estimate, time_to_move},
     },
     power_profiles_daemon::{Conditions, Profile},
-    upower_battery_state::Battery,
+    upower_battery_state::{Battery, ChargeStatus},
 };
 
 struct Draining<'a> {
@@ -64,7 +64,7 @@ pub fn time_until_empty(
     profile_models: &HashMap<Profile, RegressionState>,
 ) -> HashMap<Profile, Option<Estimate>> {
     let draining = Draining {
-        live: (battery.is_discharging() && battery.power > Power::default())
+        live: (battery.status == ChargeStatus::Discharging && battery.power > Power::default())
             .then_some(battery.power),
         active_profile,
         conditions,
@@ -110,7 +110,7 @@ mod tests {
 
     fn on_battery(energy_wh: f64) -> Battery {
         Battery {
-            status: Some(ChargeStatus::Discharging),
+            status: ChargeStatus::Discharging,
             capacity: Ratio::new::<percent>(50.0),
             energy: Energy::new::<watt_hour>(energy_wh),
             energy_full: Energy::new::<watt_hour>(60.0),

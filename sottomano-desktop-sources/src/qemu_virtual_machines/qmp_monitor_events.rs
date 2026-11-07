@@ -45,9 +45,8 @@ impl QmpPowerdownSender {
         Self::new(socket_path, mpsc::unbounded_channel().0)
     }
 
-    #[must_use]
-    pub fn request_powerdown(&self) -> bool {
-        self.powerdown_requests.send(()).is_ok()
+    pub fn request_powerdown(&self) -> Result<(), mpsc::error::SendError<()>> {
+        self.powerdown_requests.send(())
     }
 
     #[must_use]
@@ -95,9 +94,21 @@ pub(crate) fn run_state_of_message(message_line: &str) -> Option<GuestRunState> 
         .map(run_state_of_status)
 }
 
-fn is_command_reply(message_line: &str) -> bool {
-    serde_json::from_str::<Value>(message_line)
-        .is_ok_and(|message| message.get("return").is_some() || message.get("error").is_some())
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum QmpMessageKind {
+    CommandReply,
+    AsynchronousEvent,
+}
+
+impl From<&str> for QmpMessageKind {
+    fn from(message_line: &str) -> Self {
+        match serde_json::from_str::<Value>(message_line) {
+            Ok(message) if message.get("return").is_some() || message.get("error").is_some() => {
+                QmpMessageKind::CommandReply
+            }
+            _ => QmpMessageKind::AsynchronousEvent,
+        }
+    }
 }
 
 struct QmpSession {
@@ -128,7 +139,7 @@ impl QmpSession {
     async fn reply_skipping_events(&mut self) -> io::Result<String> {
         loop {
             let message_line = self.next_message().await?;
-            if is_command_reply(&message_line) {
+            if QmpMessageKind::from(message_line.as_str()) == QmpMessageKind::CommandReply {
                 return Ok(message_line);
             }
         }

@@ -222,11 +222,6 @@ impl ReportWindow {
     }
 }
 
-fn is_accelerometer(event_node: &Path) -> bool {
-    Device::open(event_node)
-        .is_ok_and(|device| device.properties().contains(PropType::ACCELEROMETER))
-}
-
 pub fn accelerometer_node_beside(slot: usize) -> Option<PathBuf> {
     sysfs_attribute_reads::list_dir(format!("/sys/class/input/event{slot}/device/device/input"))
         .into_iter()
@@ -236,7 +231,10 @@ pub fn accelerometer_node_beside(slot: usize) -> Option<PathBuf> {
             name.starts_with("event")
                 .then(|| Path::new("/dev/input").join(name))
         })
-        .find(|event_node| is_accelerometer(event_node))
+        .find(|event_node| {
+            Device::open(event_node)
+                .is_ok_and(|device| device.properties().contains(PropType::ACCELEROMETER))
+        })
 }
 
 enum MotionSample {

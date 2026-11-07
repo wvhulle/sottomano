@@ -6,38 +6,52 @@ use crate::widgets::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum WindowTileMarking {
+    Marked,
+    Unmarked,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum WindowSlotPresentation {
     Flat,
     InKeyedGroup,
     OutsideKeyedGroups,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SlotBackdrop {
+    OpaqueTile,
+    Bare,
+}
+
 impl WindowSlotPresentation {
-    pub(super) fn shows_icon(self) -> bool {
-        self != WindowSlotPresentation::InKeyedGroup
-    }
-
-    pub(super) fn marks_urgency_with_tile(self) -> bool {
-        self != WindowSlotPresentation::Flat
-    }
-
-    pub(super) fn sits_on_opaque_tile(self, window_is_marked: bool) -> bool {
-        self != WindowSlotPresentation::Flat && window_is_marked
+    pub(super) fn slot_backdrop(self, tile_marking: WindowTileMarking) -> SlotBackdrop {
+        match (self, tile_marking) {
+            (WindowSlotPresentation::Flat, _) | (_, WindowTileMarking::Unmarked) => {
+                SlotBackdrop::Bare
+            }
+            (
+                WindowSlotPresentation::InKeyedGroup | WindowSlotPresentation::OutsideKeyedGroups,
+                WindowTileMarking::Marked,
+            ) => SlotBackdrop::OpaqueTile,
+        }
     }
 
     pub(super) fn styled_title(
         self,
         window_title: WindowTitle<'_>,
-        window_is_marked: bool,
+        tile_marking: WindowTileMarking,
     ) -> WindowTitle<'_> {
-        match (self, self.sits_on_opaque_tile(window_is_marked)) {
+        match (self, self.slot_backdrop(tile_marking)) {
             (WindowSlotPresentation::Flat, _)
-            | (WindowSlotPresentation::OutsideKeyedGroups, false) => window_title,
-            (WindowSlotPresentation::OutsideKeyedGroups, true) => {
+            | (WindowSlotPresentation::OutsideKeyedGroups, SlotBackdrop::Bare) => window_title,
+            (WindowSlotPresentation::OutsideKeyedGroups, SlotBackdrop::OpaqueTile) => {
                 window_title.color(background_color)
             }
-            (WindowSlotPresentation::InKeyedGroup, false) => window_title.without_group_key(),
-            (WindowSlotPresentation::InKeyedGroup, true) => {
+            (WindowSlotPresentation::InKeyedGroup, SlotBackdrop::Bare) => {
+                window_title.without_group_key()
+            }
+            (WindowSlotPresentation::InKeyedGroup, SlotBackdrop::OpaqueTile) => {
                 window_title.without_group_key().color(background_color)
             }
         }
@@ -52,29 +66,26 @@ pub(super) struct ArrangedWindowRows<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::WindowSlotPresentation;
+    use super::{SlotBackdrop, WindowSlotPresentation, WindowTileMarking};
 
     #[test]
     fn window_outside_groups_sits_on_the_tile_only_while_focused() {
         let presentation = WindowSlotPresentation::OutsideKeyedGroups;
-        assert!(presentation.sits_on_opaque_tile(true));
-        assert!(!presentation.sits_on_opaque_tile(false));
-    }
-
-    #[test]
-    fn window_outside_groups_keeps_its_own_icon() {
-        assert!(WindowSlotPresentation::OutsideKeyedGroups.shows_icon());
+        assert_eq!(
+            presentation.slot_backdrop(WindowTileMarking::Marked),
+            SlotBackdrop::OpaqueTile
+        );
+        assert_eq!(
+            presentation.slot_backdrop(WindowTileMarking::Unmarked),
+            SlotBackdrop::Bare
+        );
     }
 
     #[test]
     fn flat_window_never_sits_on_the_tile() {
-        assert!(!WindowSlotPresentation::Flat.sits_on_opaque_tile(true));
-    }
-
-    #[test]
-    fn only_flat_windows_mark_urgency_with_a_line() {
-        assert!(!WindowSlotPresentation::Flat.marks_urgency_with_tile());
-        assert!(WindowSlotPresentation::InKeyedGroup.marks_urgency_with_tile());
-        assert!(WindowSlotPresentation::OutsideKeyedGroups.marks_urgency_with_tile());
+        assert_eq!(
+            WindowSlotPresentation::Flat.slot_backdrop(WindowTileMarking::Marked),
+            SlotBackdrop::Bare
+        );
     }
 }

@@ -1,7 +1,11 @@
 use chrono::TimeDelta;
 use sottomano_desktop_sources::{
     screen_brightness_color::solar_switch_schedule::SunEventOffsets,
-    sqlite_state_store::{Columns, StoreError, with_table},
+    sqlite_state_store::{Columns, StoreError, flag, in_table, with_table},
+};
+
+use crate::group_items::{
+    reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
 };
 
 const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS dark_mode_schedule (
@@ -12,15 +16,49 @@ const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS dark_mode_schedule (
 )";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AutoSwitchArming {
+    Armed,
+    Disarmed,
+}
+
+impl AutoSwitchArming {
+    #[must_use]
+    pub const fn toggled(self) -> Self {
+        match self {
+            AutoSwitchArming::Armed => AutoSwitchArming::Disarmed,
+            AutoSwitchArming::Disarmed => AutoSwitchArming::Armed,
+        }
+    }
+}
+
+impl From<AutoSwitchArming> for SwitchPosition {
+    fn from(auto_switch_arming: AutoSwitchArming) -> Self {
+        match auto_switch_arming {
+            AutoSwitchArming::Armed => SwitchPosition::On,
+            AutoSwitchArming::Disarmed => SwitchPosition::Off,
+        }
+    }
+}
+
+impl From<AutoSwitchArming> for ReadingDisplayState {
+    fn from(auto_switch_arming: AutoSwitchArming) -> Self {
+        match auto_switch_arming {
+            AutoSwitchArming::Armed => ReadingDisplayState::On,
+            AutoSwitchArming::Disarmed => ReadingDisplayState::Off,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DarkModeSchedule {
-    pub auto_switch_armed: bool,
+    pub auto_switch_arming: AutoSwitchArming,
     pub sun_event_offsets: SunEventOffsets,
 }
 
 impl Default for DarkModeSchedule {
     fn default() -> Self {
         Self {
-            auto_switch_armed: true,
+            auto_switch_arming: AutoSwitchArming::Armed,
             sun_event_offsets: SunEventOffsets::default(),
         }
     }
@@ -36,14 +74,11 @@ pub async fn load() -> DarkModeSchedule {
     .unwrap_or_default()
 }
 
-pub async fn save(schedule: DarkModeSchedule) -> bool {
-    with_table(
-        "dark mode schedule: save failed",
-        &[CREATE_TABLE],
-        async |connection| write_schedule(connection, schedule).await,
-    )
+pub async fn save(schedule: DarkModeSchedule) -> Result<(), StoreError> {
+    in_table(&[CREATE_TABLE], async |connection| {
+        write_schedule(connection, schedule).await
+    })
     .await
-    .is_some()
 }
 
 async fn read_schedule(connection: &turso::Connection) -> Result<DarkModeSchedule, StoreError> {
@@ -58,7 +93,10 @@ async fn read_schedule(connection: &turso::Connection) -> Result<DarkModeSchedul
         return Ok(DarkModeSchedule::default());
     };
     Ok(DarkModeSchedule {
-        auto_switch_armed: columns.integer(&row, "armed")? != 0,
+        auto_switch_arming: match columns.integer(&row, "armed")? {
+            0 => AutoSwitchArming::Disarmed,
+            _ => AutoSwitchArming::Armed,
+        },
         sun_event_offsets: SunEventOffsets {
             sunrise_offset: TimeDelta::seconds(columns.integer(&row, "sunrise_offset")?),
             sunset_offset: TimeDelta::seconds(columns.integer(&row, "sunset_offset")?),
@@ -76,7 +114,7 @@ async fn write_schedule(
          VALUES (0, ?1, ?2, ?3)
          ON CONFLICT(id) DO UPDATE SET armed = ?1, sunrise_offset = ?2, sunset_offset = ?3",
             (
-                i64::from(schedule.auto_switch_armed),
+                flag(schedule.auto_switch_arming == AutoSwitchArming::Armed),
                 schedule.sun_event_offsets.sunrise_offset.num_seconds(),
                 schedule.sun_event_offsets.sunset_offset.num_seconds(),
             ),

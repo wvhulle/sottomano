@@ -30,8 +30,8 @@ use crate::{
     },
     group_menus::group_menu_state::{GroupMenuState, GroupMenuTopic},
     hover_cards::{
-        HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator, PanelPinOrigin,
-        PressHints, announcing_hoverable,
+        HandlePointing, HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator,
+        PanelPinOrigin, PressHints, announcing_hoverable,
     },
     widget_groups::widget_group_identity::{
         WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle,
@@ -58,10 +58,12 @@ pub enum WidgetGroupExpansionMessage {
     HandleScrolled(ScrollDelta),
 }
 
+pub use corredo::primitives::expand_animation::ExpansionState;
+
 #[derive(Default)]
 pub struct WidgetGroupExpansion {
-    expanded: bool,
-    cursor_hovering: bool,
+    state: ExpansionState,
+    cursor_pointing: HandlePointing,
 }
 
 pub struct KeyedExpansions<Key> {
@@ -84,10 +86,12 @@ impl<Key: Ord> KeyedExpansions<Key> {
     }
 
     #[must_use]
-    pub fn any_expanded(&self) -> bool {
+    pub fn combined_state(&self) -> ExpansionState {
         self.expansions
             .values()
-            .any(WidgetGroupExpansion::is_expanded)
+            .map(WidgetGroupExpansion::state)
+            .find(|expansion_state| *expansion_state == ExpansionState::Expanded)
+            .unwrap_or(ExpansionState::Collapsed)
     }
 
     #[must_use]
@@ -116,16 +120,25 @@ impl<Key: Ord> KeyedExpansions<Key> {
 
 impl WidgetGroupExpansion {
     pub fn update(&mut self, msg: WidgetGroupExpansionMessage) -> bool {
-        let was_expanded = self.is_expanded();
+        let previous_state = self.state;
         match msg {
-            WidgetGroupExpansionMessage::Toggle => self.expanded = !self.expanded,
-            WidgetGroupExpansionMessage::Expand => self.expanded = true,
-            WidgetGroupExpansionMessage::CursorEntered => self.cursor_hovering = true,
-            WidgetGroupExpansionMessage::CursorExited => self.cursor_hovering = false,
-            WidgetGroupExpansionMessage::Collapse => self.expanded = false,
+            WidgetGroupExpansionMessage::Toggle => {
+                self.state = match self.state {
+                    ExpansionState::Expanded => ExpansionState::Collapsed,
+                    ExpansionState::Collapsed => ExpansionState::Expanded,
+                }
+            }
+            WidgetGroupExpansionMessage::Expand => self.state = ExpansionState::Expanded,
+            WidgetGroupExpansionMessage::CursorEntered => {
+                self.cursor_pointing = HandlePointing::PointedAt;
+            }
+            WidgetGroupExpansionMessage::CursorExited => {
+                self.cursor_pointing = HandlePointing::NotPointedAt;
+            }
+            WidgetGroupExpansionMessage::Collapse => self.state = ExpansionState::Collapsed,
             WidgetGroupExpansionMessage::HandleScrolled(_) => {}
         }
-        was_expanded && !self.is_expanded()
+        previous_state == ExpansionState::Expanded && self.state == ExpansionState::Collapsed
     }
 
     pub fn collapse(&mut self) -> bool {
@@ -133,8 +146,8 @@ impl WidgetGroupExpansion {
     }
 
     #[must_use]
-    pub fn is_expanded(&self) -> bool {
-        self.expanded
+    pub fn state(&self) -> ExpansionState {
+        self.state
     }
 }
 
@@ -298,9 +311,19 @@ pub(crate) struct GroupMenuItemRow<'a, M> {
     pub parts: MenuParts<'a, M>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RowInspection {
+    Inspected,
+    Uninspected,
+}
+
 impl<M> GroupMenuItemRow<'_, M> {
-    pub(crate) fn is_inspected(&self, inspected_target: Option<&HoverTarget>) -> bool {
-        inspected_target == Some(&self.inspected_target)
+    pub(crate) fn inspection(&self, inspected_target: Option<&HoverTarget>) -> RowInspection {
+        if inspected_target == Some(&self.inspected_target) {
+            RowInspection::Inspected
+        } else {
+            RowInspection::Uninspected
+        }
     }
 }
 
@@ -638,7 +661,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         } = self;
         let handle_announcement = HoverAnnouncement::from_group_handle(
             group_title.clone(),
-            PressHints::group_handle(expansion.expanded, scroll_does),
+            PressHints::group_handle(expansion.state, scroll_does),
         )
         .pinned_by(panel_pin);
         let face_target = face.hover_target(&group_identity);
@@ -661,11 +684,11 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         let on_exit = expansion_event(WidgetGroupExpansionMessage::CursorExited);
         let edge_indicator = EdgeIndicator {
             highest_alert_severity,
-            cursor_hovering: expansion.cursor_hovering,
-            expanded: expansion.expanded,
+            cursor_pointing: expansion.cursor_pointing,
+            expansion_state: expansion.state,
         };
         let expansion_duration = config.widget_group_layout.expansion_duration;
-        let animated = expand_animation(expansion.expanded, expansion_duration, move |reveal| {
+        let animated = expand_animation(expansion.state, expansion_duration, move |reveal| {
             let handle: Element<'a, GroupEvent<M>> = button(
                 Row::with_children([
                     draw_face(),
@@ -728,8 +751,8 @@ pub(crate) fn fixed_view<'a, M: Clone + 'a>(
 #[derive(Clone, Copy)]
 pub(crate) struct EdgeIndicator {
     pub highest_alert_severity: Severity,
-    pub cursor_hovering: bool,
-    pub expanded: bool,
+    pub cursor_pointing: HandlePointing,
+    pub expansion_state: ExpansionState,
 }
 
 impl EdgeIndicator {
@@ -737,24 +760,34 @@ impl EdgeIndicator {
         highest_alert_severity: Severity,
         handle_indicator: MenuHandleIndicator,
     ) -> Element<'a, M> {
-        let reveal = if handle_indicator.open { 1.0 } else { 0.0 };
+        let reveal = match handle_indicator.menu_expansion {
+            ExpansionState::Expanded => 1.0,
+            ExpansionState::Collapsed => 0.0,
+        };
         Self {
             highest_alert_severity,
-            cursor_hovering: handle_indicator.hovering,
-            expanded: handle_indicator.open,
+            cursor_pointing: handle_indicator.pointing,
+            expansion_state: handle_indicator.menu_expansion,
         }
         .view(reveal)
     }
 
     pub(crate) fn view<'a, M: 'a>(self, reveal: f32) -> Element<'a, M> {
         let thickness = ACCENT_STROKE_PX;
-        let base = if self.cursor_hovering { 0.5 } else { 0.2 };
+        let base = match self.cursor_pointing {
+            HandlePointing::PointedAt => 0.5,
+            HandlePointing::NotPointedAt => 0.2,
+        };
         let revealing_opacity = base + (1.0 - base) * reveal;
         match self.highest_alert_severity {
-            Severity::Low | Severity::Normal if self.expanded => {
+            Severity::Low | Severity::Normal
+                if self.expansion_state == ExpansionState::Expanded =>
+            {
                 activity_line(primary_color, revealing_opacity, thickness)
             }
-            Severity::Low | Severity::Normal if self.cursor_hovering => {
+            Severity::Low | Severity::Normal
+                if self.cursor_pointing == HandlePointing::PointedAt =>
+            {
                 activity_line(secondary_text_color, 1.0, thickness)
             }
             Severity::Low | Severity::Normal => Space::new()

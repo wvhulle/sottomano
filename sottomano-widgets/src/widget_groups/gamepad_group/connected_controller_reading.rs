@@ -11,6 +11,7 @@ use sottomano_toml_config::{
     severity::Severity,
     widget_groups::gamepad_bindings::{
         ButtonRole, ClaimedButton, CompositorAction, GamepadBindingsConfig, StickDirection,
+        StickSharing,
     },
 };
 
@@ -214,7 +215,7 @@ impl ConnectedControllerReading<'_> {
     }
 
     fn bindings_section(&self) -> Section {
-        let shared_stick = self.bindings.sticks_conflict().then(|| {
+        let shared_stick = (self.bindings.stick_sharing() == StickSharing::Shared).then(|| {
             LabeledValue::new("Sticks", "navigation and pointer share one stick")
                 .level(Severity::Warning)
         });
@@ -255,10 +256,9 @@ impl ConnectedControllerReading<'_> {
         let pointing = self.bindings.pointer.stick.map(|stick| DiagramCallout {
             anchor: stick_anchor(stick),
             label: "pointer".to_owned(),
-            level: if self.bindings.sticks_conflict() {
-                Severity::Warning
-            } else {
-                Severity::Normal
+            level: match self.bindings.stick_sharing() {
+                StickSharing::Shared => Severity::Warning,
+                StickSharing::Separate => Severity::Normal,
             },
         });
         navigating.into_iter().chain(pointing)

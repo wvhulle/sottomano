@@ -33,16 +33,6 @@ pub enum PointerDrag<SlotId, ClickPayload> {
     Dragging(ActiveDrag<SlotId>),
 }
 
-impl<SlotId, ClickPayload> PointerDrag<SlotId, ClickPayload> {
-    pub fn is_idle(&self) -> bool {
-        matches!(self, PointerDrag::Idle)
-    }
-
-    pub fn is_dragging(&self) -> bool {
-        matches!(self, PointerDrag::Dragging(_))
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct ActiveDrag<SlotId> {
     pub item: SlotId,
@@ -240,7 +230,7 @@ pub fn pointer_events<
     ListId: Send + 'static,
     ClickPayload: Copy + Send + 'static,
 >(
-    tracks_moves: bool,
+    move_tracking: MoveTracking,
 ) -> Subscription<DragEvent<SlotId, ListId, ClickPayload>> {
     let releases = listen_with(|event, _status, _surface| match event {
         Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
@@ -248,7 +238,7 @@ pub fn pointer_events<
         }
         _ => None,
     });
-    if !tracks_moves {
+    if move_tracking == MoveTracking::Untracked {
         return releases;
     }
     let moves = listen_with(|event, _status, surface| match event {
@@ -281,19 +271,13 @@ impl<SlotId: Copy + PartialEq> DragView<SlotId> {
     }
 
     #[must_use]
-    pub fn is_active(&self) -> bool {
-        self.drag.is_some()
-    }
-
-    #[must_use]
-    pub fn is_dragging(&self, item: SlotId) -> bool {
-        self.drag.is_some_and(|drag| drag.item == item)
-    }
-
-    #[must_use]
-    pub fn has_left_its_list(&self) -> bool {
-        self.drag
-            .is_some_and(|drag| !matches!(drag.target, DragTarget::OwnList(_)))
+    pub fn list_departure(&self) -> ListDeparture {
+        match self.drag {
+            Some(active_drag) if !matches!(active_drag.target, DragTarget::OwnList(_)) => {
+                ListDeparture::LeftOwnList
+            }
+            Some(_) | None => ListDeparture::InOwnList,
+        }
     }
 
     #[must_use]
@@ -394,4 +378,27 @@ mod tests {
         let order = view.previewed(&[1_u32, 2, 3], |item| *item);
         assert_eq!(order, [&2, &3, &1]);
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MoveTracking {
+    Tracked,
+    Untracked,
+}
+
+impl<SlotId, ClickPayload> From<&PointerDrag<SlotId, ClickPayload>> for MoveTracking {
+    fn from(pointer_drag: &PointerDrag<SlotId, ClickPayload>) -> Self {
+        match pointer_drag {
+            PointerDrag::Idle => MoveTracking::Untracked,
+            PointerDrag::Pressed(_) | PointerDrag::Held { .. } | PointerDrag::Dragging(_) => {
+                MoveTracking::Tracked
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ListDeparture {
+    InOwnList,
+    LeftOwnList,
 }

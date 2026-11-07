@@ -23,10 +23,26 @@ pub struct FrequencyBand {
     pub hardware_ceiling: Frequency,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClockLimitKind {
+    Thermal,
+    NonThermal,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PolicyRestriction {
+    Capped,
+    Unrestricted,
+}
+
 impl FrequencyBand {
     #[must_use]
-    pub fn is_capped(self) -> bool {
-        self.policy_ceiling < self.hardware_ceiling
+    pub fn policy_restriction(self) -> PolicyRestriction {
+        if self.policy_ceiling < self.hardware_ceiling {
+            PolicyRestriction::Capped
+        } else {
+            PolicyRestriction::Unrestricted
+        }
     }
 }
 
@@ -71,11 +87,24 @@ impl CpuClock {
     }
 
     #[must_use]
-    pub fn thermally_limited(&self) -> bool {
-        self.limit_causes
+    pub fn limit_kind(&self) -> ClockLimitKind {
+        let thermal = self
+            .limit_causes
             .iter()
             .flat_map(|core| &core.causes)
-            .any(|cause| cause.is_thermal())
+            .any(|cause| {
+                matches!(
+                    cause,
+                    FrequencyLimitCause::KernelThermalCooling { .. }
+                        | FrequencyLimitCause::CoreThermalThrottle { .. }
+                        | FrequencyLimitCause::PackageThermalThrottle { .. }
+                )
+            });
+        if thermal {
+            ClockLimitKind::Thermal
+        } else {
+            ClockLimitKind::NonThermal
+        }
     }
 
     pub fn lowest(&self) -> Option<Frequency> {
@@ -177,12 +206,18 @@ mod tests {
 
     #[test]
     fn policy_below_hardware_max_is_capped() {
-        assert!(band(400.0, 4800.0).is_capped());
+        assert_eq!(
+            band(400.0, 4800.0).policy_restriction(),
+            PolicyRestriction::Capped
+        );
     }
 
     #[test]
     fn policy_at_hardware_max_is_unrestricted() {
-        assert!(!band(3700.0, 3700.0).is_capped());
+        assert_eq!(
+            band(3700.0, 3700.0).policy_restriction(),
+            PolicyRestriction::Unrestricted
+        );
     }
 
     #[test]

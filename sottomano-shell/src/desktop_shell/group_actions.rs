@@ -35,7 +35,12 @@ impl DesktopShell {
     pub(super) fn open_url(&mut self, url: String) -> Task<Message> {
         Task::batch([
             self.dismiss_hover_card(),
-            Task::future(blocking("open url", move || run("xdg-open", &[&url]))).discard(),
+            Task::future(blocking("open url", move || {
+                if let Err(open_failure) = run("xdg-open", &[&url]) {
+                    tracing::warn!("opening {url}: {open_failure}");
+                }
+            }))
+            .discard(),
         ])
     }
 

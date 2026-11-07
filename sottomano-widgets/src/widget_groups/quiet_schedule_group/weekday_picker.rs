@@ -1,6 +1,6 @@
 use chrono::{Weekday, WeekdaySet};
 pub use corredo::weekday_picker::weekday_name;
-use corredo::weekday_picker::weekday_picker as themed_weekday_picker;
+use corredo::weekday_picker::{DaySelection, weekday_picker as themed_weekday_picker};
 use iced::Element;
 use sottomano_toml_config::Config;
 
@@ -12,6 +12,15 @@ use crate::{
     hover_cards::{HoverCardMessage, HoverTarget, PressHints, hoverable},
     widgets::text::{font_faces_of, text_face_of},
 };
+
+impl From<DaySelection> for ReadingDisplayState {
+    fn from(day_selection: DaySelection) -> Self {
+        match day_selection {
+            DaySelection::Chosen => ReadingDisplayState::On,
+            DaySelection::Unchosen => ReadingDisplayState::Off,
+        }
+    }
+}
 
 pub struct WeekdayPicker<'c, Message> {
     config: &'c Config,
@@ -56,22 +65,21 @@ impl<'a, Message: 'a + Clone> From<WeekdayPicker<'_, Message>> for Element<'a, M
             .typeface(text_face_of(font), font_faces_of(font))
             .spacing(picker.config.theme.spacing.item_gap)
             .locale(picker.config.calendar.locale)
-            .day_color(move |chosen, theme| {
+            .day_color(move |day_selection, theme| {
                 ReadingStateTint {
-                    state: ReadingDisplayState::from(chosen),
+                    state: ReadingDisplayState::from(day_selection),
                     opacity: reveal,
                 }
                 .color(theme)
             })
-            .wrap_day(move |day, chosen, day_button| {
+            .wrap_day(move |day, day_selection, day_button| {
                 hoverable(
                     day_button,
                     (messages.target)(day),
                     PressHints {
-                        left: Some(if chosen {
-                            presses.turning_off
-                        } else {
-                            presses.turning_on
+                        left: Some(match day_selection {
+                            DaySelection::Chosen => presses.turning_off,
+                            DaySelection::Unchosen => presses.turning_on,
                         }),
                         ..PressHints::default()
                     },

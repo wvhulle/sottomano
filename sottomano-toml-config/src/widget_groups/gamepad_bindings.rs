@@ -317,8 +317,12 @@ pub struct PointerSteeringSettings {
 
 impl PointerSteeringSettings {
     #[must_use]
-    pub fn needs_virtual_pointer(&self) -> bool {
-        self.stick.is_some() || !self.buttons.is_empty()
+    pub fn virtual_pointer_need(&self) -> VirtualPointerNeed {
+        if self.stick.is_some() || !self.buttons.is_empty() {
+            VirtualPointerNeed::Needed
+        } else {
+            VirtualPointerNeed::Unneeded
+        }
     }
 }
 
@@ -402,8 +406,12 @@ impl GamepadBindingsConfig {
     }
 
     #[must_use]
-    pub fn sticks_conflict(&self) -> bool {
-        self.navigation.stick.is_some() && self.navigation.stick == self.pointer.stick
+    pub fn stick_sharing(&self) -> StickSharing {
+        if self.navigation.stick.is_some() && self.navigation.stick == self.pointer.stick {
+            StickSharing::Shared
+        } else {
+            StickSharing::Separate
+        }
     }
 
     #[must_use]
@@ -428,13 +436,17 @@ impl GamepadBindingsConfig {
     }
 
     #[must_use]
-    pub fn acts_while_focused(&self, app_id: Option<&str>) -> bool {
-        app_id.is_none_or(|app_id| {
-            !self
-                .passive_app_id_prefixes
+    pub fn focus_behaviour(&self, app_id: Option<&str>) -> FocusBehaviour {
+        let passive = app_id.is_some_and(|focused_app_id| {
+            self.passive_app_id_prefixes
                 .iter()
-                .any(|prefix| app_id.starts_with(prefix.as_str()))
-        })
+                .any(|prefix| focused_app_id.starts_with(prefix.as_str()))
+        });
+        if passive {
+            FocusBehaviour::Passive
+        } else {
+            FocusBehaviour::Active
+        }
     }
 }
 
@@ -469,6 +481,24 @@ impl Default for GamepadBindingsConfig {
             push_to_talk: PushToTalkConfig::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VirtualPointerNeed {
+    Needed,
+    Unneeded,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StickSharing {
+    Shared,
+    Separate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FocusBehaviour {
+    Active,
+    Passive,
 }
 
 #[cfg(test)]
@@ -546,7 +576,7 @@ mod tests {
     fn the_defaults_claim_every_button_at_most_once() {
         let config = GamepadBindingsConfig::default();
         assert!(config.conflicting_buttons().is_empty());
-        assert!(!config.sticks_conflict());
+        assert_eq!(config.stick_sharing(), StickSharing::Separate);
     }
 
     #[test]
@@ -590,9 +620,18 @@ mod tests {
     #[test]
     fn games_matching_a_passive_prefix_silence_the_bindings() {
         let config = GamepadBindingsConfig::default();
-        assert!(!config.acts_while_focused(Some("steam_app_1091500")));
-        assert!(!config.acts_while_focused(Some("steam")));
-        assert!(config.acts_while_focused(Some("kitty")));
-        assert!(config.acts_while_focused(None));
+        assert_eq!(
+            config.focus_behaviour(Some("steam_app_1091500")),
+            FocusBehaviour::Passive
+        );
+        assert_eq!(
+            config.focus_behaviour(Some("steam")),
+            FocusBehaviour::Passive
+        );
+        assert_eq!(
+            config.focus_behaviour(Some("kitty")),
+            FocusBehaviour::Active
+        );
+        assert_eq!(config.focus_behaviour(None), FocusBehaviour::Active);
     }
 }

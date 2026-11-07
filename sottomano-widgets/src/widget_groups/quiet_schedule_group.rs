@@ -21,12 +21,13 @@ use self::{
     sqlite_working_days::{MONDAY_TO_FRIDAY, with_day_toggled},
 };
 use crate::{
+    background_work::logged_failure_task,
     clock::Clock,
     group_items::{
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
         },
-        slider_control::{Action, ControlMessage, SliderControl},
+        slider_control::{Action, ControlMessage, SliderActivity, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
     },
     hover_cards::{
@@ -38,7 +39,7 @@ use crate::{
     },
     widget_groups::{
         quiet_schedule_group::{
-            quiet_window::{QuietPhase, QuietWindow},
+            quiet_window::{QuietPhase, QuietScheduleAdherence, QuietWindow},
             weekday_picker::{WeekdayPicker, WeekdayPickerMessages, weekday_name},
         },
         widget_group_content::{
@@ -122,7 +123,7 @@ struct ArmedEdge {
 }
 
 pub struct QuietScheduleGroup {
-    follows_schedule: bool,
+    schedule_adherence: QuietScheduleAdherence,
     working_days: WeekdaySet,
     start_slider: SliderControl,
     end_slider: SliderControl,
@@ -137,7 +138,7 @@ impl Default for QuietScheduleGroup {
     fn default() -> Self {
         let defaults = QuietHoursSchedule::default();
         let mut quiet_schedule_group = Self {
-            follows_schedule: defaults.follows_schedule,
+            schedule_adherence: defaults.schedule_adherence,
             working_days: MONDAY_TO_FRIDAY,
             start_slider: new_clock_slider(
                 "Quiet from",
@@ -202,7 +203,7 @@ impl QuietScheduleGroup {
     #[must_use]
     pub fn schedule(&self) -> QuietHoursSchedule {
         QuietHoursSchedule {
-            follows_schedule: self.follows_schedule,
+            schedule_adherence: self.schedule_adherence,
             start: clock_at(self.start_slider.settled_value()),
             end: clock_at(self.end_slider.settled_value()),
             screen_off: timeout_at(self.screen_off_slider.settled_value()),
@@ -211,7 +212,7 @@ impl QuietScheduleGroup {
 
     fn requested_schedule(&self) -> QuietHoursSchedule {
         QuietHoursSchedule {
-            follows_schedule: self.follows_schedule,
+            schedule_adherence: self.schedule_adherence,
             start: clock_at(self.start_slider.current()),
             end: clock_at(self.end_slider.current()),
             screen_off: timeout_at(self.screen_off_slider.current()),
@@ -219,7 +220,7 @@ impl QuietScheduleGroup {
     }
 
     fn adopt_schedule(&mut self, schedule: QuietHoursSchedule) {
-        self.follows_schedule = schedule.follows_schedule;
+        self.schedule_adherence = schedule.schedule_adherence;
         self.start_slider
             .update(ControlMessage::Reading(clock_minutes(schedule.start)));
         self.end_slider
@@ -227,7 +228,10 @@ impl QuietScheduleGroup {
         self.screen_off_slider
             .update(ControlMessage::Reading(position(schedule.screen_off)));
         self.screen_off_slider
-            .update(ControlMessage::Disabled(schedule.screen_off.is_none()));
+            .update(ControlMessage::Activity(match schedule.screen_off {
+                Some(_) => SliderActivity::Active,
+                None => SliderActivity::Inactive,
+            }));
     }
 
     fn window(&self) -> QuietWindow {
@@ -248,16 +252,20 @@ impl QuietScheduleGroup {
     fn phase_at(&self, now: DateTime<Local>) -> QuietPhase {
         if let Some(manual_phase) = self.manual_at(now) {
             manual_phase
-        } else if self.follows_schedule {
-            self.window().phase_at(now)
         } else {
-            QuietPhase::Inactive
+            match self.schedule_adherence {
+                QuietScheduleAdherence::Followed => self.window().phase_at(now),
+                QuietScheduleAdherence::Ignored => QuietPhase::Inactive,
+            }
         }
     }
 
     fn next_change(&self, now: DateTime<Local>) -> Option<DateTime<Local>> {
         let manual_expiry = self.manual.as_ref().and_then(|manual| manual.until);
-        let scheduled = self.follows_schedule.then(|| self.window().next_edge(now));
+        let scheduled = match self.schedule_adherence {
+            QuietScheduleAdherence::Followed => Some(self.window().next_edge(now)),
+            QuietScheduleAdherence::Ignored => None,
+        };
         [manual_expiry, scheduled].into_iter().flatten().min()
     }
 
@@ -308,7 +316,10 @@ impl QuietScheduleGroup {
             }
             QuietScheduleMessage::ToggleWorkingDay(day) => {
                 self.working_days = with_day_toggled(self.working_days, day);
-                Task::future(sqlite_working_days::save(self.working_days)).discard()
+                logged_failure_task(
+                    "working days: save".to_owned(),
+                    sqlite_working_days::save(self.working_days),
+                )
             }
             QuietScheduleMessage::EdgeDue => {
                 let now = clock.local();
@@ -322,9 +333,12 @@ impl QuietScheduleGroup {
                 Task::none()
             }
             QuietScheduleMessage::ToggleFollowsSchedule => {
-                self.follows_schedule = !self.follows_schedule;
+                self.schedule_adherence = self.schedule_adherence.toggled();
                 self.manual = None;
-                Task::future(sqlite_quiet_hours::save(self.requested_schedule())).discard()
+                logged_failure_task(
+                    "quiet hours schedule: save".to_owned(),
+                    sqlite_quiet_hours::save(self.requested_schedule()),
+                )
             }
             QuietScheduleMessage::Slider(slider, control) => self.update_slider(slider, control),
             QuietScheduleMessage::Expansion(m) => {
@@ -338,9 +352,12 @@ impl QuietScheduleGroup {
 
     fn toggle_quiet_now(&mut self, now: DateTime<Local>) {
         let phase = self.phase_at(now).opposite();
-        let until = self
-            .follows_schedule
-            .then(|| self.window().next_transition_into(phase.opposite(), now));
+        let until = match self.schedule_adherence {
+            QuietScheduleAdherence::Followed => {
+                Some(self.window().next_transition_into(phase.opposite(), now))
+            }
+            QuietScheduleAdherence::Ignored => None,
+        };
         self.manual = Some(ManualOverride { phase, until });
     }
 
@@ -356,12 +373,21 @@ impl QuietScheduleGroup {
             }
             Action::Commit(value) => {
                 if slider == QuietSlider::ScreenOff {
-                    self.screen_off_slider
-                        .update(ControlMessage::Disabled(timeout_at(value).is_none()));
+                    self.screen_off_slider.update(ControlMessage::Activity(
+                        match timeout_at(value) {
+                            Some(_) => SliderActivity::Active,
+                            None => SliderActivity::Inactive,
+                        },
+                    ));
                 }
-                Task::future(sqlite_quiet_hours::save(self.requested_schedule())).map(move |ok| {
-                    QuietScheduleMessage::Slider(slider, ControlMessage::Persisted { value, ok })
-                })
+                Task::future(sqlite_quiet_hours::save(self.requested_schedule())).map(
+                    move |store_outcome| {
+                        QuietScheduleMessage::Slider(
+                            slider,
+                            ControlMessage::persisted(value, store_outcome),
+                        )
+                    },
+                )
             }
             Action::None | Action::Right | Action::Adjust(_) => Task::none(),
         }
@@ -427,7 +453,7 @@ impl QuietScheduleGroup {
         IconToggle::new(
             "Follow schedule",
             Phosphor::Repeat(Weight::Regular),
-            self.follows_schedule,
+            self.schedule_adherence,
             SwitchPresses {
                 turning_on: "start and end do not disturb on the daily schedule",
                 turning_off: "stop following the daily quiet schedule",
@@ -558,10 +584,9 @@ impl QuietScheduleGroup {
     }
 
     fn face_icon(&self) -> Phosphor {
-        if self.follows_schedule {
-            Phosphor::ClockUser(Weight::Fill)
-        } else {
-            Phosphor::ClockUser(Weight::Regular)
+        match self.schedule_adherence {
+            QuietScheduleAdherence::Followed => Phosphor::ClockUser(Weight::Fill),
+            QuietScheduleAdherence::Ignored => Phosphor::ClockUser(Weight::Regular),
         }
     }
 }
@@ -574,7 +599,8 @@ mod tests {
 
     use super::{QuietChange, QuietScheduleGroup};
     use crate::widget_groups::quiet_schedule_group::{
-        quiet_window::QuietPhase, sqlite_quiet_hours::QuietHoursSchedule,
+        quiet_window::{QuietPhase, QuietScheduleAdherence},
+        sqlite_quiet_hours::QuietHoursSchedule,
     };
 
     fn group_in_phase(phase: QuietPhase, screen_off: Option<Duration>) -> QuietScheduleGroup {
@@ -598,7 +624,7 @@ mod tests {
     #[test]
     fn a_loaded_schedule_reads_back_unchanged() {
         let loaded = QuietHoursSchedule {
-            follows_schedule: false,
+            schedule_adherence: QuietScheduleAdherence::Ignored,
             start: NaiveTime::from_hms_opt(21, 45, 0).unwrap(),
             end: NaiveTime::from_hms_opt(6, 15, 0).unwrap(),
             screen_off: None,

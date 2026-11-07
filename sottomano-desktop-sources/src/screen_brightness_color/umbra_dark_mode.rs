@@ -4,6 +4,7 @@ use futures::{Stream, stream};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    screen_brightness_color::solar_switch_schedule::ColorMode,
     stream_operators::{StreamOperators, read_once_then_per_burst},
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
@@ -13,7 +14,7 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DarkMode {
-    pub dark: bool,
+    pub color_mode: ColorMode,
 }
 
 impl SnapshotSource for DarkMode {
@@ -36,7 +37,10 @@ impl DarkMode {
     async fn read() -> Result<Self, shell_command_output::Error> {
         let mode = shell_command_output::output("umbra", &["get"]).await?;
         Ok(DarkMode {
-            dark: mode.trim() == "dark",
+            color_mode: match mode.trim() {
+                "dark" => ColorMode::Dark,
+                _ => ColorMode::Light,
+            },
         })
     }
 }

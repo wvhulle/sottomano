@@ -15,7 +15,7 @@ use crate::{
             push_or_poll_deliveries,
         },
         caldav_calendar_discovery::{CalendarCollection, CalendarHome},
-        caldav_event_query::{EventWindow, UpcomingEvent, query_upcoming_events},
+        caldav_event_query::{EventPhase, EventWindow, UpcomingEvent, query_upcoming_events},
         caldav_home_listing::SubscribedCalendar,
         caldav_server_provider::CaldavProvider,
         webcal_feed_expansion::download_feed_events,
@@ -35,7 +35,9 @@ pub struct UpcomingEventList {
 impl UpcomingEventList {
     #[must_use]
     pub fn next_event(&self, now: DateTime<Local>) -> Option<&UpcomingEvent> {
-        self.events.iter().find(|event| !event.has_ended(now))
+        self.events
+            .iter()
+            .find(|event| event.phase(now) != EventPhase::Ended)
     }
 }
 
@@ -173,7 +175,7 @@ impl AgendaSnapshotPolling for UpcomingEventPoller {
                     .values()
                     .flat_map(|subscription| subscription.events.iter()),
             )
-            .filter(|event| !event.has_ended(now))
+            .filter(|event| event.phase(now) != EventPhase::Ended)
             .cloned()
             .collect();
         events.sort_by_key(|event| event.start.starts_at());

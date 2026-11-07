@@ -21,7 +21,7 @@ use crate::{
     group_items::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
-        unit_switch::{UnitSwitch, UnitSwitchMessage},
+        unit_switch::{ServiceReadiness, UnitSwitch, UnitSwitchMessage},
     },
     hover_cards::hover_card_body::{
         HoverCardBody, Section,
@@ -177,7 +177,12 @@ impl ScopedLlamaServers {
         let reading = &readings.server;
         let server = reading.get();
         match target.reading {
-            LlamaServerReading::Switch => readings.switch.hover_card(server.is_some(), clock),
+            LlamaServerReading::Switch => readings.switch.hover_card(
+                server.map_or(ServiceReadiness::NotYetServing, |_| {
+                    ServiceReadiness::Serving
+                }),
+                clock,
+            ),
             LlamaServerReading::Model => {
                 let server = server?;
                 let resident = server.resident_model();
@@ -240,8 +245,14 @@ impl ScopedLlamaServers {
             [
                 running.map(|server| {
                     let resident = server.resident_model();
-                    GroupItem::reading(ServedModel { resident }, target(LlamaServerReading::Model))
-                        .previewed_on_handle_if(resident.is_some())
+                    let model_item = GroupItem::reading(
+                        ServedModel { resident },
+                        target(LlamaServerReading::Model),
+                    );
+                    match resident {
+                        Some(_) => model_item.previewed_on_handle(),
+                        None => model_item,
+                    }
                 }),
                 busy.and_then(|server| server.generation_rate).map(|rate| {
                     GroupItem::reading(
@@ -260,7 +271,12 @@ impl ScopedLlamaServers {
                 busy.and_then(|server| ContextFill::of_busy_slots(&server.slots))
                     .map(|fill| GroupItem::reading(fill, target(LlamaServerReading::ContextFill))),
                 readings.switch.group_item(
-                    readings.server.get().is_some(),
+                    readings
+                        .server
+                        .get()
+                        .map_or(ServiceReadiness::NotYetServing, |_| {
+                            ServiceReadiness::Serving
+                        }),
                     target(LlamaServerReading::Switch),
                     lift(ScopedServersMessage::Switch(
                         unit.clone(),

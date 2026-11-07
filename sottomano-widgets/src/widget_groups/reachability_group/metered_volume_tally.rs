@@ -86,7 +86,9 @@ impl MeteredVolumeTally {
             StoredTotals::Loaded {
                 totals,
                 last_saved_at,
-            } if now.duration_since(last_saved_at) >= SAVE_INTERVAL && !self.unsaved.is_empty() => {
+            } if now.duration_since(last_saved_at) >= SAVE_INTERVAL
+                && self.unsaved != TransferTotals::default() =>
+            {
                 let saving = mem::take(&mut self.unsaved);
                 self.stored = StoredTotals::Loaded {
                     totals: totals.with_unsaved(saving),
@@ -205,7 +207,10 @@ mod tests {
         let started_at = Clock::real().instant;
         let mut tally = loaded_tally(started_at);
         tally.observe(&throughput_at(10, 1, true), started_at);
-        assert!(tally.displayed_totals().unwrap().today.is_empty());
+        assert_eq!(
+            tally.displayed_totals().unwrap().today,
+            TransferTotals::default()
+        );
     }
 
     #[test]

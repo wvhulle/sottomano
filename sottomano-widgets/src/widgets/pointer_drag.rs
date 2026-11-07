@@ -3,7 +3,9 @@ pub mod slot_pager;
 use std::{fmt::Debug, hash::Hash};
 
 use corredo::pointer_drag as generic_drag;
-pub use corredo::pointer_drag::{drag_ghost, draggable_slot, slot_group};
+pub use corredo::pointer_drag::{
+    ListDeparture, MoveTracking, drag_ghost, draggable_slot, slot_group,
+};
 use iced::{Subscription, time::Instant};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -46,9 +48,9 @@ pub fn advance<Click: Copy>(
 }
 
 pub fn pointer_events<Click: Copy + Send + 'static>(
-    tracks_moves: bool,
+    move_tracking: MoveTracking,
 ) -> Subscription<DragEvent<Click>> {
-    generic_drag::pointer_events(tracks_moves)
+    generic_drag::pointer_events(move_tracking)
 }
 
 #[cfg(test)]

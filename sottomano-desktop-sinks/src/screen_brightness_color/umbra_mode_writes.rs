@@ -7,7 +7,6 @@ pub fn toggle_mode() -> Result<(), shell_command_output::Error> {
     shell_command_output::blocking::output("umbra", &["toggle"]).map(drop)
 }
 
-#[must_use]
-pub fn set_mode(mode: ColorMode) -> bool {
+pub fn set_mode(mode: ColorMode) -> Result<(), shell_command_output::Error> {
     shell_command_output::blocking::run("umbra", &["set", mode.umbra_name()])
 }

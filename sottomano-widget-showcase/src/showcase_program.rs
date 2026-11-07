@@ -29,9 +29,10 @@ use sottomano_widgets::{
         group_menu_view::{GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard},
     },
     hover_cards::{
-        HoverAnnouncement, HoverCardHost, HoverCardMessage, HoverTarget,
+        HandlePointing, HoverAnnouncement, HoverCardHost, HoverCardMessage, HoverTarget,
         hover_card_body::hover_card_source_delivery::HoverCard,
         hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent},
+        hover_card_transition::CardRetention,
     },
     layer_surfaces::PanelEdge,
     notification_toasts::{
@@ -39,7 +40,7 @@ use sottomano_widgets::{
     },
     toast_messages::NotificationMessage,
     widget_groups::{
-        appearance_presets_group::AppearancePresetsMessage,
+        appearance_presets_group::AppearancePresetsMessage, notification_group::AlertSound,
         quiet_schedule_group::quiet_window::QuietPhase,
     },
     widgets::{
@@ -150,7 +151,7 @@ impl ShowcaseState {
         point_generic_font_families_at(&config.theme);
         let hover_card = HoverCardHost::default();
         let notification_settings = NotificationSettings {
-            sound: false,
+            alert_sound: AlertSound::Silent,
             ..NotificationSettings::default()
         };
         let group = (demo.group)(clock);
@@ -205,19 +206,19 @@ impl ShowcaseState {
                 target,
                 announcement,
             }) => {
-                if !self.hover_card.is_held_open() {
+                if self.hover_card.shown_retention() != CardRetention::UntilDismissed {
                     self.open_hover_card(target, announcement);
                 }
                 Task::none()
             }
             ShowcaseMessage::HoverCard(HoverCardMessage::MenuHandlePointedAnchor {
                 target,
-                pointed_at,
+                pointing,
                 announcement,
             }) => {
                 self.hover_card
-                    .set_handle_pointed_at(SHOWCASE_OUTPUT, &target, pointed_at);
-                if pointed_at
+                    .set_handle_pointing(SHOWCASE_OUTPUT, &target, pointing);
+                if pointing == HandlePointing::PointedAt
                     && self
                         .hover_card
                         .hover_switches_menu(&target, SHOWCASE_OUTPUT)
@@ -230,8 +231,11 @@ impl ShowcaseState {
                 target,
                 announcement,
             }) => {
-                self.hover_card
-                    .set_handle_pointed_at(SHOWCASE_OUTPUT, &target, true);
+                self.hover_card.set_handle_pointing(
+                    SHOWCASE_OUTPUT,
+                    &target,
+                    HandlePointing::PointedAt,
+                );
                 if self.hover_card.target() == Some(&target) {
                     self.close_held_open_card();
                 } else {
@@ -249,7 +253,7 @@ impl ShowcaseState {
                 Task::none()
             }
             ShowcaseMessage::HoverCard(HoverCardMessage::DismissHeldOpen) => {
-                if self.hover_card.is_held_open() {
+                if self.hover_card.shown_retention() == CardRetention::UntilDismissed {
                     self.close_held_open_card();
                 }
                 Task::none()

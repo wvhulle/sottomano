@@ -77,15 +77,11 @@ enum GpuDeviceAccess {
 struct GpuDevice {
     model: GpuModel,
     access: GpuDeviceAccess,
-    runtime_power: Option<GpuRuntimePower>,
+    runtime_power: GpuRuntimePower,
     expansion: WidgetGroupExpansion,
 }
 
 impl GpuDevice {
-    fn is_awake(&self) -> bool {
-        self.runtime_power == Some(GpuRuntimePower::Awake)
-    }
-
     fn readable_handle(&self) -> Option<&GpuHandle> {
         match &self.access {
             GpuDeviceAccess::Readable { handle, .. } => Some(handle),
@@ -164,7 +160,7 @@ impl GpuGroup {
         let snapshots = self
             .devices
             .iter()
-            .filter(|(_, device)| device.is_awake())
+            .filter(|(_, device)| device.runtime_power == GpuRuntimePower::Awake)
             .filter_map(|(bus, device)| {
                 Some(
                     snapshot_subscription::<GpuSnapshot>(device.readable_handle()?.clone())
@@ -252,7 +248,7 @@ impl GpuGroup {
                         let device = GpuDevice {
                             model: gpu.model.clone(),
                             access,
-                            runtime_power: None,
+                            runtime_power: GpuRuntimePower::Unreported,
                             expansion: WidgetGroupExpansion::default(),
                         };
                         (gpu.bus.clone(), device)
@@ -267,7 +263,7 @@ impl GpuGroup {
                 },
             ) => {
                 if let Some(device) = self.devices.get_mut(&bus) {
-                    device.runtime_power = Some(power);
+                    device.runtime_power = power;
                 }
             }
             GpuMessage::RuntimePower(..) => {}
@@ -301,7 +297,7 @@ impl GpuGroup {
                     .values()
                     .map(|device| device.model.names.preferred_name().to_owned()),
             ))
-            .filter(|((_, device), _)| device.is_awake())
+            .filter(|((_, device), _)| device.runtime_power == GpuRuntimePower::Awake)
             .map(|((bus, device), group_title)| {
                 let expanded_bus = bus.clone();
                 let target = |reading| GpuTarget {
@@ -344,7 +340,7 @@ impl GpuGroup {
         let Some(device) = self.devices.get(&target.bus) else {
             return first_delivery::<GpuDiscovery>(()).map(GpuMessage::Discovered);
         };
-        if !device.is_awake() {
+        if device.runtime_power != GpuRuntimePower::Awake {
             return Task::none();
         }
         let Some(handle) = device.readable_handle().cloned() else {

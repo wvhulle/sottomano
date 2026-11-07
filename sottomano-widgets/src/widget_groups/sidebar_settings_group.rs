@@ -6,14 +6,15 @@ use sottomano_toml_config::Config;
 use tokio::time::sleep;
 
 use crate::{
+    background_work::logged_failure_task,
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        toggle_control::{IconToggle, SwitchPresses},
+        toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
-        sqlite_singleton_flag::{self, SingletonFlag},
+        sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
@@ -45,11 +46,18 @@ impl WorkspacesPlacement {
     }
 }
 
-async fn load_workspaces_placement() -> WorkspacesPlacement {
-    if sqlite_singleton_flag::load(SingletonFlag::WorkspacesInSidebar, true).await {
-        WorkspacesPlacement::Sidebar
-    } else {
-        WorkspacesPlacement::BottomPanel
+impl SingletonFlagState for WorkspacesPlacement {
+    const STORED_FLAG: SingletonFlag = SingletonFlag::WorkspacesInSidebar;
+    const STORED_AS_SET: Self = WorkspacesPlacement::Sidebar;
+    const STORED_AS_CLEARED: Self = WorkspacesPlacement::BottomPanel;
+}
+
+impl From<WorkspacesPlacement> for SwitchPosition {
+    fn from(placement: WorkspacesPlacement) -> Self {
+        match placement {
+            WorkspacesPlacement::Sidebar => SwitchPosition::On,
+            WorkspacesPlacement::BottomPanel => SwitchPosition::Off,
+        }
     }
 }
 
@@ -57,7 +65,7 @@ fn workspaces_sidebar_toggle(placement: WorkspacesPlacement) -> IconToggle {
     IconToggle::new(
         "Workspaces sidebar",
         Phosphor::SidebarSimple(Weight::Regular),
-        placement == WorkspacesPlacement::Sidebar,
+        placement,
         SwitchPresses {
             turning_on: "move workspaces to a sidebar on the left edge",
             turning_off: "move workspaces inline into the bottom panel",
@@ -65,11 +73,18 @@ fn workspaces_sidebar_toggle(placement: WorkspacesPlacement) -> IconToggle {
     )
 }
 
-async fn load_empty_workspaces_mode() -> EmptyWorkspaces {
-    if sqlite_singleton_flag::load(SingletonFlag::AutoCollapseWorkspaces, true).await {
-        EmptyWorkspaces::Folded
-    } else {
-        EmptyWorkspaces::Shown
+impl SingletonFlagState for EmptyWorkspaces {
+    const STORED_FLAG: SingletonFlag = SingletonFlag::AutoCollapseWorkspaces;
+    const STORED_AS_SET: Self = EmptyWorkspaces::Folded;
+    const STORED_AS_CLEARED: Self = EmptyWorkspaces::Shown;
+}
+
+impl From<EmptyWorkspaces> for SwitchPosition {
+    fn from(empty_workspaces_mode: EmptyWorkspaces) -> Self {
+        match empty_workspaces_mode {
+            EmptyWorkspaces::Folded => SwitchPosition::On,
+            EmptyWorkspaces::Shown => SwitchPosition::Off,
+        }
     }
 }
 
@@ -77,7 +92,7 @@ fn auto_collapse_workspaces_toggle(empty_workspaces_mode: EmptyWorkspaces) -> Ic
     IconToggle::new(
         "Auto-collapse unused workspaces",
         Phosphor::CaretUp(Weight::Regular),
-        empty_workspaces_mode == EmptyWorkspaces::Folded,
+        empty_workspaces_mode,
         SwitchPresses {
             turning_on: "fold empty workspaces away while they are unused",
             turning_off: "keep empty workspaces listed",
@@ -136,11 +151,11 @@ impl SidebarSettingsGroup {
     pub fn load() -> Task<SidebarSettingsMessage> {
         Task::batch([
             Task::perform(
-                load_workspaces_placement(),
+                sqlite_singleton_flag::load(WorkspacesPlacement::Sidebar),
                 SidebarSettingsMessage::PlacementLoaded,
             ),
             Task::perform(
-                load_empty_workspaces_mode(),
+                sqlite_singleton_flag::load(EmptyWorkspaces::Folded),
                 SidebarSettingsMessage::EmptyWorkspacesModeLoaded,
             ),
             LayerAppearanceControls::load(ShellLayer::Sidebar)
@@ -218,11 +233,10 @@ impl SidebarSettingsGroup {
             }
             SidebarSettingsMessage::ToggleWorkspacesPlacement => {
                 self.workspaces_placement = self.workspaces_placement.toggled();
-                Task::future(sqlite_singleton_flag::save(
-                    SingletonFlag::WorkspacesInSidebar,
-                    self.workspaces_placement == WorkspacesPlacement::Sidebar,
-                ))
-                .discard()
+                logged_failure_task(
+                    "singleton flag: save".to_owned(),
+                    sqlite_singleton_flag::save(self.workspaces_placement),
+                )
             }
             SidebarSettingsMessage::ToggleEmptyWorkspaces => {
                 self.empty_workspace_folding.toggle_temporary_reveal();
@@ -232,11 +246,10 @@ impl SidebarSettingsGroup {
             SidebarSettingsMessage::ToggleAutoCollapseWorkspaces => {
                 self.empty_workspace_folding.toggle_mode();
                 self.reveal_fold_timer = None;
-                Task::future(sqlite_singleton_flag::save(
-                    SingletonFlag::AutoCollapseWorkspaces,
-                    self.empty_workspace_folding.mode() == EmptyWorkspaces::Folded,
-                ))
-                .discard()
+                logged_failure_task(
+                    "singleton flag: save".to_owned(),
+                    sqlite_singleton_flag::save(self.empty_workspace_folding.mode()),
+                )
             }
             SidebarSettingsMessage::FoldTemporaryReveal => {
                 self.empty_workspace_folding.fold_temporary_reveal();

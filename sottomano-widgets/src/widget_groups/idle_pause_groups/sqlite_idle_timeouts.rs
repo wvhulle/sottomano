@@ -4,7 +4,7 @@ use sottomano_desktop_sources::{
     login_session_presence::{
         idle_session_actions::IdleAction, session_power_actions::SessionAction,
     },
-    sqlite_state_store::{Columns, StoreError, with_table},
+    sqlite_state_store::{Columns, StoreError, in_table, with_table},
 };
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS idle_action_timeouts (
@@ -55,14 +55,11 @@ pub async fn load() -> Timeouts {
         .unwrap_or_default()
 }
 
-pub async fn save(timeouts: Timeouts) -> bool {
-    with_table(
-        "idle timeouts: save failed",
-        &[CREATE_TABLE],
-        async |connection| write_timeouts(connection, timeouts).await,
-    )
+pub async fn save(timeouts: Timeouts) -> Result<(), StoreError> {
+    in_table(&[CREATE_TABLE], async |connection| {
+        write_timeouts(connection, timeouts).await
+    })
     .await
-    .is_some()
 }
 
 async fn read_timeouts(connection: &turso::Connection) -> Result<Timeouts, StoreError> {

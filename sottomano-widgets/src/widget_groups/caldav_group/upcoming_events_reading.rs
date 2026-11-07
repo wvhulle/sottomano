@@ -3,8 +3,10 @@ use std::num::NonZeroUsize;
 use chrono::{DateTime, Local, Locale, NaiveDate};
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::caldav_tasks_events::{
-    agenda_moment_zones::AgendaMoment, caldav_event_query::UpcomingEvent,
-    caldav_server_provider::CaldavProvider, caldav_upcoming_events::UpcomingEventList,
+    agenda_moment_zones::AgendaMoment,
+    caldav_event_query::{EventPhase, UpcomingEvent},
+    caldav_server_provider::CaldavProvider,
+    caldav_upcoming_events::UpcomingEventList,
     nextcloud_web_links::NextcloudWebRoot,
 };
 
@@ -73,12 +75,12 @@ pub(super) fn event_date_cell(start: AgendaMoment) -> ValueCell {
 }
 
 pub(super) fn event_time_cell(start: AgendaMoment) -> ValueCell {
-    if start.is_all_day() {
-        return ValueCell::Blank;
-    }
-    ValueCell::Time {
-        at: start.starts_at().to_utc(),
-        format: LocalizedTimeFormat::HourAndMinute,
+    match start {
+        AgendaMoment::AllDay(_) => ValueCell::Blank,
+        AgendaMoment::Floating(_) | AgendaMoment::Zoned(_) => ValueCell::Time {
+            at: start.starts_at().to_utc(),
+            format: LocalizedTimeFormat::HourAndMinute,
+        },
     }
 }
 
@@ -124,7 +126,7 @@ fn starts_label(start: AgendaMoment, now: DateTime<Local>, locale: Locale) -> St
         return relative_moment_text(now.to_utc(), now.to_utc(), locale);
     }
     let day_offset = (begins.date_naive() - now.date_naive()).num_days();
-    if day_offset == 0 && !start.is_all_day() {
+    if day_offset == 0 && !matches!(start, AgendaMoment::AllDay(_)) {
         return LocalizedTimeFormat::HourAndMinute.format(&begins, locale);
     }
     relative_day_word(day_offset, locale)
@@ -158,7 +160,11 @@ impl GroupItemReading for UpcomingEventList {
 
     fn state(&self, clock: Clock) -> ReadingDisplayState {
         let now = clock.local();
-        if self.events.iter().any(|event| event.is_ongoing(now)) {
+        if self
+            .events
+            .iter()
+            .any(|event| event.phase(now) == EventPhase::Ongoing)
+        {
             ReadingDisplayState::On
         } else if self.failed_subscription_names.is_empty() {
             ReadingDisplayState::Idle
@@ -172,7 +178,7 @@ impl GroupItemReading for UpcomingEventList {
         let rows: Vec<_> = self
             .events
             .iter()
-            .filter(|event| !event.has_ended(now))
+            .filter(|event| event.phase(now) != EventPhase::Ended)
             .map(|event| EventRow {
                 event,
                 provider: &self.provider,

@@ -13,7 +13,7 @@ use sottomano_desktop_sources::{
     login_session_presence::{
         focus_time_ledger::ScreenEdge,
         idle_session_actions::IdleAction,
-        kernel_sleep_obstacles::{SleepObstacles, SleepState},
+        kernel_sleep_obstacles::{LogindCapability, SleepObstacles, SleepState},
         screensaver_bus_idle_inhibitors::ScreenSaverInhibitors,
         wayland_idle_notify::IdleEdge,
     },
@@ -43,7 +43,7 @@ use crate::{
     widgets::{
         idle::{
             ActionTrigger, performed_idle_action_edges,
-            timer::{IdleTimer, TimerChange},
+            timer::{ActionAvailability, AvailabilityChange, IdleTimer, TimerChange},
         },
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
@@ -199,23 +199,38 @@ impl IdlePauseGroups {
                     Task::none()
                 }
                 TimerChange::Persist(value) => {
-                    let persist =
-                        Task::future(sqlite_idle_timeouts::save(self.timeouts())).map(move |ok| {
-                            IdlePauseMessage::Timer(kind, ControlMessage::Persisted { value, ok })
-                        });
+                    let persist = Task::future(sqlite_idle_timeouts::save(self.timeouts())).map(
+                        move |store_outcome| {
+                            IdlePauseMessage::Timer(
+                                kind,
+                                ControlMessage::persisted(value, store_outcome),
+                            )
+                        },
+                    );
                     Task::batch([persist, self.rearm()])
                 }
             },
             IdlePauseMessage::ScreenPowerChangedByIdleAction(_) => Task::none(),
             IdlePauseMessage::SleepObstaclesFetched(delivery) => {
                 self.sleep_obstacles.receive(*delivery, clock);
-                let hibernate_unavailable = self
+                let hibernate_availability = match self
                     .sleep_obstacles
                     .get()
-                    .is_some_and(|obstacles| !obstacles.is_available(SleepState::Hibernate));
-                let availability_changed =
-                    self.hibernate.timer.set_unavailable(hibernate_unavailable);
-                if availability_changed && self.hibernate.timer.timeout().is_some() {
+                    .map(|obstacles| obstacles.capability_of(SleepState::Hibernate))
+                {
+                    Some(LogindCapability::NotPermitted | LogindCapability::Unsupported) => {
+                        ActionAvailability::Unavailable
+                    }
+                    Some(LogindCapability::Allowed | LogindCapability::AfterAuthorisation)
+                    | None => ActionAvailability::Available,
+                };
+                let availability_change = self
+                    .hibernate
+                    .timer
+                    .set_availability(hibernate_availability);
+                if availability_change == AvailabilityChange::Changed
+                    && self.hibernate.timer.timeout().is_some()
+                {
                     self.rearm()
                 } else {
                     self.refresh_pause_blockers();
@@ -350,20 +365,26 @@ impl IdlePauseGroups {
         let timeout_slider =
             GroupItem::slider(self.pause(pause).timer.slider(), config, move |message| {
                 IdlePauseMessage::Timer(pause, message)
-            })
-            .previewed_on_handle_if(first_blocker.is_none());
+            });
+        let timeout_slider = match first_blocker {
+            Some(_) => timeout_slider,
+            None => timeout_slider.previewed_on_handle(),
+        };
         let blocker_rows = self
             .blockers_of(pause)
             .enumerate()
             .map(move |(position, blocker)| {
-                GroupItem::reading(
+                let blocker_item = GroupItem::reading(
                     blocker,
                     HoverTarget::PauseBlocker(PauseBlockerTarget {
                         pause,
                         holder: blocker.holder.clone(),
                     }),
-                )
-                .previewed_on_handle_if(position == 0)
+                );
+                match position {
+                    0 => blocker_item.previewed_on_handle(),
+                    _ => blocker_item,
+                }
             });
         let next_sleep_state = self
             .sleep_obstacles

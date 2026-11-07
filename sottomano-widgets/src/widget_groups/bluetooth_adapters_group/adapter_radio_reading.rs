@@ -10,6 +10,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
@@ -132,13 +133,14 @@ impl AdapterPowerSwitch<'_> {
             AdapterPower::Off | AdapterPower::SwitchingOff => "turn this Bluetooth adapter on",
         }
     }
+}
 
-    #[must_use]
-    pub fn switched_on(&self) -> bool {
-        matches!(
-            self.adapter.power,
-            AdapterPower::On(_) | AdapterPower::SwitchingOn
-        )
+impl From<&AdapterPower> for SwitchPosition {
+    fn from(adapter_power: &AdapterPower) -> Self {
+        match adapter_power {
+            AdapterPower::On(_) | AdapterPower::SwitchingOn => SwitchPosition::On,
+            AdapterPower::Off | AdapterPower::SwitchingOff => SwitchPosition::Off,
+        }
     }
 }
 

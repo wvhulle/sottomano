@@ -15,7 +15,7 @@ use crate::{
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{
         machined_machine_registry::{
-            RegisteredMachineListing, machine_set_changes, registered_machine_at,
+            MachineClass, RegisteredMachineListing, machine_set_changes, registered_machine_at,
             registered_machine_listings,
         },
         template_instance_units::{TemplateInstanceUnit, listed_template_instances},
@@ -25,7 +25,6 @@ use crate::{
 
 pub const CONTAINER_POLL_PERIOD: Duration = Duration::from_secs(5);
 const TRIGGER_BURST_GAP: Duration = Duration::from_millis(200);
-const CONTAINER_MACHINE_CLASS: &str = "container";
 const CONTAINER_UNIT_TEMPLATES: [&str; 2] = ["container", "systemd-nspawn"];
 const SERVICE_UNIT_SUFFIX: &str = ".service";
 const IPV4_ADDRESS_FAMILY: i32 = 2;
@@ -77,10 +76,6 @@ struct RegisteredContainerReading {
     machine_name: String,
     unit_name: String,
     registered_machine: RegisteredContainerMachine,
-}
-
-fn is_container_machine(listing: &RegisteredMachineListing) -> bool {
-    listing.machine_class == CONTAINER_MACHINE_CLASS
 }
 
 fn ip_address_from(address_family: i32, address_bytes: &[u8]) -> Option<IpAddr> {
@@ -190,7 +185,10 @@ async fn registered_container_readings(
         }
     };
     let mut registered_readings = Vec::new();
-    for listing in listings.into_iter().filter(is_container_machine) {
+    for listing in listings
+        .into_iter()
+        .filter(|listing| listing.class() == MachineClass::Container)
+    {
         if let Some(registered_reading) = registered_container_reading(system_bus, listing).await {
             registered_readings.push(registered_reading);
         }
@@ -246,21 +244,7 @@ impl SnapshotSource for NspawnContainersReadout {
 
 #[cfg(test)]
 mod tests {
-    use zbus::zvariant::OwnedObjectPath;
-
     use super::*;
-
-    fn machine_listing(machine_class: &str) -> RegisteredMachineListing {
-        RegisteredMachineListing {
-            machine_name: "arr-proton".to_owned(),
-            machine_class: machine_class.to_owned(),
-            registering_service: "systemd-nspawn".to_owned(),
-            machine_path: OwnedObjectPath::try_from(
-                "/org/freedesktop/machine1/machine/arr_2dproton",
-            )
-            .expect("path is valid"),
-        }
-    }
 
     fn registered_reading(machine_name: &str, unit_name: &str) -> RegisteredContainerReading {
         RegisteredContainerReading {
@@ -281,13 +265,6 @@ mod tests {
             instance_name: instance_name.to_owned(),
             activity,
         }
-    }
-
-    #[test]
-    fn only_container_class_machines_count() {
-        assert!(is_container_machine(&machine_listing("container")));
-        assert!(!is_container_machine(&machine_listing("vm")));
-        assert!(!is_container_machine(&machine_listing("host")));
     }
 
     #[test]

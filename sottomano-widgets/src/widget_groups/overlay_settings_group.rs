@@ -2,14 +2,15 @@ use iced::Task;
 use sottomano_toml_config::Config;
 
 use crate::{
+    background_work::logged_failure_task,
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        toggle_control::{IconToggle, SwitchPresses},
+        toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
-        sqlite_singleton_flag::{self, SingletonFlag},
+        sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
@@ -27,15 +28,45 @@ pub enum Action {
     ReflowToasts(Task<OverlaySettingsMessage>),
 }
 
-fn toast_spatial_layout_toggle(spatial_layout: bool) -> IconToggle {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToastArrangement {
+    BesideSender,
+    ScreenCorner,
+}
+
+impl ToastArrangement {
+    #[must_use]
+    pub const fn toggled(self) -> Self {
+        match self {
+            ToastArrangement::BesideSender => ToastArrangement::ScreenCorner,
+            ToastArrangement::ScreenCorner => ToastArrangement::BesideSender,
+        }
+    }
+}
+
+impl SingletonFlagState for ToastArrangement {
+    const STORED_FLAG: SingletonFlag = SingletonFlag::ToastSpatialLayout;
+    const STORED_AS_SET: Self = ToastArrangement::BesideSender;
+    const STORED_AS_CLEARED: Self = ToastArrangement::ScreenCorner;
+}
+
+impl From<ToastArrangement> for SwitchPosition {
+    fn from(toast_arrangement: ToastArrangement) -> Self {
+        match toast_arrangement {
+            ToastArrangement::BesideSender => SwitchPosition::On,
+            ToastArrangement::ScreenCorner => SwitchPosition::Off,
+        }
+    }
+}
+
+fn toast_spatial_layout_toggle(toast_arrangement: ToastArrangement) -> IconToggle {
     IconToggle::new(
         "Toast spatial layout",
-        if spatial_layout {
-            Phosphor::TextAlignCenter(Weight::Regular)
-        } else {
-            Phosphor::TextAlignRight(Weight::Regular)
+        match toast_arrangement {
+            ToastArrangement::BesideSender => Phosphor::TextAlignCenter(Weight::Regular),
+            ToastArrangement::ScreenCorner => Phosphor::TextAlignRight(Weight::Regular),
         },
-        spatial_layout,
+        toast_arrangement,
         SwitchPresses {
             turning_on: "show notifications beside the window that sent them",
             turning_off: "show notifications in the screen corner",
@@ -60,12 +91,12 @@ pub enum OverlaySettingsMessage {
     Expansion(WidgetGroupExpansionMessage),
     ToggleToastSpatialLayout,
     Appearance(AppearanceMessage),
-    SpatialLayoutLoaded(bool),
+    SpatialLayoutLoaded(ToastArrangement),
 }
 
 pub struct OverlaySettingsGroup {
     expansion: WidgetGroupExpansion,
-    toast_spatial_layout: bool,
+    toast_arrangement: ToastArrangement,
     appearance: LayerAppearanceControls,
 }
 
@@ -73,7 +104,7 @@ impl Default for OverlaySettingsGroup {
     fn default() -> Self {
         Self {
             expansion: WidgetGroupExpansion::default(),
-            toast_spatial_layout: true,
+            toast_arrangement: ToastArrangement::BesideSender,
             appearance: LayerAppearanceControls::new(ShellLayer::Overlays, |target| {
                 OverlaySettingsTarget::Appearance(target).into()
             }),
@@ -85,7 +116,7 @@ impl OverlaySettingsGroup {
     pub fn load() -> Task<OverlaySettingsMessage> {
         Task::batch([
             Task::perform(
-                sqlite_singleton_flag::load(SingletonFlag::ToastSpatialLayout, true),
+                sqlite_singleton_flag::load(ToastArrangement::BesideSender),
                 OverlaySettingsMessage::SpatialLayoutLoaded,
             ),
             LayerAppearanceControls::load(ShellLayer::Overlays)
@@ -94,8 +125,8 @@ impl OverlaySettingsGroup {
     }
 
     #[must_use]
-    pub fn toast_spatial_layout(&self) -> bool {
-        self.toast_spatial_layout
+    pub fn toast_arrangement(&self) -> ToastArrangement {
+        self.toast_arrangement
     }
 
     #[must_use]
@@ -107,7 +138,7 @@ impl OverlaySettingsGroup {
     pub fn hover_card_for(&self, target: OverlaySettingsTarget, clock: Clock) -> HoverCard {
         match target {
             OverlaySettingsTarget::ToastSpatialLayout => {
-                toast_spatial_layout_toggle(self.toast_spatial_layout).switch_hover_card(clock)
+                toast_spatial_layout_toggle(self.toast_arrangement).switch_hover_card(clock)
             }
             OverlaySettingsTarget::Appearance(target) => {
                 self.appearance.hover_card_for(target, clock)
@@ -130,22 +161,19 @@ impl OverlaySettingsGroup {
                 Action::Run(Task::none())
             }
             OverlaySettingsMessage::ToggleToastSpatialLayout => {
-                self.toast_spatial_layout = !self.toast_spatial_layout;
-                Action::ReflowToasts(
-                    Task::future(sqlite_singleton_flag::save(
-                        SingletonFlag::ToastSpatialLayout,
-                        self.toast_spatial_layout,
-                    ))
-                    .discard(),
-                )
+                self.toast_arrangement = self.toast_arrangement.toggled();
+                Action::ReflowToasts(logged_failure_task(
+                    "singleton flag: save".to_owned(),
+                    sqlite_singleton_flag::save(self.toast_arrangement),
+                ))
             }
             OverlaySettingsMessage::Appearance(msg) => Action::Run(
                 self.appearance
                     .update(msg)
                     .map(OverlaySettingsMessage::Appearance),
             ),
-            OverlaySettingsMessage::SpatialLayoutLoaded(spatial_layout) => {
-                self.toast_spatial_layout = spatial_layout;
+            OverlaySettingsMessage::SpatialLayoutLoaded(toast_arrangement) => {
+                self.toast_arrangement = toast_arrangement;
                 Action::ReflowToasts(Task::none())
             }
         }
@@ -160,7 +188,7 @@ impl OverlaySettingsGroup {
             &self.expansion,
             OverlaySettingsMessage::Expansion,
             [GroupItem::toggle(
-                toast_spatial_layout_toggle(self.toast_spatial_layout),
+                toast_spatial_layout_toggle(self.toast_arrangement),
                 OverlaySettingsTarget::ToastSpatialLayout,
                 OverlaySettingsMessage::ToggleToastSpatialLayout,
             )]
@@ -178,12 +206,17 @@ impl OverlaySettingsGroup {
 
 #[cfg(test)]
 mod tests {
-    use super::{OverlaySettingsGroup, OverlaySettingsMessage};
+    use super::{OverlaySettingsGroup, OverlaySettingsMessage, ToastArrangement};
 
     #[test]
     fn a_loaded_spatial_layout_reads_back_unchanged() {
         let mut overlay_settings_group = OverlaySettingsGroup::default();
-        let _ = overlay_settings_group.update(OverlaySettingsMessage::SpatialLayoutLoaded(false));
-        assert!(!overlay_settings_group.toast_spatial_layout());
+        let _ = overlay_settings_group.update(OverlaySettingsMessage::SpatialLayoutLoaded(
+            ToastArrangement::ScreenCorner,
+        ));
+        assert_eq!(
+            overlay_settings_group.toast_arrangement(),
+            ToastArrangement::ScreenCorner
+        );
     }
 }

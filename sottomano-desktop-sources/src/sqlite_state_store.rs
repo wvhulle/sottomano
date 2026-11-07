@@ -61,13 +61,18 @@ pub async fn with_table<T>(
     schema: &[&str],
     work: impl AsyncFnOnce(&turso::Connection) -> Result<T, StoreError>,
 ) -> Option<T> {
-    let result = match connect(schema).await {
-        Ok(conn) => work(&conn).await,
-        Err(error) => Err(error),
-    };
-    result
+    in_table(schema, work)
+        .await
         .inspect_err(|error| tracing::warn!("{label}: {error}"))
         .ok()
+}
+
+pub async fn in_table<T>(
+    schema: &[&str],
+    work: impl AsyncFnOnce(&turso::Connection) -> Result<T, StoreError>,
+) -> Result<T, StoreError> {
+    let connection = connect(schema).await?;
+    work(&connection).await
 }
 
 pub async fn upsert_column(
@@ -192,11 +197,6 @@ impl Columns {
             }
             .into()),
         }
-    }
-
-    #[must_use]
-    pub fn optional_flag(&self, row: &turso::Row, name: &str) -> Option<bool> {
-        self.optional_integer(row, name).map(|integer| integer != 0)
     }
 
     #[must_use]

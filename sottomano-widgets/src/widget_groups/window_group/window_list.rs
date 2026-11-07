@@ -18,7 +18,10 @@ use sottomano_desktop_sources::{
     stream_operators::restarting,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
-use sottomano_toml_config::{Config, widget_groups::WindowAgentsConfig};
+use sottomano_toml_config::{
+    Config,
+    widget_groups::{ElementVisibility, TerminalAgentUse, WindowAgentsConfig},
+};
 
 use crate::{
     clock::Clock,
@@ -41,7 +44,9 @@ use crate::{
         flat_window_rows::arranged_flat_rows,
         keyed_window_group_rows::arranged_keyed_groups,
         process_tree::Folding,
-        window_row_presentation::{ArrangedWindowRows, WindowSlotPresentation},
+        window_row_presentation::{
+            ArrangedWindowRows, SlotBackdrop, WindowSlotPresentation, WindowTileMarking,
+        },
     },
     widgets::{
         DISABLED_ALPHA,
@@ -54,8 +59,8 @@ use crate::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         pointer_drag::{
-            DraggedPanelSlot, PanelSlotList,
-            draggable_slot::draggable_slot,
+            DraggedPanelSlot, ListDeparture, PanelSlotList,
+            draggable_slot::{HoverReorder, draggable_slot},
             slot_pager::{SlotAlarm, slot_pager},
         },
         selection_scroller::{ScrollAxis, ScrollPacing, selection_scroller},
@@ -121,7 +126,9 @@ impl WindowList {
         Subscription::batch([
             Subscription::run(|| restarting("job view", kde_job_view_progress::serve))
                 .map(WindowListMessage::JobsChanged),
-            if agents.kitty || agents.wezterm || agents.pty_shells {
+            if [agents.kitty, agents.wezterm, agents.pty_shells]
+                .contains(&TerminalAgentUse::Enabled)
+            {
                 Subscription::run_with(agents.clone(), |agents| {
                     terminal_emulator_windows::window_pairings(agents.clone())
                 })
@@ -283,10 +290,9 @@ impl WindowList {
             .enumerate()
             .map(|(position_in_panel, window_entry)| {
                 let item = window_slot_key(window_entry, workspace);
-                let opacity = if drag.is_dragging(item) {
-                    DISABLED_ALPHA
-                } else {
-                    1.0
+                let opacity = match drag.drag {
+                    Some(active_drag) if active_drag.item == item => DISABLED_ALPHA,
+                    Some(_) | None => 1.0,
                 };
                 WindowSlot {
                     window_entry,
@@ -304,7 +310,7 @@ impl WindowList {
             .collect();
         let alarms = window_slots
             .iter()
-            .filter(|window_slot| window_slot.shows_urgency_tile())
+            .filter(|window_slot| window_slot.urgency_marking() == UrgencyMarking::Tile)
             .map(|window_slot| SlotAlarm {
                 position: window_slot.position_in_panel,
                 color: Box::new(danger_color),
@@ -362,7 +368,7 @@ impl WindowList {
             presentation: WindowSlotPresentation::Flat,
             slot_context,
         };
-        if drag.has_left_its_list() {
+        if drag.list_departure() == ListDeparture::LeftOwnList {
             let inset = config.theme.spacing.surface_inset;
             let circle = drag
                 .ghost_frame
@@ -392,12 +398,12 @@ impl WindowList {
     ) -> Extras<'_> {
         let app_id = window_entry.app_id.as_deref();
         Extras {
-            audio: config
-                .widget_groups
-                .window
-                .audio_indicator
-                .then(|| window_entry.pid.and_then(|pid| audio?.get(&pid)).copied())
-                .flatten(),
+            audio: match config.widget_groups.window.audio_indicator {
+                ElementVisibility::Shown => {
+                    window_entry.pid.and_then(|pid| audio?.get(&pid)).copied()
+                }
+                ElementVisibility::Hidden => None,
+            },
             launcher: app_id.and_then(|app_id| self.launcher.get(app_id)),
             job: app_id.and_then(|app_id| self.jobs.get(app_id)),
         }
@@ -427,7 +433,7 @@ struct Extras<'a> {
 
 impl Extras<'_> {
     fn progress(&self, config: &Config) -> Option<f32> {
-        if !config.widget_groups.window.progress {
+        if config.widget_groups.window.progress == ElementVisibility::Hidden {
             return None;
         }
         self.job
@@ -436,17 +442,24 @@ impl Extras<'_> {
     }
 
     fn count(&self, config: &Config) -> Option<i64> {
-        config
-            .widget_groups
-            .window
-            .count_badge
-            .then(|| self.launcher?.count)
-            .flatten()
+        match config.widget_groups.window.count_badge {
+            ElementVisibility::Shown => self.launcher?.count,
+            ElementVisibility::Hidden => None,
+        }
     }
+}
 
-    fn is_urgent(&self) -> bool {
-        self.launcher.is_some_and(|entry| entry.urgent)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UrgencyMarking {
+    Tile,
+    Line,
+    Unmarked,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WindowAttention {
+    Urgent,
+    Calm,
 }
 
 struct WindowSlot<'s> {
@@ -461,28 +474,40 @@ struct WindowSlot<'s> {
 
 fn glyph_color(
     tint: ReadingStateTint,
-    on_accent_tile: bool,
+    slot_backdrop: SlotBackdrop,
 ) -> impl Fn(&iced::Theme) -> iced::Color {
-    move |theme| {
-        if on_accent_tile {
-            background_color(theme).scale_alpha(tint.opacity)
-        } else {
-            tint.color(theme)
-        }
+    move |theme| match slot_backdrop {
+        SlotBackdrop::OpaqueTile => background_color(theme).scale_alpha(tint.opacity),
+        SlotBackdrop::Bare => tint.color(theme),
     }
 }
 
 impl WindowSlot<'_> {
-    fn is_urgent(&self) -> bool {
-        self.window_entry.is_urgent || self.extras.is_urgent()
+    fn attention(&self) -> WindowAttention {
+        let launcher_urgent = self.extras.launcher.is_some_and(|entry| entry.urgent);
+        if self.window_entry.is_urgent || launcher_urgent {
+            WindowAttention::Urgent
+        } else {
+            WindowAttention::Calm
+        }
     }
 
-    fn shows_urgency_tile(&self) -> bool {
-        self.is_urgent() && self.presentation.marks_urgency_with_tile()
+    fn urgency_marking(&self) -> UrgencyMarking {
+        match (self.attention(), self.presentation) {
+            (WindowAttention::Calm, _) => UrgencyMarking::Unmarked,
+            (WindowAttention::Urgent, WindowSlotPresentation::Flat) => UrgencyMarking::Line,
+            (
+                WindowAttention::Urgent,
+                WindowSlotPresentation::InKeyedGroup | WindowSlotPresentation::OutsideKeyedGroups,
+            ) => UrgencyMarking::Tile,
+        }
     }
 
-    fn is_marked_by_tile(&self) -> bool {
-        self.window_entry.is_focused || self.is_urgent()
+    fn tile_marking(&self) -> WindowTileMarking {
+        match (self.window_entry.is_focused, self.attention()) {
+            (true, _) | (false, WindowAttention::Urgent) => WindowTileMarking::Marked,
+            (false, WindowAttention::Calm) => WindowTileMarking::Unmarked,
+        }
     }
 
     fn maximize_toggles(&self) -> bool {
@@ -517,12 +542,16 @@ impl WindowSlot<'_> {
                 SlotClick::FocusWindow(self.window_entry.id)
             },
         };
-        let tiled =
-            self.window_entry.layout.column.is_some() && !self.window_entry.layout.is_floating;
+        let hover_reorder =
+            if self.window_entry.layout.column.is_some() && !self.window_entry.layout.is_floating {
+                HoverReorder::ReordersOnHover
+            } else {
+                HoverReorder::StaysOnHover
+            };
         let pressable = draggable_slot(
             self.panel_slot(icons),
             press,
-            tiled,
+            hover_reorder,
             &self.slot_context.drag,
             dragged,
         );
@@ -582,13 +611,12 @@ impl WindowSlot<'_> {
         };
         IconGlyph::from(icon(tint.state.weight())).view(
             self.slot_context.config.theme.font.icon_size_px,
-            glyph_color(tint, self.sits_on_opaque_tile()),
+            glyph_color(tint, self.slot_backdrop()),
         )
     }
 
-    fn sits_on_opaque_tile(&self) -> bool {
-        self.presentation
-            .sits_on_opaque_tile(self.is_marked_by_tile())
+    fn slot_backdrop(&self) -> SlotBackdrop {
+        self.presentation.slot_backdrop(self.tile_marking())
     }
 
     fn button_content<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListMessage> {
@@ -598,7 +626,7 @@ impl WindowSlot<'_> {
                 WindowTitle::new(label, config)
                     .opacity(self.opacity)
                     .wrapping(Wrapping::None),
-                self.is_marked_by_tile(),
+                self.tile_marking(),
             )
         });
         Row::new()
@@ -628,15 +656,14 @@ impl WindowSlot<'_> {
         };
         Some(IconGlyph::from(icon.with_weight(state.weight())).view(
             self.slot_context.config.theme.font.icon_size_px,
-            glyph_color(tint, self.sits_on_opaque_tile()),
+            glyph_color(tint, self.slot_backdrop()),
         ))
     }
 
     fn indicator_line<'a>(&self) -> Element<'a, WindowListMessage> {
-        let severity = if self.is_urgent() && !self.shows_urgency_tile() {
-            1.0
-        } else {
-            0.0
+        let severity = match self.urgency_marking() {
+            UrgencyMarking::Line => 1.0,
+            UrgencyMarking::Tile | UrgencyMarking::Unmarked => 0.0,
         };
         activity_line(danger_color, severity * self.opacity, ACCENT_STROKE_PX)
     }
@@ -687,7 +714,7 @@ impl WindowSlot<'_> {
 
     fn badged_icon<'a>(&self, icons: WindowAssets<'a>) -> Option<Element<'a, WindowListMessage>> {
         let badge = self.count_badge();
-        if !self.presentation.shows_icon() && badge.is_none() {
+        if self.presentation == WindowSlotPresentation::InKeyedGroup && badge.is_none() {
             return None;
         }
         let icon = self.resolved_icon(icons)?;

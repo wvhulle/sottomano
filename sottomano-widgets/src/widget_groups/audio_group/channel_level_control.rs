@@ -8,7 +8,7 @@ use crate::{
     group_items::{
         gauge::percent_fill,
         group_item_reading::GroupItemReading,
-        slider_control::{ControlMessage, SliderControl, percent_f},
+        slider_control::{ControlMessage, SliderActivity, SliderControl, percent_f},
     },
     hover_cards::hover_card_body::HoverCardBody,
     widgets::{
@@ -20,13 +20,15 @@ use crate::{
 };
 
 pub(super) fn audio_output_icon(state: &AudioState) -> Phosphor {
-    let muted = state
+    let sink_mute_state = state
         .sink
         .as_ref()
-        .is_some_and(|sink| sink.mute_state == MuteState::Muted);
+        .map_or(MuteState::Audible, |sink| sink.mute_state);
     match state.output_kind {
-        OutputKind::Speaker if muted => Phosphor::SpeakerX(Weight::Regular),
-        OutputKind::Speaker => Phosphor::SpeakerHigh(Weight::Regular),
+        OutputKind::Speaker => match sink_mute_state {
+            MuteState::Muted => Phosphor::SpeakerX(Weight::Regular),
+            MuteState::Audible => Phosphor::SpeakerHigh(Weight::Regular),
+        },
         OutputKind::Headphones => Phosphor::Headphones(Weight::Regular),
         OutputKind::Headset => Phosphor::Headset(Weight::Regular),
         OutputKind::Display => Phosphor::Television(Weight::Regular),
@@ -71,19 +73,27 @@ pub(super) fn device_entries(
     .chain(device)
 }
 
-pub(super) fn input_glyph(_value: f32, muted: bool) -> Phosphor {
-    if muted {
-        Phosphor::MicrophoneSlash(Weight::Regular)
-    } else {
-        Phosphor::Microphone(Weight::Regular)
+impl From<MuteState> for SliderActivity {
+    fn from(mute_state: MuteState) -> Self {
+        match mute_state {
+            MuteState::Muted => SliderActivity::Inactive,
+            MuteState::Audible => SliderActivity::Active,
+        }
+    }
+}
+
+pub(super) fn input_glyph(_value: f32, slider_activity: SliderActivity) -> Phosphor {
+    match slider_activity {
+        SliderActivity::Inactive => Phosphor::MicrophoneSlash(Weight::Regular),
+        SliderActivity::Active => Phosphor::Microphone(Weight::Regular),
     }
 }
 
 pub(super) fn feed(control: &mut SliderControl, reading: Option<&ChannelLevels>) {
     if let Some(reading) = reading {
         control.update(ControlMessage::Reading(percent_f(reading.percent)));
-        control.update(ControlMessage::Disabled(
-            reading.mute_state == MuteState::Muted,
-        ));
+        control.update(ControlMessage::Activity(SliderActivity::from(
+            reading.mute_state,
+        )));
     }
 }

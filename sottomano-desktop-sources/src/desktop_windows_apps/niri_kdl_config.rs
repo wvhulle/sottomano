@@ -56,6 +56,12 @@ pub struct WorkspaceMove {
     pub index: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfiguredOrderStatus {
+    Followed,
+    Diverged,
+}
+
 impl ConfiguredWorkspaces {
     fn declared_in(text: &str) -> Result<Self, KdlError> {
         let document = parse_niri_kdl(text)?;
@@ -79,14 +85,18 @@ impl ConfiguredWorkspaces {
     }
 
     #[must_use]
-    pub fn is_followed_on(&self, live: &[WorkspaceIndicator]) -> bool {
+    pub fn order_status_on(&self, live: &[WorkspaceIndicator]) -> ConfiguredOrderStatus {
         let configured = self.present_on(live);
         let leading: Vec<&str> = live
             .iter()
             .take(configured.len())
-            .filter_map(|p| p.name.as_deref())
+            .filter_map(|indicator| indicator.name.as_deref())
             .collect();
-        leading == configured
+        if leading == configured {
+            ConfiguredOrderStatus::Followed
+        } else {
+            ConfiguredOrderStatus::Diverged
+        }
     }
 
     #[must_use]

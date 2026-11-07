@@ -12,7 +12,7 @@ pub async fn restart_failed_unit(failed_unit_restart: FailedUnitRestart) {
 }
 
 async fn restart_unit_over_bus(failed_unit_restart: &FailedUnitRestart) -> zbus::Result<()> {
-    let connection = connect_systemd_bus(failed_unit_restart.per_user).await?;
+    let connection = connect_systemd_bus(failed_unit_restart.unit_scope).await?;
     ManagerProxy::new(&connection)
         .await?
         .restart_unit(&failed_unit_restart.unit, "replace")

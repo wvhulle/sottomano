@@ -3,14 +3,7 @@ use sottomano_desktop_sources::media_playback_audio::mpris_players::{
 };
 use zbus::blocking::Connection as BlockingConnection;
 
-#[must_use]
-pub fn control(bus: &str, command: Command) -> bool {
-    send_command(bus, command)
-        .inspect_err(|e| tracing::warn!("mpris {bus}: {e}"))
-        .is_ok()
-}
-
-fn send_command(bus: &str, command: Command) -> zbus::Result<()> {
+pub fn control(bus: &str, command: Command) -> zbus::Result<()> {
     let connection = BlockingConnection::session()?;
     let player = || {
         PlayerProxyBlocking::builder(&connection)

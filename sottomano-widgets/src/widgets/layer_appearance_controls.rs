@@ -5,17 +5,21 @@ use sottomano_toml_config::Config;
 
 use self::sqlite_layer_appearance::{AppearanceSetting, AppearanceValue};
 use crate::{
+    background_work::logged_failure_task,
     clock::Clock,
+    desktop_panels::region_reporter::BackdropBlur,
     group_items::{
         aligned_quantity::AlignedQuantity,
         group_item::GroupItem,
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        toggle_control::{IconToggle, SwitchPresses},
+        toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widgets::{
         phosphor::{Phosphor, Weight},
-        shell_layer_appearance::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer},
+        shell_layer_appearance::{
+            LayerAppearance, OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle, ShellLayer,
+        },
     },
 };
 
@@ -45,11 +49,38 @@ pub enum AppearanceMessage {
     Adopted(LayerAppearance),
 }
 
-fn blur_toggle(switched_on: bool) -> IconToggle {
+impl From<BackdropBlur> for SwitchPosition {
+    fn from(backdrop_blur: BackdropBlur) -> Self {
+        match backdrop_blur {
+            BackdropBlur::Blurred => SwitchPosition::On,
+            BackdropBlur::Clear => SwitchPosition::Off,
+        }
+    }
+}
+
+impl From<ShadowCasting> for SwitchPosition {
+    fn from(shadow_casting: ShadowCasting) -> Self {
+        match shadow_casting {
+            ShadowCasting::Cast => SwitchPosition::On,
+            ShadowCasting::Omitted => SwitchPosition::Off,
+        }
+    }
+}
+
+impl From<OutlineTracing> for SwitchPosition {
+    fn from(outline_tracing: OutlineTracing) -> Self {
+        match outline_tracing {
+            OutlineTracing::Drawn => SwitchPosition::On,
+            OutlineTracing::Omitted => SwitchPosition::Off,
+        }
+    }
+}
+
+fn blur_toggle(backdrop_blur: BackdropBlur) -> IconToggle {
     IconToggle::new(
         "Blur background",
         Phosphor::Snowflake(Weight::Regular),
-        switched_on,
+        backdrop_blur,
         SwitchPresses {
             turning_on: "frost the background behind this layer",
             turning_off: "stop blurring behind this layer",
@@ -57,11 +88,11 @@ fn blur_toggle(switched_on: bool) -> IconToggle {
     )
 }
 
-fn shadow_toggle(switched_on: bool) -> IconToggle {
+fn shadow_toggle(shadow_casting: ShadowCasting) -> IconToggle {
     IconToggle::new(
         "Drop shadow",
         Phosphor::SelectionBackground(Weight::Regular),
-        switched_on,
+        shadow_casting,
         SwitchPresses {
             turning_on: "cast a drop shadow under this layer",
             turning_off: "remove the drop shadow",
@@ -69,11 +100,11 @@ fn shadow_toggle(switched_on: bool) -> IconToggle {
     )
 }
 
-fn outline_toggle(switched_on: bool) -> IconToggle {
+fn outline_toggle(outline_tracing: OutlineTracing) -> IconToggle {
     IconToggle::new(
         "Outline",
         Phosphor::Rectangle(Weight::Regular),
-        switched_on,
+        outline_tracing,
         SwitchPresses {
             turning_on: "trace the edges facing the screen interior",
             turning_off: "remove the edge outline",
@@ -89,9 +120,9 @@ pub struct LayerAppearanceControls {
     shadow_softness: SliderControl,
     shadow_opacity: SliderControl,
     outline_opacity: SliderControl,
-    blurred: bool,
-    shadow_cast: bool,
-    outline_drawn: bool,
+    backdrop_blur: BackdropBlur,
+    shadow_casting: ShadowCasting,
+    outline_tracing: OutlineTracing,
 }
 
 impl LayerAppearanceControls {
@@ -100,9 +131,9 @@ impl LayerAppearanceControls {
         let mut appearance_controls = Self {
             layer,
             hover,
-            blurred: defaults.blurred,
-            shadow_cast: defaults.shadow.cast,
-            outline_drawn: defaults.outline.drawn,
+            backdrop_blur: defaults.backdrop_blur,
+            shadow_casting: defaults.shadow.casting,
+            outline_tracing: defaults.outline.tracing,
             opacity: SliderControl::new(
                 "Opacity",
                 0.0..=100.0,
@@ -161,23 +192,23 @@ impl LayerAppearanceControls {
             background: self.layer.default_appearance().background,
             opacity: self.opacity.settled_value() / 100.0,
             corner_radius_px: self.corner_radius.settled_value(),
-            blurred: self.blurred,
+            backdrop_blur: self.backdrop_blur,
             shadow: ShadowStyle {
-                cast: self.shadow_cast,
+                casting: self.shadow_casting,
                 softness_px: self.shadow_softness.settled_value(),
                 opacity: self.shadow_opacity.settled_value() / 100.0,
             },
             outline: OutlineStyle {
-                drawn: self.outline_drawn,
+                tracing: self.outline_tracing,
                 opacity: self.outline_opacity.settled_value() / 100.0,
             },
         }
     }
 
     fn adopt_loaded(&mut self, appearance: LayerAppearance) {
-        self.blurred = appearance.blurred;
-        self.shadow_cast = appearance.shadow.cast;
-        self.outline_drawn = appearance.outline.drawn;
+        self.backdrop_blur = appearance.backdrop_blur;
+        self.shadow_casting = appearance.shadow.casting;
+        self.outline_tracing = appearance.outline.tracing;
         self.opacity
             .update(ControlMessage::Reading(appearance.opacity * 100.0));
         self.corner_radius
@@ -205,9 +236,9 @@ impl LayerAppearanceControls {
             AppearanceTarget::CornerRadius => {
                 self.corner_radius.readout_hover_card("Corner radius")
             }
-            AppearanceTarget::Blur => blur_toggle(self.blurred).switch_hover_card(clock),
+            AppearanceTarget::Blur => blur_toggle(self.backdrop_blur).switch_hover_card(clock),
             AppearanceTarget::DropShadow => {
-                shadow_toggle(self.shadow_cast).switch_hover_card(clock)
+                shadow_toggle(self.shadow_casting).switch_hover_card(clock)
             }
             AppearanceTarget::ShadowSoftness => {
                 self.shadow_softness.readout_hover_card("Shadow softness")
@@ -216,7 +247,7 @@ impl LayerAppearanceControls {
                 self.shadow_opacity.readout_hover_card("Shadow opacity")
             }
             AppearanceTarget::Outline => {
-                outline_toggle(self.outline_drawn).switch_hover_card(clock)
+                outline_toggle(self.outline_tracing).switch_hover_card(clock)
             }
             AppearanceTarget::OutlineOpacity => {
                 self.outline_opacity.readout_hover_card("Outline opacity")
@@ -282,16 +313,25 @@ impl LayerAppearanceControls {
                 )
             }
             AppearanceMessage::ToggleBlur => {
-                self.blurred = !self.blurred;
-                self.persist_switch(AppearanceSetting::Blurred, self.blurred)
+                self.backdrop_blur = self.backdrop_blur.toggled();
+                self.persist_switch(
+                    AppearanceSetting::Blurred,
+                    AppearanceValue::Blur(self.backdrop_blur),
+                )
             }
             AppearanceMessage::ToggleShadow => {
-                self.shadow_cast = !self.shadow_cast;
-                self.persist_switch(AppearanceSetting::DropShadow, self.shadow_cast)
+                self.shadow_casting = self.shadow_casting.toggled();
+                self.persist_switch(
+                    AppearanceSetting::DropShadow,
+                    AppearanceValue::Shadow(self.shadow_casting),
+                )
             }
             AppearanceMessage::ToggleOutline => {
-                self.outline_drawn = !self.outline_drawn;
-                self.persist_switch(AppearanceSetting::Outline, self.outline_drawn)
+                self.outline_tracing = self.outline_tracing.toggled();
+                self.persist_switch(
+                    AppearanceSetting::Outline,
+                    AppearanceValue::Outline(self.outline_tracing),
+                )
             }
             AppearanceMessage::Loaded(appearance) => {
                 self.adopt_loaded(appearance);
@@ -299,10 +339,10 @@ impl LayerAppearanceControls {
             }
             AppearanceMessage::Adopted(appearance) => {
                 self.adopt_loaded(appearance);
-                Task::future(sqlite_layer_appearance::save_appearance(
-                    self.layer, appearance,
-                ))
-                .discard()
+                logged_failure_task(
+                    "layer appearance: save".to_owned(),
+                    sqlite_layer_appearance::save_appearance(self.layer, appearance),
+                )
             }
         }
     }
@@ -319,16 +359,18 @@ impl LayerAppearanceControls {
             setting,
             AppearanceValue::Real(stored),
         ))
-        .map(move |ok| on_control(ControlMessage::Persisted { value, ok }))
+        .map(move |store_outcome| on_control(ControlMessage::persisted(value, store_outcome)))
     }
 
-    fn persist_switch(&self, setting: AppearanceSetting, enabled: bool) -> Task<AppearanceMessage> {
-        Task::future(sqlite_layer_appearance::save(
-            self.layer,
-            setting,
-            AppearanceValue::Flag(enabled),
-        ))
-        .discard()
+    fn persist_switch(
+        &self,
+        setting: AppearanceSetting,
+        switch_value: AppearanceValue,
+    ) -> Task<AppearanceMessage> {
+        logged_failure_task(
+            "layer appearance: save".to_owned(),
+            sqlite_layer_appearance::save(self.layer, setting, switch_value),
+        )
     }
 
     pub fn items<'a, M: Clone + 'a>(
@@ -347,13 +389,13 @@ impl LayerAppearanceControls {
             })
             .aligned_as(AlignedQuantity::CornerRadius),
             GroupItem::toggle(
-                blur_toggle(self.blurred),
+                blur_toggle(self.backdrop_blur),
                 hover(AppearanceTarget::Blur),
                 lift(AppearanceMessage::ToggleBlur),
             )
             .aligned_as(AlignedQuantity::Blur),
             GroupItem::toggle(
-                shadow_toggle(self.shadow_cast),
+                shadow_toggle(self.shadow_casting),
                 hover(AppearanceTarget::DropShadow),
                 lift(AppearanceMessage::ToggleShadow),
             )
@@ -367,7 +409,7 @@ impl LayerAppearanceControls {
             })
             .aligned_as(AlignedQuantity::ShadowOpacity),
             GroupItem::toggle(
-                outline_toggle(self.outline_drawn),
+                outline_toggle(self.outline_tracing),
                 hover(AppearanceTarget::Outline),
                 lift(AppearanceMessage::ToggleOutline),
             )
@@ -382,13 +424,17 @@ impl LayerAppearanceControls {
 
 #[cfg(test)]
 mod tests {
+    use sottomano_desktop_sources::sqlite_state_store::StoreError;
+
     use super::{AppearanceMessage, LayerAppearanceControls};
     use crate::{
+        desktop_panels::region_reporter::BackdropBlur,
         group_items::slider_control::ControlMessage,
         hover_cards::HoverTarget,
         widget_groups::panel_settings_group::PanelSettingsTarget,
         widgets::shell_layer_appearance::{
-            FrameBackground, LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer,
+            FrameBackground, LayerAppearance, OutlineStyle, OutlineTracing, ShadowCasting,
+            ShadowStyle, ShellLayer,
         },
     };
 
@@ -426,14 +472,14 @@ mod tests {
             background: FrameBackground::Base,
             opacity: 0.5,
             corner_radius_px: 3.0,
-            blurred: false,
+            backdrop_blur: BackdropBlur::Clear,
             shadow: ShadowStyle {
-                cast: false,
+                casting: ShadowCasting::Omitted,
                 softness_px: 12.0,
                 opacity: 0.25,
             },
             outline: OutlineStyle {
-                drawn: false,
+                tracing: OutlineTracing::Omitted,
                 opacity: 0.75,
             },
         };
@@ -452,17 +498,11 @@ mod tests {
             appearance_controls.update(AppearanceMessage::CornerRadius(ControlMessage::Release));
         assert!((appearance_controls.appearance().corner_radius_px - settled).abs() < f32::EPSILON);
         let _ = appearance_controls.update(AppearanceMessage::CornerRadius(
-            ControlMessage::Persisted {
-                value: 2.0,
-                ok: false,
-            },
+            ControlMessage::persisted(2.0, Err(StoreError::NoRow)),
         ));
         assert!((appearance_controls.appearance().corner_radius_px - settled).abs() < f32::EPSILON);
         let _ = appearance_controls.update(AppearanceMessage::CornerRadius(
-            ControlMessage::Persisted {
-                value: 2.0,
-                ok: true,
-            },
+            ControlMessage::persisted(2.0, Ok::<(), StoreError>(())),
         ));
         assert!((appearance_controls.appearance().corner_radius_px - 2.0).abs() < f32::EPSILON);
     }

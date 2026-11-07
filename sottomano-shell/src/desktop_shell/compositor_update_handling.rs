@@ -14,7 +14,9 @@ use sottomano_desktop_sources::desktop_windows_apps::{
     workspace_window_snapshot,
 };
 use sottomano_widgets::widget_groups::{
-    app_launcher_group::{AppLaunchUsage, FrequentApp, FrequentAppScope, OutputFrequentApps},
+    app_launcher_group::{
+        AppLaunchUsage, FrequentApp, FrequentAppScope, OutputFrequentApps, WorkspaceWindowPresence,
+    },
     gamepad_group::GamepadWindowClaim,
 };
 
@@ -94,7 +96,7 @@ impl DesktopShell {
         if windows_changed || workspaces_changed || focus_changed {
             tasks.push(self.refresh_app_launcher());
         }
-        if self.notifications.is_active() {
+        if self.notifications.live_count() > 0 {
             tasks.push(self.reflow_toasts());
         }
         Task::batch(tasks)
@@ -134,7 +136,11 @@ impl DesktopShell {
                 let apps = launchable_ranked(launch_scope)
                     .into_iter()
                     .map(|app| FrequentApp {
-                        open_on_workspace: open_app_ids.contains(&app.app_id),
+                        window_presence: if open_app_ids.contains(&app.app_id) {
+                            WorkspaceWindowPresence::Open
+                        } else {
+                            WorkspaceWindowPresence::Absent
+                        },
                         app,
                     })
                     .collect();

@@ -2,7 +2,8 @@ use std::cmp::Reverse;
 
 use chrono::Locale;
 use sottomano_desktop_sources::cpu_memory_compute::{
-    cpu_clock_frequency::CpuClock, kernel_frequency_limit_causes::FrequencyLimitCause,
+    cpu_clock_frequency::{ClockLimitKind, CpuClock},
+    kernel_frequency_limit_causes::FrequencyLimitCause,
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -37,10 +38,11 @@ pub(super) fn cause_text(cause: FrequencyLimitCause) -> String {
 }
 
 pub(super) fn cause_level(cause: FrequencyLimitCause) -> Severity {
-    if cause.is_thermal() {
-        Severity::Critical
-    } else {
-        Severity::Warning
+    match cause {
+        FrequencyLimitCause::KernelThermalCooling { .. }
+        | FrequencyLimitCause::CoreThermalThrottle { .. }
+        | FrequencyLimitCause::PackageThermalThrottle { .. } => Severity::Critical,
+        FrequencyLimitCause::BoostDisabled | FrequencyLimitCause::PolicyCap => Severity::Warning,
     }
 }
 
@@ -93,10 +95,9 @@ impl ClockLimitCauses<'_> {
     }
 
     fn severity(&self) -> Severity {
-        if self.clock.thermally_limited() {
-            Severity::Critical
-        } else {
-            Severity::Warning
+        match self.clock.limit_kind() {
+            ClockLimitKind::Thermal => Severity::Critical,
+            ClockLimitKind::NonThermal => Severity::Warning,
         }
     }
 }

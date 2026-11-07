@@ -11,10 +11,12 @@ pub struct Placement {
     pub output: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CardRetention {
     UntilPointerLeaves,
     UntilDismissed,
+    #[default]
+    NothingShown,
 }
 
 pub struct Occupant {
@@ -52,10 +54,22 @@ pub enum ShownTarget {
     Target(HoverTarget),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LeaveIntent {
+    Leaving,
+    Staying,
+}
+
 enum Stage {
     Idle,
-    Showing { current: Occupant, leaving: bool },
-    Hiding { previous: Departed, since: Instant },
+    Showing {
+        current: Occupant,
+        leave_intent: LeaveIntent,
+    },
+    Hiding {
+        previous: Departed,
+        since: Instant,
+    },
 }
 
 pub struct HoverCardTransition {
@@ -72,7 +86,7 @@ impl HoverCardTransition {
     pub fn show(&mut self, current: Occupant) {
         self.stage = Stage::Showing {
             current,
-            leaving: false,
+            leave_intent: LeaveIntent::Staying,
         };
     }
 
@@ -100,23 +114,24 @@ impl HoverCardTransition {
 
     pub fn request_leave(&mut self) {
         if let Stage::Showing {
-            current, leaving, ..
+            current,
+            leave_intent,
         } = &mut self.stage
             && current.retention == CardRetention::UntilPointerLeaves
         {
-            *leaving = true;
+            *leave_intent = LeaveIntent::Leaving;
         }
     }
 
     #[must_use]
-    pub fn is_held_open(&self) -> bool {
+    pub fn shown_retention(&self) -> CardRetention {
         self.current()
-            .is_some_and(|current| current.retention == CardRetention::UntilDismissed)
+            .map_or(CardRetention::NothingShown, |current| current.retention)
     }
 
     pub fn cancel_leave(&mut self) {
-        if let Stage::Showing { leaving, .. } = &mut self.stage {
-            *leaving = false;
+        if let Stage::Showing { leave_intent, .. } = &mut self.stage {
+            *leave_intent = LeaveIntent::Staying;
         }
     }
 
@@ -129,8 +144,11 @@ impl HoverCardTransition {
     }
 
     #[must_use]
-    pub fn is_leaving(&self) -> bool {
-        matches!(self.stage, Stage::Showing { leaving: true, .. })
+    pub fn leave_intent(&self) -> LeaveIntent {
+        match self.stage {
+            Stage::Showing { leave_intent, .. } => leave_intent,
+            Stage::Idle | Stage::Hiding { .. } => LeaveIntent::Staying,
+        }
     }
 
     pub fn revise_announcement(&mut self, target: &HoverTarget, announcement: HoverAnnouncement) {

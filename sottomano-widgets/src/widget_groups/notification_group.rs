@@ -1,12 +1,13 @@
 use iced::Task;
 
 use crate::{
+    background_work::logged_failure_task,
     clock::Clock,
     group_items::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
-        toggle_control::{IconToggle, SwitchPresses},
+        toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::{
         HoverTarget,
@@ -17,7 +18,7 @@ use crate::{
     },
     widget_groups::{
         quiet_schedule_group::{QuietScheduleTarget, quiet_window::QuietPhase},
-        sqlite_singleton_flag::{self, SingletonFlag},
+        sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -36,7 +37,38 @@ pub enum NotificationGroupMessage {
     Expansion(WidgetGroupExpansionMessage),
     ToggleSound,
     ToggleDoNotDisturb,
-    SoundLoaded(bool),
+    SoundLoaded(AlertSound),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AlertSound {
+    Audible,
+    Silent,
+}
+
+impl AlertSound {
+    #[must_use]
+    pub const fn toggled(self) -> Self {
+        match self {
+            AlertSound::Audible => AlertSound::Silent,
+            AlertSound::Silent => AlertSound::Audible,
+        }
+    }
+}
+
+impl SingletonFlagState for AlertSound {
+    const STORED_FLAG: SingletonFlag = SingletonFlag::NotificationSound;
+    const STORED_AS_SET: Self = AlertSound::Audible;
+    const STORED_AS_CLEARED: Self = AlertSound::Silent;
+}
+
+impl From<AlertSound> for SwitchPosition {
+    fn from(alert_sound: AlertSound) -> Self {
+        match alert_sound {
+            AlertSound::Audible => SwitchPosition::On,
+            AlertSound::Silent => SwitchPosition::Off,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,25 +90,24 @@ pub enum Action {
 
 pub struct NotificationGroup {
     expansion: WidgetGroupExpansion,
-    alert_sound: bool,
+    alert_sound: AlertSound,
 }
 
 impl Default for NotificationGroup {
     fn default() -> Self {
         Self {
             expansion: WidgetGroupExpansion::default(),
-            alert_sound: true,
+            alert_sound: AlertSound::Audible,
         }
     }
 }
 
-fn sound_toggle(alert_sound: bool) -> IconToggle {
+fn sound_toggle(alert_sound: AlertSound) -> IconToggle {
     IconToggle::new(
         "Notification sound",
-        if alert_sound {
-            Phosphor::Bell(Weight::Regular)
-        } else {
-            Phosphor::BellSlash(Weight::Regular)
+        match alert_sound {
+            AlertSound::Audible => Phosphor::Bell(Weight::Regular),
+            AlertSound::Silent => Phosphor::BellSlash(Weight::Regular),
         },
         alert_sound,
         SwitchPresses {
@@ -89,13 +120,13 @@ fn sound_toggle(alert_sound: bool) -> IconToggle {
 impl NotificationGroup {
     pub fn load() -> Task<NotificationGroupMessage> {
         Task::perform(
-            sqlite_singleton_flag::load(SingletonFlag::NotificationSound, true),
+            sqlite_singleton_flag::load(AlertSound::Audible),
             NotificationGroupMessage::SoundLoaded,
         )
     }
 
     #[must_use]
-    pub fn alert_sound_enabled(&self) -> bool {
+    pub fn alert_sound(&self) -> AlertSound {
         self.alert_sound
     }
 
@@ -125,14 +156,11 @@ impl NotificationGroup {
                 Action::Run(Task::none())
             }
             NotificationGroupMessage::ToggleSound => {
-                self.alert_sound = !self.alert_sound;
-                Action::Run(
-                    Task::future(sqlite_singleton_flag::save(
-                        SingletonFlag::NotificationSound,
-                        self.alert_sound,
-                    ))
-                    .discard(),
-                )
+                self.alert_sound = self.alert_sound.toggled();
+                Action::Run(logged_failure_task(
+                    "singleton flag: save".to_owned(),
+                    sqlite_singleton_flag::save(self.alert_sound),
+                ))
             }
             NotificationGroupMessage::SoundLoaded(alert_sound) => {
                 self.alert_sound = alert_sound;
@@ -158,7 +186,7 @@ impl NotificationGroup {
                     QuietScheduleTarget::DoNotDisturb,
                 )
                 .on_switch_press(
-                    quiet_phase == QuietPhase::Active,
+                    quiet_phase,
                     match quiet_phase {
                         QuietPhase::Active => "end do not disturb now",
                         QuietPhase::Inactive => "start do not disturb now",
@@ -245,12 +273,13 @@ impl GroupItemReading for DoNotDisturbStatus {
 
 #[cfg(test)]
 mod tests {
-    use super::{NotificationGroup, NotificationGroupMessage};
+    use super::{AlertSound, NotificationGroup, NotificationGroupMessage};
 
     #[test]
     fn a_loaded_sound_setting_reads_back_unchanged() {
         let mut notification_group = NotificationGroup::default();
-        let _ = notification_group.update(NotificationGroupMessage::SoundLoaded(false));
-        assert!(!notification_group.alert_sound_enabled());
+        let _ =
+            notification_group.update(NotificationGroupMessage::SoundLoaded(AlertSound::Silent));
+        assert_eq!(notification_group.alert_sound(), AlertSound::Silent);
     }
 }

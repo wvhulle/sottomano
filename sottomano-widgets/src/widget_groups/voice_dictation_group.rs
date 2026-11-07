@@ -28,13 +28,13 @@ use crate::{
     group_items::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
-        toggle_control::SwitchPresses,
-        unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
+        toggle_control::{SwitchPosition, SwitchPresses},
+        unit_switch::{ServiceReadiness, UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         voice_dictation_group::{
-            dictation_phase_item::{dictation_switched_on, press_does, shows_pipeline},
+            dictation_phase_item::{press_does, shows_pipeline},
             inference_hardware_item::InferenceHardware,
             runtime_configuration_item::RuntimeConfiguration,
             speech_runtime_sections::{SpeechRuntime, idle_runtime_glyph},
@@ -244,7 +244,6 @@ impl VoiceDictationGroup {
     }
 
     fn runtime_hover_card(&self, clock: Clock) -> Option<HoverCard> {
-        let serving = self.dictation.get().is_some();
         let runtime_sections = self
             .engine
             .sections_described_by(|reading| match &reading.engine {
@@ -255,7 +254,14 @@ impl VoiceDictationGroup {
             });
         Some(
             self.runtime
-                .hover_card(serving, clock)?
+                .hover_card(
+                    self.dictation
+                        .get()
+                        .map_or(ServiceReadiness::NotYetServing, |_| {
+                            ServiceReadiness::Serving
+                        }),
+                    clock,
+                )?
                 .with_groups(runtime_sections),
         )
     }
@@ -293,7 +299,7 @@ impl VoiceDictationGroup {
                     .group_item(VoiceDictationTarget::Dictation)
                     .map(|item| {
                         item.on_switch_press(
-                            dictation.is_some_and(dictation_switched_on),
+                            dictation.map_or(SwitchPosition::Off, SwitchPosition::from),
                             dictation.map_or("start dictating at the cursor", press_does),
                             VoiceDictationMessage::ToggleRecording,
                         )
@@ -304,7 +310,9 @@ impl VoiceDictationGroup {
                     .filter(|_| self.dictating() || self.pipeline.failure().is_some()),
                 self.runtime.group_item_with_glyph(
                     runtime_glyph,
-                    dictation.is_some(),
+                    dictation.map_or(ServiceReadiness::NotYetServing, |_| {
+                        ServiceReadiness::Serving
+                    }),
                     VoiceDictationTarget::Runtime,
                     VoiceDictationMessage::Runtime(UnitSwitchMessage::Press),
                 ),

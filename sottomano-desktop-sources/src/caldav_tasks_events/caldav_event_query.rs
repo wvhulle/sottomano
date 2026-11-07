@@ -30,18 +30,27 @@ pub struct UpcomingEvent {
     pub location: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EventPhase {
+    Upcoming,
+    Ongoing,
+    Ended,
+}
+
 impl UpcomingEvent {
     #[must_use]
-    pub fn has_ended(&self, now: DateTime<Local>) -> bool {
-        match self.end {
+    pub fn phase(&self, now: DateTime<Local>) -> EventPhase {
+        let ended = match self.end {
             AgendaMoment::AllDay(last_day_exclusive) => last_day_exclusive <= now.date_naive(),
             AgendaMoment::Floating(_) | AgendaMoment::Zoned(_) => self.end.starts_at() <= now,
+        };
+        if ended {
+            EventPhase::Ended
+        } else if self.start.starts_at() <= now {
+            EventPhase::Ongoing
+        } else {
+            EventPhase::Upcoming
         }
-    }
-
-    #[must_use]
-    pub fn is_ongoing(&self, now: DateTime<Local>) -> bool {
-        self.start.starts_at() <= now && !self.has_ended(now)
     }
 
     #[must_use]
@@ -217,8 +226,8 @@ mod tests {
         let noon = Local
             .from_local_datetime(&day.and_hms_opt(12, 0, 0).unwrap())
             .unwrap();
-        assert!(holiday.is_ongoing(noon));
-        assert!(holiday.has_ended(noon + TimeDelta::days(1)));
+        assert_eq!(holiday.phase(noon), EventPhase::Ongoing);
+        assert_eq!(holiday.phase(noon + TimeDelta::days(1)), EventPhase::Ended);
     }
 
     #[test]

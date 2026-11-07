@@ -94,10 +94,6 @@ impl Oauth {
     fn grants_subscription_usage(&self) -> bool {
         self.access_token.is_some() && self.scopes.iter().any(|scope| scope == SUBSCRIPTION_SCOPE)
     }
-
-    fn is_enterprise(&self) -> bool {
-        self.subscription_type.as_deref() == Some(ENTERPRISE_SUBSCRIPTION)
-    }
 }
 
 fn read_credentials(path: &Path) -> Result<Credentials, Error> {
@@ -120,10 +116,9 @@ pub enum LoginKind {
 
 fn login_kind(path: &Path) -> Option<LoginKind> {
     let oauth = subscription_login(path)?;
-    Some(if oauth.is_enterprise() {
-        LoginKind::Enterprise
-    } else {
-        LoginKind::Subscription
+    Some(match oauth.subscription_type.as_deref() {
+        Some(ENTERPRISE_SUBSCRIPTION) => LoginKind::Enterprise,
+        _ => LoginKind::Subscription,
     })
 }
 

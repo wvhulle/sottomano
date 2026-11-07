@@ -202,7 +202,7 @@ impl MobileModemsGroup {
                 },
             )
             .on_switch_press(
-                modem.link_state() == DeviceLinkState::Connected,
+                modem.link_state(),
                 connection_press_does,
                 MobileModemsMessage::ToggleModem(modem_path()),
             )
@@ -237,7 +237,7 @@ impl MobileModemsGroup {
         let radios_press_does = radios_switch.press_does();
         let radios_item = GroupItem::reading(radios_switch, MobileModemTarget::AllRadios)
             .on_switch_press(
-                any_radio_power == RadioPower::On,
+                any_radio_power,
                 radios_press_does,
                 MobileModemsMessage::ToggleAllRadios,
             );

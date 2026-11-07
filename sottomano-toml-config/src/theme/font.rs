@@ -45,13 +45,6 @@ pub struct ResolvedFont {
     pub data: Arc<[u8]>,
 }
 
-impl ResolvedFont {
-    #[must_use]
-    pub fn has_same_face_as(&self, other: &Self) -> bool {
-        self.data == other.data
-    }
-}
-
 #[derive(Debug)]
 pub enum FontError {
     RelativeTextSize(Spacing),

@@ -1,4 +1,5 @@
 use std::{
+    error::Error,
     fmt, io, mem,
     path::{Path, PathBuf},
     str::FromStr,
@@ -24,9 +25,26 @@ impl Default for NiriLayout {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ShellBlurDepth {
+    #[default]
+    WindowsBehind,
+    WallpaperOnly,
+}
+
+impl ShellBlurDepth {
+    #[must_use]
+    pub const fn toggled(self) -> Self {
+        match self {
+            ShellBlurDepth::WindowsBehind => ShellBlurDepth::WallpaperOnly,
+            ShellBlurDepth::WallpaperOnly => ShellBlurDepth::WindowsBehind,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct NiriStyling {
-    pub xray: bool,
+    pub blur_depth: ShellBlurDepth,
     pub layout: NiriLayout,
 }
 
@@ -68,7 +86,7 @@ impl StyledSurface {
                 matches,
                 background_effects: vec![BackgroundEffect {
                     blur: true,
-                    xray: styling.xray,
+                    xray: styling.blur_depth == ShellBlurDepth::WallpaperOnly,
                 }],
                 shadows: Vec::new(),
             },
@@ -392,12 +410,17 @@ impl From<SottomanoRules> for NiriStyling {
         let panel = NamespaceMatch::from(StyledSurface::Panel);
         let defaults = NiriLayout::default();
         Self {
-            xray: rules
+            blur_depth: if rules
                 .layer_rules
                 .into_iter()
                 .filter(|rule| rule.matches == panel)
                 .flat_map(|rule| rule.background_effects)
-                .any(|effect| effect.xray),
+                .any(|effect| effect.xray)
+            {
+                ShellBlurDepth::WallpaperOnly
+            } else {
+                ShellBlurDepth::WindowsBehind
+            },
             layout: NiriLayout {
                 window_corner_radius_px: rules
                     .window_rules
@@ -466,6 +489,8 @@ pub enum RulesSaveError {
     Unreadable(io::ErrorKind),
     Rendering(club_kdl::Error),
 }
+
+impl Error for RulesSaveError {}
 
 impl fmt::Display for RulesSaveError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -647,8 +672,8 @@ mod tests {
 
     use super::{
         BackgroundEffect, HeatedWindow, NamespaceMatch, NiriLayout, NiriRulesFile, NiriStyling,
-        RulesSaveError, RulesWrite, SaveStep, SottomanoRules, StoredRules, StyledSurface,
-        SwitchHeat,
+        RulesSaveError, RulesWrite, SaveStep, ShellBlurDepth, SottomanoRules, StoredRules,
+        StyledSurface, SwitchHeat,
     };
 
     fn heated_terminal_titled(title: &str) -> SwitchHeat {
@@ -674,7 +699,7 @@ mod tests {
 
     fn styled() -> NiriStyling {
         NiriStyling {
-            xray: true,
+            blur_depth: ShellBlurDepth::WallpaperOnly,
             layout: NiriLayout {
                 window_corner_radius_px: 7.5,
                 gaps_px: 5.0,
@@ -765,7 +790,7 @@ mod tests {
         let mut rules = rules_file_after_first_write();
         let first_look = styled();
         let second_look = NiriStyling {
-            xray: false,
+            blur_depth: ShellBlurDepth::WindowsBehind,
             ..first_look
         };
         let third_look = NiriStyling {

@@ -13,7 +13,9 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    group_items::{
+        group_item::GroupItem, group_item_reading::GroupItemReading, toggle_control::SwitchPosition,
+    },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
@@ -116,7 +118,6 @@ impl NetworkManagerVpnGroup {
 
     fn vpn_connection_item(
         vpn_connection: &VpnConnection,
-        previewed: bool,
     ) -> GroupItem<'_, NetworkManagerVpnMessage> {
         let vpn_switch = vpn_connection.switch();
         GroupItem::reading(
@@ -126,14 +127,16 @@ impl NetworkManagerVpnGroup {
             },
         )
         .on_switch_press(
-            matches!(vpn_switch, VpnSwitch::Disconnect(_)),
+            match vpn_switch {
+                VpnSwitch::Connect(_) => SwitchPosition::Off,
+                VpnSwitch::Disconnect(_) => SwitchPosition::On,
+            },
             match vpn_switch {
                 VpnSwitch::Connect(_) => "connect the VPN",
                 VpnSwitch::Disconnect(_) => "disconnect the VPN",
             },
             NetworkManagerVpnMessage::SwitchVpn(vpn_switch),
         )
-        .previewed_on_handle_if(previewed)
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, NetworkManagerVpnMessage> {
@@ -147,10 +150,12 @@ impl NetworkManagerVpnGroup {
             &self.expansion,
             NetworkManagerVpnMessage::Expansion,
             self.vpn_connections().iter().map(move |vpn_connection| {
-                Self::vpn_connection_item(
-                    vpn_connection,
-                    previewed_connection_name == Some(vpn_connection.name.as_str()),
-                )
+                let vpn_item = Self::vpn_connection_item(vpn_connection);
+                if previewed_connection_name == Some(vpn_connection.name.as_str()) {
+                    vpn_item.previewed_on_handle()
+                } else {
+                    vpn_item
+                }
             }),
         )
         .face(WidgetGroupFace::Icon {

@@ -15,7 +15,10 @@ use iced::{
 };
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::{font_faces::TextFace, shared_metrics::LINE_HEIGHT, theme_colors::ThemedColor};
+use crate::{
+    font_faces::TextFace, primitives::motion_state::MotionState, shared_metrics::LINE_HEIGHT,
+    theme_colors::ThemedColor,
+};
 
 type MeasuredParagraph = <iced::Renderer as advanced_text::Renderer>::Paragraph;
 
@@ -99,14 +102,18 @@ impl<'a> KaraokeLine<'a> {
         })
     }
 
-    fn sweeping(&self, state: &State) -> bool {
+    fn sweep_motion(&self, state: &State) -> MotionState {
         let sweep = (self.sweep_at)(self.frame(state));
-        self.motion == SweepMotion::Advancing
-            && (sweep.segment_end < self.shown_text().len() || sweep.segment_fraction < 1.0)
+        let unfinished =
+            sweep.segment_end < self.shown_text().len() || sweep.segment_fraction < 1.0;
+        match self.motion {
+            SweepMotion::Advancing if unfinished => MotionState::Moving,
+            _ => MotionState::Settled,
+        }
     }
 
     fn offset_x(&self, paragraph: &MeasuredParagraph, text_offset: usize) -> f32 {
-        if text_offset == 0 && reads_right_to_left(paragraph) {
+        if text_offset == 0 && text_direction(paragraph) == TextDirection::RightToLeft {
             return paragraph.min_bounds().width;
         }
         let grapheme_index = self.shown_text()[..text_offset].graphemes(true).count();
@@ -136,12 +143,17 @@ fn shaped_line(content: &str, size: f32, font: Font) -> MeasuredParagraph {
     })
 }
 
-fn reads_right_to_left(paragraph: &MeasuredParagraph) -> bool {
-    paragraph
-        .buffer()
-        .layout_runs()
-        .next()
-        .is_some_and(|run| run.rtl)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TextDirection {
+    LeftToRight,
+    RightToLeft,
+}
+
+fn text_direction(paragraph: &MeasuredParagraph) -> TextDirection {
+    match paragraph.buffer().layout_runs().next() {
+        Some(first_run) if first_run.rtl => TextDirection::RightToLeft,
+        _ => TextDirection::LeftToRight,
+    }
 }
 
 impl<'a, Message: 'a> From<KaraokeLine<'a>> for Element<'a, Message> {
@@ -201,10 +213,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for KaraokeLine<'_> {
             width: (viewport.x + viewport.width - sweep_edge).max(0.0),
             ..*viewport
         };
-        let (sung_clip, unsung_clip) = if reads_right_to_left(&state.paragraph) {
-            (right_of_edge, left_of_edge)
-        } else {
-            (left_of_edge, right_of_edge)
+        let (sung_clip, unsung_clip) = match text_direction(&state.paragraph) {
+            TextDirection::RightToLeft => (right_of_edge, left_of_edge),
+            TextDirection::LeftToRight => (left_of_edge, right_of_edge),
         };
         let fill_clipped = |renderer: &mut iced::Renderer, color: Color, clip: Rectangle| {
             renderer.fill_paragraph(
@@ -234,7 +245,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for KaraokeLine<'_> {
         };
         let state = tree.state.downcast_mut::<State>();
         state.latest_frame = Some(*now);
-        if self.sweeping(state) {
+        if self.sweep_motion(state) == MotionState::Moving {
             shell.request_redraw();
         }
     }
@@ -244,21 +255,19 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for KaraokeLine<'_> {
 mod tests {
     use iced::Font;
 
-    use super::{reads_right_to_left, shaped_line};
+    use super::{TextDirection, shaped_line, text_direction};
 
     const ARABIC_LINE: &str = "لا تستطيع رؤية";
 
     #[test]
     fn arabic_reads_right_to_left_and_latin_does_not() {
-        assert!(reads_right_to_left(&shaped_line(
-            ARABIC_LINE,
-            14.0,
-            Font::DEFAULT
-        )));
-        assert!(!reads_right_to_left(&shaped_line(
-            "Low Tide",
-            14.0,
-            Font::DEFAULT
-        )));
+        assert_eq!(
+            text_direction(&shaped_line(ARABIC_LINE, 14.0, Font::DEFAULT)),
+            TextDirection::RightToLeft
+        );
+        assert_eq!(
+            text_direction(&shaped_line("Low Tide", 14.0, Font::DEFAULT)),
+            TextDirection::LeftToRight
+        );
     }
 }

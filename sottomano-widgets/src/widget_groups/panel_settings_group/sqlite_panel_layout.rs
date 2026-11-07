@@ -1,6 +1,8 @@
-use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, flag, real, with_table};
+use sottomano_desktop_sources::sqlite_state_store::{
+    Columns, StoreError, flag, in_table, real, with_table,
+};
 
-use super::PanelLayout;
+use super::{GroupCollapsing, PanelGroupFraming, PanelLayout};
 
 pub(super) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS panel_layout (
     id INTEGER PRIMARY KEY CHECK (id = 0),
@@ -15,14 +17,11 @@ pub(super) async fn load() -> PanelLayout {
         .unwrap_or_default()
 }
 
-pub(super) async fn save(panel_layout: PanelLayout) -> bool {
-    with_table(
-        "panel layout: save failed",
-        &[CREATE_TABLE],
-        async |connection| write_layout(connection, panel_layout).await,
-    )
+pub(super) async fn save(panel_layout: PanelLayout) -> Result<(), StoreError> {
+    in_table(&[CREATE_TABLE], async |connection| {
+        write_layout(connection, panel_layout).await
+    })
     .await
-    .is_some()
 }
 
 pub(super) async fn read_layout(connection: &turso::Connection) -> Result<PanelLayout, StoreError> {
@@ -38,8 +37,14 @@ pub(super) async fn read_layout(connection: &turso::Connection) -> Result<PanelL
         return Ok(PanelLayout::default());
     };
     Ok(PanelLayout {
-        disconnected_groups: columns.integer(&row, "disconnected_groups")? != 0,
-        auto_collapse_groups: columns.integer(&row, "auto_collapse_groups")? != 0,
+        group_framing: match columns.integer(&row, "disconnected_groups")? {
+            0 => PanelGroupFraming::Joined,
+            _ => PanelGroupFraming::Disconnected,
+        },
+        group_collapsing: match columns.integer(&row, "auto_collapse_groups")? {
+            0 => GroupCollapsing::StayExpanded,
+            _ => GroupCollapsing::OnFocusLoss,
+        },
         float_offset_px: columns.real(&row, "float_offset_px")? as f32,
     })
 }
@@ -56,8 +61,8 @@ pub(super) async fn write_layout(
              ON CONFLICT(id) DO UPDATE SET disconnected_groups = ?1, auto_collapse_groups = ?2, \
              float_offset_px = ?3",
             (
-                flag(panel_layout.disconnected_groups),
-                flag(panel_layout.auto_collapse_groups),
+                flag(panel_layout.group_framing == PanelGroupFraming::Disconnected),
+                flag(panel_layout.group_collapsing == GroupCollapsing::OnFocusLoss),
                 real(panel_layout.float_offset_px),
             ),
         )

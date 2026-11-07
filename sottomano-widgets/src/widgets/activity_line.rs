@@ -10,7 +10,7 @@ pub fn edge_activity_line<'a, Message: 'a>(
     opacity: f32,
     thickness: f32,
 ) -> Element<'a, Message> {
-    if edge.is_vertical() {
+    if edge == Position::Left {
         vertical_activity_line(color, opacity, thickness)
     } else {
         activity_line(color, opacity, thickness)

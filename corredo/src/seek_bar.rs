@@ -24,6 +24,12 @@ pub struct PlaybackTimeline<PlaybackSession> {
     pub accepts_seek: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SeekArrival {
+    Arrived,
+    Pending,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Arrival<PlaybackSession> {
     position: Duration,
@@ -31,11 +37,16 @@ struct Arrival<PlaybackSession> {
 }
 
 impl<PlaybackSession: PartialEq> Arrival<PlaybackSession> {
-    fn settled_by(&self, timeline: &PlaybackTimeline<PlaybackSession>) -> bool {
-        self.session != timeline.session
+    fn arrival_state(&self, timeline: &PlaybackTimeline<PlaybackSession>) -> SeekArrival {
+        let arrived = self.session != timeline.session
             || timeline
                 .played
-                .is_none_or(|played| is_near(played, self.position))
+                .is_none_or(|played| played.abs_diff(self.position) <= ARRIVAL_TOLERANCE);
+        if arrived {
+            SeekArrival::Arrived
+        } else {
+            SeekArrival::Pending
+        }
     }
 }
 
@@ -94,7 +105,7 @@ impl<PlaybackSession: Clone + PartialEq> SeekBar<PlaybackSession> {
 
     pub fn player_reported(&mut self, timeline: &PlaybackTimeline<PlaybackSession>) {
         if let UserRequest::AwaitingArrival(arrival) = &self.request
-            && arrival.settled_by(timeline)
+            && arrival.arrival_state(timeline) == SeekArrival::Arrived
         {
             self.request = UserRequest::FollowingPlayer;
         }
@@ -141,7 +152,7 @@ impl<PlaybackSession: Clone + PartialEq> SeekBar<PlaybackSession> {
     fn lagging_position(&self, played: Duration) -> Option<Duration> {
         self.request
             .requested_position()
-            .filter(|&requested| !is_near(played, requested))
+            .filter(|&requested| played.abs_diff(requested) > ARRIVAL_TOLERANCE)
             .map(|_| played)
     }
 
@@ -170,10 +181,6 @@ impl<PlaybackSession: Clone + PartialEq> SeekBar<PlaybackSession> {
             .into(),
         )
     }
-}
-
-fn is_near(played: Duration, requested: Duration) -> bool {
-    played.abs_diff(requested) <= ARRIVAL_TOLERANCE
 }
 
 fn signed_micros(duration: Duration) -> i64 {

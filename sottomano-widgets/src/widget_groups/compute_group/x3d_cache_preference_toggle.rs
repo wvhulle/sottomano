@@ -11,7 +11,10 @@ use sottomano_desktop_sources::{
 use super::core_grid_sections::topology_facts;
 use crate::{
     clock::Clock,
-    group_items::{group_item_reading::GroupItemReading, toggle_control::ToggleableSource},
+    group_items::{
+        group_item_reading::GroupItemReading,
+        toggle_control::{SwitchPosition, ToggleableSource},
+    },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
         icon_glyph::IconGlyph,
@@ -106,8 +109,11 @@ impl ToggleableSource for X3dCachePreference {
         write_x3d_cache_preference(self.other())
     }
 
-    fn switched_on(&self) -> bool {
-        matches!(self, X3dCachePreference::Cache)
+    fn switch_position(&self) -> SwitchPosition {
+        match self {
+            X3dCachePreference::Cache => SwitchPosition::On,
+            X3dCachePreference::Frequency => SwitchPosition::Off,
+        }
     }
 
     fn press_action_text(&self) -> &'static str {

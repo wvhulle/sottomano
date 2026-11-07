@@ -105,7 +105,21 @@ impl LaunchableApp {
         entry: &DesktopEntry,
         current_desktops: &[String],
     ) -> Option<Self> {
-        if !is_shown_on_desktops(entry, current_desktops) {
+        let lists_current_desktop = |listed_desktops: Vec<&str>| {
+            listed_desktops.iter().any(|listed_desktop| {
+                current_desktops
+                    .iter()
+                    .any(|current_desktop| current_desktop.eq_ignore_ascii_case(listed_desktop))
+            })
+        };
+        let shown_on_current_desktops = !entry.no_display()
+            && !entry.hidden()
+            && entry
+                .type_()
+                .is_none_or(|entry_kind| entry_kind == "Application")
+            && entry.only_show_in().is_none_or(lists_current_desktop)
+            && !entry.not_show_in().is_some_and(lists_current_desktop);
+        if !shown_on_current_desktops {
             return None;
         }
         let no_locales: &[&str] = &[];
@@ -128,23 +142,6 @@ impl LaunchableApp {
             runs_in_terminal: entry.terminal(),
         })
     }
-}
-
-fn is_shown_on_desktops(entry: &DesktopEntry, current_desktops: &[String]) -> bool {
-    let lists_current_desktop = |listed_desktops: Vec<&str>| {
-        listed_desktops.iter().any(|listed_desktop| {
-            current_desktops
-                .iter()
-                .any(|current_desktop| current_desktop.eq_ignore_ascii_case(listed_desktop))
-        })
-    };
-    !entry.no_display()
-        && !entry.hidden()
-        && entry
-            .type_()
-            .is_none_or(|entry_kind| entry_kind == "Application")
-        && entry.only_show_in().is_none_or(lists_current_desktop)
-        && !entry.not_show_in().is_some_and(lists_current_desktop)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

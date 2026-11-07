@@ -70,6 +70,7 @@ use crate::{
         voice_dictation_group::VoiceDictationTarget,
         wallpaper_group::WallpaperTarget,
         weather_group::WeatherTarget,
+        widget_group_content::ExpansionState,
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
         wifi_adapters_group::WifiAdapterTarget,
         window_group::{WindowGroupMessage, WindowTarget},
@@ -141,12 +142,11 @@ pub enum HoverTarget {
 
 impl PressHints {
     #[must_use]
-    pub fn group_handle(expanded: bool, scroll: Option<&'static str>) -> Self {
+    pub fn group_handle(expansion_state: ExpansionState, scroll: Option<&'static str>) -> Self {
         PressHints {
-            left: Some(if expanded {
-                "collapse the group"
-            } else {
-                "expand the group"
+            left: Some(match expansion_state {
+                ExpansionState::Expanded => "collapse the group",
+                ExpansionState::Collapsed => "expand the group",
             }),
             scroll,
             ..PressHints::default()
@@ -216,13 +216,6 @@ impl PressHints {
             MouseGesture::Scroll => self.scroll,
         }
     }
-
-    #[must_use]
-    pub fn is_empty(self) -> bool {
-        MouseGesture::ALL
-            .into_iter()
-            .all(|gesture| self.does(gesture).is_none())
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -289,17 +282,19 @@ impl HoverAnnouncement {
             HoverOrigin::Reading => self,
         }
     }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.press_hints.is_empty() && self.origin == HoverOrigin::Reading
-    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct MenuHandleIndicator {
-    pub hovering: bool,
-    pub open: bool,
+    pub pointing: HandlePointing,
+    pub menu_expansion: ExpansionState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HandlePointing {
+    PointedAt,
+    #[default]
+    NotPointedAt,
 }
 
 #[derive(Debug, Clone)]
@@ -321,14 +316,14 @@ pub enum HoverCardMessage {
     },
     MenuHandlePointedAnchor {
         target: HoverTarget,
-        pointed_at: bool,
+        pointing: HandlePointing,
         announcement: HoverAnnouncement,
     },
     MenuHandlePointed {
         surface: Id,
         position: Position,
         target: HoverTarget,
-        pointed_at: bool,
+        pointing: HandlePointing,
         announcement: HoverAnnouncement,
     },
     MenuHandlePressedAnchor {
@@ -420,7 +415,6 @@ mod tests {
                 None,
             ]
         );
-        assert!(!hints.is_empty());
-        assert!(PressHints::default().is_empty());
+        assert_ne!(hints, PressHints::default());
     }
 }

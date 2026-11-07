@@ -7,17 +7,23 @@ use crate::theme_colors::{background_color, primary_color, secondary_text_color}
 
 const DEFAULT_SWITCH_SIZE_PX: f32 = 16.0;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TogglePosition {
+    On,
+    Off,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ToggleSwitch {
-    switched_on: bool,
+    toggle_position: TogglePosition,
     size_px: f32,
     opacity: f32,
 }
 
 #[must_use]
-pub fn toggle_switch(switched_on: bool) -> ToggleSwitch {
+pub fn toggle_switch(toggle_position: TogglePosition) -> ToggleSwitch {
     ToggleSwitch {
-        switched_on,
+        toggle_position,
         size_px: DEFAULT_SWITCH_SIZE_PX,
         opacity: 1.0,
     }
@@ -38,35 +44,36 @@ impl ToggleSwitch {
 impl<'a, Message: 'a> From<ToggleSwitch> for Element<'a, Message> {
     fn from(switch: ToggleSwitch) -> Self {
         let ToggleSwitch {
-            switched_on,
+            toggle_position,
             size_px,
             opacity,
         } = switch;
-        toggler(switched_on)
+        toggler(toggle_position == TogglePosition::On)
             .size(size_px)
-            .style(move |theme, _status| switch_style(theme, switched_on, opacity))
+            .style(move |theme, _status| switch_style(theme, toggle_position, opacity))
             .into()
     }
 }
 
-fn switch_style(theme: &Theme, switched_on: bool, opacity: f32) -> toggler::Style {
+fn switch_style(theme: &Theme, toggle_position: TogglePosition, opacity: f32) -> toggler::Style {
     toggler::Style {
-        background: track_color(theme, switched_on).scale_alpha(opacity).into(),
+        background: track_color(theme, toggle_position)
+            .scale_alpha(opacity)
+            .into(),
         foreground: background_color(theme).scale_alpha(opacity).into(),
         ..toggler::default(
             theme,
             Status::Active {
-                is_toggled: switched_on,
+                is_toggled: toggle_position == TogglePosition::On,
             },
         )
     }
 }
 
-fn track_color(theme: &Theme, switched_on: bool) -> Color {
-    if switched_on {
-        primary_color(theme)
-    } else {
-        secondary_text_color(theme)
+fn track_color(theme: &Theme, toggle_position: TogglePosition) -> Color {
+    match toggle_position {
+        TogglePosition::On => primary_color(theme),
+        TogglePosition::Off => secondary_text_color(theme),
     }
 }
 
@@ -83,8 +90,10 @@ mod tests {
 
     #[test]
     fn a_press_on_the_switch_reaches_the_enclosing_item_button() {
-        let pressable_switch: Element<'_, ()> =
-            button(toggle_switch(true)).padding(0).on_press(()).into();
+        let pressable_switch: Element<'_, ()> = button(toggle_switch(TogglePosition::On))
+            .padding(0)
+            .on_press(())
+            .into();
         let mut panel = Simulator::with_size(
             Settings::default(),
             Size::new(100.0, 100.0),
@@ -105,8 +114,8 @@ mod tests {
     #[test]
     fn the_track_differs_between_on_and_off() {
         assert_ne!(
-            track_color(&Theme::Dark, true),
-            track_color(&Theme::Dark, false)
+            track_color(&Theme::Dark, TogglePosition::On),
+            track_color(&Theme::Dark, TogglePosition::Off)
         );
     }
 }

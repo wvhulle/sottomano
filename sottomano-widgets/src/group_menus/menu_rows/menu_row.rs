@@ -10,7 +10,7 @@ use sottomano_toml_config::Config;
 use crate::{
     group_items::group_item::MenuParts,
     group_menus::menu_rows::pointer_tracked_row::PointerTrackedRow,
-    widget_groups::widget_group_content::GroupEvent,
+    widget_groups::widget_group_content::{GroupEvent, RowInspection},
     widgets::{
         configured_theme::{background_strong_color, primary_weak_color, text_color},
         flat_button,
@@ -31,12 +31,11 @@ pub(crate) enum MenuRowEmphasis {
     Selected,
 }
 
-impl MenuRowEmphasis {
-    pub(crate) const fn selected_when(selected: bool) -> Self {
-        if selected {
-            Self::Selected
-        } else {
-            Self::Plain
+impl From<RowInspection> for MenuRowEmphasis {
+    fn from(row_inspection: RowInspection) -> Self {
+        match row_inspection {
+            RowInspection::Inspected => MenuRowEmphasis::Selected,
+            RowInspection::Uninspected => MenuRowEmphasis::Plain,
         }
     }
 }

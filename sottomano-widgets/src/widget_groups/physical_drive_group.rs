@@ -25,7 +25,7 @@ use crate::{
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            ExpansionState, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
@@ -94,11 +94,13 @@ impl PhysicalDriveGroup {
         drive_sensor: &SensorConfig,
         demand: GroupSourceDemand,
     ) -> Subscription<DriveMessage> {
-        let any_disk_expanded = self
+        let disk_expansion = self
             .disks
             .values()
-            .any(|readings| readings.expansion.is_expanded());
-        let demand = demand.expanded_when(any_disk_expanded);
+            .map(|readings| readings.expansion.state())
+            .find(|expansion_state| *expansion_state == ExpansionState::Expanded)
+            .unwrap_or(ExpansionState::Collapsed);
+        let demand = demand.expanded_when(disk_expansion);
         let per_disk = self.disks.keys().flat_map(|disk| {
             [
                 demand.while_face_shown(

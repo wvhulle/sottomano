@@ -5,7 +5,6 @@ use crate::system_protocol_clients::sysfs_attribute_reads::{
 };
 
 const HID_DEVICE_DIRECTORY: &str = "/sys/bus/hid/devices";
-const BLUETOOTH_HID_BUS_PREFIX: &str = "0005:";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChargingState {
@@ -73,11 +72,26 @@ impl DeviceBattery {
     }
 }
 
-fn is_bluetooth_hid_device(hid_device: &Path) -> bool {
-    hid_device
-        .file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(|name| name.starts_with(BLUETOOTH_HID_BUS_PREFIX))
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HidBus {
+    Usb,
+    Bluetooth,
+    Other,
+}
+
+impl From<&Path> for HidBus {
+    fn from(hid_device: &Path) -> Self {
+        let bus_code = hid_device
+            .file_name()
+            .and_then(|name| name.to_str())
+            .and_then(|name| name.split_once(':'))
+            .map(|(bus_code, _)| bus_code);
+        match bus_code {
+            Some("0003") => HidBus::Usb,
+            Some("0005") => HidBus::Bluetooth,
+            _ => HidBus::Other,
+        }
+    }
 }
 
 fn hid_peripheral_of(hid_device: &Path) -> Option<HidPeripheral> {
@@ -92,7 +106,7 @@ fn hid_peripheral_of(hid_device: &Path) -> Option<HidPeripheral> {
 pub fn hid_peripherals_with_address(hardware_address: &str) -> Vec<HidPeripheral> {
     list_dir(HID_DEVICE_DIRECTORY)
         .into_iter()
-        .filter(|hid_device| is_bluetooth_hid_device(hid_device))
+        .filter(|hid_device| HidBus::from(hid_device.as_path()) == HidBus::Bluetooth)
         .filter(|hid_device| {
             uevent_field(&hid_device.join("uevent"), "HID_UNIQ")
                 .is_some_and(|unique| unique.eq_ignore_ascii_case(hardware_address))
@@ -126,12 +140,14 @@ mod tests {
     }
 
     #[test]
-    fn only_bluetooth_bus_hid_devices_are_considered() {
-        assert!(is_bluetooth_hid_device(Path::new(
-            "/sys/bus/hid/devices/0005:054C:0CE6.0007"
-        )));
-        assert!(!is_bluetooth_hid_device(Path::new(
-            "/sys/bus/hid/devices/0003:054C:0CE6.0002"
-        )));
+    fn hid_bus_follows_the_sysfs_bus_code() {
+        assert_eq!(
+            HidBus::from(Path::new("/sys/bus/hid/devices/0005:054C:0CE6.0007")),
+            HidBus::Bluetooth
+        );
+        assert_eq!(
+            HidBus::from(Path::new("/sys/bus/hid/devices/0003:054C:0CE6.0002")),
+            HidBus::Usb
+        );
     }
 }

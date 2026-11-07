@@ -23,6 +23,11 @@ pub enum Error {
     Spawn { program: String, detail: String },
     #[error("{program} failed: {stderr}")]
     Failed { program: String, stderr: String },
+    #[error("{program} exited with {exit_status}")]
+    Exited {
+        program: String,
+        exit_status: String,
+    },
 }
 
 fn spawn_failure(program: &str, error: &io::Error) -> Error {
@@ -62,12 +67,19 @@ pub mod blocking {
         captured(program, &output)
     }
 
-    #[must_use]
-    pub fn run(program: &str, args: &[&str]) -> bool {
-        Command::new(program)
+    pub fn run(program: &str, args: &[&str]) -> Result<(), Error> {
+        let exit_status = Command::new(program)
             .args(args)
             .status()
-            .is_ok_and(|status| status.success())
+            .map_err(|error| spawn_failure(program, &error))?;
+        if exit_status.success() {
+            Ok(())
+        } else {
+            Err(Error::Exited {
+                program: program.to_owned(),
+                exit_status: exit_status.to_string(),
+            })
+        }
     }
 }
 

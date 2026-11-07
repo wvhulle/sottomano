@@ -80,17 +80,29 @@ impl BlockdevFileNode {
     }
 }
 
-#[must_use]
-pub fn is_qemu_command_line(command_line: &[String]) -> bool {
-    command_line
-        .first()
-        .and_then(|executable| Path::new(executable).file_name())
-        .and_then(|file_name| file_name.to_str())
-        .is_some_and(|file_name| {
-            QEMU_EXECUTABLE_PREFIXES
-                .iter()
-                .any(|prefix| file_name.starts_with(prefix))
-        })
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LaunchedProgram {
+    QemuEmulator,
+    OtherProgram,
+}
+
+impl From<&[String]> for LaunchedProgram {
+    fn from(command_line: &[String]) -> Self {
+        let launches_qemu = command_line
+            .first()
+            .and_then(|executable| Path::new(executable).file_name())
+            .and_then(|file_name| file_name.to_str())
+            .is_some_and(|file_name| {
+                QEMU_EXECUTABLE_PREFIXES
+                    .iter()
+                    .any(|prefix| file_name.starts_with(prefix))
+            });
+        if launches_qemu {
+            LaunchedProgram::QemuEmulator
+        } else {
+            LaunchedProgram::OtherProgram
+        }
+    }
 }
 
 fn normalized_flag(argument: &str) -> Option<&str> {
@@ -497,15 +509,17 @@ mod tests {
                 .map(|argument| (*argument).to_owned())
                 .collect()
         };
-        assert!(is_qemu_command_line(&command_line_of(&[
-            "/usr/bin/qemu-system-x86_64"
-        ])));
-        assert!(is_qemu_command_line(&command_line_of(&["qemu-kvm"])));
-        assert!(!is_qemu_command_line(&command_line_of(&[
-            "qemu-img",
-            "info",
-            "disk.qcow2"
-        ])));
-        assert!(!is_qemu_command_line(&[]));
+        let program_of =
+            |arguments: &[&str]| LaunchedProgram::from(command_line_of(arguments).as_slice());
+        assert_eq!(
+            program_of(&["/usr/bin/qemu-system-x86_64"]),
+            LaunchedProgram::QemuEmulator
+        );
+        assert_eq!(program_of(&["qemu-kvm"]), LaunchedProgram::QemuEmulator);
+        assert_eq!(
+            program_of(&["qemu-img", "info", "disk.qcow2"]),
+            LaunchedProgram::OtherProgram
+        );
+        assert_eq!(program_of(&[]), LaunchedProgram::OtherProgram);
     }
 }

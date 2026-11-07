@@ -71,12 +71,28 @@ pub struct MediaGroupConfig {
     pub lyrics: MediaLyricsConfig,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ElementVisibility {
+    #[default]
+    Shown,
+    Hidden,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TerminalAgentUse {
+    #[default]
+    Enabled,
+    Disabled,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct WindowGroupConfig {
-    pub audio_indicator: bool,
-    pub progress: bool,
-    pub count_badge: bool,
+    pub audio_indicator: ElementVisibility,
+    pub progress: ElementVisibility,
+    pub count_badge: ElementVisibility,
     pub nixpkgs_branch: String,
     pub maximum_window_title_width: Spacing,
     pub agents: WindowAgentsConfig,
@@ -92,9 +108,9 @@ impl WindowGroupConfig {
 impl Default for WindowGroupConfig {
     fn default() -> Self {
         Self {
-            audio_indicator: true,
-            progress: true,
-            count_badge: true,
+            audio_indicator: ElementVisibility::Shown,
+            progress: ElementVisibility::Shown,
+            count_badge: ElementVisibility::Shown,
             nixpkgs_branch: "nixpkgs-unstable".to_owned(),
             maximum_window_title_width: Spacing::Px(200.0),
             agents: WindowAgentsConfig::default(),
@@ -119,24 +135,40 @@ impl Default for WorkspacesConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct WindowAgentsConfig {
-    pub kitty: bool,
-    pub wezterm: bool,
-    pub pty_shells: bool,
+    pub kitty: TerminalAgentUse,
+    pub wezterm: TerminalAgentUse,
+    pub pty_shells: TerminalAgentUse,
 }
 
 impl Default for WindowAgentsConfig {
     fn default() -> Self {
         Self {
-            kitty: true,
-            wezterm: true,
-            pty_shells: true,
+            kitty: TerminalAgentUse::Enabled,
+            wezterm: TerminalAgentUse::Enabled,
+            pty_shells: TerminalAgentUse::Enabled,
         }
     }
 }
 
 #[cfg(test)]
 mod window_title_width_tests {
-    use super::WindowGroupConfig;
+    use super::{ElementVisibility, TerminalAgentUse, WindowAgentsConfig, WindowGroupConfig};
+
+    #[test]
+    fn window_indicators_read_as_shown_or_hidden() {
+        let window_group: WindowGroupConfig =
+            toml::from_str("audio_indicator = \"hidden\"\n").unwrap();
+        assert_eq!(window_group.audio_indicator, ElementVisibility::Hidden);
+        assert_eq!(window_group.progress, ElementVisibility::Shown);
+        assert!(toml::from_str::<WindowGroupConfig>("progress = true\n").is_err());
+    }
+
+    #[test]
+    fn terminal_agents_read_as_enabled_or_disabled() {
+        let agents: WindowAgentsConfig = toml::from_str("kitty = \"disabled\"\n").unwrap();
+        assert_eq!(agents.kitty, TerminalAgentUse::Disabled);
+        assert_eq!(agents.wezterm, TerminalAgentUse::Enabled);
+    }
 
     #[test]
     fn maximum_window_title_width_follows_the_font_in_em() {

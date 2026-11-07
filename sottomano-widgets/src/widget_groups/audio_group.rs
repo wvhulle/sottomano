@@ -18,7 +18,9 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
+        slider_control::{
+            Action, ControlMessage, SeverityDirection, SliderControl, as_percent, percent_f,
+        },
     },
     hover_cards::{
         HoverTarget,
@@ -108,7 +110,7 @@ impl Default for AudioGroup {
             .relative_scroll()
             .right_click("mute or unmute")
             .readout(|value, _| format!("{}%", as_percent(value)))
-            .thresholds(80.0, 95.0, true)
+            .thresholds(80.0, 95.0, SeverityDirection::HigherWorse)
             .announces_level("Speaker"),
             source_control: SliderControl::new(
                 "Microphone volume",
@@ -121,7 +123,7 @@ impl Default for AudioGroup {
             .right_click("mute or unmute")
             .readout(|value, _| format!("{}%", as_percent(value)))
             .glyph(input_glyph)
-            .thresholds(50.0, 15.0, false)
+            .thresholds(50.0, 15.0, SeverityDirection::LowerWorse)
             .announces_level("Microphone"),
         }
     }
@@ -238,7 +240,7 @@ impl AudioGroup {
         };
         ControlMessage::commit("audio set volume", value, move || {
             slow_write_delay();
-            pipewire_level_commands::set_volume(&commands, target, as_percent(value)).is_some()
+            pipewire_level_commands::set_volume(&commands, target, as_percent(value)).map(drop)
         })
         .map(move |m| AudioMessage::Control(kind, m))
     }

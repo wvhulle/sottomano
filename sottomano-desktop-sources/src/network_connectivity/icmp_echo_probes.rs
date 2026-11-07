@@ -2,7 +2,7 @@ use std::{
     collections::VecDeque,
     fmt::{Display, Formatter, Result as FmtResult},
     fs, io,
-    net::{IpAddr, Ipv6Addr, SocketAddr, SocketAddrV6, UdpSocket as StdUdpSocket},
+    net::{IpAddr, SocketAddr, SocketAddrV6, UdpSocket as StdUdpSocket},
     path::Path,
     time::{Duration, Instant},
 };
@@ -106,15 +106,11 @@ impl ProbeWindow {
 #[must_use]
 pub fn probe_address(host: IpAddr, interface: &str) -> SocketAddr {
     match host {
-        IpAddr::V6(address) if is_link_local(address) => {
+        IpAddr::V6(address) if address.is_unicast_link_local() => {
             SocketAddr::V6(SocketAddrV6::new(address, 0, 0, interface_index(interface)))
         }
         host => SocketAddr::new(host, 0),
     }
-}
-
-fn is_link_local(address: Ipv6Addr) -> bool {
-    address.segments()[0] & 0xffc0 == 0xfe80
 }
 
 fn interface_index(interface: &str) -> u32 {
@@ -157,7 +153,7 @@ pub async fn echo_round_trip(
         let mut reply_buffer = [0_u8; 256];
         loop {
             let received_length = icmp_socket.recv(&mut reply_buffer).await?;
-            if is_echo_reply(&reply_buffer[..received_length], reply_kind, sequence) {
+            if echo_reply_sequence(&reply_buffer[..received_length], reply_kind) == Some(sequence) {
                 return Ok::<Duration, io::Error>(sent_at.elapsed());
             }
         }
@@ -176,10 +172,13 @@ fn echo_request(request_kind: u8, sequence: u16) -> Vec<u8> {
         .collect()
 }
 
-fn is_echo_reply(reply_bytes: &[u8], reply_kind: u8, sequence: u16) -> bool {
-    reply_bytes.len() >= 8
-        && reply_bytes[0] == reply_kind
-        && u16::from_be_bytes([reply_bytes[6], reply_bytes[7]]) == sequence
+fn echo_reply_sequence(reply_bytes: &[u8], reply_kind: u8) -> Option<u16> {
+    match reply_bytes {
+        [kind, _, _, _, _, _, sequence_high, sequence_low, ..] if *kind == reply_kind => {
+            Some(u16::from_be_bytes([*sequence_high, *sequence_low]))
+        }
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -246,9 +245,11 @@ mod tests {
     #[test]
     fn echo_reply_matches_kind_and_sequence() {
         let mut reply_bytes = echo_request(ICMPV4_ECHO_REPLY, 513);
-        assert!(is_echo_reply(&reply_bytes, ICMPV4_ECHO_REPLY, 513));
-        assert!(!is_echo_reply(&reply_bytes, ICMPV4_ECHO_REPLY, 514));
+        assert_eq!(
+            echo_reply_sequence(&reply_bytes, ICMPV4_ECHO_REPLY),
+            Some(513)
+        );
         reply_bytes[0] = ICMPV4_ECHO_REQUEST;
-        assert!(!is_echo_reply(&reply_bytes, ICMPV4_ECHO_REPLY, 513));
+        assert_eq!(echo_reply_sequence(&reply_bytes, ICMPV4_ECHO_REPLY), None);
     }
 }

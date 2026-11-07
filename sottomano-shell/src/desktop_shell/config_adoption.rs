@@ -35,7 +35,7 @@ impl DesktopShell {
 
     pub(super) fn adopt_fonts(&mut self, previous: &Theme) -> Task<Message> {
         let theme = &self.config.theme;
-        if theme.font.has_same_face_as(&previous.font)
+        if theme.font.data == previous.font.data
             && theme.monospace_font.family == previous.monospace_font.family
         {
             return Task::none();

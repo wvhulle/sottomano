@@ -111,10 +111,19 @@ pub struct OpenTask {
     pub progress: TaskProgress,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskDueStatus {
+    Overdue,
+    NotYetDue,
+}
+
 impl OpenTask {
     #[must_use]
-    pub fn is_overdue(&self, now: DateTime<Local>) -> bool {
-        matches!(self.deadline, TaskDeadline::Due(due) if due.ends_before(now))
+    pub fn due_status(&self, now: DateTime<Local>) -> TaskDueStatus {
+        match self.deadline {
+            TaskDeadline::Due(due) if due.ends_before(now) => TaskDueStatus::Overdue,
+            _ => TaskDueStatus::NotYetDue,
+        }
     }
 
     #[must_use]
@@ -214,8 +223,11 @@ mod tests {
         let evening = Local
             .from_local_datetime(&due_day.and_hms_opt(22, 0, 0).unwrap())
             .unwrap();
-        assert!(!taxes.is_overdue(evening));
-        assert!(taxes.is_overdue(evening + TimeDelta::days(1)));
+        assert_eq!(taxes.due_status(evening), TaskDueStatus::NotYetDue);
+        assert_eq!(
+            taxes.due_status(evening + TimeDelta::days(1)),
+            TaskDueStatus::Overdue
+        );
         assert_eq!(taxes.priority, TaskPriority::Ranked(1));
     }
 

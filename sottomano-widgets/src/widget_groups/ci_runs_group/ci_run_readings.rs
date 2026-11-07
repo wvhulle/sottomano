@@ -47,10 +47,6 @@ pub(super) struct WatchedCiRunner<'a> {
 }
 
 impl WatchedCiRunner<'_> {
-    fn is_failing(&self) -> bool {
-        !matches!(self.runner.access, RunnerAccess::Complete)
-    }
-
     fn status_text(&self) -> String {
         access_failure_text(&self.runner.access).map_or_else(
             || running_count_text(self.runner.tasks.len()),
@@ -117,7 +113,12 @@ impl GroupItemReading for CiRunnerFailureRow<'_> {
 
 impl<'a> CiRunnerFailureRow<'a> {
     pub(super) fn of_failing(watched: WatchedCiRunner<'a>) -> Option<Self> {
-        watched.is_failing().then_some(Self { watched })
+        match watched.runner.access {
+            RunnerAccess::Complete => None,
+            RunnerAccess::EngineUnreadable(_) | RunnerAccess::AgentUnreachable(_) => {
+                Some(Self { watched })
+            }
+        }
     }
 }
 

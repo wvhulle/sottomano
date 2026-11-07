@@ -11,7 +11,8 @@ use iced::{
     widget::{button, text},
 };
 use sottomano_desktop_sources::desktop_windows_apps::{
-    niri_kdl_config::ConfiguredWorkspaces, workspace_window_snapshot,
+    niri_kdl_config::{ConfiguredOrderStatus, ConfiguredWorkspaces},
+    workspace_window_snapshot,
 };
 use sottomano_toml_config::Config;
 
@@ -177,7 +178,7 @@ impl EmptyWorkspaceFolding {
     ) -> bool {
         self.mode == EmptyWorkspaces::Folded
             && !self.temporarily_revealed
-            && !is_in_use(compositor, workspace)
+            && workspace_usage(compositor, workspace) == WorkspaceUsage::Unused
     }
 }
 
@@ -213,11 +214,21 @@ fn classify_switch(
     }
 }
 
-fn is_in_use(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WorkspaceUsage {
+    InUse,
+    Unused,
+}
+
+fn workspace_usage(
     compositor: &workspace_window_snapshot::Snapshot,
     workspace: &workspace_window_snapshot::WorkspaceIndicator,
-) -> bool {
-    workspace.is_active || !compositor.windows_on_workspace(workspace.id).is_empty()
+) -> WorkspaceUsage {
+    if workspace.is_active || !compositor.windows_on_workspace(workspace.id).is_empty() {
+        WorkspaceUsage::InUse
+    } else {
+        WorkspaceUsage::Unused
+    }
 }
 
 #[must_use]
@@ -245,7 +256,7 @@ fn empty_workspaces_toggle<'a>(
     let unused_count = compositor
         .workspaces_for_output(output)
         .iter()
-        .filter(|workspace| !is_in_use(compositor, workspace))
+        .filter(|workspace| workspace_usage(compositor, workspace) == WorkspaceUsage::Unused)
         .count();
     if unused_count == 0 {
         return None;
@@ -315,7 +326,9 @@ fn order_restore<'a>(
     output: &str,
     config: &Config,
 ) -> Option<Element<'a, WorkspacesMessage>> {
-    configured.filter(|configured| !configured.is_followed_on(workspaces))?;
+    configured.filter(|configured| {
+        configured.order_status_on(workspaces) == ConfiguredOrderStatus::Diverged
+    })?;
     Some(hoverable(
         glyph_button(
             Phosphor::ArrowCounterClockwise(Weight::Regular),

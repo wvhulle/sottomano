@@ -16,7 +16,9 @@ use iced::{
 use iced_exwlshell::BlurRegions;
 use sottomano_toml_config::screen_edges::Position;
 
-use crate::desktop_panels::region_reporter::{replacing_blur_regions, rounded_blur_rows};
+use crate::desktop_panels::region_reporter::{
+    BackdropBlur, replacing_blur_regions, rounded_blur_rows,
+};
 
 #[must_use]
 pub fn outlined_sides_inward_of(panel_position: Position) -> OutlinedSides {
@@ -36,7 +38,7 @@ pub fn panel_frame<'a, Message>(
         content: content.into(),
         frame,
         outlined_sides: OutlinedSides::ALL,
-        blurred: false,
+        backdrop_blur: BackdropBlur::Clear,
     }
 }
 
@@ -44,7 +46,7 @@ pub struct PanelFrame<'a, Message> {
     content: Element<'a, Message>,
     frame: FrameStyle,
     outlined_sides: OutlinedSides,
-    blurred: bool,
+    backdrop_blur: BackdropBlur,
 }
 
 impl<Message> PanelFrame<'_, Message> {
@@ -55,8 +57,8 @@ impl<Message> PanelFrame<'_, Message> {
     }
 
     #[must_use]
-    pub fn blurred(mut self, blurred: bool) -> Self {
-        self.blurred = blurred;
+    pub fn backdrop_blur(mut self, backdrop_blur: BackdropBlur) -> Self {
+        self.backdrop_blur = backdrop_blur;
         self
     }
 
@@ -65,10 +67,12 @@ impl<Message> PanelFrame<'_, Message> {
     }
 
     fn blur_regions(&self, bounds: Rectangle) -> BlurRegions {
-        if !self.blurred {
-            return replacing_blur_regions(Vec::new());
+        match self.backdrop_blur {
+            BackdropBlur::Blurred => {
+                replacing_blur_regions(rounded_blur_rows(bounds, self.drawn_radius()))
+            }
+            BackdropBlur::Clear => replacing_blur_regions(Vec::new()),
         }
-        replacing_blur_regions(rounded_blur_rows(bounds, self.drawn_radius()))
     }
 
     fn draw_fill(
@@ -247,7 +251,10 @@ mod tests {
     use sottomano_toml_config::screen_edges::Position;
 
     use super::{outlined_sides_inward_of, panel_frame};
-    use crate::widgets::shell_layer_appearance::LayerAppearance;
+    use crate::{
+        desktop_panels::region_reporter::BackdropBlur,
+        widgets::shell_layer_appearance::LayerAppearance,
+    };
 
     #[test]
     fn a_top_panel_blurs_its_screen_edge_corners_square() {
@@ -257,7 +264,7 @@ mod tests {
         };
         let frame = panel_frame::<()>(space(), appearance.frame_style())
             .outlined_sides(outlined_sides_inward_of(Position::Top))
-            .blurred(true);
+            .backdrop_blur(BackdropBlur::Blurred);
         let pill = Rectangle {
             x: 10.0,
             y: 0.0,

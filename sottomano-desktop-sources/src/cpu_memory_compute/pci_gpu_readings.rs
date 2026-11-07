@@ -120,10 +120,12 @@ impl GpuDiscovery {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum GpuRuntimePower {
     Awake,
     Asleep,
+    #[default]
+    Unreported,
 }
 
 impl SnapshotSource for GpuRuntimePower {

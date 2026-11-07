@@ -23,8 +23,8 @@ use super::{
     AudioState, Direction, OutputKind,
     audio_graph_state::{AudioGraph, DefaultNodeChange},
     spa_pod_levels::{
-        default_node_name, is_output_stream, node_direction, node_from_props, parse_props,
-        parse_route, route_placement, stream_from_props, stream_pid,
+        default_node_name, node_direction, node_from_props, parse_props, parse_route,
+        route_placement, stream_from_props, stream_pid,
     },
 };
 
@@ -222,7 +222,7 @@ fn track_node(
             live_graph.update(|graph| graph.add_node(id, node));
             keep_node_proxy(live_graph, id, bound_node);
         }
-    } else if is_output_stream(props) {
+    } else if props.get("media.class") == Some("Stream/Output/Audio") {
         let on_info = {
             let live_graph = live_graph.clone();
             move |info: &NodeInfoRef| {

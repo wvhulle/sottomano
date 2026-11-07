@@ -1,5 +1,5 @@
 use chrono::{Weekday, WeekdaySet};
-use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, with_table};
+use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, in_table, with_table};
 
 const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS working_days (
     days_from_monday INTEGER PRIMARY KEY CHECK (days_from_monday BETWEEN 0 AND 6),
@@ -29,14 +29,11 @@ pub async fn load() -> WeekdaySet {
         .unwrap_or(MONDAY_TO_FRIDAY)
 }
 
-pub async fn save(working_days: WeekdaySet) -> bool {
-    with_table(
-        "working days: save failed",
-        &[CREATE_TABLE],
-        async |connection| write_days(connection, working_days).await,
-    )
+pub async fn save(working_days: WeekdaySet) -> Result<(), StoreError> {
+    in_table(&[CREATE_TABLE], async |connection| {
+        write_days(connection, working_days).await
+    })
     .await
-    .is_some()
 }
 
 async fn read_days(connection: &turso::Connection) -> Result<WeekdaySet, StoreError> {

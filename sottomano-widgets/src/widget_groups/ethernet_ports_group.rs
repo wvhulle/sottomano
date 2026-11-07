@@ -113,8 +113,8 @@ impl EthernetPortsGroup {
         buses: &DesktopBuses,
         demand: GroupSourceDemand,
     ) -> Subscription<EthernetPortsMessage> {
-        let any_port_expanded = self.expansions.any_expanded();
-        let demand = demand.expanded_when(any_port_expanded);
+        let port_expansion = self.expansions.combined_state();
+        let demand = demand.expanded_when(port_expansion);
         Subscription::batch([
             snapshot_subscription::<Ethernet>(buses.clone()).map(EthernetPortsMessage::Snapshot),
             demand.while_rows_shown(
@@ -313,7 +313,7 @@ impl EthernetPortsGroup {
             },
         )
         .on_switch_press(
-            port_state.link_state == DeviceLinkState::Connected,
+            port_state.link_state,
             connection_press_does,
             EthernetPortsMessage::TogglePort(port_state.name.clone()),
         );

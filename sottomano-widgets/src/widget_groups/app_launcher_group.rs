@@ -11,13 +11,14 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::Config;
 
 use crate::{
+    background_work::logged_failure_task,
     clock::Clock,
     desktop_index::DesktopIndex,
     group_items::{
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
         },
-        toggle_control::{IconToggle, SwitchPresses},
+        toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::{
         HoverTarget,
@@ -27,7 +28,7 @@ use crate::{
         },
     },
     widget_groups::{
-        sqlite_singleton_flag::{self, SingletonFlag},
+        sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         terminal_command::TerminalCommand,
         widget_group_content::{
             GroupEvent, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -63,10 +64,78 @@ impl From<AppLauncherTarget> for HoverTarget {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkspaceWindowPresence {
+    Open,
+    Absent,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FrequentApp {
     pub app: LaunchableApp,
-    pub open_on_workspace: bool,
+    pub window_presence: WorkspaceWindowPresence,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpenAppListing {
+    Hidden,
+    Listed,
+}
+
+impl OpenAppListing {
+    #[must_use]
+    pub const fn toggled(self) -> Self {
+        match self {
+            OpenAppListing::Hidden => OpenAppListing::Listed,
+            OpenAppListing::Listed => OpenAppListing::Hidden,
+        }
+    }
+}
+
+impl SingletonFlagState for OpenAppListing {
+    const STORED_FLAG: SingletonFlag = SingletonFlag::FrequentAppsHideOpen;
+    const STORED_AS_SET: Self = OpenAppListing::Hidden;
+    const STORED_AS_CLEARED: Self = OpenAppListing::Listed;
+}
+
+impl From<OpenAppListing> for SwitchPosition {
+    fn from(open_app_listing: OpenAppListing) -> Self {
+        match open_app_listing {
+            OpenAppListing::Hidden => SwitchPosition::On,
+            OpenAppListing::Listed => SwitchPosition::Off,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CategoryAppOrder {
+    ByUsage,
+    Alphabetical,
+}
+
+impl CategoryAppOrder {
+    #[must_use]
+    pub const fn toggled(self) -> Self {
+        match self {
+            CategoryAppOrder::ByUsage => CategoryAppOrder::Alphabetical,
+            CategoryAppOrder::Alphabetical => CategoryAppOrder::ByUsage,
+        }
+    }
+}
+
+impl SingletonFlagState for CategoryAppOrder {
+    const STORED_FLAG: SingletonFlag = SingletonFlag::CategoryAppsSortedByUsage;
+    const STORED_AS_SET: Self = CategoryAppOrder::ByUsage;
+    const STORED_AS_CLEARED: Self = CategoryAppOrder::Alphabetical;
+}
+
+impl From<CategoryAppOrder> for SwitchPosition {
+    fn from(category_app_order: CategoryAppOrder) -> Self {
+        match category_app_order {
+            CategoryAppOrder::ByUsage => SwitchPosition::On,
+            CategoryAppOrder::Alphabetical => SwitchPosition::Off,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -106,8 +175,8 @@ pub enum AppLauncherMessage {
     JumpToWindow(u64),
     ToggleHideOpenApps,
     ToggleSortByUsage,
-    HideOpenAppsLoaded(bool),
-    SortByUsageLoaded(bool),
+    HideOpenAppsLoaded(OpenAppListing),
+    SortByUsageLoaded(CategoryAppOrder),
 }
 
 pub enum Action {
@@ -124,8 +193,8 @@ struct AppCategoryGroup {
 pub struct AppLauncherGroup {
     catalog: Vec<LaunchableApp>,
     usage: AppLaunchUsage,
-    hide_open_apps: bool,
-    sort_by_usage: bool,
+    open_app_listing: OpenAppListing,
+    category_app_order: CategoryAppOrder,
     frequent_expansion: WidgetGroupExpansion,
     options_expansion: WidgetGroupExpansion,
     category_groups: Vec<AppCategoryGroup>,
@@ -136,8 +205,8 @@ impl Default for AppLauncherGroup {
         Self {
             catalog: Vec::new(),
             usage: AppLaunchUsage::default(),
-            hide_open_apps: false,
-            sort_by_usage: false,
+            open_app_listing: OpenAppListing::Listed,
+            category_app_order: CategoryAppOrder::Alphabetical,
             frequent_expansion: WidgetGroupExpansion::default(),
             options_expansion: WidgetGroupExpansion::default(),
             category_groups: AppCategory::ALL
@@ -169,11 +238,11 @@ const fn category_glyph(category: AppCategory) -> Phosphor {
     }
 }
 
-fn hide_open_apps_toggle(hide_open_apps: bool) -> IconToggle {
+fn hide_open_apps_toggle(open_app_listing: OpenAppListing) -> IconToggle {
     IconToggle::new(
         "Hide apps already open",
         Phosphor::EyeSlash(Weight::Regular),
-        hide_open_apps,
+        open_app_listing,
         SwitchPresses {
             turning_on: "leave out frequent apps with a window on this workspace",
             turning_off: "list frequent apps even with a window on this workspace",
@@ -181,11 +250,11 @@ fn hide_open_apps_toggle(hide_open_apps: bool) -> IconToggle {
     )
 }
 
-fn sort_by_usage_toggle(sort_by_usage: bool) -> IconToggle {
+fn sort_by_usage_toggle(category_app_order: CategoryAppOrder) -> IconToggle {
     IconToggle::new(
         "Sort categories by usage",
         Phosphor::SortAscending(Weight::Regular),
-        sort_by_usage,
+        category_app_order,
         SwitchPresses {
             turning_on: "list the most launched apps first in each category",
             turning_off: "list the apps in each category alphabetically",
@@ -218,11 +287,16 @@ fn apps_shown_in_category(
 
 fn frequent_apps_shown(
     frequent_apps: &[FrequentApp],
-    hide_open_apps: bool,
+    open_app_listing: OpenAppListing,
 ) -> impl Iterator<Item = &LaunchableApp> {
     frequent_apps
         .iter()
-        .filter(move |frequent| !(hide_open_apps && frequent.open_on_workspace))
+        .filter(move |frequent| {
+            !matches!(
+                (open_app_listing, frequent.window_presence),
+                (OpenAppListing::Hidden, WorkspaceWindowPresence::Open)
+            )
+        })
         .map(|frequent| &frequent.app)
         .take(MAX_FREQUENT_APPS)
 }
@@ -249,11 +323,11 @@ impl AppLauncherGroup {
     pub fn load() -> Task<AppLauncherMessage> {
         Task::batch([
             Task::perform(
-                sqlite_singleton_flag::load(SingletonFlag::FrequentAppsHideOpen, false),
+                sqlite_singleton_flag::load(OpenAppListing::Listed),
                 AppLauncherMessage::HideOpenAppsLoaded,
             ),
             Task::perform(
-                sqlite_singleton_flag::load(SingletonFlag::CategoryAppsSortedByUsage, false),
+                sqlite_singleton_flag::load(CategoryAppOrder::Alphabetical),
                 AppLauncherMessage::SortByUsageLoaded,
             ),
         ])
@@ -283,9 +357,10 @@ impl AppLauncherGroup {
     }
 
     fn rebuild_category_groups(&mut self) {
-        let usage_order = self
-            .sort_by_usage
-            .then_some(self.usage.most_used_app_ids.as_slice());
+        let usage_order = match self.category_app_order {
+            CategoryAppOrder::ByUsage => Some(self.usage.most_used_app_ids.as_slice()),
+            CategoryAppOrder::Alphabetical => None,
+        };
         for group in &mut self.category_groups {
             group.shown_apps = apps_shown_in_category(&self.catalog, group.category, usage_order);
         }
@@ -296,10 +371,10 @@ impl AppLauncherGroup {
         match target {
             AppLauncherTarget::App(app_id) => self.app_hover_card(app_id),
             AppLauncherTarget::HideOpenApps => {
-                hide_open_apps_toggle(self.hide_open_apps).switch_hover_card(clock)
+                hide_open_apps_toggle(self.open_app_listing).switch_hover_card(clock)
             }
             AppLauncherTarget::SortByUsage => {
-                sort_by_usage_toggle(self.sort_by_usage).switch_hover_card(clock)
+                sort_by_usage_toggle(self.category_app_order).switch_hover_card(clock)
             }
         }
     }
@@ -361,32 +436,26 @@ impl AppLauncherGroup {
                 Action::RunAndDismissMenu(jump_task(window))
             }
             AppLauncherMessage::ToggleHideOpenApps => {
-                self.hide_open_apps = !self.hide_open_apps;
-                Action::Run(
-                    Task::future(sqlite_singleton_flag::save(
-                        SingletonFlag::FrequentAppsHideOpen,
-                        self.hide_open_apps,
-                    ))
-                    .discard(),
-                )
+                self.open_app_listing = self.open_app_listing.toggled();
+                Action::Run(logged_failure_task(
+                    "singleton flag: save".to_owned(),
+                    sqlite_singleton_flag::save(self.open_app_listing),
+                ))
             }
             AppLauncherMessage::ToggleSortByUsage => {
-                self.sort_by_usage = !self.sort_by_usage;
+                self.category_app_order = self.category_app_order.toggled();
                 self.rebuild_category_groups();
-                Action::Run(
-                    Task::future(sqlite_singleton_flag::save(
-                        SingletonFlag::CategoryAppsSortedByUsage,
-                        self.sort_by_usage,
-                    ))
-                    .discard(),
-                )
+                Action::Run(logged_failure_task(
+                    "singleton flag: save".to_owned(),
+                    sqlite_singleton_flag::save(self.category_app_order),
+                ))
             }
-            AppLauncherMessage::HideOpenAppsLoaded(hide_open_apps) => {
-                self.hide_open_apps = hide_open_apps;
+            AppLauncherMessage::HideOpenAppsLoaded(open_app_listing) => {
+                self.open_app_listing = open_app_listing;
                 Action::Run(Task::none())
             }
-            AppLauncherMessage::SortByUsageLoaded(sort_by_usage) => {
-                self.sort_by_usage = sort_by_usage;
+            AppLauncherMessage::SortByUsageLoaded(category_app_order) => {
+                self.category_app_order = category_app_order;
                 self.rebuild_category_groups();
                 Action::Run(Task::none())
             }
@@ -485,7 +554,7 @@ impl AppLauncherGroup {
             output_frequent_apps.map_or(&[][..], |frequent| frequent.apps.as_slice());
         let scope =
             output_frequent_apps.map_or(FrequentAppScope::ThisWorkspace, |frequent| frequent.scope);
-        let frequent_rows: Vec<_> = frequent_apps_shown(frequent_apps, self.hide_open_apps)
+        let frequent_rows: Vec<_> = frequent_apps_shown(frequent_apps, self.open_app_listing)
             .map(|app| self.frequent_row(app, index, config))
             .collect();
         WidgetGroupContent::expandable_instance(
@@ -532,12 +601,12 @@ impl AppLauncherGroup {
             AppLauncherMessage::OptionsExpansion,
             [
                 GroupItem::toggle(
-                    hide_open_apps_toggle(self.hide_open_apps),
+                    hide_open_apps_toggle(self.open_app_listing),
                     AppLauncherTarget::HideOpenApps,
                     AppLauncherMessage::ToggleHideOpenApps,
                 ),
                 GroupItem::toggle(
-                    sort_by_usage_toggle(self.sort_by_usage),
+                    sort_by_usage_toggle(self.category_app_order),
                     AppLauncherTarget::SortByUsage,
                     AppLauncherMessage::ToggleSortByUsage,
                 ),
@@ -578,8 +647,8 @@ mod tests {
 
     use super::{
         Action, AppLaunchUsage, AppLauncherGroup, AppLauncherMessage, FrequentApp,
-        FrequentAppScope, GroupItemValue, MAX_FREQUENT_APPS, OutputFrequentApps,
-        apps_shown_in_category, frequent_apps_shown,
+        FrequentAppScope, GroupItemValue, MAX_FREQUENT_APPS, OpenAppListing, OutputFrequentApps,
+        WorkspaceWindowPresence, apps_shown_in_category, frequent_apps_shown,
     };
     use crate::desktop_index::DesktopIndex;
 
@@ -598,10 +667,10 @@ mod tests {
         app_named(app_id, AppCategory::Development)
     }
 
-    fn frequent_app(app_id: &str, open_on_workspace: bool) -> FrequentApp {
+    fn frequent_app(app_id: &str, window_presence: WorkspaceWindowPresence) -> FrequentApp {
         FrequentApp {
             app: development_app(app_id),
-            open_on_workspace,
+            window_presence,
         }
     }
 
@@ -648,20 +717,22 @@ mod tests {
 
     #[test]
     fn hiding_open_apps_filters_before_the_frequent_cap() {
-        let frequent_apps: Vec<FrequentApp> = once(frequent_app("open", true))
-            .chain(
-                (0..MAX_FREQUENT_APPS)
-                    .map(|position| frequent_app(&format!("app{position}"), false)),
-            )
-            .collect();
+        let frequent_apps: Vec<FrequentApp> =
+            once(frequent_app("open", WorkspaceWindowPresence::Open))
+                .chain((0..MAX_FREQUENT_APPS).map(|position| {
+                    frequent_app(&format!("app{position}"), WorkspaceWindowPresence::Absent)
+                }))
+                .collect();
 
-        let shown_with_hiding: Vec<&str> = frequent_apps_shown(&frequent_apps, true)
-            .map(|app| app.app_id.as_str())
-            .collect();
+        let shown_with_hiding: Vec<&str> =
+            frequent_apps_shown(&frequent_apps, OpenAppListing::Hidden)
+                .map(|app| app.app_id.as_str())
+                .collect();
         assert_eq!(shown_with_hiding.len(), MAX_FREQUENT_APPS);
         assert!(!shown_with_hiding.contains(&"open"));
 
-        let first_without_hiding = frequent_apps_shown(&frequent_apps, false).next();
+        let first_without_hiding =
+            frequent_apps_shown(&frequent_apps, OpenAppListing::Listed).next();
         assert_eq!(
             first_without_hiding.map(|app| app.app_id.as_str()),
             Some("open")
@@ -676,7 +747,7 @@ mod tests {
                 "DP-1".to_owned(),
                 OutputFrequentApps {
                     scope: FrequentAppScope::ThisWorkspace,
-                    apps: vec![frequent_app("helix", false)],
+                    apps: vec![frequent_app("helix", WorkspaceWindowPresence::Absent)],
                 },
             )]),
             ..AppLaunchUsage::default()
@@ -705,7 +776,7 @@ mod tests {
                     "DP-1".to_owned(),
                     OutputFrequentApps {
                         scope,
-                        apps: vec![frequent_app("helix", false)],
+                        apps: vec![frequent_app("helix", WorkspaceWindowPresence::Absent)],
                     },
                 )]),
                 ..AppLaunchUsage::default()
@@ -746,7 +817,10 @@ mod tests {
             Action::Run(_)
         ));
         assert!(matches!(
-            group.update(AppLauncherMessage::HideOpenAppsLoaded(true), &config),
+            group.update(
+                AppLauncherMessage::HideOpenAppsLoaded(OpenAppListing::Hidden),
+                &config
+            ),
             Action::Run(_)
         ));
     }

@@ -68,11 +68,11 @@ pub(crate) struct GroupMenuRowContext<'p, 'a, M> {
     pub cascade_satellite_panels: &'p CascadeSatellitePanels,
 }
 
-const fn accordion_caret(open: bool, growth: PanelGrowth) -> Phosphor {
-    match (open, growth) {
-        (false, _) => Phosphor::CaretRight(Weight::Regular),
-        (true, PanelGrowth::Downward) => Phosphor::CaretDown(Weight::Regular),
-        (true, PanelGrowth::Upward) => Phosphor::CaretUp(Weight::Regular),
+const fn accordion_caret(emphasis: MenuRowEmphasis, growth: PanelGrowth) -> Phosphor {
+    match (emphasis, growth) {
+        (MenuRowEmphasis::Plain, _) => Phosphor::CaretRight(Weight::Regular),
+        (MenuRowEmphasis::Selected, PanelGrowth::Downward) => Phosphor::CaretDown(Weight::Regular),
+        (MenuRowEmphasis::Selected, PanelGrowth::Upward) => Phosphor::CaretUp(Weight::Regular),
     }
 }
 
@@ -103,7 +103,7 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
             vec![
                 pin,
                 IconGlyph::from(accordion_caret(
-                    look.emphasis == MenuRowEmphasis::Selected,
+                    look.emphasis,
                     layout.cascade_satellite_panels.growth,
                 ))
                 .view(icon_size, caret_color),
@@ -163,7 +163,7 @@ pub(crate) fn item_menu<'a, M: Clone + From<GroupEvent<M>> + 'a>(
         .enumerate()
         .map(|(position, item)| {
             let look = MenuRowLook {
-                emphasis: MenuRowEmphasis::selected_when(item.is_inspected(inspected_target)),
+                emphasis: MenuRowEmphasis::from(item.inspection(inspected_target)),
                 corners: end_corners.radius_at(position),
             };
             item_row(layout, group, item, look).map(M::from)

@@ -1,4 +1,4 @@
-use corredo::anchored_popup::{AnchoredPopup, PopupRegions, PopupSide};
+use corredo::anchored_popup::{AnchoredPopup, PopupArrival, PopupRegions, PopupSide};
 pub use corredo::anchored_popup::{OutsidePress, PopupFraming, PopupRendering};
 use iced::{
     Element, Point, Rectangle, Size, advanced::widget::Operation, border::Radius, time::Duration,
@@ -6,7 +6,9 @@ use iced::{
 use sottomano_toml_config::{Config, screen_edges::Position};
 
 use crate::{
-    desktop_panels::region_reporter::{RegionRoles, report_input_across},
+    desktop_panels::region_reporter::{
+        BackdropBlur, PointerInput, RegionRoles, report_input_across,
+    },
     hover_cards::hover_card_transition::ShownTarget,
     widgets::{shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade},
 };
@@ -32,10 +34,18 @@ fn popup_side_of(position: Position) -> PopupSide {
     }
 }
 
-fn report_shell_regions(regions: &PopupRegions, blurred: bool, operation: &mut dyn Operation) {
+fn report_shell_regions(
+    regions: &PopupRegions,
+    backdrop_blur: BackdropBlur,
+    operation: &mut dyn Operation,
+) {
     let roles = RegionRoles {
-        takes_input: regions.takes_input,
-        blurred,
+        pointer_input: if regions.takes_input {
+            PointerInput::Accepted
+        } else {
+            PointerInput::PassedThrough
+        },
+        backdrop_blur,
         corner_radius: Radius::default(),
     };
     roles.report(&regions.surface_rows, regions.bounds, operation);
@@ -64,9 +74,10 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
     config: &Config,
     appearances: PopupAppearances,
 ) -> Element<'a, Message> {
-    let shows_menu = renderings
-        .iter()
-        .any(PopupRendering::is_incoming_leading_surface);
+    let shows_menu = renderings.iter().any(|rendering| {
+        rendering.arrival == PopupArrival::Incoming
+            && matches!(rendering.framing, PopupFraming::LeadingSurface(_))
+    });
     let appearance = if shows_menu {
         appearances.menu
     } else {
@@ -91,8 +102,8 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
         .frame_over(move |popup| appearance_over(popup).frame_style())
         .outside_press(outside_press)
         .report_regions(move |regions, operation| {
-            let blurred = appearance_over(regions.popup_bounds).blurred;
-            report_shell_regions(&regions, blurred, operation);
+            let backdrop_blur = appearance_over(regions.popup_bounds).backdrop_blur;
+            report_shell_regions(&regions, backdrop_blur, operation);
         })
         .identified_by(shown)
         .into()

@@ -8,7 +8,7 @@ use crate::battery_power_profiles::{
         charge_power_by_state_of_charge::{ChargeCurve, LearnedCurve},
         time_stepped_simulation::{Scenario, estimate, time_to_move},
     },
-    upower_battery_state::Battery,
+    upower_battery_state::{Battery, ChargeStatus},
 };
 
 struct Charging<'a> {
@@ -42,7 +42,9 @@ pub fn time_until_full(battery: &Battery, curve: &ChargeCurve) -> Option<Estimat
     let typical_now = curve.power_at(battery.energy / battery.energy_full);
     let charging = Charging {
         battery,
-        deviation_now: if battery.is_charging() && battery.power > Power::default() {
+        deviation_now: if battery.status == ChargeStatus::Charging
+            && battery.power > Power::default()
+        {
             battery.power - typical_now
         } else {
             Power::default()
@@ -74,7 +76,7 @@ mod tests {
 
     fn charging_at(state_of_charge: f64) -> Battery {
         Battery {
-            status: Some(ChargeStatus::Charging),
+            status: ChargeStatus::Charging,
             capacity: Ratio::new::<ratio>(state_of_charge),
             energy: Energy::new::<watt_hour>(state_of_charge * CAPACITY_WH),
             energy_full: Energy::new::<watt_hour>(CAPACITY_WH),

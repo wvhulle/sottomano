@@ -38,7 +38,7 @@ use sottomano_widgets::{
         nspawn_containers_group::NspawnContainersGroup,
         openrouter_credit_group::OpenRouterCreditGroup,
         overlay_settings_group::{OverlaySettingsGroup, OverlaySettingsMessage},
-        panel_settings_group::{PanelSettingsGroup, PanelSettingsMessage},
+        panel_settings_group::{GroupCollapsing, PanelSettingsGroup, PanelSettingsMessage},
         pending_upgrades_group::PendingUpgradesGroup,
         physical_drive_group::PhysicalDriveGroup,
         podman_engines_group::PodmanEnginesGroup,
@@ -409,8 +409,8 @@ impl ShellWidgetGroups {
     #[must_use]
     pub fn notification_settings(&self) -> NotificationSettings {
         NotificationSettings {
-            sound: self.notification_group.alert_sound_enabled(),
-            toast_spatial_layout: self.overlay_settings_group.toast_spatial_layout(),
+            alert_sound: self.notification_group.alert_sound(),
+            toast_arrangement: self.overlay_settings_group.toast_arrangement(),
         }
     }
 
@@ -446,7 +446,7 @@ impl ShellWidgetGroups {
     }
 
     pub fn collapse_when_auto_collapsing(&mut self) {
-        if !self.panel_settings_group.groups_auto_collapse() {
+        if self.panel_settings_group.group_collapsing() == GroupCollapsing::StayExpanded {
             return;
         }
         self.panel_settings_group.collapse();

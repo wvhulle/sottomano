@@ -261,7 +261,6 @@ impl BluetoothAdaptersGroup {
         );
         let power_switch = AdapterPowerSwitch { adapter };
         let power_press_does = power_switch.press_does();
-        let power_switched_on = power_switch.switched_on();
         let power_item = GroupItem::reading(
             power_switch,
             BluetoothTarget::PowerSwitch {
@@ -269,7 +268,7 @@ impl BluetoothAdaptersGroup {
             },
         )
         .on_switch_press(
-            power_switched_on,
+            &adapter.power,
             power_press_does,
             BluetoothMessage::ToggleAdapterPower(adapter.object_path.clone()),
         );
@@ -278,8 +277,8 @@ impl BluetoothAdaptersGroup {
             .iter()
             .map(|device| {
                 let reading = self.device_reading(device, siblings, report_timing_for, clock);
-                let needs_attention = reading.state(clock) == ReadingDisplayState::Critical;
-                GroupItem::reading(
+                let reading_state = reading.state(clock);
+                let device_item = GroupItem::reading(
                     reading,
                     BluetoothTarget::Device {
                         controller_name: adapter.controller_name.clone(),
@@ -289,8 +288,11 @@ impl BluetoothAdaptersGroup {
                 .on_press(
                     ConnectedDeviceReading::PRESS_DOES,
                     BluetoothMessage::Disconnect(device.object_path.clone()),
-                )
-                .previewed_on_handle_if(needs_attention)
+                );
+                match reading_state {
+                    ReadingDisplayState::Critical => device_item.previewed_on_handle(),
+                    _ => device_item,
+                }
             })
             .collect();
         let controller_name = adapter.controller_name.clone();

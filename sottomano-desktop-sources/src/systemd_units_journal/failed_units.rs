@@ -56,7 +56,7 @@ impl FailedUnits {
 
 #[derive(Debug, Clone)]
 pub struct FailedUnitRestart {
-    pub per_user: bool,
+    pub unit_scope: SystemdUnitScope,
     pub unit: String,
 }
 
@@ -68,7 +68,7 @@ impl SnapshotSource for FailedUnits {
 
     fn delivery_stream(systemd: SystemdOnBus) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let scope = systemd.scope;
-        connected_until_failure(watch_failed(systemd.connection(), scope.per_user()))
+        connected_until_failure(watch_failed(systemd.connection(), scope))
             .map(move |listed| listed.map(|units| FailedUnits { units, scope }))
             .map(SnapshotDelivery::live_push)
     }
@@ -76,7 +76,7 @@ impl SnapshotSource for FailedUnits {
 
 async fn watch_failed(
     connection: zbus::Connection,
-    user: bool,
+    unit_scope: SystemdUnitScope,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<Vec<FailedUnitInfo>>>> {
     let manager = ManagerProxy::builder(&connection)
         .cache_properties(CacheProperties::No)
@@ -99,26 +99,26 @@ async fn watch_failed(
     .map(drop);
     Ok(read_once_then_per_burst(unit_signals, move || {
         let manager = manager.clone();
-        async move { failed_units(&manager, user).await }
+        async move { failed_units(&manager, unit_scope).await }
     }))
 }
 
 async fn failed_units(
     manager: &ManagerProxy<'static>,
-    per_user: bool,
+    unit_scope: SystemdUnitScope,
 ) -> zbus::Result<Vec<FailedUnitInfo>> {
     let rows = manager.list_units_filtered(&[FAILED_STATE]).await?;
     let connection = manager.inner().connection();
     Ok(join_all(
         rows.into_iter()
-            .map(|row| failed_unit(connection, per_user, row)),
+            .map(|row| failed_unit(connection, unit_scope, row)),
     )
     .await)
 }
 
 async fn failed_unit(
     connection: &zbus::Connection,
-    per_user: bool,
+    unit_scope: SystemdUnitScope,
     row: UnitRow,
 ) -> FailedUnitInfo {
     let service_outcome = service_outcome(connection, row.unit_path.clone()).await;
@@ -127,7 +127,7 @@ async fn failed_unit(
         .is_some_and(|outcome| outcome.result == CORE_DUMP_RESULT);
     let crash = if crashed {
         let name = row.name.clone();
-        spawn_blocking(move || CoredumpEntry::latest_of_unit(per_user, &name))
+        spawn_blocking(move || CoredumpEntry::latest_of_unit(unit_scope, &name))
             .await
             .ok()
             .flatten()

@@ -24,6 +24,7 @@ use crate::{
         },
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
+        shell_layer_appearance::LookComparison,
     },
 };
 
@@ -53,7 +54,9 @@ fn preset_menu_row<'a>(
             IconGlyph::from(preset.icon()).view(config.theme.font.icon_size_px, text_color),
         ),
         label: Some(preset.name().to_owned()),
-        trailing: if preset.is_shown_by(current) {
+        trailing: if preset.applied_to(*current).look_comparison(current)
+            == LookComparison::Matching
+        {
             ContextMenuTrailing::Note("current".to_owned())
         } else {
             ContextMenuTrailing::Nothing
