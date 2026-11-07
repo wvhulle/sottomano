@@ -1,6 +1,7 @@
 use sottomano_desktop_sources::network_connectivity::{
     ethernet_connection::{Link, Port, PortState},
     interface_bus_attachment::InterfaceAttachment,
+    network_manager_proxies::DeviceLinkState,
 };
 
 use crate::{
@@ -32,23 +33,6 @@ pub struct PortConnectionSwitch<'a> {
     pub port_state: &'a PortState,
 }
 
-fn connection_description(port_state: &PortState) -> &'static str {
-    if port_state.switching {
-        "switching"
-    } else if port_state.connected {
-        "connected"
-    } else {
-        "disconnected"
-    }
-}
-
-fn connection_state(port_state: &PortState) -> ReadingDisplayState {
-    if port_state.switching {
-        return ReadingDisplayState::Pending;
-    }
-    ReadingDisplayState::of_toggle(port_state.connected)
-}
-
 fn attachment_description(attachment: InterfaceAttachment) -> &'static str {
     match attachment {
         InterfaceAttachment::BuiltIn => "built-in",
@@ -76,7 +60,7 @@ impl GroupItemReading for PortLinkReading<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        connection_state(self.port_state)
+        ReadingDisplayState::from(self.port_state.link_state)
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
@@ -86,7 +70,7 @@ impl GroupItemReading for PortLinkReading<'_> {
                 "Attachment",
                 attachment_description(self.port_state.attachment),
             ),
-            LabeledValue::new("Connection", connection_description(self.port_state)),
+            LabeledValue::new("Connection", self.port_state.link_state.label()),
         ])
     }
 }
@@ -94,7 +78,7 @@ impl GroupItemReading for PortLinkReading<'_> {
 impl PortConnectionSwitch<'_> {
     #[must_use]
     pub fn press_does(&self) -> &'static str {
-        if self.port_state.connected {
+        if self.port_state.link_state == DeviceLinkState::Connected {
             "disconnect this Ethernet port"
         } else {
             "connect this Ethernet port"
@@ -108,7 +92,7 @@ impl GroupItemReading for PortConnectionSwitch<'_> {
     }
 
     fn icon(&self) -> IconGlyph {
-        if self.port_state.connected {
+        if self.port_state.link_state == DeviceLinkState::Connected {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {
             Phosphor::ToggleLeft(Weight::Regular).into()
@@ -116,13 +100,13 @@ impl GroupItemReading for PortConnectionSwitch<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        connection_state(self.port_state)
+        ReadingDisplayState::from(self.port_state.link_state)
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         HoverCardBody::dictionary([
             LabeledValue::new("Port", self.port_state.name.as_str()),
-            LabeledValue::new("Connection", connection_description(self.port_state)),
+            LabeledValue::new("Connection", self.port_state.link_state.label()),
         ])
     }
 }

@@ -5,7 +5,7 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     media_playback_audio::{
         lrclib_synced_lyrics::TrackLyrics,
-        mpris_players::{Capabilities, LoopMode, Media, Progress, SeekMode, Status},
+        mpris_players::{Capabilities, LoopMode, Media, Progress, QueueOrder, SeekMode, Status},
     },
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
@@ -80,7 +80,7 @@ fn now_playing(clock: Clock) -> Media {
             raise: true,
             quit: true,
         },
-        shuffle: Some(false),
+        queue_order: Some(QueueOrder::InOrder),
         loop_mode: Some(LoopMode::Off),
         seek_mode: SeekMode::Relative,
     }
@@ -101,7 +101,7 @@ fn paused_video(clock: Clock) -> Media {
             length: Duration::from_secs(3600),
             rate: 1.0,
         },
-        shuffle: None,
+        queue_order: None,
         loop_mode: None,
         ..now_playing(clock)
     }

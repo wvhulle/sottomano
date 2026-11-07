@@ -440,7 +440,7 @@ impl ShellWidgetGroups {
             entries,
             config,
             self.notification_settings(),
-            self.quiet_schedule_group.is_quiet(),
+            self.quiet_schedule_group.quiet_phase(),
             clock,
         )
     }

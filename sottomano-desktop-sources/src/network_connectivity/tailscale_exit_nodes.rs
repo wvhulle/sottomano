@@ -7,7 +7,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::tailscale_status::{
-        Error, ExitNodeOffer, NodeLastSeen, TailscaleNodeJson, TailscalePrefsJson,
+        Error, ExitNodeOffer, ExitNodeUse, NodeLastSeen, TailscaleNodeJson, TailscalePrefsJson,
         TailscaleStatusJson,
     },
     stream_operators::StreamOperators,
@@ -28,7 +28,7 @@ pub struct ExitNodeOption {
     pub name: String,
     pub ip: String,
     pub reachability: ExitNodeReachability,
-    pub in_use: bool,
+    pub node_use: ExitNodeUse,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -80,24 +80,23 @@ impl ExitNodeOption {
             name: peer.short_name(),
             ip,
             reachability,
-            in_use: peer.carries_exit_traffic,
+            node_use: if peer.carries_exit_traffic {
+                ExitNodeUse::InUse
+            } else {
+                ExitNodeUse::Unused
+            },
         })
-    }
-
-    #[must_use]
-    pub fn is_online(&self) -> bool {
-        self.reachability == ExitNodeReachability::Online
     }
 }
 
 impl ExitNodeChoices {
     #[must_use]
     pub fn control_for_option(&self, option: &ExitNodeOption) -> ExitNodeControl {
-        if option.in_use {
+        if option.node_use == ExitNodeUse::InUse {
             ExitNodeControl::Switchable(ExitRoutingSwitch::StopUsingExitNode)
-        } else if !option.is_online() {
+        } else if option.reachability != ExitNodeReachability::Online {
             ExitNodeControl::Offline
-        } else if self.offer.is_offered() {
+        } else if self.offer != ExitNodeOffer::NotOffered {
             ExitNodeControl::BlockedByOffering
         } else {
             ExitNodeControl::Switchable(ExitRoutingSwitch::UseExitNode {

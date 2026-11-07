@@ -23,18 +23,6 @@ enum Answer {
 }
 
 impl Answer {
-    fn of_logind(reply: &zbus::Result<String>) -> Self {
-        match reply.as_deref() {
-            Ok("yes") => Answer::Granted,
-            Ok("challenge") => Answer::AfterChallenge,
-            Ok(_) => Answer::Denied,
-            Err(e) => {
-                tracing::debug!("logind capability query: {e}");
-                Answer::Denied
-            }
-        }
-    }
-
     fn always() -> Self {
         Answer::Granted
     }
@@ -48,6 +36,20 @@ impl Answer {
     }
 }
 
+impl From<&zbus::Result<String>> for Answer {
+    fn from(reply: &zbus::Result<String>) -> Self {
+        match reply.as_deref() {
+            Ok("yes") => Answer::Granted,
+            Ok("challenge") => Answer::AfterChallenge,
+            Ok(_) => Answer::Denied,
+            Err(e) => {
+                tracing::debug!("logind capability query: {e}");
+                Answer::Denied
+            }
+        }
+    }
+}
+
 fn answer_for(proxy: &ManagerProxyBlocking<'static>, action: SessionAction) -> Answer {
     match action {
         SessionAction::Lock
@@ -55,22 +57,18 @@ fn answer_for(proxy: &ManagerProxyBlocking<'static>, action: SessionAction) -> A
         | SessionAction::ScreenOff
         | SessionAction::LogOut
         | SessionAction::TerminateSession => Answer::always(),
-        SessionAction::Sleep => Answer::of_logind(&proxy.can_sleep()),
-        SessionAction::Suspend => Answer::of_logind(&proxy.can_suspend()),
-        SessionAction::Hibernate => Answer::of_logind(&proxy.can_hibernate()),
-        SessionAction::HybridSleep => Answer::of_logind(&proxy.can_hybrid_sleep()),
-        SessionAction::SuspendThenHibernate => {
-            Answer::of_logind(&proxy.can_suspend_then_hibernate())
-        }
-        SessionAction::Reboot => Answer::of_logind(&proxy.can_reboot()),
-        SessionAction::RebootToFirmwareSetup => {
-            Answer::of_logind(&proxy.can_reboot_to_firmware_setup())
-        }
+        SessionAction::Sleep => Answer::from(&proxy.can_sleep()),
+        SessionAction::Suspend => Answer::from(&proxy.can_suspend()),
+        SessionAction::Hibernate => Answer::from(&proxy.can_hibernate()),
+        SessionAction::HybridSleep => Answer::from(&proxy.can_hybrid_sleep()),
+        SessionAction::SuspendThenHibernate => Answer::from(&proxy.can_suspend_then_hibernate()),
+        SessionAction::Reboot => Answer::from(&proxy.can_reboot()),
+        SessionAction::RebootToFirmwareSetup => Answer::from(&proxy.can_reboot_to_firmware_setup()),
         SessionAction::RebootToBootLoaderMenu => {
-            Answer::of_logind(&proxy.can_reboot_to_boot_loader_menu())
+            Answer::from(&proxy.can_reboot_to_boot_loader_menu())
         }
-        SessionAction::Halt => Answer::of_logind(&proxy.can_halt()),
-        SessionAction::PowerOff => Answer::of_logind(&proxy.can_power_off()),
+        SessionAction::Halt => Answer::from(&proxy.can_halt()),
+        SessionAction::PowerOff => Answer::from(&proxy.can_power_off()),
         SessionAction::CancelScheduledShutdown => Answer::when(
             proxy
                 .scheduled_shutdown()

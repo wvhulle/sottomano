@@ -59,10 +59,12 @@ pub async fn toggle_device_connection(
     connection: &Connection,
     device: &DeviceInfo,
 ) -> zbus::Result<()> {
-    if device.connected {
-        disconnect_device(device).await
-    } else {
-        connect_device(connection, device).await
+    match device.link_state {
+        network_manager_proxies::DeviceLinkState::Connected => disconnect_device(device).await,
+        network_manager_proxies::DeviceLinkState::Switching
+        | network_manager_proxies::DeviceLinkState::Disconnected => {
+            connect_device(connection, device).await
+        }
     }
 }
 

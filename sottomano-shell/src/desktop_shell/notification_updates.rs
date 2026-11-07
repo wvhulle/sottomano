@@ -8,7 +8,9 @@ use sottomano_widgets::{
     widget_groups::{
         notification_group,
         notification_group::NotificationGroupMessage,
-        quiet_schedule_group::{QuietChange, QuietScheduleMessage, QuietUpdate},
+        quiet_schedule_group::{
+            QuietChange, QuietScheduleMessage, QuietUpdate, quiet_window::QuietPhase,
+        },
         widget_group_content::GroupToastRequests,
     },
 };
@@ -66,7 +68,7 @@ impl DesktopShell {
                 self.desktop_entries.get(),
                 &self.config,
                 self.widget_groups.notification_settings(),
-                self.widget_groups.quiet_schedule_group.is_quiet(),
+                self.widget_groups.quiet_schedule_group.quiet_phase(),
                 self.clock,
             ),
             &|output| toast_surfaces.get(output).copied(),
@@ -112,7 +114,7 @@ impl DesktopShell {
                     self.desktop_entries.get(),
                     &self.config,
                     self.widget_groups.notification_settings(),
-                    false,
+                    QuietPhase::Inactive,
                     self.clock,
                 ));
                 Task::batch([

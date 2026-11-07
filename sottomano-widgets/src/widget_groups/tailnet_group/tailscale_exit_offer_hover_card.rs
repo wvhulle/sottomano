@@ -40,7 +40,7 @@ impl GroupItemReading for ExitOfferRow<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::of_toggle(self.tailnet.exit_offer.is_offered())
+        ReadingDisplayState::from(self.tailnet.exit_offer)
     }
 
     fn label(&self, _clock: Clock, _locale: chrono::Locale) -> Option<String> {

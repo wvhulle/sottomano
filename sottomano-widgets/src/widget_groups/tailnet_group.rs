@@ -15,7 +15,8 @@ use sottomano_desktop_sources::{
         tailscale_inbound_access::TailscaleInboundAccess,
         tailscale_policy_file::{PolicyFileError, TailscalePolicyFile},
         tailscale_status::{
-            self, ExitOfferControl, ExitOfferSwitch, Tailnet, Tailscale, TailscaleSwitch,
+            self, ExitNodeUse, ExitOfferControl, ExitOfferSwitch, Tailnet, Tailscale,
+            TailscaleSwitch,
         },
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -368,14 +369,13 @@ impl TailnetGroup {
                 exit_node_ip: Cow::Owned(exit_node_option.ip.clone()),
             },
         )
-        .previewed_on_handle_if(exit_node_option.in_use);
+        .previewed_on_handle_if(exit_node_option.node_use == ExitNodeUse::InUse);
         match exit_node_choices.control_for_option(exit_node_option) {
             ExitNodeControl::Switchable(exit_routing_switch) => exit_node_item.on_switch_press(
-                exit_node_option.in_use,
-                if exit_node_option.in_use {
-                    "stop using the exit node"
-                } else {
-                    "use the exit node"
+                exit_node_option.node_use == ExitNodeUse::InUse,
+                match exit_node_option.node_use {
+                    ExitNodeUse::InUse => "stop using the exit node",
+                    ExitNodeUse::Unused => "use the exit node",
                 },
                 TailnetMessage::SwitchExitRouting(exit_routing_switch),
             ),
@@ -459,7 +459,7 @@ mod tests {
     use super::*;
     use crate::group_items::group_item_gestures::GroupItemGesture;
 
-    fn tailnet_offering(exit_offer: ExitNodeOffer, exit_node_in_use: bool) -> Tailnet {
+    fn tailnet_offering(exit_offer: ExitNodeOffer, exit_node_use: ExitNodeUse) -> Tailnet {
         Tailnet {
             tailnet_name: "example.ts.net".to_owned(),
             own_node: Peer {
@@ -475,7 +475,7 @@ mod tests {
             total_peers: 0,
             own_capabilities: Vec::new(),
             exit_offer,
-            exit_node_in_use,
+            exit_node_use,
             key_expiry: KeyExpiry::Disabled,
             health_warnings: Vec::new(),
         }
@@ -483,7 +483,7 @@ mod tests {
 
     #[test]
     fn the_offer_row_is_inert_while_an_exit_node_is_in_use() {
-        let tailnet = tailnet_offering(ExitNodeOffer::NotOffered, true);
+        let tailnet = tailnet_offering(ExitNodeOffer::NotOffered, ExitNodeUse::InUse);
         assert!(matches!(
             TailnetGroup::exit_offer_item(&tailnet).gestures().left,
             GroupItemGesture::Inert
@@ -494,7 +494,10 @@ mod tests {
         let mut running_group = tailnet_group;
         let _ = running_group.update(
             TailnetMessage::Tailscale(SnapshotDelivery::live_push(Ok(Tailscale::Running(
-                Box::new(tailnet_offering(ExitNodeOffer::NotOffered, false)),
+                Box::new(tailnet_offering(
+                    ExitNodeOffer::NotOffered,
+                    ExitNodeUse::Unused,
+                )),
             )))),
             Clock::real(),
         );
@@ -512,7 +515,7 @@ mod tests {
 
     #[test]
     fn an_approved_offer_can_be_stopped() {
-        let tailnet = tailnet_offering(ExitNodeOffer::Approved, false);
+        let tailnet = tailnet_offering(ExitNodeOffer::Approved, ExitNodeUse::Unused);
         assert!(matches!(
             TailnetGroup::exit_offer_item(&tailnet).gestures().left,
             GroupItemGesture::Performs {
@@ -527,7 +530,7 @@ mod tests {
             name: "zbook".to_owned(),
             ip: "100.1.1.1".to_owned(),
             reachability,
-            in_use: false,
+            node_use: ExitNodeUse::Unused,
         }
     }
 

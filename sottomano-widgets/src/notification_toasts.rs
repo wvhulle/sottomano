@@ -42,6 +42,7 @@ use crate::{
     hover_cards::PopupMessage,
     layer_surfaces::SurfaceRequest,
     toast_messages::NotificationMessage,
+    widget_groups::quiet_schedule_group::quiet_window::QuietPhase,
     widgets::{
         announced_level::LevelReading, ongoing_toast::OngoingKey, reveal_clip::reveal_y,
         shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade,
@@ -77,7 +78,7 @@ pub struct ToastContext<'a> {
     pub entries: Option<&'a DesktopEntries>,
     pub config: &'a Config,
     pub notifications: NotificationSettings,
-    pub quiet: bool,
+    pub quiet_phase: QuietPhase,
     pub clock: Clock,
 }
 
@@ -88,7 +89,7 @@ impl<'a> ToastContext<'a> {
         entries: Option<&'a DesktopEntries>,
         config: &'a Config,
         notifications: NotificationSettings,
-        quiet: bool,
+        quiet_phase: QuietPhase,
         clock: Clock,
     ) -> Self {
         Self {
@@ -96,7 +97,7 @@ impl<'a> ToastContext<'a> {
             entries,
             config,
             notifications,
-            quiet,
+            quiet_phase,
             clock,
         }
     }

@@ -170,7 +170,7 @@ fn role_label(role: ButtonRole<'_>) -> String {
 
 impl ConnectedControllerReading<'_> {
     fn family(&self) -> ControllerFamily {
-        ControllerFamily::of_vendor(self.gamepad.vendor_id)
+        ControllerFamily::from(self.gamepad.vendor_id)
     }
 
     fn control_description(&self) -> String {

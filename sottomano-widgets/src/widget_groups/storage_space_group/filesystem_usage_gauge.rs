@@ -45,13 +45,36 @@ pub enum MetadataPressure {
 impl MetadataPressure {
     fn of(filesystem: &Filesystem) -> Self {
         match filesystem {
-            Filesystem::Btrfs(space) => Self::of_btrfs(space),
-            Filesystem::Bcachefs(space) => Self::of_bcachefs(space),
+            Filesystem::Btrfs(space) => Self::from(space),
+            Filesystem::Bcachefs(space) => Self::from(space),
             Filesystem::Other { .. } => MetadataPressure::Comfortable,
         }
     }
 
-    fn of_btrfs(space: &BtrfsSpace) -> Self {
+    fn severity(self) -> Severity {
+        match self {
+            MetadataPressure::Comfortable => Severity::Normal,
+            MetadataPressure::Tight => Severity::Warning,
+            MetadataPressure::Exhausted => Severity::Critical,
+        }
+    }
+}
+
+impl From<&BcachefsSpace> for MetadataPressure {
+    fn from(space: &BcachefsSpace) -> Self {
+        let headroom = space.metadata_headroom();
+        if headroom < BCACHEFS_METADATA_CRITICAL {
+            MetadataPressure::Exhausted
+        } else if headroom < BCACHEFS_METADATA_WARN {
+            MetadataPressure::Tight
+        } else {
+            MetadataPressure::Comfortable
+        }
+    }
+}
+
+impl From<&BtrfsSpace> for MetadataPressure {
+    fn from(space: &BtrfsSpace) -> Self {
         let slack_below_reserve =
             space.metadata_slack().as_u64() < space.global_reserve.as_u64() * 2;
         if !space.can_allocate_metadata_chunk() && slack_below_reserve {
@@ -68,25 +91,6 @@ impl MetadataPressure {
             MetadataPressure::Tight
         } else {
             MetadataPressure::Comfortable
-        }
-    }
-
-    fn of_bcachefs(space: &BcachefsSpace) -> Self {
-        let headroom = space.metadata_headroom();
-        if headroom < BCACHEFS_METADATA_CRITICAL {
-            MetadataPressure::Exhausted
-        } else if headroom < BCACHEFS_METADATA_WARN {
-            MetadataPressure::Tight
-        } else {
-            MetadataPressure::Comfortable
-        }
-    }
-
-    fn severity(self) -> Severity {
-        match self {
-            MetadataPressure::Comfortable => Severity::Normal,
-            MetadataPressure::Tight => Severity::Warning,
-            MetadataPressure::Exhausted => Severity::Critical,
         }
     }
 }
@@ -333,29 +337,26 @@ mod tests {
     #[test]
     fn btrfs_without_room_for_a_chunk_and_little_slack_is_exhausted() {
         let space = btrfs_with(ByteSize::mib(100), ByteSize::mib(3800), ByteSize::gib(4));
-        assert_eq!(
-            MetadataPressure::of_btrfs(&space),
-            MetadataPressure::Exhausted
-        );
+        assert_eq!(MetadataPressure::from(&space), MetadataPressure::Exhausted);
     }
 
     #[test]
     fn btrfs_with_metadata_slack_is_only_tight() {
         let space = btrfs_with(ByteSize::mib(100), ByteSize::gib(1), ByteSize::gib(4));
-        assert_eq!(MetadataPressure::of_btrfs(&space), MetadataPressure::Tight);
+        assert_eq!(MetadataPressure::from(&space), MetadataPressure::Tight);
     }
 
     #[test]
     fn btrfs_crowded_metadata_with_little_unallocated_is_tight() {
         let space = btrfs_with(ByteSize::gib(3), ByteSize::mib(3900), ByteSize::gib(4));
-        assert_eq!(MetadataPressure::of_btrfs(&space), MetadataPressure::Tight);
+        assert_eq!(MetadataPressure::from(&space), MetadataPressure::Tight);
     }
 
     #[test]
     fn btrfs_with_plenty_unallocated_is_comfortable() {
         let space = btrfs_with(ByteSize::gib(50), ByteSize::mib(3900), ByteSize::gib(4));
         assert_eq!(
-            MetadataPressure::of_btrfs(&space),
+            MetadataPressure::from(&space),
             MetadataPressure::Comfortable
         );
     }

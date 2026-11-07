@@ -31,8 +31,8 @@ pub struct HidPeripheral {
     pub battery: DeviceBattery,
 }
 
-impl ChargingState {
-    fn of_supply_status(status: &str) -> Self {
+impl From<&str> for ChargingState {
+    fn from(status: &str) -> Self {
         match status {
             "Charging" => ChargingState::Charging,
             "Discharging" => ChargingState::Discharging,
@@ -60,7 +60,7 @@ impl DeviceBattery {
             level_percent: u8::try_from(capacity.clamp(0, 100)).unwrap_or_default(),
             charging: read_trimmed(supply.join("status"))
                 .as_deref()
-                .map_or(ChargingState::Unknown, ChargingState::of_supply_status),
+                .map_or(ChargingState::Unknown, ChargingState::from),
         }
     }
 
@@ -108,17 +108,11 @@ mod tests {
     #[test]
     fn supply_status_strings_map_to_charging_states() {
         assert_eq!(
-            ChargingState::of_supply_status("Not charging"),
+            ChargingState::from("Not charging"),
             ChargingState::NotCharging
         );
-        assert_eq!(
-            ChargingState::of_supply_status("Charging"),
-            ChargingState::Charging
-        );
-        assert_eq!(
-            ChargingState::of_supply_status("Unknown"),
-            ChargingState::Unknown
-        );
+        assert_eq!(ChargingState::from("Charging"), ChargingState::Charging);
+        assert_eq!(ChargingState::from("Unknown"), ChargingState::Unknown);
     }
 
     #[test]

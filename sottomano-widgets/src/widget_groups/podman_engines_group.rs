@@ -46,9 +46,8 @@ pub struct PodmanEngineTarget {
     socket_path: PathBuf,
 }
 
-impl PodmanEngineTarget {
-    #[must_use]
-    pub fn of_engine(engine: &DiscoveredPodmanEngine) -> Self {
+impl From<&DiscoveredPodmanEngine> for PodmanEngineTarget {
+    fn from(engine: &DiscoveredPodmanEngine) -> Self {
         Self {
             socket_path: engine.socket_path.clone(),
         }
@@ -236,7 +235,7 @@ impl PodmanEnginesGroup {
             (!is_hidden_engine(readout)).then(|| {
                 GroupItem::reading(
                     PodmanEngineRow { engine, readout },
-                    PodmanEngineTarget::of_engine(engine),
+                    PodmanEngineTarget::from(engine),
                 )
             })
         });

@@ -92,7 +92,7 @@ fn woodpecker_tasks(varz: &AgentVarz, engine: &EngineContainers) -> Vec<CiTask> 
                         .map(|container| container.shown_name.clone()),
                 ),
                 images: images_of(&containers),
-                usage: TaskUsage::of_containers(&containers),
+                usage: TaskUsage::from(containers.as_slice()),
                 web_log: pipeline_web_log(&containers),
             }
         })

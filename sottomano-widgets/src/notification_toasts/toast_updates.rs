@@ -34,7 +34,9 @@ use crate::{
     layer_surfaces::SurfaceRequest,
     notification_toasts::{NotificationSettings, ToastLayerHost},
     toast_messages::NotificationMessage,
-    widget_groups::widget_group_content::GroupToastRequests,
+    widget_groups::{
+        quiet_schedule_group::quiet_window::QuietPhase, widget_group_content::GroupToastRequests,
+    },
     widgets::{
         announced_level::LevelReading,
         ongoing_toast::{OngoingKey, OngoingToast},
@@ -172,7 +174,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         active: Vec<OngoingToast<Routed>>,
         context: &ToastContext,
     ) -> Task<Routed> {
-        if context.quiet {
+        if context.quiet_phase == QuietPhase::Active {
             return Task::none();
         }
         self.snoozed.retain(|snoozed| {
@@ -383,10 +385,10 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             entries,
             config,
             notifications,
-            quiet,
+            quiet_phase,
             clock,
         } = context;
-        if *quiet {
+        if *quiet_phase == QuietPhase::Active {
             self.hold_while_quiet(toast);
             return Task::none();
         }
@@ -405,7 +407,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         }
         let icons = toast.kind.glyph().map_or_else(
             || toast_card::resolve_icons(data, *entries),
-            CardIcons::of_glyph,
+            CardIcons::from,
         );
         let now = clock.instant;
         let countdown = lifetime(

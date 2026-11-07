@@ -81,16 +81,6 @@ impl UdevProperties {
         Self::read("+dmi:id")
     }
 
-    fn of_device(device: &Path) -> Self {
-        let Some(sysname) = device.file_name().and_then(|name| name.to_str()) else {
-            return Self::default();
-        };
-        let Some(subsystem) = link_target_name(&device.join("subsystem")) else {
-            return Self::default();
-        };
-        Self::read(&format!("+{subsystem}:{sysname}"))
-    }
-
     fn value(&self, key: &str) -> Option<String> {
         reported(self.0.get(key)?)
     }
@@ -101,6 +91,18 @@ impl UdevProperties {
 
     fn model(&self) -> Option<String> {
         self.value("ID_MODEL_FROM_DATABASE")
+    }
+}
+
+impl From<&Path> for UdevProperties {
+    fn from(device: &Path) -> Self {
+        let Some(sysname) = device.file_name().and_then(|name| name.to_str()) else {
+            return Self::default();
+        };
+        let Some(subsystem) = link_target_name(&device.join("subsystem")) else {
+            return Self::default();
+        };
+        Self::read(&format!("+{subsystem}:{sysname}"))
     }
 }
 
@@ -196,7 +198,7 @@ impl Adapter {
         let (bus_device, bus_id) = function
             .ancestors()
             .find_map(|device| Some((device.to_path_buf(), BusId::of_device(device)?)))?;
-        let properties = UdevProperties::of_device(&bus_device);
+        let properties = UdevProperties::from(bus_device.as_path());
         Some(Adapter {
             vendor: properties.vendor(),
             model: properties.model(),
@@ -219,9 +221,8 @@ pub struct DriveIdentity {
     pub firmware: Option<String>,
 }
 
-impl DriveIdentity {
-    #[must_use]
-    pub fn of_controller(controller: &Path) -> Self {
+impl From<&Path> for DriveIdentity {
+    fn from(controller: &Path) -> Self {
         DriveIdentity {
             pci_vendor: pci_parent_vendor(controller),
             model: sysfs_attribute(controller.join("model")),
@@ -248,9 +249,8 @@ pub struct PowerSupplyIdentity {
     pub technology: Option<String>,
 }
 
-impl PowerSupplyIdentity {
-    #[must_use]
-    pub fn of_supply(supply: &Path) -> Self {
+impl From<&Path> for PowerSupplyIdentity {
+    fn from(supply: &Path) -> Self {
         PowerSupplyIdentity {
             manufacturer: sysfs_attribute(supply.join("manufacturer")),
             model: sysfs_attribute(supply.join("model_name")),
@@ -532,8 +532,8 @@ pub struct CacheLevel {
     pub instances: Vec<CacheInstances>,
 }
 
-impl CacheLevel {
-    fn of_instances(instances: &[CacheInstance]) -> Self {
+impl From<&[CacheInstance]> for CacheLevel {
+    fn from(instances: &[CacheInstance]) -> Self {
         CacheLevel {
             position: instances[0].position,
             instances: instances
@@ -568,7 +568,7 @@ fn cache_levels_of(instances: impl IntoIterator<Item = CacheInstance>) -> Vec<Ca
     distinct.sort_by(|a, b| a.position.cmp(&b.position).then(b.size.cmp(&a.size)));
     distinct
         .chunk_by(|a, b| a.position == b.position)
-        .map(CacheLevel::of_instances)
+        .map(CacheLevel::from)
         .collect()
 }
 

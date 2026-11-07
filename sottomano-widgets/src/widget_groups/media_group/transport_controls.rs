@@ -1,6 +1,6 @@
 use iced::{Alignment, Element, widget::Row};
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{
-    Command, LoopMode, Media, Status,
+    Command, LoopMode, Media, QueueOrder, Status,
 };
 use sottomano_toml_config::Config;
 
@@ -59,13 +59,12 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
     fn toggle<'a>(
         &self,
         icon: Phosphor,
-        active: bool,
+        state: ReadingDisplayState,
         press: TransportPress,
     ) -> Element<'a, Message>
     where
         Message: 'a,
     {
-        let state = ReadingDisplayState::of_toggle(active);
         self.control(
             icon.with_weight(state.weight()),
             ReadingStateTint {
@@ -105,18 +104,17 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
     where
         Message: 'a,
     {
-        let shuffled = self.media.shuffle?;
+        let queue_order = self.media.queue_order?;
         Some(self.toggle(
             Phosphor::Shuffle(Weight::Regular),
-            shuffled,
+            ReadingDisplayState::from(queue_order),
             TransportPress {
                 target: MediaTarget::Shuffle,
-                does: if shuffled {
-                    "play in order"
-                } else {
-                    "shuffle the queue"
+                does: match queue_order {
+                    QueueOrder::Shuffled => "play in order",
+                    QueueOrder::InOrder => "shuffle the queue",
                 },
-                command: Command::SetShuffle(!shuffled),
+                command: Command::SetQueueOrder(queue_order.flipped()),
             },
         ))
     }
@@ -210,7 +208,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         };
         Some(self.toggle(
             glyph,
-            mode != LoopMode::Off,
+            ReadingDisplayState::from(mode),
             TransportPress {
                 target: MediaTarget::Loop,
                 does: match mode.cycled() {

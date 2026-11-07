@@ -1,5 +1,5 @@
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{
-    Command, MediaPlayer2ProxyBlocking, PlayerProxyBlocking, micros,
+    Command, MediaPlayer2ProxyBlocking, PlayerProxyBlocking, QueueOrder, micros,
 };
 use zbus::blocking::Connection as BlockingConnection;
 
@@ -30,7 +30,9 @@ fn send_command(bus: &str, command: Command) -> zbus::Result<()> {
         Command::Previous => player()?.previous(),
         Command::SetPosition(track, position) => player()?.set_position(&track, micros(position)),
         Command::Seek(offset) => player()?.seek(offset),
-        Command::SetShuffle(shuffle) => player()?.set_shuffle(shuffle),
+        Command::SetQueueOrder(queue_order) => {
+            player()?.set_shuffle(queue_order == QueueOrder::Shuffled)
+        }
         Command::SetLoopMode(mode) => player()?.set_loop_status(&mode.to_string()),
         Command::Raise => root()?.raise(),
         Command::Quit => root()?.quit(),

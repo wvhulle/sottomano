@@ -1,23 +1,28 @@
 use chrono::{DateTime, Days, Local, NaiveDate, NaiveTime, TimeDelta, TimeZone};
 
+use crate::group_items::reading_display_state::ReadingDisplayState;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Phase {
+pub enum QuietPhase {
     Active,
     Inactive,
 }
 
-impl Phase {
+impl QuietPhase {
     #[must_use]
-    pub fn is_quiet(self) -> bool {
-        self == Phase::Active
+    pub const fn opposite(self) -> Self {
+        match self {
+            QuietPhase::Active => QuietPhase::Inactive,
+            QuietPhase::Inactive => QuietPhase::Active,
+        }
     }
+}
 
-    #[must_use]
-    pub fn of_quiet(quiet: bool) -> Self {
-        if quiet {
-            Phase::Active
-        } else {
-            Phase::Inactive
+impl From<QuietPhase> for ReadingDisplayState {
+    fn from(quiet_phase: QuietPhase) -> Self {
+        match quiet_phase {
+            QuietPhase::Active => ReadingDisplayState::On,
+            QuietPhase::Inactive => ReadingDisplayState::Off,
         }
     }
 }
@@ -39,15 +44,19 @@ impl QuietWindow {
     }
 
     #[must_use]
-    pub fn phase_at(&self, now: DateTime<Local>) -> Phase {
-        Phase::of_quiet(self.contains(now.time()))
+    pub fn phase_at(&self, now: DateTime<Local>) -> QuietPhase {
+        if self.contains(now.time()) {
+            QuietPhase::Active
+        } else {
+            QuietPhase::Inactive
+        }
     }
 
     #[must_use]
-    pub fn next_transition_into(&self, phase: Phase, now: DateTime<Local>) -> DateTime<Local> {
+    pub fn next_transition_into(&self, phase: QuietPhase, now: DateTime<Local>) -> DateTime<Local> {
         let edge = match phase {
-            Phase::Active => self.start,
-            Phase::Inactive => self.end,
+            QuietPhase::Active => self.start,
+            QuietPhase::Inactive => self.end,
         };
         let today = now.date_naive();
         let date = if edge > now.time() {
@@ -60,11 +69,7 @@ impl QuietWindow {
 
     #[must_use]
     pub fn next_edge(&self, now: DateTime<Local>) -> DateTime<Local> {
-        let upcoming = match self.phase_at(now) {
-            Phase::Active => Phase::Inactive,
-            Phase::Inactive => Phase::Active,
-        };
-        self.next_transition_into(upcoming, now)
+        self.next_transition_into(self.phase_at(now).opposite(), now)
     }
 }
 
@@ -85,7 +90,7 @@ fn local_at(date: NaiveDate, time: NaiveTime, fallback: DateTime<Local>) -> Date
 mod tests {
     use chrono::{Local, NaiveTime, TimeZone};
 
-    use super::{Phase, QuietWindow};
+    use super::{QuietPhase, QuietWindow};
 
     fn at(hour: u32, minute: u32) -> NaiveTime {
         NaiveTime::from_hms_opt(hour, minute, 0).unwrap()
@@ -137,7 +142,7 @@ mod tests {
     #[test]
     fn transition_into_inactive_from_outside_skips_to_tomorrow_when_end_has_passed() {
         let now = Local.with_ymd_and_hms(2026, 3, 10, 12, 0, 0).unwrap();
-        let edge = overnight().next_transition_into(Phase::Inactive, now);
+        let edge = overnight().next_transition_into(QuietPhase::Inactive, now);
         assert_eq!(edge, Local.with_ymd_and_hms(2026, 3, 11, 7, 0, 0).unwrap());
     }
 }

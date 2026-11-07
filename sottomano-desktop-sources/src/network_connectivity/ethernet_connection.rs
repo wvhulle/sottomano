@@ -28,8 +28,7 @@ pub struct Link {
 pub struct PortState {
     pub name: String,
     pub attachment: InterfaceAttachment,
-    pub connected: bool,
-    pub switching: bool,
+    pub link_state: network_manager_proxies::DeviceLinkState,
 }
 
 #[derive(Debug, Clone)]
@@ -40,7 +39,10 @@ pub struct Ethernet {
 impl Ethernet {
     #[must_use]
     pub fn connected_count(&self) -> usize {
-        self.ports.iter().filter(|port| port.connected).count()
+        self.ports
+            .iter()
+            .filter(|port| port.link_state == network_manager_proxies::DeviceLinkState::Connected)
+            .count()
     }
 }
 
@@ -61,7 +63,7 @@ async fn port(
     device: network_manager_proxies::DeviceInfo,
 ) -> zbus::Result<Port> {
     let adapter = Adapter::of_net_interface(&device.interface);
-    let link = if device.connected {
+    let link = if device.link_state == network_manager_proxies::DeviceLinkState::Connected {
         Some(link(connection, &device).await?)
     } else {
         None
@@ -97,7 +99,7 @@ async fn link(
         dns: ip.dns,
         speed,
         mtu,
-        fault_counters: InterfaceFaultCounters::of_interface(&device.interface),
+        fault_counters: InterfaceFaultCounters::from(device.interface.as_str()),
     })
 }
 
@@ -117,9 +119,8 @@ async fn read(connection: Connection) -> Result<Ethernet, ReadingError> {
             .await?
             .into_iter()
             .map(|device| PortState {
-                attachment: InterfaceAttachment::of_interface(&device.interface),
-                connected: device.connected,
-                switching: device.switching,
+                attachment: InterfaceAttachment::from(device.interface.as_str()),
+                link_state: device.link_state,
                 name: device.interface,
             })
             .collect(),

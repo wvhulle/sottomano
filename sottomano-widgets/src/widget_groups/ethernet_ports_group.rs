@@ -7,6 +7,7 @@ use sottomano_desktop_sources::{
     network_connectivity::{
         ethernet_connection::{Ethernet, EthernetDetails, Port, PortState},
         icmp_gateway_latency::GatewayLatencies,
+        network_manager_proxies::DeviceLinkState,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -312,13 +313,13 @@ impl EthernetPortsGroup {
             },
         )
         .on_switch_press(
-            port_state.connected,
+            port_state.link_state == DeviceLinkState::Connected,
             connection_press_does,
             EthernetPortsMessage::TogglePort(port_state.name.clone()),
         );
         let address_items = [AddressFamily::Ipv4, AddressFamily::Ipv6]
             .into_iter()
-            .filter(|_| port_state.connected)
+            .filter(|_| port_state.link_state == DeviceLinkState::Connected)
             .map(|family| {
                 GroupItem::reading(
                     InterfaceAddressReading { family },
@@ -328,7 +329,7 @@ impl EthernetPortsGroup {
                     },
                 )
             });
-        let dns_item = port_state.connected.then(|| {
+        let dns_item = (port_state.link_state == DeviceLinkState::Connected).then(|| {
             GroupItem::reading(
                 InterfaceDnsReading,
                 EthernetPortTarget::Dns {
@@ -379,6 +380,7 @@ mod tests {
         network_connectivity::{
             ethernet_connection::{Ethernet, PortState},
             interface_bus_attachment::InterfaceAttachment,
+            network_manager_proxies::DeviceLinkState,
         },
     };
 
@@ -389,8 +391,7 @@ mod tests {
         PortState {
             name: port_name.to_owned(),
             attachment,
-            connected: false,
-            switching: false,
+            link_state: DeviceLinkState::Disconnected,
         }
     }
 

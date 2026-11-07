@@ -100,7 +100,7 @@ mod tests {
                 seek: true,
                 ..Capabilities::default()
             },
-            shuffle: None,
+            queue_order: None,
             loop_mode: None,
             seek_mode,
         }

@@ -18,9 +18,8 @@ pub struct FontFaces {
     pub italic: Font,
 }
 
-impl FontFaces {
-    #[must_use]
-    pub fn of_family(family: Family) -> Self {
+impl From<Family> for FontFaces {
+    fn from(family: Family) -> Self {
         let regular = Font {
             family,
             ..Font::DEFAULT

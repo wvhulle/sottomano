@@ -1,9 +1,12 @@
 use std::borrow::Cow;
 
 use chrono::Locale;
-use sottomano_desktop_sources::network_connectivity::tailscale_exit_nodes::{
-    ExitNodeChoices, ExitNodeControl, ExitNodeLanAccess, ExitNodeOption, ExitNodeReachability,
-    TailscaleExitNodes,
+use sottomano_desktop_sources::network_connectivity::{
+    tailscale_exit_nodes::{
+        ExitNodeChoices, ExitNodeControl, ExitNodeLanAccess, ExitNodeOption, ExitNodeReachability,
+        TailscaleExitNodes,
+    },
+    tailscale_status::ExitNodeUse,
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -65,7 +68,7 @@ impl GroupItemReading for ExitNodeChoiceRow<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::of_toggle(self.exit_node_option.in_use)
+        ReadingDisplayState::from(self.exit_node_option.node_use)
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
@@ -100,10 +103,9 @@ impl GroupItemReading for ExitNodeChoiceRow<'_> {
                 reachability_entry,
                 LabeledValue::new(
                     "In use",
-                    if self.exit_node_option.in_use {
-                        "yes"
-                    } else {
-                        "no"
+                    match self.exit_node_option.node_use {
+                        ExitNodeUse::InUse => "yes",
+                        ExitNodeUse::Unused => "no",
                     },
                 ),
                 lan_access_entry(self.exit_node_choices),
@@ -128,9 +130,7 @@ impl GroupItemReading for ExitNodeLanAccessRow<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::of_toggle(
-            self.exit_node_choices.lan_access == ExitNodeLanAccess::Allowed,
-        )
+        ReadingDisplayState::from(self.exit_node_choices.lan_access)
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {

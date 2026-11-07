@@ -6,9 +6,8 @@ pub enum InterfaceAttachment {
     Usb,
 }
 
-impl InterfaceAttachment {
-    #[must_use]
-    pub fn of_interface(interface: &str) -> Self {
+impl From<&str> for InterfaceAttachment {
+    fn from(interface: &str) -> Self {
         match Adapter::of_net_interface(interface).map(|adapter| adapter.bus_id) {
             Some(BusId::Usb { .. }) => InterfaceAttachment::Usb,
             Some(BusId::Pci { .. }) | None => InterfaceAttachment::BuiltIn,

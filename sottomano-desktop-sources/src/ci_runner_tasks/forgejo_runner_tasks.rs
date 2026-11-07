@@ -84,7 +84,7 @@ fn forgejo_tasks(
                 }
             })),
             images: images_of(&containers),
-            usage: TaskUsage::of_containers(&containers),
+            usage: TaskUsage::from(containers.as_slice()),
         })
         .collect()
 }

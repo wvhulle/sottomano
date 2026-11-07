@@ -689,7 +689,7 @@ mod tests {
             progress: Progress::Untimed,
             art_url: None,
             capabilities: Capabilities::default(),
-            shuffle: None,
+            queue_order: None,
             loop_mode: None,
             seek_mode: SeekMode::Relative,
         }

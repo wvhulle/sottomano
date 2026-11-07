@@ -10,9 +10,8 @@ pub struct InterfaceFaultCounters {
     pub transmit_dropped: u64,
 }
 
-impl InterfaceFaultCounters {
-    #[must_use]
-    pub fn of_interface(interface: &str) -> Self {
+impl From<&str> for InterfaceFaultCounters {
+    fn from(interface: &str) -> Self {
         let statistics_directory = Path::new("/sys/class/net")
             .join(interface)
             .join("statistics");

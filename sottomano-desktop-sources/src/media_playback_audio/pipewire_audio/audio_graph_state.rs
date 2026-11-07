@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use super::{AudioState, ChannelLevels, Direction, OutputKind, WindowAudio};
+use super::{AudioState, ChannelLevels, Direction, MuteState, OutputKind, WindowAudio};
 
 #[derive(Debug, Default, PartialEq)]
 pub(super) struct Levels {
@@ -197,7 +197,11 @@ impl AudioGraph {
         let percent = levels.percent();
         Some(ChannelLevels {
             percent,
-            muted: levels.mute || percent == 0,
+            mute_state: if levels.mute || percent == 0 {
+                MuteState::Muted
+            } else {
+                MuteState::Audible
+            },
             device: node.description.clone(),
         })
     }
@@ -207,21 +211,28 @@ impl AudioGraph {
             .and_then(|route| route.port_kind)
             .or(node.props_kind)
             .or_else(|| self.device_kinds.get(&node.device_id?).copied())
-            .unwrap_or_else(|| OutputKind::of_node_name(&node.name))
+            .unwrap_or_else(|| OutputKind::from(node.name.as_str()))
     }
 
     fn window_audio(&self) -> HashMap<i32, WindowAudio> {
-        let mut by_pid: HashMap<i32, WindowAudio> = HashMap::new();
+        let mut streams_by_pid: HashMap<i32, Vec<&AppStream>> = HashMap::new();
         for stream in self.streams.values() {
             let Some(pid) = stream.pid else { continue };
-            let entry = by_pid.entry(pid).or_insert(WindowAudio {
-                playing: false,
-                muted: true,
-            });
-            entry.playing |= stream.running;
-            entry.muted &= stream.levels.mute;
+            streams_by_pid.entry(pid).or_default().push(stream);
         }
-        by_pid
+        streams_by_pid
+            .into_iter()
+            .map(|(pid, window_streams)| {
+                let window_audio = if window_streams.iter().all(|stream| stream.levels.mute) {
+                    WindowAudio::Muted
+                } else if window_streams.iter().any(|stream| stream.running) {
+                    WindowAudio::Audible
+                } else {
+                    WindowAudio::Silent
+                };
+                (pid, window_audio)
+            })
+            .collect()
     }
 
     pub(super) fn audio_state(&self) -> AudioState {

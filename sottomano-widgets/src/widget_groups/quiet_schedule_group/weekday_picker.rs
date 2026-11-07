@@ -58,7 +58,7 @@ impl<'a, Message: 'a + Clone> From<WeekdayPicker<'_, Message>> for Element<'a, M
             .locale(picker.config.calendar.locale)
             .day_color(move |chosen, theme| {
                 ReadingStateTint {
-                    state: ReadingDisplayState::of_toggle(chosen),
+                    state: ReadingDisplayState::from(chosen),
                     opacity: reveal,
                 }
                 .color(theme)

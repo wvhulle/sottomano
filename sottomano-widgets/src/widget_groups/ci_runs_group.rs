@@ -40,8 +40,8 @@ pub struct CiRunnerReference {
     runner_label: Cow<'static, str>,
 }
 
-impl CiRunnerReference {
-    fn of_watched(watched: &WatchedCiRunner<'_>) -> Self {
+impl From<&WatchedCiRunner<'_>> for CiRunnerReference {
+    fn from(watched: &WatchedCiRunner<'_>) -> Self {
         Self {
             kind: watched.kind,
             runner_label: Cow::Owned(watched.runner_label.to_owned()),
@@ -215,7 +215,7 @@ impl CiRunsGroup {
             .map(|watched| watched.runner.tasks.len())
             .sum();
         let runner_rows = watched_runners.into_iter().flat_map(|watched| {
-            let reference = CiRunnerReference::of_watched(&watched);
+            let reference = CiRunnerReference::from(&watched);
             let failure_row = CiRunnerFailureRow::of_failing(watched)
                 .map(|row| GroupItem::reading(row, CiRunsTarget::Runner(reference.clone())));
             let run_rows = watched.runner.tasks.iter().map(move |task| {

@@ -8,6 +8,7 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
         icmp_gateway_latency::GatewayLatencies,
+        network_manager_proxies::{DeviceLinkState, RadioPower},
         wifi_connection::{Wifi, WifiAdapter, WifiAdapterDetails, WifiDetails},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -207,13 +208,13 @@ impl WifiAdaptersGroup {
 
     #[must_use]
     pub fn hover_card_for(&self, target: &WifiAdapterTarget, clock: Clock) -> Option<HoverCard> {
-        let radio_enabled = self.wifi.get()?.radio_enabled;
+        let radio_power = self.wifi.get()?.radio_power;
         match target {
             WifiAdapterTarget::Signal { adapter_device } => {
                 let adapter = self.adapter_named(adapter_device)?;
                 let signal_reading = AdapterSignalReading {
                     adapter,
-                    radio_enabled,
+                    radio_power,
                 };
                 Some(
                     self.wifi
@@ -271,27 +272,27 @@ impl WifiAdaptersGroup {
             )),
             WifiAdapterTarget::AllRadios => self
                 .wifi
-                .hover_card_with(AllWifiRadiosSwitch { radio_enabled }.hover_card(clock)),
+                .hover_card_with(AllWifiRadiosSwitch { radio_power }.hover_card(clock)),
         }
     }
 
     fn adapter_group<'a>(
         &'a self,
         adapter: &'a WifiAdapter,
-        radio_enabled: bool,
+        radio_power: RadioPower,
         group_title: WidgetGroupTitle,
     ) -> Option<WidgetGroupContent<'a, WifiAdaptersMessage>> {
         let expansion = self.expansions.get(&adapter.device)?;
         let signal_item = GroupItem::reading(
             AdapterSignalReading {
                 adapter,
-                radio_enabled,
+                radio_power,
             },
             WifiAdapterTarget::Signal {
                 adapter_device: adapter.device.clone(),
             },
         );
-        let connection_item = radio_enabled.then(|| {
+        let connection_item = (radio_power == RadioPower::On).then(|| {
             let connection_switch = AdapterConnectionSwitch { adapter };
             let connection_press_does = connection_switch.press_does();
             GroupItem::reading(
@@ -301,14 +302,14 @@ impl WifiAdaptersGroup {
                 },
             )
             .on_switch_press(
-                adapter.connected,
+                adapter.link_state == DeviceLinkState::Connected,
                 connection_press_does,
                 WifiAdaptersMessage::ToggleAdapter(adapter.device.clone()),
             )
         });
         let address_items = [AddressFamily::Ipv4, AddressFamily::Ipv6]
             .into_iter()
-            .filter(|_| adapter.connected)
+            .filter(|_| adapter.link_state == DeviceLinkState::Connected)
             .map(|family| {
                 GroupItem::reading(
                     InterfaceAddressReading { family },
@@ -318,7 +319,7 @@ impl WifiAdaptersGroup {
                     },
                 )
             });
-        let dns_item = adapter.connected.then(|| {
+        let dns_item = (adapter.link_state == DeviceLinkState::Connected).then(|| {
             GroupItem::reading(
                 InterfaceDnsReading,
                 WifiAdapterTarget::Dns {
@@ -326,11 +327,11 @@ impl WifiAdaptersGroup {
                 },
             )
         });
-        let radios_switch = AllWifiRadiosSwitch { radio_enabled };
+        let radios_switch = AllWifiRadiosSwitch { radio_power };
         let radios_press_does = radios_switch.press_does();
         let radios_item = GroupItem::reading(radios_switch, WifiAdapterTarget::AllRadios)
             .on_switch_press(
-                radio_enabled,
+                radio_power == RadioPower::On,
                 radios_press_does,
                 WifiAdaptersMessage::ToggleAllRadios,
             );
@@ -363,7 +364,7 @@ impl WifiAdaptersGroup {
             .iter()
             .zip(adapter_titles)
             .filter_map(|(adapter, adapter_title)| {
-                self.adapter_group(adapter, wifi.radio_enabled, adapter_title)
+                self.adapter_group(adapter, wifi.radio_power, adapter_title)
             })
             .collect()
     }

@@ -1,4 +1,7 @@
-use sottomano_desktop_sources::network_connectivity::modem_manager_mobile::{Mobile, ModemState};
+use sottomano_desktop_sources::network_connectivity::{
+    modem_manager_mobile::{Mobile, ModemState},
+    network_manager_proxies::{DeviceLinkState, RadioPower},
+};
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 
@@ -31,19 +34,7 @@ pub struct ModemDataReading<'a> {
 }
 
 pub struct AllMobileRadiosSwitch {
-    pub radio_on: bool,
-}
-
-#[must_use]
-pub fn modem_radio_on(modem: &Mobile) -> bool {
-    modem
-        .state
-        .is_some_and(|state| !matches!(state, ModemState::Disabled | ModemState::Disabling))
-}
-
-#[must_use]
-pub fn modem_connected(modem: &Mobile) -> bool {
-    modem.state == Some(ModemState::Connected)
+    pub radio_power: RadioPower,
 }
 
 #[must_use]
@@ -52,18 +43,6 @@ pub fn modem_family_address(modem: &Mobile, family: AddressFamily) -> Option<&st
         AddressFamily::Ipv4 => modem.ipv4.as_deref(),
         AddressFamily::Ipv6 => modem.ipv6.as_deref(),
     }
-}
-
-fn modem_switching(modem: &Mobile) -> bool {
-    matches!(
-        modem.state,
-        Some(
-            ModemState::Enabling
-                | ModemState::Disabling
-                | ModemState::Connecting
-                | ModemState::Disconnecting,
-        )
-    )
 }
 
 impl GroupItemReading for ModemSignalReading<'_> {
@@ -76,17 +55,15 @@ impl GroupItemReading for ModemSignalReading<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if modem_switching(self.modem) {
-            return ReadingDisplayState::Pending;
-        }
-        if modem_connected(self.modem) {
-            return self
+        match self.modem.link_state() {
+            DeviceLinkState::Switching => ReadingDisplayState::Pending,
+            DeviceLinkState::Connected => self
                 .modem
                 .signal
                 .map_or(Severity::Normal, signal_level)
-                .into();
+                .into(),
+            DeviceLinkState::Disconnected => ReadingDisplayState::Off,
         }
-        ReadingDisplayState::Off
     }
 
     fn gauge(&self) -> Option<Ratio> {
@@ -127,7 +104,7 @@ impl GroupItemReading for ModemSignalReading<'_> {
 impl ModemConnectionSwitch<'_> {
     #[must_use]
     pub fn press_does(&self) -> &'static str {
-        if modem_connected(self.modem) {
+        if self.modem.link_state() == DeviceLinkState::Connected {
             "disconnect this modem"
         } else {
             "connect this modem"
@@ -141,7 +118,7 @@ impl GroupItemReading for ModemConnectionSwitch<'_> {
     }
 
     fn icon(&self) -> IconGlyph {
-        if modem_connected(self.modem) {
+        if self.modem.link_state() == DeviceLinkState::Connected {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {
             Phosphor::ToggleLeft(Weight::Regular).into()
@@ -149,10 +126,7 @@ impl GroupItemReading for ModemConnectionSwitch<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if modem_switching(self.modem) {
-            return ReadingDisplayState::Pending;
-        }
-        ReadingDisplayState::of_toggle(modem_connected(self.modem))
+        ReadingDisplayState::from(self.modem.link_state())
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
@@ -200,10 +174,9 @@ impl GroupItemReading for ModemDataReading<'_> {
 impl AllMobileRadiosSwitch {
     #[must_use]
     pub fn press_does(&self) -> &'static str {
-        if self.radio_on {
-            "turn all mobile radios off"
-        } else {
-            "turn all mobile radios on"
+        match self.radio_power {
+            RadioPower::On => "turn all mobile radios off",
+            RadioPower::Off => "turn all mobile radios on",
         }
     }
 }
@@ -214,19 +187,20 @@ impl GroupItemReading for AllMobileRadiosSwitch {
     }
 
     fn icon(&self) -> IconGlyph {
-        if self.radio_on {
-            Phosphor::CellSignalFull(Weight::Regular).into()
-        } else {
-            Phosphor::CellSignalSlash(Weight::Regular).into()
+        match self.radio_power {
+            RadioPower::On => Phosphor::CellSignalFull(Weight::Regular).into(),
+            RadioPower::Off => Phosphor::CellSignalSlash(Weight::Regular).into(),
         }
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::of_toggle(self.radio_on)
+        ReadingDisplayState::from(self.radio_power)
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        let radio_state = if self.radio_on { "on" } else { "off" };
-        HoverCardBody::dictionary([LabeledValue::new("All mobile radios", radio_state)])
+        HoverCardBody::dictionary([LabeledValue::new(
+            "All mobile radios",
+            self.radio_power.label(),
+        )])
     }
 }

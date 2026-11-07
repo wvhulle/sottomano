@@ -74,7 +74,7 @@ impl GroupItemReading for IconToggle {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::of_toggle(self.enabled)
+        ReadingDisplayState::from(self.enabled)
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {

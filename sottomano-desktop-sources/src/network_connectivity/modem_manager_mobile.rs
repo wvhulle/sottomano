@@ -11,7 +11,9 @@ use zbus::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     host_machine_identity::udev_hardware_identity::{Adapter, ModemIdentity, reported},
-    network_connectivity::{device_or_absent, interface, managed_objects_readings},
+    network_connectivity::{
+        device_or_absent, interface, managed_objects_readings, network_manager_proxies,
+    },
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Properties, prop},
 };
 
@@ -40,6 +42,32 @@ pub struct Mobile {
     pub ipv6: Option<String>,
     pub rx: Option<ByteSize>,
     pub tx: Option<ByteSize>,
+}
+
+impl Mobile {
+    #[must_use]
+    pub fn link_state(&self) -> network_manager_proxies::DeviceLinkState {
+        match self.state {
+            Some(ModemState::Connected) => network_manager_proxies::DeviceLinkState::Connected,
+            Some(
+                ModemState::Enabling
+                | ModemState::Disabling
+                | ModemState::Connecting
+                | ModemState::Disconnecting,
+            ) => network_manager_proxies::DeviceLinkState::Switching,
+            _ => network_manager_proxies::DeviceLinkState::Disconnected,
+        }
+    }
+
+    #[must_use]
+    pub fn radio_power(&self) -> network_manager_proxies::RadioPower {
+        match self.state {
+            None | Some(ModemState::Disabled | ModemState::Disabling) => {
+                network_manager_proxies::RadioPower::Off
+            }
+            Some(_) => network_manager_proxies::RadioPower::On,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -40,7 +40,7 @@ pub fn weekday_picker<'a, Message: Clone + 'a>(
         chosen,
         on_toggle: Box::new(on_toggle),
         face: TextFace::default(),
-        faces: FontFaces::of_family(Family::SansSerif),
+        faces: FontFaces::from(Family::SansSerif),
         spacing_px: DEFAULT_SPACING_PX,
         locale: Locale::POSIX,
         day_color: Rc::new(|is_chosen, theme| {

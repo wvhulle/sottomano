@@ -1,4 +1,12 @@
 use iced::{Color, Theme, widget::text};
+use sottomano_desktop_sources::{
+    media_playback_audio::mpris_players::{LoopMode, QueueOrder},
+    network_connectivity::{
+        network_manager_proxies::{DeviceLinkState, RadioPower},
+        tailscale_exit_nodes::ExitNodeLanAccess,
+        tailscale_status::{ExitNodeOffer, ExitNodeUse},
+    },
+};
 use sottomano_toml_config::severity::Severity;
 
 use crate::widgets::{
@@ -22,15 +30,6 @@ pub enum ReadingDisplayState {
 }
 
 impl ReadingDisplayState {
-    #[must_use]
-    pub const fn of_toggle(on: bool) -> Self {
-        if on {
-            ReadingDisplayState::On
-        } else {
-            ReadingDisplayState::Off
-        }
-    }
-
     #[must_use]
     pub const fn weight(self) -> Weight {
         match self {
@@ -77,6 +76,81 @@ impl ReadingDisplayState {
             | ReadingDisplayState::Pending
             | ReadingDisplayState::On
             | ReadingDisplayState::Live => Severity::Normal,
+        }
+    }
+}
+
+impl From<DeviceLinkState> for ReadingDisplayState {
+    fn from(link_state: DeviceLinkState) -> Self {
+        match link_state {
+            DeviceLinkState::Connected => ReadingDisplayState::On,
+            DeviceLinkState::Switching => ReadingDisplayState::Pending,
+            DeviceLinkState::Disconnected => ReadingDisplayState::Off,
+        }
+    }
+}
+
+impl From<RadioPower> for ReadingDisplayState {
+    fn from(radio_power: RadioPower) -> Self {
+        match radio_power {
+            RadioPower::On => ReadingDisplayState::On,
+            RadioPower::Off => ReadingDisplayState::Off,
+        }
+    }
+}
+
+impl From<ExitNodeUse> for ReadingDisplayState {
+    fn from(exit_node_use: ExitNodeUse) -> Self {
+        match exit_node_use {
+            ExitNodeUse::InUse => ReadingDisplayState::On,
+            ExitNodeUse::Unused => ReadingDisplayState::Off,
+        }
+    }
+}
+
+impl From<ExitNodeOffer> for ReadingDisplayState {
+    fn from(exit_offer: ExitNodeOffer) -> Self {
+        match exit_offer {
+            ExitNodeOffer::NotOffered => ReadingDisplayState::Off,
+            ExitNodeOffer::AwaitingApproval => ReadingDisplayState::Pending,
+            ExitNodeOffer::Approved => ReadingDisplayState::On,
+        }
+    }
+}
+
+impl From<ExitNodeLanAccess> for ReadingDisplayState {
+    fn from(lan_access: ExitNodeLanAccess) -> Self {
+        match lan_access {
+            ExitNodeLanAccess::Allowed => ReadingDisplayState::On,
+            ExitNodeLanAccess::Blocked => ReadingDisplayState::Off,
+        }
+    }
+}
+
+impl From<QueueOrder> for ReadingDisplayState {
+    fn from(queue_order: QueueOrder) -> Self {
+        match queue_order {
+            QueueOrder::Shuffled => ReadingDisplayState::On,
+            QueueOrder::InOrder => ReadingDisplayState::Off,
+        }
+    }
+}
+
+impl From<LoopMode> for ReadingDisplayState {
+    fn from(loop_mode: LoopMode) -> Self {
+        match loop_mode {
+            LoopMode::Off => ReadingDisplayState::Off,
+            LoopMode::Track | LoopMode::Playlist => ReadingDisplayState::On,
+        }
+    }
+}
+
+impl From<bool> for ReadingDisplayState {
+    fn from(on: bool) -> Self {
+        if on {
+            ReadingDisplayState::On
+        } else {
+            ReadingDisplayState::Off
         }
     }
 }
@@ -196,13 +270,7 @@ mod tests {
 
     #[test]
     fn toggles_map_to_on_and_off() {
-        assert_eq!(
-            ReadingDisplayState::of_toggle(true),
-            ReadingDisplayState::On
-        );
-        assert_eq!(
-            ReadingDisplayState::of_toggle(false),
-            ReadingDisplayState::Off
-        );
+        assert_eq!(ReadingDisplayState::from(true), ReadingDisplayState::On);
+        assert_eq!(ReadingDisplayState::from(false), ReadingDisplayState::Off);
     }
 }

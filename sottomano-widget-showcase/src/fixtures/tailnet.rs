@@ -13,7 +13,9 @@ use sottomano_desktop_sources::{
         tailscale_inbound_access::{
             InboundAccessRule, InboundPorts, InboundReach, TailscaleInboundAccess,
         },
-        tailscale_status::{ExitNodeOffer, KeyExpiry, Peer, PeerPath, Tailnet, Tailscale},
+        tailscale_status::{
+            ExitNodeOffer, ExitNodeUse, KeyExpiry, Peer, PeerPath, Tailnet, Tailscale,
+        },
     },
 };
 use sottomano_widgets::{
@@ -107,7 +109,7 @@ fn home_tailnet(clock: Clock) -> Tailnet {
         total_peers: 5,
         own_capabilities: vec!["file-sharing".to_owned(), "ssh".to_owned()],
         exit_offer: ExitNodeOffer::NotOffered,
-        exit_node_in_use: true,
+        exit_node_use: ExitNodeUse::InUse,
         key_expiry: KeyExpiry::At(clock.utc() + TimeDelta::days(KEY_EXPIRY_DAYS)),
         health_warnings: Vec::new(),
     }
@@ -120,7 +122,7 @@ fn home_exit_nodes(clock: Clock) -> ExitNodeChoices {
                 name: "home-server".to_owned(),
                 ip: HOME_EXIT_NODE_IP.to_owned(),
                 reachability: ExitNodeReachability::Online,
-                in_use: true,
+                node_use: ExitNodeUse::InUse,
             },
             ExitNodeOption {
                 name: "office-laptop".to_owned(),
@@ -128,7 +130,7 @@ fn home_exit_nodes(clock: Clock) -> ExitNodeChoices {
                 reachability: ExitNodeReachability::OfflineSince(
                     clock.utc() - TimeDelta::days(OFFLINE_EXIT_NODE_DAYS),
                 ),
-                in_use: false,
+                node_use: ExitNodeUse::Unused,
             },
         ],
         offer: ExitNodeOffer::NotOffered,

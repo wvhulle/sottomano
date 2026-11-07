@@ -19,15 +19,6 @@ pub enum ControllerFamily {
 
 impl ControllerFamily {
     #[must_use]
-    pub const fn of_vendor(vendor_id: u16) -> Self {
-        match vendor_id {
-            SONY_USB_VENDOR => ControllerFamily::PlayStation,
-            NINTENDO_USB_VENDOR => ControllerFamily::Nintendo,
-            _ => ControllerFamily::Xbox,
-        }
-    }
-
-    #[must_use]
     pub fn described_button(self, button: GamepadButton) -> String {
         let label = self.button_label(button);
         let position = button.position_name();
@@ -79,6 +70,16 @@ impl ControllerFamily {
             (ControllerFamily::PlayStation, button) => playstation_label(button),
             (ControllerFamily::Nintendo, button) => nintendo_label(button),
             (ControllerFamily::Xbox, button) => xbox_label(button),
+        }
+    }
+}
+
+impl From<u16> for ControllerFamily {
+    fn from(vendor_id: u16) -> Self {
+        match vendor_id {
+            SONY_USB_VENDOR => ControllerFamily::PlayStation,
+            NINTENDO_USB_VENDOR => ControllerFamily::Nintendo,
+            _ => ControllerFamily::Xbox,
         }
     }
 }
@@ -155,7 +156,7 @@ mod tests {
 
     #[test]
     fn the_south_face_button_is_named_after_each_family() {
-        let south = |vendor| ControllerFamily::of_vendor(vendor).button_label(GamepadButton::South);
+        let south = |vendor| ControllerFamily::from(vendor).button_label(GamepadButton::South);
         assert_eq!(south(SONY_USB_VENDOR), "Cross");
         assert_eq!(south(NINTENDO_USB_VENDOR), "B");
         assert_eq!(south(0x045e), "A");

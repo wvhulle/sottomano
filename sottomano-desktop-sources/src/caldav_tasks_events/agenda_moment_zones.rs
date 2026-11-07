@@ -36,15 +36,6 @@ impl AgendaMoment {
     }
 
     #[must_use]
-    pub fn of_expanded(instant: DateTime<CalendarZone>) -> Self {
-        match instant.timezone() {
-            CalendarZone::Floating => AgendaMoment::Floating(instant.naive_local()),
-            CalendarZone::Fixed(_) => AgendaMoment::Zoned(instant.with_timezone(&Tz::UTC)),
-            CalendarZone::Tz(zone) => AgendaMoment::Zoned(instant.with_timezone(&zone)),
-        }
-    }
-
-    #[must_use]
     pub fn default_event_end(self) -> Self {
         match self {
             AgendaMoment::AllDay(day) => day.succ_opt().map_or(self, AgendaMoment::AllDay),
@@ -94,6 +85,16 @@ impl AgendaMoment {
         match self {
             AgendaMoment::Zoned(instant) => Some(instant.timezone()),
             AgendaMoment::AllDay(_) | AgendaMoment::Floating(_) => None,
+        }
+    }
+}
+
+impl From<DateTime<CalendarZone>> for AgendaMoment {
+    fn from(instant: DateTime<CalendarZone>) -> Self {
+        match instant.timezone() {
+            CalendarZone::Floating => AgendaMoment::Floating(instant.naive_local()),
+            CalendarZone::Fixed(_) => AgendaMoment::Zoned(instant.with_timezone(&Tz::UTC)),
+            CalendarZone::Tz(zone) => AgendaMoment::Zoned(instant.with_timezone(&zone)),
         }
     }
 }
