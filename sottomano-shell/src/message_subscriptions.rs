@@ -24,7 +24,7 @@ use sottomano_widgets::{
 use wayland_client::Connection;
 
 use crate::{
-    desktop_shell::{DesktopShell, gamepad_window_claim},
+    desktop_shell::DesktopShell,
     shell_message::{Message, OutputChange},
 };
 
@@ -69,11 +69,9 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             )])
         })
         .map(|()| Message::ConfigFileChanged),
-        state.widget_groups.subscription(
-            &state.config,
-            gamepad_window_claim(&state.compositor, &state.outputs),
-            state.desktop_buses.as_ref(),
-        ),
+        state
+            .widget_groups
+            .subscription(&state.config, state.desktop_buses.as_ref()),
         Subscription::run(desktop_bus_events).map(Message::DesktopBus),
         state
             .desktop_buses

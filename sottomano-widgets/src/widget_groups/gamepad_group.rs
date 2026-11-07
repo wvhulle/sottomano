@@ -3,6 +3,7 @@ mod controller_battery_reading;
 pub mod controller_button_labels;
 mod controller_link_reading;
 mod diagram_anchor_mapping;
+mod sqlite_compositor_driving_controllers;
 mod usb_cable_reading;
 
 use std::{
@@ -25,7 +26,7 @@ use sottomano_desktop_sources::{
             ButtonEdge, ConnectedGamepad, ControllerIdentity, GamepadOrigin, GamepadPower,
             GamepadTransport, PhysicalGamepadLink, UsbCableState,
         },
-        gamepad_input_machine::{ClaimSilencing, GamepadInput, GamepadStreamSettings, PointerGate},
+        gamepad_input_machine::{GamepadInput, GamepadStreamSettings, PointerGate},
         gamepad_input_stream::gamepad_inputs,
         player_indicator_leds::PlayerIndicator,
     },
@@ -36,7 +37,7 @@ use sottomano_desktop_sources::{
     },
 };
 use sottomano_toml_config::widget_groups::gamepad_bindings::{
-    ButtonRole, CompositorAction, FocusBehaviour, GamepadBindingsConfig, GamepadButton,
+    ButtonRole, CompositorAction, GamepadBindingsConfig, GamepadButton,
 };
 use uom::si::f64::Frequency;
 
@@ -103,37 +104,10 @@ impl From<GamepadTarget> for HoverTarget {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompositorControl<'a> {
-    DrivingCompositor,
-    HandedOverByHand,
-    PausedForFocusedApp(&'a str),
-    PausedForFullscreenApp(&'a str),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GamepadWindowClaim<'a> {
-    Unclaimed,
-    Focused(&'a str),
-    Fullscreen(&'a str),
-}
-
-impl GamepadWindowClaim<'_> {
-    fn claim_silencing(self, bindings: &GamepadBindingsConfig) -> ClaimSilencing {
-        match self {
-            Self::Unclaimed => ClaimSilencing::Free,
-            Self::Focused(app_id) => match bindings.focus_behaviour(Some(app_id)) {
-                FocusBehaviour::Passive => ClaimSilencing::Silenced,
-                FocusBehaviour::Active => ClaimSilencing::Free,
-            },
-            Self::Fullscreen(_) => ClaimSilencing::Silenced,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum GamepadMessage {
     Input(GamepadInput),
+    DrivingControllersLoaded(BTreeSet<String>),
     KernelErrors(Vec<DeviceKernelError>),
     Wifi(Box<SnapshotDelivery<Wifi>>),
     Ethernet(Box<SnapshotDelivery<Ethernet>>),
@@ -155,6 +129,7 @@ pub enum Action {
     Compositor(CompositorRequest),
     Dictation(DictationCommand),
     DisconnectBluetooth { hardware_address: String },
+    SaveDrivingControllers(BTreeSet<String>),
 }
 
 impl Action {
@@ -170,6 +145,10 @@ impl Action {
                     disconnect_bluetooth_address(hardware_address).await
                 })
             }
+            Action::SaveDrivingControllers(driving_controllers) => logged_failure_task(
+                "save gamepad compositor control".to_owned(),
+                sqlite_compositor_driving_controllers::save(driving_controllers),
+            ),
         }
     }
 }
@@ -214,10 +193,10 @@ pub struct GamepadGroup {
     kernel_errors: Vec<DeviceKernelError>,
     wifi_band_use: WifiBandUse,
     wired_fallback: WiredFallback,
-    handed_over_controllers: BTreeSet<String>,
+    compositor_driving_controllers: BTreeSet<String>,
 }
 
-fn handover_key(link: &PhysicalGamepadLink) -> &str {
+fn controller_custody_key(link: &PhysicalGamepadLink) -> &str {
     match &link.identity {
         ControllerIdentity::Addressed {
             hardware_address, ..
@@ -227,7 +206,7 @@ fn handover_key(link: &PhysicalGamepadLink) -> &str {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ControllerCustody {
+pub enum ControllerCustody {
     Compositor,
     HandedOver,
 }
@@ -258,66 +237,44 @@ impl GamepadGroup {
         self.expansions.collapse();
     }
 
+    pub fn load() -> Task<GamepadMessage> {
+        Task::perform(
+            sqlite_compositor_driving_controllers::load(),
+            GamepadMessage::DrivingControllersLoaded,
+        )
+    }
+
     fn controller_custody(&self, slot: usize) -> ControllerCustody {
         match self.physical_link(slot) {
-            Some(link) if self.handed_over_controllers.contains(handover_key(link)) => {
-                ControllerCustody::HandedOver
+            Some(link)
+                if self
+                    .compositor_driving_controllers
+                    .contains(controller_custody_key(link)) =>
+            {
+                ControllerCustody::Compositor
             }
-            _ => ControllerCustody::Compositor,
+            _ => ControllerCustody::HandedOver,
         }
     }
 
-    fn control<'a>(
-        &self,
-        slot: usize,
-        bindings: &GamepadBindingsConfig,
-        window_claim: GamepadWindowClaim<'a>,
-    ) -> CompositorControl<'a> {
-        if self.controller_custody(slot) == ControllerCustody::HandedOver {
-            return CompositorControl::HandedOverByHand;
-        }
-        match window_claim {
-            GamepadWindowClaim::Fullscreen(app_id) => {
-                CompositorControl::PausedForFullscreenApp(app_id)
-            }
-            GamepadWindowClaim::Focused(app_id)
-                if window_claim.claim_silencing(bindings) == ClaimSilencing::Silenced =>
-            {
-                CompositorControl::PausedForFocusedApp(app_id)
-            }
-            GamepadWindowClaim::Unclaimed | GamepadWindowClaim::Focused(_) => {
-                CompositorControl::DrivingCompositor
-            }
-        }
+    fn compositor_driving_slots(&self) -> impl Iterator<Item = usize> + '_ {
+        self.controllers
+            .iter()
+            .map(|controller| controller.slot)
+            .filter(|slot| self.controller_custody(*slot) == ControllerCustody::Compositor)
     }
 
     #[must_use]
-    pub fn stream_settings(
-        &self,
-        bindings: &GamepadBindingsConfig,
-        window_claim: GamepadWindowClaim<'_>,
-    ) -> GamepadStreamSettings {
+    pub fn stream_settings(&self, bindings: &GamepadBindingsConfig) -> GamepadStreamSettings {
         GamepadStreamSettings {
             steering: bindings.pointer_steering(),
-            gate: PointerGate {
-                claim_silencing: window_claim.claim_silencing(bindings),
-                handed_over_slots: self
-                    .controllers
-                    .iter()
-                    .map(|controller| controller.slot)
-                    .filter(|slot| self.controller_custody(*slot) == ControllerCustody::HandedOver)
-                    .collect(),
-            },
+            gate: PointerGate::driving_slots(self.compositor_driving_slots()),
         }
     }
 
-    pub fn subscription(
-        &self,
-        bindings: &GamepadBindingsConfig,
-        window_claim: GamepadWindowClaim<'_>,
-    ) -> Subscription<GamepadMessage> {
+    pub fn subscription(&self, bindings: &GamepadBindingsConfig) -> Subscription<GamepadMessage> {
         Subscription::batch([
-            Subscription::run_with(self.stream_settings(bindings, window_claim), |settings| {
+            Subscription::run_with(self.stream_settings(bindings), |settings| {
                 gamepad_inputs(settings.clone())
             })
             .map(GamepadMessage::Input),
@@ -344,15 +301,14 @@ impl GamepadGroup {
         ])
     }
 
-    pub fn update(
-        &mut self,
-        message: GamepadMessage,
-        bindings: &GamepadBindingsConfig,
-        window_claim: GamepadWindowClaim<'_>,
-    ) -> Action {
+    pub fn update(&mut self, message: GamepadMessage, bindings: &GamepadBindingsConfig) -> Action {
         match message {
             GamepadMessage::Input(GamepadInput::Roster(controllers)) => {
                 self.receive_roster(controllers);
+                Action::Idle
+            }
+            GamepadMessage::DrivingControllersLoaded(driving_controllers) => {
+                self.compositor_driving_controllers = driving_controllers;
                 Action::Idle
             }
             GamepadMessage::Input(GamepadInput::ReportTiming { slot, timing }) => {
@@ -360,7 +316,7 @@ impl GamepadGroup {
                 Action::Idle
             }
             GamepadMessage::Input(GamepadInput::Button { slot, button, edge }) => {
-                self.receive_button(slot, button, edge, bindings, window_claim)
+                self.receive_button(slot, button, edge, bindings)
             }
             GamepadMessage::Input(GamepadInput::StickFlick {
                 slot,
@@ -369,10 +325,7 @@ impl GamepadGroup {
             }) => bindings
                 .navigation
                 .flick_action(stick, direction)
-                .filter(|_| {
-                    self.control(slot, bindings, window_claim)
-                        == CompositorControl::DrivingCompositor
-                })
+                .filter(|_| self.controller_custody(slot) == ControllerCustody::Compositor)
                 .map_or(Action::Idle, |action| {
                     Action::Compositor(compositor_request_of(action))
                 }),
@@ -427,13 +380,14 @@ impl GamepadGroup {
                     })
             }
             GamepadMessage::ToggleCompositorDriving { slot } => {
-                if let Some(key) = self.physical_link(slot).map(handover_key) {
-                    let key = key.to_owned();
-                    if !self.handed_over_controllers.remove(&key) {
-                        self.handed_over_controllers.insert(key);
-                    }
+                let Some(key) = self.physical_link(slot).map(controller_custody_key) else {
+                    return Action::Idle;
+                };
+                let key = key.to_owned();
+                if !self.compositor_driving_controllers.remove(&key) {
+                    self.compositor_driving_controllers.insert(key);
                 }
-                Action::Idle
+                Action::SaveDrivingControllers(self.compositor_driving_controllers.clone())
             }
             GamepadMessage::Expansion { slot, expansion } => {
                 self.expansions.update(&slot, expansion);
@@ -456,12 +410,10 @@ impl GamepadGroup {
         button: GamepadButton,
         edge: ButtonEdge,
         bindings: &GamepadBindingsConfig,
-        window_claim: GamepadWindowClaim<'_>,
     ) -> Action {
         let releasing_push_to_talk = edge == ButtonEdge::Released
             && bindings.role_of(button) == Some(ButtonRole::PushToTalk);
-        if !releasing_push_to_talk
-            && self.control(slot, bindings, window_claim) != CompositorControl::DrivingCompositor
+        if !releasing_push_to_talk && self.controller_custody(slot) != ControllerCustody::Compositor
         {
             return Action::Idle;
         }
@@ -555,12 +507,11 @@ impl GamepadGroup {
         gamepad: &'a ConnectedGamepad,
         link: &'a PhysicalGamepadLink,
         bindings: &'a GamepadBindingsConfig,
-        window_claim: GamepadWindowClaim<'a>,
     ) -> ConnectedControllerReading<'a> {
         ConnectedControllerReading {
             gamepad,
             bindings,
-            control: self.control(gamepad.slot, bindings, window_claim),
+            custody: self.controller_custody(gamepad.slot),
             marking: self.controller_marking(gamepad, link),
         }
     }
@@ -599,17 +550,11 @@ impl GamepadGroup {
         &self,
         target: GamepadTarget,
         bindings: &GamepadBindingsConfig,
-        window_claim: GamepadWindowClaim<'_>,
         clock: Clock,
     ) -> Option<HoverCardBody> {
         Some(match target {
             GamepadTarget::Controller { slot } => self
-                .face_reading(
-                    self.controller(slot)?,
-                    self.physical_link(slot)?,
-                    bindings,
-                    window_claim,
-                )
+                .face_reading(self.controller(slot)?, self.physical_link(slot)?, bindings)
                 .hover_card(clock),
             GamepadTarget::Battery { slot } => ControllerBatteryReading {
                 power: self.controller(slot)?.power,
@@ -624,44 +569,24 @@ impl GamepadGroup {
             .hover_card(clock),
             GamepadTarget::CompositorDriving { slot } => {
                 self.physical_link(slot)?;
-                self.compositor_driving_hover_card(slot, bindings, window_claim)
+                self.compositor_driving_hover_card(slot)
             }
         })
     }
 
-    fn compositor_driving_hover_card(
-        &self,
-        slot: usize,
-        bindings: &GamepadBindingsConfig,
-        window_claim: GamepadWindowClaim<'_>,
-    ) -> HoverCardBody {
-        let (note_title, note_body) = match self.control(slot, bindings, window_claim) {
-            CompositorControl::DrivingCompositor => (
+    fn compositor_driving_hover_card(&self, slot: usize) -> HoverCardBody {
+        let (note_title, note_body) = match self.controller_custody(slot) {
+            ControllerCustody::Compositor => (
                 "Driving the compositor",
-                "Buttons and sticks focus and move windows. Turn this off when a game keeps \
-                 losing its window to the compositor: the controller then belongs to the focused \
-                 window until you turn it back on."
-                    .to_owned(),
+                "Buttons and sticks focus and move windows, whatever window has focus. Turn this \
+                 off before playing a game: the controller then belongs to the focused window \
+                 again.",
             ),
-            CompositorControl::HandedOverByHand => (
+            ControllerCustody::HandedOver => (
                 "Handed to the focused window",
-                "Compositor bindings stay off for this controller, whatever window has focus, \
-                 until you turn this back on."
-                    .to_owned(),
-            ),
-            CompositorControl::PausedForFocusedApp(app_id) => (
-                "Paused while a game has focus",
-                format!(
-                    "{app_id} has focus, so compositor bindings already pause on their own. \
-                     Turning this off keeps them off after focus moves."
-                ),
-            ),
-            CompositorControl::PausedForFullscreenApp(app_id) => (
-                "Paused while a window fills the screen",
-                format!(
-                    "{app_id} fills the screen, so compositor bindings pause even while a prompt \
-                     has focus. Turning this off keeps them off after it leaves fullscreen."
-                ),
+                "Controllers start out belonging to the focused window, so games keep their \
+                 input. Turn this on to focus and move windows with this controller; the choice \
+                 is remembered for this controller.",
             ),
         };
         HoverCardBody::sections([Section::detailed_note(note_title, note_body)])
@@ -672,10 +597,9 @@ impl GamepadGroup {
         &self,
         target: GamepadTarget,
         bindings: &GamepadBindingsConfig,
-        window_claim: GamepadWindowClaim<'_>,
         clock: Clock,
     ) -> Option<HoverCard> {
-        self.hover_card_body(target, bindings, window_claim, clock)
+        self.hover_card_body(target, bindings, clock)
             .map(|body| HoverCard::sourced(body, DeliveryTiming::LivePush))
     }
 
@@ -685,7 +609,6 @@ impl GamepadGroup {
         link: &'a PhysicalGamepadLink,
         group_title: WidgetGroupTitle,
         bindings: &'a GamepadBindingsConfig,
-        window_claim: GamepadWindowClaim<'a>,
     ) -> Option<WidgetGroupContent<'a, GamepadMessage>> {
         let slot = gamepad.slot;
         let expansion = self.expansions.get(&slot)?;
@@ -693,7 +616,7 @@ impl GamepadGroup {
             power: gamepad.power,
         };
         let face = GroupItem::reading(
-            self.face_reading(gamepad, link, bindings, window_claim),
+            self.face_reading(gamepad, link, bindings),
             GamepadTarget::Controller { slot },
         );
         let shown_in_bluetooth_group = matches!(link.transport, GamepadTransport::Bluetooth { .. });
@@ -728,7 +651,10 @@ impl GamepadGroup {
             }
         });
         Some(WidgetGroupContent::expandable_instance(
-            WidgetGroupIdentity::durable(WidgetGroupFamily::Gamepad, handover_key(link).to_owned()),
+            WidgetGroupIdentity::durable(
+                WidgetGroupFamily::Gamepad,
+                controller_custody_key(link).to_owned(),
+            ),
             group_title,
             expansion,
             move |expansion| GamepadMessage::Expansion { slot, expansion },
@@ -748,7 +674,6 @@ impl GamepadGroup {
     pub fn group_contents<'a>(
         &'a self,
         bindings: &'a GamepadBindingsConfig,
-        window_claim: GamepadWindowClaim<'a>,
     ) -> Vec<WidgetGroupContent<'a, GamepadMessage>> {
         let controllers = self.controllers_in_player_order();
         let titles = WidgetGroupTitle::numbered_namesakes(
@@ -758,7 +683,7 @@ impl GamepadGroup {
             .iter()
             .zip(titles)
             .filter_map(|((gamepad, link), group_title)| {
-                self.controller_group(gamepad, link, group_title, bindings, window_claim)
+                self.controller_group(gamepad, link, group_title, bindings)
             })
             .collect()
     }
@@ -853,15 +778,14 @@ fn compositor_request_of(action: CompositorAction) -> CompositorRequest {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_desktop_sources::gamepad_controller_input::{
-        gamepad_input_machine::ClaimSilencing, player_indicator_leds::LitPlayer,
-    };
+    use sottomano_desktop_sources::gamepad_controller_input::player_indicator_leds::LitPlayer;
     use sottomano_toml_config::widget_groups::gamepad_bindings::{GamepadStick, StickDirection};
 
     use super::*;
 
     const DUALSENSE: usize = 31;
     const SECOND_PAD: usize = 32;
+    const STEAM_VIRTUAL_PAD: usize = 261;
 
     fn button(slot: usize, button: GamepadButton, edge: ButtonEdge) -> GamepadMessage {
         GamepadMessage::Input(GamepadInput::Button { slot, button, edge })
@@ -871,7 +795,6 @@ mod tests {
         group.update(
             button(slot, pressed, ButtonEdge::Pressed),
             &GamepadBindingsConfig::default(),
-            GamepadWindowClaim::Focused("kitty"),
         )
     }
 
@@ -879,7 +802,13 @@ mod tests {
         group.update(
             button(slot, released, ButtonEdge::Released),
             &GamepadBindingsConfig::default(),
-            GamepadWindowClaim::Focused("kitty"),
+        )
+    }
+
+    fn toggle_compositor_driving(group: &mut GamepadGroup, slot: usize) -> Action {
+        group.update(
+            GamepadMessage::ToggleCompositorDriving { slot },
+            &GamepadBindingsConfig::default(),
         )
     }
 
@@ -888,78 +817,6 @@ mod tests {
             panic!("expected a spawned command, got {action:?}");
         };
         command
-    }
-
-    #[test]
-    fn dpad_left_types_the_left_arrow_key_by_default() {
-        let action = press(
-            &mut GamepadGroup::default(),
-            DUALSENSE,
-            GamepadButton::DpadLeft,
-        );
-        assert_eq!(spawned_command(action), ["wtype", "-k", "Left"]);
-    }
-
-    #[test]
-    fn triangle_types_shift_tab_by_default() {
-        let action = press(
-            &mut GamepadGroup::default(),
-            DUALSENSE,
-            GamepadButton::North,
-        );
-        assert_eq!(
-            spawned_command(action),
-            ["wtype", "-M", "shift", "-k", "Tab", "-m", "shift"]
-        );
-    }
-
-    #[test]
-    fn two_modifiers_are_released_in_reverse_order() {
-        assert_eq!(
-            typed_key_command("ctrl+shift+Tab"),
-            [
-                "wtype", "-M", "ctrl", "-M", "shift", "-k", "Tab", "-m", "shift", "-m", "ctrl"
-            ]
-        );
-    }
-
-    #[test]
-    fn flicking_the_left_stick_right_focuses_to_the_right() {
-        let action = GamepadGroup::default().update(
-            GamepadMessage::Input(GamepadInput::StickFlick {
-                slot: DUALSENSE,
-                stick: GamepadStick::Left,
-                direction: StickDirection::Right,
-            }),
-            &GamepadBindingsConfig::default(),
-            GamepadWindowClaim::Focused("kitty"),
-        );
-        assert!(matches!(
-            action,
-            Action::Compositor(CompositorRequest::FocusRight)
-        ));
-    }
-
-    #[test]
-    fn a_focused_game_keeps_its_controller_input() {
-        let action = GamepadGroup::default().update(
-            button(DUALSENSE, GamepadButton::DpadLeft, ButtonEdge::Pressed),
-            &GamepadBindingsConfig::default(),
-            GamepadWindowClaim::Focused("steam_app_1091500"),
-        );
-        assert!(matches!(action, Action::Idle));
-    }
-
-    #[test]
-    fn holding_the_left_trigger_dictates_until_released() {
-        let mut group = GamepadGroup::default();
-        let started = press(&mut group, DUALSENSE, GamepadButton::LeftTrigger);
-        assert!(matches!(
-            started,
-            Action::Dictation(DictationCommand::Start)
-        ));
-        let stopped = release(&mut group, DUALSENSE, GamepadButton::LeftTrigger);
-        assert!(matches!(stopped, Action::Dictation(DictationCommand::Stop)));
     }
 
     fn connected_pad(slot: usize, origin: GamepadOrigin) -> ConnectedGamepad {
@@ -993,8 +850,6 @@ mod tests {
         })
     }
 
-    const STEAM_VIRTUAL_PAD: usize = 261;
-
     fn group_with_two_pads_and_a_virtual_one() -> GamepadGroup {
         let mut group = GamepadGroup::default();
         group.update(
@@ -1004,9 +859,190 @@ mod tests {
                 connected_pad(STEAM_VIRTUAL_PAD, GamepadOrigin::Virtual),
             ])),
             &GamepadBindingsConfig::default(),
-            GamepadWindowClaim::Focused("kitty"),
         );
         group
+    }
+
+    fn group_with_the_dualsense_driving_the_compositor() -> GamepadGroup {
+        let mut group = group_with_two_pads_and_a_virtual_one();
+        toggle_compositor_driving(&mut group, DUALSENSE);
+        group
+    }
+
+    #[test]
+    fn dpad_left_types_the_left_arrow_key_by_default() {
+        let action = press(
+            &mut group_with_the_dualsense_driving_the_compositor(),
+            DUALSENSE,
+            GamepadButton::DpadLeft,
+        );
+        assert_eq!(spawned_command(action), ["wtype", "-k", "Left"]);
+    }
+
+    #[test]
+    fn triangle_types_shift_tab_by_default() {
+        let action = press(
+            &mut group_with_the_dualsense_driving_the_compositor(),
+            DUALSENSE,
+            GamepadButton::North,
+        );
+        assert_eq!(
+            spawned_command(action),
+            ["wtype", "-M", "shift", "-k", "Tab", "-m", "shift"]
+        );
+    }
+
+    #[test]
+    fn two_modifiers_are_released_in_reverse_order() {
+        assert_eq!(
+            typed_key_command("ctrl+shift+Tab"),
+            [
+                "wtype", "-M", "ctrl", "-M", "shift", "-k", "Tab", "-m", "shift", "-m", "ctrl"
+            ]
+        );
+    }
+
+    #[test]
+    fn flicking_the_left_stick_right_focuses_to_the_right() {
+        let action = group_with_the_dualsense_driving_the_compositor().update(
+            GamepadMessage::Input(GamepadInput::StickFlick {
+                slot: DUALSENSE,
+                stick: GamepadStick::Left,
+                direction: StickDirection::Right,
+            }),
+            &GamepadBindingsConfig::default(),
+        );
+        assert!(matches!(
+            action,
+            Action::Compositor(CompositorRequest::FocusRight)
+        ));
+    }
+
+    #[test]
+    fn holding_the_left_trigger_dictates_until_released() {
+        let mut group = group_with_the_dualsense_driving_the_compositor();
+        let started = press(&mut group, DUALSENSE, GamepadButton::LeftTrigger);
+        assert!(matches!(
+            started,
+            Action::Dictation(DictationCommand::Start)
+        ));
+        let stopped = release(&mut group, DUALSENSE, GamepadButton::LeftTrigger);
+        assert!(matches!(stopped, Action::Dictation(DictationCommand::Stop)));
+    }
+
+    #[test]
+    fn controllers_start_out_handed_to_the_focused_window() {
+        let mut group = group_with_two_pads_and_a_virtual_one();
+        for slot in [DUALSENSE, SECOND_PAD, STEAM_VIRTUAL_PAD] {
+            assert_eq!(
+                group.controller_custody(slot),
+                ControllerCustody::HandedOver
+            );
+            assert!(matches!(
+                press(&mut group, slot, GamepadButton::DpadLeft),
+                Action::Idle
+            ));
+        }
+        assert!(
+            group
+                .stream_settings(&GamepadBindingsConfig::default())
+                .gate
+                .compositor_driving_slots
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn an_unknown_slot_never_drives_the_compositor() {
+        let action = GamepadGroup::default().update(
+            GamepadMessage::Input(GamepadInput::StickFlick {
+                slot: DUALSENSE,
+                stick: GamepadStick::Left,
+                direction: StickDirection::Right,
+            }),
+            &GamepadBindingsConfig::default(),
+        );
+        assert!(matches!(action, Action::Idle));
+    }
+
+    #[test]
+    fn switching_on_one_controller_leaves_the_others_with_the_focused_window() {
+        let mut group = group_with_two_pads_and_a_virtual_one();
+        let saved = toggle_compositor_driving(&mut group, DUALSENSE);
+        assert!(matches!(
+            saved,
+            Action::SaveDrivingControllers(driving_controllers)
+                if driving_controllers == BTreeSet::from(["00:00:00:00:00:1f".to_owned()])
+        ));
+        assert!(matches!(
+            press(&mut group, DUALSENSE, GamepadButton::DpadLeft),
+            Action::Compositor(_)
+        ));
+        assert!(matches!(
+            press(&mut group, SECOND_PAD, GamepadButton::DpadLeft),
+            Action::Idle
+        ));
+        assert_eq!(
+            group
+                .stream_settings(&GamepadBindingsConfig::default())
+                .gate
+                .compositor_driving_slots,
+            BTreeSet::from([DUALSENSE])
+        );
+        toggle_compositor_driving(&mut group, DUALSENSE);
+        assert!(matches!(
+            press(&mut group, DUALSENSE, GamepadButton::DpadLeft),
+            Action::Idle
+        ));
+    }
+
+    #[test]
+    fn a_virtual_pad_cannot_be_switched_on() {
+        let mut group = group_with_two_pads_and_a_virtual_one();
+        assert!(matches!(
+            toggle_compositor_driving(&mut group, STEAM_VIRTUAL_PAD),
+            Action::Idle
+        ));
+        assert_eq!(
+            group.controller_custody(STEAM_VIRTUAL_PAD),
+            ControllerCustody::HandedOver
+        );
+    }
+
+    #[test]
+    fn compositor_control_survives_the_controller_reconnecting_on_a_new_slot() {
+        let mut group = group_with_the_dualsense_driving_the_compositor();
+        let reconnected_slot = 40;
+        group.update(
+            GamepadMessage::Input(GamepadInput::Roster(vec![connected_pad(
+                reconnected_slot,
+                bluetooth_link(DUALSENSE, lit_player(1)),
+            )])),
+            &GamepadBindingsConfig::default(),
+        );
+        assert_eq!(
+            group.controller_custody(reconnected_slot),
+            ControllerCustody::Compositor
+        );
+    }
+
+    #[test]
+    fn loaded_driving_controllers_take_effect_for_connected_pads() {
+        let mut group = group_with_two_pads_and_a_virtual_one();
+        group.update(
+            GamepadMessage::DrivingControllersLoaded(BTreeSet::from([
+                "00:00:00:00:00:20".to_owned()
+            ])),
+            &GamepadBindingsConfig::default(),
+        );
+        assert_eq!(
+            group.controller_custody(SECOND_PAD),
+            ControllerCustody::Compositor
+        );
+        assert_eq!(
+            group.controller_custody(DUALSENSE),
+            ControllerCustody::HandedOver
+        );
     }
 
     #[test]
@@ -1025,10 +1061,7 @@ mod tests {
         let group = group_with_two_pads_and_a_virtual_one();
         assert_eq!(
             group
-                .group_contents(
-                    &GamepadBindingsConfig::default(),
-                    GamepadWindowClaim::Focused("kitty")
-                )
+                .group_contents(&GamepadBindingsConfig::default())
                 .len(),
             2
         );
@@ -1063,7 +1096,6 @@ mod tests {
         group.update(
             roster(vec![unlit_pad(DUALSENSE)]),
             &GamepadBindingsConfig::default(),
-            GamepadWindowClaim::Focused("kitty"),
         );
         assert!(matches!(
             marking_of(&group, DUALSENSE),
@@ -1072,123 +1104,11 @@ mod tests {
         group.update(
             roster(vec![unlit_pad(DUALSENSE), unlit_pad(SECOND_PAD)]),
             &GamepadBindingsConfig::default(),
-            GamepadWindowClaim::Focused("kitty"),
         );
         assert!(matches!(
             marking_of(&group, DUALSENSE),
             ControllerMarking::PairedAlias("Pad 31")
         ));
-    }
-
-    #[test]
-    fn controllers_drive_the_compositor_unless_a_game_has_focus() {
-        let bindings = GamepadBindingsConfig::default();
-        let group = group_with_two_pads_and_a_virtual_one();
-        assert_eq!(
-            group.control(DUALSENSE, &bindings, GamepadWindowClaim::Focused("kitty")),
-            CompositorControl::DrivingCompositor
-        );
-        assert_eq!(
-            group.control(
-                DUALSENSE,
-                &bindings,
-                GamepadWindowClaim::Focused("steam_app_1091500")
-            ),
-            CompositorControl::PausedForFocusedApp("steam_app_1091500")
-        );
-    }
-
-    #[test]
-    fn a_handed_over_controller_stops_driving_the_compositor_while_others_continue() {
-        let mut group = group_with_two_pads_and_a_virtual_one();
-        group.update(
-            GamepadMessage::ToggleCompositorDriving { slot: DUALSENSE },
-            &GamepadBindingsConfig::default(),
-            GamepadWindowClaim::Focused("kitty"),
-        );
-        assert!(matches!(
-            press(&mut group, DUALSENSE, GamepadButton::DpadLeft),
-            Action::Idle
-        ));
-        assert!(matches!(
-            press(&mut group, SECOND_PAD, GamepadButton::DpadLeft),
-            Action::Compositor(_)
-        ));
-        let settings = group.stream_settings(
-            &GamepadBindingsConfig::default(),
-            GamepadWindowClaim::Focused("kitty"),
-        );
-        assert_eq!(settings.gate.handed_over_slots, BTreeSet::from([DUALSENSE]));
-        group.update(
-            GamepadMessage::ToggleCompositorDriving { slot: DUALSENSE },
-            &GamepadBindingsConfig::default(),
-            GamepadWindowClaim::Focused("kitty"),
-        );
-        assert!(matches!(
-            press(&mut group, DUALSENSE, GamepadButton::DpadLeft),
-            Action::Compositor(_)
-        ));
-    }
-
-    #[test]
-    fn a_handover_survives_the_controller_reconnecting_on_a_new_slot() {
-        let mut group = group_with_two_pads_and_a_virtual_one();
-        group.update(
-            GamepadMessage::ToggleCompositorDriving { slot: DUALSENSE },
-            &GamepadBindingsConfig::default(),
-            GamepadWindowClaim::Focused("kitty"),
-        );
-        let reconnected_slot = 40;
-        group.update(
-            GamepadMessage::Input(GamepadInput::Roster(vec![connected_pad(
-                reconnected_slot,
-                bluetooth_link(DUALSENSE, lit_player(1)),
-            )])),
-            &GamepadBindingsConfig::default(),
-            GamepadWindowClaim::Focused("kitty"),
-        );
-        assert_eq!(
-            group.control(
-                reconnected_slot,
-                &GamepadBindingsConfig::default(),
-                GamepadWindowClaim::Focused("kitty")
-            ),
-            CompositorControl::HandedOverByHand
-        );
-    }
-
-    #[test]
-    fn a_fullscreen_window_pauses_controllers_without_a_passive_app_id() {
-        let bindings = GamepadBindingsConfig::default();
-        let group = group_with_two_pads_and_a_virtual_one();
-        let claim = GamepadWindowClaim::Fullscreen("slowroads");
-        assert_eq!(
-            group.control(DUALSENSE, &bindings, claim),
-            CompositorControl::PausedForFullscreenApp("slowroads")
-        );
-        assert_eq!(
-            group.stream_settings(&bindings, claim).gate.claim_silencing,
-            ClaimSilencing::Silenced
-        );
-    }
-
-    #[test]
-    fn an_unclaimed_desktop_leaves_controllers_driving_the_compositor() {
-        let bindings = GamepadBindingsConfig::default();
-        let group = group_with_two_pads_and_a_virtual_one();
-        assert_eq!(
-            group.control(DUALSENSE, &bindings, GamepadWindowClaim::Unclaimed),
-            CompositorControl::DrivingCompositor
-        );
-    }
-
-    #[test]
-    fn focusing_a_game_silences_the_pointer_through_the_stream_settings() {
-        let settings = GamepadGroup::default().stream_settings(
-            &GamepadBindingsConfig::default(),
-            GamepadWindowClaim::Focused("steam_app_1091500"),
-        );
-        assert_eq!(settings.gate.claim_silencing, ClaimSilencing::Silenced);
     }
 
     #[test]

@@ -206,6 +206,7 @@ impl ShellWidgetGroups {
             NotificationGroup::load().map(Message::NotificationGroup),
             QuietScheduleGroup::load().map(Message::QuietSchedule),
             DarkModeGroup::load().map(Message::DarkMode),
+            GamepadGroup::load().map(Message::Gamepad),
             self.niri_window_group.load().map(Message::NiriWindow),
         ])
     }

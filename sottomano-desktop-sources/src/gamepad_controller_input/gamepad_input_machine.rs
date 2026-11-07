@@ -18,13 +18,6 @@ use super::{
 const POINTER_TICK: Duration = Duration::from_millis(8);
 const LONGEST_POINTER_STEP: Duration = Duration::from_millis(32);
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
-pub enum ClaimSilencing {
-    Silenced,
-    #[default]
-    Free,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SlotAccess {
     Allowed,
@@ -33,16 +26,23 @@ pub enum SlotAccess {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct PointerGate {
-    pub claim_silencing: ClaimSilencing,
-    pub handed_over_slots: BTreeSet<usize>,
+    pub compositor_driving_slots: BTreeSet<usize>,
 }
 
 impl PointerGate {
     #[must_use]
     pub fn slot_access(&self, slot: usize) -> SlotAccess {
-        match self.claim_silencing {
-            ClaimSilencing::Free if !self.handed_over_slots.contains(&slot) => SlotAccess::Allowed,
-            ClaimSilencing::Free | ClaimSilencing::Silenced => SlotAccess::Blocked,
+        if self.compositor_driving_slots.contains(&slot) {
+            SlotAccess::Allowed
+        } else {
+            SlotAccess::Blocked
+        }
+    }
+
+    #[must_use]
+    pub fn driving_slots(slots: impl IntoIterator<Item = usize>) -> Self {
+        Self {
+            compositor_driving_slots: slots.into_iter().collect(),
         }
     }
 }
@@ -335,7 +335,7 @@ mod tests {
     #[test]
     fn a_deflected_pointer_stick_moves_the_pointer_on_the_next_tick() {
         let start = Instant::now();
-        let mut machine = machine_with(PointerGate::default());
+        let mut machine = machine_with(PointerGate::driving_slots([31]));
         assert!(machine.step(right_stick_right(31), start).is_empty());
         let deadline = machine.next_deadline().unwrap();
         let effects = machine.step(MachineInput::Tick, deadline);
@@ -346,23 +346,17 @@ mod tests {
     }
 
     #[test]
-    fn a_focused_game_leaves_the_pointer_alone() {
+    fn a_controller_without_compositor_control_leaves_the_pointer_alone() {
         let start = Instant::now();
-        let mut machine = machine_with(PointerGate {
-            claim_silencing: ClaimSilencing::Silenced,
-            ..PointerGate::default()
-        });
+        let mut machine = machine_with(PointerGate::default());
         machine.step(right_stick_right(31), start);
         assert_eq!(machine.next_deadline(), None);
     }
 
     #[test]
-    fn a_handed_over_controller_leaves_the_pointer_alone_while_others_steer() {
+    fn only_the_driving_controller_steers_the_pointer() {
         let start = Instant::now();
-        let mut machine = machine_with(PointerGate {
-            handed_over_slots: BTreeSet::from([31]),
-            ..PointerGate::default()
-        });
+        let mut machine = machine_with(PointerGate::driving_slots([32]));
         machine.step(right_stick_right(31), start);
         assert_eq!(machine.next_deadline(), None);
         machine.step(right_stick_right(32), start);
@@ -372,7 +366,7 @@ mod tests {
     #[test]
     fn the_right_trigger_presses_and_releases_the_left_mouse_button() {
         let start = Instant::now();
-        let mut machine = machine_with(PointerGate::default());
+        let mut machine = machine_with(PointerGate::driving_slots([31]));
         let trigger = |edge| {
             MachineInput::Raw(RawGamepadEvent::Button {
                 slot: 31,

@@ -161,9 +161,6 @@ heavy_millimeters_per_hour = 4.0
 latency_target = "1.1.1.1"
 metered_cycle_start_day = 1
 
-[widget_groups.gamepad]
-passive_app_id_prefixes = ["steam", "gamescope"]
-
 [widget_groups.gamepad.navigation]
 stick = "left"
 up = "focus_workspace_up"

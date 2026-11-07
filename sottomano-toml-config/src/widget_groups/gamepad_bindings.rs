@@ -344,7 +344,6 @@ pub struct ClaimedButton<'a> {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct GamepadBindingsConfig {
-    pub passive_app_id_prefixes: Vec<String>,
     pub navigation: StickNavigationConfig,
     pub pointer: PointerSteeringConfig,
     pub typed_keys: BTreeMap<GamepadButton, String>,
@@ -434,25 +433,11 @@ impl GamepadBindingsConfig {
                 .collect(),
         }
     }
-
-    #[must_use]
-    pub fn focus_behaviour(&self, app_id: Option<&str>) -> FocusBehaviour {
-        if app_id.is_some_and(|focused_app_id| {
-            self.passive_app_id_prefixes
-                .iter()
-                .any(|prefix| focused_app_id.starts_with(prefix.as_str()))
-        }) {
-            FocusBehaviour::Passive
-        } else {
-            FocusBehaviour::Active
-        }
-    }
 }
 
 impl Default for GamepadBindingsConfig {
     fn default() -> Self {
         Self {
-            passive_app_id_prefixes: ["steam", "gamescope"].map(String::from).to_vec(),
             navigation: StickNavigationConfig::default(),
             pointer: PointerSteeringConfig::default(),
             typed_keys: BTreeMap::from([
@@ -492,12 +477,6 @@ pub enum VirtualPointerNeed {
 pub enum StickSharing {
     Shared,
     Separate,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FocusBehaviour {
-    Active,
-    Passive,
 }
 
 #[cfg(test)]
@@ -614,23 +593,5 @@ mod tests {
             steering.buttons.get(&GamepadButton::RightStick),
             Some(&PointerButton::Right)
         );
-    }
-
-    #[test]
-    fn games_matching_a_passive_prefix_silence_the_bindings() {
-        let config = GamepadBindingsConfig::default();
-        assert_eq!(
-            config.focus_behaviour(Some("steam_app_1091500")),
-            FocusBehaviour::Passive
-        );
-        assert_eq!(
-            config.focus_behaviour(Some("steam")),
-            FocusBehaviour::Passive
-        );
-        assert_eq!(
-            config.focus_behaviour(Some("kitty")),
-            FocusBehaviour::Active
-        );
-        assert_eq!(config.focus_behaviour(None), FocusBehaviour::Active);
     }
 }

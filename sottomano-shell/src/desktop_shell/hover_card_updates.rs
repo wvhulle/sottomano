@@ -22,10 +22,7 @@ use sottomano_widgets::{
 };
 use tokio::time::sleep_until;
 
-use crate::{
-    desktop_shell::{DesktopShell, gamepad_window_claim},
-    shell_message::Message,
-};
+use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 fn hide_hover_card_at(due: Instant) -> Task<Message> {
     Task::future(async move {
@@ -417,7 +414,6 @@ impl DesktopShell {
             HoverTarget::Gamepad(target) => self.widget_groups.gamepad_group.hover_card_for(
                 *target,
                 &self.config.widget_groups.gamepad,
-                gamepad_window_claim(&self.compositor, &self.outputs),
                 self.clock,
             ),
             HoverTarget::ClaudeUsage(target) => self

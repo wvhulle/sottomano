@@ -1052,12 +1052,8 @@ pub async fn visible_access_points(
 ) -> zbus::Result<Vec<ApInfo>> {
     let wireless: WirelessProxy = uncached(connection, device.path.clone()).await?;
     let paths = wireless.get_all_access_points().await?;
-    let access_points = join_all(
-        paths
-            .into_iter()
-            .map(|path| access_point(connection, path)),
-    )
-    .await;
+    let access_points =
+        join_all(paths.into_iter().map(|path| access_point(connection, path))).await;
     Ok(access_points.into_iter().filter_map(Result::ok).collect())
 }
 
