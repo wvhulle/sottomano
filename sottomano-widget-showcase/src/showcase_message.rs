@@ -7,8 +7,8 @@ use sottomano_widgets::{
     toast_messages::NotificationMessage,
     widget_groups::{
         appearance_presets_group::AppearancePresetsMessage, audio_group::AudioMessage,
-        caldav_group::CaldavMessage, claude_usage_group::ClaudeUsageMessage,
-        compute_group::ComputeMessage, forgejo_tasks_group::ForgejoTasksMessage,
+        caldav_group::CaldavMessage, ci_runs_group::CiRunsMessage,
+        claude_usage_group::ClaudeUsageMessage, compute_group::ComputeMessage,
         gamepad_group::GamepadMessage, idle_pause_groups::IdlePauseMessage,
         login_session_group::LoginSessionMessage, media_group::MediaMessage,
         memory_board_group::MemoryBoardMessage, nspawn_containers_group::NspawnContainersMessage,
@@ -17,7 +17,7 @@ use sottomano_widgets::{
         voice_dictation_group::VoiceDictationMessage, wallpaper_group::WallpaperMessage,
         weather_group::WeatherMessage, widget_group_content::GroupEvent,
         window_group::WindowGroupMessage, wireguard_tunnels_group::WireguardTunnelsMessage,
-        woodpecker_tasks_group::WoodpeckerTasksMessage, workspaces_group::WorkspacesMessage,
+        workspaces_group::WorkspacesMessage,
     },
 };
 
@@ -38,8 +38,7 @@ pub enum ShowcaseMessage {
     PodmanEngines(PodmanEnginesMessage),
     VirtualMachines(VirtualMachinesMessage),
     NspawnContainers(NspawnContainersMessage),
-    WoodpeckerTasks(WoodpeckerTasksMessage),
-    ForgejoTasks(ForgejoTasksMessage),
+    CiRuns(CiRunsMessage),
     Tailnet(TailnetMessage),
     WireguardTunnels(WireguardTunnelsMessage),
     LoginSession(LoginSessionMessage),

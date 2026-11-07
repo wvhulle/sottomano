@@ -3,8 +3,8 @@ use std::iter::once;
 use sottomano_widgets::{
     group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
     widget_groups::{
-        ci_task_group_item::CiTasksMessage, fixed_panel_group::FixedPanelGroup,
-        notification_group::NotificationStatus, widget_group_content::WidgetGroupContent,
+        fixed_panel_group::FixedPanelGroup, notification_group::NotificationStatus,
+        widget_group_content::WidgetGroupContent,
     },
 };
 
@@ -342,15 +342,9 @@ impl DesktopShell {
                     .group_content()
                     .map(Message::PodmanEngines),
                 self.widget_groups
-                    .woodpecker_tasks_group
-                    .group_content(|message| {
-                        Message::WoodpeckerTasks(CiTasksMessage::Expansion(message))
-                    }),
-                self.widget_groups
-                    .forgejo_tasks_group
-                    .group_content(|message| {
-                        Message::ForgejoTasks(CiTasksMessage::Expansion(message))
-                    }),
+                    .ci_runs_group
+                    .group_content()
+                    .map(Message::CiRuns),
                 self.widget_groups
                     .virtual_machines_group
                     .group_content()

@@ -31,10 +31,9 @@ use sottomano_widgets::{
         appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsTarget},
         audio_group::AudioGroup,
         caldav_group::CaldavGroup,
-        ci_task_group_item::{CiRunnerKind, CiTasksMessage},
+        ci_runs_group::CiRunsGroup,
         claude_usage_group::ClaudeUsageGroup,
         compute_group::ComputeGroup,
-        forgejo_tasks_group::ForgejoTasksGroup,
         gamepad_group::{GamepadGroup, GamepadWindowClaim::Unclaimed},
         idle_pause_groups::IdlePauseGroups,
         login_session_group::LoginSessionGroup,
@@ -54,7 +53,6 @@ use sottomano_widgets::{
         widget_group_content::WidgetGroupContent,
         window_group::{WindowGroup, WindowRowLayout, WindowTarget},
         wireguard_tunnels_group::WireguardTunnelsGroup,
-        woodpecker_tasks_group::WoodpeckerTasksGroup,
         workspaces_group::{
             EmptyWorkspaceFolding, EmptyWorkspaces, inline_strip, sidebar_column,
             workspace_hover_card,
@@ -130,8 +128,7 @@ pub enum ShowcasedGroup {
     PodmanEngines(Box<PodmanEnginesGroup>),
     VirtualMachines(Box<VirtualMachinesGroup>),
     NspawnContainers(Box<NspawnContainersGroup>),
-    WoodpeckerTasks(Box<WoodpeckerTasksGroup>),
-    ForgejoTasks(Box<ForgejoTasksGroup>),
+    CiRuns(Box<CiRunsGroup>),
     Tailnet(Box<TailnetGroup>),
     WireguardTunnels(Box<WireguardTunnelsGroup>),
     LoginSession(Box<LoginSessionGroup>),
@@ -412,8 +409,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::PodmanEngines(_)
             | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::NspawnContainers(_)
-            | ShowcasedGroup::WoodpeckerTasks(_)
-            | ShowcasedGroup::ForgejoTasks(_)
+            | ShowcasedGroup::CiRuns(_)
             | ShowcasedGroup::Tailnet(_)
             | ShowcasedGroup::WireguardTunnels(_)
             | ShowcasedGroup::Toasts(_) => Position::Top,
@@ -481,15 +477,8 @@ impl ShowcasedGroup {
             ShowcasedGroup::NspawnContainers(group) => {
                 vec![group.group_content().map(ShowcaseMessage::NspawnContainers)]
             }
-            ShowcasedGroup::WoodpeckerTasks(group) => {
-                vec![group.group_content(|message| {
-                    ShowcaseMessage::WoodpeckerTasks(CiTasksMessage::Expansion(message))
-                })]
-            }
-            ShowcasedGroup::ForgejoTasks(group) => {
-                vec![group.group_content(|message| {
-                    ShowcaseMessage::ForgejoTasks(CiTasksMessage::Expansion(message))
-                })]
+            ShowcasedGroup::CiRuns(group) => {
+                vec![group.group_content().map(ShowcaseMessage::CiRuns)]
             }
             ShowcasedGroup::Caldav(group) => {
                 vec![
@@ -562,10 +551,7 @@ impl ShowcasedGroup {
             ) => {
                 let _ = group.update(container_message, clock);
             }
-            (ShowcasedGroup::WoodpeckerTasks(group), ShowcaseMessage::WoodpeckerTasks(message)) => {
-                group.update(message, clock);
-            }
-            (ShowcasedGroup::ForgejoTasks(group), ShowcaseMessage::ForgejoTasks(message)) => {
+            (ShowcasedGroup::CiRuns(group), ShowcaseMessage::CiRuns(message)) => {
                 group.update(message, clock);
             }
             _ => {}
@@ -627,8 +613,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::PodmanEngines(_)
             | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::NspawnContainers(_)
-            | ShowcasedGroup::WoodpeckerTasks(_)
-            | ShowcasedGroup::ForgejoTasks(_) => self.update_container_groups(message, clock),
+            | ShowcasedGroup::CiRuns(_) => self.update_container_groups(message, clock),
             ShowcasedGroup::Caldav(group) => {
                 if let ShowcaseMessage::Caldav(message) = message {
                     let _ = group.update(message, clock);
@@ -769,8 +754,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::PodmanEngines(_)
             | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::NspawnContainers(_)
-            | ShowcasedGroup::WoodpeckerTasks(_)
-            | ShowcasedGroup::ForgejoTasks(_)
+            | ShowcasedGroup::CiRuns(_)
             | ShowcasedGroup::AppearancePresets(_)
             | ShowcasedGroup::ShellSettings(_)
             | ShowcasedGroup::Toasts(_) => Vec::new(),
@@ -872,18 +856,12 @@ impl ShowcasedGroup {
                 };
                 group.hover_card_for(target, clock)
             }
-            ShowcasedGroup::WoodpeckerTasks(group) => match target {
-                HoverTarget::CiRunner(target) if target.kind() == CiRunnerKind::Woodpecker => {
-                    group.hover_card_for(target, clock)
-                }
-                _ => None,
-            },
-            ShowcasedGroup::ForgejoTasks(group) => match target {
-                HoverTarget::CiRunner(target) if target.kind() == CiRunnerKind::Forgejo => {
-                    group.hover_card_for(target, clock)
-                }
-                _ => None,
-            },
+            ShowcasedGroup::CiRuns(group) => {
+                let HoverTarget::CiRuns(target) = target else {
+                    return None;
+                };
+                group.hover_card_for(target, clock)
+            }
             ShowcasedGroup::Caldav(group) => {
                 let HoverTarget::Caldav(target) = target else {
                     return None;
@@ -968,8 +946,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::PodmanEngines(_)
             | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::NspawnContainers(_)
-            | ShowcasedGroup::WoodpeckerTasks(_)
-            | ShowcasedGroup::ForgejoTasks(_)
+            | ShowcasedGroup::CiRuns(_)
             | ShowcasedGroup::Tailnet(_)
             | ShowcasedGroup::WireguardTunnels(_)
             | ShowcasedGroup::LoginSession(_)

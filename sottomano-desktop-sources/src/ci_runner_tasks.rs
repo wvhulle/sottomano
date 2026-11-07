@@ -39,6 +39,12 @@ pub enum TaskDeadline {
     At(SystemTime),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TaskWebLog {
+    Linked(String),
+    NotKnown,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TaskUsage {
     NoContainerNow,
@@ -71,6 +77,7 @@ pub struct CiTask {
     pub activities: Vec<String>,
     pub images: Vec<String>,
     pub usage: TaskUsage,
+    pub web_log: TaskWebLog,
 }
 
 #[derive(Debug, Clone, PartialEq)]

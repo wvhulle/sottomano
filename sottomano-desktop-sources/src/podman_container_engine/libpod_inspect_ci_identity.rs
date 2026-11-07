@@ -11,6 +11,7 @@ const REPOSITORY_KEY: &str = "CI_REPO";
 const PIPELINE_NUMBER_KEY: &str = "CI_PIPELINE_NUMBER";
 const WORKFLOW_NAME_KEY: &str = "CI_WORKFLOW_NAME";
 const STEP_NAME_KEY: &str = "CI_STEP_NAME";
+const PIPELINE_URL_KEY: &str = "CI_PIPELINE_URL";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WoodpeckerStepIdentity {
@@ -18,6 +19,7 @@ pub struct WoodpeckerStepIdentity {
     pub pipeline_number: String,
     pub workflow_name: String,
     pub step_name: String,
+    pub pipeline_url: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -47,6 +49,7 @@ impl InspectedContainer {
             pipeline_number: allow_listed_value(entries, PIPELINE_NUMBER_KEY)?.to_owned(),
             workflow_name: allow_listed_value(entries, WORKFLOW_NAME_KEY)?.to_owned(),
             step_name: allow_listed_value(entries, STEP_NAME_KEY)?.to_owned(),
+            pipeline_url: allow_listed_value(entries, PIPELINE_URL_KEY).map(str::to_owned),
         })
     }
 }
@@ -74,12 +77,13 @@ mod tests {
     }
 
     #[test]
-    fn identity_comes_from_the_four_allow_listed_keys() {
+    fn identity_comes_from_the_allow_listed_keys() {
         let inspected = decoded(&[
             "CI_REPO=wvhulle/sottomano",
             "CI_PIPELINE_NUMBER=185",
             "CI_WORKFLOW_NAME=checks",
             "CI_STEP_NAME=clone",
+            "CI_PIPELINE_URL=https://ci.codeberg.org/repos/1/pipeline/185",
         ]);
         assert_eq!(
             inspected.woodpecker_step_identity(),
@@ -88,7 +92,24 @@ mod tests {
                 pipeline_number: "185".to_owned(),
                 workflow_name: "checks".to_owned(),
                 step_name: "clone".to_owned(),
+                pipeline_url: Some("https://ci.codeberg.org/repos/1/pipeline/185".to_owned()),
             })
+        );
+    }
+
+    #[test]
+    fn a_step_without_a_pipeline_url_keeps_its_identity() {
+        let inspected = decoded(&[
+            "CI_REPO=wvhulle/sottomano",
+            "CI_PIPELINE_NUMBER=185",
+            "CI_WORKFLOW_NAME=checks",
+            "CI_STEP_NAME=clone",
+        ]);
+        assert_eq!(
+            inspected
+                .woodpecker_step_identity()
+                .map(|identity| identity.pipeline_url),
+            Some(None)
         );
     }
 

@@ -105,12 +105,7 @@ impl ShellWidgetGroups {
             self.nspawn_containers_group
                 .subscription(buses)
                 .map(Message::NspawnContainers),
-            self.woodpecker_tasks_group
-                .subscription(buses)
-                .map(Message::WoodpeckerTasks),
-            self.forgejo_tasks_group
-                .subscription(buses)
-                .map(Message::ForgejoTasks),
+            self.ci_runs_group.subscription(buses).map(Message::CiRuns),
             self.reachability_group
                 .subscription(
                     &config.widget_groups.reachability,

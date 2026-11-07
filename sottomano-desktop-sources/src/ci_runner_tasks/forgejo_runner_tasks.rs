@@ -11,7 +11,7 @@ use futures::{Stream, StreamExt, stream};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     ci_runner_tasks::{
-        CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskUsage,
+        CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskUsage, TaskWebLog,
         forgejo_runner_container_names::{ForgejoJobName, parse_forgejo_container_name},
         forgejo_runner_journal_repos::ForgejoTaskStart,
         images_of, sorted_unique,
@@ -23,9 +23,29 @@ use crate::{
     system_protocol_clients::journal_follow::journal_windows,
 };
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ForgejoTaskOrigin {
+    repository: String,
+    instance_url: Option<String>,
+}
+
+impl ForgejoTaskOrigin {
+    fn actions_page(&self) -> TaskWebLog {
+        self.instance_url
+            .as_deref()
+            .map_or(TaskWebLog::NotKnown, |instance_url| {
+                TaskWebLog::Linked(format!(
+                    "{}/{}/actions",
+                    instance_url.trim_end_matches('/'),
+                    self.repository
+                ))
+            })
+    }
+}
+
 fn forgejo_tasks(
     engine: &EngineContainers,
-    repositories_by_task: &HashMap<u64, String>,
+    origins_by_task: &HashMap<u64, ForgejoTaskOrigin>,
 ) -> Vec<CiTask> {
     let containers_by_task = engine.containers.iter().fold(
         BTreeMap::<u64, Vec<&RunningContainer>>::new(),
@@ -42,11 +62,14 @@ fn forgejo_tasks(
     containers_by_task
         .into_iter()
         .map(|(task_id, containers)| CiTask {
-            repository: repositories_by_task
+            repository: origins_by_task
                 .get(&task_id)
-                .map_or(TaskRepository::NotYetKnown, |repository| {
-                    TaskRepository::Named(repository.clone())
+                .map_or(TaskRepository::NotYetKnown, |origin| {
+                    TaskRepository::Named(origin.repository.clone())
                 }),
+            web_log: origins_by_task
+                .get(&task_id)
+                .map_or(TaskWebLog::NotKnown, ForgejoTaskOrigin::actions_page),
             run_label: task_id.to_string(),
             started_at: containers
                 .iter()
@@ -101,37 +124,48 @@ impl SnapshotSource for ForgejoRunnerTasks {
             .map(ForgejoRunnerInput::EngineSampled);
         let unit_name = watch.unit_name;
         stream::select(task_starts, engine_samples)
-            .scan(HashMap::<u64, String>::new(), move |repositories, input| {
-                let delivery = match input {
-                    ForgejoRunnerInput::TaskStarts(starts) => {
-                        repositories.extend(
-                            starts
-                                .into_iter()
-                                .filter(|start| start.unit_name == unit_name)
-                                .map(|start| (start.task_id, start.repository)),
-                        );
-                        None
-                    }
-                    ForgejoRunnerInput::EngineSampled(tracked) => {
-                        let runner = match tracked.sample {
-                            Ok(engine) => CiRunnerTasks {
-                                tasks: forgejo_tasks(&engine, repositories),
-                                access: RunnerAccess::Complete,
-                            },
-                            Err(failure) => CiRunnerTasks {
-                                tasks: Vec::new(),
-                                access: RunnerAccess::EngineUnreadable(failure),
-                            },
-                        };
-                        Some(
-                            tracked
-                                .stamped_cadence
-                                .delivered(Ok(ForgejoRunnerTasks { runner })),
-                        )
-                    }
-                };
-                ready(Some(delivery))
-            })
+            .scan(
+                HashMap::<u64, ForgejoTaskOrigin>::new(),
+                move |origins, input| {
+                    let delivery = match input {
+                        ForgejoRunnerInput::TaskStarts(starts) => {
+                            origins.extend(
+                                starts
+                                    .into_iter()
+                                    .filter(|start| start.unit_name == unit_name)
+                                    .map(|start| {
+                                        (
+                                            start.task_id,
+                                            ForgejoTaskOrigin {
+                                                repository: start.repository,
+                                                instance_url: start.instance_url,
+                                            },
+                                        )
+                                    }),
+                            );
+                            None
+                        }
+                        ForgejoRunnerInput::EngineSampled(tracked) => {
+                            let runner = match tracked.sample {
+                                Ok(engine) => CiRunnerTasks {
+                                    tasks: forgejo_tasks(&engine, origins),
+                                    access: RunnerAccess::Complete,
+                                },
+                                Err(failure) => CiRunnerTasks {
+                                    tasks: Vec::new(),
+                                    access: RunnerAccess::EngineUnreadable(failure),
+                                },
+                            };
+                            Some(
+                                tracked
+                                    .stamped_cadence
+                                    .delivered(Ok(ForgejoRunnerTasks { runner })),
+                            )
+                        }
+                    };
+                    ready(Some(delivery))
+                },
+            )
             .filter_map(ready)
             .repeats_as_unchanged()
     }
@@ -176,8 +210,14 @@ mod tests {
                 container("postgres", 1, 999),
             ],
         };
-        let repositories = HashMap::from([(7, "wvhulle/bindrune".to_owned())]);
-        let tasks = forgejo_tasks(&engine, &repositories);
+        let origins = HashMap::from([(
+            7,
+            ForgejoTaskOrigin {
+                repository: "wvhulle/bindrune".to_owned(),
+                instance_url: Some("https://codeberg.org/".to_owned()),
+            },
+        )]);
+        let tasks = forgejo_tasks(&engine, &origins);
         assert_eq!(tasks.len(), 1);
         assert_eq!(
             tasks[0].repository,
@@ -185,6 +225,10 @@ mod tests {
         );
         assert_eq!(tasks[0].started_at, UNIX_EPOCH + Duration::from_secs(100));
         assert_eq!(tasks[0].activities, ["build"]);
+        assert_eq!(
+            tasks[0].web_log,
+            TaskWebLog::Linked("https://codeberg.org/wvhulle/bindrune/actions".to_owned())
+        );
         assert_eq!(
             tasks[0].usage,
             TaskUsage::Measured {
@@ -206,6 +250,7 @@ mod tests {
         let tasks = forgejo_tasks(&engine, &HashMap::new());
         assert_eq!(tasks[0].repository, TaskRepository::NotYetKnown);
         assert_eq!(tasks[0].run_label, "7");
+        assert_eq!(tasks[0].web_log, TaskWebLog::NotKnown);
         assert_eq!(tasks[0].activities, ["build"]);
     }
 }

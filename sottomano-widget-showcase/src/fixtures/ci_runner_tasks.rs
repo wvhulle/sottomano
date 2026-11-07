@@ -4,7 +4,7 @@ use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     ci_runner_tasks::{
-        CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskUsage,
+        CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskUsage, TaskWebLog,
         forgejo_runner_tasks::ForgejoRunnerTasks, woodpecker_agent_tasks::WoodpeckerAgentTasks,
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
@@ -13,10 +13,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::{
-        ci_task_group_item::CiTasksMessage, forgejo_tasks_group::ForgejoTasksGroup,
-        woodpecker_tasks_group::WoodpeckerTasksGroup,
-    },
+    widget_groups::ci_runs_group::{CiRunsGroup, CiRunsMessage},
 };
 use uom::si::{f64::Ratio, ratio::percent};
 
@@ -25,7 +22,8 @@ use crate::{
     showcased_group::ShowcasedGroup,
 };
 
-const SHOWN_RUNNER: &str = "codeberg";
+pub const SHOWN_RUNNER: &str = "codeberg";
+pub const HOVERED_RUN: &str = "#185";
 
 fn runner_service<'a>(
     unit: &'a str,
@@ -62,29 +60,14 @@ fn nix_task(
         activities: vec![activity.to_owned()],
         images: vec!["docker.io/nixos/nix:latest".to_owned()],
         usage,
+        web_log: TaskWebLog::NotKnown,
     }
 }
 
-pub fn woodpecker_group(clock: Clock) -> ShowcasedGroup {
-    let mut group = WoodpeckerTasksGroup::default();
-    group.update(
-        CiTasksMessage::Services(services_delivered(
-            SystemdUnitScope::SystemWide,
-            [runner_service(
-                "woodpecker-agent-codeberg.service",
-                "woodpecker-agent",
-                &[],
-                &[(
-                    "DOCKER_HOST",
-                    "unix:///run/woodpecker-agent-codeberg/podman.sock",
-                )],
-            )],
-        )),
-        clock,
-    );
+fn woodpecker_delivery(clock: Clock) -> SnapshotDelivery<WoodpeckerAgentTasks> {
     let build_site = nix_task(
         "demo/website",
-        "#185",
+        HOVERED_RUN,
         "run-tests",
         TaskUsage::Measured {
             cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(18.6)),
@@ -104,74 +87,91 @@ pub fn woodpecker_group(clock: Clock) -> ShowcasedGroup {
         Duration::from_mins(2),
         clock,
     );
-    group.update(
-        CiTasksMessage::Runner(
-            SHOWN_RUNNER.to_owned(),
-            SnapshotDelivery::fixture_delivered(
-                Ok(WoodpeckerAgentTasks {
-                    runner: CiRunnerTasks {
-                        tasks: vec![
-                            CiTask {
-                                deadline: TaskDeadline::At(clock.wall + Duration::from_mins(50)),
-                                ..build_site
-                            },
-                            CiTask {
-                                deadline: TaskDeadline::At(clock.wall + Duration::from_mins(58)),
-                                ..lint_library
-                            },
-                        ],
-                        access: RunnerAccess::Complete,
+    SnapshotDelivery::fixture_delivered(
+        Ok(WoodpeckerAgentTasks {
+            runner: CiRunnerTasks {
+                tasks: vec![
+                    CiTask {
+                        deadline: TaskDeadline::At(clock.wall + Duration::from_mins(50)),
+                        web_log: TaskWebLog::Linked(
+                            "https://ci.example.org/repos/12/pipeline/185".to_owned(),
+                        ),
+                        ..build_site
                     },
-                }),
-                polling_cadence(),
-            ),
-        ),
-        clock,
-    );
-    ShowcasedGroup::WoodpeckerTasks(Box::new(group))
+                    CiTask {
+                        deadline: TaskDeadline::At(clock.wall + Duration::from_mins(58)),
+                        ..lint_library
+                    },
+                ],
+                access: RunnerAccess::Complete,
+            },
+        }),
+        polling_cadence(),
+    )
 }
 
-pub fn forgejo_group(clock: Clock) -> ShowcasedGroup {
-    let mut group = ForgejoTasksGroup::default();
+fn forgejo_delivery(clock: Clock) -> SnapshotDelivery<ForgejoRunnerTasks> {
+    SnapshotDelivery::fixture_delivered(
+        Ok(ForgejoRunnerTasks {
+            runner: CiRunnerTasks {
+                tasks: vec![CiTask {
+                    web_log: TaskWebLog::Linked(
+                        "https://forge.example.org/demo/tool/actions".to_owned(),
+                    ),
+                    ..nix_task(
+                        "demo/tool",
+                        "11282424",
+                        "build",
+                        TaskUsage::Measured {
+                            cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(3.3)),
+                            resident_memory: ByteSize::mib(640),
+                        },
+                        Duration::from_mins(1),
+                        clock,
+                    )
+                }],
+                access: RunnerAccess::Complete,
+            },
+        }),
+        polling_cadence(),
+    )
+}
+
+pub fn group(clock: Clock) -> ShowcasedGroup {
+    let mut group = CiRunsGroup::default();
     group.update(
-        CiTasksMessage::Services(services_delivered(
+        CiRunsMessage::Services(services_delivered(
             SystemdUnitScope::SystemWide,
-            [runner_service(
-                "forgejo-runner-codeberg.service",
-                "forgejo-runner",
-                &["daemon", "--config", "/etc/forgejo-runner/codeberg.yaml"],
-                &[(
-                    "DOCKER_HOST",
-                    "unix:///run/forgejo-runner-codeberg/podman.sock",
-                )],
-            )],
+            [
+                runner_service(
+                    "woodpecker-agent-codeberg.service",
+                    "woodpecker-agent",
+                    &[],
+                    &[(
+                        "DOCKER_HOST",
+                        "unix:///run/woodpecker-agent-codeberg/podman.sock",
+                    )],
+                ),
+                runner_service(
+                    "forgejo-runner-codeberg.service",
+                    "forgejo-runner",
+                    &["daemon", "--config", "/etc/forgejo-runner/codeberg.yaml"],
+                    &[(
+                        "DOCKER_HOST",
+                        "unix:///run/forgejo-runner-codeberg/podman.sock",
+                    )],
+                ),
+            ],
         )),
         clock,
     );
     group.update(
-        CiTasksMessage::Runner(
-            SHOWN_RUNNER.to_owned(),
-            SnapshotDelivery::fixture_delivered(
-                Ok(ForgejoRunnerTasks {
-                    runner: CiRunnerTasks {
-                        tasks: vec![nix_task(
-                            "demo/tool",
-                            "11282424",
-                            "build",
-                            TaskUsage::Measured {
-                                cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(3.3)),
-                                resident_memory: ByteSize::mib(640),
-                            },
-                            Duration::from_mins(1),
-                            clock,
-                        )],
-                        access: RunnerAccess::Complete,
-                    },
-                }),
-                polling_cadence(),
-            ),
-        ),
+        CiRunsMessage::WoodpeckerRunner(SHOWN_RUNNER.to_owned(), woodpecker_delivery(clock)),
         clock,
     );
-    ShowcasedGroup::ForgejoTasks(Box::new(group))
+    group.update(
+        CiRunsMessage::ForgejoRunner(SHOWN_RUNNER.to_owned(), forgejo_delivery(clock)),
+        clock,
+    );
+    ShowcasedGroup::CiRuns(Box::new(group))
 }

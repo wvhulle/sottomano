@@ -3,7 +3,7 @@ pub mod appearance_presets_group;
 pub mod audio_group;
 pub mod bluetooth_adapters_group;
 pub mod caldav_group;
-pub mod ci_task_group_item;
+pub mod ci_runs_group;
 pub mod claude_usage_group;
 pub mod clock_group;
 pub mod color_temperature_group;
@@ -13,7 +13,6 @@ pub mod dark_mode_group;
 mod echo_probe_window_rows;
 pub mod ethernet_ports_group;
 pub mod fixed_panel_group;
-pub mod forgejo_tasks_group;
 pub mod gamepad_group;
 pub mod gpu_group;
 pub mod idle_pause_groups;
@@ -58,7 +57,6 @@ pub mod widget_group_identity;
 pub mod wifi_adapters_group;
 pub mod window_group;
 pub mod wireguard_tunnels_group;
-pub mod woodpecker_tasks_group;
 pub mod workspaces_group;
 
 use sottomano_desktop_sources::{
