@@ -25,13 +25,28 @@ pub struct ForgejoTaskStart {
     pub(super) unit_name: String,
     pub(super) task_id: u64,
     pub(super) repository: String,
+    pub(super) instance_url: Option<String>,
 }
 
-fn parse_task_start_message(message: &str) -> Option<(u64, &str)> {
+struct ParsedTaskStart<'message> {
+    task_id: u64,
+    repository: &'message str,
+    instance_url: Option<&'message str>,
+}
+
+fn parse_task_start_message(message: &str) -> Option<ParsedTaskStart<'_>> {
     let (_, after_task) = message.split_once("task ")?;
     let (task_id, after_repo) = after_task.split_once(" repo is ")?;
-    let repository = after_repo.split_whitespace().next()?;
-    Some((task_id.parse().ok()?, repository))
+    let mut repo_words = after_repo.split_whitespace();
+    let repository = repo_words.next()?;
+    let instance_url = repo_words
+        .map(|word| word.trim_end_matches('"'))
+        .rfind(|word| word.starts_with("http"));
+    Some(ParsedTaskStart {
+        task_id: task_id.parse().ok()?,
+        repository,
+        instance_url,
+    })
 }
 
 impl JournalEvent for ForgejoTaskStart {
@@ -46,11 +61,12 @@ impl JournalEvent for ForgejoTaskStart {
     }
 
     fn admit(record: ForgejoTaskStartRecord, at: SystemTime) -> Option<Self> {
-        let (task_id, repository) = parse_task_start_message(&record.message)?;
+        let parsed = parse_task_start_message(&record.message)?;
         Some(ForgejoTaskStart {
             at,
-            task_id,
-            repository: repository.to_owned(),
+            task_id: parsed.task_id,
+            repository: parsed.repository.to_owned(),
+            instance_url: parsed.instance_url.map(str::to_owned),
             unit_name: record.unit.owning_unit()?.name().to_owned(),
         })
     }
@@ -65,20 +81,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_runner_log_line_yields_task_and_repo() {
+    fn the_runner_log_line_yields_task_repo_and_instance() {
         let message = "time=\"2026-11-05T19:03:55+01:00\" level=info msg=\"task 11282424 repo is wvhulle/bindrune https://data.forgejo.org https://codeberg.org/\"";
-        assert_eq!(
-            parse_task_start_message(message),
-            Some((11_282_424, "wvhulle/bindrune"))
-        );
+        let parsed = parse_task_start_message(message).expect("the line is a task start");
+        assert_eq!(parsed.task_id, 11_282_424);
+        assert_eq!(parsed.repository, "wvhulle/bindrune");
+        assert_eq!(parsed.instance_url, Some("https://codeberg.org/"));
+    }
+
+    #[test]
+    fn a_line_without_an_instance_still_names_the_repo() {
+        let parsed = parse_task_start_message("task 7 repo is wvhulle/bindrune")
+            .expect("the line is a task start");
+        assert_eq!(parsed.repository, "wvhulle/bindrune");
+        assert_eq!(parsed.instance_url, None);
     }
 
     #[test]
     fn other_runner_log_lines_are_not_task_starts() {
-        assert_eq!(
-            parse_task_start_message("failed to fetch task: deadline exceeded"),
-            None
-        );
-        assert_eq!(parse_task_start_message("[poller] launched"), None);
+        assert!(parse_task_start_message("failed to fetch task: deadline exceeded").is_none());
+        assert!(parse_task_start_message("[poller] launched").is_none());
     }
 }

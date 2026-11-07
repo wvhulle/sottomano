@@ -115,7 +115,7 @@ impl ShellWidgetGroups {
             | HoverTarget::PodmanEngine(_)
             | HoverTarget::VirtualMachine(_)
             | HoverTarget::NspawnContainer(_)
-            | HoverTarget::CiRunner(_)
+            | HoverTarget::CiRuns(_)
             | HoverTarget::SessionFocus(_)
             | HoverTarget::AppLauncher(_)
             | HoverTarget::GroupMenu(_)

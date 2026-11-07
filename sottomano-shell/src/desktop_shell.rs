@@ -414,8 +414,7 @@ impl DesktopShell {
             | Message::LlamaServer(_)
             | Message::PodmanEngines(_)
             | Message::NspawnContainers(_)
-            | Message::WoodpeckerTasks(_)
-            | Message::ForgejoTasks(_)
+            | Message::CiRuns(_)
             | Message::SessionFocus(_)
             | Message::LoginSession(_)
             | Message::DarkMode(_)) => {

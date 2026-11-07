@@ -5,8 +5,8 @@ use futures::{Stream, StreamExt};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     ci_runner_tasks::{
-        CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskUsage, images_of,
-        sorted_unique,
+        CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskUsage, TaskWebLog,
+        images_of, sorted_unique,
         woodpecker_agent_varz::{AgentVarz, RunningWorkflow, fetch_agent_varz},
     },
     podman_container_engine::{
@@ -41,6 +41,16 @@ fn containers_of_pipeline<'engine>(
             ContainerCiIdentity::NotWoodpecker => false,
         })
         .collect()
+}
+
+fn pipeline_web_log(containers: &[&RunningContainer]) -> TaskWebLog {
+    containers
+        .iter()
+        .find_map(|container| match &container.ci_identity {
+            ContainerCiIdentity::WoodpeckerStep(identity) => identity.pipeline_url.clone(),
+            ContainerCiIdentity::NotWoodpecker => None,
+        })
+        .map_or(TaskWebLog::NotKnown, TaskWebLog::Linked)
 }
 
 fn woodpecker_tasks(varz: &AgentVarz, engine: &EngineContainers) -> Vec<CiTask> {
@@ -83,6 +93,7 @@ fn woodpecker_tasks(varz: &AgentVarz, engine: &EngineContainers) -> Vec<CiTask> 
                 ),
                 images: images_of(&containers),
                 usage: TaskUsage::of_containers(&containers),
+                web_log: pipeline_web_log(&containers),
             }
         })
         .collect()
@@ -194,6 +205,9 @@ mod tests {
                 pipeline_number: pipeline_number.to_owned(),
                 workflow_name: "checks".to_owned(),
                 step_name: step_name.to_owned(),
+                pipeline_url: Some(format!(
+                    "https://ci.codeberg.org/repos/{repository}/pipeline/{pipeline_number}"
+                )),
             }),
             cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(1.5)),
             resident_memory: ByteSize::b(2048),
@@ -217,6 +231,12 @@ mod tests {
             .expect("sottomano task is listed");
         assert_eq!(sottomano.activities, ["clippy", "test"]);
         assert_eq!(
+            sottomano.web_log,
+            TaskWebLog::Linked(
+                "https://ci.codeberg.org/repos/wvhulle/sottomano/pipeline/185".to_owned()
+            )
+        );
+        assert_eq!(
             sottomano.usage,
             TaskUsage::Measured {
                 cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(3.0)),
@@ -237,7 +257,8 @@ mod tests {
         assert!(
             tasks
                 .iter()
-                .all(|task| task.usage == TaskUsage::NoContainerNow)
+                .all(|task| task.usage == TaskUsage::NoContainerNow
+                    && task.web_log == TaskWebLog::NotKnown)
         );
     }
 

@@ -14,6 +14,7 @@ use sottomano_widgets::{
         audio_group::AudioGroup,
         bluetooth_adapters_group::BluetoothAdaptersGroup,
         caldav_group::CaldavGroup,
+        ci_runs_group::CiRunsGroup,
         claude_usage_group::ClaudeUsageGroup,
         clock_group::ClockGroup,
         color_temperature_group::ColorTemperatureGroup,
@@ -21,7 +22,6 @@ use sottomano_widgets::{
         copilot_usage_group::CopilotUsageGroup,
         dark_mode_group::{DarkModeGroup, DarkModeMessage},
         ethernet_ports_group::EthernetPortsGroup,
-        forgejo_tasks_group::ForgejoTasksGroup,
         gamepad_group::GamepadGroup,
         gpu_group::GpuGroup,
         idle_pause_groups::IdlePauseGroups,
@@ -59,7 +59,6 @@ use sottomano_widgets::{
         wifi_adapters_group::WifiAdaptersGroup,
         window_group::WindowGroup,
         wireguard_tunnels_group::WireguardTunnelsGroup,
-        woodpecker_tasks_group::WoodpeckerTasksGroup,
     },
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
@@ -116,8 +115,7 @@ pub struct ShellWidgetGroups {
     pub podman_engines_group: PodmanEnginesGroup,
     pub virtual_machines_group: VirtualMachinesGroup,
     pub nspawn_containers_group: NspawnContainersGroup,
-    pub woodpecker_tasks_group: WoodpeckerTasksGroup,
-    pub forgejo_tasks_group: ForgejoTasksGroup,
+    pub ci_runs_group: CiRunsGroup,
     pub session_focus_group: SessionFocusGroup,
     pub login_session_group: LoginSessionGroup,
     pub tray_group: TrayGroup,
@@ -183,8 +181,7 @@ impl ShellWidgetGroups {
             podman_engines_group: PodmanEnginesGroup::default(),
             virtual_machines_group: VirtualMachinesGroup::default(),
             nspawn_containers_group: NspawnContainersGroup::default(),
-            woodpecker_tasks_group: WoodpeckerTasksGroup::default(),
-            forgejo_tasks_group: ForgejoTasksGroup::default(),
+            ci_runs_group: CiRunsGroup::default(),
             session_focus_group: SessionFocusGroup::started_at(
                 &config.widget_groups.session_focus,
                 clock.utc(),
@@ -330,12 +327,8 @@ impl ShellWidgetGroups {
                 .nspawn_containers_group
                 .update(container_message, clock)
                 .map(Message::NspawnContainers),
-            Message::WoodpeckerTasks(msg) => {
-                self.woodpecker_tasks_group.update(msg, clock);
-                Task::none()
-            }
-            Message::ForgejoTasks(msg) => {
-                self.forgejo_tasks_group.update(msg, clock);
+            Message::CiRuns(message) => {
+                self.ci_runs_group.update(message, clock);
                 Task::none()
             }
             Message::SessionFocus(msg) => self
@@ -495,8 +488,7 @@ impl ShellWidgetGroups {
         self.podman_engines_group.collapse();
         self.virtual_machines_group.collapse();
         self.nspawn_containers_group.collapse();
-        self.woodpecker_tasks_group.collapse();
-        self.forgejo_tasks_group.collapse();
+        self.ci_runs_group.collapse();
         self.session_focus_group.collapse();
         self.login_session_group.collapse();
         self.notification_group.collapse();
