@@ -16,7 +16,7 @@ use sottomano_toml_config::{
 };
 
 use super::{
-    CompositorControl,
+    ControllerCustody,
     controller_button_labels::ControllerFamily,
     diagram_anchor_mapping::{button_anchor, stick_anchor},
 };
@@ -97,7 +97,7 @@ impl ControllerMarking<'_> {
 pub struct ConnectedControllerReading<'a> {
     pub gamepad: &'a ConnectedGamepad,
     pub bindings: &'a GamepadBindingsConfig,
-    pub control: CompositorControl<'a>,
+    pub custody: ControllerCustody,
     pub marking: ControllerMarking<'a>,
 }
 
@@ -175,20 +175,13 @@ impl ConnectedControllerReading<'_> {
     }
 
     fn control_description(&self) -> String {
-        match self.control {
-            CompositorControl::DrivingCompositor => {
-                "the compositor, through the bindings below".to_owned()
-            }
-            CompositorControl::HandedOverByHand => {
-                "the focused window; compositor control is switched off".to_owned()
-            }
-            CompositorControl::PausedForFocusedApp(app_id) => {
-                format!("{app_id}, which has focus; compositor bindings pause")
-            }
-            CompositorControl::PausedForFullscreenApp(app_id) => {
-                format!("{app_id}, which fills the screen; compositor bindings pause")
+        match self.custody {
+            ControllerCustody::Compositor => "the compositor, through the bindings below",
+            ControllerCustody::HandedOver => {
+                "the focused window; switch on compositor control to steer windows"
             }
         }
+        .to_owned()
     }
 
     fn paired_alias(&self) -> Option<&str> {
@@ -297,11 +290,9 @@ impl GroupItemReading for ConnectedControllerReading<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.control {
-            CompositorControl::DrivingCompositor => ReadingDisplayState::On,
-            CompositorControl::HandedOverByHand
-            | CompositorControl::PausedForFocusedApp(_)
-            | CompositorControl::PausedForFullscreenApp(_) => ReadingDisplayState::Off,
+        match self.custody {
+            ControllerCustody::Compositor => ReadingDisplayState::On,
+            ControllerCustody::HandedOver => ReadingDisplayState::Off,
         }
     }
 

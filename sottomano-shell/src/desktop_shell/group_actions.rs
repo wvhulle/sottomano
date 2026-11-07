@@ -26,10 +26,7 @@ use sottomano_widgets::{
     widgets::app_window_focus::AppWindowFocus,
 };
 
-use crate::{
-    desktop_shell::{DesktopShell, compositor_update_handling::gamepad_window_claim},
-    shell_message::Message,
-};
+use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 impl DesktopShell {
     pub(super) fn open_url(&mut self, url: String) -> Task<Message> {
@@ -142,11 +139,7 @@ impl DesktopShell {
     pub(super) fn update_gamepad(&mut self, msg: GamepadMessage) -> Task<Message> {
         self.widget_groups
             .gamepad_group
-            .update(
-                msg,
-                &self.config.widget_groups.gamepad,
-                gamepad_window_claim(&self.compositor, &self.outputs),
-            )
+            .update(msg, &self.config.widget_groups.gamepad)
             .into_task()
     }
 

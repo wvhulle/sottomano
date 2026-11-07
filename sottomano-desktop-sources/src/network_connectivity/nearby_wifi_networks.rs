@@ -84,25 +84,23 @@ fn split_known_networks(
     access_points: Vec<ApInfo>,
     profiles: Vec<WirelessProfile>,
 ) -> AdapterNearbyNetworks {
-    let (known, unknown) = strongest_network_per_ssid(access_points)
-        .into_iter()
-        .fold(
-            (Vec::new(), Vec::new()),
-            |(mut known, mut unknown), visible_network| {
-                match profiles
-                    .iter()
-                    .find(|profile| profile.ssid == visible_network.ssid)
-                {
-                    Some(profile) => known.push(KnownNetwork {
-                        settings_connection: profile.settings_connection.clone(),
-                        profile_name: profile.profile_name.clone(),
-                        visible: visible_network,
-                    }),
-                    None => unknown.push(visible_network),
-                }
-                (known, unknown)
-            },
-        );
+    let (known, unknown) = strongest_network_per_ssid(access_points).into_iter().fold(
+        (Vec::new(), Vec::new()),
+        |(mut known, mut unknown), visible_network| {
+            match profiles
+                .iter()
+                .find(|profile| profile.ssid == visible_network.ssid)
+            {
+                Some(profile) => known.push(KnownNetwork {
+                    settings_connection: profile.settings_connection.clone(),
+                    profile_name: profile.profile_name.clone(),
+                    visible: visible_network,
+                }),
+                None => unknown.push(visible_network),
+            }
+            (known, unknown)
+        },
+    );
     AdapterNearbyNetworks {
         device,
         known,
@@ -118,7 +116,11 @@ async fn adapter_nearby_networks(
         network_manager_proxies::visible_access_points(connection, &device),
         network_manager_proxies::available_wireless_profiles(connection, &device)
     )?;
-    Ok(split_known_networks(device.interface, access_points, profiles))
+    Ok(split_known_networks(
+        device.interface,
+        access_points,
+        profiles,
+    ))
 }
 
 async fn read_nearby_networks(connection: Connection) -> Result<NearbyWifiNetworks, ReadingError> {
@@ -204,7 +206,12 @@ mod tests {
         let known_ssids: Vec<_> = nearby_networks
             .known
             .iter()
-            .map(|known_network| (known_network.visible.ssid.as_str(), known_network.visible.signal))
+            .map(|known_network| {
+                (
+                    known_network.visible.ssid.as_str(),
+                    known_network.visible.signal,
+                )
+            })
             .collect();
         let unknown_ssids: Vec<_> = nearby_networks
             .unknown

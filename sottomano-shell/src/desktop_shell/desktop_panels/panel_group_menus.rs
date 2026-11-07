@@ -12,7 +12,6 @@ use crate::{
     desktop_shell::{
         DesktopShell,
         desktop_panels::panel_bar_composition::{FixedPanelEntry, StandaloneWidgetGroup},
-        gamepad_window_claim,
     },
     shell_message::Message,
 };
@@ -238,10 +237,7 @@ impl DesktopShell {
         let gamepad_groups = self
             .widget_groups
             .gamepad_group
-            .group_contents(
-                &config.widget_groups.gamepad,
-                gamepad_window_claim(&self.compositor, &self.outputs),
-            )
+            .group_contents(&config.widget_groups.gamepad)
             .into_iter()
             .map(|group| group.map(Message::Gamepad));
         let groups = media_groups

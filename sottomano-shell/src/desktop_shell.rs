@@ -76,7 +76,6 @@ use sottomano_widgets::{
     },
 };
 
-pub(crate) use self::compositor_update_handling::gamepad_window_claim;
 use self::notification_updates::GroupAlertScan;
 use crate::{
     desktop_shell::{
