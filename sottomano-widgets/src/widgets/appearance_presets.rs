@@ -86,10 +86,10 @@ impl AppearancePreset {
         match self {
             Self::ClearDark => {
                 "dark colours, see-through panels without outline, blur or shadow; a frosted, \
-                 outlined sidebar"
+                 outlined sidebar with shadow"
             }
             Self::BrightOffice => {
-                "light colours, nearly opaque panels without blur, blurred tooltips"
+                "light colours, nearly opaque panels without blur, blurred tooltips and sidebar"
             }
             Self::FrostedDark => "dark colours, translucent panels frosted with blur",
         }
@@ -99,6 +99,14 @@ impl AppearancePreset {
     pub fn applied_to(self, current: ShellAppearance) -> ShellAppearance {
         let shaped = self.shaped_layers(current);
         ShellAppearance {
+            sidebar: LayerAppearance {
+                backdrop_blur: BackdropBlur::Blurred,
+                shadow: ShadowStyle {
+                    casting: ShadowCasting::Cast,
+                    ..shaped.sidebar.shadow
+                },
+                ..shaped.sidebar
+            },
             overlays: LayerAppearance {
                 backdrop_blur: BackdropBlur::Blurred,
                 ..shaped.overlays
@@ -136,7 +144,6 @@ impl AppearancePreset {
                     },
                     sidebar: LayerAppearance {
                         opacity: 0.4,
-                        backdrop_blur: BackdropBlur::Blurred,
                         outline: OutlineStyle {
                             tracing: OutlineTracing::Drawn,
                             ..sidebar.outline
@@ -185,8 +192,38 @@ mod tests {
     use super::{AppearancePreset, ShellAppearance};
     use crate::{
         desktop_panels::region_reporter::BackdropBlur,
-        widgets::shell_layer_appearance::{LayerAppearance, LookComparison, OutlineTracing},
+        widgets::shell_layer_appearance::{
+            LayerAppearance, LookComparison, OutlineTracing, ShadowCasting, ShadowStyle,
+        },
     };
+
+    #[test]
+    fn every_preset_blurs_and_shadows_the_sidebar() {
+        let plain_sidebar = ShellAppearance {
+            sidebar: LayerAppearance {
+                backdrop_blur: BackdropBlur::Clear,
+                shadow: ShadowStyle {
+                    casting: ShadowCasting::Omitted,
+                    ..ShellAppearance::default().sidebar.shadow
+                },
+                ..ShellAppearance::default().sidebar
+            },
+            ..ShellAppearance::default()
+        };
+        for preset in AppearancePreset::ALL {
+            let applied = preset.applied_to(plain_sidebar);
+            assert_eq!(
+                applied.sidebar.backdrop_blur,
+                BackdropBlur::Blurred,
+                "{preset:?}"
+            );
+            assert_eq!(
+                applied.sidebar.shadow.casting,
+                ShadowCasting::Cast,
+                "{preset:?}"
+            );
+        }
+    }
 
     #[test]
     fn clear_dark_hides_the_panel_frames_but_keeps_a_frosted_outlined_sidebar() {
@@ -204,11 +241,9 @@ mod tests {
     fn bright_office_switches_to_light_and_near_opaque_layers() {
         let office = AppearancePreset::BrightOffice.applied_to(ShellAppearance::default());
         assert_eq!(office.scheme, ColorMode::Light);
-        assert!(
-            [office.panels, office.sidebar]
-                .iter()
-                .all(|layer| layer.opacity > 0.9 && layer.backdrop_blur == BackdropBlur::Clear)
-        );
+        assert!(office.panels.opacity > 0.9);
+        assert_eq!(office.panels.backdrop_blur, BackdropBlur::Clear);
+        assert!(office.sidebar.opacity > 0.9);
         assert!(office.overlays.opacity > 0.9);
     }
 
