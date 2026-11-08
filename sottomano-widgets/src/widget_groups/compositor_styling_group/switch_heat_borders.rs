@@ -1,18 +1,19 @@
 use iced::Task;
-use sottomano_desktop_sources::sqlite_state_store::{
-    Columns, StoreError, flag, in_table, upsert_column, with_table,
+use sottomano_desktop_sinks::compositor_window_requests::compositor_rule_files::{
+    CompositorRulesFile, RulesSaveError, SaveStep,
+};
+use sottomano_desktop_sources::{
+    compositor_window_ipc::compositor_styling_model::{
+        CompositorStyling, HeatedWindow, SwitchHeat,
+    },
+    sqlite_state_store::{Columns, StoreError, flag, in_table, upsert_column, with_table},
 };
 use sottomano_toml_config::theme::palette::Palette;
 
 use crate::{
     background_work::logged_failure_task,
     group_items::toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
-    widget_groups::niri_window_group::{
-        NiriWindowMessage,
-        niri_kdl_rules::{
-            HeatedWindow, NiriRulesFile, NiriStyling, RulesSaveError, SaveStep, SwitchHeat,
-        },
-    },
+    widget_groups::compositor_styling_group::CompositorStylingMessage,
     widgets::phosphor::{Phosphor, Weight},
 };
 
@@ -52,8 +53,11 @@ pub(super) struct SwitchHeatBorders {
 }
 
 impl SwitchHeatBorders {
-    pub(super) fn load() -> Task<NiriWindowMessage> {
-        Task::perform(load_visibility(), NiriWindowMessage::SwitchHeatLoaded)
+    pub(super) fn load() -> Task<CompositorStylingMessage> {
+        Task::perform(
+            load_visibility(),
+            CompositorStylingMessage::SwitchHeatLoaded,
+        )
     }
 
     pub(super) fn toggle(&self) -> IconToggle {
@@ -64,12 +68,12 @@ impl SwitchHeatBorders {
             SwitchPresses {
                 turning_on: "tint each window's border warmer the more often you return to it, \
                              and ring the focused window",
-                turning_off: "keep niri's own borders and focus ring",
+                turning_off: "keep the compositor's own borders and focus ring",
             },
         )
     }
 
-    pub(super) fn flip(&mut self) -> Task<NiriWindowMessage> {
+    pub(super) fn flip(&mut self) -> Task<CompositorStylingMessage> {
         self.heat_visibility = self.heat_visibility.toggled();
         logged_failure_task(
             "switch heat borders: save".to_owned(),
@@ -83,8 +87,8 @@ impl SwitchHeatBorders {
 
     pub(super) fn reheat(
         &self,
-        rules_file: &mut NiriRulesFile,
-        styling: NiriStyling,
+        rules_file: &mut CompositorRulesFile,
+        styling: CompositorStyling,
         palette: &Palette,
         heated_windows: impl FnOnce() -> Vec<HeatedWindow>,
     ) -> Result<SaveStep, RulesSaveError> {

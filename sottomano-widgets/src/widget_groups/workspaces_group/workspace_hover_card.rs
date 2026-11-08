@@ -1,8 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use iced::Size;
-use sottomano_desktop_sources::desktop_windows_apps::{
-    window_title_labels::IconCandidate, workspace_window_snapshot,
+use sottomano_desktop_sources::{
+    compositor_window_ipc::compositor_styling_model::AppWindowLayout,
+    desktop_windows_apps::{window_title_labels::IconCandidate, workspace_window_snapshot},
 };
 
 use crate::{
@@ -12,14 +13,13 @@ use crate::{
         hover_card_figure_payloads::{PreviewTile, WorkspacePreview},
         hover_card_source_delivery::{DeliveryTiming, HoverCard},
     },
-    widget_groups::niri_window_group::niri_kdl_rules::NiriLayout,
 };
 
 #[must_use]
 pub fn hover_card(
     snapshot: &workspace_window_snapshot::Snapshot,
     icons: &DesktopIndex,
-    niri_layout: NiriLayout,
+    app_window_layout: AppWindowLayout,
     workspace: u64,
 ) -> Option<HoverCard> {
     let windows = snapshot.windows_on_workspace(workspace);
@@ -38,7 +38,7 @@ pub fn hover_card(
                 .filter(|window| window.layout.is_floating)
                 .map(&tile)
                 .collect(),
-            niri_layout,
+            app_window_layout,
         })),
         DeliveryTiming::LivePush,
     ))

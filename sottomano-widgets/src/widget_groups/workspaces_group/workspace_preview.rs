@@ -72,7 +72,7 @@ impl<'a> WorkspaceSchematic<'a> {
     }
 
     fn tile_gap(&self) -> f32 {
-        self.preview.niri_layout.gaps_px * self.config.widget_groups.workspaces.preview_scale
+        self.preview.app_window_layout.gaps_px * self.config.widget_groups.workspaces.preview_scale
     }
 
     fn column(&self, tiles: &[PreviewTile]) -> Element<'static, PopupMessage> {
@@ -104,7 +104,7 @@ impl<'a> WorkspaceSchematic<'a> {
             .align_y(Vertical::Top);
 
         let outline = tile_outline(tile);
-        let radius = Radius::from(self.preview.niri_layout.window_corner_radius_px);
+        let radius = Radius::from(self.preview.app_window_layout.window_corner_radius_px);
         let tile_layer = if tile.is_floating {
             TileLayer::Floating
         } else {

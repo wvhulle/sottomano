@@ -277,9 +277,9 @@ impl DesktopShell {
                 .group_content(config)
                 .map(Message::OverlaySettings),
             self.widget_groups
-                .niri_window_group
+                .compositor_styling_group
                 .group_content(config)
-                .map(Message::NiriWindow),
+                .map(Message::CompositorStyling),
             self.widget_groups
                 .group_menus
                 .settings_content(config)

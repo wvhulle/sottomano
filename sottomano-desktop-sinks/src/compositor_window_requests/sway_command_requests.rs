@@ -58,6 +58,7 @@ fn sway_command_of(
         }
         CompositorRequest::PowerOffMonitors => text("output * power off".to_owned()),
         CompositorRequest::Quit => text("exit".to_owned()),
+        CompositorRequest::ReloadConfig => text("reload".to_owned()),
         CompositorRequest::Spawn(command) => SwayCommand::Launch(command.clone()),
         CompositorRequest::MoveWorkspaceToIndex { .. }
         | CompositorRequest::MoveNamedWorkspaceToIndex { .. }

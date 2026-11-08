@@ -10,7 +10,9 @@ workspace = true
 [dependencies]
 sottomano-desktop-sources = { path = "../sottomano-desktop-sources" }
 sottomano-toml-config = { path = "../sottomano-toml-config" }
+club-kdl = { version = "0.14.1", features = ["kdl-rs"], optional = true }
 freedesktop-sound = "0.1.0"
+kdl = { workspace = true, optional = true }
 futures.workspace = true
 niri-ipc = { workspace = true, optional = true }
 notulist-client.workspace = true
@@ -27,5 +29,5 @@ zbus.workspace = true
 [features]
 hyprland = ["sottomano-desktop-sources/hyprland"]
 libvirt-domains = ["dep:virt", "sottomano-desktop-sources/libvirt-domains"]
-niri = ["dep:niri-ipc", "sottomano-desktop-sources/niri"]
+niri = ["dep:club-kdl", "dep:kdl", "dep:niri-ipc", "sottomano-desktop-sources/niri"]
 sway = ["dep:swayipc-types", "sottomano-desktop-sources/sway"]

@@ -1,4 +1,5 @@
 use iced::Task;
+use sottomano_desktop_sinks::compositor_window_requests::compositor_rule_files::CompositorRulesFile;
 use sottomano_desktop_sources::{
     compositor_window_ipc::compositor_window_state::CompositorWindowState,
     desktop_windows_apps::desktop_entry_app_icons::DesktopEntries,
@@ -19,6 +20,7 @@ use sottomano_widgets::{
         claude_usage_group::ClaudeUsageGroup,
         clock_group::ClockGroup,
         color_temperature_group::ColorTemperatureGroup,
+        compositor_styling_group::CompositorStylingGroup,
         compute_group::{ComputeGroup, ComputeMessage},
         copilot_usage_group::CopilotUsageGroup,
         dark_mode_group::{DarkModeGroup, DarkModeMessage},
@@ -34,7 +36,6 @@ use sottomano_widgets::{
         mobile_modems_group::MobileModemsGroup,
         monitor_group::MonitorGroup,
         network_manager_vpn_group::NetworkManagerVpnGroup,
-        niri_window_group::{NiriWindowGroup, niri_kdl_rules::NiriRulesFile},
         notification_group::NotificationGroup,
         nspawn_containers_group::NspawnContainersGroup,
         openrouter_credit_group::OpenRouterCreditGroup,
@@ -84,7 +85,7 @@ pub struct ShellWidgetGroups {
     pub sidebar_settings_group: SidebarSettingsGroup,
     pub appearance_presets_group: AppearancePresetsGroup,
     pub overlay_settings_group: OverlaySettingsGroup,
-    pub niri_window_group: NiriWindowGroup,
+    pub compositor_styling_group: CompositorStylingGroup,
     pub clock_group: ClockGroup,
     pub notification_group: NotificationGroup,
     pub quiet_schedule_group: QuietScheduleGroup,
@@ -128,7 +129,7 @@ impl ShellWidgetGroups {
     pub fn new(
         config: &Config,
         secrets: SecretPaths,
-        niri_rules: NiriRulesFile,
+        compositor_rules: CompositorRulesFile,
         clock: Clock,
     ) -> Self {
         Self {
@@ -145,7 +146,7 @@ impl ShellWidgetGroups {
             sidebar_settings_group: SidebarSettingsGroup::default(),
             appearance_presets_group: AppearancePresetsGroup::default(),
             overlay_settings_group: OverlaySettingsGroup::default(),
-            niri_window_group: NiriWindowGroup::new(niri_rules),
+            compositor_styling_group: CompositorStylingGroup::new(compositor_rules),
             clock_group: ClockGroup::default(),
             notification_group: NotificationGroup::default(),
             quiet_schedule_group: QuietScheduleGroup::default(),
@@ -208,7 +209,9 @@ impl ShellWidgetGroups {
             QuietScheduleGroup::load().map(Message::QuietSchedule),
             DarkModeGroup::load().map(Message::DarkMode),
             GamepadGroup::load().map(Message::Gamepad),
-            self.niri_window_group.load().map(Message::NiriWindow),
+            self.compositor_styling_group
+                .load()
+                .map(Message::CompositorStyling),
         ])
     }
 
@@ -248,7 +251,10 @@ impl ShellWidgetGroups {
                 .sidebar_settings_group
                 .update(msg)
                 .map(Message::SidebarSettings),
-            Message::NiriWindow(msg) => self.niri_window_group.update(msg).map(Message::NiriWindow),
+            Message::CompositorStyling(msg) => self
+                .compositor_styling_group
+                .update(msg)
+                .map(Message::CompositorStyling),
             Message::Clock(msg) => self.clock_group.update(msg, clock).map(Message::Clock),
             Message::SystemdManager(msg) => self
                 .systemd_manager_group
@@ -355,11 +361,11 @@ impl ShellWidgetGroups {
         clock: Clock,
     ) -> Task<Message> {
         let session_focus_group = &self.session_focus_group;
-        self.niri_window_group
+        self.compositor_styling_group
             .reheat(config, || {
                 session_focus_group.heated_windows(compositor, config, clock)
             })
-            .map(Message::NiriWindow)
+            .map(Message::CompositorStyling)
     }
 
     #[must_use]
@@ -454,7 +460,7 @@ impl ShellWidgetGroups {
         self.panel_settings_group.collapse();
         self.sidebar_settings_group.collapse();
         self.overlay_settings_group.collapse();
-        self.niri_window_group.collapse();
+        self.compositor_styling_group.collapse();
         self.monitor_group.collapse();
         self.color_temperature_group.collapse();
         self.dark_mode_group.collapse();

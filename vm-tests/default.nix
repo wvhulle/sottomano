@@ -6,7 +6,10 @@ let
     "hyprland"
   ];
 
-  scenarioNames = [ "panel-mapped" ];
+  scenarioNames = [
+    "panel-mapped"
+    "styling-rules"
+  ];
 
   machineFor = compositorName: {
     imports = [

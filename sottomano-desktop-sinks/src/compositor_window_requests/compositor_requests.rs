@@ -50,6 +50,7 @@ pub enum CompositorRequest {
     Spawn(Vec<String>),
     PowerOffMonitors,
     Quit,
+    ReloadConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -135,6 +136,11 @@ pub async fn send_compositor_request(
         Some(CompositorKind::Sway) => send_sway_request(&request).await,
         #[cfg(feature = "hyprland")]
         Some(CompositorKind::Hyprland) => send_hyprland_request(&request).await,
+        #[allow(unreachable_patterns)]
+        Some(compositor) => Err(CompositorRequestFailure::Unsupported {
+            request: format!("{request:?}"),
+            compositor: compositor.name(),
+        }),
         None => Err(CompositorRequestFailure::Unreachable {
             request: format!("{request:?}"),
             reason: missing_compositor_reason(),

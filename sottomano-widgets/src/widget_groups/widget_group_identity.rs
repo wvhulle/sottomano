@@ -33,7 +33,8 @@ pub enum WidgetGroupFamily {
     MemoryBoard,
     MobileModems,
     Monitor,
-    NiriWindow,
+    #[strum(serialize = "niri_window")]
+    CompositorStyling,
     Notification,
     NspawnContainers,
     OpenRouterCredit,
@@ -91,7 +92,7 @@ impl WidgetGroupFamily {
             WidgetGroupFamily::MemoryBoard => "Memory",
             WidgetGroupFamily::MobileModems => "Mobile modem",
             WidgetGroupFamily::Monitor => "Monitor",
-            WidgetGroupFamily::NiriWindow => "Niri",
+            WidgetGroupFamily::CompositorStyling => "Window styling",
             WidgetGroupFamily::Notification => "Notifications",
             WidgetGroupFamily::OpenRouterCredit => "OpenRouter credit",
             WidgetGroupFamily::OverlaySettings => "Overlays",

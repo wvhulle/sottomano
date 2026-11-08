@@ -11,7 +11,9 @@ use chrono::{DateTime, TimeDelta, Utc};
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::login_session_presence::logind_session_commands::perform_session_action;
 use sottomano_desktop_sources::{
-    compositor_window_ipc::compositor_window_state::CompositorWindowState,
+    compositor_window_ipc::{
+        compositor_styling_model::HeatedWindow, compositor_window_state::CompositorWindowState,
+    },
     desktop_notifications::notification_data::ActionTint,
     desktop_windows_apps::terminal_emulator_windows::WindowProcesses,
     login_session_presence::{
@@ -30,7 +32,6 @@ use crate::{
         hover_card_body::hover_card_source_delivery::{DeliveryTiming, HoverCard},
     },
     widget_groups::{
-        niri_window_group::niri_kdl_rules::HeatedWindow,
         session_focus_group::{
             break_log::BreakLog,
             context_switch_rate::ContextSwitchRate,

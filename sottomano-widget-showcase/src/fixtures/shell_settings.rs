@@ -1,12 +1,13 @@
 use std::path::Path;
 
+use sottomano_desktop_sinks::compositor_window_requests::compositor_rule_files::CompositorRulesFile;
+use sottomano_desktop_sources::compositor_window_ipc::compositor_connection::CompositorKind;
 use sottomano_widgets::{
     clock::Clock,
     group_menus::group_menu_state::GroupMenuState,
     widget_groups::{
-        niri_window_group::{NiriWindowGroup, niri_kdl_rules::NiriRulesFile},
-        overlay_settings_group::OverlaySettingsGroup,
-        panel_settings_group::PanelSettingsGroup,
+        compositor_styling_group::CompositorStylingGroup,
+        overlay_settings_group::OverlaySettingsGroup, panel_settings_group::PanelSettingsGroup,
         sidebar_settings_group::SidebarSettingsGroup,
     },
 };
@@ -21,9 +22,10 @@ fn settings_showing(shown_items: ShownSettingItems) -> ShowcasedGroup {
         sidebar: SidebarSettingsGroup::default(),
         overlays: OverlaySettingsGroup::default(),
         menus: GroupMenuState::default(),
-        niri_window: NiriWindowGroup::new(NiriRulesFile::in_config_home(Path::new(
-            UNREAD_NIRI_CONFIG_HOME,
-        ))),
+        compositor_styling: CompositorStylingGroup::new(CompositorRulesFile::in_config_home(
+            Path::new(UNREAD_NIRI_CONFIG_HOME),
+            Some(CompositorKind::Niri),
+        )),
         shown_items,
     }))
 }

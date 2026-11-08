@@ -9,6 +9,7 @@ const HYPRLAND_ACCEPTED_REPLY: &str = "ok";
 
 enum HyprlandDispatch {
     Dispatcher(String),
+    Command(&'static str),
     Launch(Vec<String>),
     Unsupported,
 }
@@ -61,11 +62,29 @@ fn hyprland_dispatch_of(request: &CompositorRequest) -> HyprlandDispatch {
         CompositorRequest::CenterFocused => dispatcher("centerwindow".to_owned()),
         CompositorRequest::PowerOffMonitors => dispatcher("dpms off".to_owned()),
         CompositorRequest::Quit => dispatcher("exit".to_owned()),
+        CompositorRequest::ReloadConfig => HyprlandDispatch::Command("reload"),
         CompositorRequest::Spawn(command) => HyprlandDispatch::Launch(command.clone()),
         CompositorRequest::MoveWorkspaceToIndex { .. }
         | CompositorRequest::MoveNamedWorkspaceToIndex { .. }
         | CompositorRequest::MoveFocusedColumnToIndex(_)
         | CompositorRequest::ToggleOverview => HyprlandDispatch::Unsupported,
+    }
+}
+
+async fn hyprland_command_accepted(command: String) -> Result<(), CompositorRequestFailure> {
+    let reply = hyprland_request(&command).await.map_err(|request_error| {
+        CompositorRequestFailure::Unreachable {
+            request: command.clone(),
+            reason: request_error.to_string(),
+        }
+    })?;
+    if reply.trim() == HYPRLAND_ACCEPTED_REPLY {
+        Ok(())
+    } else {
+        Err(CompositorRequestFailure::Rejected {
+            request: command,
+            reason: reply.trim().to_owned(),
+        })
     }
 }
 
@@ -79,21 +98,9 @@ pub async fn send_hyprland_request(
             compositor: "Hyprland",
         }),
         HyprlandDispatch::Dispatcher(dispatcher) => {
-            let reply = hyprland_request(&format!("dispatch {dispatcher}"))
-                .await
-                .map_err(|request_error| CompositorRequestFailure::Unreachable {
-                    request: dispatcher.clone(),
-                    reason: request_error.to_string(),
-                })?;
-            if reply.trim() == HYPRLAND_ACCEPTED_REPLY {
-                Ok(())
-            } else {
-                Err(CompositorRequestFailure::Rejected {
-                    request: dispatcher,
-                    reason: reply.trim().to_owned(),
-                })
-            }
+            hyprland_command_accepted(format!("dispatch {dispatcher}")).await
         }
+        HyprlandDispatch::Command(command) => hyprland_command_accepted(command.to_owned()).await,
     }
 }
 
@@ -105,7 +112,9 @@ mod tests {
     fn dispatcher(request: &CompositorRequest) -> Option<String> {
         match hyprland_dispatch_of(request) {
             HyprlandDispatch::Dispatcher(dispatcher) => Some(dispatcher),
-            HyprlandDispatch::Launch(_) | HyprlandDispatch::Unsupported => None,
+            HyprlandDispatch::Launch(_)
+            | HyprlandDispatch::Command(_)
+            | HyprlandDispatch::Unsupported => None,
         }
     }
 

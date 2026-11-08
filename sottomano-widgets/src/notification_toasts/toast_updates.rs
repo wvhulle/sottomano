@@ -464,7 +464,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         Task::batch(tasks)
     }
 
-    pub fn on_niri_changed(
+    pub fn on_compositor_changed(
         &mut self,
         placement: &Placement,
         config: &Config,

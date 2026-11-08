@@ -3,12 +3,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use iced::{Padding, Task, window::Id};
 pub use iced_exwlshell::reexport::Margin;
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
-use sottomano_desktop_sources::compositor_window_ipc::compositor_connection;
-use sottomano_toml_config::screen_edges::Position;
-use sottomano_widgets::{
-    layer_surfaces::{base_settings, input_regions},
-    widget_groups::niri_window_group::niri_kdl_rules::StyledSurface,
+use sottomano_desktop_sources::compositor_window_ipc::{
+    compositor_connection, compositor_styling_model::StyledSurface,
 };
+use sottomano_toml_config::screen_edges::Position;
+use sottomano_widgets::layer_surfaces::{base_settings, input_regions};
 
 use crate::{
     desktop_shell::DesktopShell,
