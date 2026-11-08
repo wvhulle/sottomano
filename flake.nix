@@ -183,26 +183,49 @@
         ) allocatorEnv
       );
 
-      sottomano = craneLib.buildPackage (
-        shellArgs
-        // {
-          cargoArtifacts = shellArtifacts;
-          nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.makeWrapper ];
-          postInstall = ''
-            wrapProgram $out/bin/sottomano \
-              ${allocatorWrapperFlags} \
-              --prefix PATH : ${gsettingsRuntime.binPath} \
-              --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
-              --prefix LD_LIBRARY_PATH : ${runtimeLibraryPath} \
-              --prefix XDG_DATA_DIRS : ${gsettingsRuntime.schemaDir} \
-              --prefix XDG_DATA_DIRS : ${soundThemeShare} \
-              --prefix GIO_EXTRA_MODULES : ${gsettingsRuntime.gioModules}
-          '';
-          meta.mainProgram = "sottomano";
-          meta.platforms = pkgs.lib.platforms.linux;
-          meta.license = pkgs.lib.licenses.gpl3Plus;
-        }
-      );
+      allCompositors = [
+        "niri"
+        "sway"
+        "hyprland"
+      ];
+
+      compositorCargoArgs =
+        compositors:
+        if pkgs.lib.naturalSort compositors == pkgs.lib.naturalSort allCompositors then
+          shellArgs.cargoExtraArgs
+        else
+          "${shellArgs.cargoExtraArgs} --no-default-features --features ${
+            pkgs.lib.concatStringsSep "," (compositors ++ [ "libvirt-domains" ])
+          }";
+
+      mkSottomano =
+        {
+          compositors ? allCompositors,
+        }:
+        craneLib.buildPackage (
+          shellArgs
+          // {
+            cargoArtifacts = shellArtifacts;
+            cargoExtraArgs = compositorCargoArgs compositors;
+            nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.makeWrapper ];
+            postInstall = ''
+              wrapProgram $out/bin/sottomano \
+                ${allocatorWrapperFlags} \
+                --prefix PATH : ${gsettingsRuntime.binPath} \
+                --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
+                --prefix LD_LIBRARY_PATH : ${runtimeLibraryPath} \
+                --prefix XDG_DATA_DIRS : ${gsettingsRuntime.schemaDir} \
+                --prefix XDG_DATA_DIRS : ${soundThemeShare} \
+                --prefix GIO_EXTRA_MODULES : ${gsettingsRuntime.gioModules}
+            '';
+            passthru = { inherit compositors; };
+            meta.mainProgram = "sottomano";
+            meta.platforms = pkgs.lib.platforms.linux;
+            meta.license = pkgs.lib.licenses.gpl3Plus;
+          }
+        );
+
+      sottomano = pkgs.lib.makeOverridable mkSottomano { };
 
       showcaseFonts = {
         nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.fontconfig ];
@@ -279,6 +302,20 @@
           }
         );
       }
+      // pkgs.lib.listToAttrs (
+        map (compositor: {
+          name = "clippy-only-${compositor}";
+          value = craneLib.cargoClippy (
+            workspaceArgs
+            // {
+              pname = "sottomano-only-${compositor}";
+              cargoArtifacts = workspaceArtifacts;
+              cargoExtraArgs = "--locked -p sottomano-shell --no-default-features --features ${compositor}";
+              cargoClippyExtraArgs = "--all-targets";
+            }
+          );
+        }) allCompositors
+      )
       // vmTests.checksFor pkgs;
 
       homeModules.default = {

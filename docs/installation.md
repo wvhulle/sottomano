@@ -145,6 +145,10 @@ itself, as [its page](compositors/hyprland.md#window-styling-rules) shows.
   NixOS `run-*-vm` script you start opens a QMP socket in its own temporary
   directory, which the virtual machines group uses to show a paused VM and power
   it off. An existing `QEMU_OPTS` wins.
+- `compositors` (default `[ "niri" "sway" "hyprland" ]`) lists the
+  compositors compiled into the bar. Listing only yours gives a smaller build;
+  the bar still finds the running one at startup, and names the missing entry
+  if it runs under a compositor left out of the list.
 - `systemdUnit` (default `true`) adds a user service bound to
   `graphical-session.target`. Disable it to start sottomano from the
   compositor's own startup commands instead.
@@ -196,6 +200,10 @@ export SIMPLE_ICONS_SVG=~/src/simple-icons/icons
 export WEATHER_ICONS_SVG=~/src/weather-icons/svg
 cargo install --locked --path sottomano-shell
 ```
+
+To compile in only your compositor, add
+`--no-default-features --features niri,libvirt-domains` (or `sway`, `hyprland`)
+to `cargo install`.
 
 ### Runtime tools and services
 
