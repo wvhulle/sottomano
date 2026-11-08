@@ -42,9 +42,9 @@ enum MemoryAlarmCause {
 impl MemoryAlarmCause {
     const fn summary_text(self) -> &'static str {
         match self {
-            MemoryAlarmCause::FillingFast => "Memory filling fast",
-            MemoryAlarmCause::UnderPressure => "Memory under pressure",
-            MemoryAlarmCause::AlmostFull => "Memory almost full",
+            MemoryAlarmCause::FillingFast => "RAM filling fast",
+            MemoryAlarmCause::UnderPressure => "RAM under pressure",
+            MemoryAlarmCause::AlmostFull => "RAM almost full",
         }
     }
 }
@@ -111,7 +111,7 @@ impl ReadingSections for MemoryProcesses {
 
 impl GroupItemReading for MemoryTrend {
     fn name(&self) -> &'static str {
-        "Memory"
+        "RAM"
     }
 
     fn icon(&self) -> IconGlyph {
@@ -174,7 +174,7 @@ impl GroupItemReading for MemoryTrend {
         HoverCardBody::dictionary(
             [
                 LabeledValue::new(
-                    "Memory",
+                    "RAM used",
                     Quantity::share(percent_fill(self.usage.percent())),
                 ),
                 LabeledValue::new("Used", Quantity::size(self.usage.used)),
@@ -241,9 +241,9 @@ mod tests {
         );
         assert_eq!(stalled.state(Clock::real()), ReadingDisplayState::Warning);
         assert_eq!(filling.state(Clock::real()), ReadingDisplayState::Critical);
-        assert_eq!(summary_of(&nearly_full), "Memory almost full");
-        assert_eq!(summary_of(&stalled), "Memory under pressure");
-        assert_eq!(summary_of(&filling), "Memory filling fast");
+        assert_eq!(summary_of(&nearly_full), "RAM almost full");
+        assert_eq!(summary_of(&stalled), "RAM under pressure");
+        assert_eq!(summary_of(&filling), "RAM filling fast");
     }
 
     #[test]
@@ -253,7 +253,7 @@ mod tests {
             exhaustion_projection: Some(Duration::from_secs(200)),
             ..memory_at(40)
         };
-        assert_eq!(summary_of(&memory), "Memory under pressure");
+        assert_eq!(summary_of(&memory), "RAM under pressure");
     }
 
     #[test]
