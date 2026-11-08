@@ -7,6 +7,8 @@
   environment.etc."sottomano-test/sway.conf".text = ''
     output Virtual-1 resolution 1280x800
     output * bg #202020 solid_color
+    default_border none
+    default_floating_border none
     include /home/session-user/.config/sottomano/sway.conf
     exec ${pkgs.dbus}/bin/dbus-update-activation-environment --systemd WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP && systemctl --user start compositor-test-session.target
   '';

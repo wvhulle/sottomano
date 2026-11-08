@@ -31,14 +31,6 @@ def wait_as_user(command, timeout=60):
     return machine.wait_until_succeeds(user_command(command), timeout=timedelta(seconds=timeout))
 
 
-def compositor_query(query_name):
-    if COMPOSITOR == "niri":
-        return json.loads(as_user(f"niri msg --json {query_name}"))
-    if COMPOSITOR == "sway":
-        return json.loads(as_user(f"swaymsg --raw -t get_{query_name}"))
-    return json.loads(as_user(f"hyprctl -j {query_name}"))
-
-
 def wait_for_compositor():
     machine.wait_for_unit("multi-user.target")
     wait_as_user(
@@ -65,6 +57,52 @@ def wait_for_layer_namespace(namespace, timeout=60):
     )
 
 
+def spawn_named_window(window_name):
+    command = f"foot --app-id={window_name} --title={window_name} sleep infinity"
+    as_user(
+        {
+            "niri": f"niri msg action spawn -- {command}",
+            "sway": f"swaymsg exec {shlex.quote(command)}",
+            "hyprland": "hyprctl dispatch "
+            + shlex.quote(f"hl.dsp.exec_cmd({json.dumps(command)})"),
+        }[COMPOSITOR]
+    )
+
+
+def focus_workspace_number(number):
+    as_user(
+        {
+            "niri": f"niri msg action focus-workspace {number}",
+            "sway": f"swaymsg workspace number {number}",
+            "hyprland": "hyprctl dispatch "
+            + shlex.quote(f"hl.dsp.focus({{ workspace = {number} }})"),
+        }[COMPOSITOR]
+    )
+
+
+FOCUSED_WINDOW_NAME_QUERIES = {
+    "niri": "niri msg --json focused-window | jq -r '.app_id'",
+    "sway": "swaymsg --raw -t get_tree | jq -r '.. | objects | select(.focused == true) | .app_id'",
+    "hyprland": "hyprctl -j activewindow | jq -r '.class'",
+}
+
+
+def wait_for_focused_window(window_name, timeout=60):
+    wait_as_user(
+        f"{FOCUSED_WINDOW_NAME_QUERIES[COMPOSITOR]} | grep -qx {shlex.quote(window_name)}",
+        timeout=timeout,
+    )
+
+
+COMPOSITOR_STATE_QUERIES = {
+    "niri": ["niri msg --json windows", "niri msg --json workspaces", "niri msg --json outputs"],
+    "sway": ["swaymsg --raw -t get_tree", "swaymsg --raw -t get_workspaces"],
+    "hyprland": ["hyprctl -j clients", "hyprctl -j workspaces", "hyprctl -j monitors"],
+}
+
+
 def dump_session_state():
+    for query in COMPOSITOR_STATE_QUERIES[COMPOSITOR]:
+        machine.execute(user_command(f"{query} >&2"))
     machine.execute(user_command("journalctl --user --no-pager -n 200 >&2"))
     machine.screenshot("failure_state")

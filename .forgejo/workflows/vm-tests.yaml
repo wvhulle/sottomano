@@ -1,0 +1,46 @@
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  vm-tests:
+    runs-on: nix
+    env:
+      NIX_CONFIG: |
+        experimental-features = nix-command flakes
+        extra-system-features = kvm nixos-test
+        max-jobs = 1
+        extra-substituters = https://wvhulle.cachix.org
+        extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
+    steps:
+      - name: Clone the commit
+        run: |
+          git init --quiet
+          git remote add origin "${{ github.server_url }}/${{ github.repository }}.git"
+          git fetch --quiet --depth 1 origin "${{ github.sha }}"
+          git checkout --quiet FETCH_HEAD
+
+      - name: Require KVM
+        run: test -r /dev/kvm -a -w /dev/kvm
+
+      - name: niri session
+        run: >-
+          nix build --quiet --no-link --print-build-logs
+          .#checks.x86_64-linux.vm-niri-panel-mapped
+          .#checks.x86_64-linux.vm-niri-styling-rules
+          .#checks.x86_64-linux.vm-niri-workspace-follow
+
+      - name: sway session
+        run: >-
+          nix build --quiet --no-link --print-build-logs
+          .#checks.x86_64-linux.vm-sway-panel-mapped
+          .#checks.x86_64-linux.vm-sway-styling-rules
+          .#checks.x86_64-linux.vm-sway-workspace-follow
+
+      - name: Hyprland session
+        run: >-
+          nix build --quiet --no-link --print-build-logs
+          .#checks.x86_64-linux.vm-hyprland-panel-mapped
+          .#checks.x86_64-linux.vm-hyprland-styling-rules
+          .#checks.x86_64-linux.vm-hyprland-workspace-follow
