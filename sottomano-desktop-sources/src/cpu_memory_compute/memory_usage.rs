@@ -70,7 +70,7 @@ impl SnapshotSource for MemoryTrend {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "Memory";
+    const NAME: &'static str = "RAM";
 
     fn delivery_stream(
         (): Self::StreamInputs,
