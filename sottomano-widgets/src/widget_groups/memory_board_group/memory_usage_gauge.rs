@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use chrono::Locale;
+use quick_xml::escape::escape;
 use sottomano_desktop_sources::cpu_memory_compute::{
     memory_module_temperatures::MemoryModuleTemperatures,
     memory_usage::{MemoryProcesses, MemoryTrend, Swap},
@@ -20,6 +21,7 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
         localized_quantities::Quantity,
+        ongoing_toast::definition_list,
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
@@ -135,19 +137,28 @@ impl GroupItemReading for MemoryTrend {
     }
 
     fn ongoing_toast_body(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        let exhaustion = self
+        let exhaustion_row = self
             .exhaustion_projection
             .filter(|remaining| *remaining < EXHAUSTION_WARNING)
-            .map(|remaining| format!("full in {}", duration_text(remaining, locale)));
-        let growers = self.growing_processes.iter().map(|process| {
-            format!(
-                "{} +{}/min",
-                process.name,
-                Quantity::size(process.growth_per_minute).localized_text(locale)
+            .map(|remaining| ("Full in".to_owned(), duration_text(remaining, locale)));
+        let grower_rows = self.growing_processes.iter().map(|process| {
+            (
+                escape(process.name.as_str()).into_owned(),
+                format!(
+                    "+{}/min",
+                    Quantity::size(process.growth_per_minute).localized_text(locale)
+                ),
             )
         });
-        let fragments: Vec<String> = exhaustion.into_iter().chain(growers).collect();
-        (!fragments.is_empty()).then(|| fragments.join(" · "))
+        let body_rows: Vec<(String, String)> =
+            exhaustion_row.into_iter().chain(grower_rows).collect();
+        (!body_rows.is_empty()).then(|| {
+            definition_list(
+                body_rows
+                    .iter()
+                    .map(|(row_key, row_value)| (row_key.as_str(), row_value.clone())),
+            )
+        })
     }
 
     fn gauge(&self) -> Option<Ratio> {
@@ -271,8 +282,8 @@ mod tests {
         let body = memory
             .ongoing_toast_body(Clock::real(), Locale::en_US)
             .expect("an alarming reading has a body");
-        assert!(body.starts_with("full in"), "{body}");
-        assert!(body.contains("firefox +"), "{body}");
-        assert!(body.ends_with("/min"), "{body}");
+        assert!(body.starts_with("<dl><dt>Full in</dt><dd>"), "{body}");
+        assert!(body.contains("<dt>firefox</dt><dd>+"), "{body}");
+        assert!(!body.contains('·'), "{body}");
     }
 }
