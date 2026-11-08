@@ -1,8 +1,8 @@
-use std::{collections::HashMap, io, process, thread};
+use std::{collections::HashMap, fmt::Display, process};
 
 use futures::{Stream, StreamExt, stream};
-use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
+#[cfg(feature = "niri")]
+use tokio::task::spawn_blocking;
 
 use crate::compositor_window_ipc::{
     compositor_output_facts::OutputInfo, compositor_window_state::CompositorUpdate,
@@ -11,7 +11,7 @@ use crate::compositor_window_ipc::{
 use crate::compositor_window_ipc::{
     hyprland_socket_connection::hyprland_signature_variable,
     hyprland_socket_events::{
-        follow_hyprland_events, hyprland_outputs, hyprland_version, hyprland_window_pids,
+        hyprland_compositor_updates, hyprland_outputs, hyprland_version, hyprland_window_pids,
     },
 };
 #[cfg(feature = "niri")]
@@ -22,7 +22,7 @@ use crate::compositor_window_ipc::{
 #[cfg(feature = "sway")]
 use crate::compositor_window_ipc::{
     sway_ipc_connection::sway_socket_variable,
-    sway_ipc_events::{follow_sway_events, sway_outputs, sway_version, sway_window_pids},
+    sway_ipc_events::{sway_compositor_updates, sway_outputs, sway_version, sway_window_pids},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,23 +108,25 @@ pub fn missing_compositor_reason() -> String {
     )
 }
 
-fn exit_without_compositor_events(compositor: &str, reason: &io::Error) -> ! {
+fn exit_without_compositor_events(compositor: &str, reason: &dyn Display) -> ! {
     tracing::error!("{compositor}: {reason}; the bar cannot run without compositor events");
     process::exit(1)
 }
 
 #[cfg_attr(not(any(feature = "sway", feature = "hyprland")), allow(dead_code))]
-fn updates_followed_on_thread(
+fn followed_until_failure<Failure: Display>(
     compositor: &'static str,
-    follower: fn(&mpsc::Sender<CompositorUpdate>) -> io::Result<()>,
+    updates: impl Stream<Item = Result<CompositorUpdate, Failure>> + Send,
 ) -> impl Stream<Item = CompositorUpdate> + Send {
-    let (sender, receiver) = mpsc::channel(16);
-    thread::spawn(move || {
-        if let Err(follow_failure) = follower(&sender) {
-            exit_without_compositor_events(compositor, &follow_failure);
-        }
-    });
-    ReceiverStream::new(receiver)
+    updates
+        .map(move |update| {
+            update.unwrap_or_else(|follow_failure| {
+                exit_without_compositor_events(compositor, &follow_failure)
+            })
+        })
+        .chain(stream::poll_fn(move |_| {
+            exit_without_compositor_events(compositor, &"the event stream ended")
+        }))
 }
 
 pub fn compositor_updates() -> impl Stream<Item = CompositorUpdate> + Send {
@@ -133,11 +135,11 @@ pub fn compositor_updates() -> impl Stream<Item = CompositorUpdate> + Send {
         Some(CompositorKind::Niri) => niri_compositor_updates().boxed(),
         #[cfg(feature = "sway")]
         Some(CompositorKind::Sway) => {
-            updates_followed_on_thread("sway", follow_sway_events).boxed()
+            followed_until_failure("sway", sway_compositor_updates()).boxed()
         }
         #[cfg(feature = "hyprland")]
         Some(CompositorKind::Hyprland) => {
-            updates_followed_on_thread("Hyprland", follow_hyprland_events).boxed()
+            followed_until_failure("Hyprland", hyprland_compositor_updates()).boxed()
         }
         None => {
             tracing::error!("{}", missing_compositor_reason());
@@ -146,40 +148,48 @@ pub fn compositor_updates() -> impl Stream<Item = CompositorUpdate> + Send {
     }
 }
 
-#[must_use]
-pub fn compositor_version() -> Option<String> {
+#[cfg_attr(not(any(feature = "sway", feature = "hyprland")), allow(dead_code))]
+fn logged_query<Reply, Failure: Display>(
+    query: &str,
+    reply: Result<Reply, Failure>,
+) -> Option<Reply> {
+    reply
+        .inspect_err(|query_failure| tracing::warn!("compositor {query}: {query_failure}"))
+        .ok()
+}
+
+pub async fn compositor_version() -> Option<String> {
     match CompositorKind::detected()? {
         #[cfg(feature = "niri")]
-        CompositorKind::Niri => niri_version(),
+        CompositorKind::Niri => spawn_blocking(niri_version).await.ok().flatten(),
         #[cfg(feature = "sway")]
-        CompositorKind::Sway => sway_version(),
+        CompositorKind::Sway => logged_query("version", sway_version().await),
         #[cfg(feature = "hyprland")]
-        CompositorKind::Hyprland => hyprland_version(),
+        CompositorKind::Hyprland => logged_query("version", hyprland_version().await).flatten(),
     }
 }
 
-#[must_use]
-pub fn compositor_outputs() -> HashMap<String, OutputInfo> {
-    match CompositorKind::detected() {
+pub async fn compositor_outputs() -> HashMap<String, OutputInfo> {
+    let outputs = match CompositorKind::detected() {
         #[cfg(feature = "niri")]
-        Some(CompositorKind::Niri) => niri_outputs(),
+        Some(CompositorKind::Niri) => spawn_blocking(niri_outputs).await.ok(),
         #[cfg(feature = "sway")]
-        Some(CompositorKind::Sway) => sway_outputs(),
+        Some(CompositorKind::Sway) => logged_query("outputs", sway_outputs().await),
         #[cfg(feature = "hyprland")]
-        Some(CompositorKind::Hyprland) => hyprland_outputs(),
-        None => HashMap::new(),
-    }
+        Some(CompositorKind::Hyprland) => logged_query("outputs", hyprland_outputs().await),
+        None => None,
+    };
+    outputs.unwrap_or_default()
 }
 
-#[must_use]
-pub fn compositor_window_pids() -> Option<Vec<i32>> {
+pub async fn compositor_window_pids() -> Option<Vec<i32>> {
     match CompositorKind::detected()? {
         #[cfg(feature = "niri")]
-        CompositorKind::Niri => niri_window_pids(),
+        CompositorKind::Niri => spawn_blocking(niri_window_pids).await.ok().flatten(),
         #[cfg(feature = "sway")]
-        CompositorKind::Sway => sway_window_pids(),
+        CompositorKind::Sway => logged_query("windows", sway_window_pids().await),
         #[cfg(feature = "hyprland")]
-        CompositorKind::Hyprland => hyprland_window_pids(),
+        CompositorKind::Hyprland => logged_query("windows", hyprland_window_pids().await),
     }
 }
 

@@ -1,24 +1,10 @@
-use serde::Deserialize;
-use sottomano_desktop_sources::compositor_window_ipc::sway_ipc_connection::{
-    SwayIpcConnection, SwayMessageKind,
-};
+use sottomano_desktop_sources::compositor_window_ipc::sway_ipc_connection::SwayIpcConnection;
+use swayipc_types::{CommandOutcome, CommandType, Workspace};
 
 use crate::compositor_window_requests::{
     compositor_requests::{CompositorRequest, CompositorRequestFailure},
     systemd_run_launches::launch_in_user_service,
 };
-
-#[derive(Deserialize)]
-struct SwayCommandOutcome {
-    success: bool,
-    error: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct SwayWorkspaceName {
-    id: u64,
-    name: String,
-}
 
 enum SwayCommand {
     Text(String),
@@ -83,46 +69,57 @@ fn sway_command_of(
     }
 }
 
-fn sway_workspace_name(connection: &mut SwayIpcConnection, workspace: u64) -> Option<String> {
-    let reply = connection
-        .request(SwayMessageKind::GetWorkspaces, "")
+fn referenced_workspace(request: &CompositorRequest) -> Option<u64> {
+    match request {
+        CompositorRequest::FocusWorkspace(workspace)
+        | CompositorRequest::MoveWindowToWorkspace { workspace, .. } => Some(*workspace),
+        _ => None,
+    }
+}
+
+async fn sway_workspace_name(connection: &mut SwayIpcConnection, workspace: u64) -> Option<String> {
+    let workspaces: Vec<Workspace> = connection
+        .request(CommandType::GetWorkspaces, "")
+        .await
         .ok()?;
-    serde_json::from_str::<Vec<SwayWorkspaceName>>(&reply)
-        .ok()?
+    workspaces
         .into_iter()
-        .find(|listed| listed.id == workspace)
+        .find(|listed| u64::try_from(listed.id) == Ok(workspace))
         .map(|listed| listed.name)
 }
 
-pub fn send_sway_request(request: &CompositorRequest) -> Result<(), CompositorRequestFailure> {
+pub async fn send_sway_request(
+    request: &CompositorRequest,
+) -> Result<(), CompositorRequestFailure> {
     let unreachable = |reason: String| CompositorRequestFailure::Unreachable {
         request: format!("{request:?}"),
         reason,
     };
     let mut connection = SwayIpcConnection::connect()
+        .await
         .map_err(|connect_error| unreachable(connect_error.to_string()))?;
-    let command = sway_command_of(request, |workspace| {
-        sway_workspace_name(&mut connection, workspace)
-    });
-    match command {
-        SwayCommand::Launch(command) => launch_in_user_service(&command),
+    let workspace_name = match referenced_workspace(request) {
+        Some(workspace) => sway_workspace_name(&mut connection, workspace).await,
+        None => None,
+    };
+    match sway_command_of(request, |_| workspace_name.clone()) {
+        SwayCommand::Launch(command) => launch_in_user_service(&command).await,
         SwayCommand::Unsupported => Err(CompositorRequestFailure::Unsupported {
             request: format!("{request:?}"),
             compositor: "sway",
         }),
         SwayCommand::Text(command) => {
-            let reply = connection
-                .request(SwayMessageKind::RunCommand, &command)
+            let outcomes: Vec<CommandOutcome> = connection
+                .request(CommandType::RunCommand, &command)
+                .await
                 .map_err(|request_error| unreachable(request_error.to_string()))?;
-            let outcomes: Vec<SwayCommandOutcome> = serde_json::from_str(&reply)
-                .map_err(|parse_error| unreachable(parse_error.to_string()))?;
-            match outcomes.into_iter().find(|outcome| !outcome.success) {
-                None => Ok(()),
-                Some(refused) => Err(CompositorRequestFailure::Rejected {
+            outcomes
+                .into_iter()
+                .try_for_each(CommandOutcome::decode)
+                .map_err(|refusal| CompositorRequestFailure::Rejected {
                     request: command,
-                    reason: refused.error.unwrap_or_default(),
-                }),
-            }
+                    reason: refusal.to_string(),
+                })
         }
     }
 }

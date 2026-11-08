@@ -3,6 +3,8 @@ use std::fmt;
 use sottomano_desktop_sources::compositor_window_ipc::compositor_connection::{
     CompositorKind, missing_compositor_reason,
 };
+#[cfg(feature = "niri")]
+use tokio::task::spawn_blocking;
 
 #[cfg(feature = "hyprland")]
 use crate::compositor_window_requests::hyprland_dispatch_requests::send_hyprland_request;
@@ -113,16 +115,26 @@ impl fmt::Display for CompositorRequestFailure {
     }
 }
 
-pub fn send_compositor_request(
-    request: &CompositorRequest,
+pub async fn send_compositor_request(
+    request: CompositorRequest,
 ) -> Result<(), CompositorRequestFailure> {
     match CompositorKind::detected() {
         #[cfg(feature = "niri")]
-        Some(CompositorKind::Niri) => send_niri_request(request),
+        Some(CompositorKind::Niri) => {
+            let request_text = format!("{request:?}");
+            spawn_blocking(move || send_niri_request(&request))
+                .await
+                .unwrap_or_else(|join_error| {
+                    Err(CompositorRequestFailure::Unreachable {
+                        request: request_text,
+                        reason: join_error.to_string(),
+                    })
+                })
+        }
         #[cfg(feature = "sway")]
-        Some(CompositorKind::Sway) => send_sway_request(request),
+        Some(CompositorKind::Sway) => send_sway_request(&request).await,
         #[cfg(feature = "hyprland")]
-        Some(CompositorKind::Hyprland) => send_hyprland_request(request),
+        Some(CompositorKind::Hyprland) => send_hyprland_request(&request).await,
         None => Err(CompositorRequestFailure::Unreachable {
             request: format!("{request:?}"),
             reason: missing_compositor_reason(),
@@ -130,8 +142,8 @@ pub fn send_compositor_request(
     }
 }
 
-pub fn send_compositor_request_or_warn(request: &CompositorRequest) {
-    if let Err(failure) = send_compositor_request(request) {
+pub async fn send_compositor_request_or_warn(request: CompositorRequest) {
+    if let Err(failure) = send_compositor_request(request).await {
         tracing::warn!("{failure}");
     }
 }

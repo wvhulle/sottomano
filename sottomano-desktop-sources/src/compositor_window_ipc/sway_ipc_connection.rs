@@ -1,131 +1,78 @@
-use std::{
-    env,
-    ffi::OsString,
-    io::{self, Read, Write},
-    os::unix::net::UnixStream,
+use std::{env, ffi::OsString};
+
+use serde::de::DeserializeOwned;
+use swayipc_types::{CommandType, Error, Event, EventType, Fallible, MAGIC, Success};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::UnixStream,
 };
 
-use serde::Deserialize;
-
 const SWAY_SOCKET_ENV: &str = "SWAYSOCK";
-const SWAY_IPC_MAGIC: &[u8; 6] = b"i3-ipc";
 const SWAY_HEADER_LENGTH: usize = 14;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SwayMessageKind {
-    RunCommand,
-    GetWorkspaces,
-    Subscribe,
-    GetOutputs,
-    GetTree,
-    GetVersion,
-}
-
-impl SwayMessageKind {
-    const fn code(self) -> u32 {
-        match self {
-            SwayMessageKind::RunCommand => 0,
-            SwayMessageKind::GetWorkspaces => 1,
-            SwayMessageKind::Subscribe => 2,
-            SwayMessageKind::GetOutputs => 3,
-            SwayMessageKind::GetTree => 4,
-            SwayMessageKind::GetVersion => 7,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SwayEventKind {
-    Workspace,
-    Output,
-    Window,
-    Shutdown,
-    Other,
-}
-
-impl From<u32> for SwayEventKind {
-    fn from(code: u32) -> Self {
-        match code & !0x8000_0000 {
-            0 => SwayEventKind::Workspace,
-            1 => SwayEventKind::Output,
-            3 => SwayEventKind::Window,
-            6 => SwayEventKind::Shutdown,
-            _ => SwayEventKind::Other,
-        }
-    }
-}
-
-#[derive(Deserialize)]
-struct SwaySubscribeReply {
-    success: bool,
-}
-
-pub struct SwayEvent {
-    pub kind: SwayEventKind,
-    pub payload: String,
-}
-
-pub struct SwayIpcConnection {
-    stream: UnixStream,
-}
 
 #[must_use]
 pub fn sway_socket_variable() -> Option<OsString> {
     env::var_os(SWAY_SOCKET_ENV)
 }
 
+pub struct SwayIpcConnection {
+    stream: UnixStream,
+}
+
 impl SwayIpcConnection {
-    pub fn connect() -> io::Result<Self> {
-        let socket_path = env::var_os(SWAY_SOCKET_ENV)
-            .ok_or_else(|| io::Error::other(format!("{SWAY_SOCKET_ENV} is not set")))?;
+    pub async fn connect() -> Fallible<Self> {
+        let socket_path = env::var_os(SWAY_SOCKET_ENV).ok_or(Error::SocketNotFound)?;
         Ok(Self {
-            stream: UnixStream::connect(socket_path)?,
+            stream: UnixStream::connect(socket_path).await?,
         })
     }
 
-    pub fn request(&mut self, kind: SwayMessageKind, payload: &str) -> io::Result<String> {
-        self.send(kind, payload)?;
-        let (_, reply) = self.read_message()?;
-        Ok(reply)
+    pub async fn request<Reply: DeserializeOwned>(
+        &mut self,
+        command: CommandType,
+        payload: &str,
+    ) -> Fallible<Reply> {
+        self.stream.write_all(&command.encode_with(payload)).await?;
+        command.decode(self.read_message().await?)
     }
 
-    pub fn subscribe(mut self, event_names: &[&str]) -> io::Result<SwayEventSubscription> {
-        let payload = serde_json::to_string(event_names)?;
-        let reply = self.request(SwayMessageKind::Subscribe, &payload)?;
-        let subscribed: SwaySubscribeReply = serde_json::from_str(&reply)?;
+    pub async fn subscribe(mut self, events: &[EventType]) -> Fallible<SwayEventSubscription> {
+        let event_names = serde_json::to_string(events)?;
+        let subscribed: Success = self.request(CommandType::Subscribe, &event_names).await?;
         if !subscribed.success {
-            return Err(io::Error::other(format!(
-                "sway refused the subscription: {reply}"
-            )));
+            return Err(Error::SubscriptionFailed(event_names));
         }
         Ok(SwayEventSubscription { connection: self })
     }
 
-    fn send(&mut self, kind: SwayMessageKind, payload: &str) -> io::Result<()> {
-        let payload_length = u32::try_from(payload.len())
-            .map_err(|_| io::Error::other("sway message payload is too long"))?;
-        let mut message = Vec::with_capacity(SWAY_HEADER_LENGTH + payload.len());
-        message.extend_from_slice(SWAY_IPC_MAGIC);
-        message.extend_from_slice(&payload_length.to_ne_bytes());
-        message.extend_from_slice(&kind.code().to_ne_bytes());
-        message.extend_from_slice(payload.as_bytes());
-        self.stream.write_all(&message)
-    }
-
-    fn read_message(&mut self) -> io::Result<(u32, String)> {
+    async fn read_message(&mut self) -> Fallible<(u32, Vec<u8>)> {
         let mut header = [0; SWAY_HEADER_LENGTH];
-        self.stream.read_exact(&mut header)?;
-        if &header[..6] != SWAY_IPC_MAGIC {
-            return Err(io::Error::other(
-                "sway sent a message without the i3-ipc magic",
-            ));
+        self.stream.read_exact(&mut header).await?;
+        let [
+            magic_0,
+            magic_1,
+            magic_2,
+            magic_3,
+            magic_4,
+            magic_5,
+            length_0,
+            length_1,
+            length_2,
+            length_3,
+            type_0,
+            type_1,
+            type_2,
+            type_3,
+        ] = header;
+        let received_magic = [magic_0, magic_1, magic_2, magic_3, magic_4, magic_5];
+        if received_magic != MAGIC {
+            return Err(Error::InvalidMagic(received_magic));
         }
-        let payload_length = u32::from_ne_bytes([header[6], header[7], header[8], header[9]]);
-        let code = u32::from_ne_bytes([header[10], header[11], header[12], header[13]]);
-        let mut payload = vec![0; usize::try_from(payload_length).map_err(io::Error::other)?];
-        self.stream.read_exact(&mut payload)?;
-        let text = String::from_utf8(payload).map_err(io::Error::other)?;
-        Ok((code, text))
+        let payload_length = u32::from_ne_bytes([length_0, length_1, length_2, length_3]);
+        let message_type = u32::from_ne_bytes([type_0, type_1, type_2, type_3]);
+        let mut payload = vec![0; usize::try_from(payload_length).unwrap_or(usize::MAX)];
+        self.stream.read_exact(&mut payload).await?;
+        Ok((message_type, payload))
     }
 }
 
@@ -134,11 +81,7 @@ pub struct SwayEventSubscription {
 }
 
 impl SwayEventSubscription {
-    pub fn next_event(&mut self) -> io::Result<SwayEvent> {
-        let (code, payload) = self.connection.read_message()?;
-        Ok(SwayEvent {
-            kind: SwayEventKind::from(code),
-            payload,
-        })
+    pub async fn next_event(&mut self) -> Fallible<Event> {
+        Event::decode(self.connection.read_message().await?)
     }
 }

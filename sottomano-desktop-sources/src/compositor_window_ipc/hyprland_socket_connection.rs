@@ -1,10 +1,8 @@
-use std::{
-    env,
-    ffi::OsString,
-    io::{self, BufRead, BufReader, Read, Write},
-    net::Shutdown,
-    os::unix::net::UnixStream,
-    path::PathBuf,
+use std::{env, ffi::OsString, io, path::PathBuf};
+
+use tokio::{
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, Lines},
+    net::UnixStream,
 };
 
 const HYPRLAND_SIGNATURE_ENV: &str = "HYPRLAND_INSTANCE_SIGNATURE";
@@ -27,45 +25,36 @@ fn hyprland_socket_directory() -> io::Result<PathBuf> {
         .join(signature))
 }
 
-pub fn hyprland_request(command: &str) -> io::Result<String> {
+pub async fn hyprland_request(command: &str) -> io::Result<String> {
     let mut stream =
-        UnixStream::connect(hyprland_socket_directory()?.join(HYPRLAND_REQUEST_SOCKET))?;
-    stream.write_all(command.as_bytes())?;
-    stream.shutdown(Shutdown::Write)?;
+        UnixStream::connect(hyprland_socket_directory()?.join(HYPRLAND_REQUEST_SOCKET)).await?;
+    stream.write_all(command.as_bytes()).await?;
+    stream.shutdown().await?;
     let mut reply = String::new();
-    stream.read_to_string(&mut reply)?;
+    stream.read_to_string(&mut reply).await?;
     Ok(reply)
 }
 
-pub struct HyprlandEvent {
-    pub name: String,
-    pub data: String,
-}
-
 pub struct HyprlandEventSubscription {
-    lines: BufReader<UnixStream>,
+    lines: Lines<BufReader<UnixStream>>,
 }
 
 impl HyprlandEventSubscription {
-    pub fn connect() -> io::Result<Self> {
-        let stream = UnixStream::connect(hyprland_socket_directory()?.join(HYPRLAND_EVENT_SOCKET))?;
+    pub async fn connect() -> io::Result<Self> {
+        let stream =
+            UnixStream::connect(hyprland_socket_directory()?.join(HYPRLAND_EVENT_SOCKET)).await?;
         Ok(Self {
-            lines: BufReader::new(stream),
+            lines: BufReader::new(stream).lines(),
         })
     }
 
-    pub fn next_event(&mut self) -> io::Result<HyprlandEvent> {
-        let mut line = String::new();
-        if self.lines.read_line(&mut line)? == 0 {
-            return Err(io::Error::other("Hyprland closed its event socket"));
-        }
-        let line = line.trim_end();
-        let (name, data) = line
+    pub async fn next_event_name(&mut self) -> io::Result<Option<String>> {
+        let Some(line) = self.lines.next_line().await? else {
+            return Ok(None);
+        };
+        let event_name = line
             .split_once(HYPRLAND_EVENT_SEPARATOR)
-            .unwrap_or((line, ""));
-        Ok(HyprlandEvent {
-            name: name.to_owned(),
-            data: data.to_owned(),
-        })
+            .map_or(line.as_str(), |(event_name, _)| event_name);
+        Ok(Some(event_name.to_owned()))
     }
 }

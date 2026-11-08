@@ -11,7 +11,6 @@ use chrono::{DateTime, TimeDelta, Utc};
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::login_session_presence::logind_session_commands::perform_session_action;
 use sottomano_desktop_sources::{
-    blocking_background_work::blocking,
     compositor_window_ipc::compositor_window_state::CompositorWindowState,
     desktop_notifications::notification_data::ActionTint,
     desktop_windows_apps::terminal_emulator_windows::WindowProcesses,
@@ -167,10 +166,7 @@ impl SessionFocusGroup {
                 Task::future(span_writes).discard()
             }
             SessionFocusMessage::BreakStarted(action) => {
-                Task::future(blocking("break session action", move || {
-                    perform_session_action(action);
-                }))
-                .discard()
+                Task::future(perform_session_action(action)).discard()
             }
             SessionFocusMessage::WarningSnoozed => {
                 let snooze_length =

@@ -1,8 +1,10 @@
-use std::{env, process::Command};
+use std::env;
+
+use tokio::process::Command;
 
 use crate::compositor_window_requests::compositor_requests::CompositorRequestFailure;
 
-pub fn launch_in_user_service(command: &[String]) -> Result<(), CompositorRequestFailure> {
+pub async fn launch_in_user_service(command: &[String]) -> Result<(), CompositorRequestFailure> {
     let request = format!("launch {}", command.join(" "));
     let mut systemd_run = Command::new("systemd-run");
     systemd_run.args(["--user", "--quiet", "--collect", "--slice=app.slice"]);
@@ -13,6 +15,7 @@ pub fn launch_in_user_service(command: &[String]) -> Result<(), CompositorReques
         .arg("--")
         .args(command)
         .output()
+        .await
         .map_err(|launch_error| CompositorRequestFailure::Unreachable {
             request: request.clone(),
             reason: format!("systemd-run did not start: {launch_error}"),

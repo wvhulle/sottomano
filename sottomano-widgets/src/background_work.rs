@@ -14,9 +14,11 @@ use sottomano_desktop_sources::{
 pub fn compositor_request<Routed: From<CompositorRequestFailure> + Send + 'static>(
     request: CompositorRequest,
 ) -> Task<Routed> {
-    Task::future(blocking("compositor request", move || {
-        compositor_requests::send_compositor_request(&request).err()
-    }))
+    Task::future(async move {
+        compositor_requests::send_compositor_request(request)
+            .await
+            .err()
+    })
     .and_then(|failure| Task::done(Routed::from(failure)))
 }
 
