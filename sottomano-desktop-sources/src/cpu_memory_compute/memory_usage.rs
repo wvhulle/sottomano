@@ -28,7 +28,7 @@ const MEMORY_POLL_PERIOD: Duration = Duration::from_secs(2);
 const TREND_WINDOW: Duration = Duration::from_secs(30);
 const TREND_MINIMUM_SPAN: Duration = Duration::from_secs(6);
 const PROCESS_SCAN_HORIZON: Duration = Duration::from_secs(600);
-const PROCESS_SCAN_STALL_PERCENT: f64 = 1.0;
+const PROCESS_SCAN_STALL_PERCENT: f64 = 15.0;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Memory {
@@ -107,7 +107,7 @@ fn read_memory_trend(window: &mut MemoryTrendWindow, now: Instant) -> Result<Mem
     let usage = read_meminfo()?;
     let stall_share = MemoryPressure::current()
         .ok()
-        .map(|pressure| Ratio::new::<percent>(f64::from(pressure.some.avg10)));
+        .map(|pressure| Ratio::new::<percent>(f64::from(pressure.some.avg60)));
     let exhaustion_projection = window.record_used(now, usage.used, usage.total);
     let growth_suspected = exhaustion_projection
         .is_some_and(|remaining| remaining < PROCESS_SCAN_HORIZON)
