@@ -5,6 +5,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::shell_command_output,
 };
+use tokio::task::spawn_blocking;
 
 use crate::compositor_window_requests::compositor_requests::{self, CompositorRequest};
 
@@ -80,15 +81,32 @@ pub fn terminate_session() {
 
 const BOOT_LOADER_MENU_DEFAULT_TIMEOUT: u64 = 0;
 
-pub fn perform_session_action(session_action: SessionAction) {
+pub async fn perform_session_action(session_action: SessionAction) {
     match session_action {
-        SessionAction::Lock => lock(),
-        SessionAction::LockAllSessions => lock_all_sessions(),
         SessionAction::ScreenOff => {
             compositor_requests::send_compositor_request_or_warn(
-                &CompositorRequest::PowerOffMonitors,
-            );
+                CompositorRequest::PowerOffMonitors,
+            )
+            .await;
         }
+        SessionAction::LogOut => {
+            compositor_requests::send_compositor_request_or_warn(CompositorRequest::Quit).await;
+        }
+        blocking_action => {
+            if let Err(join_error) =
+                spawn_blocking(move || perform_blocking_session_action(blocking_action)).await
+            {
+                tracing::warn!("session action stopped: {join_error}");
+            }
+        }
+    }
+}
+
+fn perform_blocking_session_action(session_action: SessionAction) {
+    match session_action {
+        SessionAction::ScreenOff | SessionAction::LogOut => {}
+        SessionAction::Lock => lock(),
+        SessionAction::LockAllSessions => lock_all_sessions(),
         SessionAction::Sleep => sleep(),
         SessionAction::Suspend => suspend(),
         SessionAction::Hibernate => hibernate(),
@@ -100,9 +118,6 @@ pub fn perform_session_action(session_action: SessionAction) {
         SessionAction::Halt => halt(),
         SessionAction::PowerOff => power_off(),
         SessionAction::CancelScheduledShutdown => cancel_scheduled_shutdown(),
-        SessionAction::LogOut => {
-            compositor_requests::send_compositor_request_or_warn(&CompositorRequest::Quit);
-        }
         SessionAction::TerminateSession => terminate_session(),
         SessionAction::RestartShell => {
             if let Err(restart_failure) = shell_command_output::blocking::run(

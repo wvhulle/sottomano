@@ -1,4 +1,4 @@
-use std::{iter::once, thread, time::Duration};
+use std::{iter::once, time::Duration};
 
 use iced::{Element, Task, border::Radius};
 use sottomano_desktop_sinks::login_session_presence::logind_session_commands::perform_session_action;
@@ -10,6 +10,7 @@ use sottomano_desktop_sources::{
     },
 };
 use sottomano_toml_config::Config;
+use tokio::time::sleep;
 
 use crate::{
     group_items::{
@@ -142,10 +143,10 @@ impl SessionPowerGroup {
                 Action::Run(Task::none())
             }
             SessionMessage::Press(action) => Action::Performed(
-                Task::future(blocking("session action", move || {
-                    thread::sleep(PRESS_SETTLE_DELAY);
-                    perform_session_action(action);
-                }))
+                Task::future(async move {
+                    sleep(PRESS_SETTLE_DELAY).await;
+                    perform_session_action(action).await;
+                })
                 .discard(),
             ),
         }

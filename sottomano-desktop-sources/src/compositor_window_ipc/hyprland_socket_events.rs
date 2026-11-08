@@ -1,10 +1,10 @@
 use std::{
     collections::{BTreeSet, HashMap},
-    io,
+    io, mem,
 };
 
+use futures::{Stream, TryStreamExt, stream};
 use serde::{Deserialize, de::DeserializeOwned};
-use tokio::sync::mpsc;
 
 use crate::{
     compositor_window_ipc::{
@@ -13,7 +13,7 @@ use crate::{
             CompositorChange, CompositorUpdate, CompositorWindow, CompositorWindowLayout,
             CompositorWindowState, CompositorWorkspace,
         },
-        hyprland_socket_connection::{HyprlandEvent, HyprlandEventSubscription, hyprland_request},
+        hyprland_socket_connection::{HyprlandEventSubscription, hyprland_request},
     },
     desktop_windows_apps::process_tree_inspection,
 };
@@ -85,8 +85,8 @@ struct HyprlandVersion {
     version: Option<String>,
 }
 
-fn queried<Reply: DeserializeOwned>(command: &str) -> io::Result<Reply> {
-    Ok(serde_json::from_str(&hyprland_request(command)?)?)
+async fn queried<Reply: DeserializeOwned>(command: &str) -> io::Result<Reply> {
+    Ok(serde_json::from_str(&hyprland_request(command).await?)?)
 }
 
 fn window_id_of(address: &str) -> Option<u64> {
@@ -170,15 +170,15 @@ fn hyprland_state_of(
     CompositorWindowState::from_lists(compositor_workspaces, windows)
 }
 
-fn read_hyprland_state() -> io::Result<CompositorWindowState> {
-    let clients: Vec<HyprlandClient> = queried("j/clients")?;
-    let workspaces: Vec<HyprlandWorkspace> = queried("j/workspaces")?;
-    let monitors: Vec<HyprlandMonitor> = queried("j/monitors")?;
+async fn read_hyprland_state() -> io::Result<CompositorWindowState> {
+    let clients: Vec<HyprlandClient> = queried("j/clients").await?;
+    let workspaces: Vec<HyprlandWorkspace> = queried("j/workspaces").await?;
+    let monitors: Vec<HyprlandMonitor> = queried("j/monitors").await?;
     Ok(hyprland_state_of(&clients, &workspaces, &monitors))
 }
 
-fn hyprland_changes_of(event: &HyprlandEvent) -> BTreeSet<CompositorChange> {
-    match event.name.as_str() {
+fn hyprland_changes_of(event_name: &str) -> BTreeSet<CompositorChange> {
+    match event_name {
         "openwindow" | "closewindow" | "movewindowv2" | "windowtitlev2" | "changefloatingmode"
         | "fullscreen" | "urgent" => [CompositorChange::Windows].into(),
         "activewindowv2" => [CompositorChange::Focus].into(),
@@ -192,71 +192,83 @@ fn hyprland_changes_of(event: &HyprlandEvent) -> BTreeSet<CompositorChange> {
     }
 }
 
-pub fn follow_hyprland_events(sender: &mpsc::Sender<CompositorUpdate>) -> io::Result<()> {
-    let mut subscription = HyprlandEventSubscription::connect()?;
-    let mut previous = CompositorWindowState::default();
-    let mut changes: BTreeSet<CompositorChange> = CompositorChange::ALL.into();
-    loop {
-        if !changes.is_empty() {
-            let state = read_hyprland_state()?
-                .with_focus_times_from(&previous, process_tree_inspection::monotonic());
-            previous = state.clone();
-            if sender
-                .blocking_send(CompositorUpdate { state, changes })
-                .is_err()
-            {
-                return Ok(());
-            }
+struct HyprlandFollower {
+    events: HyprlandEventSubscription,
+    previous: CompositorWindowState,
+    pending_changes: BTreeSet<CompositorChange>,
+}
+
+impl HyprlandFollower {
+    async fn connected() -> io::Result<Self> {
+        Ok(Self {
+            events: HyprlandEventSubscription::connect().await?,
+            previous: CompositorWindowState::default(),
+            pending_changes: CompositorChange::ALL.into(),
+        })
+    }
+
+    async fn next_update(mut self) -> io::Result<Option<(CompositorUpdate, Self)>> {
+        while self.pending_changes.is_empty() {
+            let Some(event_name) = self.events.next_event_name().await? else {
+                return Ok(None);
+            };
+            self.pending_changes = hyprland_changes_of(&event_name);
         }
-        changes = hyprland_changes_of(&subscription.next_event()?);
+        let state = read_hyprland_state()
+            .await?
+            .with_focus_times_from(&self.previous, process_tree_inspection::monotonic());
+        self.previous = state.clone();
+        let changes = mem::take(&mut self.pending_changes);
+        Ok(Some((CompositorUpdate { state, changes }, self)))
     }
 }
 
-#[must_use]
-pub fn hyprland_outputs() -> HashMap<String, OutputInfo> {
-    let Ok(monitors) = queried::<Vec<HyprlandMonitor>>("j/monitors") else {
-        return HashMap::new();
+pub fn hyprland_compositor_updates() -> impl Stream<Item = io::Result<CompositorUpdate>> + Send {
+    stream::once(async {
+        HyprlandFollower::connected()
+            .await
+            .map(|follower| stream::try_unfold(follower, HyprlandFollower::next_update))
+    })
+    .try_flatten()
+}
+
+fn hyprland_output_facts(monitor: HyprlandMonitor) -> (String, OutputInfo) {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let logical_size =
+        |pixels: u16| (f64::from(pixels) / monitor.scale.max(f64::EPSILON)).round() as u32;
+    let facts = OutputInfo {
+        make: product_field(monitor.make),
+        model: product_field(monitor.model),
+        serial: product_field(monitor.serial),
+        mode: Some(OutputMode {
+            width: monitor.width,
+            height: monitor.height,
+            refresh_hz: monitor.refresh_rate,
+        }),
+        scale: monitor.scale,
+        logical_width: logical_size(monitor.width),
+        logical_height: logical_size(monitor.height),
     };
-    monitors
-        .into_iter()
-        .map(|monitor| {
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let logical_size =
-                |pixels: u16| (f64::from(pixels) / monitor.scale.max(f64::EPSILON)).round() as u32;
-            let facts = OutputInfo {
-                make: product_field(monitor.make),
-                model: product_field(monitor.model),
-                serial: product_field(monitor.serial),
-                mode: Some(OutputMode {
-                    width: monitor.width,
-                    height: monitor.height,
-                    refresh_hz: monitor.refresh_rate,
-                }),
-                scale: monitor.scale,
-                logical_width: logical_size(monitor.width),
-                logical_height: logical_size(monitor.height),
-            };
-            (monitor.name, facts)
-        })
-        .collect()
+    (monitor.name, facts)
 }
 
-#[must_use]
-pub fn hyprland_version() -> Option<String> {
-    let version: HyprlandVersion = queried("j/version").ok()?;
-    version.tag.or(version.version)
+pub async fn hyprland_outputs() -> io::Result<HashMap<String, OutputInfo>> {
+    let monitors: Vec<HyprlandMonitor> = queried("j/monitors").await?;
+    Ok(monitors.into_iter().map(hyprland_output_facts).collect())
 }
 
-#[must_use]
-pub fn hyprland_window_pids() -> Option<Vec<i32>> {
-    let state = read_hyprland_state().ok()?;
-    Some(
-        state
-            .windows
-            .values()
-            .filter_map(|window| window.pid)
-            .collect(),
-    )
+pub async fn hyprland_version() -> io::Result<Option<String>> {
+    let version: HyprlandVersion = queried("j/version").await?;
+    Ok(version.tag.or(version.version))
+}
+
+pub async fn hyprland_window_pids() -> io::Result<Vec<i32>> {
+    let state = read_hyprland_state().await?;
+    Ok(state
+        .windows
+        .values()
+        .filter_map(|window| window.pid)
+        .collect())
 }
 
 #[cfg(test)]

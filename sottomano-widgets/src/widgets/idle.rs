@@ -10,7 +10,7 @@ use sottomano_desktop_sources::login_session_presence::{
         IdleEdge, IdleNotifier, IdleTrigger, InputOrInhibitors, TaggedEdge, WaylandError,
     },
 };
-use tokio::task::spawn_blocking;
+use tokio::task::spawn;
 
 const RECONNECT_ATTEMPTS: usize = 3;
 
@@ -118,7 +118,7 @@ fn perform_idled_actions(edges: &[IdleActionEdge]) {
         .filter(|tagged| tagged.edge == IdleEdge::Idled)
         .for_each(|tagged| {
             let action = tagged.tag.session_action();
-            spawn_blocking(move || perform_session_action(action));
+            spawn(perform_session_action(action));
         });
 }
 

@@ -4,9 +4,8 @@ use iced::{Element, Task};
 use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::{
     CompositorRequest, send_compositor_request_or_warn,
 };
-use sottomano_desktop_sources::{
-    blocking_background_work::blocking,
-    desktop_windows_apps::desktop_entry_app_catalog::{AppCategory, LaunchableApp, OpenAppWindows},
+use sottomano_desktop_sources::desktop_windows_apps::desktop_entry_app_catalog::{
+    AppCategory, LaunchableApp, OpenAppWindows,
 };
 use sottomano_toml_config::Config;
 
@@ -306,16 +305,16 @@ fn launch_task(app: &LaunchableApp, config: &Config) -> Task<AppLauncherMessage>
     if app.runs_in_terminal {
         return TerminalCommand::running(config, launch_command).open();
     }
-    Task::future(blocking("launch app", move || {
-        send_compositor_request_or_warn(&CompositorRequest::Spawn(launch_command));
-    }))
+    Task::future(send_compositor_request_or_warn(CompositorRequest::Spawn(
+        launch_command,
+    )))
     .discard()
 }
 
 fn jump_task(window: u64) -> Task<AppLauncherMessage> {
-    Task::future(blocking("focus app window", move || {
-        send_compositor_request_or_warn(&CompositorRequest::FocusWindow(window));
-    }))
+    Task::future(send_compositor_request_or_warn(
+        CompositorRequest::FocusWindow(window),
+    ))
     .discard()
 }
 

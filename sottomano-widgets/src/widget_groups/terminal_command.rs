@@ -2,7 +2,6 @@ use iced::Task;
 use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::{
     CompositorRequest, send_compositor_request_or_warn,
 };
-use sottomano_desktop_sources::blocking_background_work::blocking;
 use sottomano_toml_config::Config;
 
 #[derive(Debug, Clone)]
@@ -36,10 +35,9 @@ impl TerminalCommand {
     }
 
     pub fn open<M: Send + 'static>(self) -> Task<M> {
-        let command = self.command;
-        Task::future(blocking("terminal command", move || {
-            send_compositor_request_or_warn(&CompositorRequest::Spawn(command));
-        }))
+        Task::future(send_compositor_request_or_warn(CompositorRequest::Spawn(
+            self.command,
+        )))
         .discard()
     }
 }

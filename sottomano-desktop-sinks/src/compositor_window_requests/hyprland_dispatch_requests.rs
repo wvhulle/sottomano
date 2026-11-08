@@ -69,20 +69,21 @@ fn hyprland_dispatch_of(request: &CompositorRequest) -> HyprlandDispatch {
     }
 }
 
-pub fn send_hyprland_request(request: &CompositorRequest) -> Result<(), CompositorRequestFailure> {
+pub async fn send_hyprland_request(
+    request: &CompositorRequest,
+) -> Result<(), CompositorRequestFailure> {
     match hyprland_dispatch_of(request) {
-        HyprlandDispatch::Launch(command) => launch_in_user_service(&command),
+        HyprlandDispatch::Launch(command) => launch_in_user_service(&command).await,
         HyprlandDispatch::Unsupported => Err(CompositorRequestFailure::Unsupported {
             request: format!("{request:?}"),
             compositor: "Hyprland",
         }),
         HyprlandDispatch::Dispatcher(dispatcher) => {
-            let reply =
-                hyprland_request(&format!("dispatch {dispatcher}")).map_err(|request_error| {
-                    CompositorRequestFailure::Unreachable {
-                        request: dispatcher.clone(),
-                        reason: request_error.to_string(),
-                    }
+            let reply = hyprland_request(&format!("dispatch {dispatcher}"))
+                .await
+                .map_err(|request_error| CompositorRequestFailure::Unreachable {
+                    request: dispatcher.clone(),
+                    reason: request_error.to_string(),
                 })?;
             if reply.trim() == HYPRLAND_ACCEPTED_REPLY {
                 Ok(())

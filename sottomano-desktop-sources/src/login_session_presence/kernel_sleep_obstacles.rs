@@ -371,15 +371,15 @@ fn process_scope(pid: u32) -> Option<String> {
 }
 
 async fn open_window_owners() -> CompositorWindows {
-    spawn_blocking(read_window_owners)
+    let Some(compositor_pids) = compositor_window_pids().await else {
+        return CompositorWindows::Unavailable;
+    };
+    spawn_blocking(move || window_owners_of(compositor_pids))
         .await
         .unwrap_or(CompositorWindows::Unavailable)
 }
 
-fn read_window_owners() -> CompositorWindows {
-    let Some(compositor_pids) = compositor_window_pids() else {
-        return CompositorWindows::Unavailable;
-    };
+fn window_owners_of(compositor_pids: Vec<i32>) -> CompositorWindows {
     let window_pids: Vec<u32> = compositor_pids
         .into_iter()
         .filter_map(|pid| u32::try_from(pid).ok())

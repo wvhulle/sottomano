@@ -3,9 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use iced::{Padding, Task, window::Id};
 pub use iced_exwlshell::reexport::Margin;
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
-use sottomano_desktop_sources::{
-    blocking_background_work::blocking, compositor_window_ipc::compositor_connection,
-};
+use sottomano_desktop_sources::compositor_window_ipc::compositor_connection;
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     layer_surfaces::{base_settings, input_regions},
@@ -422,10 +420,7 @@ impl DesktopShell {
 
 pub fn query_outputs() -> Task<Message> {
     Task::perform(
-        blocking(
-            "compositor outputs",
-            compositor_connection::compositor_outputs,
-        ),
+        compositor_connection::compositor_outputs(),
         Message::OutputsResolved,
     )
 }

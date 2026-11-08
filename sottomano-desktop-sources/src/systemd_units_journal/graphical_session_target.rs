@@ -2,7 +2,6 @@ use std::env;
 
 use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt, stream};
-use tokio::task::spawn_blocking;
 
 use crate::{
     SnapshotDelivery, SnapshotSource, SourceCaption,
@@ -45,10 +44,8 @@ impl SnapshotSource for GraphicalSession {
 
 impl GraphicalSession {
     async fn read() -> Result<Self, dbus_desktop_buses::Error> {
-        let compositor_version = spawn_blocking(compositor_version)
+        let compositor_version = compositor_version()
             .await
-            .ok()
-            .flatten()
             .ok_or(dbus_desktop_buses::Error::Absent)?;
         Ok(Self {
             current_desktop: env::var("XDG_CURRENT_DESKTOP").ok().and_then(non_empty),
