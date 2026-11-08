@@ -1,6 +1,6 @@
-use sottomano_desktop_sources::desktop_windows_apps::hyprland_socket_connection::hyprland_request;
+use sottomano_desktop_sources::compositor_window_ipc::hyprland_socket_connection::hyprland_request;
 
-use crate::desktop_windows_apps::{
+use crate::compositor_window_requests::{
     compositor_requests::{CompositorRequest, CompositorRequestFailure},
     systemd_run_launches::launch_in_user_service,
 };
@@ -99,7 +99,7 @@ pub fn send_hyprland_request(request: &CompositorRequest) -> Result<(), Composit
 #[cfg(test)]
 mod tests {
     use super::{HyprlandDispatch, hyprland_dispatch_of};
-    use crate::desktop_windows_apps::compositor_requests::CompositorRequest;
+    use crate::compositor_window_requests::compositor_requests::CompositorRequest;
 
     fn dispatcher(request: &CompositorRequest) -> Option<String> {
         match hyprland_dispatch_of(request) {

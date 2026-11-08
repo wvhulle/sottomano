@@ -4,9 +4,8 @@ use chrono::{DateTime, TimeDelta, Utc};
 use iced::futures::{Stream, StreamExt, stream};
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
-    desktop_windows_apps::{
-        compositor_window_state::CompositorWindowState, terminal_emulator_windows::WindowProcesses,
-    },
+    compositor_window_ipc::compositor_window_state::CompositorWindowState,
+    desktop_windows_apps::terminal_emulator_windows::WindowProcesses,
     login_session_presence::{
         focus_time_ledger::{FocusIdentity, FocusLedger, FocusSignal, LoadedSpans},
         logind_manager,

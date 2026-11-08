@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use sottomano_toml_config::screen_edges::{HEdge, VEdge};
 
-use crate::desktop_windows_apps::compositor_window_state::{
+use crate::compositor_window_ipc::compositor_window_state::{
     CompositorWindow, CompositorWindowLayout, CompositorWindowState,
 };
 

@@ -3,6 +3,7 @@ pub mod battery_power_profiles;
 pub mod blocking_background_work;
 pub mod caldav_tasks_events;
 pub mod ci_runner_tasks;
+pub mod compositor_window_ipc;
 pub mod cpu_memory_compute;
 pub mod delivery_cadence_drivers;
 pub mod desktop_notifications;

@@ -3,9 +3,11 @@ use std::{iter::successors, path::PathBuf};
 use procfs::process::Process as Proc;
 
 use super::focus_units::FocusUnit;
-use crate::desktop_windows_apps::{
-    compositor_window_state::CompositorWindowState, project_directory_labels::repository_root,
-    terminal_emulator_windows::WindowProcesses,
+use crate::{
+    compositor_window_ipc::compositor_window_state::CompositorWindowState,
+    desktop_windows_apps::{
+        project_directory_labels::repository_root, terminal_emulator_windows::WindowProcesses,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

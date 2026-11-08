@@ -7,12 +7,14 @@ use bytesize::ByteSize;
 use iced_controller_diagram::ControllerArtwork;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
-    desktop_windows_apps::{
+    compositor_window_ipc::{
         compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
         compositor_window_state::{
             CompositorWindow, CompositorWindowLayout, CompositorWindowState, CompositorWorkspace,
         },
+    },
+    delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
+    desktop_windows_apps::{
         nix_package_facts::{
             ClosureFacts, Definition, Generation, NixPackageFacts, NixpkgsEntry, Origin, Upstream,
             UpstreamState,

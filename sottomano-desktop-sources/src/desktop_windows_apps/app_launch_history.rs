@@ -5,7 +5,7 @@ use std::{
 
 use chrono::{DateTime, Utc};
 
-use crate::desktop_windows_apps::compositor_window_state::{
+use crate::compositor_window_ipc::compositor_window_state::{
     CompositorWindow, CompositorWindowState, CompositorWorkspace,
 };
 
@@ -176,7 +176,7 @@ mod tests {
     use chrono::{Duration, Utc};
 
     use super::{Launch, LaunchScope, LaunchTracker, LaunchWorkspace};
-    use crate::desktop_windows_apps::{
+    use crate::compositor_window_ipc::{
         compositor_test_windows::{unnamed_compositor_workspace, unplaced_compositor_window},
         compositor_window_state::{CompositorWindow, CompositorWindowState, CompositorWorkspace},
     };

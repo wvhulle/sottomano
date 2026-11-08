@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use sottomano_desktop_sources::{
-    desktop_windows_apps::compositor_output_facts::{OutputInfo, OutputMode},
+    compositor_window_ipc::compositor_output_facts::{OutputInfo, OutputMode},
     screen_brightness_color::clightd_backlight::{Backlight, BacklightKind},
 };
 

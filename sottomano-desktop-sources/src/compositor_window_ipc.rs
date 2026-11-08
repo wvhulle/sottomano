@@ -1,0 +1,18 @@
+pub mod compositor_connection;
+pub mod compositor_output_facts;
+#[cfg(any(test, feature = "test-support"))]
+pub mod compositor_test_windows;
+pub mod compositor_window_state;
+#[cfg(feature = "hyprland")]
+pub mod hyprland_socket_connection;
+#[cfg(feature = "hyprland")]
+pub mod hyprland_socket_events;
+#[cfg(feature = "niri")]
+pub mod niri_event_stream;
+pub mod niri_kdl_config;
+#[cfg(feature = "niri")]
+pub mod niri_output_facts;
+#[cfg(feature = "sway")]
+pub mod sway_ipc_connection;
+#[cfg(feature = "sway")]
+pub mod sway_ipc_events;

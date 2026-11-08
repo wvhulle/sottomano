@@ -4,23 +4,23 @@ use futures::{Stream, StreamExt, stream};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::desktop_windows_apps::{
+use crate::compositor_window_ipc::{
     compositor_output_facts::OutputInfo, compositor_window_state::CompositorUpdate,
 };
 #[cfg(feature = "hyprland")]
-use crate::desktop_windows_apps::{
+use crate::compositor_window_ipc::{
     hyprland_socket_connection::hyprland_signature_variable,
     hyprland_socket_events::{
         follow_hyprland_events, hyprland_outputs, hyprland_version, hyprland_window_pids,
     },
 };
 #[cfg(feature = "niri")]
-use crate::desktop_windows_apps::{
+use crate::compositor_window_ipc::{
     niri_event_stream::{niri_compositor_updates, niri_socket_variable},
     niri_output_facts::{niri_outputs, niri_version, niri_window_pids},
 };
 #[cfg(feature = "sway")]
-use crate::desktop_windows_apps::{
+use crate::compositor_window_ipc::{
     sway_ipc_connection::sway_socket_variable,
     sway_ipc_events::{follow_sway_events, sway_outputs, sway_version, sway_window_pids},
 };

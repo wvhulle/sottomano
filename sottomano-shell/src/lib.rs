@@ -12,7 +12,7 @@ use iced_exwlshell::{
     build_pattern::daemon,
     settings::{ExWlSettings, LayerShellSettings, StartMode},
 };
-use sottomano_desktop_sources::desktop_windows_apps::niri_kdl_config::NiriConfigFile;
+use sottomano_desktop_sources::compositor_window_ipc::niri_kdl_config::NiriConfigFile;
 use sottomano_toml_config::{Config, ConfigFile, SecretPaths};
 use sottomano_widgets::{
     widget_groups::niri_window_group::niri_kdl_rules::NiriRulesFile, widgets::text::font_faces_of,

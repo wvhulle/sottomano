@@ -14,7 +14,9 @@ use std::{
 use iced::{Subscription, Task};
 use notulist_client::DictationCommand;
 use sottomano_desktop_sinks::{
-    desktop_windows_apps::compositor_requests::{CompositorRequest, CompositorRequestFailure},
+    compositor_window_requests::compositor_requests::{
+        CompositorRequest, CompositorRequestFailure,
+    },
     network_connectivity::bluez_bluetooth_commands::disconnect_bluetooth_address,
     voice_dictation_input::notulist_dictation_commands::send_logged_dictation_command,
 };

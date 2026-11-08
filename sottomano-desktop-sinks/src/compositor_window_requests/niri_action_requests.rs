@@ -1,6 +1,6 @@
 use niri_ipc::{Action, Request, WorkspaceReferenceArg, socket::Socket};
 
-use crate::desktop_windows_apps::compositor_requests::{
+use crate::compositor_window_requests::compositor_requests::{
     CompositorRequest, CompositorRequestFailure,
 };
 

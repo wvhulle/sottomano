@@ -7,10 +7,9 @@ use zbus::proxy::CacheProperties;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    compositor_window_ipc::compositor_connection::compositor_window_pids,
     delivery_cadence_drivers::PeriodicPolling,
-    desktop_windows_apps::{
-        compositor_connection::compositor_window_pids, process_tree_inspection::launch,
-    },
+    desktop_windows_apps::process_tree_inspection::launch,
     host_machine_identity::hostname1_os_identity::at_micros,
     login_session_presence::{
         cgroup_inhibitor_app_names::InhibitorAppNames,

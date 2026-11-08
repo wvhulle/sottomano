@@ -10,9 +10,9 @@ use iced::{
     Element,
     widget::{button, text},
 };
-use sottomano_desktop_sources::desktop_windows_apps::{
-    niri_kdl_config::{ConfiguredOrderStatus, ConfiguredWorkspaces},
-    workspace_window_snapshot,
+use sottomano_desktop_sources::{
+    compositor_window_ipc::niri_kdl_config::{ConfiguredOrderStatus, ConfiguredWorkspaces},
+    desktop_windows_apps::workspace_window_snapshot,
 };
 use sottomano_toml_config::Config;
 

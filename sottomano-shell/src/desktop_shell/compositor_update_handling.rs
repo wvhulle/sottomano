@@ -1,14 +1,18 @@
 use std::collections::HashSet;
 
 use iced::Task;
-use sottomano_desktop_sinks::desktop_windows_apps::compositor_requests::CompositorRequestFailure;
-use sottomano_desktop_sources::desktop_windows_apps::{
-    app_launch_history::LaunchScope,
-    compositor_connection::{CompositorKind, WorkspaceConfigSource, missing_compositor_reason},
-    compositor_window_state::{CompositorChange, CompositorUpdate},
-    desktop_entry_app_catalog::{LaunchableApp, open_windows_by_app},
-    desktop_entry_app_icons::{self},
-    workspace_window_snapshot,
+use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::CompositorRequestFailure;
+use sottomano_desktop_sources::{
+    compositor_window_ipc::{
+        compositor_connection::{CompositorKind, WorkspaceConfigSource, missing_compositor_reason},
+        compositor_window_state::{CompositorChange, CompositorUpdate},
+    },
+    desktop_windows_apps::{
+        app_launch_history::LaunchScope,
+        desktop_entry_app_catalog::{LaunchableApp, open_windows_by_app},
+        desktop_entry_app_icons::{self},
+        workspace_window_snapshot,
+    },
 };
 use sottomano_widgets::widget_groups::app_launcher_group::{
     AppLaunchUsage, FrequentApp, FrequentAppScope, OutputFrequentApps, WorkspaceWindowPresence,

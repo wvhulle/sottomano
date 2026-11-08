@@ -6,14 +6,16 @@ use std::{
 use serde::Deserialize;
 use tokio::sync::mpsc;
 
-use crate::desktop_windows_apps::{
-    compositor_output_facts::{OutputInfo, OutputMode, product_field},
-    compositor_window_state::{
-        CompositorChange, CompositorUpdate, CompositorWindow, CompositorWindowLayout,
-        CompositorWindowState, CompositorWorkspace,
+use crate::{
+    compositor_window_ipc::{
+        compositor_output_facts::{OutputInfo, OutputMode, product_field},
+        compositor_window_state::{
+            CompositorChange, CompositorUpdate, CompositorWindow, CompositorWindowLayout,
+            CompositorWindowState, CompositorWorkspace,
+        },
+        sway_ipc_connection::{SwayEvent, SwayEventKind, SwayIpcConnection, SwayMessageKind},
     },
-    process_tree_inspection,
-    sway_ipc_connection::{SwayEvent, SwayEventKind, SwayIpcConnection, SwayMessageKind},
+    desktop_windows_apps::process_tree_inspection,
 };
 
 const SCRATCHPAD_OUTPUT: &str = "__i3";
@@ -365,7 +367,7 @@ enum SwayNodeRole {
 #[cfg(test)]
 mod tests {
     use super::{SwayNode, SwayWorkspace, sway_state_of};
-    use crate::desktop_windows_apps::compositor_window_state::CompositorWindowState;
+    use crate::compositor_window_ipc::compositor_window_state::CompositorWindowState;
 
     const SWAY_TREE: &str = r#"{
         "id": 1, "type": "root", "rect": {"x": 0, "y": 0, "width": 1280, "height": 800},

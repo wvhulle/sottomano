@@ -124,7 +124,7 @@ mod tests {
     use std::time::Duration;
 
     use super::{CompositorWindow, CompositorWindowState};
-    use crate::desktop_windows_apps::compositor_test_windows::unplaced_compositor_window;
+    use crate::compositor_window_ipc::compositor_test_windows::unplaced_compositor_window;
 
     fn window_focused(id: u64, is_focused: bool) -> CompositorWindow {
         CompositorWindow {

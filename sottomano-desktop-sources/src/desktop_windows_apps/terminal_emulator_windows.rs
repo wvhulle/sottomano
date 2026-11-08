@@ -19,7 +19,7 @@ use terminal_shell_label::TerminalShellLabel;
 use tokio::task::spawn_blocking;
 
 use crate::{
-    desktop_windows_apps::{
+    compositor_window_ipc::{
         compositor_connection::compositor_updates,
         compositor_window_state::{CompositorChange, CompositorWindow, CompositorWindowState},
     },
@@ -542,7 +542,7 @@ mod tests {
         Pairing, TerminalAgent, TerminalAgentAccess, TerminalLabelReading, TerminalWindow,
         TerminalWindowKey, TitleProbeTarget,
     };
-    use crate::desktop_windows_apps::{
+    use crate::compositor_window_ipc::{
         compositor_test_windows::unplaced_compositor_window,
         compositor_window_state::{CompositorWindow, CompositorWindowState},
     };

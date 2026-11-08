@@ -1,10 +1,10 @@
 use std::mem;
 
 use iced::{Subscription, Task, window::frames};
-use sottomano_desktop_sinks::desktop_windows_apps::compositor_requests::CompositorRequest;
-use sottomano_desktop_sources::desktop_windows_apps::{
-    compositor_connection::{CompositorKind, OverviewSupport},
-    workspace_window_snapshot,
+use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::CompositorRequest;
+use sottomano_desktop_sources::{
+    compositor_window_ipc::compositor_connection::{CompositorKind, OverviewSupport},
+    desktop_windows_apps::workspace_window_snapshot,
 };
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{

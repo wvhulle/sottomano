@@ -9,7 +9,7 @@ use niri_ipc::{
 use tokio::net::UnixStream;
 use tokio_util::codec::{Framed, LinesCodec, LinesCodecError};
 
-use crate::desktop_windows_apps::compositor_window_state::{
+use crate::compositor_window_ipc::compositor_window_state::{
     CompositorChange, CompositorUpdate, CompositorWindow, CompositorWindowLayout,
     CompositorWindowState, CompositorWorkspace,
 };

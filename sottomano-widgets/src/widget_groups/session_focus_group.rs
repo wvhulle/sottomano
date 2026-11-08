@@ -12,10 +12,9 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sinks::login_session_presence::logind_session_commands::perform_session_action;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
+    compositor_window_ipc::compositor_window_state::CompositorWindowState,
     desktop_notifications::notification_data::ActionTint,
-    desktop_windows_apps::{
-        compositor_window_state::CompositorWindowState, terminal_emulator_windows::WindowProcesses,
-    },
+    desktop_windows_apps::terminal_emulator_windows::WindowProcesses,
     login_session_presence::{
         focus_time_ledger::{FocusSignal, ScreenEdge},
         session_power_actions::SessionAction,

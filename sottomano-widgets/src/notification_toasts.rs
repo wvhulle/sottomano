@@ -16,16 +16,16 @@ use iced::{
     time::Instant,
 };
 use sottomano_desktop_sinks::{
+    compositor_window_requests::compositor_requests::CompositorRequestFailure,
     desktop_notifications::alert_sound_player::SoundTheme,
-    desktop_windows_apps::compositor_requests::CompositorRequestFailure,
 };
 use sottomano_desktop_sources::{
+    compositor_window_ipc::compositor_window_state::CompositorWindowState,
     desktop_notifications::{
         freedesktop_notification_server::NotificationSignals, notification_data::NotificationData,
     },
     desktop_windows_apps::{
-        compositor_window_state::CompositorWindowState, desktop_entry_app_icons::DesktopEntries,
-        window_edge_placement::Placement,
+        desktop_entry_app_icons::DesktopEntries, window_edge_placement::Placement,
     },
 };
 use sottomano_toml_config::{Config, severity::Severity};

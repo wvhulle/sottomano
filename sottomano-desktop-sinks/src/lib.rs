@@ -1,4 +1,5 @@
 pub mod battery_power_profiles;
+pub mod compositor_window_requests;
 pub mod cpu_memory_compute;
 pub mod desktop_notifications;
 pub mod desktop_windows_apps;

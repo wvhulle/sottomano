@@ -6,7 +6,7 @@ use sottomano_desktop_sources::{
     system_protocol_clients::shell_command_output,
 };
 
-use crate::desktop_windows_apps::compositor_requests::{self, CompositorRequest};
+use crate::compositor_window_requests::compositor_requests::{self, CompositorRequest};
 
 fn with_logind_manager(call: impl FnOnce(&ManagerProxyBlocking<'static>) -> zbus::Result<()>) {
     if let Some(proxy) = logind_manager::logind_manager_proxy()
