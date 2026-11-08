@@ -184,7 +184,7 @@ pub(super) fn switch_heat_effect(message: &Message) -> SwitchHeatEffect {
     match message {
         Message::Compositor(_)
         | Message::SessionFocus(_)
-        | Message::NiriWindow(_)
+        | Message::CompositorStyling(_)
         | Message::Clock(_) => SwitchHeatEffect::Reheats,
         _ => SwitchHeatEffect::Unaffected,
     }

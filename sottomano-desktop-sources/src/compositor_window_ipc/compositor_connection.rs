@@ -5,7 +5,9 @@ use futures::{Stream, StreamExt, stream};
 use tokio::task::spawn_blocking;
 
 use crate::compositor_window_ipc::{
-    compositor_output_facts::OutputInfo, compositor_window_state::CompositorUpdate,
+    compositor_output_facts::OutputInfo,
+    compositor_styling_model::{ControlSupport, StylingControl},
+    compositor_window_state::CompositorUpdate,
 };
 #[cfg(feature = "hyprland")]
 use crate::compositor_window_ipc::{
@@ -74,6 +76,32 @@ impl CompositorKind {
             CompositorKind::Sway => OverviewSupport::Missing,
             #[cfg(feature = "hyprland")]
             CompositorKind::Hyprland => OverviewSupport::Missing,
+        }
+    }
+
+    #[must_use]
+    pub fn styling_support(self, control: StylingControl) -> ControlSupport {
+        match (self, control) {
+            #[cfg(feature = "sway")]
+            (
+                CompositorKind::Sway,
+                StylingControl::WindowCornerRadius
+                | StylingControl::ShellBlurDepth
+                | StylingControl::SwitchHeatBorders,
+            ) => ControlSupport::Missing,
+            _ => ControlSupport::Available,
+        }
+    }
+
+    #[must_use]
+    pub fn rules_file_name(self) -> &'static str {
+        match self {
+            #[cfg(feature = "niri")]
+            CompositorKind::Niri => "niri.kdl",
+            #[cfg(feature = "sway")]
+            CompositorKind::Sway => "sway.conf",
+            #[cfg(feature = "hyprland")]
+            CompositorKind::Hyprland => "hyprland.lua",
         }
     }
 

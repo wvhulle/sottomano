@@ -61,6 +61,7 @@ fn niri_action_of(request: &CompositorRequest) -> Action {
         CompositorRequest::Quit => Action::Quit {
             skip_confirmation: true,
         },
+        CompositorRequest::ReloadConfig => Action::LoadConfigFile { path: None },
     }
 }
 

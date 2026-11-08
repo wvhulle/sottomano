@@ -2,15 +2,15 @@ use std::path::PathBuf;
 
 use iced::Size;
 use iced_controller_diagram::{ControllerModel, DiagramAnchor};
-use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowLabel;
+use sottomano_desktop_sources::{
+    compositor_window_ipc::compositor_styling_model::AppWindowLayout,
+    desktop_windows_apps::window_title_labels::WindowLabel,
+};
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 
 use super::{Section, SectionBody};
-use crate::{
-    widget_groups::niri_window_group::niri_kdl_rules::NiriLayout,
-    widgets::value_cells::LabeledValue,
-};
+use crate::widgets::value_cells::LabeledValue;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ControllerCallouts {
@@ -59,7 +59,7 @@ pub struct PreviewTile {
 pub struct WorkspacePreview {
     pub columns: Vec<Vec<PreviewTile>>,
     pub floating: Vec<PreviewTile>,
-    pub niri_layout: NiriLayout,
+    pub app_window_layout: AppWindowLayout,
 }
 
 impl Section {

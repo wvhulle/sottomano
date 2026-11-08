@@ -96,7 +96,7 @@ impl ShellWidgetGroups {
             | HoverTarget::SidebarSettings(_)
             | HoverTarget::AppearancePresets(_)
             | HoverTarget::OverlaySettings(_)
-            | HoverTarget::NiriWindow(_)
+            | HoverTarget::CompositorStyling(_)
             | HoverTarget::Systemd(_)
             | HoverTarget::Journal(_)
             | HoverTarget::PendingUpgrades(_)

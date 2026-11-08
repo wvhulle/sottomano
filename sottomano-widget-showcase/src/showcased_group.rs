@@ -5,7 +5,8 @@ use iced::{
 use iced_controller_diagram::ControllerArtwork;
 use sottomano_desktop_sources::{
     compositor_window_ipc::{
-        compositor_window_state::CompositorWindowState, niri_kdl_config::ConfiguredWorkspaces,
+        compositor_styling_model::AppWindowLayout, compositor_window_state::CompositorWindowState,
+        niri_kdl_config::ConfiguredWorkspaces,
     },
     desktop_notifications::notification_data::NotificationData,
     desktop_windows_apps::workspace_window_snapshot::Snapshot,
@@ -28,13 +29,13 @@ use sottomano_widgets::{
         caldav_group::CaldavGroup,
         ci_runs_group::CiRunsGroup,
         claude_usage_group::ClaudeUsageGroup,
+        compositor_styling_group::CompositorStylingGroup,
         compute_group::ComputeGroup,
         gamepad_group::GamepadGroup,
         idle_pause_groups::IdlePauseGroups,
         login_session_group::LoginSessionGroup,
         media_group::MediaGroup,
         memory_board_group::MemoryBoardGroup,
-        niri_window_group::{NiriWindowGroup, niri_kdl_rules::NiriLayout},
         nspawn_containers_group::NspawnContainersGroup,
         overlay_settings_group::OverlaySettingsGroup,
         panel_settings_group::PanelSettingsGroup,
@@ -144,7 +145,7 @@ pub struct ShowcasedShellSettings {
     pub sidebar: SidebarSettingsGroup,
     pub overlays: OverlaySettingsGroup,
     pub menus: GroupMenuState,
-    pub niri_window: NiriWindowGroup,
+    pub compositor_styling: CompositorStylingGroup,
     pub shown_items: ShownSettingItems,
 }
 
@@ -169,7 +170,7 @@ impl ShowcasedShellSettings {
             self.overlays
                 .group_content(config)
                 .map(|_| ShowcaseMessage::OutsideShowcase),
-            self.niri_window
+            self.compositor_styling
                 .group_content(config)
                 .map(|_| ShowcaseMessage::OutsideShowcase),
             self.menus
@@ -195,8 +196,8 @@ impl ShowcasedShellSettings {
             HoverTarget::OverlaySettings(target) => {
                 Some(self.overlays.hover_card_for(*target, clock))
             }
-            HoverTarget::NiriWindow(target) => {
-                Some(self.niri_window.hover_card_for(*target, clock))
+            HoverTarget::CompositorStyling(target) => {
+                Some(self.compositor_styling.hover_card_for(*target, clock))
             }
             HoverTarget::GroupMenuSettings(target) => {
                 Some(self.menus.settings_hover_card(*target, clock))
@@ -378,7 +379,7 @@ impl ShowcasedDesktopSession {
             HoverTarget::Workspace(workspace) => workspace_hover_card::hover_card(
                 &self.snapshot,
                 &self.desktop_entries,
-                NiriLayout::default(),
+                AppWindowLayout::default(),
                 *workspace,
             ),
             _ => None,

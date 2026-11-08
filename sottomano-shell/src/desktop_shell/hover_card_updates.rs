@@ -269,7 +269,9 @@ impl DesktopShell {
             HoverTarget::Workspace(workspace) => workspace_hover_card::hover_card(
                 &self.window_snapshot,
                 &self.desktop_entries,
-                self.widget_groups.niri_window_group.niri_layout(),
+                self.widget_groups
+                    .compositor_styling_group
+                    .app_window_layout(),
                 *workspace,
             ),
             HoverTarget::WorkspaceOrder | HoverTarget::WorkspaceFolding => Some(HoverCard::empty()),
@@ -316,9 +318,9 @@ impl DesktopShell {
                 .widget_groups
                 .power_group
                 .hover_card_for(*target, self.clock),
-            HoverTarget::NiriWindow(target) => Some(
+            HoverTarget::CompositorStyling(target) => Some(
                 self.widget_groups
-                    .niri_window_group
+                    .compositor_styling_group
                     .hover_card_for(*target, self.clock),
             ),
             HoverTarget::Systemd(target) => self

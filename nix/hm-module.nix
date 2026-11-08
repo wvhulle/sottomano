@@ -214,12 +214,14 @@ in
         source = tomlFormat.generate "sottomano.toml" cfg.settings;
       };
 
-      "systemd/user/niri.service.d/sottomano-priority.conf" = lib.mkIf cfg.systemdUnit {
-        text = ''
-          [Service]
-          CPUWeight=1000
-        '';
-      };
+      "systemd/user/niri.service.d/sottomano-priority.conf" =
+        lib.mkIf (cfg.systemdUnit && config.services.niri.enable)
+          {
+            text = ''
+              [Service]
+              CPUWeight=1000
+            '';
+          };
 
       "sottomano/openrouter-management-key" =
         lib.mkIf (cfg.secretFiles."openrouter-management-key" != null)
@@ -254,12 +256,16 @@ in
       light.source = variantToml themeCfg.palettes.light;
     };
 
-    services.niri.settings.includes = [
+    services.niri.settings.includes = lib.mkIf config.services.niri.enable [
       {
         path = "${config.xdg.configHome}/sottomano/niri.kdl";
         optional = true;
       }
     ];
+
+    wayland.windowManager.sway.extraConfig = lib.mkIf config.wayland.windowManager.sway.enable ''
+      include ${config.xdg.configHome}/sottomano/sway.conf
+    '';
 
     systemd.user.services.sottomano = lib.mkIf cfg.systemdUnit {
       Unit = {

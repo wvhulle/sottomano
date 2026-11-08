@@ -1,5 +1,6 @@
 pub mod compositor_connection;
 pub mod compositor_output_facts;
+pub mod compositor_styling_model;
 #[cfg(any(test, feature = "test-support"))]
 pub mod compositor_test_windows;
 pub mod compositor_window_state;

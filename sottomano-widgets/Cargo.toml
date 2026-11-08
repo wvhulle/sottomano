@@ -52,4 +52,5 @@ zbus.workspace = true
 
 [dev-dependencies]
 sottomano-desktop-sources = { path = "../sottomano-desktop-sources", features = ["test-support"] }
+sottomano-desktop-sinks = { path = "../sottomano-desktop-sinks", features = ["niri"] }
 iced_test = "0.14.0"

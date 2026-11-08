@@ -28,7 +28,9 @@ use iced::{
 };
 use iced_controller_diagram::ControllerArtwork;
 use sottomano_desktop_sinks::{
-    compositor_window_requests::compositor_requests::CompositorRequest,
+    compositor_window_requests::{
+        compositor_requests::CompositorRequest, compositor_rule_files::CompositorRulesFile,
+    },
     desktop_notifications::alert_sound_player::SoundTheme,
 };
 use sottomano_desktop_sources::{
@@ -63,7 +65,7 @@ use sottomano_widgets::{
     notification_toasts::{NotificationLayer, ToastSurfaceStyle},
     widget_groups::{
         appearance_presets_group::AppearancePresetsMessage, idle_pause_groups::IdlePauseMessage,
-        niri_window_group::niri_kdl_rules::NiriRulesFile, session_power_group,
+        session_power_group,
     },
     widgets::{
         configured_theme::{configured_theme, text_color},
@@ -120,7 +122,7 @@ impl DesktopShell {
         config: Config,
         config_file: ConfigFile,
         secrets: SecretPaths,
-        niri_rules: NiriRulesFile,
+        compositor_rules: CompositorRulesFile,
         niri_config: NiriConfigFile,
         loaded: Result<Box<Config>, Arc<LoadError>>,
     ) -> (Self, Task<Message>) {
@@ -128,7 +130,7 @@ impl DesktopShell {
         point_generic_font_families_at(&config.theme);
         let clock = Clock::real();
         let shell = Self {
-            widget_groups: ShellWidgetGroups::new(&config, secrets, niri_rules, clock),
+            widget_groups: ShellWidgetGroups::new(&config, secrets, compositor_rules, clock),
             launch_tracker: LaunchTracker::default(),
             compositor: CompositorWindowState::default(),
             window_snapshot: workspace_window_snapshot::Snapshot::default(),
@@ -395,7 +397,7 @@ impl DesktopShell {
             | Message::Storage(_)
             | Message::Drive(_)
             | Message::SidebarSettings(_)
-            | Message::NiriWindow(_)
+            | Message::CompositorStyling(_)
             | Message::Clock(_)
             | Message::SystemdManager(_)
             | Message::JournalEvents(_)
