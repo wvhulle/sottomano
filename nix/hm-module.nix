@@ -317,6 +317,7 @@ in
         RestartSec = 2;
         Slice = "session.slice";
         CPUWeight = 500;
+        MemoryMin = lib.mkDefault "300M";
       };
       Install.WantedBy = [ "graphical-session.target" ];
     };
