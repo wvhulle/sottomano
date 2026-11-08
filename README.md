@@ -3,17 +3,16 @@
 # Sottomano
 
 *Sottomano* is Italian for "at hand": *avere tutto sottomano*, to have everything
-within reach. It is my desktop shell for [niri](https://github.com/YaLTeR/niri):
-a top panel, a bottom panel, an optional workspace sidebar and notification
-toasts, in one binary.
+within reach. It is my desktop shell: a top panel, a bottom panel, an optional
+workspace sidebar and notification toasts, in one binary.
 
 ## Why
 
-After twenty years of GNOME and KDE Plasma I wanted a niri desktop that never
-asks for attention but answers when I look, with the widgets I kept missing
-there. Sottomano is written in Rust, so readings arrive as streams from niri
-IPC, D-Bus, PipeWire and native libraries instead of polled commands, and each
-one explains itself in a hover card whose top line says what a click does.
+After twenty years of GNOME and KDE Plasma I wanted a desktop that never asks
+for attention but answers when I look, with the widgets I kept missing there.
+Sottomano is written in Rust, so readings arrive as streams from compositor IPC,
+D-Bus, PipeWire and native libraries instead of polled commands, and each one
+explains itself in a hover card whose top line says what a click does.
 
 Previous work:
 
@@ -62,7 +61,8 @@ made up.
   [exwlshelleventloop](https://github.com/waycrate/exwlshelleventloop), through
   a [fork](https://github.com/wvhulle/exwlshelleventloop) with the patches the
   shell needs until they land upstream.
-- [niri-ipc](https://github.com/YaLTeR/niri) for the compositor,
+- [niri-ipc](https://github.com/YaLTeR/niri) and
+  [swayipc-types](https://github.com/jaycefayne/swayipc-rs) for compositor IPC,
   [zbus](https://dbus2.github.io/zbus/) for D-Bus services, PipeWire for audio,
   and a CLI only where nothing else is available.
 
