@@ -159,6 +159,10 @@ impl AppearancePreset {
                         },
                         ..sidebar
                     },
+                    overlays: LayerAppearance {
+                        opacity: 0.9,
+                        ..current.overlays
+                    },
                     ..current
                 }
             }
