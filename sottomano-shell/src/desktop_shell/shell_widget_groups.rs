@@ -339,10 +339,10 @@ impl ShellWidgetGroups {
                 .nspawn_containers_group
                 .update(container_message, clock)
                 .map(Message::NspawnContainers),
-            Message::CiRuns(message) => {
-                self.ci_runs_group.update(message, clock);
-                Task::none()
-            }
+            Message::CiRuns(message) => self
+                .ci_runs_group
+                .update(message, clock)
+                .map(Message::CiRuns),
             Message::SessionFocus(msg) => self
                 .session_focus_group
                 .update(msg, &config.widget_groups.session_focus, clock)

@@ -19,18 +19,19 @@ use crate::{
     delivery_cadence_drivers::SamplingNeed,
     podman_container_engine::{
         libpod_inspect_ci_identity::{WoodpeckerStepIdentity, fetch_woodpecker_step_identity},
+        procfs_conmon_sessions::ConmonSessions,
         running_set_changes::{ChangeTrackedSample, samples_on_running_set_changes},
     },
     stream_operators::StreamOperators,
     system_protocol_clients::{
         http_json_client,
         procfs_process_tree::{
-            CpuTickCheckpoints, ProcessTable, ProcessTreeCpuLoad, total_cpu_load,
+            CpuTickCheckpoints, ProcessTable, ProcessTreeCpuLoad, ProcessTreeTotals, total_cpu_load,
         },
     },
 };
 
-pub(super) const LIBPOD_API_ROOT: &str = "http://podman/v5.0.0/libpod";
+pub const LIBPOD_API_ROOT: &str = "http://podman/v5.0.0/libpod";
 pub(crate) const ENGINE_POLL_PERIOD: Duration = Duration::from_secs(5);
 const WOODPECKER_STEP_LABEL: &str = "wp_step";
 const RUNNING_STATE: &str = "running";
@@ -198,6 +199,29 @@ async fn listed_containers_with_one_retry(
     }
 }
 
+pub(crate) struct HostProcesses {
+    process_table: ProcessTable,
+    conmon_sessions: ConmonSessions,
+}
+
+impl HostProcesses {
+    fn read_current() -> Option<Self> {
+        let process_table = ProcessTable::read_current()?;
+        let conmon_sessions = ConmonSessions::read_current(&process_table);
+        Some(Self {
+            process_table,
+            conmon_sessions,
+        })
+    }
+
+    fn container_totals(&self, container: &ListedContainer) -> ProcessTreeTotals {
+        self.process_table.forest_totals(
+            self.conmon_sessions
+                .measured_roots(&container.id, container.pid),
+        )
+    }
+}
+
 pub(crate) struct EngineSampler {
     socket_path: PathBuf,
     identities_by_id: HashMap<String, WoodpeckerStepIdentity>,
@@ -243,17 +267,17 @@ impl EngineSampler {
             });
         }
         self.learn_new_identities(&listed).await;
-        let table = blocking_poll(|| {
-            ProcessTable::read_current().ok_or(EngineReadError::ProcessTableUnreadable)
+        let host_processes = blocking_poll(|| {
+            HostProcesses::read_current().ok_or(EngineReadError::ProcessTableUnreadable)
         })
         .await?;
-        Ok(self.measured(&listed, &table, Instant::now()))
+        Ok(self.measured(&listed, &host_processes, Instant::now()))
     }
 
     fn measured(
         &mut self,
         listed: &[ListedContainer],
-        table: &ProcessTable,
+        host_processes: &HostProcesses,
         taken_at: Instant,
     ) -> EngineContainers {
         let live_ids: HashSet<&str> = listed
@@ -266,7 +290,7 @@ impl EngineSampler {
             .retain_keys(|container_id| live_ids.contains(container_id.as_str()));
         let containers = listed
             .iter()
-            .map(|container| self.measured_container(container, table, taken_at))
+            .map(|container| self.measured_container(container, host_processes, taken_at))
             .collect();
         EngineContainers { containers }
     }
@@ -274,10 +298,10 @@ impl EngineSampler {
     fn measured_container(
         &mut self,
         container: &ListedContainer,
-        table: &ProcessTable,
+        host_processes: &HostProcesses,
         taken_at: Instant,
     ) -> RunningContainer {
-        let totals = table.tree_totals(container.pid);
+        let totals = host_processes.container_totals(container);
         let cpu_load = self.checkpoints_by_id.load_since_previous(
             container.id.clone(),
             totals.spent_ticks,
@@ -376,6 +400,13 @@ mod tests {
         system_protocol_clients::procfs_process_tree::ProcessSample,
     };
 
+    fn processes_without_conmon(samples: impl IntoIterator<Item = ProcessSample>) -> HostProcesses {
+        HostProcesses {
+            process_table: ProcessTable::from_samples(samples),
+            conmon_sessions: ConmonSessions::default(),
+        }
+    }
+
     fn listed_step_container() -> ListedContainer {
         serde_json::from_value(json!({
             "Id": "abc",
@@ -404,7 +435,7 @@ mod tests {
     #[test]
     fn a_container_is_shown_by_its_step_label() {
         let mut sampler = EngineSampler::new(PathBuf::from("/nonexistent"));
-        let table = ProcessTable::from_samples([]);
+        let table = processes_without_conmon([]);
         let measured = sampler.measured(&[listed_step_container()], &table, Instant::now());
         assert_eq!(measured.containers[0].shown_name, "clone");
         assert_eq!(measured.containers[0].container_name, "wp_01M6");
@@ -415,7 +446,7 @@ mod tests {
         let mut sampler = EngineSampler::new(PathBuf::from("/nonexistent"));
         sampler.checkpoints_by_id = CpuTickCheckpoints::with_capacity(CpuCapacity::from(4));
         let started = Instant::now();
-        let first_table = ProcessTable::from_samples([ProcessSample {
+        let first_table = processes_without_conmon([ProcessSample {
             pid: 10,
             parent_pid: 1,
             spent_ticks: 100,
@@ -428,7 +459,7 @@ mod tests {
         );
         assert_eq!(first.containers[0].resident_memory, ByteSize::b(4096));
 
-        let second_table = ProcessTable::from_samples([ProcessSample {
+        let second_table = processes_without_conmon([ProcessSample {
             pid: 10,
             parent_pid: 1,
             spent_ticks: 100 + procfs::ticks_per_second() * 10,
@@ -446,11 +477,57 @@ mod tests {
     }
 
     #[test]
+    fn exec_sessions_count_toward_their_container_only() {
+        let mut sampler = EngineSampler::new(PathBuf::from("/nonexistent"));
+        let process = |pid, parent_pid, resident_bytes| ProcessSample {
+            pid,
+            parent_pid,
+            spent_ticks: 0,
+            resident_bytes,
+        };
+        let host_processes = HostProcesses {
+            process_table: ProcessTable::from_samples([
+                process(9, 1, 100),
+                process(10, 9, 140),
+                process(20, 1, 100),
+                process(21, 20, 1_000_000),
+                process(30, 1, 100),
+                process(31, 30, 5_000_000),
+            ]),
+            conmon_sessions: ConmonSessions::from_command_lines([
+                (
+                    9,
+                    vec!["conmon".to_owned(), "-c".to_owned(), "abc".to_owned()],
+                ),
+                (
+                    20,
+                    vec![
+                        "conmon".to_owned(),
+                        "-c".to_owned(),
+                        "abc".to_owned(),
+                        "--exec".to_owned(),
+                    ],
+                ),
+                (
+                    30,
+                    vec!["conmon".to_owned(), "-c".to_owned(), "other".to_owned()],
+                ),
+            ]),
+        };
+        let measured =
+            sampler.measured(&[listed_step_container()], &host_processes, Instant::now());
+        assert_eq!(
+            measured.containers[0].resident_memory,
+            ByteSize::b(100 + 140 + 100 + 1_000_000)
+        );
+    }
+
+    #[test]
     fn a_shrinking_tree_never_reports_negative_load() {
         let mut sampler = EngineSampler::new(PathBuf::from("/nonexistent"));
         let started = Instant::now();
         let sample_with_ticks = |spent_ticks| {
-            ProcessTable::from_samples([ProcessSample {
+            processes_without_conmon([ProcessSample {
                 pid: 10,
                 parent_pid: 1,
                 spent_ticks,
@@ -484,7 +561,7 @@ mod tests {
     #[test]
     fn gone_containers_are_forgotten() {
         let mut sampler = EngineSampler::new(PathBuf::from("/nonexistent"));
-        let table = ProcessTable::from_samples([]);
+        let table = processes_without_conmon([]);
         sampler.measured(&[listed_step_container()], &table, Instant::now());
         assert_eq!(sampler.checkpoints_by_id.len(), 1);
         sampler.measured(&[], &table, Instant::now());

@@ -6,11 +6,13 @@ use std::borrow::Cow;
 pub use ci_run_readings::CiRunnerKind;
 use ci_run_readings::{CiRunnerFailureRow, CiTaskRow, WatchedCiRunner};
 pub use ci_runner_watches::{CiRunnerSnapshot, CiRunnerWatches};
-use iced::Subscription;
+use iced::{Subscription, Task};
+use sottomano_desktop_sinks::ci_runner_tasks::libpod_container_stop::stop_task_containers;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     ci_runner_tasks::{
-        forgejo_runner_tasks::ForgejoRunnerTasks, woodpecker_agent_tasks::WoodpeckerAgentTasks,
+        TaskStopControl, forgejo_runner_tasks::ForgejoRunnerTasks,
+        woodpecker_agent_tasks::WoodpeckerAgentTasks,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -33,6 +35,8 @@ use crate::{
         phosphor::{Phosphor, Weight},
     },
 };
+
+const CANCEL_RUN_HINT: &str = "Cancel run";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CiRunnerReference {
@@ -95,6 +99,25 @@ pub enum CiRunsMessage {
     WoodpeckerRunner(String, SnapshotDelivery<WoodpeckerAgentTasks>),
     ForgejoRunner(String, SnapshotDelivery<ForgejoRunnerTasks>),
     Expansion(WidgetGroupExpansionMessage),
+    CancelRun(String, TaskStopControl),
+    CancelAccepted(String),
+    CancelRefused(String, String),
+}
+
+fn cancel_run_task(run_label: String, stop_control: TaskStopControl) -> Task<CiRunsMessage> {
+    match stop_control {
+        TaskStopControl::NoContainerNow => Task::none(),
+        TaskStopControl::StopContainers {
+            engine_socket,
+            container_ids,
+        } => Task::perform(
+            async move { stop_task_containers(&engine_socket, &container_ids).await },
+            move |stopped| match stopped {
+                Ok(()) => CiRunsMessage::CancelAccepted(run_label),
+                Err(failure) => CiRunsMessage::CancelRefused(run_label, failure),
+            },
+        ),
+    }
 }
 
 fn runner_hover_card<S: CiRunnerSnapshot>(
@@ -144,7 +167,7 @@ impl CiRunsGroup {
         ])
     }
 
-    pub fn update(&mut self, message: CiRunsMessage, clock: Clock) {
+    pub fn update(&mut self, message: CiRunsMessage, clock: Clock) -> Task<CiRunsMessage> {
         match message {
             CiRunsMessage::Services(scoped_commands) => {
                 self.services.receive(scoped_commands, clock);
@@ -161,7 +184,17 @@ impl CiRunsGroup {
             CiRunsMessage::Expansion(message) => {
                 self.expansion.update(message);
             }
+            CiRunsMessage::CancelRun(run_label, stop_control) => {
+                return cancel_run_task(run_label, stop_control);
+            }
+            CiRunsMessage::CancelAccepted(run_label) => {
+                tracing::info!("stopped the containers of CI run {run_label}");
+            }
+            CiRunsMessage::CancelRefused(run_label, failure) => {
+                tracing::warn!("cancelling CI run {run_label}: {failure}");
+            }
         }
+        Task::none()
     }
 
     fn watched_runners(&self) -> Vec<WatchedCiRunner<'_>> {
@@ -219,7 +252,7 @@ impl CiRunsGroup {
             let failure_row = CiRunnerFailureRow::of_failing(watched)
                 .map(|row| GroupItem::reading(row, CiRunsTarget::Runner(reference.clone())));
             let run_rows = watched.runner.tasks.iter().map(move |task| {
-                GroupItem::reading(
+                let row = GroupItem::reading(
                     CiTaskRow {
                         kind: watched.kind,
                         task,
@@ -228,7 +261,14 @@ impl CiRunsGroup {
                         runner: reference.clone(),
                         run_label: Cow::Owned(task.run_label.clone()),
                     },
-                )
+                );
+                match &task.stop_control {
+                    TaskStopControl::NoContainerNow => row,
+                    stop_control @ TaskStopControl::StopContainers { .. } => row.on_right_press(
+                        CANCEL_RUN_HINT,
+                        CiRunsMessage::CancelRun(task.run_label.clone(), stop_control.clone()),
+                    ),
+                }
             });
             failure_row.into_iter().chain(run_rows)
         });

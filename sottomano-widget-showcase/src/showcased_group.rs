@@ -546,7 +546,7 @@ impl ShowcasedGroup {
                 let _ = group.update(container_message, clock);
             }
             (ShowcasedGroup::CiRuns(group), ShowcaseMessage::CiRuns(message)) => {
-                group.update(message, clock);
+                let _ = group.update(message, clock);
             }
             _ => {}
         }

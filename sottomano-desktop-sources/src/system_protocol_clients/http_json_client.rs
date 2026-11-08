@@ -168,10 +168,16 @@ pub async fn get_json<T: DeserializeOwned>(
     decode(response.body)
 }
 
-pub async fn get_json_over_unix_socket<T: DeserializeOwned>(
+struct UnixSocketReply {
+    status: u16,
+    body: Option<Value>,
+}
+
+async fn exchanged_over_unix_socket(
     socket_path: &Path,
+    method: Method,
     url: &str,
-) -> Result<T, Error> {
+) -> Result<UnixSocketReply, Error> {
     let socket_label = socket_path.display().to_string();
     let client = ClientBuilder::new()
         .connect_timeout(CONNECT_TIMEOUT)
@@ -180,7 +186,7 @@ pub async fn get_json_over_unix_socket<T: DeserializeOwned>(
         .map_err(|error| Error::Client(error.to_string()))?;
     let answered = async {
         let response = client
-            .get(url)
+            .request(method, url)
             .send()
             .await
             .map_err(|failure| Error::Unreachable {
@@ -192,11 +198,10 @@ pub async fn get_json_over_unix_socket<T: DeserializeOwned>(
             .bytes()
             .await
             .map_err(|error| Error::Body(innermost_cause(&error)))?;
-        let body = serde_json::from_slice(&body_bytes).ok();
-        if status != 200 {
-            return Err(Error::status(status, body));
-        }
-        decode(body)
+        Ok(UnixSocketReply {
+            status,
+            body: serde_json::from_slice(&body_bytes).ok(),
+        })
     };
     timeout(REQUEST_TIMEOUT, answered)
         .await
@@ -204,6 +209,25 @@ pub async fn get_json_over_unix_socket<T: DeserializeOwned>(
             host: socket_label.clone(),
             after: REQUEST_TIMEOUT,
         })?
+}
+
+pub async fn get_json_over_unix_socket<T: DeserializeOwned>(
+    socket_path: &Path,
+    url: &str,
+) -> Result<T, Error> {
+    let reply = exchanged_over_unix_socket(socket_path, Method::GET, url).await?;
+    if reply.status != 200 {
+        return Err(Error::status(reply.status, reply.body));
+    }
+    decode(reply.body)
+}
+
+pub async fn post_over_unix_socket(socket_path: &Path, url: &str) -> Result<u16, Error> {
+    let reply = exchanged_over_unix_socket(socket_path, Method::POST, url).await?;
+    if reply.status >= 400 {
+        return Err(Error::status(reply.status, reply.body));
+    }
+    Ok(reply.status)
 }
 
 pub fn decode<T: DeserializeOwned>(body: Option<Value>) -> Result<T, Error> {

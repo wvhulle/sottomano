@@ -43,6 +43,7 @@ pub(crate) struct ProcessTreeTotals {
 pub(crate) struct ProcessTable {
     samples_by_pid: HashMap<i32, ProcessSample>,
     children_by_pid: HashMap<i32, Vec<i32>>,
+    pids_by_command_name: HashMap<String, Vec<i32>>,
 }
 
 impl ProcessTable {
@@ -64,22 +65,45 @@ impl ProcessTable {
         Self {
             samples_by_pid,
             children_by_pid,
+            pids_by_command_name: HashMap::new(),
         }
     }
 
     pub fn read_current() -> Option<Self> {
-        let processes = all_processes().ok()?;
-        Some(Self::from_samples(
-            processes
-                .filter_map(Result::ok)
-                .filter_map(|process| process.stat().ok())
-                .map(|stat| ProcessSample::from(&stat)),
-        ))
+        let stats: Vec<Stat> = all_processes()
+            .ok()?
+            .filter_map(Result::ok)
+            .filter_map(|process| process.stat().ok())
+            .collect();
+        let pids_by_command_name = stats.iter().fold(
+            HashMap::<String, Vec<i32>>::new(),
+            |mut pids_by_command_name, stat| {
+                pids_by_command_name
+                    .entry(stat.comm.clone())
+                    .or_default()
+                    .push(stat.pid);
+                pids_by_command_name
+            },
+        );
+        Some(Self {
+            pids_by_command_name,
+            ..Self::from_samples(stats.iter().map(ProcessSample::from))
+        })
+    }
+
+    pub fn pids_named(&self, command_name: &str) -> &[i32] {
+        self.pids_by_command_name
+            .get(command_name)
+            .map_or(&[], Vec::as_slice)
     }
 
     pub fn tree_totals(&self, root_pid: i32) -> ProcessTreeTotals {
+        self.forest_totals([root_pid])
+    }
+
+    pub fn forest_totals(&self, root_pids: impl IntoIterator<Item = i32>) -> ProcessTreeTotals {
         let mut visited_pids = HashSet::new();
-        let mut pending_pids = vec![root_pid];
+        let mut pending_pids: Vec<i32> = root_pids.into_iter().collect();
         let mut totals = ProcessTreeTotals::default();
         while let Some(pid) = pending_pids.pop() {
             if !visited_pids.insert(pid) {
@@ -230,6 +254,22 @@ mod tests {
         let before = ProcessTable::from_samples([sample(10, 1, 5, 100), sample(11, 10, 40, 200)]);
         let after = ProcessTable::from_samples([sample(10, 1, 5 + 40, 100)]);
         assert!(after.tree_totals(10).spent_ticks >= before.tree_totals(10).spent_ticks);
+    }
+
+    #[test]
+    fn overlapping_roots_count_each_process_once() {
+        let table = ProcessTable::from_samples([
+            sample(10, 1, 5, 100),
+            sample(11, 10, 7, 200),
+            sample(30, 1, 3, 1000),
+        ]);
+        assert_eq!(
+            table.forest_totals([10, 11, 30]),
+            ProcessTreeTotals {
+                spent_ticks: 15,
+                resident_bytes: 1300,
+            }
+        );
     }
 
     #[test]
