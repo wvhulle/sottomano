@@ -1,5 +1,5 @@
 {
-  description = "sottomano — iced + iced_exwlshell shell for niri";
+  description = "sottomano — iced + iced_exwlshell shell for niri, sway and Hyprland";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";

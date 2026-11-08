@@ -28,14 +28,16 @@ The shell loads the config and starts its daemon. A data source becomes a
 subscription that yields a message while a reading it backs is on screen or can
 alert, decided the same way for pinned groups and groups in a menu. The update
 step applies each message, persisting state where needed, and the view renders
-the layer-shell surfaces.
+the layer-shell surfaces. Windows and workspaces come from whichever compositor
+runs (niri, sway or Hyprland), detected from its socket variable; each
+compositor sits behind a cargo feature of the same name, all on by default.
 
 ```mermaid
 flowchart TB
   subgraph sources_crate [sottomano-desktop-sources]
     desktop_bus["D-Bus (zbus)<br>power, login session, media, …"]
     notification_server["freedesktop<br>notification server"]
-    niri_event_socket["niri IPC<br>event socket"]
+    compositor_events["compositor IPC<br>niri, sway or Hyprland events"]
     wayland_outputs["Wayland outputs"]
     file_watches["inotify<br>config file, desktop entries"]
     snapshot_sources["snapshot sources"]
@@ -44,6 +46,7 @@ flowchart TB
   subgraph sinks_crate [sottomano-desktop-sinks]
     service_commands["service commands<br>volume, power, network, tray, …"]
     notification_signals["notification<br>signals"]
+    compositor_requests["compositor requests<br>and window styling rules"]
   end
 
   subgraph config_crate [sottomano-toml-config]
@@ -56,9 +59,7 @@ flowchart TB
     snapshot_subscription["snapshot subscription"]
     widget_groups["widget groups<br>update, view"]
     group_stores["per-group SQLite state<br>dark mode schedule, idle timeouts,<br>focus spans, shell settings, …"]
-    niri_kdl_rules["niri window rules"]
     widget_groups <-->|restore / persist| group_stores
-    widget_groups <--> niri_kdl_rules
   end
 
   subgraph shell_crate [sottomano-shell]
@@ -78,16 +79,16 @@ flowchart TB
   end
 
   state_database[("$XDG_STATE_HOME/sottomano/state.db")]
-  niri_kdl_file[("$XDG_CONFIG_HOME/sottomano/niri.kdl<br>niri layer, layout and window rules")]
+  compositor_rules_file[("$XDG_CONFIG_HOME/sottomano/<br>niri.kdl, sway.conf or hyprland.lua")]
 
   config_loading --> shell_startup
-  desktop_bus & notification_server & niri_event_socket & wayland_outputs & file_watches --> message_subscriptions
+  desktop_bus & notification_server & compositor_events & wayland_outputs & file_watches --> message_subscriptions
   snapshot_sources -->|snapshots| snapshot_subscription
   snapshot_subscription --> shell_message
   shell_update <-->|group messages and tasks| widget_groups
-  widget_groups -->|write tasks| service_commands & notification_signals
+  widget_groups -->|write tasks| service_commands & notification_signals & compositor_requests
   group_stores & app_launch_store <--> state_database
-  niri_kdl_rules <-->|read / rewrite| niri_kdl_file
+  compositor_requests -->|rewrite| compositor_rules_file
 ```
 
 ## Building and checking
@@ -177,6 +178,33 @@ flowchart LR
 The recordings pipeline skips its own commits. The config docs pipeline only runs
 when the config crate, `xtask/` or `docs/configuration.md` change, and skips its
 own commits.
+
+## VM tests
+
+`vm-tests/` boots a NixOS VM per compositor (niri, sway, Hyprland) and scenario,
+runs sottomano in a real session there and checks it through the compositor's
+IPC and OCR of the screen. Each check is a flake check named
+`vm-<compositor>-<scenario>`:
+
+- `panel-mapped`: the bar starts and maps its panel.
+- `styling-rules`: the bar writes the running compositor's rule file and the
+  compositor accepts it.
+- `workspace-follow`: named windows on two workspaces show in the bar after
+  each workspace switch.
+
+```bash
+nix build .#checks.x86_64-linux.vm-sway-workspace-follow
+nix run .#checks.x86_64-linux.vm-sway-workspace-follow.driverInteractive
+```
+
+The VMs need KVM and render in software. The niri in the VMs is patched to
+accept a software renderer. The bar there uses a large font and a
+high-contrast palette, so OCR reads it. A failing check prints the compositor's
+windows and workspaces and the user journal.
+
+The Woodpecker pipelines skip the VM tests. A Forgejo Actions workflow
+(`.forgejo/workflows/vm-tests.yaml`) runs them on pushes to `main` on a runner
+labelled `nix` with KVM.
 
 ## Tour recordings
 
@@ -295,5 +323,7 @@ the page behind them.
 - [iced book](https://book.iced.rs/) and [API docs](https://docs.iced.rs/)
 - [exwlshelleventloop](https://github.com/waycrate/exwlshelleventloop), the
   source of `iced_exwlshell` (and the fork carrying the active patches)
-- [niri IPC](https://github.com/YaLTeR/niri) for the compositor protocol
+- [niri IPC](https://github.com/YaLTeR/niri) for the niri protocol
+- [sway-ipc(7)](https://man.archlinux.org/man/sway-ipc.7) for the sway protocol
+- [Hyprland IPC](https://wiki.hypr.land/IPC/) and its Lua dispatchers for Hyprland
 - [zbus](https://dbus2.github.io/zbus/) for D-Bus data sources

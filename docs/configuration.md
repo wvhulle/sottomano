@@ -18,6 +18,16 @@ and the previous configuration stays in use.
 With home-manager, `services.sottomano.settings` takes the same keys as Nix
 attributes, and the module writes them to that file verbatim.
 
+## Compositors
+
+The same file works on niri, sway and Hyprland. The gamepad's
+`compositor_actions` name compositor-neutral actions; on a compositor without an
+equivalent, such as `toggle_overview` on sway, pressing the button shows a toast
+saying so. The window styling group keeps its settings in the state database
+and writes them as rules for the running compositor, which its page explains how
+to include: [niri](compositors/niri.md), [sway](compositors/sway.md),
+[Hyprland](compositors/hyprland.md).
+
 ## Full default
 
 Every key with its default, as `sottomano default-config` prints it.
