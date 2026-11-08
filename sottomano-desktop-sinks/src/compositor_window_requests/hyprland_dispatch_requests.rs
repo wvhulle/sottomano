@@ -14,54 +14,57 @@ enum HyprlandDispatch {
     Unsupported,
 }
 
-fn window_address(window: u64) -> String {
-    format!("address:0x{window:x}")
+fn window_selector(window: u64) -> String {
+    format!("\"address:0x{window:x}\"")
+}
+
+fn lua_dispatcher(expression: &str) -> HyprlandDispatch {
+    HyprlandDispatch::Dispatcher(format!("hl.dsp.{expression}"))
 }
 
 fn hyprland_dispatch_of(request: &CompositorRequest) -> HyprlandDispatch {
-    let dispatcher = |dispatcher: String| HyprlandDispatch::Dispatcher(dispatcher);
     match request {
-        CompositorRequest::FocusWindow(window) => {
-            dispatcher(format!("focuswindow {}", window_address(*window)))
-        }
-        CompositorRequest::CloseWindow(window) => {
-            dispatcher(format!("closewindow {}", window_address(*window)))
-        }
-        CompositorRequest::CloseFocusedWindow => dispatcher("killactive".to_owned()),
+        CompositorRequest::FocusWindow(window) => lua_dispatcher(&format!(
+            "focus({{ window = {} }})",
+            window_selector(*window)
+        )),
+        CompositorRequest::CloseWindow(window) => lua_dispatcher(&format!(
+            "window.close({{ window = {} }})",
+            window_selector(*window)
+        )),
+        CompositorRequest::CloseFocusedWindow => lua_dispatcher("window.close()"),
         CompositorRequest::FocusWorkspace(workspace) => {
-            dispatcher(format!("workspace {workspace}"))
+            lua_dispatcher(&format!("focus({{ workspace = {workspace} }})"))
         }
         CompositorRequest::MoveWindowToWorkspace {
             window,
             workspace,
             follows_focus,
-        } => {
-            let mover = if *follows_focus {
-                "movetoworkspace"
-            } else {
-                "movetoworkspacesilent"
-            };
-            dispatcher(format!("{mover} {workspace},{}", window_address(*window)))
-        }
-        CompositorRequest::FocusLeft => dispatcher("movefocus l".to_owned()),
-        CompositorRequest::FocusRight => dispatcher("movefocus r".to_owned()),
-        CompositorRequest::FocusUp => dispatcher("movefocus u".to_owned()),
-        CompositorRequest::FocusDown => dispatcher("movefocus d".to_owned()),
-        CompositorRequest::MoveLeft => dispatcher("movewindow l".to_owned()),
-        CompositorRequest::MoveRight => dispatcher("movewindow r".to_owned()),
-        CompositorRequest::FocusWorkspaceUp => dispatcher("workspace m-1".to_owned()),
-        CompositorRequest::FocusWorkspaceDown => dispatcher("workspace m+1".to_owned()),
+        } => lua_dispatcher(&format!(
+            "window.move({{ workspace = {workspace}, follow = {follows_focus}, window = {} }})",
+            window_selector(*window)
+        )),
+        CompositorRequest::FocusLeft => lua_dispatcher("focus({ direction = \"left\" })"),
+        CompositorRequest::FocusRight => lua_dispatcher("focus({ direction = \"right\" })"),
+        CompositorRequest::FocusUp => lua_dispatcher("focus({ direction = \"up\" })"),
+        CompositorRequest::FocusDown => lua_dispatcher("focus({ direction = \"down\" })"),
+        CompositorRequest::MoveLeft => lua_dispatcher("window.move({ direction = \"left\" })"),
+        CompositorRequest::MoveRight => lua_dispatcher("window.move({ direction = \"right\" })"),
+        CompositorRequest::FocusWorkspaceUp => lua_dispatcher("focus({ workspace = \"m-1\" })"),
+        CompositorRequest::FocusWorkspaceDown => lua_dispatcher("focus({ workspace = \"m+1\" })"),
         CompositorRequest::MoveFocusedWindowToWorkspaceUp => {
-            dispatcher("movetoworkspace m-1".to_owned())
+            lua_dispatcher("window.move({ workspace = \"m-1\" })")
         }
         CompositorRequest::MoveFocusedWindowToWorkspaceDown => {
-            dispatcher("movetoworkspace m+1".to_owned())
+            lua_dispatcher("window.move({ workspace = \"m+1\" })")
         }
-        CompositorRequest::FocusPreviousWindow => dispatcher("focuscurrentorlast".to_owned()),
-        CompositorRequest::MaximizeFocused => dispatcher("fullscreen 1".to_owned()),
-        CompositorRequest::CenterFocused => dispatcher("centerwindow".to_owned()),
-        CompositorRequest::PowerOffMonitors => dispatcher("dpms off".to_owned()),
-        CompositorRequest::Quit => dispatcher("exit".to_owned()),
+        CompositorRequest::FocusPreviousWindow => lua_dispatcher("focus({ last = true })"),
+        CompositorRequest::MaximizeFocused => {
+            lua_dispatcher("window.fullscreen({ mode = \"maximized\" })")
+        }
+        CompositorRequest::CenterFocused => lua_dispatcher("window.center()"),
+        CompositorRequest::PowerOffMonitors => lua_dispatcher("dpms({ action = \"off\" })"),
+        CompositorRequest::Quit => lua_dispatcher("exit()"),
         CompositorRequest::ReloadConfig => HyprlandDispatch::Command("reload"),
         CompositorRequest::Spawn(command) => HyprlandDispatch::Launch(command.clone()),
         CompositorRequest::MoveWorkspaceToIndex { .. }
@@ -122,12 +125,12 @@ mod tests {
     fn windows_are_addressed_by_their_hex_address() {
         assert_eq!(
             dispatcher(&CompositorRequest::FocusWindow(0x5a1)).as_deref(),
-            Some("focuswindow address:0x5a1")
+            Some("hl.dsp.focus({ window = \"address:0x5a1\" })")
         );
     }
 
     #[test]
-    fn an_unfollowed_move_stays_silent() {
+    fn an_unfollowed_move_does_not_follow_focus() {
         assert_eq!(
             dispatcher(&CompositorRequest::MoveWindowToWorkspace {
                 window: 0x5a1,
@@ -135,7 +138,9 @@ mod tests {
                 follows_focus: false,
             })
             .as_deref(),
-            Some("movetoworkspacesilent 3,address:0x5a1")
+            Some(
+                "hl.dsp.window.move({ workspace = 3, follow = false, window = \"address:0x5a1\" })"
+            )
         );
     }
 }
