@@ -12,7 +12,7 @@ use sottomano_desktop_sources::{
         memory_module_temperatures::MemoryModuleTemperatures,
         memory_stall_pressure::MemoryStallPressure,
         memory_usage::{Memory, MemoryProcesses},
-        swap_paging_activity::SwapActivity,
+        swap_paging_activity::{SwapActivity, SwappedProcesses},
     },
     host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -65,6 +65,7 @@ pub struct MemoryBoardGroup {
     swap_activity: LatestSnapshot<SwapActivity>,
     hardware: LatestSnapshot<HostHardware, HidesFetchFailures>,
     memory_processes: HoverFetchedSnapshot<MemoryProcesses>,
+    swapped_processes: HoverFetchedSnapshot<SwappedProcesses>,
     module_temperatures: HoverFetchedSnapshot<MemoryModuleTemperatures>,
     expansion: WidgetGroupExpansion,
 }
@@ -77,6 +78,7 @@ pub enum MemoryBoardMessage {
     StallPressure(SnapshotDelivery<MemoryStallPressure>),
     SwapActivity(SnapshotDelivery<SwapActivity>),
     MemoryProcessesFetched(SnapshotDelivery<MemoryProcesses>),
+    SwappedProcessesFetched(SnapshotDelivery<SwappedProcesses>),
     ModuleTemperaturesFetched(SnapshotDelivery<MemoryModuleTemperatures>),
     Expansion(WidgetGroupExpansionMessage),
 }
@@ -93,6 +95,7 @@ impl MemoryBoardGroup {
         clock: Clock,
     ) -> Task<MemoryBoardMessage> {
         self.memory_processes.stop();
+        self.swapped_processes.stop();
         self.module_temperatures.stop();
         match hovered {
             Some(HoverTarget::MemoryBoard(MemoryBoardTarget::Memory)) => Task::batch([
@@ -109,6 +112,14 @@ impl MemoryBoardGroup {
                     clock,
                 ),
             ]),
+            Some(HoverTarget::MemoryBoard(MemoryBoardTarget::Swap)) => {
+                self.swapped_processes.start_hover_fetch(
+                    (),
+                    MemoryBoardMessage::SwappedProcessesFetched,
+                    config,
+                    clock,
+                )
+            }
             _ => Task::none(),
         }
     }
@@ -135,6 +146,9 @@ impl MemoryBoardGroup {
             MemoryBoardMessage::SwapActivity(reading) => self.swap_activity.receive(reading, clock),
             MemoryBoardMessage::MemoryProcessesFetched(fetched) => {
                 self.memory_processes.receive(fetched, clock);
+            }
+            MemoryBoardMessage::SwappedProcessesFetched(fetched) => {
+                self.swapped_processes.receive(fetched, clock);
             }
             MemoryBoardMessage::ModuleTemperaturesFetched(fetched) => {
                 self.module_temperatures.receive(fetched, clock);
@@ -207,7 +221,9 @@ impl MemoryBoardGroup {
             ),
             MemoryBoardTarget::Growth => self.memory_growth.hover_card(clock),
             MemoryBoardTarget::Pressure => self.stall_pressure.hover_card(clock),
-            MemoryBoardTarget::Swap => self.swap_activity.hover_card(clock),
+            MemoryBoardTarget::Swap => self
+                .swap_activity
+                .hover_card_with_groups(self.swapped_processes.sections(clock), clock),
             MemoryBoardTarget::Board => {
                 let machine = &self.hardware.get()?.machine;
                 self.hardware.hover_card_with(

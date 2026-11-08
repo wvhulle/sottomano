@@ -1,15 +1,18 @@
 use std::{
+    cmp::Reverse,
     sync::{Arc, Mutex, PoisonError},
     time::{Duration, Instant},
 };
 
 use bytesize::ByteSize;
 use futures::Stream;
-use procfs::{Current, Meminfo, page_size, vmstat};
+use procfs::{Current, Meminfo, page_size, process::all_processes, vmstat};
 
 use crate::{
-    SnapshotDelivery, SnapshotSource, cpu_memory_compute::memory_usage::MEMINFO,
+    SnapshotDelivery, SnapshotSource, SourceCaption,
+    cpu_memory_compute::memory_usage::{MEMINFO, PROC},
     delivery_cadence_drivers::PeriodicPolling,
+    desktop_windows_apps::process_tree_inspection::binary_name,
     system_protocol_clients::sysfs_attribute_reads::Error,
 };
 
@@ -111,6 +114,53 @@ fn paging_rates(
         bytes_per_second(earlier.pages_in, later.pages_in),
         bytes_per_second(earlier.pages_out, later.pages_out),
     )
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SwappedProcess {
+    pub pid: i32,
+    pub name: String,
+    pub swapped: ByteSize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SwappedProcesses {
+    pub processes: Vec<SwappedProcess>,
+}
+
+impl SnapshotSource for SwappedProcesses {
+    type Error = Error;
+    type StreamInputs = ();
+
+    const NAME: &'static str = "Swapped processes";
+    const CAPTION: SourceCaption = SourceCaption::Captioned(
+        "Private memory of each process that sits in swap; swapped shared memory is not counted.",
+    );
+
+    fn delivery_stream(
+        (): Self::StreamInputs,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(3))
+            .blocking_poll_deliveries(read_swapped_processes)
+    }
+}
+
+fn read_swapped_processes() -> Result<SwappedProcesses, Error> {
+    let mut processes: Vec<SwappedProcess> = all_processes()
+        .map_err(|_| Error::Unreadable(PROC.to_owned()))?
+        .filter_map(Result::ok)
+        .filter_map(|process| {
+            let status = process.status().ok()?;
+            let swapped = ByteSize::kib(status.vmswap.filter(|kibibytes| *kibibytes > 0)?);
+            Some(SwappedProcess {
+                pid: status.pid,
+                name: binary_name(&process).unwrap_or(status.name),
+                swapped,
+            })
+        })
+        .collect();
+    processes.sort_by_key(|process| Reverse(process.swapped));
+    Ok(SwappedProcesses { processes })
 }
 
 #[cfg(test)]

@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use sottomano_desktop_sources::cpu_memory_compute::{
     cpu_busy_processes::CpuBusyProcesses,
     cpu_core_loads::{CpuCoreLoads, CpuUsage, LoadSplit},
@@ -24,6 +26,8 @@ use crate::{
         value_cells::LabeledValue,
     },
 };
+
+const LISTED_PROCESSES: NonZeroUsize = NonZeroUsize::new(10).unwrap();
 
 fn busy_level(busy: Ratio) -> Severity {
     if busy > Ratio::new::<percent>(90.0) {
@@ -131,9 +135,12 @@ impl GroupItemReading for CpuUsage {
 
 impl ReadingSections for CpuBusyProcesses {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::dictionary(self.processes.iter().map(|process| {
-            LabeledValue::new(process.name.clone(), Quantity::share(process.busy))
-                .level(busy_level(process.busy))
-        }))]
+        vec![
+            Section::dictionary(self.processes.iter().map(|process| {
+                LabeledValue::new(process.name.clone(), Quantity::share(process.busy))
+                    .level(busy_level(process.busy))
+            }))
+            .truncated_to(LISTED_PROCESSES),
+        ]
     }
 }
