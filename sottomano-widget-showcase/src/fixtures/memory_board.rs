@@ -5,7 +5,7 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::{
         memory_module_temperatures::{MemoryModuleTemperature, MemoryModuleTemperatures},
-        memory_usage::{Memory, MemoryProcess, MemoryProcesses, Swap},
+        memory_usage::{Memory, MemoryProcess, MemoryProcesses, MemoryTrend, Swap},
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
@@ -13,7 +13,11 @@ use sottomano_widgets::{
     clock::Clock,
     widget_groups::memory_board_group::{MemoryBoardGroup, MemoryBoardMessage, MemoryBoardTarget},
 };
-use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius};
+use uom::si::{
+    f64::{Ratio, ThermodynamicTemperature},
+    ratio::percent,
+    thermodynamic_temperature::degree_celsius,
+};
 
 use crate::{
     fixtures::{cycled, host_hardware, sample},
@@ -51,13 +55,18 @@ pub fn on_hover(target: MemoryBoardTarget) -> Vec<MemoryBoardMessage> {
 
 fn memory_reading(tick: u32) -> MemoryBoardMessage {
     MemoryBoardMessage::Memory(SnapshotDelivery::fixture_delivered(
-        Ok(Memory {
-            used: ByteSize::mib(cycled(MEMORY_USED_MEBIBYTES, tick)),
-            total: ByteSize::gib(64),
-            swap: Swap::Configured {
-                used: ByteSize::mib(512),
-                total: ByteSize::gib(8),
+        Ok(MemoryTrend {
+            usage: Memory {
+                used: ByteSize::mib(cycled(MEMORY_USED_MEBIBYTES, tick)),
+                total: ByteSize::gib(64),
+                swap: Swap::Configured {
+                    used: ByteSize::mib(512),
+                    total: ByteSize::gib(8),
+                },
             },
+            stall_share: Some(Ratio::new::<percent>(0.4)),
+            exhaustion_projection: None,
+            growing_processes: Vec::new(),
         }),
         DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
     ))
