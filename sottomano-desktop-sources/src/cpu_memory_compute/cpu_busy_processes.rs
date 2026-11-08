@@ -45,9 +45,9 @@ impl SnapshotSource for CpuBusyProcesses {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct ProcessIncarnation {
-    pid: i32,
-    started: u64,
+pub(crate) struct ProcessIncarnation {
+    pub(crate) pid: i32,
+    pub(crate) started: u64,
 }
 
 fn spent_ticks_by_process() -> Result<HashMap<ProcessIncarnation, u64>, Error> {

@@ -6,7 +6,7 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::{
         memory_module_temperatures::MemoryModuleTemperatures,
-        memory_usage::{Memory, MemoryProcesses},
+        memory_usage::{MemoryProcesses, MemoryTrend},
     },
     host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -50,7 +50,7 @@ impl From<MemoryBoardTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct MemoryBoardGroup {
-    memory: LatestSnapshot<Memory>,
+    memory: LatestSnapshot<MemoryTrend>,
     hardware: LatestSnapshot<HostHardware, HidesFetchFailures>,
     memory_processes: HoverFetchedSnapshot<MemoryProcesses>,
     module_temperatures: HoverFetchedSnapshot<MemoryModuleTemperatures>,
@@ -60,7 +60,7 @@ pub struct MemoryBoardGroup {
 #[derive(Debug, Clone)]
 pub enum MemoryBoardMessage {
     Hardware(Box<SnapshotDelivery<HostHardware>>),
-    Memory(SnapshotDelivery<Memory>),
+    Memory(SnapshotDelivery<MemoryTrend>),
     MemoryProcessesFetched(SnapshotDelivery<MemoryProcesses>),
     ModuleTemperaturesFetched(SnapshotDelivery<MemoryModuleTemperatures>),
     Expansion(WidgetGroupExpansionMessage),
@@ -99,7 +99,7 @@ impl MemoryBoardGroup {
     }
 
     pub fn subscription() -> Subscription<MemoryBoardMessage> {
-        snapshot_subscription::<Memory>(()).map(MemoryBoardMessage::Memory)
+        snapshot_subscription::<MemoryTrend>(()).map(MemoryBoardMessage::Memory)
     }
 
     pub fn update(&mut self, msg: MemoryBoardMessage, clock: Clock) -> Task<MemoryBoardMessage> {
@@ -145,7 +145,7 @@ impl MemoryBoardGroup {
     ) -> Task<MemoryBoardMessage> {
         match target {
             MemoryBoardTarget::Memory => {
-                first_delivery::<Memory>(()).map(MemoryBoardMessage::Memory)
+                first_delivery::<MemoryTrend>(()).map(MemoryBoardMessage::Memory)
             }
             MemoryBoardTarget::Board => buses.map_or_else(Task::none, |buses| {
                 first_delivery::<HostHardware>(buses.clone())
