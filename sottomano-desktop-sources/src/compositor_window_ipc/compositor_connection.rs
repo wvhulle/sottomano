@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display, process};
+use std::{collections::HashMap, env, fmt::Display, process};
 
 use futures::{Stream, StreamExt, stream};
 #[cfg(feature = "niri")]
@@ -118,21 +118,75 @@ impl CompositorKind {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CompositorSessionVariable {
+    display_name: &'static str,
+    feature_name: &'static str,
+    session_variable: &'static str,
+    compiled_in: bool,
+}
+
+const COMPOSITOR_SESSION_VARIABLES: [CompositorSessionVariable; 3] = [
+    CompositorSessionVariable {
+        display_name: "niri",
+        feature_name: "niri",
+        session_variable: "NIRI_SOCKET",
+        compiled_in: cfg!(feature = "niri"),
+    },
+    CompositorSessionVariable {
+        display_name: "sway",
+        feature_name: "sway",
+        session_variable: "SWAYSOCK",
+        compiled_in: cfg!(feature = "sway"),
+    },
+    CompositorSessionVariable {
+        display_name: "Hyprland",
+        feature_name: "hyprland",
+        session_variable: "HYPRLAND_INSTANCE_SIGNATURE",
+        compiled_in: cfg!(feature = "hyprland"),
+    },
+];
+
 #[must_use]
 pub fn missing_compositor_reason() -> String {
-    let session_variables: Vec<&str> = [
-        #[cfg(feature = "niri")]
-        "NIRI_SOCKET",
-        #[cfg(feature = "sway")]
-        "SWAYSOCK",
-        #[cfg(feature = "hyprland")]
-        "HYPRLAND_INSTANCE_SIGNATURE",
-    ]
-    .into_iter()
-    .collect();
+    missing_compositor_reason_among(&COMPOSITOR_SESSION_VARIABLES, |session_variable| {
+        env::var_os(session_variable).is_some()
+    })
+}
+
+fn missing_compositor_reason_among(
+    candidates: &[CompositorSessionVariable],
+    session_variable_is_set: impl Fn(&str) -> bool,
+) -> String {
+    let compiled_in: Vec<&CompositorSessionVariable> = candidates
+        .iter()
+        .filter(|candidate| candidate.compiled_in)
+        .collect();
+    let running_but_compiled_out = candidates.iter().find(|candidate| {
+        !candidate.compiled_in && session_variable_is_set(candidate.session_variable)
+    });
+    if let Some(compiled_out) = running_but_compiled_out {
+        let included_names: Vec<&str> = compiled_in
+            .iter()
+            .map(|candidate| candidate.display_name)
+            .collect();
+        return format!(
+            "a {} session is running ({} is set), but this build only includes {}; add \"{}\" to \
+             services.sottomano.compositors or build with the {} cargo feature",
+            compiled_out.display_name,
+            compiled_out.session_variable,
+            included_names.join(", "),
+            compiled_out.feature_name,
+            compiled_out.feature_name,
+        );
+    }
+    let unset_variables: Vec<&str> = compiled_in
+        .iter()
+        .map(|candidate| candidate.session_variable)
+        .collect();
     format!(
         "no supported compositor session was found: {} is unset",
-        session_variables.join(", ")
+        unset_variables.join(", ")
     )
 }
 
@@ -231,4 +285,42 @@ pub enum OverviewSupport {
 pub enum WorkspaceConfigSource {
     NiriKdl,
     Unread,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn candidates_with(compiled_in_features: &[&str]) -> Vec<CompositorSessionVariable> {
+        COMPOSITOR_SESSION_VARIABLES
+            .iter()
+            .map(|candidate| CompositorSessionVariable {
+                compiled_in: compiled_in_features.contains(&candidate.feature_name),
+                ..*candidate
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_compiled_out_session_names_the_missing_compositor() {
+        let reason = missing_compositor_reason_among(&candidates_with(&["niri"]), |variable| {
+            variable == "SWAYSOCK"
+        });
+        assert_eq!(
+            reason,
+            "a sway session is running (SWAYSOCK is set), but this build only includes niri; add \
+             \"sway\" to services.sottomano.compositors or build with the sway cargo feature"
+        );
+    }
+
+    #[test]
+    fn without_any_session_the_compiled_in_variables_are_listed() {
+        let reason =
+            missing_compositor_reason_among(&candidates_with(&["niri", "hyprland"]), |_| false);
+        assert_eq!(
+            reason,
+            "no supported compositor session was found: NIRI_SOCKET, HYPRLAND_INSTANCE_SIGNATURE \
+             is unset"
+        );
+    }
 }

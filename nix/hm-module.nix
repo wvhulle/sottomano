@@ -10,6 +10,18 @@ let
   themeCfg = config.services.umbra or null;
   tomlFormat = pkgs.formats.toml { };
   qmpSocketQemuOptions = "-qmp unix:qmp.sock,server=on,wait=off";
+  supportedCompositors = [
+    "niri"
+    "sway"
+    "hyprland"
+  ];
+  compositorsNarrowed = lib.naturalSort cfg.compositors != lib.naturalSort supportedCompositors;
+  packageNarrowable = cfg.package ? compositors && cfg.package ? override;
+  packageForCompositors =
+    if compositorsNarrowed && packageNarrowable then
+      cfg.package.override { compositors = cfg.compositors; }
+    else
+      cfg.package;
 
   modeToPalette = p: {
     background = p.base00;
@@ -40,6 +52,18 @@ in
       default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
       defaultText = lib.literalExpression "sottomano.packages.\${system}.default";
       description = "The sottomano package to install.";
+    };
+
+    compositors = lib.mkOption {
+      type = lib.types.listOf (lib.types.enum supportedCompositors);
+      default = supportedCompositors;
+      example = [ "niri" ];
+      description = ''
+        Compositors whose support is compiled into the package. Sottomano
+        finds the running one from its socket variable at startup, so listing
+        only the compositor you use makes a smaller build without changing
+        behaviour.
+      '';
     };
 
     systemdUnit = lib.mkOption {
@@ -196,7 +220,21 @@ in
       listen_on = lib.mkDefault "unix:$XDG_RUNTIME_DIR/kitty.sock";
     };
 
-    assertions = lib.optionals cfg.umbra.enable [
+    assertions = [
+      {
+        assertion = cfg.compositors != [ ];
+        message = "services.sottomano.compositors needs at least one compositor.";
+      }
+      {
+        assertion = !compositorsNarrowed || packageNarrowable;
+        message = ''
+          services.sottomano.compositors can only narrow the package from the
+          sottomano flake; the configured services.sottomano.package cannot be
+          rebuilt with fewer compositors.
+        '';
+      }
+    ]
+    ++ lib.optionals cfg.umbra.enable [
       {
         assertion = themeCfg != null && themeCfg ? palettes;
         message = ''
@@ -207,7 +245,7 @@ in
       }
     ];
 
-    home.packages = [ cfg.package ];
+    home.packages = [ packageForCompositors ];
 
     xdg.configFile = {
       "sottomano.toml" = lib.mkIf (!cfg.umbra.enable && cfg.settings != { }) {
@@ -274,7 +312,7 @@ in
         After = [ "graphical-session.target" ];
       };
       Service = {
-        ExecStart = lib.getExe cfg.package;
+        ExecStart = lib.getExe packageForCompositors;
         Restart = "on-failure";
         RestartSec = 2;
         Slice = "session.slice";
