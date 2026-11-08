@@ -29,8 +29,8 @@ use crate::{
 
 const FULL_WARNING_PERCENT: i64 = 75;
 const FULL_CRITICAL_PERCENT: i64 = 90;
-const STALL_WARNING_PERCENT: f64 = 5.0;
-const STALL_CRITICAL_PERCENT: f64 = 20.0;
+const STALL_WARNING_PERCENT: f64 = 20.0;
+const STALL_CRITICAL_PERCENT: f64 = 40.0;
 const EXHAUSTION_WARNING: Duration = Duration::from_secs(300);
 const EXHAUSTION_CRITICAL: Duration = Duration::from_secs(60);
 
@@ -180,7 +180,7 @@ impl GroupItemReading for MemoryTrend {
             .into_iter()
             .chain(
                 self.stall_share
-                    .map(|share| LabeledValue::new("Stalled", Quantity::share(share))),
+                    .map(|share| LabeledValue::new("Stalled last minute", Quantity::share(share))),
             );
         HoverCardBody::dictionary(
             [
@@ -236,10 +236,19 @@ mod tests {
     }
 
     #[test]
+    fn chronic_swap_stalls_stay_quiet() {
+        let swapping = MemoryTrend {
+            stall_share: Some(Ratio::new::<percent>(7.0)),
+            ..memory_at(65)
+        };
+        assert_eq!(swapping.state(Clock::real()), ReadingDisplayState::Idle);
+    }
+
+    #[test]
     fn each_cause_raises_the_state_on_its_own() {
         let nearly_full = memory_at(95);
         let stalled = MemoryTrend {
-            stall_share: Some(Ratio::new::<percent>(8.0)),
+            stall_share: Some(Ratio::new::<percent>(25.0)),
             ..memory_at(40)
         };
         let filling = MemoryTrend {
@@ -260,7 +269,7 @@ mod tests {
     #[test]
     fn the_most_severe_cause_names_the_toast() {
         let memory = MemoryTrend {
-            stall_share: Some(Ratio::new::<percent>(30.0)),
+            stall_share: Some(Ratio::new::<percent>(50.0)),
             exhaustion_projection: Some(Duration::from_secs(200)),
             ..memory_at(40)
         };
