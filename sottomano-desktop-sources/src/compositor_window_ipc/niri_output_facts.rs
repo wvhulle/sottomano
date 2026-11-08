@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use niri_ipc::{Request, Response, socket::Socket};
 
-use crate::desktop_windows_apps::compositor_output_facts::{OutputInfo, OutputMode, product_field};
+use crate::compositor_window_ipc::compositor_output_facts::{
+    OutputInfo, OutputMode, product_field,
+};
 
 fn current_mode(output: &niri_ipc::Output) -> Option<OutputMode> {
     let mode = output.modes.get(output.current_mode?)?;

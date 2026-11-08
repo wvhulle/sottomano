@@ -1,4 +1,4 @@
-use sottomano_desktop_sinks::desktop_windows_apps::compositor_requests::CompositorRequestFailure;
+use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::CompositorRequestFailure;
 use sottomano_widgets::{
     clock::Clock,
     group_menus::group_menu_state::GroupMenuMessage,

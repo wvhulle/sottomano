@@ -1,10 +1,12 @@
 use std::time::{Duration, SystemTime};
 
-use sottomano_desktop_sources::desktop_windows_apps::{
-    compositor_window_state::{CompositorWindow, CompositorWindowState},
-    nix_package_facts::{self, Generation, NixPackageFacts, Origin, Upstream, UpstreamState},
-    nix_store_provenance::StorePackage,
-    process_tree_inspection::{self, Inspection, Launch},
+use sottomano_desktop_sources::{
+    compositor_window_ipc::compositor_window_state::{CompositorWindow, CompositorWindowState},
+    desktop_windows_apps::{
+        nix_package_facts::{self, Generation, NixPackageFacts, Origin, Upstream, UpstreamState},
+        nix_store_provenance::StorePackage,
+        process_tree_inspection::{self, Inspection, Launch},
+    },
 };
 use sottomano_toml_config::severity::Severity;
 

@@ -6,7 +6,7 @@ use tokio::task::spawn_blocking;
 
 use crate::{
     SnapshotDelivery, SnapshotSource, SourceCaption,
-    desktop_windows_apps::compositor_connection::compositor_version,
+    compositor_window_ipc::compositor_connection::compositor_version,
     host_machine_identity::hostname1_os_identity::at_micros,
     non_empty_text::non_empty,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},

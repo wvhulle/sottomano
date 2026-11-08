@@ -9,9 +9,10 @@ use std::collections::HashMap;
 
 use iced::{Element, Subscription, Task};
 use sottomano_desktop_sources::{
+    compositor_window_ipc::compositor_window_state::CompositorWindowState,
     desktop_windows_apps::{
-        compositor_window_state::CompositorWindowState, process_tree_inspection::Watched,
-        terminal_emulator_windows::WindowProcesses, workspace_window_snapshot,
+        process_tree_inspection::Watched, terminal_emulator_windows::WindowProcesses,
+        workspace_window_snapshot,
     },
     media_playback_audio::pipewire_audio::WindowAudio,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,

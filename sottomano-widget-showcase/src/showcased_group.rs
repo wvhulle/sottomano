@@ -4,11 +4,11 @@ use iced::{
 };
 use iced_controller_diagram::ControllerArtwork;
 use sottomano_desktop_sources::{
-    desktop_notifications::notification_data::NotificationData,
-    desktop_windows_apps::{
+    compositor_window_ipc::{
         compositor_window_state::CompositorWindowState, niri_kdl_config::ConfiguredWorkspaces,
-        workspace_window_snapshot::Snapshot,
     },
+    desktop_notifications::notification_data::NotificationData,
+    desktop_windows_apps::workspace_window_snapshot::Snapshot,
 };
 use sottomano_toml_config::{
     Config,

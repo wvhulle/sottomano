@@ -7,9 +7,8 @@ use iced::{
     time::{Duration, Instant},
 };
 use sottomano_desktop_sources::{
-    desktop_windows_apps::{
-        compositor_window_state::CompositorWindowState, window_edge_placement::Placement,
-    },
+    compositor_window_ipc::compositor_window_state::CompositorWindowState,
+    desktop_windows_apps::window_edge_placement::Placement,
     login_session_presence::wayland_idle_notify::{IdleEdge, input_idle_edges},
 };
 use sottomano_toml_config::overlay_surfaces::OverlaySurfacesConfig;

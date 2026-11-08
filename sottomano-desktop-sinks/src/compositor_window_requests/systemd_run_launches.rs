@@ -1,6 +1,6 @@
 use std::{env, process::Command};
 
-use crate::desktop_windows_apps::compositor_requests::CompositorRequestFailure;
+use crate::compositor_window_requests::compositor_requests::CompositorRequestFailure;
 
 pub fn launch_in_user_service(command: &[String]) -> Result<(), CompositorRequestFailure> {
     let request = format!("launch {}", command.join(" "));

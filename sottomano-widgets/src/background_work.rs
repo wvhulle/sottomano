@@ -1,9 +1,11 @@
 use std::{convert::identity, fmt::Display};
 
 use iced::{Subscription, Task, futures::StreamExt};
-use sottomano_desktop_sinks::desktop_windows_apps::{
-    clipboard_copy,
-    compositor_requests::{self, CompositorRequest, CompositorRequestFailure},
+use sottomano_desktop_sinks::{
+    compositor_window_requests::compositor_requests::{
+        self, CompositorRequest, CompositorRequestFailure,
+    },
+    desktop_windows_apps::clipboard_copy,
 };
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource, blocking_background_work::blocking,

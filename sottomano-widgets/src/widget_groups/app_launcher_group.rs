@@ -1,7 +1,7 @@
 use std::{cmp::Reverse, collections::HashMap};
 
 use iced::{Element, Task};
-use sottomano_desktop_sinks::desktop_windows_apps::compositor_requests::{
+use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::{
     CompositorRequest, send_compositor_request_or_warn,
 };
 use sottomano_desktop_sources::{

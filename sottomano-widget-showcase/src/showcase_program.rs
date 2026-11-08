@@ -15,7 +15,7 @@ use iced::{
 use iced_controller_diagram::ControllerArtwork;
 use iced_test::program::{Preset, Program};
 use sottomano_desktop_sources::{
-    desktop_windows_apps::compositor_window_state::CompositorWindowState,
+    compositor_window_ipc::compositor_window_state::CompositorWindowState,
     screen_brightness_color::solar_switch_schedule::ColorMode,
 };
 use sottomano_toml_config::{Config, Palette, screen_edges::Position};

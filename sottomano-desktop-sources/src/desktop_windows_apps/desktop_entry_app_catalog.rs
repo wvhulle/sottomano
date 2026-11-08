@@ -2,7 +2,8 @@ use std::{borrow::Cow, cmp::Reverse, collections::HashMap};
 
 use freedesktop_desktop_entry::DesktopEntry;
 
-use super::{compositor_window_state::CompositorWindow, desktop_entry_app_icons::DesktopEntries};
+use super::desktop_entry_app_icons::DesktopEntries;
+use crate::compositor_window_ipc::compositor_window_state::CompositorWindow;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AppCategory {
@@ -189,9 +190,12 @@ mod tests {
     use freedesktop_desktop_entry::DesktopEntry;
 
     use super::{AppCategory, LaunchableApp, OpenAppWindows, open_windows_by_app};
-    use crate::desktop_windows_apps::{
-        compositor_test_windows::unplaced_compositor_window,
-        compositor_window_state::CompositorWindow, desktop_entry_app_icons::DesktopEntries,
+    use crate::{
+        compositor_window_ipc::{
+            compositor_test_windows::unplaced_compositor_window,
+            compositor_window_state::CompositorWindow,
+        },
+        desktop_windows_apps::desktop_entry_app_icons::DesktopEntries,
     };
 
     fn entry_of(app_id: &str, fields: &str) -> DesktopEntry {

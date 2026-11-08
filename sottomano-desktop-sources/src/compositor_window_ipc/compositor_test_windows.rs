@@ -1,4 +1,4 @@
-use crate::desktop_windows_apps::compositor_window_state::{
+use crate::compositor_window_ipc::compositor_window_state::{
     CompositorWindow, CompositorWindowLayout, CompositorWorkspace,
 };
 

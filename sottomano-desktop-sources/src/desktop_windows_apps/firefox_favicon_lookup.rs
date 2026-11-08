@@ -8,9 +8,9 @@ use futures::Stream;
 use rusqlite::{Connection, OpenFlags};
 
 use crate::{
-    desktop_windows_apps::{
-        compositor_window_state::CompositorWindowState,
-        window_title_labels::{WindowLabel, firefox_page_titles::strip_unread_badge},
+    compositor_window_ipc::compositor_window_state::CompositorWindowState,
+    desktop_windows_apps::window_title_labels::{
+        WindowLabel, firefox_page_titles::strip_unread_badge,
     },
     system_protocol_clients::inotify_directory_changes::{WatchTarget, changes},
 };

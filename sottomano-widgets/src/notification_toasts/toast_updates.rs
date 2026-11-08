@@ -8,11 +8,13 @@ use iced::{
 };
 use quick_xml::escape::escape;
 use sottomano_desktop_sinks::{
+    compositor_window_requests::compositor_requests::{
+        CompositorRequest, CompositorRequestFailure,
+    },
     desktop_notifications::{
         alert_sound_player::{self, SoundTheme},
         freedesktop_notification_signals::notification_signal_sink,
     },
-    desktop_windows_apps::compositor_requests::{CompositorRequest, CompositorRequestFailure},
 };
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::{

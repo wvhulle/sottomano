@@ -1,9 +1,9 @@
 use serde::Deserialize;
-use sottomano_desktop_sources::desktop_windows_apps::sway_ipc_connection::{
+use sottomano_desktop_sources::compositor_window_ipc::sway_ipc_connection::{
     SwayIpcConnection, SwayMessageKind,
 };
 
-use crate::desktop_windows_apps::{
+use crate::compositor_window_requests::{
     compositor_requests::{CompositorRequest, CompositorRequestFailure},
     systemd_run_launches::launch_in_user_service,
 };
@@ -130,7 +130,7 @@ pub fn send_sway_request(request: &CompositorRequest) -> Result<(), CompositorRe
 #[cfg(test)]
 mod tests {
     use super::{SwayCommand, sway_command_of};
-    use crate::desktop_windows_apps::compositor_requests::CompositorRequest;
+    use crate::compositor_window_requests::compositor_requests::CompositorRequest;
 
     fn command_text(request: &CompositorRequest) -> Option<String> {
         match sway_command_of(request, |_| Some("2: \"mail\"".to_owned())) {

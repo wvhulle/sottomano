@@ -1,15 +1,15 @@
 use std::fmt;
 
-use sottomano_desktop_sources::desktop_windows_apps::compositor_connection::{
+use sottomano_desktop_sources::compositor_window_ipc::compositor_connection::{
     CompositorKind, missing_compositor_reason,
 };
 
 #[cfg(feature = "hyprland")]
-use crate::desktop_windows_apps::hyprland_dispatch_requests::send_hyprland_request;
+use crate::compositor_window_requests::hyprland_dispatch_requests::send_hyprland_request;
 #[cfg(feature = "niri")]
-use crate::desktop_windows_apps::niri_action_requests::send_niri_request;
+use crate::compositor_window_requests::niri_action_requests::send_niri_request;
 #[cfg(feature = "sway")]
-use crate::desktop_windows_apps::sway_command_requests::send_sway_request;
+use crate::compositor_window_requests::sway_command_requests::send_sway_request;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompositorRequest {

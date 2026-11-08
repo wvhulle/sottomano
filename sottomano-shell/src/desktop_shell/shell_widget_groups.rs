@@ -1,6 +1,7 @@
 use iced::Task;
-use sottomano_desktop_sources::desktop_windows_apps::{
-    compositor_window_state::CompositorWindowState, desktop_entry_app_icons::DesktopEntries,
+use sottomano_desktop_sources::{
+    compositor_window_ipc::compositor_window_state::CompositorWindowState,
+    desktop_windows_apps::desktop_entry_app_icons::DesktopEntries,
 };
 use sottomano_toml_config::{Config, SecretPaths};
 use sottomano_widgets::{

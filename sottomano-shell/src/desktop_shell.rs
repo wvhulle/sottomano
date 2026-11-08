@@ -28,18 +28,18 @@ use iced::{
 };
 use iced_controller_diagram::ControllerArtwork;
 use sottomano_desktop_sinks::{
+    compositor_window_requests::compositor_requests::CompositorRequest,
     desktop_notifications::alert_sound_player::SoundTheme,
-    desktop_windows_apps::compositor_requests::CompositorRequest,
 };
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
-    desktop_windows_apps::{
-        app_launch_history::LaunchTracker,
+    compositor_window_ipc::{
         compositor_output_facts,
         compositor_window_state::CompositorWindowState,
-        desktop_entry_changes,
         niri_kdl_config::{ConfiguredWorkspaces, NiriConfigFile},
-        workspace_window_snapshot,
+    },
+    desktop_windows_apps::{
+        app_launch_history::LaunchTracker, desktop_entry_changes, workspace_window_snapshot,
     },
     system_protocol_clients::dbus_desktop_buses::{DesktopBusEvent, DesktopBuses},
 };

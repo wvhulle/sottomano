@@ -1,14 +1,14 @@
 use std::time::Duration;
 
 use sottomano_desktop_sources::{
-    desktop_notifications::notification_data::{
-        ActionTint, ExpireTimeout, NotifAction, NotificationData, SoundHint,
-    },
-    desktop_windows_apps::{
+    compositor_window_ipc::{
         compositor_test_windows::unplaced_compositor_window,
         compositor_window_state::{
             CompositorWindow, CompositorWindowLayout, CompositorWindowState, CompositorWorkspace,
         },
+    },
+    desktop_notifications::notification_data::{
+        ActionTint, ExpireTimeout, NotifAction, NotificationData, SoundHint,
     },
 };
 use sottomano_toml_config::severity::Severity;

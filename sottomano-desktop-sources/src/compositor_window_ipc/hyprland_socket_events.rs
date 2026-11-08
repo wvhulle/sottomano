@@ -6,14 +6,16 @@ use std::{
 use serde::{Deserialize, de::DeserializeOwned};
 use tokio::sync::mpsc;
 
-use crate::desktop_windows_apps::{
-    compositor_output_facts::{OutputInfo, OutputMode, product_field},
-    compositor_window_state::{
-        CompositorChange, CompositorUpdate, CompositorWindow, CompositorWindowLayout,
-        CompositorWindowState, CompositorWorkspace,
+use crate::{
+    compositor_window_ipc::{
+        compositor_output_facts::{OutputInfo, OutputMode, product_field},
+        compositor_window_state::{
+            CompositorChange, CompositorUpdate, CompositorWindow, CompositorWindowLayout,
+            CompositorWindowState, CompositorWorkspace,
+        },
+        hyprland_socket_connection::{HyprlandEvent, HyprlandEventSubscription, hyprland_request},
     },
-    hyprland_socket_connection::{HyprlandEvent, HyprlandEventSubscription, hyprland_request},
-    process_tree_inspection,
+    desktop_windows_apps::process_tree_inspection,
 };
 
 #[derive(Debug, Deserialize)]
