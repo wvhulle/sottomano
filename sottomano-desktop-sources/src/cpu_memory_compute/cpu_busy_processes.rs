@@ -13,7 +13,6 @@ use crate::{
 
 const PROC: &str = "/proc";
 const SAMPLE_GAP: Duration = Duration::from_millis(500);
-const SHOWN_PROCESSES: usize = 10;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CpuBusyProcess {
@@ -89,6 +88,5 @@ fn read_cpu_busy_processes() -> Result<CpuBusyProcesses, Error> {
         })
         .collect();
     processes.sort_by(|first, second| second.busy.value.total_cmp(&first.busy.value));
-    processes.truncate(SHOWN_PROCESSES);
     Ok(CpuBusyProcesses { processes })
 }

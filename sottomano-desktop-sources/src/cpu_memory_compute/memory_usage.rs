@@ -12,7 +12,6 @@ use crate::{
 
 pub(super) const MEMINFO: &str = "/proc/meminfo";
 pub(super) const PROC: &str = "/proc";
-const SHOWN_PROCESSES: usize = 10;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Memory {
@@ -92,6 +91,5 @@ fn read_memory_processes() -> Result<MemoryProcesses, Error> {
         })
         .collect();
     processes.sort_by_key(|process| Reverse(process.resident));
-    processes.truncate(SHOWN_PROCESSES);
     Ok(MemoryProcesses { processes })
 }

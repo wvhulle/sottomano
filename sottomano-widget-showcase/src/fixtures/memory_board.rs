@@ -8,7 +8,7 @@ use sottomano_desktop_sources::{
         memory_module_temperatures::{MemoryModuleTemperature, MemoryModuleTemperatures},
         memory_stall_pressure::{MemoryStallPressure, StallAverages},
         memory_usage::{Memory, MemoryProcess, MemoryProcesses},
-        swap_paging_activity::{Swap, SwapActivity},
+        swap_paging_activity::{Swap, SwapActivity, SwappedProcess, SwappedProcesses},
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
@@ -163,10 +163,29 @@ fn hover_fetched_snapshot_messages(
                 DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
             )),
         ],
-        MemoryBoardTarget::Growth
-        | MemoryBoardTarget::Pressure
-        | MemoryBoardTarget::Swap
-        | MemoryBoardTarget::Board => Vec::new(),
+        MemoryBoardTarget::Swap => vec![MemoryBoardMessage::SwappedProcessesFetched(
+            SnapshotDelivery::fixture_delivered(
+                Ok(SwappedProcesses {
+                    processes: [
+                        ("firefox", 1_400 + u64::from(tick % 4) * 60),
+                        ("rust-analyzer", 620 + u64::from(tick % 3) * 40),
+                        ("Xwayland", 85),
+                    ]
+                    .into_iter()
+                    .zip(3000..)
+                    .map(|((name, mebibytes), pid)| SwappedProcess {
+                        pid,
+                        name: name.to_owned(),
+                        swapped: ByteSize::mib(mebibytes),
+                    })
+                    .collect(),
+                }),
+                DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(3))),
+            ),
+        )],
+        MemoryBoardTarget::Growth | MemoryBoardTarget::Pressure | MemoryBoardTarget::Board => {
+            Vec::new()
+        }
     }
 }
 

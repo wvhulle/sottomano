@@ -1,6 +1,10 @@
+use std::num::NonZeroUsize;
+
 use bytesize::ByteSize;
 use chrono::Locale;
-use sottomano_desktop_sources::cpu_memory_compute::swap_paging_activity::{Swap, SwapActivity};
+use sottomano_desktop_sources::cpu_memory_compute::swap_paging_activity::{
+    Swap, SwapActivity, SwappedProcesses,
+};
 use sottomano_toml_config::severity::Severity;
 use uom::si::{
     f64::{InformationRate, Ratio},
@@ -14,7 +18,7 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::HoverCardBody,
+    hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -25,6 +29,7 @@ use crate::{
 
 const SWAP_WARNING_SHARE: f64 = 0.9;
 const NOTICEABLE_PAGING: ByteSize = ByteSize::mib(1);
+const LISTED_PROCESSES: NonZeroUsize = NonZeroUsize::new(10).unwrap();
 
 fn paging_rate(bytes_per_second: ByteSize) -> Quantity {
     Quantity::transfer_rate(InformationRate::new::<byte_per_second>(
@@ -38,6 +43,17 @@ fn swap_share(activity: &SwapActivity) -> Option<Ratio> {
             used.as_u64() as f64 / total.as_u64() as f64,
         )),
         Swap::Configured { .. } | Swap::NotConfigured => None,
+    }
+}
+
+impl ReadingSections for SwappedProcesses {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
+        vec![
+            Section::dictionary(self.processes.iter().map(|process| {
+                LabeledValue::new(process.name.clone(), Quantity::size(process.swapped))
+            }))
+            .truncated_to(LISTED_PROCESSES),
+        ]
     }
 }
 
@@ -100,8 +116,15 @@ impl GroupItemReading for SwapActivity {
 
 #[cfg(test)]
 mod tests {
+    use sottomano_desktop_sources::cpu_memory_compute::swap_paging_activity::SwappedProcess;
+
     use super::*;
-    use crate::widgets::ongoing_toast::reading_display_state_alert_severity;
+    use crate::{
+        hover_cards::hover_card_body::SectionBody,
+        widgets::{
+            keyed_record_table::KeyedTableRow, ongoing_toast::reading_display_state_alert_severity,
+        },
+    };
 
     fn swap_with(used_gibibytes: u64, paged_in_per_second: ByteSize) -> SwapActivity {
         SwapActivity {
@@ -134,6 +157,30 @@ mod tests {
         assert_eq!(
             reading_display_state_alert_severity(&nearly_full, Clock::real()),
             None
+        );
+    }
+
+    #[test]
+    fn swapped_processes_beyond_the_listed_count_end_in_an_omitted_row() {
+        let swapped = SwappedProcesses {
+            processes: (0..12)
+                .map(|rank| SwappedProcess {
+                    pid: 100 + rank,
+                    name: format!("process-{rank}"),
+                    swapped: ByteSize::mib(u64::try_from(100 - rank).unwrap()),
+                })
+                .collect(),
+        };
+        let sections = swapped.sections(Clock::real());
+        let SectionBody::ColumnTable(table) = sections[0].body() else {
+            panic!("swapped processes render as a column table");
+        };
+        assert_eq!(table.rows().len(), 11);
+        assert_eq!(
+            table.rows().last(),
+            Some(&KeyedTableRow::OmittedRecordCount(
+                NonZeroUsize::new(2).unwrap()
+            ))
         );
     }
 

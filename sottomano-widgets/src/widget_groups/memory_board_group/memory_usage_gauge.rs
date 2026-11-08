@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use sottomano_desktop_sources::cpu_memory_compute::{
     memory_module_temperatures::MemoryModuleTemperatures,
     memory_usage::{Memory, MemoryProcesses},
@@ -22,6 +24,7 @@ use crate::{
 };
 
 const FULL_WARNING_PERCENT: i64 = 75;
+const LISTED_PROCESSES: NonZeroUsize = NonZeroUsize::new(10).unwrap();
 const FULL_CRITICAL_PERCENT: i64 = 90;
 
 impl ReadingSections for MemoryModuleTemperatures {
@@ -37,9 +40,12 @@ impl ReadingSections for MemoryModuleTemperatures {
 
 impl ReadingSections for MemoryProcesses {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::dictionary(self.processes.iter().map(|process| {
-            LabeledValue::new(process.name.clone(), Quantity::size(process.resident))
-        }))]
+        vec![
+            Section::dictionary(self.processes.iter().map(|process| {
+                LabeledValue::new(process.name.clone(), Quantity::size(process.resident))
+            }))
+            .truncated_to(LISTED_PROCESSES),
+        ]
     }
 }
 
