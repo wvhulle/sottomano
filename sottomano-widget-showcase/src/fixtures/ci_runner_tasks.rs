@@ -4,8 +4,9 @@ use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     ci_runner_tasks::{
-        CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskUsage, TaskWebLog,
-        forgejo_runner_tasks::ForgejoRunnerTasks, woodpecker_agent_tasks::WoodpeckerAgentTasks,
+        CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskStopControl,
+        TaskUsage, TaskWebLog, forgejo_runner_tasks::ForgejoRunnerTasks,
+        woodpecker_agent_tasks::WoodpeckerAgentTasks,
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad,
@@ -61,6 +62,7 @@ fn nix_task(
         images: vec!["docker.io/nixos/nix:latest".to_owned()],
         usage,
         web_log: TaskWebLog::NotKnown,
+        stop_control: TaskStopControl::NoContainerNow,
     }
 }
 
@@ -139,7 +141,7 @@ fn forgejo_delivery(clock: Clock) -> SnapshotDelivery<ForgejoRunnerTasks> {
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = CiRunsGroup::default();
-    group.update(
+    let _ = group.update(
         CiRunsMessage::Services(services_delivered(
             SystemdUnitScope::SystemWide,
             [
@@ -165,11 +167,11 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
         )),
         clock,
     );
-    group.update(
+    let _ = group.update(
         CiRunsMessage::WoodpeckerRunner(SHOWN_RUNNER.to_owned(), woodpecker_delivery(clock)),
         clock,
     );
-    group.update(
+    let _ = group.update(
         CiRunsMessage::ForgejoRunner(SHOWN_RUNNER.to_owned(), forgejo_delivery(clock)),
         clock,
     );

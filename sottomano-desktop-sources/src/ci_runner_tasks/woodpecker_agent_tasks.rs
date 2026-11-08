@@ -1,12 +1,17 @@
-use std::{collections::BTreeMap, convert::Infallible, path::PathBuf, time::SystemTime};
+use std::{
+    collections::BTreeMap,
+    convert::Infallible,
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 
 use futures::{Stream, StreamExt};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     ci_runner_tasks::{
-        CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskUsage, TaskWebLog,
-        images_of, sorted_unique,
+        CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskStopControl,
+        TaskUsage, TaskWebLog, images_of, sorted_unique,
         woodpecker_agent_varz::{AgentVarz, RunningWorkflow, fetch_agent_varz},
     },
     podman_container_engine::{
@@ -56,7 +61,11 @@ fn pipeline_web_log(containers: &[&RunningContainer]) -> TaskWebLog {
         })
 }
 
-fn woodpecker_tasks(varz: &AgentVarz, engine: &EngineContainers) -> Vec<CiTask> {
+fn woodpecker_tasks(
+    varz: &AgentVarz,
+    engine: &EngineContainers,
+    engine_socket: &Path,
+) -> Vec<CiTask> {
     let workflows_by_pipeline = varz.running.values().fold(
         BTreeMap::<PipelineKey, Vec<&RunningWorkflow>>::new(),
         |mut workflows_by_pipeline, workflow| {
@@ -101,6 +110,7 @@ fn woodpecker_tasks(varz: &AgentVarz, engine: &EngineContainers) -> Vec<CiTask> 
                 images: images_of(&containers),
                 usage: TaskUsage::from(containers.as_slice()),
                 web_log: pipeline_web_log(&containers),
+                stop_control: TaskStopControl::of_containers(engine_socket, &containers),
             }
         })
         .collect()
@@ -120,10 +130,11 @@ pub struct WoodpeckerAgentWatch {
 fn joined_agent_tasks(
     varz: &AgentVarz,
     engine_read: Result<EngineContainers, EngineReadError>,
+    engine_socket: &Path,
 ) -> CiRunnerTasks {
     match engine_read {
         Ok(engine) => CiRunnerTasks {
-            tasks: woodpecker_tasks(varz, &engine),
+            tasks: woodpecker_tasks(varz, &engine, engine_socket),
             access: RunnerAccess::Complete,
         },
         Err(failure) => CiRunnerTasks {
@@ -132,6 +143,7 @@ fn joined_agent_tasks(
                 &EngineContainers {
                     containers: Vec::new(),
                 },
+                engine_socket,
             ),
             access: RunnerAccess::EngineUnreadable(failure),
         },
@@ -154,18 +166,20 @@ impl SnapshotSource for WoodpeckerAgentTasks {
     fn delivery_stream(
         watch: WoodpeckerAgentWatch,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let sampler = shared_engine_sampler(watch.engine_socket);
+        let sampler = shared_engine_sampler(watch.engine_socket.clone());
+        let engine_socket = watch.engine_socket;
         let varz_url = watch.varz_url;
         samples_on_running_set_changes(
             move || {
                 let sampler = sampler.clone();
                 let varz_url = varz_url.clone();
+                let engine_socket = engine_socket.clone();
                 async move {
                     let engine_read = sampler.lock().await.sample().await;
                     fetch_agent_varz(&varz_url)
                         .await
                         .map_or_else(unreachable_agent, |varz| {
-                            joined_agent_tasks(&varz, engine_read)
+                            joined_agent_tasks(&varz, engine_read, &engine_socket)
                         })
                 }
             },
@@ -196,6 +210,8 @@ mod tests {
         podman_container_engine::libpod_inspect_ci_identity::WoodpeckerStepIdentity,
         system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad,
     };
+
+    const TEST_ENGINE_SOCKET: &str = "/run/agent/podman.sock";
 
     fn step_container(
         repository: &str,
@@ -231,7 +247,7 @@ mod tests {
                 step_container("wvhulle/nu-lint", "201", "clone"),
             ],
         };
-        let tasks = woodpecker_tasks(&captured_varz(), &engine);
+        let tasks = woodpecker_tasks(&captured_varz(), &engine, Path::new(TEST_ENGINE_SOCKET));
         assert_eq!(tasks.len(), 2);
         let sottomano = tasks
             .iter()
@@ -260,6 +276,7 @@ mod tests {
             &EngineContainers {
                 containers: Vec::new(),
             },
+            Path::new(TEST_ENGINE_SOCKET),
         );
         assert_eq!(tasks.len(), 2);
         assert!(
@@ -294,6 +311,7 @@ mod tests {
             &EngineContainers {
                 containers: Vec::new(),
             },
+            Path::new(TEST_ENGINE_SOCKET),
         );
         assert_eq!(tasks.len(), 1);
         assert_eq!(
@@ -312,25 +330,40 @@ mod tests {
             })
         };
         assert_eq!(
-            joined_agent_tasks(&captured_varz(), empty_engine()).sampling_need(),
+            joined_agent_tasks(
+                &captured_varz(),
+                empty_engine(),
+                Path::new(TEST_ENGINE_SOCKET)
+            )
+            .sampling_need(),
             SamplingNeed::KeepSampling
         );
         let idle_varz = AgentVarz {
             running: HashMap::new(),
         };
         assert_eq!(
-            joined_agent_tasks(&idle_varz, empty_engine()).sampling_need(),
+            joined_agent_tasks(&idle_varz, empty_engine(), Path::new(TEST_ENGINE_SOCKET))
+                .sampling_need(),
             SamplingNeed::Settled
         );
         assert_eq!(
-            joined_agent_tasks(&idle_varz, Err(EngineReadError::SocketDenied)).sampling_need(),
+            joined_agent_tasks(
+                &idle_varz,
+                Err(EngineReadError::SocketDenied),
+                Path::new(TEST_ENGINE_SOCKET)
+            )
+            .sampling_need(),
             SamplingNeed::KeepSampling
         );
     }
 
     #[test]
     fn a_denied_engine_keeps_the_task_list() {
-        let joined = joined_agent_tasks(&captured_varz(), Err(EngineReadError::SocketDenied));
+        let joined = joined_agent_tasks(
+            &captured_varz(),
+            Err(EngineReadError::SocketDenied),
+            Path::new(TEST_ENGINE_SOCKET),
+        );
         assert_eq!(joined.tasks.len(), 2);
         assert_eq!(
             joined.access,

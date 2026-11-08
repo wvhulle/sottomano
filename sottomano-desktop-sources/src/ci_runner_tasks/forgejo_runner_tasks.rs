@@ -2,7 +2,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     convert::Infallible,
     future::ready,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::SystemTime,
 };
 
@@ -11,7 +11,8 @@ use futures::{Stream, StreamExt, stream};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     ci_runner_tasks::{
-        CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskUsage, TaskWebLog,
+        CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskStopControl,
+        TaskUsage, TaskWebLog,
         forgejo_runner_container_names::{ForgejoJobName, parse_forgejo_container_name},
         forgejo_runner_journal_repos::ForgejoTaskStart,
         images_of, sorted_unique,
@@ -32,6 +33,7 @@ struct ForgejoTaskOrigin {
 fn forgejo_tasks(
     engine: &EngineContainers,
     origins_by_task: &HashMap<u64, ForgejoTaskOrigin>,
+    engine_socket: &Path,
 ) -> Vec<CiTask> {
     let containers_by_task = engine.containers.iter().fold(
         BTreeMap::<u64, Vec<&RunningContainer>>::new(),
@@ -71,6 +73,7 @@ fn forgejo_tasks(
             })),
             images: images_of(&containers),
             usage: TaskUsage::from(containers.as_slice()),
+            stop_control: TaskStopControl::of_containers(engine_socket, &containers),
         })
         .collect()
 }
@@ -106,6 +109,7 @@ impl SnapshotSource for ForgejoRunnerTasks {
                 Vec::new()
             }))
         });
+        let engine_socket = watch.engine_socket.clone();
         let engine_samples = engine_samples_on_running_set_changes(watch.engine_socket)
             .map(ForgejoRunnerInput::EngineSampled);
         let unit_name = watch.unit_name;
@@ -134,7 +138,7 @@ impl SnapshotSource for ForgejoRunnerTasks {
                         ForgejoRunnerInput::EngineSampled(tracked) => {
                             let runner = match tracked.sample {
                                 Ok(engine) => CiRunnerTasks {
-                                    tasks: forgejo_tasks(&engine, origins),
+                                    tasks: forgejo_tasks(&engine, origins, &engine_socket),
                                     access: RunnerAccess::Complete,
                                 },
                                 Err(failure) => CiRunnerTasks {
@@ -169,6 +173,8 @@ mod tests {
         podman_container_engine::libpod_running_containers::ContainerCiIdentity,
         system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad,
     };
+
+    const TEST_ENGINE_SOCKET: &str = "/run/runner/podman.sock";
 
     fn container(
         container_name: &str,
@@ -205,7 +211,7 @@ mod tests {
                 ),
             },
         )]);
-        let tasks = forgejo_tasks(&engine, &origins);
+        let tasks = forgejo_tasks(&engine, &origins, Path::new(TEST_ENGINE_SOCKET));
         assert_eq!(tasks.len(), 1);
         assert_eq!(
             tasks[0].repository,
@@ -224,6 +230,16 @@ mod tests {
                 resident_memory: ByteSize::b(150),
             }
         );
+        assert_eq!(
+            tasks[0].stop_control,
+            TaskStopControl::StopContainers {
+                engine_socket: PathBuf::from(TEST_ENGINE_SOCKET),
+                container_ids: vec![
+                    "FORGEJO-ACTIONS-TASK-7_WORKFLOW-aa_JOB-build".to_owned(),
+                    "FORGEJO-ACTIONS-TASK-7_WORKFLOW-aa_JOB-build_db".to_owned(),
+                ],
+            }
+        );
     }
 
     #[test]
@@ -235,7 +251,7 @@ mod tests {
                 1,
             )],
         };
-        let tasks = forgejo_tasks(&engine, &HashMap::new());
+        let tasks = forgejo_tasks(&engine, &HashMap::new(), Path::new(TEST_ENGINE_SOCKET));
         assert_eq!(tasks[0].repository, TaskRepository::NotYetKnown);
         assert_eq!(tasks[0].run_label, "7");
         assert_eq!(tasks[0].web_log, TaskWebLog::NotKnown);

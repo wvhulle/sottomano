@@ -230,7 +230,10 @@ mod tests {
     use std::time::{Duration, UNIX_EPOCH};
 
     use bytesize::ByteSize;
-    use sottomano_desktop_sources::system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad;
+    use sottomano_desktop_sources::{
+        ci_runner_tasks::TaskStopControl,
+        system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad,
+    };
     use uom::si::{f64::Ratio, ratio::percent};
 
     use super::*;
@@ -248,6 +251,7 @@ mod tests {
                 resident_memory: ByteSize::mib(1),
             },
             web_log: TaskWebLog::NotKnown,
+            stop_control: TaskStopControl::NoContainerNow,
         }
     }
 

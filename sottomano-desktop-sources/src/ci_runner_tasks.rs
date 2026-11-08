@@ -5,7 +5,10 @@ pub mod systemd_service_runner_discovery;
 pub mod woodpecker_agent_tasks;
 pub mod woodpecker_agent_varz;
 
-use std::time::SystemTime;
+use std::{
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 
 use bytesize::ByteSize;
 
@@ -69,6 +72,30 @@ impl From<&[&RunningContainer]> for TaskUsage {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TaskStopControl {
+    NoContainerNow,
+    StopContainers {
+        engine_socket: PathBuf,
+        container_ids: Vec<String>,
+    },
+}
+
+impl TaskStopControl {
+    fn of_containers(engine_socket: &Path, containers: &[&RunningContainer]) -> Self {
+        if containers.is_empty() {
+            return TaskStopControl::NoContainerNow;
+        }
+        TaskStopControl::StopContainers {
+            engine_socket: engine_socket.to_owned(),
+            container_ids: containers
+                .iter()
+                .map(|container| container.id.clone())
+                .collect(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct CiTask {
     pub repository: TaskRepository,
@@ -79,6 +106,7 @@ pub struct CiTask {
     pub images: Vec<String>,
     pub usage: TaskUsage,
     pub web_log: TaskWebLog,
+    pub stop_control: TaskStopControl,
 }
 
 #[derive(Debug, Clone, PartialEq)]
