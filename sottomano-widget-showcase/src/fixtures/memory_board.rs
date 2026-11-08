@@ -4,8 +4,11 @@ use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::{
+        memory_growth_trend::{GrowingMemoryProcess, MemoryGrowth},
         memory_module_temperatures::{MemoryModuleTemperature, MemoryModuleTemperatures},
-        memory_usage::{Memory, MemoryProcess, MemoryProcesses, MemoryTrend, Swap},
+        memory_stall_pressure::{MemoryStallPressure, StallAverages},
+        memory_usage::{Memory, MemoryProcess, MemoryProcesses},
+        swap_paging_activity::{Swap, SwapActivity},
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
@@ -26,10 +29,15 @@ use crate::{
 };
 
 const MEMORY_USED_MEBIBYTES: &[u64] = &[21_500, 21_900, 22_300, 21_800];
+const STALLED_LAST_MINUTE_PERCENT: &[f64] = &[0.4, 1.2, 6.5, 2.1];
+const PAGED_IN_KIBIBYTES_PER_SECOND: &[u64] = &[0, 0, 18_400, 2_300];
+const GROWING_TICK: u32 = 2;
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = MemoryBoardGroup::default();
-    let _ = group.update(memory_reading(0), clock);
+    for message in memory_readings(0) {
+        let _ = group.update(message, clock);
+    }
     let _ = group.update(
         MemoryBoardMessage::Hardware(host_hardware::ryzen_workstation_delivery()),
         clock,
@@ -39,7 +47,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
 
 pub fn live(clock: Clock) -> Vec<ShowcaseMessage> {
     let tick = sample(clock);
-    [memory_reading(tick)]
+    memory_readings(tick)
         .into_iter()
         .chain(hover_fetched_snapshot_messages(
             MemoryBoardTarget::Memory,
@@ -53,23 +61,77 @@ pub fn on_hover(target: MemoryBoardTarget) -> Vec<MemoryBoardMessage> {
     hover_fetched_snapshot_messages(target, 0)
 }
 
-fn memory_reading(tick: u32) -> MemoryBoardMessage {
-    MemoryBoardMessage::Memory(SnapshotDelivery::fixture_delivered(
-        Ok(MemoryTrend {
-            usage: Memory {
+fn polled_every(seconds: u64) -> DeliveryCadence {
+    DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(seconds)))
+}
+
+fn memory_readings(tick: u32) -> Vec<MemoryBoardMessage> {
+    vec![
+        MemoryBoardMessage::Memory(SnapshotDelivery::fixture_delivered(
+            Ok(Memory {
                 used: ByteSize::mib(cycled(MEMORY_USED_MEBIBYTES, tick)),
                 total: ByteSize::gib(64),
+            }),
+            polled_every(5),
+        )),
+        MemoryBoardMessage::MemoryGrowth(SnapshotDelivery::fixture_delivered(
+            Ok(memory_growth(tick)),
+            polled_every(2),
+        )),
+        MemoryBoardMessage::StallPressure(SnapshotDelivery::fixture_delivered(
+            Ok(stall_pressure(tick)),
+            polled_every(2),
+        )),
+        MemoryBoardMessage::SwapActivity(SnapshotDelivery::fixture_delivered(
+            Ok(SwapActivity {
                 swap: Swap::Configured {
                     used: ByteSize::mib(512),
                     total: ByteSize::gib(8),
                 },
-            },
-            stall_share: Some(Ratio::new::<percent>(0.4)),
+                paged_in_per_second: ByteSize::kib(cycled(PAGED_IN_KIBIBYTES_PER_SECOND, tick)),
+                paged_out_per_second: ByteSize::b(0),
+            }),
+            polled_every(2),
+        )),
+    ]
+}
+
+fn memory_growth(tick: u32) -> MemoryGrowth {
+    if tick % 4 != GROWING_TICK {
+        return MemoryGrowth {
+            used_per_minute: None,
             exhaustion_projection: None,
             growing_processes: Vec::new(),
-        }),
-        DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
-    ))
+        };
+    }
+    MemoryGrowth {
+        used_per_minute: Some(ByteSize::mib(1_700)),
+        exhaustion_projection: Some(Duration::from_secs(150)),
+        growing_processes: [("cargo", 1_100), ("firefox", 420), ("rust-analyzer", 180)]
+            .into_iter()
+            .zip(2000..)
+            .map(|((name, mebibytes_per_minute), pid)| GrowingMemoryProcess {
+                pid,
+                name: name.to_owned(),
+                resident: ByteSize::mib(mebibytes_per_minute * 3),
+                growth_per_minute: ByteSize::mib(mebibytes_per_minute),
+            })
+            .collect(),
+    }
+}
+
+fn stall_pressure(tick: u32) -> MemoryStallPressure {
+    let stalled_share =
+        |scale: f64| Ratio::new::<percent>(cycled(STALLED_LAST_MINUTE_PERCENT, tick) * scale);
+    let averages = |scale: f64| StallAverages {
+        last_10_seconds: stalled_share(scale * 1.6),
+        last_minute: stalled_share(scale),
+        last_5_minutes: stalled_share(scale * 0.7),
+    };
+    MemoryStallPressure {
+        some: averages(1.0),
+        full: averages(0.8),
+    }
 }
 
 fn hover_fetched_snapshot_messages(
@@ -101,7 +163,10 @@ fn hover_fetched_snapshot_messages(
                 DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
             )),
         ],
-        MemoryBoardTarget::Board => Vec::new(),
+        MemoryBoardTarget::Growth
+        | MemoryBoardTarget::Pressure
+        | MemoryBoardTarget::Swap
+        | MemoryBoardTarget::Board => Vec::new(),
     }
 }
 

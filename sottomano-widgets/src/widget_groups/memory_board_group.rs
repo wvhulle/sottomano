@@ -1,12 +1,18 @@
 mod board_firmware_face;
+mod growth_trend_label;
 mod memory_usage_gauge;
+mod stall_pressure_label;
+mod swap_activity_gauge;
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::{
+        memory_growth_trend::MemoryGrowth,
         memory_module_temperatures::MemoryModuleTemperatures,
-        memory_usage::{MemoryProcesses, MemoryTrend},
+        memory_stall_pressure::MemoryStallPressure,
+        memory_usage::{Memory, MemoryProcesses},
+        swap_paging_activity::SwapActivity,
     },
     host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -39,6 +45,9 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryBoardTarget {
     Memory,
+    Growth,
+    Pressure,
+    Swap,
     Board,
 }
 
@@ -50,7 +59,10 @@ impl From<MemoryBoardTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct MemoryBoardGroup {
-    memory: LatestSnapshot<MemoryTrend>,
+    memory: LatestSnapshot<Memory>,
+    memory_growth: LatestSnapshot<MemoryGrowth>,
+    stall_pressure: LatestSnapshot<MemoryStallPressure>,
+    swap_activity: LatestSnapshot<SwapActivity>,
     hardware: LatestSnapshot<HostHardware, HidesFetchFailures>,
     memory_processes: HoverFetchedSnapshot<MemoryProcesses>,
     module_temperatures: HoverFetchedSnapshot<MemoryModuleTemperatures>,
@@ -60,7 +72,10 @@ pub struct MemoryBoardGroup {
 #[derive(Debug, Clone)]
 pub enum MemoryBoardMessage {
     Hardware(Box<SnapshotDelivery<HostHardware>>),
-    Memory(SnapshotDelivery<MemoryTrend>),
+    Memory(SnapshotDelivery<Memory>),
+    MemoryGrowth(SnapshotDelivery<MemoryGrowth>),
+    StallPressure(SnapshotDelivery<MemoryStallPressure>),
+    SwapActivity(SnapshotDelivery<SwapActivity>),
     MemoryProcessesFetched(SnapshotDelivery<MemoryProcesses>),
     ModuleTemperaturesFetched(SnapshotDelivery<MemoryModuleTemperatures>),
     Expansion(WidgetGroupExpansionMessage),
@@ -99,7 +114,12 @@ impl MemoryBoardGroup {
     }
 
     pub fn subscription() -> Subscription<MemoryBoardMessage> {
-        snapshot_subscription::<MemoryTrend>(()).map(MemoryBoardMessage::Memory)
+        Subscription::batch([
+            snapshot_subscription::<Memory>(()).map(MemoryBoardMessage::Memory),
+            snapshot_subscription::<MemoryGrowth>(()).map(MemoryBoardMessage::MemoryGrowth),
+            snapshot_subscription::<MemoryStallPressure>(()).map(MemoryBoardMessage::StallPressure),
+            snapshot_subscription::<SwapActivity>(()).map(MemoryBoardMessage::SwapActivity),
+        ])
     }
 
     pub fn update(&mut self, msg: MemoryBoardMessage, clock: Clock) -> Task<MemoryBoardMessage> {
@@ -108,6 +128,11 @@ impl MemoryBoardGroup {
                 self.hardware.receive(*delivery, clock);
             }
             MemoryBoardMessage::Memory(reading) => self.memory.receive(reading, clock),
+            MemoryBoardMessage::MemoryGrowth(reading) => self.memory_growth.receive(reading, clock),
+            MemoryBoardMessage::StallPressure(reading) => {
+                self.stall_pressure.receive(reading, clock);
+            }
+            MemoryBoardMessage::SwapActivity(reading) => self.swap_activity.receive(reading, clock),
             MemoryBoardMessage::MemoryProcessesFetched(fetched) => {
                 self.memory_processes.receive(fetched, clock);
             }
@@ -128,6 +153,9 @@ impl MemoryBoardGroup {
             MemoryBoardMessage::Expansion,
             [
                 self.memory.group_item(MemoryBoardTarget::Memory),
+                self.memory_growth.group_item(MemoryBoardTarget::Growth),
+                self.stall_pressure.group_item(MemoryBoardTarget::Pressure),
+                self.swap_activity.group_item(MemoryBoardTarget::Swap),
                 self.hardware
                     .get()
                     .map(|hardware| &hardware.machine)
@@ -145,7 +173,16 @@ impl MemoryBoardGroup {
     ) -> Task<MemoryBoardMessage> {
         match target {
             MemoryBoardTarget::Memory => {
-                first_delivery::<MemoryTrend>(()).map(MemoryBoardMessage::Memory)
+                first_delivery::<Memory>(()).map(MemoryBoardMessage::Memory)
+            }
+            MemoryBoardTarget::Growth => {
+                first_delivery::<MemoryGrowth>(()).map(MemoryBoardMessage::MemoryGrowth)
+            }
+            MemoryBoardTarget::Pressure => {
+                first_delivery::<MemoryStallPressure>(()).map(MemoryBoardMessage::StallPressure)
+            }
+            MemoryBoardTarget::Swap => {
+                first_delivery::<SwapActivity>(()).map(MemoryBoardMessage::SwapActivity)
             }
             MemoryBoardTarget::Board => buses.map_or_else(Task::none, |buses| {
                 first_delivery::<HostHardware>(buses.clone())
@@ -168,6 +205,9 @@ impl MemoryBoardGroup {
                 .flatten(),
                 clock,
             ),
+            MemoryBoardTarget::Growth => self.memory_growth.hover_card(clock),
+            MemoryBoardTarget::Pressure => self.stall_pressure.hover_card(clock),
+            MemoryBoardTarget::Swap => self.swap_activity.hover_card(clock),
             MemoryBoardTarget::Board => {
                 let machine = &self.hardware.get()?.machine;
                 self.hardware.hover_card_with(
