@@ -11,7 +11,7 @@ use sottomano_toml_config::{
     name = "sottomano",
     version,
     about = "Desktop shell for the niri compositor: two panels with hoverable readings.",
-    long_about = "Desktop shell for the niri compositor: two panels with hoverable readings. \
+    long_about = "Desktop shell for niri, sway and Hyprland: two panels with hoverable readings. \
                   Without a subcommand it starts the shell; the subcommands describe its setup \
                   instead."
 )]

@@ -1,8 +1,11 @@
 # Installation
 
-Sottomano runs on [niri](https://github.com/YaLTeR/niri) and talks to it
-through `niri-ipc` 26.4, so use niri 26.04 or newer. The
-flake provides a package, a home-manager module for the bar and a NixOS module
+Sottomano runs on [niri](compositors/niri.md), [sway](compositors/sway.md) and
+[Hyprland](compositors/hyprland.md), and finds the running one from
+`NIRI_SOCKET`, `HYPRLAND_INSTANCE_SIGNATURE` or `SWAYSOCK`. Each compositor's
+page covers installing it, starting the session and including the window
+styling rules sottomano writes, and lists what that compositor does not offer.
+The flake provides a package, a home-manager module for the bar and a NixOS module
 for the system pieces some widgets read. NixOS is the tested setup. The Ubuntu
 and Fedora instructions reproduce what the NixOS module does by hand and are
 untested.
@@ -69,9 +72,11 @@ writes its config and starts it with the graphical session.
 }
 ```
 
-`sottomano.homeModules.default` also imports niri-hm's module, because it adds
-`~/.config/sottomano/niri.kdl` to `services.niri.settings.includes`. That file
-holds the layer rules sottomano writes for its own surfaces.
+`sottomano.homeModules.default` also imports niri-hm's module. When
+home-manager runs niri (`services.niri.enable`) or sway
+(`wayland.windowManager.sway.enable`), the module includes the window styling
+rules sottomano writes for that compositor. Hyprland's Lua config loads them
+itself, as [its page](compositors/hyprland.md#window-styling-rules) shows.
 
 ### System module
 
@@ -141,13 +146,12 @@ holds the layer rules sottomano writes for its own surfaces.
   directory, which the virtual machines group uses to show a paused VM and power
   it off. An existing `QEMU_OPTS` wins.
 - `systemdUnit` (default `true`) adds a user service bound to
-  `graphical-session.target`. Disable it to spawn sottomano from niri's
-  `spawn-at-startup` instead.
+  `graphical-session.target`. Disable it to start sottomano from the
+  compositor's own startup commands instead.
 
 ## Ubuntu
 
-If your Ubuntu release does not package niri 26.04 or newer, build it following
-[niri's instructions](https://github.com/YaLTeR/niri).
+Install the compositor first, as its page describes.
 
 ### Build
 
@@ -232,15 +236,11 @@ uses the `sudo` group where NixOS uses `wheel`.
 
 ### Start with the session
 
-See [Starting with niri](#starting-with-niri).
+See [Start with the session](#start-with-the-session).
 
 ## Fedora
 
-Fedora packages niri:
-
-```bash
-sudo dnf install niri
-```
+Install the compositor first, as its page describes.
 
 ### Build
 
@@ -281,7 +281,7 @@ VPNs show up when NetworkManager runs them through a VPN plugin, such as
 The same modules-load, udev and journal steps as on
 [Ubuntu](#system-setup), with `wheel` in place of `sudo` in the X3D rule.
 
-## Starting with niri
+## Start with the session
 
 Outside home-manager, write the user service the module would generate to
 `~/.config/systemd/user/sottomano.service`:
@@ -310,19 +310,8 @@ systemctl --user enable --now sottomano.service
 ```
 
 `session.slice` and the raised weight keep the bar responsive when apps load the
-machine. Its frames only reach the screen through niri, so give niri at least the
-same weight in `~/.config/systemd/user/niri.service.d/sottomano-priority.conf`,
-which takes effect at the next login:
-
-```ini
-[Service]
-CPUWeight=1000
-```
-
-Include the layer rules sottomano writes in `~/.config/niri/config.kdl`:
-
-```kdl
-include "/home/alice/.config/sottomano/niri.kdl" optional=true
-```
+machine. The service starts with `graphical-session.target`. niri starts that
+target itself; sway and Hyprland need a line in their config, as their pages
+show.
 
 Next: [configuration](configuration.md).
