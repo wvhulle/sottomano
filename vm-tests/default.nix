@@ -9,6 +9,7 @@ let
   scenarioNames = [
     "panel-mapped"
     "styling-rules"
+    "workspace-follow"
   ];
 
   machineFor = compositorName: {

@@ -107,6 +107,7 @@
             ./docs
             ./README.md
             ./.woodpecker
+            ./.forgejo
             ./vm-tests
           ]
         );
