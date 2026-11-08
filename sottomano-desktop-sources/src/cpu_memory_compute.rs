@@ -14,11 +14,14 @@ mod intel_hybrid_core_designs;
 mod intel_pstate_no_turbo;
 mod intel_thermal_throttle_counters;
 pub mod kernel_frequency_limit_causes;
+pub mod memory_growth_trend;
 pub mod memory_module_temperatures;
+pub mod memory_stall_pressure;
 pub mod memory_usage;
 pub mod nvml_gpu_readings;
 pub mod pci_gpu_readings;
 pub mod qmlib_gpu_sampler;
+pub mod swap_paging_activity;
 pub mod temperature_thresholds;
 
 use std::path::{Path, PathBuf};
