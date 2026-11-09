@@ -1,4 +1,3 @@
-mod bcachefs_member_row;
 mod compression_setting_row;
 mod ext4_error_count_row;
 mod ext4_lifetime_writes_row;
