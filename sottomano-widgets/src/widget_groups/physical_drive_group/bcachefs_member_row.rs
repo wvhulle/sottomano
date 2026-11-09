@@ -1,7 +1,6 @@
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::bcachefs_filesystem_space::BcachefsDeviceSpace;
 use sottomano_toml_config::severity::Severity;
-use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
@@ -45,7 +44,7 @@ impl BcachefsMemberRow<'_> {
 
 impl GroupItemReading for BcachefsMemberRow<'_> {
     fn name(&self) -> &'static str {
-        "Member"
+        "bcachefs"
     }
 
     fn icon(&self) -> IconGlyph {
@@ -58,14 +57,9 @@ impl GroupItemReading for BcachefsMemberRow<'_> {
 
     fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
         Some(format!(
-            "{}  {} free",
-            self.device.label,
+            "{} free",
             Quantity::size(self.device.free).localized_text(locale)
         ))
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        Some(percent_fill(self.used_percent()))
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
@@ -75,9 +69,10 @@ impl GroupItemReading for BcachefsMemberRow<'_> {
             "data only"
         };
         HoverCardBody::dictionary([
-            LabeledValue::new("Label", self.device.label.clone()),
+            LabeledValue::new("Device label", self.device.label.clone()),
             LabeledValue::new("Partition", self.device.partition.clone()),
             LabeledValue::new("State", self.device.state.clone()).level(self.writable_severity()),
+            LabeledValue::new("Used", Quantity::share(percent_fill(self.used_percent()))),
             LabeledValue::new("Free", Quantity::size(self.device.free)),
             LabeledValue::new("Capacity", Quantity::size(self.device.capacity)),
             LabeledValue::new("Holds", metadata_text),

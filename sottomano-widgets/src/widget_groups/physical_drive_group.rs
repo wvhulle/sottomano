@@ -1,9 +1,11 @@
+mod bcachefs_member_row;
 mod disk_space_gauge;
 mod disk_transfer_gauge;
 mod drive_health_indicator;
 
 use std::collections::BTreeMap;
 
+use bcachefs_member_row::BcachefsMemberRow;
 use disk_space_gauge::{DiskMarking, MarkedDiskSpace};
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
@@ -39,6 +41,7 @@ pub enum DriveTarget {
     Read(String),
     Write(String),
     DriveHealth(String),
+    BcachefsMember { disk: String, partition: String },
 }
 
 impl From<DriveTarget> for HoverTarget {
@@ -134,7 +137,11 @@ impl PhysicalDriveGroup {
             || first_delivery::<BlockFilesystemDiscovery>(()).map(DriveMessage::Discovered);
         match target {
             DriveTarget::MountDiscovery => discover(),
-            DriveTarget::Space(name) => {
+            DriveTarget::Space(name)
+            | DriveTarget::BcachefsMember {
+                disk: name,
+                ..
+            } => {
                 let Some(disk) = disk_named(name) else {
                     return discover();
                 };
@@ -253,8 +260,24 @@ impl PhysicalDriveGroup {
                     GroupItem::reading(&activity.write, DriveTarget::Write(disk.name.clone())),
                 ]
             });
+        let member_items = readings
+            .space
+            .get()
+            .into_iter()
+            .flat_map(|occupancy| &occupancy.filesystem_shares)
+            .flat_map(|share| &share.bcachefs_members)
+            .map(|device| {
+                GroupItem::reading(
+                    BcachefsMemberRow { device },
+                    DriveTarget::BcachefsMember {
+                        disk: disk.name.clone(),
+                        partition: device.partition.clone(),
+                    },
+                )
+            });
         let items = space_item
             .into_iter()
+            .chain(member_items)
             .chain(
                 readings
                     .drive_health
@@ -323,6 +346,19 @@ impl PhysicalDriveGroup {
                     .hover_card_with(readings.activity.get()?.write.hover_card(clock))
             }
             DriveTarget::DriveHealth(name) => readings_of(name)?.drive_health.hover_card(clock),
+            DriveTarget::BcachefsMember { disk, partition } => {
+                let readings = readings_of(disk)?;
+                let device = readings
+                    .space
+                    .get()?
+                    .filesystem_shares
+                    .iter()
+                    .flat_map(|share| &share.bcachefs_members)
+                    .find(|device| &device.partition == partition)?;
+                readings
+                    .space
+                    .hover_card_with(BcachefsMemberRow { device }.hover_card(clock))
+            }
         }
     }
 }

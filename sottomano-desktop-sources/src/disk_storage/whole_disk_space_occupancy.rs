@@ -6,7 +6,7 @@ use rustix::fs::statvfs;
 
 use super::{
     Error,
-    bcachefs_filesystem_space::BcachefsFilesystem,
+    bcachefs_filesystem_space::{BcachefsDeviceSpace, BcachefsFilesystem},
     block_filesystem_mounts::{FilesystemMount, KernelDevice},
 };
 use crate::{SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling};
@@ -24,6 +24,7 @@ pub struct FilesystemShare {
     pub mount_point: PathBuf,
     pub fs_type: String,
     pub used_on_disk: ByteSize,
+    pub bcachefs_members: Vec<BcachefsDeviceSpace>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -91,33 +92,43 @@ fn filesystem_share_on_disk(
     filesystem: &FilesystemMount,
     disk: &KernelDevice,
 ) -> Result<FilesystemShare, Error> {
-    let used_on_disk = match filesystem.fs_type.as_str() {
-        "bcachefs" => bcachefs_used_on_disk(filesystem, disk)?,
-        _ => proportional_used_on_disk(filesystem, disk)?,
+    let (used_on_disk, bcachefs_members) = match filesystem.fs_type.as_str() {
+        "bcachefs" => {
+            let members = bcachefs_members_on_disk(filesystem, disk)?;
+            (used_by_members(&members), members)
+        }
+        _ => (proportional_used_on_disk(filesystem, disk)?, Vec::new()),
     };
     Ok(FilesystemShare {
         mount_point: filesystem.primary_mount_point().to_path_buf(),
         fs_type: filesystem.fs_type.clone(),
         used_on_disk,
+        bcachefs_members,
     })
 }
 
-fn bcachefs_used_on_disk(
+fn bcachefs_members_on_disk(
     filesystem: &FilesystemMount,
     disk: &KernelDevice,
-) -> Result<ByteSize, Error> {
+) -> Result<Vec<BcachefsDeviceSpace>, Error> {
     let space = BcachefsFilesystem::containing(&filesystem.devices)?.space()?;
-    Ok(ByteSize::b(
-        space
-            .devices
+    Ok(space
+        .devices
+        .into_iter()
+        .filter(|member| {
+            &KernelDevice {
+                name: member.partition.clone(),
+            }
+            .whole_disk()
+                == disk
+        })
+        .collect())
+}
+
+fn used_by_members(members: &[BcachefsDeviceSpace]) -> ByteSize {
+    ByteSize::b(
+        members
             .iter()
-            .filter(|member| {
-                &KernelDevice {
-                    name: member.partition.clone(),
-                }
-                .whole_disk()
-                    == disk
-            })
             .map(|member| {
                 member
                     .capacity
@@ -125,7 +136,7 @@ fn bcachefs_used_on_disk(
                     .saturating_sub(member.free.as_u64())
             })
             .sum(),
-    ))
+    )
 }
 
 fn proportional_used_on_disk(

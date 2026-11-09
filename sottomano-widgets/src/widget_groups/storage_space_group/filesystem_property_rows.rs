@@ -3,7 +3,7 @@ use sottomano_desktop_sources::disk_storage::mounted_filesystem_usage::{
 };
 
 use super::{
-    bcachefs_member_row::BcachefsMemberRow, compression_setting_row::CompressionSettingRow,
+    compression_setting_row::CompressionSettingRow,
     ext4_error_count_row::Ext4ErrorCountRow, ext4_lifetime_writes_row::Ext4LifetimeWritesRow,
     inode_usage_row::InodeUsageRow, metadata_room_row::MetadataRoomRow,
     mount_access_row::MountAccessRow, volume_identity_row::VolumeIdentityRow,
@@ -14,7 +14,7 @@ use crate::{
     hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
 };
 
-const SHARED_PROPERTIES: [FilesystemProperty; 7] = [
+const LISTED_PROPERTIES: [FilesystemProperty; 7] = [
     FilesystemProperty::Mount,
     FilesystemProperty::Volume,
     FilesystemProperty::Inodes,
@@ -31,27 +31,14 @@ pub enum FilesystemProperty {
     Inodes,
     MetadataRoom,
     Compression,
-    Member(String),
     Ext4Errors,
     Ext4Writes,
 }
 
 impl FilesystemProperty {
     pub(super) fn listed_for(usage: &FilesystemUsage) -> Vec<FilesystemProperty> {
-        let members = match &usage.filesystem {
-            Filesystem::Bcachefs(space) => space
-                .devices
-                .iter()
-                .map(|device| FilesystemProperty::Member(device.partition.clone()))
-                .collect(),
-            Filesystem::Btrfs(_)
-            | Filesystem::Ext4 { .. }
-            | Filesystem::Xfs { .. }
-            | Filesystem::Other { .. } => Vec::new(),
-        };
-        SHARED_PROPERTIES
+        LISTED_PROPERTIES
             .into_iter()
-            .chain(members)
             .filter(|property| property.row(usage).is_some())
             .collect()
     }
@@ -82,11 +69,6 @@ impl FilesystemProperty {
             (FilesystemProperty::Compression, Filesystem::Bcachefs(space)) => {
                 enabled_compression(CompressionSettingRow::Bcachefs(space))
             }
-            (FilesystemProperty::Member(partition), Filesystem::Bcachefs(space)) => space
-                .devices
-                .iter()
-                .find(|device| &device.partition == partition)
-                .map(|device| FilesystemPropertyRow::Member(BcachefsMemberRow { device })),
             (FilesystemProperty::Ext4Errors, Filesystem::Ext4 { counters, .. }) => Some(
                 FilesystemPropertyRow::Ext4Errors(Ext4ErrorCountRow {
                     recorded_errors: counters.recorded_errors,
@@ -116,7 +98,6 @@ pub(super) enum FilesystemPropertyRow<'a> {
     Inodes(InodeUsageRow),
     MetadataRoom(MetadataRoomRow<'a>),
     Compression(CompressionSettingRow<'a>),
-    Member(BcachefsMemberRow<'a>),
     Ext4Errors(Ext4ErrorCountRow),
     Ext4Writes(Ext4LifetimeWritesRow),
 }
@@ -129,7 +110,6 @@ impl<'a> FilesystemPropertyRow<'a> {
             FilesystemPropertyRow::Inodes(row) => GroupItem::reading(row, target),
             FilesystemPropertyRow::MetadataRoom(row) => GroupItem::reading(row, target),
             FilesystemPropertyRow::Compression(row) => GroupItem::reading(row, target),
-            FilesystemPropertyRow::Member(row) => GroupItem::reading(row, target),
             FilesystemPropertyRow::Ext4Errors(row) => GroupItem::reading(row, target),
             FilesystemPropertyRow::Ext4Writes(row) => GroupItem::reading(row, target),
         }
@@ -142,7 +122,6 @@ impl<'a> FilesystemPropertyRow<'a> {
             FilesystemPropertyRow::Inodes(row) => row.hover_card(clock),
             FilesystemPropertyRow::MetadataRoom(row) => row.hover_card(clock),
             FilesystemPropertyRow::Compression(row) => row.hover_card(clock),
-            FilesystemPropertyRow::Member(row) => row.hover_card(clock),
             FilesystemPropertyRow::Ext4Errors(row) => row.hover_card(clock),
             FilesystemPropertyRow::Ext4Writes(row) => row.hover_card(clock),
         }
@@ -298,7 +277,7 @@ mod tests {
     }
 
     #[test]
-    fn bcachefs_lists_one_row_per_member_device() {
+    fn bcachefs_lists_metadata_and_compression() {
         let bcachefs = &every_filesystem_kind()[4];
         assert_eq!(
             FilesystemProperty::listed_for(bcachefs),
@@ -306,8 +285,6 @@ mod tests {
                 FilesystemProperty::Mount,
                 FilesystemProperty::MetadataRoom,
                 FilesystemProperty::Compression,
-                FilesystemProperty::Member("nvme0n1p1".to_owned()),
-                FilesystemProperty::Member("nvme1n1p3".to_owned()),
             ]
         );
     }
