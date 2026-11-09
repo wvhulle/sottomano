@@ -81,7 +81,13 @@ impl UdevProperties {
         Self::read("+dmi:id")
     }
 
-    fn value(&self, key: &str) -> Option<String> {
+    #[must_use]
+    pub fn block_device(major_minor: &str) -> Self {
+        Self::read(&format!("b{major_minor}"))
+    }
+
+    #[must_use]
+    pub fn value(&self, key: &str) -> Option<String> {
         reported(self.0.get(key)?)
     }
 

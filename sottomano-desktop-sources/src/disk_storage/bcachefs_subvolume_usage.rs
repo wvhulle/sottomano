@@ -6,10 +6,12 @@ use std::{
 
 use bytesize::ByteSize;
 use futures::Stream;
-use rustix::fs::{StatVfsMountFlags, statvfs};
+use rustix::fs::statvfs;
 use serde::Deserialize;
 
-use super::{Error, block_filesystem_mounts::FilesystemMount};
+use super::{
+    Error, block_filesystem_mounts::FilesystemMount, mounted_filesystem_usage::MountAccess,
+};
 use crate::{
     SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::shell_command_output,
@@ -37,12 +39,6 @@ pub struct BcachefsSubvolume {
 pub struct SubvolumeMount {
     pub mount_point: PathBuf,
     pub access: MountAccess,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MountAccess {
-    ReadWrite,
-    ReadOnly,
 }
 
 impl SnapshotSource for BcachefsSubvolumeUsage {
@@ -126,11 +122,7 @@ fn mount_access(mount_point: &Path) -> Result<MountAccess, Error> {
         mount_point: mount_point.display().to_string(),
         errno: errno.raw_os_error(),
     })?;
-    Ok(if stat.f_flag.contains(StatVfsMountFlags::RDONLY) {
-        MountAccess::ReadOnly
-    } else {
-        MountAccess::ReadWrite
-    })
+    Ok(MountAccess::from(stat.f_flag))
 }
 
 #[derive(Deserialize)]

@@ -1,5 +1,14 @@
+mod bcachefs_member_row;
+mod compression_setting_row;
+mod ext4_error_count_row;
+mod ext4_lifetime_writes_row;
+mod filesystem_property_rows;
 mod filesystem_usage_gauge;
+mod inode_usage_row;
+mod metadata_room_row;
+mod mount_access_row;
 mod subvolume_usage_row;
+mod volume_identity_row;
 
 use std::{
     collections::BTreeMap,
@@ -18,6 +27,7 @@ use sottomano_desktop_sources::{
     },
 };
 
+pub use self::filesystem_property_rows::FilesystemProperty;
 use self::{filesystem_usage_gauge::SnapshotDeletionRow, subvolume_usage_row::SubvolumeUsageRow};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
@@ -52,6 +62,10 @@ const BCACHEFS_FS_TYPE: &str = "bcachefs";
 pub enum StorageTarget {
     MountDiscovery,
     Usage(PathBuf),
+    Property {
+        filesystem: PathBuf,
+        property: FilesystemProperty,
+    },
     SubvolumeUsage(PathBuf),
     Subvolume {
         filesystem: PathBuf,
@@ -163,6 +177,10 @@ impl StorageSpaceGroup {
         match target {
             StorageTarget::MountDiscovery => discover(),
             StorageTarget::Usage(primary_mount_point)
+            | StorageTarget::Property {
+                filesystem: primary_mount_point,
+                ..
+            }
             | StorageTarget::SnapshotDeletion(primary_mount_point) => {
                 let Some(filesystem) = self.filesystems.get(primary_mount_point) else {
                     return discover();
@@ -247,6 +265,17 @@ impl StorageSpaceGroup {
     fn mount_group(filesystem: &MountedFilesystem) -> WidgetGroupContent<'_, StorageMessage> {
         let primary_mount_point = filesystem.mount.primary_mount_point();
         let usage = filesystem.usage.get();
+        let property_items = usage.into_iter().flat_map(move |usage| {
+            FilesystemProperty::listed_for(usage)
+                .into_iter()
+                .filter_map(move |property| {
+                    let row = property.row(usage)?;
+                    Some(row.group_item(StorageTarget::Property {
+                        filesystem: primary_mount_point.to_path_buf(),
+                        property,
+                    }))
+                })
+        });
         let subvolume_items = usage
             .zip(filesystem.subvolume_usage.get())
             .into_iter()
@@ -300,6 +329,7 @@ impl StorageSpaceGroup {
                 .usage
                 .group_item(StorageTarget::Usage(primary_mount_point.to_path_buf()))
                 .into_iter()
+                .chain(property_items)
                 .chain(subvolume_items)
                 .chain(subvolume_failure_item)
                 .chain(snapshot_deletion_item),
@@ -308,16 +338,15 @@ impl StorageSpaceGroup {
 
     #[must_use]
     pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, StorageMessage>> {
-        let discovery_group = WidgetGroupContent::expandable(
+        if !self.filesystems.is_empty() {
+            return self.filesystems.values().map(Self::mount_group).collect();
+        }
+        vec![WidgetGroupContent::expandable(
             WidgetGroupFamily::StorageSpace,
             &self.discovery_expansion,
             StorageMessage::DiscoveryExpansion,
             self.discovery.group_item(StorageTarget::MountDiscovery),
-        );
-        [discovery_group]
-            .into_iter()
-            .chain(self.filesystems.values().map(Self::mount_group))
-            .collect()
+        )]
     }
 
     #[must_use]
@@ -326,6 +355,14 @@ impl StorageSpaceGroup {
             StorageTarget::MountDiscovery => self.discovery.hover_card(clock),
             StorageTarget::Usage(mount_point) => {
                 self.filesystems.get(mount_point)?.usage.hover_card(clock)
+            }
+            StorageTarget::Property {
+                filesystem,
+                property,
+            } => {
+                let filesystem = self.filesystems.get(filesystem)?;
+                let row = property.row(filesystem.usage.get()?)?;
+                filesystem.usage.hover_card_with(row.hover_card(clock))
             }
             StorageTarget::SubvolumeUsage(mount_point) => self
                 .filesystems
