@@ -105,8 +105,9 @@ impl ToggleableSource for X3dCachePreference {
         self.other()
     }
 
-    fn apply_toggle(&self) -> Result<(), Error> {
-        write_x3d_cache_preference(self.other())
+    fn apply_toggle(&self) -> impl Future<Output = Result<(), Error>> + Send + 'static {
+        let wanted_preference = self.other();
+        async move { write_x3d_cache_preference(wanted_preference) }
     }
 
     fn switch_position(&self) -> SwitchPosition {

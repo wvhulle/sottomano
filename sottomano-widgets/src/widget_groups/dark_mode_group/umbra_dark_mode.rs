@@ -41,7 +41,9 @@ impl ToggleableSource for DarkMode {
         }
     }
 
-    fn apply_toggle(&self) -> Result<(), shell_command_output::Error> {
+    fn apply_toggle(
+        &self,
+    ) -> impl Future<Output = Result<(), shell_command_output::Error>> + Send + 'static {
         umbra_mode_writes::toggle_mode()
     }
 

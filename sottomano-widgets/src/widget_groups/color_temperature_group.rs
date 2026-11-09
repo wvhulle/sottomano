@@ -179,9 +179,11 @@ impl ColorTemperatureGroup {
                     self.warmth.close();
                     Task::none()
                 }
-                Action::Commit(value) => ControlMessage::commit("gamma dim", value, move || {
-                    gammarelay_color_writes::set_brightness(as_percent(value))
-                })
+                Action::Commit(value) => ControlMessage::commit(
+                    "gamma dim",
+                    value,
+                    gammarelay_color_writes::set_brightness(as_percent(value)),
+                )
                 .map(ColorTemperatureMessage::Dim),
                 Action::None | Action::Right | Action::Adjust(_) => Task::none(),
             },
@@ -195,9 +197,11 @@ impl ColorTemperatureGroup {
                     .request(UnitChange::Stop)
                     .map(ColorTemperatureMessage::Auto)
                     .chain(
-                        ControlMessage::commit("gamma temperature", value, move || {
-                            gammarelay_color_writes::set_temperature(as_kelvin(value))
-                        })
+                        ControlMessage::commit(
+                            "gamma temperature",
+                            value,
+                            gammarelay_color_writes::set_temperature(as_kelvin(value)),
+                        )
                         .map(ColorTemperatureMessage::Warmth),
                     ),
                 Action::None | Action::Right | Action::Adjust(_) => Task::none(),

@@ -3,17 +3,21 @@ use sottomano_desktop_sources::media_playback_audio::pipewire_audio::{
 };
 
 #[derive(Debug, thiserror::Error)]
-#[error("the pipewire loop did not answer the volume change")]
-pub struct LevelChangeUnanswered;
+pub enum VolumeChangeFailure {
+    #[error("the pipewire loop did not answer the volume change")]
+    Unanswered,
+    #[error("the volume change task panicked")]
+    WorkerPanicked,
+}
 
 pub fn set_volume(
     commands: &Commands,
     target: Target,
     percent: i64,
-) -> Result<i64, LevelChangeUnanswered> {
+) -> Result<i64, VolumeChangeFailure> {
     commands
         .request_level_change(target, CommandKind::SetVolume(percent.clamp(0, 100)))
-        .ok_or(LevelChangeUnanswered)
+        .ok_or(VolumeChangeFailure::Unanswered)
 }
 
 #[must_use]

@@ -1,33 +1,40 @@
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{
-    Command, MediaPlayer2ProxyBlocking, PlayerProxyBlocking, QueueOrder, micros,
+    Command, MediaPlayer2Proxy, PlayerProxy, QueueOrder, micros,
 };
-use zbus::blocking::Connection as BlockingConnection;
+use zbus::Connection;
 
-pub fn control(bus: &str, command: Command) -> zbus::Result<()> {
-    let connection = BlockingConnection::session()?;
-    let player = || {
-        PlayerProxyBlocking::builder(&connection)
-            .destination(bus.to_owned())?
+pub async fn control(bus: String, command: Command) -> zbus::Result<()> {
+    let session = Connection::session().await?;
+    let player = || async {
+        PlayerProxy::builder(&session)
+            .destination(bus.clone())?
             .build()
+            .await
     };
-    let root = || {
-        MediaPlayer2ProxyBlocking::builder(&connection)
-            .destination(bus.to_owned())?
+    let root = || async {
+        MediaPlayer2Proxy::builder(&session)
+            .destination(bus.clone())?
             .build()
+            .await
     };
     match command {
-        Command::Play => player()?.play(),
-        Command::Pause => player()?.pause(),
-        Command::Stop => player()?.stop(),
-        Command::Next => player()?.next(),
-        Command::Previous => player()?.previous(),
-        Command::SetPosition(track, position) => player()?.set_position(&track, micros(position)),
-        Command::Seek(offset) => player()?.seek(offset),
-        Command::SetQueueOrder(queue_order) => {
-            player()?.set_shuffle(queue_order == QueueOrder::Shuffled)
+        Command::Play => player().await?.play().await,
+        Command::Pause => player().await?.pause().await,
+        Command::Stop => player().await?.stop().await,
+        Command::Next => player().await?.next().await,
+        Command::Previous => player().await?.previous().await,
+        Command::SetPosition(track, position) => {
+            player().await?.set_position(&track, micros(position)).await
         }
-        Command::SetLoopMode(mode) => player()?.set_loop_status(&mode.to_string()),
-        Command::Raise => root()?.raise(),
-        Command::Quit => root()?.quit(),
+        Command::Seek(offset) => player().await?.seek(offset).await,
+        Command::SetQueueOrder(queue_order) => {
+            player()
+                .await?
+                .set_shuffle(queue_order == QueueOrder::Shuffled)
+                .await
+        }
+        Command::SetLoopMode(mode) => player().await?.set_loop_status(&mode.to_string()).await,
+        Command::Raise => root().await?.raise().await,
+        Command::Quit => root().await?.quit().await,
     }
 }

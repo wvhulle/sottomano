@@ -1,4 +1,5 @@
 mod command_line;
+mod compact_tokio_executor;
 mod desktop_shell;
 mod message_subscriptions;
 mod process_memory_report;
@@ -123,6 +124,7 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
     .style(|_shell: &DesktopShell, theme| DesktopShell::style(theme))
     .theme(DesktopShell::theme)
     .subscription(message_subscriptions::subscription)
+    .executor::<compact_tokio_executor::CompactTokioExecutor>()
     .wl_settings(wl_settings)
     .default_font(default_font)
     .antialiasing(true)

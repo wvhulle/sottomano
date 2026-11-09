@@ -14,7 +14,6 @@ use iced::{
     mouse::ScrollDelta,
     widget::{Row, button, container, mouse_area, text, text::Wrapping},
 };
-use sottomano_desktop_sources::blocking_background_work::{Panicked, blocking_poll};
 use sottomano_toml_config::{Config, severity::Severity};
 use uom::si::{f64::Ratio, ratio};
 
@@ -129,20 +128,12 @@ pub enum ControlMessage {
 
 #[derive(Debug, Clone)]
 pub enum ControlWriteFailure {
-    WorkerPanicked,
     Rejected(Arc<dyn Error + Send + Sync>),
-}
-
-impl From<Panicked> for ControlWriteFailure {
-    fn from(_: Panicked) -> Self {
-        ControlWriteFailure::WorkerPanicked
-    }
 }
 
 impl Display for ControlWriteFailure {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            ControlWriteFailure::WorkerPanicked => formatter.write_str("the write task panicked"),
             ControlWriteFailure::Rejected(write_error) => write!(formatter, "{write_error}"),
         }
     }
@@ -152,11 +143,13 @@ impl ControlMessage {
     pub fn commit<WriteError: Error + Send + Sync + 'static>(
         label: &'static str,
         value: f32,
-        write: impl FnOnce() -> Result<(), WriteError> + Send + 'static,
+        write: impl Future<Output = Result<(), WriteError>> + Send + 'static,
     ) -> Task<ControlMessage> {
-        let device_write = blocking_poll(move || {
-            write().map_err(|write_error| ControlWriteFailure::Rejected(Arc::new(write_error)))
-        });
+        let device_write = async move {
+            write
+                .await
+                .map_err(|write_error| ControlWriteFailure::Rejected(Arc::new(write_error)))
+        };
         Task::perform(device_write, move |write_outcome| {
             if let Err(write_failure) = &write_outcome {
                 tracing::warn!("{label}: {write_failure}");

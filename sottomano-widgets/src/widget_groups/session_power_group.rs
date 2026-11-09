@@ -2,12 +2,9 @@ use std::{iter::once, time::Duration};
 
 use iced::{Element, Task, border::Radius};
 use sottomano_desktop_sinks::login_session_presence::logind_session_commands::perform_session_action;
-use sottomano_desktop_sources::{
-    blocking_background_work::blocking,
-    login_session_presence::{
-        logind_action_permissions::{self, Permissions},
-        session_power_actions::SessionAction,
-    },
+use sottomano_desktop_sources::login_session_presence::{
+    logind_action_permissions::{self, Permissions},
+    session_power_actions::SessionAction,
 };
 use sottomano_toml_config::Config;
 use tokio::time::sleep;
@@ -131,7 +128,7 @@ pub enum Action {
 impl SessionPowerGroup {
     pub fn load() -> Task<SessionMessage> {
         Task::perform(
-            blocking("logind permissions", logind_action_permissions::read),
+            logind_action_permissions::read(),
             SessionMessage::PermissionsLoaded,
         )
     }

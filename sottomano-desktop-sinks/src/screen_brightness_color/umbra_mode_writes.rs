@@ -3,8 +3,10 @@ use sottomano_desktop_sources::{
     system_protocol_clients::shell_command_output,
 };
 
-pub fn toggle_mode() -> Result<(), shell_command_output::Error> {
-    shell_command_output::blocking::output("umbra", &["toggle"]).map(drop)
+pub async fn toggle_mode() -> Result<(), shell_command_output::Error> {
+    shell_command_output::output("umbra", &["toggle"])
+        .await
+        .map(drop)
 }
 
 pub fn set_mode(mode: ColorMode) -> Result<(), shell_command_output::Error> {

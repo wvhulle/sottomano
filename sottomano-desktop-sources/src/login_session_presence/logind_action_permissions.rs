@@ -1,9 +1,8 @@
 use std::env;
 
-use super::{
-    logind_manager::{ManagerProxyBlocking, logind_manager_proxy},
-    session_power_actions::SessionAction,
-};
+use futures::future::join_all;
+
+use super::{logind_manager::ManagerProxy, session_power_actions::SessionAction};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Allowed {
@@ -42,26 +41,30 @@ impl From<&zbus::Result<String>> for Answer {
     }
 }
 
-fn answer_for(proxy: &ManagerProxyBlocking<'static>, action: SessionAction) -> Answer {
+async fn answer_for(proxy: &ManagerProxy<'static>, action: SessionAction) -> Answer {
     match action {
         SessionAction::Lock
         | SessionAction::LockAllSessions
         | SessionAction::ScreenOff
         | SessionAction::LogOut
         | SessionAction::TerminateSession => Answer::always(),
-        SessionAction::Sleep => Answer::from(&proxy.can_sleep()),
-        SessionAction::Suspend => Answer::from(&proxy.can_suspend()),
-        SessionAction::Hibernate => Answer::from(&proxy.can_hibernate()),
-        SessionAction::HybridSleep => Answer::from(&proxy.can_hybrid_sleep()),
-        SessionAction::SuspendThenHibernate => Answer::from(&proxy.can_suspend_then_hibernate()),
-        SessionAction::Reboot => Answer::from(&proxy.can_reboot()),
-        SessionAction::RebootToFirmwareSetup => Answer::from(&proxy.can_reboot_to_firmware_setup()),
-        SessionAction::RebootToBootLoaderMenu => {
-            Answer::from(&proxy.can_reboot_to_boot_loader_menu())
+        SessionAction::Sleep => Answer::from(&proxy.can_sleep().await),
+        SessionAction::Suspend => Answer::from(&proxy.can_suspend().await),
+        SessionAction::Hibernate => Answer::from(&proxy.can_hibernate().await),
+        SessionAction::HybridSleep => Answer::from(&proxy.can_hybrid_sleep().await),
+        SessionAction::SuspendThenHibernate => {
+            Answer::from(&proxy.can_suspend_then_hibernate().await)
         }
-        SessionAction::Halt => Answer::from(&proxy.can_halt()),
-        SessionAction::PowerOff => Answer::from(&proxy.can_power_off()),
-        SessionAction::CancelScheduledShutdown => match proxy.scheduled_shutdown() {
+        SessionAction::Reboot => Answer::from(&proxy.can_reboot().await),
+        SessionAction::RebootToFirmwareSetup => {
+            Answer::from(&proxy.can_reboot_to_firmware_setup().await)
+        }
+        SessionAction::RebootToBootLoaderMenu => {
+            Answer::from(&proxy.can_reboot_to_boot_loader_menu().await)
+        }
+        SessionAction::Halt => Answer::from(&proxy.can_halt().await),
+        SessionAction::PowerOff => Answer::from(&proxy.can_power_off().await),
+        SessionAction::CancelScheduledShutdown => match proxy.scheduled_shutdown().await {
             Ok((kind, _)) if !kind.is_empty() => Answer::Granted,
             Ok(_) | Err(_) => Answer::Denied,
         },
@@ -72,25 +75,36 @@ fn answer_for(proxy: &ManagerProxyBlocking<'static>, action: SessionAction) -> A
     }
 }
 
-#[must_use]
-pub fn read() -> Permissions {
-    let Some(proxy) = logind_manager_proxy() else {
+async fn allowed(proxy: &ManagerProxy<'static>, action: SessionAction) -> Option<Allowed> {
+    match answer_for(proxy, action).await {
+        Answer::Granted => Some(Allowed {
+            action,
+            needs_authorisation: false,
+        }),
+        Answer::AfterChallenge => Some(Allowed {
+            action,
+            needs_authorisation: true,
+        }),
+        Answer::Denied => None,
+    }
+}
+
+pub async fn read() -> Permissions {
+    let Ok(system) = zbus::Connection::system().await else {
+        return Permissions::default();
+    };
+    let Ok(proxy) = ManagerProxy::new(&system).await else {
         return Permissions::default();
     };
     Permissions {
-        allowed: SessionAction::ALL
-            .into_iter()
-            .filter_map(|action| match answer_for(&proxy, action) {
-                Answer::Granted => Some(Allowed {
-                    action,
-                    needs_authorisation: false,
-                }),
-                Answer::AfterChallenge => Some(Allowed {
-                    action,
-                    needs_authorisation: true,
-                }),
-                Answer::Denied => None,
-            })
-            .collect(),
+        allowed: join_all(
+            SessionAction::ALL
+                .into_iter()
+                .map(|action| allowed(&proxy, action)),
+        )
+        .await
+        .into_iter()
+        .flatten()
+        .collect(),
     }
 }

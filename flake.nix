@@ -175,6 +175,7 @@
 
       allocatorEnv = {
         MALLOC_ARENA_MAX = "2";
+        GLIBC_TUNABLES = "glibc.malloc.mmap_threshold=131072:glibc.malloc.trim_threshold=131072";
       };
 
       allocatorWrapperFlags = pkgs.lib.concatStringsSep " " (
