@@ -1,11 +1,11 @@
 use std::time::{Duration, Instant, SystemTime};
 
 use futures::{Stream, StreamExt, future::join_all};
-use zbus::proxy::CacheProperties;
+use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{
-    JobRow, ManagerProxy, SystemdOnBus, SystemdUnitScope, manager_signal, signals_matching,
-    state_changed_at,
+    JobRow, ManagerProxy, ServiceProxy, SystemdOnBus, SystemdUnitScope, manager_signal,
+    signals_matching, state_changed_at,
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -13,6 +13,8 @@ use crate::{
 };
 
 const RUNNING_JOB_STATE: &str = "running";
+const START_JOB_TYPE: &str = "start";
+const ONESHOT_SERVICE_KIND: &str = "oneshot";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SlowJob {
@@ -70,10 +72,18 @@ struct RunningJob {
     unit: String,
     job_type: String,
     started_at: Option<SystemTime>,
+    runs_oneshot_service: bool,
 }
 
 impl RunningJob {
+    fn runs_until_work_finishes(&self) -> bool {
+        self.runs_oneshot_service && self.job_type == START_JOB_TYPE
+    }
+
     fn slow_from(&self, slow_after: Duration) -> Option<SystemTime> {
+        if self.runs_until_work_finishes() {
+            return None;
+        }
         Some(self.started_at? + slow_after)
     }
 }
@@ -133,7 +143,7 @@ fn slow_jobs(running: &[RunningJob], slow_after: Duration, now: SystemTime) -> V
         .iter()
         .filter_map(|job| {
             let started_at = job.started_at?;
-            (started_at + slow_after <= now).then(|| SlowJob {
+            (job.slow_from(slow_after)? <= now).then(|| SlowJob {
                 unit: job.unit.clone(),
                 job_type: job.job_type.clone(),
                 started_at,
@@ -155,11 +165,25 @@ async fn running_jobs(manager: &ManagerProxy<'static>) -> zbus::Result<Vec<Runni
 
 async fn running_job(connection: &zbus::Connection, row: JobRow) -> RunningJob {
     RunningJob {
+        runs_oneshot_service: is_oneshot_service(connection, row.unit_path.clone()).await,
         started_at: state_changed_at(connection, row.unit_path).await,
         id: row.id,
         unit: row.unit,
         job_type: row.job_type,
     }
+}
+
+async fn is_oneshot_service(connection: &zbus::Connection, unit_path: OwnedObjectPath) -> bool {
+    let Ok(builder) = ServiceProxy::builder(connection).path(unit_path) else {
+        return false;
+    };
+    let Ok(service) = builder.cache_properties(CacheProperties::No).build().await else {
+        return false;
+    };
+    service
+        .service_startup_kind()
+        .await
+        .is_ok_and(|startup_kind| startup_kind == ONESHOT_SERVICE_KIND)
 }
 
 #[cfg(test)]
@@ -174,6 +198,7 @@ mod tests {
             unit: format!("unit{id}.service"),
             job_type: "stop".to_owned(),
             started_at: started_secs_ago.map(|ago| start - Duration::from_secs(ago)),
+            runs_oneshot_service: false,
         };
         let running = [
             job(1, Some(30)),
@@ -191,5 +216,28 @@ mod tests {
             .map(|job| job.unit)
             .collect();
         assert_eq!(slow, ["unit1.service"]);
+    }
+
+    #[test]
+    fn starting_a_oneshot_service_is_never_slow_but_stopping_one_is() {
+        let start = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000);
+        let oneshot_job = |id: u32, job_type: &str| RunningJob {
+            id,
+            unit: format!("oneshot{id}.service"),
+            job_type: job_type.to_owned(),
+            started_at: Some(start - Duration::from_secs(60)),
+            runs_oneshot_service: true,
+        };
+        let running = [oneshot_job(1, "start"), oneshot_job(2, "stop")];
+        let slow_after = Duration::from_secs(10);
+        let slow: Vec<String> = slow_jobs(&running, slow_after, start)
+            .into_iter()
+            .map(|job| job.unit)
+            .collect();
+        assert_eq!(slow, ["oneshot2.service"]);
+        assert_eq!(
+            next_slow_deadline(&running[..1], slow_after, start - Duration::from_secs(55)),
+            None
+        );
     }
 }
