@@ -205,6 +205,8 @@ trait Service {
     fn environment(&self) -> zbus::Result<Vec<String>>;
     #[zbus(property)]
     fn user(&self) -> zbus::Result<String>;
+    #[zbus(property, name = "Type")]
+    fn service_startup_kind(&self) -> zbus::Result<String>;
 }
 
 #[proxy(
