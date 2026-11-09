@@ -11,7 +11,8 @@ where
     T: Send + 'static,
     E: From<Panicked> + Send + 'static,
 {
-    spawn_blocking(read)
+    let caller_span = tracing::Span::current();
+    spawn_blocking(move || caller_span.in_scope(read))
         .await
         .unwrap_or_else(|_| Err(E::from(Panicked)))
 }

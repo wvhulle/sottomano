@@ -1,6 +1,9 @@
 use std::{convert::identity, fmt::Display};
 
-use iced::{Subscription, Task, futures::StreamExt};
+use iced::{
+    Subscription, Task,
+    futures::{Stream, StreamExt, stream},
+};
 use sottomano_desktop_sinks::{
     compositor_window_requests::compositor_requests::{
         self, CompositorRequest, CompositorRequestFailure,
@@ -36,12 +39,26 @@ pub fn snapshot_subscription<S: SnapshotSource>(
             name: S::NAME,
             inputs,
         },
-        |subscribed| S::delivery_stream(subscribed.inputs.clone()),
+        |subscribed| source_spanned_stream(S::NAME, S::delivery_stream(subscribed.inputs.clone())),
     )
 }
 
+fn source_spanned_stream<Delivery>(
+    source_name: &'static str,
+    deliveries: impl Stream<Item = Delivery> + Send + 'static,
+) -> impl Stream<Item = Delivery> + Send + 'static {
+    let source_span = tracing::debug_span!("snapshot_source", source = source_name);
+    let mut pinned_deliveries = Box::pin(deliveries);
+    stream::poll_fn(move |context| {
+        source_span.in_scope(|| pinned_deliveries.as_mut().poll_next(context))
+    })
+}
+
 pub fn first_delivery<S: SnapshotSource>(inputs: S::StreamInputs) -> Task<SnapshotDelivery<S>> {
-    Task::run(S::delivery_stream(inputs).take(1), identity)
+    Task::run(
+        source_spanned_stream(S::NAME, S::delivery_stream(inputs)).take(1),
+        identity,
+    )
 }
 
 pub fn logged_failure_task<M: Send + 'static, Failure: Display>(

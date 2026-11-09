@@ -1,6 +1,7 @@
 mod command_line;
 mod desktop_shell;
 mod message_subscriptions;
+mod process_memory_report;
 mod shell_message;
 
 use std::{env, error::Error, sync::Arc};
@@ -18,11 +19,54 @@ use sottomano_desktop_sources::compositor_window_ipc::{
 };
 use sottomano_toml_config::{Config, ConfigFile, SecretPaths};
 use sottomano_widgets::widgets::text::font_faces_of;
-use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
+use tracing_chrome::{ChromeLayerBuilder, FlushGuard};
+use tracing_subscriber::{
+    EnvFilter, Layer, fmt, fmt::format::FmtSpan, layer::SubscriberExt, registry::LookupSpan,
+    util::SubscriberInitExt,
+};
 
 const DEFAULT_LOG_DIRECTIVES: &str = "error,sottomano_shell=warn,sottomano_widgets=warn,\
                                       sottomano_desktop_sources=warn,exwlshellev=warn,\
                                       iced_exwlshell=warn";
+
+const TRACE_FILE_VARIABLE: &str = "SOTTOMANO_TRACE_FILE";
+
+const TRACE_FILTER_VARIABLE: &str = "SOTTOMANO_TRACE_FILTER";
+
+const DEFAULT_TRACE_DIRECTIVES: &str =
+    "error,sottomano_shell=debug,sottomano_widgets=debug,sottomano_desktop_sources=debug";
+
+fn log_output_layer<Subscriber>() -> impl Layer<Subscriber>
+where
+    Subscriber: tracing::Subscriber + for<'span> LookupSpan<'span>,
+{
+    fmt::layer()
+        .with_span_events(FmtSpan::CLOSE)
+        .with_filter(EnvFilter::new(format!(
+            "{DEFAULT_LOG_DIRECTIVES},{}",
+            env::var(EnvFilter::DEFAULT_ENV).unwrap_or_default()
+        )))
+}
+
+fn install_tracing_subscriber() {
+    let (chrome_layer, trace_flush_guard) = env::var_os(TRACE_FILE_VARIABLE)
+        .map(|trace_file_path| {
+            ChromeLayerBuilder::new()
+                .file(trace_file_path)
+                .include_args(true)
+                .build()
+        })
+        .unzip();
+    let trace_directives =
+        env::var(TRACE_FILTER_VARIABLE).unwrap_or_else(|_| DEFAULT_TRACE_DIRECTIVES.to_string());
+    tracing_subscriber::registry()
+        .with(log_output_layer())
+        .with(chrome_layer.map(|layer| layer.with_filter(EnvFilter::new(trace_directives))))
+        .init();
+    process_memory_report::spawn_memory_reports(move || {
+        trace_flush_guard.iter().for_each(FlushGuard::flush);
+    });
+}
 
 pub fn run_shell() -> Result<(), Box<dyn Error>> {
     let command_line = CommandLine::parse();
@@ -30,13 +74,7 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
         return setup_command.print(&sottomano_toml_config::config_home());
     }
 
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::new(format!(
-            "{DEFAULT_LOG_DIRECTIVES},{}",
-            env::var(EnvFilter::DEFAULT_ENV).unwrap_or_default()
-        )))
-        .with_span_events(FmtSpan::CLOSE)
-        .init();
+    install_tracing_subscriber();
 
     let config_home = sottomano_toml_config::config_home();
     let config_file = ConfigFile::in_config_home(&config_home);
