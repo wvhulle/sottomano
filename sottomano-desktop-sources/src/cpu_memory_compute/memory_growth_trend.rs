@@ -8,7 +8,7 @@ use std::{
 use bytesize::ByteSize;
 use futures::Stream;
 use procfs::{
-    WithCurrentSystemInfo,
+    Current, Meminfo, WithCurrentSystemInfo,
     process::{Process, all_processes},
 };
 
@@ -16,7 +16,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     cpu_memory_compute::{
         cpu_busy_processes::ProcessIncarnation,
-        memory_usage::{PROC, read_meminfo},
+        memory_usage::{MEMINFO, PROC},
     },
     delivery_cadence_drivers::PeriodicPolling,
     desktop_windows_apps::process_tree_inspection::binary_name,
@@ -25,8 +25,8 @@ use crate::{
 
 const SHOWN_GROWING_PROCESSES: usize = 3;
 const GROWTH_POLL_PERIOD: Duration = Duration::from_secs(2);
-const TREND_WINDOW: Duration = Duration::from_secs(30);
-const TREND_MINIMUM_SPAN: Duration = Duration::from_secs(6);
+const TREND_WINDOW: Duration = Duration::from_secs(120);
+const TREND_MINIMUM_SPAN: Duration = Duration::from_secs(60);
 const PROCESS_SCAN_HORIZON: Duration = Duration::from_secs(600);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,13 +62,12 @@ impl SnapshotSource for MemoryGrowth {
 }
 
 fn read_memory_growth(window: &mut MemoryTrendWindow, now: Instant) -> Result<MemoryGrowth, Error> {
-    let usage = read_meminfo()?;
+    let usage = read_used_and_headroom()?;
     let rising_per_second = window
         .record_used(now, usage.used)
         .filter(|bytes_per_second| *bytes_per_second > 0.0);
-    let exhaustion_projection = rising_per_second.and_then(|bytes_per_second| {
-        projected_exhaustion(usage.used, usage.total, bytes_per_second)
-    });
+    let exhaustion_projection = rising_per_second
+        .and_then(|bytes_per_second| projected_exhaustion(usage.headroom, bytes_per_second));
     let growing_processes =
         if exhaustion_projection.is_some_and(|remaining| remaining < PROCESS_SCAN_HORIZON) {
             window
@@ -88,13 +87,24 @@ fn read_memory_growth(window: &mut MemoryTrendWindow, now: Instant) -> Result<Me
     })
 }
 
-fn projected_exhaustion(
+struct UsedAndHeadroom {
     used: ByteSize,
-    total: ByteSize,
-    bytes_per_second: f64,
-) -> Option<Duration> {
-    let available = total.as_u64().saturating_sub(used.as_u64()) as f64;
-    Duration::try_from_secs_f64(available / bytes_per_second).ok()
+    headroom: ByteSize,
+}
+
+fn read_used_and_headroom() -> Result<UsedAndHeadroom, Error> {
+    let info = Meminfo::current().map_err(|_| Error::Unreadable(MEMINFO.to_owned()))?;
+    let available = info
+        .mem_available
+        .ok_or_else(|| Error::Unparsable(format!("{MEMINFO} field MemAvailable")))?;
+    Ok(UsedAndHeadroom {
+        used: ByteSize::b(info.mem_total.saturating_sub(available)),
+        headroom: ByteSize::b(available.saturating_add(info.swap_free)),
+    })
+}
+
+fn projected_exhaustion(headroom: ByteSize, bytes_per_second: f64) -> Option<Duration> {
+    Duration::try_from_secs_f64(headroom.as_u64() as f64 / bytes_per_second).ok()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -252,7 +262,7 @@ mod tests {
         }
     }
 
-    fn projection_after(used_mebibytes: &[u64]) -> Option<Duration> {
+    fn projection_after(used_mebibytes: &[u64], headroom_mebibytes: u64) -> Option<Duration> {
         let start = Instant::now();
         let mut window = MemoryTrendWindow::default();
         used_mebibytes
@@ -266,33 +276,57 @@ mod tests {
                     )
                     .filter(|bytes_per_second| *bytes_per_second > 0.0)
                     .and_then(|bytes_per_second| {
-                        projected_exhaustion(
-                            ByteSize::mib(*used),
-                            ByteSize::mib(10_000),
-                            bytes_per_second,
-                        )
+                        projected_exhaustion(ByteSize::mib(headroom_mebibytes), bytes_per_second)
                     })
             })
             .last()
             .flatten()
     }
 
+    fn steadily_rising_mebibytes(start: u64, step: u64, sample_count: u64) -> Vec<u64> {
+        (0..sample_count).map(|tick| start + step * tick).collect()
+    }
+
     #[test]
     fn flat_or_falling_usage_projects_no_exhaustion() {
-        assert_eq!(projection_after(&[5_000; 6]), None);
-        assert_eq!(projection_after(&[6_000, 5_800, 5_600, 5_400, 5_200]), None);
+        assert_eq!(projection_after(&[5_000; 40], 4_000), None);
+        let falling: Vec<u64> = (0..40).map(|tick| 9_000 - 100 * tick).collect();
+        assert_eq!(projection_after(&falling, 4_000), None);
     }
 
     #[test]
     fn too_short_a_history_projects_no_exhaustion() {
-        assert_eq!(projection_after(&[5_000, 6_000, 7_000]), None);
+        assert_eq!(
+            projection_after(&steadily_rising_mebibytes(5_000, 1_000, 10), 4_000),
+            None
+        );
     }
 
     #[test]
     fn rising_usage_projects_when_memory_runs_out() {
-        let projection = projection_after(&[5_000, 5_200, 5_400, 5_600, 5_800, 6_000])
+        let projection = projection_after(&steadily_rising_mebibytes(5_000, 100, 31), 3_000)
             .expect("rising usage projects exhaustion");
-        assert_eq!(projection.as_secs(), 40);
+        assert_eq!(projection.as_secs(), 60);
+    }
+
+    #[test]
+    fn a_short_compile_burst_does_not_project_near_exhaustion() {
+        let flat_then_burst: Vec<u64> =
+            [vec![5_000; 50], steadily_rising_mebibytes(5_200, 200, 10)].concat();
+        let projection = projection_after(&flat_then_burst, 8_000);
+        assert!(
+            projection.is_none_or(|remaining| remaining > Duration::from_secs(300)),
+            "{projection:?}"
+        );
+    }
+
+    #[test]
+    fn free_swap_counts_as_headroom() {
+        let rising = steadily_rising_mebibytes(5_000, 100, 31);
+        let ram_only = projection_after(&rising, 8_000).expect("rising usage projects");
+        let with_swap = projection_after(&rising, 24_000).expect("rising usage projects");
+        assert!(ram_only < Duration::from_secs(300), "{ram_only:?}");
+        assert!(with_swap > Duration::from_secs(300), "{with_swap:?}");
     }
 
     #[test]
