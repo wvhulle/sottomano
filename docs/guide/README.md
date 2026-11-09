@@ -52,7 +52,7 @@ The Appearance and Behaviour menus and the workspaces on the left; the windows i
 - [Windows and workspaces](windows-and-workspaces.md): previews, the window list and the process inspector.
 - [Idle and session](idle-and-session.md): idle timeouts and the login session.
 - [AI usage](ai-usage.md): subscription windows, billing block and spend.
-- [Virtual machines and nspawn containers](virtual-machines.md): running QEMU and libvirt machines, and systemd-nspawn containers with a switch to start or stop them.
+- [Virtual machines and containers](virtual-machines.md): running QEMU and libvirt machines, systemd-nspawn containers with a switch to start or stop them, and the containers in each Podman engine.
 - [Appearance](appearance.md): the looks and how to switch them.
 
 ## Notification toasts

@@ -12,6 +12,7 @@ use sottomano_desktop_sources::{
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
+use sottomano_toml_config::severity::Severity;
 use sottomano_widgets::{
     clock::Clock,
     widget_groups::memory_board_group::{MemoryBoardGroup, MemoryBoardMessage, MemoryBoardTarget},
@@ -101,12 +102,14 @@ fn memory_growth(tick: u32) -> MemoryGrowth {
         return MemoryGrowth {
             used_per_minute: None,
             exhaustion_projection: None,
+            filling_severity: Severity::Normal,
             growing_processes: Vec::new(),
         };
     }
     MemoryGrowth {
         used_per_minute: Some(ByteSize::mib(1_700)),
         exhaustion_projection: Some(Duration::from_secs(150)),
+        filling_severity: Severity::Warning,
         growing_processes: [("cargo", 1_100), ("firefox", 420), ("rust-analyzer", 180)]
             .into_iter()
             .zip(2000..)

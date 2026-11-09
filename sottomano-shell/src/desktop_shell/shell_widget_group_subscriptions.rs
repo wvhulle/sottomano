@@ -49,7 +49,8 @@ impl ShellWidgetGroups {
                     self.group_menus.source_demand(WidgetGroupFamily::Compute),
                 )
                 .map(Message::Compute),
-            MemoryBoardGroup::subscription().map(Message::MemoryBoard),
+            MemoryBoardGroup::subscription(&config.widget_groups.memory_board.growth_trend)
+                .map(Message::MemoryBoard),
             self.gpu_group.subscription().map(Message::Gpu),
             self.storage_space_group
                 .subscription()

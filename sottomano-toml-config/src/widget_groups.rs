@@ -1,6 +1,7 @@
 pub mod caldav_account;
 pub mod gamepad_bindings;
 pub mod media_lyrics;
+pub mod memory_growth_trend;
 pub mod rain_alerts;
 pub mod reachability;
 pub mod session_focus;
@@ -17,6 +18,7 @@ use crate::{
         caldav_account::CaldavAccountConfig,
         gamepad_bindings::GamepadBindingsConfig,
         media_lyrics::MediaLyricsConfig,
+        memory_growth_trend::MemoryGrowthTrendConfig,
         rain_alerts::RainAlertsConfig,
         reachability::ReachabilityConfig,
         session_focus::SessionFocusConfig,
@@ -34,6 +36,7 @@ pub struct WidgetGroupsConfig {
     pub workspaces: WorkspacesConfig,
     pub tray: TrayConfig,
     pub compute: ComputeGroupConfig,
+    pub memory_board: MemoryBoardGroupConfig,
     pub physical_drive: PhysicalDriveGroupConfig,
     pub systemd_manager: SystemdManagerConfig,
     pub claude_usage: ClaudeCodeBudgetConfig,
@@ -51,6 +54,12 @@ pub struct WidgetGroupsConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct ComputeGroupConfig {
     pub temperature_sensors: SensorConfig,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MemoryBoardGroupConfig {
+    pub growth_trend: MemoryGrowthTrendConfig,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]

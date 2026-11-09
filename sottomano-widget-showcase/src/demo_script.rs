@@ -304,9 +304,9 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Behaviour)),
             Step::PressText("Looks"),
             Step::Hover(HoverTarget::AppearancePresets(
-                AppearancePresetsTarget::Preset(AppearancePreset::ClearDark),
+                AppearancePresetsTarget::Preset(AppearancePreset::FrostedDark),
             )),
-            Step::PressText("Clear dark"),
+            Step::PressText("Frosted dark"),
             Step::RestFor(Duration::from_millis(1200)),
         ],
     },

@@ -17,7 +17,7 @@ use sottomano_desktop_sources::{
     host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
-use sottomano_toml_config::Config;
+use sottomano_toml_config::{Config, widget_groups::memory_growth_trend::MemoryGrowthTrendConfig};
 
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
@@ -124,10 +124,13 @@ impl MemoryBoardGroup {
         }
     }
 
-    pub fn subscription() -> Subscription<MemoryBoardMessage> {
+    pub fn subscription(
+        growth_trend_config: &MemoryGrowthTrendConfig,
+    ) -> Subscription<MemoryBoardMessage> {
         Subscription::batch([
             snapshot_subscription::<Memory>(()).map(MemoryBoardMessage::Memory),
-            snapshot_subscription::<MemoryGrowth>(()).map(MemoryBoardMessage::MemoryGrowth),
+            snapshot_subscription::<MemoryGrowth>(growth_trend_config.clone())
+                .map(MemoryBoardMessage::MemoryGrowth),
             snapshot_subscription::<MemoryStallPressure>(()).map(MemoryBoardMessage::StallPressure),
             snapshot_subscription::<SwapActivity>(()).map(MemoryBoardMessage::SwapActivity),
         ])
@@ -183,6 +186,7 @@ impl MemoryBoardGroup {
 
     pub fn refresh(
         target: MemoryBoardTarget,
+        growth_trend_config: &MemoryGrowthTrendConfig,
         buses: Option<&DesktopBuses>,
     ) -> Task<MemoryBoardMessage> {
         match target {
@@ -190,7 +194,8 @@ impl MemoryBoardGroup {
                 first_delivery::<Memory>(()).map(MemoryBoardMessage::Memory)
             }
             MemoryBoardTarget::Growth => {
-                first_delivery::<MemoryGrowth>(()).map(MemoryBoardMessage::MemoryGrowth)
+                first_delivery::<MemoryGrowth>(growth_trend_config.clone())
+                    .map(MemoryBoardMessage::MemoryGrowth)
             }
             MemoryBoardTarget::Pressure => {
                 first_delivery::<MemoryStallPressure>(()).map(MemoryBoardMessage::StallPressure)

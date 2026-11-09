@@ -132,6 +132,11 @@ window_app_id = "steam"
 
 [widget_groups.compute.temperature_sensors]
 
+[widget_groups.memory_board.growth_trend]
+trend_window = "2m"
+warning_when_full_within = "5m"
+critical_when_full_within = "1m"
+
 [widget_groups.physical_drive.temperature_sensors]
 
 [widget_groups.systemd_manager]

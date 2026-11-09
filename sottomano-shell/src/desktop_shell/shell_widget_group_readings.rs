@@ -38,9 +38,12 @@ impl ShellWidgetGroups {
                 ComputeGroup::refresh(*target, &widget_group_settings.compute.temperature_sensors)
                     .map(Message::Compute)
             }
-            HoverTarget::MemoryBoard(target) => {
-                MemoryBoardGroup::refresh(*target, buses).map(Message::MemoryBoard)
-            }
+            HoverTarget::MemoryBoard(target) => MemoryBoardGroup::refresh(
+                *target,
+                &widget_group_settings.memory_board.growth_trend,
+                buses,
+            )
+            .map(Message::MemoryBoard),
             HoverTarget::Gpu(target) => self.gpu_group.refresh(target).map(Message::Gpu),
             HoverTarget::Storage(target) => self
                 .storage_space_group
