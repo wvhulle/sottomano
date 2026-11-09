@@ -17,8 +17,9 @@ use crate::{
         group_menu_presentation::{GroupMenuLayout, GroupMenuPresentation},
         group_menu_state::{GroupMenuPin, GroupMenuState},
         group_menu_view::GroupMenuMessenger,
-        menu_rows::menu_row::{
-            MenuRowContent, MenuRowEmphasis, MenuRowLook, MenuRowPress, hovered_menu_row, menu_row,
+        menu_rows::{
+            menu_row::{MenuRowContent, MenuRowEmphasis, MenuRowLook, MenuRowPress, menu_row},
+            pointer_tracked_row::{RowHoverReaction, SatelliteReach},
         },
     },
     hover_cards::{HoverTarget, marked_by_hover_target, marked_by_menu_pin},
@@ -129,25 +130,33 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
         name: group_title.to_string().into(),
         trailing,
     };
-    if layout.presentation.layout == GroupMenuLayout::Cascading {
-        hovered_menu_row(
-            layout.config,
-            content,
-            look,
-            layout.menu.reveal_group(entry.group_identity.clone()),
-            layout
-                .menu
-                .intend_group_reveal(entry.group_identity.clone()),
-            layout.menu.cancel_group_reveal(entry.group_identity),
-        )
-    } else {
-        menu_row(
-            layout.config,
-            content,
-            look,
-            MenuRowPress::Performs(layout.menu.toggle_group(entry.group_identity)),
-        )
-    }
+    let group_identity = entry.group_identity;
+    let (press_event, hover_reaction) = match layout.presentation.layout {
+        GroupMenuLayout::Cascading => (
+            layout.menu.reveal_group(group_identity.clone()),
+            RowHoverReaction::Reveals {
+                reveal: layout.menu.reveal_group(group_identity.clone()),
+                defer_reveal: layout.menu.intend_group_reveal(group_identity.clone()),
+                cancel_reveal: layout.menu.cancel_group_reveal(group_identity),
+                satellite_reach: if layout.group_menus.open_groups(layout.menu.topic).is_empty() {
+                    SatelliteReach::Closed
+                } else {
+                    SatelliteReach::Open(layout.direction)
+                },
+            },
+        ),
+        GroupMenuLayout::Accordion => (
+            layout.menu.toggle_group(group_identity),
+            RowHoverReaction::Highlights,
+        ),
+    };
+    menu_row(
+        layout.config,
+        content,
+        look,
+        MenuRowPress::Performs(press_event),
+        hover_reaction,
+    )
 }
 
 pub(crate) fn item_menu<'a, M: Clone + From<GroupEvent<M>> + 'a>(
@@ -240,7 +249,13 @@ pub(crate) fn item_row<'a, M: Clone + 'a>(
         }
         GroupItemGesture::Inert => MenuRowPress::Inert,
     };
-    let row = menu_row(layout.config, content, look, press);
+    let row = menu_row(
+        layout.config,
+        content,
+        look,
+        press,
+        RowHoverReaction::Highlights,
+    );
     match item.gestures.right {
         GroupItemGesture::Performs { message, .. } => mouse_area(row)
             .on_right_press(GroupEvent::Group(message))

@@ -370,8 +370,8 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
             panel_morph.morph.begin(panel_morph.laid_out_folded);
         }
         panel_morph.morph.tick(*now, self.morph);
+        panel_morph.morph.follow(panel_morph.morphing_toward);
         if panel_morph.morph.motion_state() == MotionState::Moving {
-            shell.invalidate_layout();
             shell.request_redraw();
         }
     }
