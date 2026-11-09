@@ -1,0 +1,110 @@
+:root {
+    --content-max-width: 960px;
+}
+
+.ayu {
+    --bg: #0b0e14;
+    --fg: #e6e1cf;
+
+    --sidebar-bg: #202229;
+    --sidebar-fg: #bfbdb6;
+    --sidebar-non-existant: #3e4b59;
+    --sidebar-active: #95e6cb;
+    --sidebar-spacer: #3e4b59;
+    --sidebar-header-border-color: #95e6cb;
+
+    --scrollbar: #3e4b59;
+
+    --icons: #bfbdb6;
+    --icons-hover: #95e6cb;
+
+    --links: #95e6cb;
+
+    --inline-code-color: #ffb454;
+
+    --theme-popup-bg: #202229;
+    --theme-popup-border: #3e4b59;
+    --theme-hover: #3e4b59;
+
+    --quote-bg: #202229;
+    --quote-border: #3e4b59;
+
+    --warning-border: #ffb454;
+
+    --table-border-color: #3e4b59;
+    --table-header-bg: #3e4b59;
+    --table-alternate-bg: #202229;
+
+    --searchbar-border-color: #3e4b59;
+    --searchbar-bg: #202229;
+    --searchbar-fg: #e6e1cf;
+    --searchbar-shadow-color: #95e6cb;
+    --searchresults-header-fg: #bfbdb6;
+    --searchresults-border-color: #3e4b59;
+    --searchresults-li-bg: #202229;
+    --search-mark-bg: #ffb454;
+
+    --footnote-highlight: #3e4b59;
+
+    --blockquote-note-color: #95e6cb;
+    --blockquote-tip-color: #aad94c;
+    --blockquote-important-color: #95e6cb;
+    --blockquote-warning-color: #ffb454;
+    --blockquote-caution-color: #f07178;
+}
+
+.light {
+    --bg: #fcfcfc;
+    --fg: #5c6166;
+
+    --sidebar-bg: #eceff1;
+    --sidebar-fg: #5c6166;
+    --sidebar-non-existant: #8a9199;
+    --sidebar-active: #4cbf99;
+    --sidebar-spacer: #d3d7db;
+    --sidebar-header-border-color: #4cbf99;
+
+    --scrollbar: #d3d7db;
+
+    --icons: #8a9199;
+    --icons-hover: #4cbf99;
+
+    --links: #4cbf99;
+
+    --inline-code-color: #5c6166;
+
+    --theme-popup-bg: #eceff1;
+    --theme-popup-border: #d3d7db;
+    --theme-hover: #d3d7db;
+
+    --quote-bg: #eceff1;
+    --quote-border: #d3d7db;
+
+    --warning-border: #f2ae49;
+
+    --table-border-color: #d3d7db;
+    --table-header-bg: #d3d7db;
+    --table-alternate-bg: #eceff1;
+
+    --searchbar-border-color: #d3d7db;
+    --searchbar-bg: #fcfcfc;
+    --searchbar-fg: #5c6166;
+    --searchbar-shadow-color: #4cbf99;
+    --searchresults-header-fg: #8a9199;
+    --searchresults-border-color: #d3d7db;
+    --searchresults-li-bg: #eceff1;
+    --search-mark-bg: #f2ae49;
+
+    --footnote-highlight: #d3d7db;
+
+    --blockquote-note-color: #4cbf99;
+    --blockquote-tip-color: #86b300;
+    --blockquote-important-color: #4cbf99;
+    --blockquote-warning-color: #f2ae49;
+    --blockquote-caution-color: #e65050;
+}
+
+.content img {
+    max-width: 100%;
+    height: auto;
+}
