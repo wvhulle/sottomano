@@ -54,3 +54,22 @@ pub async fn open_dbusmenu_submenu(
         tracing::debug!("global menu: open submenu {item_id}: {open_failure}");
     }
 }
+
+pub async fn prepare_dbusmenu_submenus(
+    connection: zbus::Connection,
+    location: DbusMenuLocation,
+    submenu_ids: Vec<i32>,
+) {
+    let menu_proxy = match dbusmenu_proxy(&connection, &location).await {
+        Ok(menu_proxy) => menu_proxy,
+        Err(proxy_failure) => {
+            tracing::debug!("global menu: prepare submenus: {proxy_failure}");
+            return;
+        }
+    };
+    for submenu_id in submenu_ids {
+        if let Err(prepare_failure) = menu_proxy.about_to_show(submenu_id).await {
+            tracing::debug!("global menu: prepare submenu {submenu_id}: {prepare_failure}");
+        }
+    }
+}

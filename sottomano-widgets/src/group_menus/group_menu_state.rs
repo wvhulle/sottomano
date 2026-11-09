@@ -48,10 +48,11 @@ pub enum GroupMenuTopic {
     Appearance,
     Behaviour,
     Applications,
+    ApplicationMenu,
 }
 
 impl GroupMenuTopic {
-    pub const ALL: [GroupMenuTopic; 10] = [
+    pub const ALL: [GroupMenuTopic; 11] = [
         GroupMenuTopic::Hardware,
         GroupMenuTopic::Network,
         GroupMenuTopic::Agenda,
@@ -62,6 +63,7 @@ impl GroupMenuTopic {
         GroupMenuTopic::Appearance,
         GroupMenuTopic::Behaviour,
         GroupMenuTopic::Applications,
+        GroupMenuTopic::ApplicationMenu,
     ];
 
     #[must_use]
@@ -77,6 +79,7 @@ impl GroupMenuTopic {
             GroupMenuTopic::Appearance => "Appearance",
             GroupMenuTopic::Behaviour => "Behaviour",
             GroupMenuTopic::Applications => "Applications",
+            GroupMenuTopic::ApplicationMenu => "Application menu",
         }
     }
 
@@ -93,6 +96,7 @@ impl GroupMenuTopic {
             GroupMenuTopic::Appearance => Phosphor::SlidersHorizontal(Weight::Regular),
             GroupMenuTopic::Behaviour => Phosphor::ToggleRight(Weight::Regular),
             GroupMenuTopic::Applications => Phosphor::Rocket(Weight::Regular),
+            GroupMenuTopic::ApplicationMenu => Phosphor::AppWindow(Weight::Regular),
         }
     }
 
@@ -108,6 +112,7 @@ impl GroupMenuTopic {
             GroupMenuTopic::Appearance => "appearance",
             GroupMenuTopic::Behaviour => "behaviour",
             GroupMenuTopic::Applications => "applications",
+            GroupMenuTopic::ApplicationMenu => "application_menu",
         }
     }
 }

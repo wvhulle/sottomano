@@ -24,18 +24,19 @@ The Menus group in the Behaviour menu changes how every menu opens. Menus can op
 |---|---|---|
 | Hardware | top, left | power, compute, memory and board, GPUs, storage, drives |
 | Network | top, left | Wi-Fi adapters, mobile modems, ethernet ports, Bluetooth, reachability, VPN |
+| Application menu | top, left | the focused window's menus, one group per top-level menu; off until switched on in Behaviour |
 | Agenda | top, middle | calendar, weather, quiet schedule, focus session |
 | Display | top, right | monitors, dark mode, colour temperature, wallpaper |
 | Media | top, right | media players, audio, dictation, game controllers |
 | Appearance | bottom, left | panel, sidebar, overlay, window and menu settings with a unit |
-| Behaviour | bottom, left | the remaining panel, sidebar, overlay, window and menu settings, looks |
+| Behaviour | bottom, left | the remaining panel, sidebar, overlay, window and menu settings, the application menu switch, looks |
 | Applications | bottom, middle | frequently launched apps, one group per category, launcher options |
 | Services | bottom, right | local models, virtual machines, Podman containers, nspawn containers, AI usage, systemd units, journal, upgrades |
 | Session | bottom, right | idle timeouts, login session |
 
 ## Top panel
 
-The Hardware and Network menus and the focused window's application menu on the left; the clock, Agenda menu and notifications in the middle; the Display and Media menus and the power menu on the right.
+The Hardware, Network and Application menus on the left; the clock, Agenda menu and notifications in the middle; the Display and Media menus and the power menu on the right.
 
 - [Compute](compute.md): load, clock, temperature and caches.
 - [Memory and board](memory-and-board.md): memory use, modules and firmware.

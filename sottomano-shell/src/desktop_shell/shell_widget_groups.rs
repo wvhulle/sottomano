@@ -208,6 +208,7 @@ impl ShellWidgetGroups {
             PanelSettingsGroup::load().map(Message::PanelSettings),
             SidebarSettingsGroup::load().map(Message::SidebarSettings),
             OverlaySettingsGroup::load().map(Message::OverlaySettings),
+            GlobalMenuGroup::load().map(Message::GlobalMenu),
             NotificationGroup::load().map(Message::NotificationGroup),
             QuietScheduleGroup::load().map(Message::QuietSchedule),
             DarkModeGroup::load().map(Message::DarkMode),

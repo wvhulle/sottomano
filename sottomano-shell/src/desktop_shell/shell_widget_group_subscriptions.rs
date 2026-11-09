@@ -93,7 +93,11 @@ impl ShellWidgetGroups {
         Subscription::batch([
             PowerGroup::subscription(buses).map(Message::Power),
             self.global_menu_group
-                .subscription(buses, config.widget_groups.global_menu.appmenu_registrar)
+                .subscription(
+                    buses,
+                    self.group_menus
+                        .source_demand(WidgetGroupFamily::GlobalMenu),
+                )
                 .map(Message::GlobalMenu),
             LoginSessionGroup::subscription(buses).map(Message::LoginSession),
             IdlePauseGroups::subscription(buses).map(Message::IdleTimeouts),

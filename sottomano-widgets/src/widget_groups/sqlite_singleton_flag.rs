@@ -5,6 +5,7 @@ use sottomano_desktop_sources::sqlite_state_store::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SingletonFlag {
     NotificationSound,
+    GlobalApplicationMenu,
     ToastSpatialLayout,
     WorkspacesInSidebar,
     AutoCollapseWorkspaces,
@@ -16,6 +17,12 @@ pub enum SingletonFlag {
 impl SingletonFlag {
     const fn create_table(self) -> &'static str {
         match self {
+            Self::GlobalApplicationMenu => {
+                "CREATE TABLE IF NOT EXISTS global_application_menu (
+                    id INTEGER PRIMARY KEY CHECK (id = 0),
+                    enabled INTEGER NOT NULL
+                )"
+            }
             Self::NotificationSound => {
                 "CREATE TABLE IF NOT EXISTS notification_sound (
                     id INTEGER PRIMARY KEY CHECK (id = 0),
@@ -64,6 +71,7 @@ impl SingletonFlag {
     const fn table(self) -> &'static str {
         match self {
             Self::NotificationSound => "notification_sound",
+            Self::GlobalApplicationMenu => "global_application_menu",
             Self::ToastSpatialLayout => "toast_spatial_layout",
             Self::WorkspacesInSidebar => "workspaces_in_sidebar",
             Self::AutoCollapseWorkspaces => "auto_collapse_workspaces",
@@ -144,8 +152,9 @@ mod tests {
 
     use super::{SingletonFlag, SingletonFlagState, read_flag, write_flag};
 
-    const ALL_FLAGS: [SingletonFlag; 7] = [
+    const ALL_FLAGS: [SingletonFlag; 8] = [
         SingletonFlag::NotificationSound,
+        SingletonFlag::GlobalApplicationMenu,
         SingletonFlag::ToastSpatialLayout,
         SingletonFlag::WorkspacesInSidebar,
         SingletonFlag::AutoCollapseWorkspaces,
