@@ -10,16 +10,18 @@ pub enum GammaRelayWriteError {
     Call(#[from] zbus::Error),
 }
 
-pub fn set_brightness(percent: i64) -> Result<(), GammaRelayWriteError> {
+pub async fn set_brightness(percent: i64) -> Result<(), GammaRelayWriteError> {
     let frac = f64::from(i32::try_from(percent.clamp(0, 100)).unwrap_or(0)) / 100.0;
-    let proxy = gammarelay_color_temperature::gamma_relay_proxy()
-        .ok_or(GammaRelayWriteError::RelayUnreachable)?;
-    Ok(proxy.set_brightness(frac)?)
+    let proxy = gammarelay_color_temperature::session_gamma_relay()
+        .await
+        .map_err(|_| GammaRelayWriteError::RelayUnreachable)?;
+    Ok(proxy.set_brightness(frac).await?)
 }
 
-pub fn set_temperature(kelvin: u16) -> Result<(), GammaRelayWriteError> {
+pub async fn set_temperature(kelvin: u16) -> Result<(), GammaRelayWriteError> {
     let clamped = kelvin.clamp(*TEMP_RANGE.start(), *TEMP_RANGE.end());
-    let proxy = gammarelay_color_temperature::gamma_relay_proxy()
-        .ok_or(GammaRelayWriteError::RelayUnreachable)?;
-    Ok(proxy.set_temperature(clamped)?)
+    let proxy = gammarelay_color_temperature::session_gamma_relay()
+        .await
+        .map_err(|_| GammaRelayWriteError::RelayUnreachable)?;
+    Ok(proxy.set_temperature(clamped).await?)
 }

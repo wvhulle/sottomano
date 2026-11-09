@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use futures::{Stream, StreamExt, stream};
-use zbus::{blocking::Connection, proxy};
+use zbus::{Connection, proxy};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -103,9 +103,8 @@ pub trait PowerProfiles {
     fn performance_degraded(&self) -> zbus::Result<String>;
 }
 
-#[must_use]
-pub fn power_profiles_proxy() -> Option<PowerProfilesProxyBlocking<'static>> {
-    PowerProfilesProxyBlocking::new(&Connection::system().ok()?).ok()
+pub async fn system_power_profiles() -> zbus::Result<PowerProfilesProxy<'static>> {
+    PowerProfilesProxy::new(&Connection::system().await?).await
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

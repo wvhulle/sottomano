@@ -1,7 +1,6 @@
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
-    blocking_background_work::blocking,
     network_connectivity::{
         network_manager_proxies::{DeviceLinkState, RadioPower},
         tailscale_exit_nodes::ExitNodeLanAccess,
@@ -146,7 +145,7 @@ impl GroupItemReading for IconToggle {
 pub trait ToggleableSource: SnapshotSource<Error: Into<Section>> + GroupItemReading {
     #[must_use]
     fn toggled_value(&self) -> Self;
-    fn apply_toggle(&self) -> Result<(), Self::Error>;
+    fn apply_toggle(&self) -> impl Future<Output = Result<(), Self::Error>> + Send + 'static;
     fn press_action_text(&self) -> &'static str;
     fn switch_position(&self) -> SwitchPosition;
 }
@@ -191,9 +190,10 @@ impl<S: ToggleableSource> ToggleControl<S> {
                     self.reading.apply_command(CommandOutcome::Applied {
                         expected_snapshot: current.toggled_value(),
                     });
-                    Task::future(blocking(S::NAME, move || current.apply_toggle().err())).map(
-                        |refusal| refusal.map_or(ToggleMessage::Applied, ToggleMessage::Refused),
-                    )
+                    Task::future(current.apply_toggle()).map(|applied| match applied {
+                        Ok(()) => ToggleMessage::Applied,
+                        Err(refusal) => ToggleMessage::Refused(refusal),
+                    })
                 }
                 None => Task::none(),
             },

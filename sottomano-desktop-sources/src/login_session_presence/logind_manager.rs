@@ -3,7 +3,7 @@ use std::env;
 use futures::{Stream, StreamExt, future::ready};
 use serde::Deserialize;
 use zbus::{
-    blocking, proxy,
+    proxy,
     zvariant::{OwnedObjectPath, Type},
 };
 
@@ -63,11 +63,6 @@ pub trait Manager {
     fn sleep_operation(&self) -> zbus::Result<Vec<String>>;
     #[zbus(signal)]
     fn prepare_for_sleep(&self, start: bool) -> zbus::Result<()>;
-}
-
-#[must_use]
-pub fn logind_manager_proxy() -> Option<ManagerProxyBlocking<'static>> {
-    ManagerProxyBlocking::new(&blocking::Connection::system().ok()?).ok()
 }
 
 #[must_use]

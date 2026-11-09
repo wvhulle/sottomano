@@ -2,7 +2,7 @@ use std::{collections::HashSet, fs, future::ready, path::PathBuf, time::Duration
 
 use futures::{Stream, StreamExt, stream};
 use serde::{Deserialize, Serialize};
-use zbus::{blocking::Connection, proxy, proxy::CacheProperties, zvariant::Type};
+use zbus::{proxy, proxy::CacheProperties, zvariant::Type};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -102,20 +102,19 @@ async fn watched_backlights(
     Ok(BacklightWatch { proxy, changes })
 }
 
-#[must_use]
-pub fn blocking_backlight_proxy() -> Option<ClightdBacklightProxyBlocking<'static>> {
-    let connection = Connection::system().ok()?;
-    zbus::blocking::proxy::Builder::new(&connection)
+pub async fn system_backlight_proxy() -> zbus::Result<ClightdBacklightProxy<'static>> {
+    let system = zbus::Connection::system().await?;
+    proxy::Builder::new(&system)
         .cache_properties(CacheProperties::No)
         .build()
-        .ok()
+        .await
 }
 
-pub fn poll_all() -> Vec<Backlight> {
-    let Some(proxy) = blocking_backlight_proxy() else {
+pub async fn poll_all() -> Vec<Backlight> {
+    let Ok(proxy) = system_backlight_proxy().await else {
         return Vec::new();
     };
-    proxy.get_all("").map(backlights).unwrap_or_default()
+    proxy.get_all("").await.map(backlights).unwrap_or_default()
 }
 
 fn backlights(readings: Vec<BacklightReading>) -> Vec<Backlight> {

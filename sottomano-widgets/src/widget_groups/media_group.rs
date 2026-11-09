@@ -1,7 +1,6 @@
 use std::{
     borrow::Cow,
     collections::HashMap,
-    fmt::{self, Display, Formatter},
     iter,
     time::{Duration, Instant},
 };
@@ -10,7 +9,6 @@ use iced::{Element, Subscription, Task, time::every, widget::Row};
 use sottomano_desktop_sinks::media_playback_audio::mpris_player_commands;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    blocking_background_work::{Panicked, blocking_poll},
     desktop_windows_apps::window_edge_placement::WindowOwner,
     media_playback_audio::{
         lrclib_synced_lyrics::{LyricsQuery, TrackLyrics},
@@ -651,14 +649,16 @@ fn seek_by(
         return Task::none();
     };
     let bus = media.bus.clone();
-    dispatch(media, command).then(move |dispatched| match dispatched {
-        Ok(()) => Task::none(),
-        Err(dispatch_failure) => {
-            tracing::warn!("mpris {bus}: seeking: {dispatch_failure}");
-            Task::done(player_message(
-                &bus,
-                PlayerMessage::Seek(SeekMessage::Rejected),
-            ))
+    Task::future(mpris_player_commands::control(bus.clone(), command)).then(move |dispatched| {
+        match dispatched {
+            Ok(()) => Task::none(),
+            Err(bus_failure) => {
+                tracing::warn!("mpris {bus}: seeking: {bus_failure}");
+                Task::done(player_message(
+                    &bus,
+                    PlayerMessage::Seek(SeekMessage::Rejected),
+                ))
+            }
         }
     })
 }
@@ -683,42 +683,12 @@ fn raise_by_mpris(media: &Media) -> Task<MediaMessage> {
 
 fn send(media: &Media, command: Command) -> Task<MediaMessage> {
     let bus = media.bus.clone();
-    dispatch(media, command).then(move |dispatched| {
-        if let Err(dispatch_failure) = dispatched {
-            tracing::warn!("mpris {bus}: {dispatch_failure}");
+    Task::future(async move {
+        if let Err(bus_failure) = mpris_player_commands::control(bus.clone(), command).await {
+            tracing::warn!("mpris {bus}: {bus_failure}");
         }
-        Task::none()
     })
-}
-
-#[derive(Debug)]
-enum MprisDispatchFailure {
-    WorkerPanicked,
-    Bus(zbus::Error),
-}
-
-impl From<Panicked> for MprisDispatchFailure {
-    fn from(_: Panicked) -> Self {
-        MprisDispatchFailure::WorkerPanicked
-    }
-}
-
-impl Display for MprisDispatchFailure {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            MprisDispatchFailure::WorkerPanicked => {
-                formatter.write_str("the command task panicked")
-            }
-            MprisDispatchFailure::Bus(bus_error) => write!(formatter, "{bus_error}"),
-        }
-    }
-}
-
-fn dispatch(media: &Media, command: Command) -> Task<Result<(), MprisDispatchFailure>> {
-    let bus = media.bus.clone();
-    Task::future(blocking_poll(move || {
-        mpris_player_commands::control(&bus, command).map_err(MprisDispatchFailure::Bus)
-    }))
+    .discard()
 }
 
 #[cfg(test)]

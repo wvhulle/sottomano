@@ -49,7 +49,9 @@ impl ToggleableSource for AutoBrightness {
         }
     }
 
-    fn apply_toggle(&self) -> Result<(), dbus_desktop_buses::Error> {
+    fn apply_toggle(
+        &self,
+    ) -> impl Future<Output = Result<(), dbus_desktop_buses::Error>> + Send + 'static {
         clight_calibration_writes::flip()
     }
 

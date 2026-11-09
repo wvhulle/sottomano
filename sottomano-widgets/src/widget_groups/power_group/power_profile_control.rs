@@ -93,9 +93,11 @@ pub enum PowerProfileMessage {
 }
 
 fn commit_profile_switch(profile: Profile) -> Task<PowerProfileMessage> {
-    ControlMessage::commit("power profile set", profile.position(), move || {
-        power_profile_selection::set(profile)
-    })
+    ControlMessage::commit(
+        "power profile set",
+        profile.position(),
+        power_profile_selection::set(profile),
+    )
     .map(PowerProfileMessage::Control)
 }
 

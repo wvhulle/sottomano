@@ -12,6 +12,7 @@ use sottomano_desktop_sources::{
     },
 };
 use sottomano_toml_config::Config;
+use tokio::task::spawn_blocking;
 
 use self::channel_level_control::{audio_output_icon, feed, input_glyph};
 use crate::{
@@ -239,9 +240,14 @@ impl AudioGroup {
         let Some(commands) = self.commands.clone() else {
             return Task::none();
         };
-        ControlMessage::commit("audio set volume", value, move || {
+        let volume_write = spawn_blocking(move || {
             slow_write_delay();
             pipewire_level_commands::set_volume(&commands, target, as_percent(value)).map(drop)
+        });
+        ControlMessage::commit("audio set volume", value, async move {
+            volume_write.await.unwrap_or(Err(
+                pipewire_level_commands::VolumeChangeFailure::WorkerPanicked,
+            ))
         })
         .map(move |m| AudioMessage::Control(kind, m))
     }

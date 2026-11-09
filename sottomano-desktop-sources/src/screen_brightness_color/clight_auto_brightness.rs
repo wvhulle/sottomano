@@ -1,7 +1,7 @@
 use std::{env, path::PathBuf};
 
 use futures::Stream;
-use zbus::{blocking::Connection, proxy, proxy::CacheProperties};
+use zbus::{Connection, proxy, proxy::CacheProperties};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -101,12 +101,10 @@ pub fn config_file() -> Option<PathBuf> {
 }
 
 #[must_use]
-pub fn current_calibration() -> Option<BrightnessCalibration> {
-    let connection = Connection::session().ok()?;
-    let no_auto_calibration = ConfBacklightProxyBlocking::new(&connection)
-        .ok()?
-        .no_auto_calib()
-        .ok()?;
+pub async fn current_calibration() -> Option<BrightnessCalibration> {
+    let session = Connection::session().await.ok()?;
+    let conf_backlight = ConfBacklightProxy::new(&session).await.ok()?;
+    let no_auto_calibration = conf_backlight.no_auto_calib().await.ok()?;
     Some(if no_auto_calibration {
         BrightnessCalibration::Fixed
     } else {

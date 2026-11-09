@@ -2,12 +2,12 @@ use std::{fs, path::Path};
 
 use sottomano_desktop_sources::{
     screen_brightness_color::clight_auto_brightness::{
-        BrightnessCalibration, ClightDaemonProxyBlocking, ConfBacklightProxyBlocking, config_file,
+        BrightnessCalibration, ClightDaemonProxy, ConfBacklightProxy, config_file,
         current_calibration,
     },
     system_protocol_clients::dbus_desktop_buses::Error,
 };
-use zbus::blocking::Connection;
+use zbus::Connection;
 
 use crate::screen_brightness_color::clightd_backlight_writes;
 
@@ -23,37 +23,39 @@ fn persist(calibration: BrightnessCalibration) {
     let _ = fs::write::<&Path, String>(&file, contents);
 }
 
-pub fn pause_auto_calib() {
-    let _ = set_calibration(BrightnessCalibration::Fixed);
+pub async fn pause_auto_calib() {
+    let _ = set_calibration(BrightnessCalibration::Fixed).await;
     persist(BrightnessCalibration::Fixed);
 }
 
-pub fn flip() -> Result<(), Error> {
-    let wanted_calibration = match current_calibration() {
+pub async fn flip() -> Result<(), Error> {
+    let wanted_calibration = match current_calibration().await {
         Some(BrightnessCalibration::FromWebcam) => BrightnessCalibration::Fixed,
         Some(BrightnessCalibration::Fixed) | None => BrightnessCalibration::FromWebcam,
     };
-    let outcome = set_calibration(wanted_calibration);
+    let outcome = set_calibration(wanted_calibration).await;
     match wanted_calibration {
-        BrightnessCalibration::Fixed => clightd_backlight_writes::halt_ramp(),
-        BrightnessCalibration::FromWebcam => capture(),
+        BrightnessCalibration::Fixed => clightd_backlight_writes::halt_ramp().await,
+        BrightnessCalibration::FromWebcam => capture().await,
     }
     persist(wanted_calibration);
     outcome
 }
 
-fn set_calibration(calibration: BrightnessCalibration) -> Result<(), Error> {
-    let connection = Connection::session()?;
-    ConfBacklightProxyBlocking::new(&connection)?
-        .set_no_auto_calib(calibration == BrightnessCalibration::Fixed)?;
+async fn set_calibration(calibration: BrightnessCalibration) -> Result<(), Error> {
+    let session = Connection::session().await?;
+    ConfBacklightProxy::new(&session)
+        .await?
+        .set_no_auto_calib(calibration == BrightnessCalibration::Fixed)
+        .await?;
     Ok(())
 }
 
-fn capture() {
-    let Ok(connection) = Connection::session() else {
+async fn capture() {
+    let Ok(session) = Connection::session().await else {
         return;
     };
-    if let Ok(proxy) = ClightDaemonProxyBlocking::new(&connection) {
-        let _ = proxy.capture(true, false);
+    if let Ok(proxy) = ClightDaemonProxy::new(&session).await {
+        let _ = proxy.capture(true, false).await;
     }
 }

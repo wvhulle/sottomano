@@ -12,7 +12,6 @@ use output_details::ConnectedOutput;
 use sottomano_desktop_sinks::screen_brightness_color::clightd_backlight_writes;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    blocking_background_work::blocking,
     compositor_window_ipc::compositor_output_facts::OutputInfo,
     screen_brightness_color::{
         clight_auto_brightness::AutoBrightness,
@@ -186,13 +185,15 @@ impl MonitorGroup {
             }
             Action::Commit(value) => {
                 let set_serial = serial.clone();
-                ControlMessage::commit("backlight set", value, move || {
-                    clightd_backlight_writes::set(&set_serial, as_percent(value))
-                })
+                ControlMessage::commit(
+                    "backlight set",
+                    value,
+                    clightd_backlight_writes::set(set_serial, as_percent(value)),
+                )
                 .map(move |m| MonitorMessage::Backlight(serial.clone(), m))
             }
             Action::None | Action::Right | Action::Adjust(_) if write_settled => Task::perform(
-                blocking("backlight reread", clightd_backlight::poll_all),
+                clightd_backlight::poll_all(),
                 MonitorMessage::BacklightsReread,
             ),
             Action::None | Action::Right | Action::Adjust(_) => Task::none(),

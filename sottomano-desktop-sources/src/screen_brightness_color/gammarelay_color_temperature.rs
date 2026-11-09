@@ -2,7 +2,7 @@ use std::ops::RangeInclusive;
 
 use futures::{Stream, StreamExt, stream};
 use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature};
-use zbus::{blocking::Connection, proxy};
+use zbus::{Connection, proxy};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -77,7 +77,6 @@ impl ColorTemperature {
     }
 }
 
-#[must_use]
-pub fn gamma_relay_proxy() -> Option<GammaRelayProxyBlocking<'static>> {
-    GammaRelayProxyBlocking::new(&Connection::session().ok()?).ok()
+pub async fn session_gamma_relay() -> zbus::Result<GammaRelayProxy<'static>> {
+    GammaRelayProxy::new(&Connection::session().await?).await
 }

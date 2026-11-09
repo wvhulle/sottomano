@@ -8,8 +8,9 @@ pub enum ProfileSwitchError {
     Call(#[from] zbus::Error),
 }
 
-pub fn set(profile: Profile) -> Result<(), ProfileSwitchError> {
-    let power_profiles = power_profiles_daemon::power_profiles_proxy()
-        .ok_or(ProfileSwitchError::DaemonUnreachable)?;
-    Ok(power_profiles.set_active_profile(profile.name())?)
+pub async fn set(profile: Profile) -> Result<(), ProfileSwitchError> {
+    let power_profiles = power_profiles_daemon::system_power_profiles()
+        .await
+        .map_err(|_| ProfileSwitchError::DaemonUnreachable)?;
+    Ok(power_profiles.set_active_profile(profile.name()).await?)
 }
