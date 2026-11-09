@@ -16,7 +16,7 @@ The controller drawn with every bound button labelled in place.
 
 ## Other readings
 
-The [README](../../README.md) shows the Tailscale and dictation groups; these open from the same groups.
+The [introduction](../introduction.md) shows the Tailscale and dictation groups; these open from the same groups.
 
 | Reading | What it shows |
 |---|---|

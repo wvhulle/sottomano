@@ -1,0 +1,13 @@
+[book]
+title = "Sottomano"
+language = "en"
+src = "."
+
+[build]
+build-dir = "../target/documentation-site"
+create-missing = false
+
+[output.html]
+site-url = "/"
+git-repository-url = "https://codeberg.org/wvhulle/sottomano"
+edit-url-template = "https://codeberg.org/wvhulle/sottomano/_edit/main/docs/{path}"

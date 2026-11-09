@@ -1,7 +1,7 @@
 # Development
 
 Setup and workflow for working on sottomano. The rules the code follows are in
-[CONTRIBUTING.md](../CONTRIBUTING.md).
+[Style](style.md).
 
 ## Workspace
 
@@ -208,7 +208,7 @@ labelled `nix` with KVM.
 
 ## Tour recordings
 
-The recordings in the [guide](guide/README.md) and the README are rendered
+The recordings in the [guide](guide/) and the README are rendered
 offscreen by `sottomano-widget-showcase` into the untracked root `recordings/`.
 `nix build .#readme-recordings` renders them all the way CI does.
 
@@ -317,6 +317,14 @@ next to its pinned demo, which boots with that group pinned. Both images carry
 `alt` before `width="100%"`, so the width rewrite leaves them alone and each fills
 half the page. The canvas is transparent, so clear and translucent panels show
 the page behind them.
+
+## Documentation site
+
+`docs/` is an mdBook published at [sottomano.work](https://sottomano.work); its
+first page includes the root `README.md`. `mdbook serve docs` previews it
+locally, and `nix build .#documentation-site` builds what the server hosts. The
+site updates when the nuremberg host in nixos-config is rebuilt with a newer
+sottomano input.
 
 ## Upstream docs
 

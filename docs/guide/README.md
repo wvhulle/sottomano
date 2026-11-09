@@ -1,6 +1,6 @@
 # Guide
 
-Every group that has a recording and is not already in the [README](../../README.md), rendered from fixtures, so the numbers are made up. The shell also has groups for the clock, disks, GPU, network interfaces, power, the system tray, systemd units and a few more, which look and behave the same way.
+Every group that has a recording and is not already in the [introduction](../introduction.md), rendered from fixtures, so the numbers are made up. The shell also has groups for the clock, disks, GPU, network interfaces, power, the system tray, systemd units and a few more, which look and behave the same way.
 
 Widgets that look alike share one recording, with the others listed in a table below it. The [compute](compute.md) page shows a group in its menu next to the same group pinned in the bar. The [looks](appearance.md) have a page of their own.
 
