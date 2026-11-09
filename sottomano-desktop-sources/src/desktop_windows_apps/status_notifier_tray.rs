@@ -6,7 +6,10 @@ use std::{
 };
 
 use futures::{Stream, StreamExt, stream};
-use image::RgbaImage;
+use image::{
+    RgbaImage,
+    imageops::{self, FilterType},
+};
 pub use system_tray::item::Status;
 use system_tray::{
     client::{Client, Event, UpdateEvent},
@@ -129,16 +132,25 @@ impl TrayHost {
     }
 }
 
+const TRAY_PIXMAP_SIDE_LIMIT: u32 = 128;
+
+fn pixmap_area(pixmap: &IconPixmap) -> i64 {
+    i64::from(pixmap.width) * i64::from(pixmap.height)
+}
+
 fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<RgbaImage> {
-    let best = pixmaps
-        .iter()
-        .filter(|p| {
-            p.width > 0
-                && p.height > 0
-                && i64::try_from(p.pixels.len()).unwrap_or(0)
-                    == i64::from(p.width) * i64::from(p.height) * 4
+    let valid_pixmaps = pixmaps.iter().filter(|pixmap| {
+        pixmap.width > 0
+            && pixmap.height > 0
+            && i64::try_from(pixmap.pixels.len()).unwrap_or(0) == pixmap_area(pixmap) * 4
+    });
+    let best = valid_pixmaps
+        .clone()
+        .filter(|pixmap| {
+            i64::from(pixmap.width.min(pixmap.height)) >= i64::from(TRAY_PIXMAP_SIDE_LIMIT)
         })
-        .max_by_key(|p| i64::from(p.width) * i64::from(p.height))?;
+        .min_by_key(|pixmap| pixmap_area(pixmap))
+        .or_else(|| valid_pixmaps.max_by_key(|pixmap| pixmap_area(pixmap)))?;
     let (width, height) = (
         u32::try_from(best.width).ok()?,
         u32::try_from(best.height).ok()?,
@@ -147,7 +159,27 @@ fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<RgbaImage> {
     for pixel in bytes.as_chunks_mut::<4>().0 {
         pixel.rotate_left(1);
     }
-    RgbaImage::from_raw(width, height, bytes).map(super::icon_whitespace_trim::trim_rgba)
+    RgbaImage::from_raw(width, height, bytes)
+        .map(super::icon_whitespace_trim::trim_rgba)
+        .map(capped_to_side_limit)
+}
+
+pub(crate) fn capped_to_side_limit(image: RgbaImage) -> RgbaImage {
+    let longest_side = image.width().max(image.height());
+    if longest_side <= TRAY_PIXMAP_SIDE_LIMIT {
+        return image;
+    }
+    let scaled_side = |side: u32| {
+        u32::try_from(u64::from(side) * u64::from(TRAY_PIXMAP_SIDE_LIMIT) / u64::from(longest_side))
+            .unwrap_or(TRAY_PIXMAP_SIDE_LIMIT)
+            .max(1)
+    };
+    imageops::resize(
+        &image,
+        scaled_side(image.width()),
+        scaled_side(image.height()),
+        FilterType::Triangle,
+    )
 }
 
 const UNIDENTIFIED_APP_ICON: &str = "application-x-executable";
@@ -427,6 +459,37 @@ fn apply(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn opaque_pixmap(side: i32) -> IconPixmap {
+        let side_length = usize::try_from(side).unwrap();
+        IconPixmap {
+            width: side,
+            height: side,
+            pixels: vec![0xff; side_length * side_length * 4],
+        }
+    }
+
+    #[test]
+    fn an_oversized_pixmap_is_scaled_down_to_the_side_limit() {
+        let scaled = best_pixmap(&[opaque_pixmap(512)]).unwrap();
+        assert_eq!(
+            scaled.dimensions(),
+            (TRAY_PIXMAP_SIDE_LIMIT, TRAY_PIXMAP_SIDE_LIMIT)
+        );
+    }
+
+    #[test]
+    fn the_smallest_pixmap_reaching_the_side_limit_is_chosen() {
+        let chosen =
+            best_pixmap(&[opaque_pixmap(512), opaque_pixmap(128), opaque_pixmap(64)]).unwrap();
+        assert_eq!(chosen.dimensions(), (128, 128));
+    }
+
+    #[test]
+    fn pixmaps_below_the_side_limit_keep_their_largest_size() {
+        let chosen = best_pixmap(&[opaque_pixmap(22), opaque_pixmap(48)]).unwrap();
+        assert_eq!(chosen.dimensions(), (48, 48));
+    }
 
     #[test]
     fn symbolic_svg_is_tinted_by_the_panel() {
