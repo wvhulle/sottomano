@@ -3,10 +3,10 @@ use sottomano_desktop_sources::disk_storage::mounted_filesystem_usage::{
 };
 
 use super::{
-    compression_setting_row::CompressionSettingRow,
-    ext4_error_count_row::Ext4ErrorCountRow, ext4_lifetime_writes_row::Ext4LifetimeWritesRow,
-    inode_usage_row::InodeUsageRow, metadata_room_row::MetadataRoomRow,
-    mount_access_row::MountAccessRow, volume_identity_row::VolumeIdentityRow,
+    compression_setting_row::CompressionSettingRow, ext4_error_count_row::Ext4ErrorCountRow,
+    ext4_lifetime_writes_row::Ext4LifetimeWritesRow, inode_usage_row::InodeUsageRow,
+    metadata_room_row::MetadataRoomRow, mount_access_row::MountAccessRow,
+    volume_identity_row::VolumeIdentityRow,
 };
 use crate::{
     clock::Clock,
@@ -69,16 +69,16 @@ impl FilesystemProperty {
             (FilesystemProperty::Compression, Filesystem::Bcachefs(space)) => {
                 enabled_compression(CompressionSettingRow::Bcachefs(space))
             }
-            (FilesystemProperty::Ext4Errors, Filesystem::Ext4 { counters, .. }) => Some(
-                FilesystemPropertyRow::Ext4Errors(Ext4ErrorCountRow {
+            (FilesystemProperty::Ext4Errors, Filesystem::Ext4 { counters, .. }) => {
+                Some(FilesystemPropertyRow::Ext4Errors(Ext4ErrorCountRow {
                     recorded_errors: counters.recorded_errors,
-                }),
-            ),
-            (FilesystemProperty::Ext4Writes, Filesystem::Ext4 { counters, .. }) => Some(
-                FilesystemPropertyRow::Ext4Writes(Ext4LifetimeWritesRow {
+                }))
+            }
+            (FilesystemProperty::Ext4Writes, Filesystem::Ext4 { counters, .. }) => {
+                Some(FilesystemPropertyRow::Ext4Writes(Ext4LifetimeWritesRow {
                     counters: *counters,
-                }),
-            ),
+                }))
+            }
             _ => None,
         }
     }

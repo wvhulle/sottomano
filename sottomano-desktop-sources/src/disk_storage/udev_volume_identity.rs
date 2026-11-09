@@ -53,10 +53,9 @@ impl From<&UdevProperties> for VolumeIdentity {
             properties: VOLUME_PROPERTY_KEYS
                 .iter()
                 .filter_map(|(kind, key)| {
-                    udev_properties.value(key).map(|value| VolumeProperty {
-                        kind: *kind,
-                        value,
-                    })
+                    udev_properties
+                        .value(key)
+                        .map(|value| VolumeProperty { kind: *kind, value })
                 })
                 .collect(),
         }
