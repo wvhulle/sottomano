@@ -35,7 +35,7 @@ Hovering the info icon of the temperature opens the forecast for the coming hour
 The tailnet: how each peer is reached, when the key expires, and which exit
 node carries the traffic, next to the switch that offers this machine as one.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/tailnet_exit_node.webp" width="1099" alt="Opening the Tailscale group from the Network menu and hovering an exit node">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/tailnet_exit_node.webp" width="925" alt="Opening the Tailscale group from the Network menu and hovering an exit node">
 
 ### Dictation: Speech model
 
