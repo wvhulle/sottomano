@@ -19,6 +19,7 @@ use sottomano_widgets::{
     widget_groups::{
         app_launcher_group::{self, AppLauncherMessage},
         gamepad_group::GamepadMessage,
+        global_menu_group::{self, GlobalMenuMessage, GlobalMenuRequest},
         media_group::{self, MediaMessage},
         overlay_settings_group::{self, OverlaySettingsMessage},
         panel_settings_group::{self, PanelSettingsMessage},
@@ -180,6 +181,24 @@ impl DesktopShell {
                 self.focus_app_window(focus, Message::Tray)
             }
         }
+    }
+
+    pub(super) fn update_global_menu(&mut self, msg: GlobalMenuMessage) -> Task<Message> {
+        match self.widget_groups.global_menu_group.update(msg) {
+            global_menu_group::Action::None => Task::none(),
+            global_menu_group::Action::Prepare(request) => self.send_global_menu_request(request),
+            global_menu_group::Action::Activate(request) => Task::batch([
+                self.dismiss_hover_card(),
+                self.send_global_menu_request(request),
+            ]),
+        }
+    }
+
+    fn send_global_menu_request(&self, request: GlobalMenuRequest) -> Task<Message> {
+        let Some(buses) = &self.desktop_buses else {
+            return Task::none();
+        };
+        Task::future(request.send(buses.session.clone())).discard()
     }
 
     fn send_tray_command_with_activation_token(&self, command: TrayCommand) -> Task<Message> {

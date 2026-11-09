@@ -15,6 +15,7 @@ mod echo_probe_window_rows;
 pub mod ethernet_ports_group;
 pub mod fixed_panel_group;
 pub mod gamepad_group;
+pub mod global_menu_group;
 pub mod gpu_group;
 pub mod idle_pause_groups;
 mod interface_address_sections;

@@ -11,6 +11,7 @@ use sottomano_desktop_sources::{
         app_launch_history::LaunchScope,
         desktop_entry_app_catalog::{LaunchableApp, open_windows_by_app},
         desktop_entry_app_icons::{self},
+        focused_window_menu_bar::FocusedWindowIdentity,
         workspace_window_snapshot,
     },
 };
@@ -78,6 +79,11 @@ impl DesktopShell {
         if focus_changed {
             self.widget_groups.collapse_when_auto_collapsing();
         }
+        self.widget_groups
+            .global_menu_group
+            .observe_focused_window(FocusedWindowIdentity::from(
+                self.compositor.focused_window(),
+            ));
         if windows_changed {
             tasks.push(
                 self.favicons

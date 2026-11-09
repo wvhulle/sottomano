@@ -4,7 +4,7 @@ use sottomano_widgets::group_menus::group_menu_state::GroupMenuTopic;
 use self::{
     FixedPanelEntry::SessionPower,
     PanelZoneEntry::{Fixed, InlineWorkspaces, Menu, OutputWindows, Standalone},
-    StandaloneWidgetGroup::{Clock, Notifications, Tray},
+    StandaloneWidgetGroup::{Clock, GlobalMenu, Notifications, Tray},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,6 +19,7 @@ pub(in crate::desktop_shell) enum StandaloneWidgetGroup {
     Clock,
     Notifications,
     Tray,
+    GlobalMenu,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,6 +68,7 @@ pub(in crate::desktop_shell) const TOP_PANEL: PanelBarComposition = PanelBarComp
     start: &[
         Menu(GroupMenuTopic::Hardware),
         Menu(GroupMenuTopic::Network),
+        Standalone(GlobalMenu),
     ],
     center: &[
         Standalone(Clock),
@@ -119,8 +121,8 @@ mod tests {
     use sottomano_widgets::group_menus::group_menu_state::GroupMenuTopic;
 
     use super::{
-        BOTTOM_PANEL, Clock, Notifications, PanelZone, StandaloneWidgetGroup, TOP_PANEL, Tray,
-        composed_menu_topics, composed_standalone_groups,
+        BOTTOM_PANEL, Clock, GlobalMenu, Notifications, PanelZone, StandaloneWidgetGroup,
+        TOP_PANEL, Tray, composed_menu_topics, composed_standalone_groups,
     };
     use crate::desktop_shell::desktop_panels::panel_bar_composition::{Menu, Standalone};
 
@@ -136,7 +138,7 @@ mod tests {
     #[test]
     fn standalone_groups_appear_once() {
         let composed: Vec<StandaloneWidgetGroup> = composed_standalone_groups().collect();
-        for group in [Clock, Notifications, Tray] {
+        for group in [Clock, Notifications, Tray, GlobalMenu] {
             assert_eq!(
                 composed.iter().filter(|placed| **placed == group).count(),
                 1

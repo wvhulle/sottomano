@@ -45,6 +45,7 @@ pub struct WidgetGroupsConfig {
     pub gamepad: GamepadBindingsConfig,
     pub caldav: CaldavAccountConfig,
     pub media: MediaGroupConfig,
+    pub global_menu: GlobalMenuGroupConfig,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -63,6 +64,20 @@ pub struct PhysicalDriveGroupConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct WeatherGroupConfig {
     pub rain_alerts: RainAlertsConfig,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AppMenuRegistrarClaim {
+    #[default]
+    Claimed,
+    Left,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct GlobalMenuGroupConfig {
+    pub appmenu_registrar: AppMenuRegistrarClaim,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]

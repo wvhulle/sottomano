@@ -92,6 +92,9 @@ impl ShellWidgetGroups {
     ) -> Subscription<Message> {
         Subscription::batch([
             PowerGroup::subscription(buses).map(Message::Power),
+            self.global_menu_group
+                .subscription(buses, config.widget_groups.global_menu.appmenu_registrar)
+                .map(Message::GlobalMenu),
             LoginSessionGroup::subscription(buses).map(Message::LoginSession),
             IdlePauseGroups::subscription(buses).map(Message::IdleTimeouts),
             SystemdManagerGroup::subscription(&config.widget_groups.systemd_manager, buses)

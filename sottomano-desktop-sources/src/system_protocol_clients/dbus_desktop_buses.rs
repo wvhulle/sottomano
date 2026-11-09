@@ -147,7 +147,7 @@ async fn connected_until_closed()
         .map(Ok))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum OwnerProcess {
     Identified(u32),
     #[default]

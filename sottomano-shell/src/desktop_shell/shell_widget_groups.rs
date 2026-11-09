@@ -26,6 +26,7 @@ use sottomano_widgets::{
         dark_mode_group::{DarkModeGroup, DarkModeMessage},
         ethernet_ports_group::EthernetPortsGroup,
         gamepad_group::GamepadGroup,
+        global_menu_group::GlobalMenuGroup,
         gpu_group::GpuGroup,
         idle_pause_groups::IdlePauseGroups,
         journal_events_group::JournalEventsGroup,
@@ -121,6 +122,7 @@ pub struct ShellWidgetGroups {
     pub session_focus_group: SessionFocusGroup,
     pub login_session_group: LoginSessionGroup,
     pub tray_group: TrayGroup,
+    pub global_menu_group: GlobalMenuGroup,
     pub window_group: WindowGroup,
     pub app_launcher_group: AppLauncherGroup,
 }
@@ -190,6 +192,7 @@ impl ShellWidgetGroups {
             ),
             login_session_group: LoginSessionGroup::default(),
             tray_group: TrayGroup::default(),
+            global_menu_group: GlobalMenuGroup::default(),
             window_group: WindowGroup::default(),
             app_launcher_group: AppLauncherGroup::default(),
         }
@@ -490,6 +493,7 @@ impl ShellWidgetGroups {
         self.bluetooth_adapters_group.collapse();
         self.app_launcher_group.collapse();
         self.tray_group.collapse();
+        self.global_menu_group.collapse();
         self.claude_usage_group.collapse();
         self.copilot_usage_group.collapse();
         self.openrouter_credit_group.collapse();

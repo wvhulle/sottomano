@@ -12,14 +12,20 @@ use system_tray::{
     client::{Client, Event, UpdateEvent},
     error::Error as TrayHostError,
     item::{IconPixmap, StatusNotifierItem},
-    menu::{MenuItem, MenuType, ToggleState, ToggleType, TrayMenu},
+    menu::TrayMenu,
 };
 use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
 use zbus::{fdo::DBusProxy, names::BusName};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    desktop_windows_apps::desktop_entry_app_icons::DesktopEntries, non_empty_text::non_empty,
+    desktop_windows_apps::{
+        application_menu_nodes::{
+            MenuNode, SYMBOLIC_ICON_SUFFIX, symbolic_first_icon_names, tray_menu_nodes,
+        },
+        desktop_entry_app_icons::DesktopEntries,
+    },
+    non_empty_text::non_empty,
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 
@@ -30,17 +36,15 @@ pub enum IconSource {
     ThemedSymbolic(PathBuf),
 }
 
-const SYMBOLIC_ICON_SUFFIX: &str = "-symbolic";
-
 impl IconSource {
-    fn pixmap(&self) -> Option<&Arc<RgbaImage>> {
+    pub(crate) fn pixmap(&self) -> Option<&Arc<RgbaImage>> {
         match self {
             Self::Pixmap(pixmap) => Some(pixmap),
             Self::Themed(_) | Self::ThemedSymbolic(_) => None,
         }
     }
 
-    fn from_theme_file(theme_file: &Path) -> Self {
+    pub(crate) fn from_theme_file(theme_file: &Path) -> Self {
         let trimmed_file = super::icon_whitespace_trim::trimmed(theme_file);
         let is_svg = theme_file
             .extension()
@@ -56,34 +60,6 @@ impl IconSource {
             Self::Themed(trimmed_file)
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct MenuNode {
-    pub id: i32,
-    pub label: Option<String>,
-    pub enabled: bool,
-    pub kind: MenuKind,
-    pub icon: Option<IconSource>,
-    pub children: Vec<MenuNode>,
-}
-
-impl MenuNode {
-    fn pixmaps(&self) -> Vec<&Arc<RgbaImage>> {
-        self.icon
-            .iter()
-            .filter_map(IconSource::pixmap)
-            .chain(self.children.iter().flat_map(MenuNode::pixmaps))
-            .collect()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MenuKind {
-    Standard,
-    Separator,
-    Submenu,
-    Toggle(bool),
 }
 
 #[derive(Debug, Clone)]
@@ -195,7 +171,7 @@ fn resolve_visual(
     icon_name
         .filter(|n| !n.is_empty())
         .and_then(|name| {
-            symbolic_first_names(name)
+            symbolic_first_icon_names(name)
                 .into_iter()
                 .find_map(|candidate_name| {
                     icon_theme_path
@@ -205,85 +181,6 @@ fn resolve_visual(
         })
         .or_else(|| entries.theme_icon(UNIDENTIFIED_APP_ICON))
         .map(|path| IconSource::from_theme_file(&path))
-}
-
-fn menu_icon(item: &MenuItem, entries: &DesktopEntries) -> Option<IconSource> {
-    if let Some(decoded) = item
-        .icon_data
-        .as_deref()
-        .and_then(|data| image::load_from_memory(data).ok())
-    {
-        return Some(IconSource::Pixmap(Arc::new(
-            super::icon_whitespace_trim::trim_rgba(decoded.into_rgba8()),
-        )));
-    }
-    let name = item.icon_name.as_deref().filter(|n| !n.is_empty())?;
-    symbolic_first_names(name)
-        .into_iter()
-        .find_map(|candidate_name| entries.theme_icon(&candidate_name))
-        .map(|path| IconSource::from_theme_file(&path))
-}
-
-fn symbolic_first_names(icon_name: &str) -> Vec<String> {
-    if icon_name.ends_with(SYMBOLIC_ICON_SUFFIX) {
-        vec![icon_name.to_string()]
-    } else {
-        vec![
-            format!("{icon_name}{SYMBOLIC_ICON_SUFFIX}"),
-            icon_name.to_string(),
-        ]
-    }
-}
-
-fn adapt_menu_item(item: &MenuItem, entries: &DesktopEntries) -> Option<MenuNode> {
-    if !item.visible {
-        return None;
-    }
-    let children: Vec<MenuNode> = item
-        .submenu
-        .iter()
-        .filter_map(|child| adapt_menu_item(child, entries))
-        .collect();
-    let kind = if item.menu_type == MenuType::Separator {
-        MenuKind::Separator
-    } else if !children.is_empty() || item.children_display.as_deref() == Some("submenu") {
-        MenuKind::Submenu
-    } else if item.toggle_type != ToggleType::CannotBeToggled {
-        MenuKind::Toggle(item.toggle_state == ToggleState::On)
-    } else {
-        MenuKind::Standard
-    };
-    Some(MenuNode {
-        id: item.id,
-        label: item.label.as_deref().map(clean_label).and_then(non_empty),
-        enabled: item.enabled,
-        kind,
-        icon: menu_icon(item, entries),
-        children,
-    })
-}
-
-fn adapt_menu(menu: &TrayMenu, entries: &DesktopEntries) -> Vec<MenuNode> {
-    menu.submenus
-        .iter()
-        .filter_map(|item| adapt_menu_item(item, entries))
-        .collect()
-}
-
-fn clean_label(raw: &str) -> String {
-    let mut out = String::with_capacity(raw.len());
-    let mut chars = raw.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '_' {
-            if chars.peek() == Some(&'_') {
-                out.push('_');
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 fn adapt_tooltip(item: &StatusNotifierItem) -> Option<Tip> {
@@ -312,7 +209,9 @@ fn build_item(
             item.icon_theme_path.as_deref(),
             entries,
         ),
-        menu: menu.map(|m| adapt_menu(m, entries)).unwrap_or_default(),
+        menu: menu
+            .map(|m| tray_menu_nodes(m, entries))
+            .unwrap_or_default(),
     }
 }
 
@@ -475,7 +374,7 @@ fn menu_from_map(client: &Client, address: &str, entries: &DesktopEntries) -> Ve
         .and_then(|map| {
             map.get(address)
                 .and_then(|(_, menu)| menu.as_ref())
-                .map(|menu| adapt_menu(menu, entries))
+                .map(|menu| tray_menu_nodes(menu, entries))
         })
         .unwrap_or_default()
 }
@@ -544,22 +443,6 @@ mod tests {
         assert_eq!(
             IconSource::from_theme_file(theme_file),
             IconSource::Themed(theme_file.to_path_buf())
-        );
-    }
-
-    #[test]
-    fn plain_icon_name_tries_its_symbolic_variant_first() {
-        assert_eq!(
-            symbolic_first_names("nm-device-wired-secure"),
-            ["nm-device-wired-secure-symbolic", "nm-device-wired-secure"]
-        );
-    }
-
-    #[test]
-    fn symbolic_icon_name_is_looked_up_once() {
-        assert_eq!(
-            symbolic_first_names("network-wired-symbolic"),
-            ["network-wired-symbolic"]
         );
     }
 

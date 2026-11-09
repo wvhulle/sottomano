@@ -1,5 +1,3 @@
-pub mod menu_lines;
-
 use std::{collections::HashSet, sync::Arc};
 
 use iced::{
@@ -27,7 +25,6 @@ use sottomano_toml_config::{
 };
 use system_tray::error;
 
-use self::menu_lines::TrayMenuLines;
 use crate::{
     clock::Clock,
     group_items::{
@@ -54,6 +51,7 @@ use crate::{
     widgets::{
         activity_line::activity_line,
         app_window_focus::AppWindowFocus,
+        application_menu_lines::ApplicationMenuLines,
         configured_theme::primary_color,
         context_menu::context_menu,
         icon_glyph::IconGlyph,
@@ -240,7 +238,7 @@ impl TrayGroup {
             menu_path: menu_path.clone(),
             id,
         };
-        let lines = TrayMenuLines {
+        let lines = ApplicationMenuLines {
             config,
             pixmap_handles: &self.pixmap_handles,
             open: &self.open_submenus,
