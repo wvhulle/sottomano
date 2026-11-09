@@ -17,7 +17,7 @@ pkgs.stdenvNoCC.mkDerivation {
     runHook preBuild
     mdbook build docs --dest-dir "$out"
     rm "$out/book.toml"
-    rm -r "$out/theme"
+    rm "$out/theme/favicon.svg"
     runHook postBuild
   '';
   dontInstall = true;

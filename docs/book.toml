@@ -11,3 +11,6 @@ create-missing = false
 site-url = "/"
 git-repository-url = "https://codeberg.org/wvhulle/sottomano"
 edit-url-template = "https://codeberg.org/wvhulle/sottomano/_edit/main/docs/{path}"
+default-theme = "ayu"
+preferred-dark-theme = "ayu"
+additional-css = ["theme/sottomano.css"]
