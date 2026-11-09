@@ -125,6 +125,7 @@ impl ShellWidgetGroups {
             | HoverTarget::QuietSchedule(_)
             | HoverTarget::Session(_)
             | HoverTarget::Tray(_)
+            | HoverTarget::GlobalMenu(_)
             | HoverTarget::Window(_)
             | HoverTarget::Workspace(_)
             | HoverTarget::WorkspaceOrder

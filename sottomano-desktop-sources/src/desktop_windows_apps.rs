@@ -1,8 +1,13 @@
 pub mod app_launch_history;
+pub mod application_menu_nodes;
+pub mod appmenu_registrar_server;
+pub mod dbusmenu_menu_bar_layout;
 pub mod desktop_entry_app_catalog;
 pub mod desktop_entry_app_icons;
 pub mod desktop_entry_changes;
 pub mod firefox_favicon_lookup;
+pub mod focused_window_menu_bar;
+pub mod gtk_menus_menu_bar;
 pub mod icon_whitespace_trim;
 pub mod kde_job_view_progress;
 pub mod nix_package_facts;
@@ -15,3 +20,4 @@ pub mod unity_launcher_badges;
 pub mod window_edge_placement;
 pub mod window_title_labels;
 pub mod workspace_window_snapshot;
+pub mod x11_window_menu_properties;

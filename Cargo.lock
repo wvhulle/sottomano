@@ -6840,6 +6840,7 @@ dependencies = [
  "virt",
  "wayrs-client",
  "wayrs-protocols",
+ "x11rb",
  "zbus",
  "zbus_xml",
 ]

@@ -35,7 +35,7 @@ The Menus group in the Behaviour menu changes how every menu opens. Menus can op
 
 ## Top panel
 
-The Hardware and Network menus on the left; the clock, Agenda menu and notifications in the middle; the Display and Media menus and the power menu on the right.
+The Hardware and Network menus and the focused window's application menu on the left; the clock, Agenda menu and notifications in the middle; the Display and Media menus and the power menu on the right.
 
 - [Compute](compute.md): load, clock, temperature and caches.
 - [Memory and board](memory-and-board.md): memory use, modules and firmware.

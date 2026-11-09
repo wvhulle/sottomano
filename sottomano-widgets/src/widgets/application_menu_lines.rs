@@ -1,6 +1,6 @@
 use std::{collections::HashSet, iter::once};
 
-use sottomano_desktop_sources::desktop_windows_apps::status_notifier_tray::{MenuKind, MenuNode};
+use sottomano_desktop_sources::desktop_windows_apps::application_menu_nodes::{MenuKind, MenuNode};
 use sottomano_toml_config::Config;
 
 use crate::widgets::{
@@ -11,7 +11,7 @@ use crate::widgets::{
     phosphor::{Phosphor, Weight},
 };
 
-pub struct TrayMenuLines<'c, M> {
+pub struct ApplicationMenuLines<'c, M> {
     pub config: &'c Config,
     pub pixmap_handles: &'c PixmapHandles,
     pub open: &'c HashSet<i32>,
@@ -19,7 +19,7 @@ pub struct TrayMenuLines<'c, M> {
     pub on_toggle: &'c dyn Fn(i32) -> M,
 }
 
-impl<'c, M: Clone + 'c> TrayMenuLines<'c, M> {
+impl<'c, M: Clone + 'c> ApplicationMenuLines<'c, M> {
     #[must_use]
     pub fn lines<'a>(&self, nodes: &[MenuNode]) -> Vec<ContextMenuLine<'a, M>>
     where

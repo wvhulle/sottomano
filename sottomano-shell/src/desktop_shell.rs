@@ -275,6 +275,7 @@ impl DesktopShell {
             }
             Message::Media(msg) => self.update_media(msg),
             Message::Tray(msg) => self.update_tray(msg),
+            Message::GlobalMenu(msg) => self.update_global_menu(msg),
             Message::VirtualMachines(msg) => self.update_virtual_machines(msg),
             Message::IdleTimeouts(IdlePauseMessage::ScreenPowerChangedByIdleAction(edge)) => self
                 .widget_groups
@@ -557,6 +558,11 @@ impl DesktopShell {
                 .tray_group
                 .menu_panel(address, &self.config, popup_corners)
                 .map(|panel| panel.map(Message::Tray)),
+            HoverTarget::GlobalMenu(target) => self
+                .widget_groups
+                .global_menu_group
+                .menu_panel(*target, &self.config, popup_corners)
+                .map(|panel| panel.map(Message::GlobalMenu)),
             HoverTarget::Session(session_power_group::SessionTarget::Menu) => Some(
                 self.widget_groups
                     .session_power_group

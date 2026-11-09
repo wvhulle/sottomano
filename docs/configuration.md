@@ -225,6 +225,9 @@ subscription_download_interval = "15m"
 [widget_groups.media.lyrics]
 lrclib_lookup = "enabled"
 
+[widget_groups.global_menu]
+appmenu_registrar = "claimed"
+
 [notification_toasts.placement]
 fallback_corner = "bottom-right"
 
@@ -270,6 +273,27 @@ the front from their own menu items. That limit is in the app.
 
 To keep an app's own activate behaviour, set `left_click = "activate_item"`
 for its item, keyed by the item's StatusNotifierItem id.
+
+## Application menu
+
+The top panel shows the menu bar of the focused window, one entry per top-level
+menu; hovering an entry opens its menu. Qt apps export their menu bar over
+D-Bus only when a global menu registrar is running when they start, so the
+shell claims the `com.canonical.AppMenu.Registrar` name. Qt apps started after
+the shell then hide the menu bar inside their window. Apps started before the
+shell keep theirs until they are restarted. GTK apps that publish a menu bar
+through their application id show it in both places.
+
+X11 apps are matched to their exact window: through the registrar, through the
+menu properties KDE apps set on their window, or through the ones GTK apps and
+LibreOffice set. Native Wayland apps are matched through the process that owns
+the window, so when one process has several menu bars, the most recent one is
+shown and its hover card says so. Browsers and Electron apps running natively
+on Wayland export no menu, and apps built on libadwaita have no menu bar.
+
+Set `appmenu_registrar = "left"` to leave the registrar name alone, for example
+when another global menu service owns it. Qt apps then keep their own menu bar
+and only GTK menu bars appear in the panel.
 
 ## Secrets
 

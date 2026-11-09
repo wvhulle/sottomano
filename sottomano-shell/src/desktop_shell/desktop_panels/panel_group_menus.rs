@@ -96,6 +96,11 @@ impl DesktopShell {
                     window_placement.window_owned_by(owner).is_some()
                 })
                 .map(Message::Tray),
+            StandaloneWidgetGroup::GlobalMenu => self
+                .widget_groups
+                .global_menu_group
+                .group_content(config)
+                .map(Message::GlobalMenu),
         }
     }
 
