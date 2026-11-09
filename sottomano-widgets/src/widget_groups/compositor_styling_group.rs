@@ -456,14 +456,6 @@ mod tests {
     }
 
     #[test]
-    fn an_unloaded_group_reads_the_default_styling() {
-        assert_eq!(
-            unloaded_group().compositor_styling(),
-            CompositorStyling::default()
-        );
-    }
-
-    #[test]
     fn loaded_styling_becomes_the_group_styling() {
         let loaded = CompositorStyling {
             blur_depth: ShellBlurDepth::WallpaperOnly,

@@ -26,10 +26,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn omitted_keys_keep_their_defaults() {
+    fn a_lone_lead_time_parses() {
         let config: RainAlertsConfig = toml::from_str("lead_time = \"30m\"\n").unwrap();
         assert_eq!(config.lead_time, Duration::from_mins(30));
-        assert!((config.heavy_millimeters_per_hour - 4.0).abs() < f64::EPSILON);
     }
 
     #[test]

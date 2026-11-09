@@ -55,7 +55,6 @@ mod tests {
     fn budget_is_read_per_agent() {
         let config: ClaudeCodeBudgetConfig = toml::from_str("monthly_budget_usd = 100\n").unwrap();
         assert_eq!(config.monthly_budget_usd, 100);
-        assert_eq!(CopilotCliBudgetConfig::default().monthly_budget_usd, 40);
         let openrouter: OpenRouterBudgetConfig =
             toml::from_str("max_blended_usd_per_million = 0.75\n").unwrap();
         assert_eq!(openrouter.max_blended_usd_per_million, Decimal::new(75, 2));

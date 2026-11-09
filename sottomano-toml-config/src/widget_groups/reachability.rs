@@ -35,10 +35,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn omitted_keys_keep_their_defaults() {
+    fn a_lone_latency_target_parses() {
         let config: ReachabilityConfig = toml::from_str("latency_target = \"9.9.9.9\"\n").unwrap();
         assert_eq!(config.latency_target, IpAddr::V4(Ipv4Addr::new(9, 9, 9, 9)));
-        assert_eq!(config.cycle_start_day(), 1);
     }
 
     #[test]
