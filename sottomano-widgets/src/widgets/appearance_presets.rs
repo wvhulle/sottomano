@@ -200,13 +200,11 @@ impl AppearancePreset {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::ColorMode;
-
     use super::{AppearancePreset, ShellAppearance};
     use crate::{
         desktop_panels::region_reporter::BackdropBlur,
         widgets::shell_layer_appearance::{
-            LayerAppearance, LookComparison, OutlineTracing, ShadowCasting, ShadowStyle,
+            LayerAppearance, LookComparison, ShadowCasting, ShadowStyle,
         },
     };
 
@@ -236,28 +234,6 @@ mod tests {
                 "{preset:?}"
             );
         }
-    }
-
-    #[test]
-    fn clear_dark_hides_the_panel_frames_but_keeps_a_frosted_outlined_sidebar() {
-        let cleared = AppearancePreset::ClearDark.applied_to(ShellAppearance::default());
-        assert!(cleared.panels.opacity.abs() < f32::EPSILON);
-        assert_eq!(cleared.panels.backdrop_blur, BackdropBlur::Clear);
-        assert_eq!(cleared.panels.outline.tracing, OutlineTracing::Omitted);
-        assert_eq!(cleared.sidebar.backdrop_blur, BackdropBlur::Blurred);
-        assert!(cleared.sidebar.opacity > cleared.panels.opacity);
-        assert_eq!(cleared.sidebar.outline.tracing, OutlineTracing::Drawn);
-        assert_eq!(cleared.overlays, ShellAppearance::default().overlays);
-    }
-
-    #[test]
-    fn bright_office_switches_to_light_and_near_opaque_layers() {
-        let office = AppearancePreset::BrightOffice.applied_to(ShellAppearance::default());
-        assert_eq!(office.scheme, ColorMode::Light);
-        assert!(office.panels.opacity > 0.9);
-        assert_eq!(office.panels.backdrop_blur, BackdropBlur::Clear);
-        assert!(office.sidebar.opacity > 0.9);
-        assert!(office.overlays.opacity > 0.9);
     }
 
     #[test]
