@@ -1,3 +1,4 @@
+use iced::Rectangle;
 use sottomano_desktop_sources::desktop_notifications::{
     freedesktop_notification_server::NotificationSignals,
     notification_data::{NotificationData, ServerEvent},
@@ -39,6 +40,10 @@ pub enum NotificationMessage {
     OpenFile(u32),
     CopyFilePath(u32),
     ExpiryDue,
+    CardsLaidOut {
+        output: String,
+        toast_cards: Vec<Rectangle>,
+    },
 }
 
 impl From<ServerEvent> for NotificationMessage {

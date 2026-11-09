@@ -7,7 +7,7 @@ use sottomano_toml_config::{Config, screen_edges::Position};
 
 use crate::{
     desktop_panels::region_reporter::{
-        BackdropBlur, PointerInput, RegionRoles, report_input_across,
+        BackdropBlur, PointerInput, RegionRoles, report_input_across_except,
     },
     hover_cards::hover_card_transition::ShownTarget,
     widgets::{shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade},
@@ -18,6 +18,21 @@ pub struct PopupAppearances {
     pub overlay: LayerAppearance,
     pub menu: LayerAppearance,
     pub background_fade: CardBackgroundFade,
+}
+
+pub struct PressCatcher<Message> {
+    pub outside_press: OutsidePress<Message>,
+    pub catch_area_holes: Vec<Rectangle>,
+}
+
+impl<Message> PressCatcher<Message> {
+    #[must_use]
+    pub fn without_holes(outside_press: OutsidePress<Message>) -> Self {
+        Self {
+            outside_press,
+            catch_area_holes: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -37,6 +52,7 @@ fn popup_side_of(position: Position) -> PopupSide {
 fn report_shell_regions(
     regions: &PopupRegions,
     backdrop_blur: BackdropBlur,
+    catch_area_holes: &[Rectangle],
     operation: &mut dyn Operation,
 ) {
     let roles = RegionRoles {
@@ -48,10 +64,9 @@ fn report_shell_regions(
         backdrop_blur,
         corner_radius: Radius::default(),
     };
-    roles.report(&regions.surface_rows, regions.bounds, operation);
     if regions.captures_outside_presses {
         let bounds = regions.bounds;
-        report_input_across(
+        report_input_across_except(
             Rectangle::new(
                 Point::ORIGIN,
                 Size::new(
@@ -59,9 +74,11 @@ fn report_shell_regions(
                     2.0f32.mul_add(bounds.y, bounds.height),
                 ),
             ),
+            catch_area_holes,
             operation,
         );
     }
+    roles.report(&regions.surface_rows, regions.bounds, operation);
 }
 
 #[must_use]
@@ -70,10 +87,14 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
     anchor: Rectangle,
     position: Position,
     morph: PopupMorph,
-    outside_press: OutsidePress<Message>,
+    press_catcher: PressCatcher<Message>,
     config: &Config,
     appearances: PopupAppearances,
 ) -> Element<'a, Message> {
+    let PressCatcher {
+        outside_press,
+        catch_area_holes,
+    } = press_catcher;
     let shows_menu = renderings.iter().any(|rendering| {
         rendering.arrival == PopupArrival::Incoming
             && matches!(rendering.framing, PopupFraming::LeadingSurface(_))
@@ -103,7 +124,7 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
         .outside_press(outside_press)
         .report_regions(move |regions, operation| {
             let backdrop_blur = appearance_over(regions.popup_bounds).backdrop_blur;
-            report_shell_regions(&regions, backdrop_blur, operation);
+            report_shell_regions(&regions, backdrop_blur, &catch_area_holes, operation);
         })
         .identified_by(shown)
         .into()
@@ -123,7 +144,7 @@ mod tests {
 
     use super::{
         CardBackgroundFade, OutsidePress, PopupAppearances, PopupFraming, PopupMorph,
-        PopupRendering, anchored_popup,
+        PopupRendering, PressCatcher, anchored_popup,
     };
     use crate::{
         clock::Clock,
@@ -206,10 +227,10 @@ mod tests {
             Rectangle::new(Point::new(20.0, 0.0), Size::new(20.0, 20.0)),
             Position::Top,
             workspace_morph(),
-            OutsidePress::Dismisses {
+            PressCatcher::without_holes(OutsidePress::Dismisses {
                 dismissal: PressedOutside,
                 reachable_below: vec![HANDLE_BELOW_POPUP],
-            },
+            }),
             config,
             PopupAppearances {
                 overlay: appearance,
@@ -342,10 +363,10 @@ mod tests {
                 duration: Duration::from_millis(10),
                 shown: ShownTarget::Nothing,
             },
-            OutsidePress::Dismisses {
+            PressCatcher::without_holes(OutsidePress::Dismisses {
                 dismissal: PressedOutside,
                 reachable_below: Vec::new(),
-            },
+            }),
             &config,
             PopupAppearances {
                 overlay: ShellLayer::Overlays.default_appearance(),
@@ -366,7 +387,7 @@ mod tests {
             Rectangle::new(Point::new(20.0, 0.0), Size::new(20.0, 20.0)),
             Position::Top,
             workspace_morph(),
-            OutsidePress::PassesThrough,
+            PressCatcher::without_holes(OutsidePress::PassesThrough),
             &config,
             PopupAppearances {
                 overlay: appearance,

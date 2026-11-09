@@ -36,6 +36,7 @@ use crate::{
 impl<'a> WindowAnchoredToasts<'a> {
     #[must_use]
     pub fn new(
+        output: &str,
         toasts: Vec<AnchoredToast<'a>>,
         panel_clearance: Padding,
         overlays: &LayerAppearance,
@@ -45,6 +46,7 @@ impl<'a> WindowAnchoredToasts<'a> {
         let card = &config.notification_toasts.card;
         toasts.into_iter().fold(
             Self {
+                output: output.to_owned(),
                 panel_clearance,
                 card_roles: RegionRoles {
                     pointer_input: PointerInput::Accepted,
@@ -79,6 +81,7 @@ impl<'a> From<WindowAnchoredToasts<'a>> for Element<'a, NotificationMessage> {
 }
 
 pub struct WindowAnchoredToasts<'a> {
+    output: String,
     panel_clearance: Padding,
     card_roles: RegionRoles,
     ids: Vec<u32>,
@@ -128,6 +131,7 @@ struct FieldState {
     order: ChildOrder,
     drift: Drifts,
     frame: Option<Instant>,
+    published_cards: Vec<Rectangle>,
 }
 
 #[derive(Default)]
@@ -380,6 +384,14 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
             return;
         };
         let state = tree.state.downcast_mut::<FieldState>();
+        let laid_out_cards: Vec<Rectangle> = card_rects(layout).collect();
+        if state.published_cards != laid_out_cards {
+            state.published_cards.clone_from(&laid_out_cards);
+            shell.publish(NotificationMessage::CardsLaidOut {
+                output: self.output.clone(),
+                toast_cards: laid_out_cards,
+            });
+        }
         if state.frame == Some(*frame) {
             shell.request_redraw();
             return;
@@ -432,5 +444,69 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
             viewport,
             translation,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iced::{
+        Event, Padding, Settings, Size,
+        time::Duration,
+        widget::{container, text},
+        window,
+    };
+    use iced_test::Simulator;
+    use sottomano_toml_config::{
+        Config,
+        screen_edges::{HEdge, VEdge},
+    };
+
+    use super::WindowAnchoredToasts;
+    use crate::{
+        clock::Clock,
+        notification_toasts::toast_placement::{AnchoredToast, ToastAnchor},
+        toast_messages::NotificationMessage,
+        widgets::{
+            motion_state::MotionState, shell_layer_appearance::ShellLayer,
+            typing_under_cards::CardBackgroundFade,
+        },
+    };
+
+    #[test]
+    fn unchanged_card_bounds_are_published_once() {
+        let config = Config::default();
+        let single_toast = AnchoredToast {
+            id: 1,
+            anchor: ToastAnchor::Edge {
+                vertical: VEdge::Top,
+                horizontal: HEdge::Right,
+            },
+            card: container(text("build finished")).padding(20).into(),
+            motion: MotionState::Settled,
+        };
+        let toasts = WindowAnchoredToasts::new(
+            "DP-1",
+            vec![single_toast],
+            Padding::ZERO,
+            &ShellLayer::Overlays.default_appearance(),
+            CardBackgroundFade::Resting,
+            &config,
+        );
+        let mut simulator =
+            Simulator::with_size(Settings::default(), Size::new(1200.0, 800.0), toasts);
+        let first_frame = Clock::real().instant;
+        let _redrawn = simulator.simulate((0..3).map(|frame_index| {
+            Event::Window(window::Event::RedrawRequested(
+                first_frame + Duration::from_millis(16 * frame_index),
+            ))
+        }));
+        let published_card_counts: Vec<usize> = simulator
+            .into_messages()
+            .filter_map(|message| match message {
+                NotificationMessage::CardsLaidOut { toast_cards, .. } => Some(toast_cards.len()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(published_card_counts, [1]);
     }
 }

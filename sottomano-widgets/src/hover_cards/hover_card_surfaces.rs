@@ -17,7 +17,7 @@ use crate::{
         HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator, PointerPresence,
         PopupMessage, WidgetAnchor,
         anchored_popup::{
-            OutsidePress, PopupAppearances, PopupFraming, PopupMorph, PopupRendering,
+            OutsidePress, PopupAppearances, PopupFraming, PopupMorph, PopupRendering, PressCatcher,
             anchored_popup,
         },
         hover_card_body::hover_card_source_delivery::HoverCard,
@@ -54,6 +54,7 @@ pub struct HoverCardHost {
     pointer_over_hover_card: bool,
     keyboard_grab: Option<Id>,
     laid_out_anchors: LaidOutAnchors,
+    toast_cards_by_output: BTreeMap<String, Vec<Rectangle>>,
 }
 
 impl HoverCardHost {
@@ -76,6 +77,13 @@ impl HoverCardHost {
                 announcement,
             } => {
                 self.transition.revise_announcement(&target, announcement);
+                None
+            }
+            HoverCardMessage::ToastCardsLaidOut {
+                output,
+                toast_cards,
+            } => {
+                self.toast_cards_by_output.insert(output, toast_cards);
                 None
             }
             HoverCardMessage::Enter { .. }
@@ -376,8 +384,13 @@ impl HoverCardHost {
         Task::batch(released.into_iter().chain(grabbed))
     }
 
+    pub fn forget_toast_cards(&mut self, output: &str) {
+        self.toast_cards_by_output.remove(output);
+    }
+
     pub fn forget_output(&mut self, output: &str) {
         self.laid_out_anchors.forget_output(output);
+        self.forget_toast_cards(output);
         if self
             .transition
             .placement()
@@ -408,13 +421,22 @@ impl HoverCardHost {
         ))
     }
 
-    fn outside_press_on<Message: From<PopupMessage>>(&self, output: &str) -> OutsidePress<Message> {
+    fn press_catcher_on<Message: From<PopupMessage>>(&self, output: &str) -> PressCatcher<Message> {
         if self.transition.shown_retention() != CardRetention::UntilDismissed {
-            return OutsidePress::PassesThrough;
+            return PressCatcher::without_holes(OutsidePress::PassesThrough);
         }
-        OutsidePress::Dismisses {
-            dismissal: Message::from(PopupMessage::HoverCard(HoverCardMessage::DismissHeldOpen)),
-            reachable_below: self.laid_out_anchors.menu_handles_on(output),
+        PressCatcher {
+            outside_press: OutsidePress::Dismisses {
+                dismissal: Message::from(PopupMessage::HoverCard(
+                    HoverCardMessage::DismissHeldOpen,
+                )),
+                reachable_below: self.laid_out_anchors.menu_handles_on(output),
+            },
+            catch_area_holes: self
+                .toast_cards_by_output
+                .get(output)
+                .cloned()
+                .unwrap_or_default(),
         }
     }
 
@@ -466,7 +488,7 @@ impl HoverCardHost {
                     duration: config.overlay_surfaces.surface_morph_duration,
                     shown: ShownTarget::Nothing,
                 },
-                self.outside_press_on(output),
+                self.press_catcher_on(output),
                 config,
                 PopupAppearances {
                     overlay: surface_style.overlay_appearance,
@@ -504,7 +526,7 @@ impl HoverCardHost {
                 duration: config.overlay_surfaces.surface_morph_duration,
                 shown: self.transition.shown_target(),
             },
-            self.outside_press_on(output),
+            self.press_catcher_on(output),
             config,
             PopupAppearances {
                 overlay: surface_style.overlay_appearance,

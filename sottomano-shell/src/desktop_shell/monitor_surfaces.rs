@@ -354,7 +354,9 @@ impl DesktopShell {
             .map(|(id, _)| id)
             .collect();
         let closes = emptied_surfaces.into_iter().map(|id| {
-            self.surfaces.remove(&id);
+            if let Some(emptied) = self.surfaces.remove(&id) {
+                self.hover_card.forget_toast_cards(&emptied.output);
+            }
             Task::done(Message::RemoveWindow(id))
         });
         let closes: Vec<Task<Message>> = closes.collect();

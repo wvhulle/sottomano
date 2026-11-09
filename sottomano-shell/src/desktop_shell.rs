@@ -459,6 +459,9 @@ impl DesktopShell {
             | Message::NewInputPanel { .. }
             | Message::RemoveWindow(_)
             | Message::RedrawWindow(_)
+            | Message::SetForeignParent { .. }
+            | Message::ExportToplevel { .. }
+            | Message::UnexportToplevel(_)
             | Message::ForgetLastOutput => Task::none(),
         }
     }
