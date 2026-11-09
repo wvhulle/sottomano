@@ -4,8 +4,10 @@ pub mod block_filesystem_mounts;
 pub mod btrfs_filesystem_space;
 pub mod disk_io_activity;
 pub mod drive_temperature_health;
+pub mod ext4_sysfs_counters;
 pub mod filesystem_device_errors;
 pub mod mounted_filesystem_usage;
+pub mod udev_volume_identity;
 pub mod whole_disk_space_occupancy;
 
 use std::{fs, path::Path, str::FromStr};
