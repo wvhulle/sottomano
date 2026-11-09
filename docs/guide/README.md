@@ -52,7 +52,8 @@ The Appearance and Behaviour menus and the workspaces on the left; the windows i
 - [Windows and workspaces](windows-and-workspaces.md): previews, the window list and the process inspector.
 - [Idle and session](idle-and-session.md): idle timeouts and the login session.
 - [AI usage](ai-usage.md): subscription windows, billing block and spend.
-- [Virtual machines and containers](virtual-machines.md): running QEMU and libvirt machines, systemd-nspawn containers with a switch to start or stop them, and the containers in each Podman engine.
+- [Network](network.md): WireGuard tunnels with a switch to connect or disconnect them, and who may reach this machine over Tailscale.
+- [Virtual machines, containers and CI runs](virtual-machines.md): running QEMU and libvirt machines, systemd-nspawn containers with a switch to start or stop them, the containers in each Podman engine and the runs of local CI runners.
 - [Appearance](appearance.md): the looks and how to switch them.
 
 ## Notification toasts
