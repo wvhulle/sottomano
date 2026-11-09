@@ -137,11 +137,7 @@ impl PhysicalDriveGroup {
             || first_delivery::<BlockFilesystemDiscovery>(()).map(DriveMessage::Discovered);
         match target {
             DriveTarget::MountDiscovery => discover(),
-            DriveTarget::Space(name)
-            | DriveTarget::BcachefsMember {
-                disk: name,
-                ..
-            } => {
+            DriveTarget::Space(name) | DriveTarget::BcachefsMember { disk: name, .. } => {
                 let Some(disk) = disk_named(name) else {
                     return discover();
                 };

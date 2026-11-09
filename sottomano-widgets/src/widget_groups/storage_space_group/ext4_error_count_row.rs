@@ -4,7 +4,9 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,
-    group_items::{group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState},
+    group_items::{
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+    },
     hover_cards::hover_card_body::HoverCardBody,
     widgets::{
         icon_glyph::IconGlyph,
@@ -40,7 +42,9 @@ impl GroupItemReading for Ext4ErrorCountRow {
     fn badge(&self) -> Option<u32> {
         match self.recorded_errors {
             RecordedErrors::Clean => None,
-            RecordedErrors::Recorded { count, .. } => Some(u32::try_from(count).unwrap_or(u32::MAX)),
+            RecordedErrors::Recorded { count, .. } => {
+                Some(u32::try_from(count).unwrap_or(u32::MAX))
+            }
         }
     }
 
