@@ -35,7 +35,7 @@ use super::{
 };
 use crate::{
     background_work::compositor_request,
-    hover_cards::{PointerPresence, PopupMessage},
+    hover_cards::{HoverCardMessage, PointerPresence, PopupMessage},
     layer_surfaces::{ActivationTokenOutcome, activation_token_request},
     notification_toasts::{
         NotificationSettings, ToastLayerHost,
@@ -129,6 +129,15 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             }
             NotificationMessage::OpenFile(id) => self.open_previewed_file(id, context),
             NotificationMessage::CopyFilePath(id) => self.copy_previewed_file_path(id),
+            NotificationMessage::CardsLaidOut {
+                output,
+                toast_cards,
+            } => Task::done(Routed::from(PopupMessage::HoverCard(
+                HoverCardMessage::ToastCardsLaidOut {
+                    output,
+                    toast_cards,
+                },
+            ))),
         }
     }
 

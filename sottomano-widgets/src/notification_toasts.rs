@@ -216,6 +216,7 @@ impl<Routed: Clone> NotificationLayer<Routed> {
             })
             .collect();
         WindowAnchoredToasts::new(
+            output,
             toasts,
             panel_clearance,
             &overlay_appearance,

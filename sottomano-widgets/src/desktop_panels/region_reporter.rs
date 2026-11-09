@@ -1,4 +1,4 @@
-use core::slice;
+use core::{iter, slice};
 
 use iced::{
     Element, Event, Length, Rectangle, Size, Vector,
@@ -72,7 +72,8 @@ impl RegionRoles {
                 .copied()
                 .filter(|rect| rect.width > 0.0 && rect.height > 0.0)
                 .chain([Rectangle::default()])
-                .filter_map(|rect| rect.try_into_region_action().ok())
+                .map(Rectangle::to_add)
+                .filter_map(Result::ok)
                 .collect(),
         )
     }
@@ -90,9 +91,20 @@ impl RegionRoles {
     }
 }
 
-pub(crate) fn report_input_across(surface: Rectangle, operation: &mut dyn Operation) {
-    let whole_surface = surface.try_into_region_action().into_iter().collect();
-    operation.custom(None, surface, &mut InputRegionActions(whole_surface));
+pub(crate) fn report_input_across_except(
+    surface: Rectangle,
+    holes: &[Rectangle],
+    operation: &mut dyn Operation,
+) {
+    let surface_without_holes = iter::once(surface.to_add())
+        .chain(holes.iter().copied().map(Rectangle::to_subtract))
+        .filter_map(Result::ok)
+        .collect();
+    operation.custom(
+        None,
+        surface,
+        &mut InputRegionActions(surface_without_holes),
+    );
 }
 
 pub(crate) fn replacing_blur_regions(rows: Vec<BlurRegion>) -> BlurRegions {
