@@ -24,6 +24,7 @@ pub enum WidgetGroupFamily {
     EthernetPorts,
     Gamepad,
     GlobalMenu,
+    GlobalMenuSwitch,
     Gpu,
     GroupMenuSettings,
     IdleTimeouts,
@@ -109,7 +110,9 @@ impl WidgetGroupFamily {
             WidgetGroupFamily::SystemdManager => "Systemd",
             WidgetGroupFamily::Tailnet => "Tailscale",
             WidgetGroupFamily::Tray => "Tray",
-            WidgetGroupFamily::GlobalMenu => "Application menu",
+            WidgetGroupFamily::GlobalMenu | WidgetGroupFamily::GlobalMenuSwitch => {
+                "Application menu"
+            }
             WidgetGroupFamily::VoiceDictation => "Voice dictation",
             WidgetGroupFamily::NetworkManagerVpns => "VPN",
             WidgetGroupFamily::Wallpaper => "Wallpaper",

@@ -186,7 +186,7 @@ impl DesktopShell {
     pub(super) fn update_global_menu(&mut self, msg: GlobalMenuMessage) -> Task<Message> {
         match self.widget_groups.global_menu_group.update(msg) {
             global_menu_group::Action::None => Task::none(),
-            global_menu_group::Action::Prepare(request) => self.send_global_menu_request(request),
+            global_menu_group::Action::Run(task) => task.map(Message::GlobalMenu),
             global_menu_group::Action::Activate(request) => Task::batch([
                 self.dismiss_hover_card(),
                 self.send_global_menu_request(request),

@@ -253,9 +253,10 @@ impl DesktopShell {
                     .hover_card_for(*target),
             ),
             HoverTarget::Tray(address) => self.widget_groups.tray_group.hover_card_for(address),
-            HoverTarget::GlobalMenu(target) => {
-                self.widget_groups.global_menu_group.hover_card_for(*target)
-            }
+            HoverTarget::GlobalMenu(target) => self
+                .widget_groups
+                .global_menu_group
+                .hover_card_for(target, self.clock),
             HoverTarget::Window(WindowTarget::Pick(window)) => {
                 WindowGroup::pick_hover_card(&self.compositor, *window, self.clock)
             }

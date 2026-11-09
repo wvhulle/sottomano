@@ -32,6 +32,14 @@ impl DesktopShell {
                     .into_iter()
                     .map(|group| group.map(Message::AppLauncher)),
             ),
+            GroupMenuTopic::ApplicationMenu => self.group_menu(
+                GroupMenuTopic::ApplicationMenu,
+                self.widget_groups
+                    .global_menu_group
+                    .group_contents()
+                    .into_iter()
+                    .map(|group| group.map(Message::GlobalMenu)),
+            ),
             GroupMenuTopic::Hardware => self.hardware_group_menu(),
             GroupMenuTopic::Network => self.network_group_menu(),
             GroupMenuTopic::Agenda => self.agenda_group_menu(),
@@ -96,11 +104,6 @@ impl DesktopShell {
                     window_placement.window_owned_by(owner).is_some()
                 })
                 .map(Message::Tray),
-            StandaloneWidgetGroup::GlobalMenu => self
-                .widget_groups
-                .global_menu_group
-                .group_content(config)
-                .map(Message::GlobalMenu),
         }
     }
 
@@ -266,7 +269,7 @@ impl DesktopShell {
         self.group_menu(GroupMenuTopic::Media, groups)
     }
 
-    fn settings_groups(&self) -> [WidgetGroupContent<'_, Message>; 5] {
+    fn settings_groups(&self) -> [WidgetGroupContent<'_, Message>; 6] {
         let config = &self.config;
         [
             self.widget_groups
@@ -289,6 +292,10 @@ impl DesktopShell {
                 .group_menus
                 .settings_content(config)
                 .map(Message::GroupMenuState),
+            self.widget_groups
+                .global_menu_group
+                .switch_content()
+                .map(Message::GlobalMenu),
         ]
     }
 

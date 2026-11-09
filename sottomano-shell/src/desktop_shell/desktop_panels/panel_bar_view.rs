@@ -9,6 +9,7 @@ use sottomano_widgets::{
         panel_frame::{OutlinedSides, outlined_sides_inward_of, panel_frame},
         region_reporter::{PointerInput, RegionRoles, region_reporter},
     },
+    group_menus::group_menu_state::GroupMenuTopic,
     hover_cards::HoverTarget,
     widget_groups::{
         panel_settings_group::PanelGroupFraming, sidebar_settings_group::WorkspacesPlacement,
@@ -60,6 +61,11 @@ impl DesktopShell {
     ) -> Vec<Element<'a, Message>> {
         let config = &self.config;
         match entry {
+            PanelZoneEntry::Menu(GroupMenuTopic::ApplicationMenu)
+                if !self.widget_groups.global_menu_group.shows_top_menus() =>
+            {
+                Vec::new()
+            }
             PanelZoneEntry::Menu(topic) => self
                 .group_menu_of(topic, output)
                 .panel_views(
