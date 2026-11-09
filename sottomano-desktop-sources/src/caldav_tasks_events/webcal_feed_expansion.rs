@@ -85,13 +85,11 @@ pub fn expanded_feed_events(
         return Err(FeedExpansionError::Unparseable);
     };
     Ok(series_calendars(&feed)
-        .iter()
-        .flat_map(|series| series_events(series, calendar_name, viewer_zone))
-        .filter(|event| event.window_overlap(window) == WindowOverlap::Overlapping)
+        .flat_map(|series| series_events_in_window(&series, calendar_name, viewer_zone, window))
         .collect())
 }
 
-fn series_calendars(feed: &ICalendar) -> Vec<ICalendar> {
+fn series_calendars(feed: &ICalendar) -> impl Iterator<Item = ICalendar> + '_ {
     let series_uids: BTreeSet<&str> = feed
         .components
         .iter()
@@ -107,9 +105,10 @@ fn series_calendars(feed: &ICalendar) -> Vec<ICalendar> {
         .for_each(|(uid, component)| components_by_uid.entry(uid).or_default().push(component));
     let shared_calendar = calendar_without_time_ranges(feed);
     components_by_uid
-        .values()
-        .map(|series_components| calendar_with_series(&shared_calendar, feed, series_components))
-        .collect()
+        .into_values()
+        .map(move |series_components| {
+            calendar_with_series(&shared_calendar, feed, &series_components)
+        })
 }
 
 fn calendar_without_time_ranges(feed: &ICalendar) -> ICalendar {
@@ -157,16 +156,18 @@ fn appended_component_id(
     u32::try_from(appended_index).unwrap_or(u32::MAX)
 }
 
-fn series_events(
+fn series_events_in_window(
     series: &ICalendar,
     calendar_name: &str,
     viewer_zone: CalendarZone,
+    window: EventWindow,
 ) -> Vec<UpcomingEvent> {
     series
         .expand_dates(viewer_zone, SERIES_EXPANSION_LIMIT)
         .events
         .into_iter()
         .filter_map(|occurrence| feed_event(series, &occurrence, calendar_name))
+        .filter(|event| event.window_overlap(window) == WindowOverlap::Overlapping)
         .collect()
 }
 
@@ -338,7 +339,7 @@ mod tests {
     #[test]
     fn each_series_keeps_only_its_own_event_and_alarm() {
         let feed = ICalendar::parse(feed_of_single_events(3)).unwrap();
-        let series_list = series_calendars(&feed);
+        let series_list: Vec<ICalendar> = series_calendars(&feed).collect();
         assert_eq!(series_list.len(), 3);
         for series in &series_list {
             let event_ids: Vec<u32> = series.components[0].component_ids.clone();
