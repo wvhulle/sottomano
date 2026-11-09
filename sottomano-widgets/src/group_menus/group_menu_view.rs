@@ -717,6 +717,7 @@ mod tests {
     enum RowPointerMessage {
         RowInspected(HoverTarget),
         RowAction,
+        Revealed(WidgetGroupIdentity),
         RevealIntended(WidgetGroupIdentity),
         RevealCancelled(WidgetGroupIdentity),
         Unrelated,
@@ -840,8 +841,13 @@ mod tests {
             .center()
     }
 
-    #[test]
-    fn pointing_across_a_cascading_group_row_intends_its_reveal_then_cancels_it() {
+    #[derive(Clone, Copy)]
+    enum PointerApproach {
+        StraightDown,
+        TowardTheSatellite,
+    }
+
+    fn compute_reveal_messages(approach: PointerApproach) -> Vec<RowPointerMessage> {
         let bench = MenuTestBench::default();
         let expansion = WidgetGroupExpansion::default();
         let group_menus = opened_menu_state(GroupMenuPresentation::default());
@@ -860,6 +866,9 @@ mod tests {
             GroupMenuTopic::Hardware,
             &group_menus,
             |message| match message {
+                GroupMenuMessage::RevealMenuGroup { group_identity, .. } => {
+                    RowPointerMessage::Revealed(group_identity)
+                }
                 GroupMenuMessage::IntendRevealMenuGroup { group_identity, .. } => {
                     RowPointerMessage::RevealIntended(group_identity)
                 }
@@ -888,19 +897,47 @@ mod tests {
             .visible_bounds()
             .expect("the group row is visible")
             .center();
-        for pointer in [row_center, Point::new(1190.0, 790.0)] {
+        let approach_start = match approach {
+            PointerApproach::StraightDown => Point::new(row_center.x, 0.0),
+            PointerApproach::TowardTheSatellite => {
+                Point::new((row_center.x - row_center.y).max(0.0), 0.0)
+            }
+        };
+        for pointer in [approach_start, row_center, Point::new(1190.0, 790.0)] {
             simulator.point_at(pointer);
             let _statuses = simulator.simulate([Event::Mouse(mouse::Event::CursorMoved {
                 position: pointer,
             })]);
         }
         let compute = WidgetGroupIdentity::sole(WidgetGroupFamily::Compute);
-        let reveal_messages: Vec<RowPointerMessage> = simulator
+        simulator
             .into_messages()
-            .filter(|message| *message != RowPointerMessage::Unrelated)
-            .collect();
+            .filter(|message| match message {
+                RowPointerMessage::Revealed(identity)
+                | RowPointerMessage::RevealIntended(identity)
+                | RowPointerMessage::RevealCancelled(identity) => *identity == compute,
+                _ => false,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn pointing_straight_down_onto_a_group_row_reveals_it_at_once() {
+        let compute = WidgetGroupIdentity::sole(WidgetGroupFamily::Compute);
         assert_eq!(
-            reveal_messages,
+            compute_reveal_messages(PointerApproach::StraightDown),
+            [
+                RowPointerMessage::Revealed(compute.clone()),
+                RowPointerMessage::RevealCancelled(compute)
+            ]
+        );
+    }
+
+    #[test]
+    fn crossing_a_group_row_toward_the_open_satellite_defers_its_reveal() {
+        let compute = WidgetGroupIdentity::sole(WidgetGroupFamily::Compute);
+        assert_eq!(
+            compute_reveal_messages(PointerApproach::TowardTheSatellite),
             [
                 RowPointerMessage::RevealIntended(compute.clone()),
                 RowPointerMessage::RevealCancelled(compute)

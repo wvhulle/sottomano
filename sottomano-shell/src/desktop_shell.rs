@@ -55,7 +55,7 @@ use sottomano_widgets::{
             cascade_row::{CascadeDirection, CascadeOrientation, growth_away_from},
             notched_panel::PanelGrowth,
         },
-        group_menu_state::{GroupMenuMessage, GroupMenuTopic},
+        group_menu_state::{GroupMenuMessage, GroupMenuTopic, OpenGroupMenu},
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
     },
     hover_cards::{
@@ -76,7 +76,7 @@ use sottomano_widgets::{
     },
 };
 
-use self::notification_updates::GroupAlertScan;
+use self::notification_updates::{AlertRescanNeed, GroupAlertScan, alert_rescan_need};
 use crate::{
     desktop_shell::{
         compositor_update_handling::{
@@ -182,6 +182,7 @@ impl DesktopShell {
         let hover_card_target_before = self.hover_card.target().cloned();
         let hovered_before = self.hovered_reading_target().cloned();
         let heat_effect = switch_heat_effect(&message);
+        let alert_rescan = alert_rescan_need(&message);
         let dispatched = self.dispatch_message(message);
         self.widget_groups
             .session_focus_group
@@ -203,28 +204,19 @@ impl DesktopShell {
         } else {
             self.retarget_hover_readings()
         };
-        let GroupAlertScan {
-            toast_requests,
-            promoted_groups,
-        } = self.scan_group_alerts();
         let open_menu = self.open_group_menu().map(|topic| {
             self.group_menu_of(topic, self.hovered_output())
                 .open_group_menu()
         });
-        self.widget_groups.group_menus.track_source_demand(
-            open_menu,
-            promoted_groups,
-            self.clock.instant,
-        );
-        let widget_toasts = self.notifications.show_widget_toasts(
-            toast_requests,
-            &self.widget_groups.toast_context(
-                &self.compositor,
-                self.desktop_entries.get(),
-                &self.config,
-                self.clock,
-            ),
-        );
+        let widget_toasts = match alert_rescan {
+            AlertRescanNeed::Rescans => self.rescan_group_alerts(open_menu),
+            AlertRescanNeed::Skips => {
+                self.widget_groups
+                    .group_menus
+                    .track_open_menu(open_menu, self.clock.instant);
+                Task::none()
+            }
+        };
         let overlay_surfaces = self.reconcile_overlay_surfaces();
         Task::batch([
             dispatched,
@@ -233,6 +225,27 @@ impl DesktopShell {
             widget_toasts,
             overlay_surfaces,
         ])
+    }
+
+    fn rescan_group_alerts(&mut self, open_menu: Option<OpenGroupMenu>) -> Task<Message> {
+        let GroupAlertScan {
+            toast_requests,
+            promoted_groups,
+        } = self.scan_group_alerts();
+        self.widget_groups.group_menus.track_source_demand(
+            open_menu,
+            promoted_groups,
+            self.clock.instant,
+        );
+        self.notifications.show_widget_toasts(
+            toast_requests,
+            &self.widget_groups.toast_context(
+                &self.compositor,
+                self.desktop_entries.get(),
+                &self.config,
+                self.clock,
+            ),
+        )
     }
 
     #[allow(clippy::too_many_lines)]

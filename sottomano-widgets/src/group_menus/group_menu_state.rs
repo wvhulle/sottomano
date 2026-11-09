@@ -279,6 +279,10 @@ impl GroupMenuState {
         now: Instant,
     ) {
         self.promoted_groups = promoted_groups;
+        self.track_open_menu(open_menu, now);
+    }
+
+    pub fn track_open_menu(&mut self, open_menu: Option<OpenGroupMenu>, now: Instant) {
         let open_topic = open_menu.as_ref().map(|menu| menu.topic);
         self.recently_open_menus.retain(|recent| {
             Some(recent.menu.topic) != open_topic

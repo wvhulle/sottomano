@@ -1,7 +1,7 @@
-use core::slice;
+use core::{mem::take, slice};
 
 use iced::{
-    Border, Element, Event, Length, Rectangle, Size, Theme, Vector,
+    Border, Element, Event, Length, Point, Rectangle, Size, Theme, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -12,37 +12,118 @@ use iced::{
 };
 
 use crate::{
-    group_menus::menu_rows::menu_row::{MenuRowLook, menu_row_background},
+    group_menus::{
+        cascading_layout::cascade_row::CascadeDirection,
+        menu_rows::menu_row::{MenuRowLook, menu_row_background},
+    },
     hover_cards::PointerPresence,
     widgets::configured_theme::text_color,
 };
 
+const TRAIL_STEP_PX: f32 = 4.0;
+const AIM_SLOPE: f32 = 2.0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SatelliteReach {
+    Open(CascadeDirection),
+    Closed,
+}
+
+pub(crate) enum RowHoverReaction<Message> {
+    Highlights,
+    Reveals {
+        reveal: Message,
+        defer_reveal: Message,
+        cancel_reveal: Message,
+        satellite_reach: SatelliteReach,
+    },
+}
+
 pub(crate) struct PointerTrackedRow<'a, Message> {
     body: Element<'a, Message>,
     look: MenuRowLook,
+    hover_reaction: RowHoverReaction<Message>,
 }
 
 impl<'a, Message: 'a> PointerTrackedRow<'a, Message> {
-    pub(crate) fn new(body: impl Into<Element<'a, Message>>, look: MenuRowLook) -> Self {
+    pub(crate) fn new(
+        body: impl Into<Element<'a, Message>>,
+        look: MenuRowLook,
+        hover_reaction: RowHoverReaction<Message>,
+    ) -> Self {
         Self {
             body: body.into(),
             look,
+            hover_reaction,
         }
     }
 }
 
-impl<'a, Message: 'a> From<PointerTrackedRow<'a, Message>> for Element<'a, Message> {
+impl<'a, Message: Clone + 'a> From<PointerTrackedRow<'a, Message>> for Element<'a, Message> {
     fn from(row: PointerTrackedRow<'a, Message>) -> Self {
         Element::new(row)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PointerAim {
+    TowardSatellite,
+    Elsewhere,
+}
+
+#[derive(Default)]
+enum PointerTrail {
+    #[default]
+    Unseen,
+    Arrived(Point),
+    Moving {
+        earlier: Point,
+        recent: Point,
+    },
+}
+
+impl PointerTrail {
+    fn recorded(self, position: Point) -> Self {
+        match self {
+            PointerTrail::Unseen => PointerTrail::Arrived(position),
+            PointerTrail::Arrived(recent) | PointerTrail::Moving { recent, .. }
+                if recent.distance(position) >= TRAIL_STEP_PX =>
+            {
+                PointerTrail::Moving {
+                    earlier: recent,
+                    recent: position,
+                }
+            }
+            unmoved => unmoved,
+        }
+    }
+
+    fn aim_at(&self, position: Point, satellite_reach: SatelliteReach) -> PointerAim {
+        let (PointerTrail::Moving { earlier, .. }, SatelliteReach::Open(direction)) =
+            (self, satellite_reach)
+        else {
+            return PointerAim::Elsewhere;
+        };
+        let toward_satellite = match direction {
+            CascadeDirection::Rightward => position.x - earlier.x,
+            CascadeDirection::Leftward => earlier.x - position.x,
+        };
+        if toward_satellite > 0.0 && toward_satellite * AIM_SLOPE >= (position.y - earlier.y).abs()
+        {
+            PointerAim::TowardSatellite
+        } else {
+            PointerAim::Elsewhere
+        }
     }
 }
 
 #[derive(Default)]
 struct RowPointerState {
     pointer_presence: PointerPresence,
+    trail: PointerTrail,
 }
 
-impl<Message> Widget<Message, Theme, iced::Renderer> for PointerTrackedRow<'_, Message> {
+impl<Message: Clone> Widget<Message, Theme, iced::Renderer> for PointerTrackedRow<'_, Message> {
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<RowPointerState>()
     }
@@ -98,10 +179,34 @@ impl<Message> Widget<Message, Theme, iced::Renderer> for PointerTrackedRow<'_, M
             PointerPresence::NotPointedAt
         };
         let state = tree.state.downcast_mut::<RowPointerState>();
-        if state.pointer_presence != pointer_presence {
-            state.pointer_presence = pointer_presence;
-            shell.request_redraw();
+        if let Some(position) = cursor.position() {
+            state.trail = take(&mut state.trail).recorded(position);
         }
+        if state.pointer_presence == pointer_presence {
+            return;
+        }
+        state.pointer_presence = pointer_presence;
+        shell.request_redraw();
+        let RowHoverReaction::Reveals {
+            reveal,
+            defer_reveal,
+            cancel_reveal,
+            satellite_reach,
+        } = &self.hover_reaction
+        else {
+            return;
+        };
+        let gesture = match (pointer_presence, cursor.position()) {
+            (PointerPresence::PointedAt, Some(position)) => {
+                match state.trail.aim_at(position, *satellite_reach) {
+                    PointerAim::TowardSatellite => defer_reveal,
+                    PointerAim::Elsewhere => reveal,
+                }
+            }
+            (PointerPresence::PointedAt, None) => reveal,
+            (PointerPresence::NotPointedAt, _) => cancel_reveal,
+        };
+        shell.publish(gesture.clone());
     }
 
     fn draw(
@@ -190,5 +295,53 @@ impl<Message> Widget<Message, Theme, iced::Renderer> for PointerTrackedRow<'_, M
             viewport,
             translation,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iced::Point;
+
+    use super::{PointerAim, PointerTrail, SatelliteReach};
+    use crate::group_menus::cascading_layout::cascade_row::CascadeDirection;
+
+    const ENTERED_LEFT: Point = Point::new(20.0, 40.0);
+    const ENTERED_RIGHT: Point = Point::new(80.0, 40.0);
+
+    fn aim_from_above(entered_at: Point, satellite_reach: SatelliteReach) -> PointerAim {
+        PointerTrail::default()
+            .recorded(Point::new(50.0, 10.0))
+            .recorded(entered_at)
+            .aim_at(entered_at, satellite_reach)
+    }
+
+    #[test]
+    fn moving_away_from_the_satellite_does_not_aim_at_it() {
+        assert_eq!(
+            aim_from_above(
+                ENTERED_LEFT,
+                SatelliteReach::Open(CascadeDirection::Rightward)
+            ),
+            PointerAim::Elsewhere
+        );
+    }
+
+    #[test]
+    fn without_an_open_satellite_nothing_is_aimed_at() {
+        assert_eq!(
+            aim_from_above(ENTERED_RIGHT, SatelliteReach::Closed),
+            PointerAim::Elsewhere
+        );
+    }
+
+    #[test]
+    fn a_leftward_satellite_is_aimed_at_by_moving_left() {
+        assert_eq!(
+            aim_from_above(
+                ENTERED_LEFT,
+                SatelliteReach::Open(CascadeDirection::Leftward)
+            ),
+            PointerAim::TowardSatellite
+        );
     }
 }

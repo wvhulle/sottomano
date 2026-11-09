@@ -3,13 +3,13 @@ use std::borrow::Cow;
 use iced::{
     Alignment, Color, Element, Length, Padding, Theme,
     border::Radius,
-    widget::{Row, button, container, mouse_area, text::Wrapping},
+    widget::{Row, button, container, text::Wrapping},
 };
 use sottomano_toml_config::Config;
 
 use crate::{
     group_items::group_item::MenuParts,
-    group_menus::menu_rows::pointer_tracked_row::PointerTrackedRow,
+    group_menus::menu_rows::pointer_tracked_row::{PointerTrackedRow, RowHoverReaction},
     hover_cards::PointerPresence,
     widget_groups::widget_group_content::{GroupEvent, RowInspection},
     widgets::{
@@ -61,6 +61,7 @@ pub(crate) fn menu_row<'a, Message: Clone + 'a>(
     content: MenuRowContent<'a, Message>,
     look: MenuRowLook,
     press: MenuRowPress<Message>,
+    hover_reaction: RowHoverReaction<GroupEvent<Message>>,
 ) -> Element<'a, GroupEvent<Message>> {
     let line = menu_line(config, content);
     let body: Element<'a, GroupEvent<Message>> = match press {
@@ -77,26 +78,7 @@ pub(crate) fn menu_row<'a, Message: Clone + 'a>(
             .on_press(press_event)
             .into(),
     };
-    PointerTrackedRow::new(body, look).into()
-}
-
-pub(crate) fn hovered_menu_row<'a, Message: Clone + 'a>(
-    config: &'a Config,
-    content: MenuRowContent<'a, Message>,
-    look: MenuRowLook,
-    press_event: GroupEvent<Message>,
-    pointer_entered: GroupEvent<Message>,
-    pointer_left: GroupEvent<Message>,
-) -> Element<'a, GroupEvent<Message>> {
-    mouse_area(menu_row(
-        config,
-        content,
-        look,
-        MenuRowPress::Performs(press_event),
-    ))
-    .on_enter(pointer_entered)
-    .on_exit(pointer_left)
-    .into()
+    PointerTrackedRow::new(body, look, hover_reaction).into()
 }
 
 fn menu_line<'a, M: 'a>(

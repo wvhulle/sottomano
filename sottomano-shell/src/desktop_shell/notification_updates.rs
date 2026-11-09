@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use iced::{Task, window::Id};
 use sottomano_widgets::{
-    group_menus::group_menu_state::AlertPromotedGroup,
+    group_menus::group_menu_state::{AlertPromotedGroup, GroupMenuMessage},
     notification_toasts::ToastContext,
     toast_messages::NotificationMessage,
     widget_groups::{
@@ -22,6 +22,35 @@ use crate::{
     },
     shell_message::Message,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum AlertRescanNeed {
+    Rescans,
+    Skips,
+}
+
+pub(super) fn alert_rescan_need(message: &Message) -> AlertRescanNeed {
+    match message {
+        Message::HoverCard(_)
+        | Message::GroupMenuState(
+            GroupMenuMessage::InspectRow { .. }
+            | GroupMenuMessage::IntendRevealMenuGroup { .. }
+            | GroupMenuMessage::CancelRevealIntent { .. }
+            | GroupMenuMessage::RevealIntentElapsed
+            | GroupMenuMessage::RevealMenuGroup { .. }
+            | GroupMenuMessage::ToggleMenuGroup { .. }
+            | GroupMenuMessage::MenuScrolled { .. }
+            | GroupMenuMessage::ItemListScrolled { .. },
+        )
+        | Message::Redraw
+        | Message::HoverCardFadeElapsed
+        | Message::HoverCardHideElapsed
+        | Message::PointerLeft
+        | Message::SurfacePressed(_)
+        | Message::TypingUnderCards(_) => AlertRescanNeed::Skips,
+        _ => AlertRescanNeed::Rescans,
+    }
+}
 
 pub(super) struct GroupAlertScan {
     pub toast_requests: GroupToastRequests<Message>,
