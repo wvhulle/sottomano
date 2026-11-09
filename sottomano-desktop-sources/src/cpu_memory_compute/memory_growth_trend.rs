@@ -11,6 +11,9 @@ use procfs::{
     Current, Meminfo, WithCurrentSystemInfo,
     process::{Process, all_processes},
 };
+use sottomano_toml_config::{
+    severity::Severity, widget_groups::memory_growth_trend::MemoryGrowthTrendConfig,
+};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -25,14 +28,13 @@ use crate::{
 
 const SHOWN_GROWING_PROCESSES: usize = 3;
 const GROWTH_POLL_PERIOD: Duration = Duration::from_secs(2);
-const TREND_WINDOW: Duration = Duration::from_secs(120);
-const TREND_MINIMUM_SPAN: Duration = Duration::from_secs(60);
 const PROCESS_SCAN_HORIZON: Duration = Duration::from_secs(600);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemoryGrowth {
     pub used_per_minute: Option<ByteSize>,
     pub exhaustion_projection: Option<Duration>,
+    pub filling_severity: Severity,
     pub growing_processes: Vec<GrowingMemoryProcess>,
 }
 
@@ -46,30 +48,48 @@ pub struct GrowingMemoryProcess {
 
 impl SnapshotSource for MemoryGrowth {
     type Error = Error;
-    type StreamInputs = ();
+    type StreamInputs = MemoryGrowthTrendConfig;
 
     const NAME: &'static str = "RAM growth";
 
     fn delivery_stream(
-        (): Self::StreamInputs,
+        trend_config: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let trend_window = Arc::new(Mutex::new(MemoryTrendWindow::default()));
+        let trend_window = Arc::new(Mutex::new(MemoryTrendWindow::spanning(
+            trend_config.trend_window,
+        )));
         PeriodicPolling::every(GROWTH_POLL_PERIOD).blocking_poll_deliveries(move || {
             let mut window = trend_window.lock().unwrap_or_else(PoisonError::into_inner);
-            read_memory_growth(&mut window, Instant::now())
+            read_memory_growth(&mut window, &trend_config, Instant::now())
         })
     }
 }
 
-fn read_memory_growth(window: &mut MemoryTrendWindow, now: Instant) -> Result<MemoryGrowth, Error> {
+fn filling_severity_of(
+    exhaustion_projection: Option<Duration>,
+    trend_config: &MemoryGrowthTrendConfig,
+) -> Severity {
+    match exhaustion_projection {
+        Some(remaining) if remaining < trend_config.critical_when_full_within => Severity::Critical,
+        Some(remaining) if remaining < trend_config.warning_when_full_within => Severity::Warning,
+        _ => Severity::Normal,
+    }
+}
+
+fn read_memory_growth(
+    window: &mut MemoryTrendWindow,
+    trend_config: &MemoryGrowthTrendConfig,
+    now: Instant,
+) -> Result<MemoryGrowth, Error> {
     let usage = read_used_and_headroom()?;
     let rising_per_second = window
         .record_used(now, usage.used)
         .filter(|bytes_per_second| *bytes_per_second > 0.0);
     let exhaustion_projection = rising_per_second
         .and_then(|bytes_per_second| projected_exhaustion(usage.headroom, bytes_per_second));
+    let process_scan_horizon = PROCESS_SCAN_HORIZON.max(trend_config.warning_when_full_within);
     let growing_processes =
-        if exhaustion_projection.is_some_and(|remaining| remaining < PROCESS_SCAN_HORIZON) {
+        if exhaustion_projection.is_some_and(|remaining| remaining < process_scan_horizon) {
             window
                 .record_residents(now, resident_by_process()?)
                 .into_iter()
@@ -83,6 +103,7 @@ fn read_memory_growth(window: &mut MemoryTrendWindow, now: Instant) -> Result<Me
         used_per_minute: rising_per_second
             .map(|bytes_per_second| ByteSize::b((bytes_per_second * 60.0) as u64)),
         exhaustion_projection,
+        filling_severity: filling_severity_of(exhaustion_projection, trend_config),
         growing_processes,
     })
 }
@@ -114,17 +135,26 @@ struct ProcessResident {
     resident: ByteSize,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct MemoryTrendWindow {
+    window_length: Duration,
     used_samples: VecDeque<(Instant, ByteSize)>,
     resident_snapshots: VecDeque<(Instant, HashMap<ProcessIncarnation, ByteSize>)>,
 }
 
 impl MemoryTrendWindow {
+    fn spanning(window_length: Duration) -> Self {
+        Self {
+            window_length,
+            used_samples: VecDeque::new(),
+            resident_snapshots: VecDeque::new(),
+        }
+    }
+
     fn record_used(&mut self, now: Instant, used: ByteSize) -> Option<f64> {
         self.used_samples.push_back((now, used));
-        drop_samples_outside_window(&mut self.used_samples, now);
-        used_bytes_per_second(&self.used_samples)
+        drop_samples_outside_window(&mut self.used_samples, self.window_length, now);
+        used_bytes_per_second(&self.used_samples, self.window_length / 2)
     }
 
     fn record_residents(
@@ -132,7 +162,7 @@ impl MemoryTrendWindow {
         now: Instant,
         residents: Vec<ProcessResident>,
     ) -> Vec<GrowingMemoryProcess> {
-        drop_samples_outside_window(&mut self.resident_snapshots, now);
+        drop_samples_outside_window(&mut self.resident_snapshots, self.window_length, now);
         let growing = self
             .resident_snapshots
             .front()
@@ -155,19 +185,26 @@ impl MemoryTrendWindow {
     }
 }
 
-fn drop_samples_outside_window<Sample>(samples: &mut VecDeque<(Instant, Sample)>, now: Instant) {
+fn drop_samples_outside_window<Sample>(
+    samples: &mut VecDeque<(Instant, Sample)>,
+    window_length: Duration,
+    now: Instant,
+) {
     while samples
         .front()
-        .is_some_and(|(sampled_at, _)| now.saturating_duration_since(*sampled_at) > TREND_WINDOW)
+        .is_some_and(|(sampled_at, _)| now.saturating_duration_since(*sampled_at) > window_length)
     {
         samples.pop_front();
     }
 }
 
-fn used_bytes_per_second(samples: &VecDeque<(Instant, ByteSize)>) -> Option<f64> {
+fn used_bytes_per_second(
+    samples: &VecDeque<(Instant, ByteSize)>,
+    minimum_span: Duration,
+) -> Option<f64> {
     let (first_at, _) = *samples.front()?;
     let (last_at, _) = *samples.back()?;
-    if last_at.saturating_duration_since(first_at) < TREND_MINIMUM_SPAN {
+    if last_at.saturating_duration_since(first_at) < minimum_span {
         return None;
     }
     let points: Vec<(f64, f64)> = samples
@@ -264,7 +301,8 @@ mod tests {
 
     fn projection_after(used_mebibytes: &[u64], headroom_mebibytes: u64) -> Option<Duration> {
         let start = Instant::now();
-        let mut window = MemoryTrendWindow::default();
+        let mut window =
+            MemoryTrendWindow::spanning(MemoryGrowthTrendConfig::default().trend_window);
         used_mebibytes
             .iter()
             .zip(0u64..)
@@ -321,6 +359,24 @@ mod tests {
     }
 
     #[test]
+    fn severity_follows_the_configured_thresholds() {
+        let trend_config = MemoryGrowthTrendConfig::default();
+        assert_eq!(filling_severity_of(None, &trend_config), Severity::Normal);
+        assert_eq!(
+            filling_severity_of(Some(Duration::from_mins(10)), &trend_config),
+            Severity::Normal
+        );
+        assert_eq!(
+            filling_severity_of(Some(Duration::from_mins(3)), &trend_config),
+            Severity::Warning
+        );
+        assert_eq!(
+            filling_severity_of(Some(Duration::from_secs(30)), &trend_config),
+            Severity::Critical
+        );
+    }
+
+    #[test]
     fn free_swap_counts_as_headroom() {
         let rising = steadily_rising_mebibytes(5_000, 100, 31);
         let ram_only = projection_after(&rising, 8_000).expect("rising usage projects");
@@ -332,10 +388,11 @@ mod tests {
     #[test]
     fn samples_older_than_the_window_stop_counting() {
         let start = Instant::now();
-        let mut window = MemoryTrendWindow::default();
+        let mut window =
+            MemoryTrendWindow::spanning(MemoryGrowthTrendConfig::default().trend_window);
         window.record_used(start, ByteSize::mib(1_000));
         window.record_used(
-            start + TREND_WINDOW + Duration::from_secs(1),
+            start + MemoryGrowthTrendConfig::default().trend_window + Duration::from_secs(1),
             ByteSize::mib(2_000),
         );
         assert_eq!(window.used_samples.len(), 1);
@@ -344,7 +401,8 @@ mod tests {
     #[test]
     fn growth_is_ranked_and_measured_per_minute() {
         let start = Instant::now();
-        let mut window = MemoryTrendWindow::default();
+        let mut window =
+            MemoryTrendWindow::spanning(MemoryGrowthTrendConfig::default().trend_window);
         let first = window.record_residents(
             start,
             vec![
@@ -375,7 +433,8 @@ mod tests {
     #[test]
     fn a_reused_pid_is_not_growth() {
         let start = Instant::now();
-        let mut window = MemoryTrendWindow::default();
+        let mut window =
+            MemoryTrendWindow::spanning(MemoryGrowthTrendConfig::default().trend_window);
         window.record_residents(start, vec![resident_sample(7, 100, 100)]);
         let growing = window.record_residents(
             start + Duration::from_secs(10),

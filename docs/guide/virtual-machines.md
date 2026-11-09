@@ -1,4 +1,4 @@
-# Virtual machines and nspawn containers
+# Virtual machines and containers
 
 ## Services: Virtual machines
 
@@ -15,3 +15,9 @@ Every systemd-nspawn container on this computer, one row each, including NixOS c
 Pressing the switch on a row starts or stops the container's service. Containers are system services, so this needs your user in the system module's `nspawnContainerControllers` (or another polkit rule that lets it manage these units); otherwise the switch falls back to the state it had.
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/nspawn_containers.webp" width="958" alt="Opening the nspawn containers group from the Services menu and hovering a running NixOS container">
+
+## Services: Podman containers
+
+Every Podman engine a systemd service on this computer serves, one row each, named after its owner, with the number of containers running in it. An engine whose socket this user may not open says so in its row. The card lists the running containers with their image, CPU and memory use, and the engine's unit and socket.
+
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/podman_engines.webp" width="1" alt="Opening the Podman containers group from the Services menu">

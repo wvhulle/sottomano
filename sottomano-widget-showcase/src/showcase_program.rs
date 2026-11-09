@@ -61,7 +61,7 @@ use crate::{
     fixtures::{sample, showcase_epoch},
     scripted_frames::scripted_frames,
     showcase_message::ShowcaseMessage,
-    showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup},
+    showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup, recorded_look},
 };
 
 pub(crate) const SHOWCASE_FLOAT_OFFSET_PX: f32 = 0.0;
@@ -149,7 +149,7 @@ struct PendingHoverReply {
 
 impl ShowcaseState {
     fn boot(demo: &'static Demo, config: &Config, clock: Clock) -> (Self, Task<ShowcaseMessage>) {
-        let appearance = ShellAppearance::default();
+        let appearance = recorded_look();
         point_generic_font_families_at(&config.theme);
         let hover_card = HoverCardHost::default();
         let notification_settings = NotificationSettings {

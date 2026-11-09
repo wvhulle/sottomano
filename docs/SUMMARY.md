@@ -18,7 +18,7 @@
   - [Windows and workspaces](guide/windows-and-workspaces.md)
   - [Idle and session](guide/idle-and-session.md)
   - [AI usage](guide/ai-usage.md)
-  - [Virtual machines and nspawn containers](guide/virtual-machines.md)
+  - [Virtual machines and containers](guide/virtual-machines.md)
   - [Appearance](guide/appearance.md)
   - [Notification toasts](guide/toasts.md)
 

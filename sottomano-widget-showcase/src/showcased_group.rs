@@ -55,11 +55,10 @@ use sottomano_widgets::{
         },
     },
     widgets::{
-        appearance_presets::ShellAppearance,
+        appearance_presets::{AppearancePreset, ShellAppearance},
         configured_theme::{background_color, primary_color, secondary_text_color, success_color},
         favicon::Favicons,
         pointer_drag::DragView,
-        shell_layer_appearance::ShellLayer,
         window_icon::WindowAssets,
     },
 };
@@ -86,13 +85,18 @@ fn configured_in_fixture_order(snapshot: &Snapshot) -> ConfiguredWorkspaces {
         .collect()
 }
 
+#[must_use]
+pub fn recorded_look() -> ShellAppearance {
+    AppearancePreset::ClearDark.applied_to(ShellAppearance::default())
+}
+
 fn undragged_slot_context(
     config: &Config,
     edge: Position,
     clock: Clock,
     window_row_layout: WindowRowLayout,
 ) -> PanelSlotContext<'_> {
-    let panel_appearance = ShellLayer::Panels.default_appearance();
+    let panel_appearance = recorded_look().panels;
     PanelSlotContext {
         config,
         edge,
@@ -321,13 +325,10 @@ impl ShowcasedDesktopSession {
             SHOWCASE_OUTPUT,
             Some(&configured_in_fixture_order(&self.snapshot)),
             &EmptyWorkspaceFolding::new(EmptyWorkspaces::Shown),
-            ShellLayer::Sidebar
-                .default_appearance()
-                .frame_style()
-                .drawn_corners(
-                    outlined_sides_inward_of(Position::Left)
-                        .all_when_floating(SHOWCASE_FLOAT_OFFSET_PX),
-                ),
+            recorded_look().sidebar.frame_style().drawn_corners(
+                outlined_sides_inward_of(Position::Left)
+                    .all_when_floating(SHOWCASE_FLOAT_OFFSET_PX),
+            ),
             undragged_slot_context(config, Position::Left, clock, self.window_row_layout),
         )
         .map(|workspaces| workspaces.map(ShowcaseMessage::from))

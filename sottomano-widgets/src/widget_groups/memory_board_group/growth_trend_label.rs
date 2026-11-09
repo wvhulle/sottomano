@@ -24,9 +24,6 @@ use crate::{
     },
 };
 
-const EXHAUSTION_WARNING: Duration = Duration::from_secs(300);
-const EXHAUSTION_CRITICAL: Duration = Duration::from_secs(60);
-
 fn growth_rate_text(growth_per_minute: bytesize::ByteSize, locale: Locale) -> String {
     format!(
         "+{}/min",
@@ -37,7 +34,7 @@ fn growth_rate_text(growth_per_minute: bytesize::ByteSize, locale: Locale) -> St
 fn near_exhaustion(growth: &MemoryGrowth) -> Option<Duration> {
     growth
         .exhaustion_projection
-        .filter(|remaining| *remaining < EXHAUSTION_WARNING)
+        .filter(|_| growth.filling_severity > Severity::Normal)
 }
 
 fn growing_process_row(process: &GrowingMemoryProcess, locale: Locale) -> (String, String) {
@@ -64,12 +61,7 @@ impl GroupItemReading for MemoryGrowth {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.exhaustion_projection {
-            Some(remaining) if remaining < EXHAUSTION_CRITICAL => Severity::Critical,
-            Some(remaining) if remaining < EXHAUSTION_WARNING => Severity::Warning,
-            _ => Severity::Normal,
-        }
-        .into()
+        self.filling_severity.into()
     }
 
     fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
@@ -135,10 +127,14 @@ mod tests {
     use super::*;
     use crate::widgets::ongoing_toast::reading_display_state_alert_severity;
 
-    fn growth_towards(exhaustion_projection: Option<Duration>) -> MemoryGrowth {
+    fn growth_towards(
+        exhaustion_projection: Option<Duration>,
+        filling_severity: Severity,
+    ) -> MemoryGrowth {
         MemoryGrowth {
             used_per_minute: exhaustion_projection.map(|_| ByteSize::gib(2)),
             exhaustion_projection,
+            filling_severity,
             growing_processes: vec![GrowingMemoryProcess {
                 pid: 4,
                 name: "firefox".to_owned(),
@@ -150,7 +146,7 @@ mod tests {
 
     #[test]
     fn a_steady_ram_is_quiet() {
-        let steady = growth_towards(None);
+        let steady = growth_towards(None, Severity::Normal);
         assert_eq!(steady.state(Clock::real()), ReadingDisplayState::Idle);
         assert_eq!(
             steady.label(Clock::real(), Locale::en_US).as_deref(),
@@ -162,24 +158,24 @@ mod tests {
     fn a_near_projection_toasts_from_warning() {
         assert_eq!(
             reading_display_state_alert_severity(
-                &growth_towards(Some(Duration::from_secs(200))),
+                &growth_towards(Some(Duration::from_secs(200)), Severity::Warning),
                 Clock::real()
             ),
             Some(Severity::Warning)
         );
         assert_eq!(
-            growth_towards(Some(Duration::from_secs(30))).state(Clock::real()),
+            growth_towards(Some(Duration::from_secs(30)), Severity::Critical).state(Clock::real()),
             ReadingDisplayState::Critical
         );
         assert_eq!(
-            growth_towards(Some(Duration::from_secs(3_600))).state(Clock::real()),
+            growth_towards(Some(Duration::from_secs(3_600)), Severity::Normal).state(Clock::real()),
             ReadingDisplayState::Idle
         );
     }
 
     #[test]
     fn toast_body_lists_the_growing_processes_as_rows() {
-        let body = growth_towards(Some(Duration::from_secs(40)))
+        let body = growth_towards(Some(Duration::from_secs(40)), Severity::Critical)
             .ongoing_toast_body(Clock::real(), Locale::en_US)
             .expect("a growing reading has a body");
         assert!(body.starts_with("<dl><dt>Full in</dt><dd>"), "{body}");
