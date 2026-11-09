@@ -5,7 +5,8 @@ use system_tray::menu::{MenuItem, MenuType, ToggleState, ToggleType, TrayMenu};
 
 use crate::{
     desktop_windows_apps::{
-        desktop_entry_app_icons::DesktopEntries, status_notifier_tray::IconSource,
+        desktop_entry_app_icons::DesktopEntries,
+        status_notifier_tray::{IconSource, capped_to_side_limit},
     },
     non_empty_text::non_empty,
 };
@@ -46,9 +47,9 @@ fn menu_item_icon(menu_item: &MenuItem, entries: &DesktopEntries) -> Option<Icon
         .as_deref()
         .and_then(|icon_bytes| image::load_from_memory(icon_bytes).ok())
     {
-        return Some(IconSource::Pixmap(Arc::new(
+        return Some(IconSource::Pixmap(Arc::new(capped_to_side_limit(
             super::icon_whitespace_trim::trim_rgba(decoded.into_rgba8()),
-        )));
+        ))));
     }
     let icon_name = menu_item
         .icon_name
