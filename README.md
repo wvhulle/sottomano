@@ -1,4 +1,4 @@
-<img src="logo.svg" width="96" alt="sottomano logo">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/main/logo.svg" width="96" alt="sottomano logo">
 
 # Sottomano
 
@@ -50,7 +50,7 @@ When the sending window is visible, the toast sits in its top corner.
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/toast_window_anchored.webp" width="688" alt="A build toast placed in the corner of the terminal that sent it">
 
 The other groups, each in its menu next to pinned in the bar, are in the
-[guide](docs/guide/README.md). The recordings use fixtures, so the numbers are
+[guide](https://sottomano.work/guide/). The recordings use fixtures, so the numbers are
 made up.
 
 ## Built on
@@ -70,8 +70,8 @@ made up.
 
 - Try it from a checkout: `cargo r` inside `nix develop`.
 - Install it with the home-manager and NixOS modules:
-  [docs/installation.md](docs/installation.md).
+  [installation](https://sottomano.work/installation.html).
 - Configure it with one TOML file whose complete default the shell prints:
-  [docs/configuration.md](docs/configuration.md).
-- Work on it: [docs/development.md](docs/development.md) and
-  [CONTRIBUTING.md](CONTRIBUTING.md).
+  [configuration](https://sottomano.work/configuration.html).
+- Work on it: [development](https://sottomano.work/development.html) and
+  [style](https://sottomano.work/style.html).

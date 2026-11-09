@@ -1,7 +1,7 @@
-# Contributing
+# Style
 
 The rules the code in sottomano follows. Setup, building, CI and the tour
-recordings are in [docs/development.md](docs/development.md).
+recordings are in [Development](development.md).
 
 ## Vocabulary
 
@@ -44,7 +44,8 @@ menu are satellites, and "panel" always means the bar along a screen edge.
   no application-level carve-outs, no shadow copies of a cell's state.
 - Names describe structure, not appearance.
 - `README.md` holds the pitch, a short tour linking to `docs/guide/` and
-  pointers into `docs/`. Installation, configuration, development and the full
+  pointers into `docs/`. It is also the first page of the documentation site,
+  so its links and images use absolute URLs. Installation, configuration, development and the full
   tour live in `docs/`. No user instructions beyond those: the UX should be
   intuitive. Where help or explanation is needed, keep it next to the widget in
   question, as descriptive labels, hover cards and visual indicators, rather
@@ -52,7 +53,7 @@ menu are satellites, and "panel" always means the bar along a screen edge.
 - Docs name no variables, types, functions or modules, because those go out of
   date quickly. Describe the behaviour, and name only what a reader types or
   configures, such as commands, flags and config keys.
-- This file and `docs/development.md` are the only contributor docs. Sub-crates
+- `docs/development.md` and this file are the only contributor docs. Sub-crates
   have no `CONTRIBUTING.md`.
 - No config keys, defaults or TOML snippets in `README.md`. Users get a
   complete default config from `sottomano default-config` and start from there,

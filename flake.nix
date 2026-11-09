@@ -260,6 +260,8 @@
 
       homeModule = import ./nix/hm-module.nix { inherit self; };
 
+      documentationSite = import ./nix/documentation-site.nix { inherit pkgs; };
+
       vmTests = import ./vm-tests {
         sottomanoNixosModule = self.nixosModules.default;
         sottomanoPackage = sottomano;
@@ -272,6 +274,7 @@
         deps = showcaseArtifacts;
         workspace-dependencies = workspaceArtifacts;
         readme-recordings = readmeRecordings;
+        documentation-site = documentationSite;
       };
 
       apps.${system} = import ./nix/ci-tasks.nix {
@@ -285,6 +288,7 @@
       };
 
       checks.${system} = {
+        documentation-site = documentationSite;
         tests = craneLib.cargoTest (
           workspaceArgs
           // showcaseFonts
@@ -332,7 +336,10 @@
         packages =
           commonArgs.nativeBuildInputs
           ++ commonArgs.buildInputs
-          ++ [ pkgs.glib.bin ]
+          ++ [
+            pkgs.glib.bin
+            pkgs.mdbook
+          ]
           ++ formatters
           ++ runtimeDeps;
         env = allocatorEnv // {
