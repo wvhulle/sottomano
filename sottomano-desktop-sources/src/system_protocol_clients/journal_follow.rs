@@ -54,13 +54,16 @@ pub fn journal_windows<E: JournalEvent>()
 fn journal_events<E: JournalEvent>() -> mpsc::Receiver<Result<Vec<E>, JournalFollowError>> {
     let (tx, rx) = mpsc::channel(16);
     thread::spawn(move || {
-        let mut journal = match WindowedJournal::<E>::open() {
-            Ok(journal) => journal,
-            Err(e) => {
-                let _ = tx.blocking_send(Err(JournalFollowError::OpenFailed(e.kind())));
-                return;
-            }
-        };
+        let follower_span = tracing::debug_span!("journal_follower", event = E::NAME);
+        let _entered_follower = follower_span.enter();
+        let mut journal =
+            match tracing::debug_span!("journal_open").in_scope(WindowedJournal::<E>::open) {
+                Ok(journal) => journal,
+                Err(e) => {
+                    let _ = tx.blocking_send(Err(JournalFollowError::OpenFailed(e.kind())));
+                    return;
+                }
+            };
         while tx.blocking_send(Ok(journal.events())).is_ok() {
             if let Err(e) = journal.wait_for_window_change() {
                 let _ = tx.blocking_send(Err(JournalFollowError::FollowingStopped(e.kind())));
@@ -98,7 +101,9 @@ impl<E: JournalEvent> WindowedJournal<E> {
     fn wait_for_window_change(&mut self) -> io::Result<()> {
         loop {
             let timeout = self.window.time_until_next_expiry(SystemTime::now());
-            let appended = match self.journal.wait(timeout)? {
+            let wait_result = self.journal.wait(timeout)?;
+            let _entered_wakeup = tracing::debug_span!("journal_wakeup").entered();
+            let appended = match wait_result {
                 JournalWaitResult::Append => self.read_appended(),
                 JournalWaitResult::Invalidate => {
                     self.rebuild_from_horizon()?;
@@ -114,6 +119,7 @@ impl<E: JournalEvent> WindowedJournal<E> {
     }
 
     fn rebuild_from_horizon(&mut self) -> io::Result<()> {
+        let _entered_rebuild = tracing::debug_span!("journal_rebuild_from_horizon").entered();
         self.window = EventWindow::default();
         let cutoff_usec = horizon_cutoff_usec().ok_or_else(|| {
             io::Error::new(
