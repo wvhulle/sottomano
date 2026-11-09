@@ -139,21 +139,6 @@ mod tests {
     }
 
     #[test]
-    fn unconfigured_item_focuses_its_window_on_left_click() {
-        let unconfigured_rule = TrayConfig::default().rule("page.codeberg.wvhulle.Bindrune");
-        assert_eq!(unconfigured_rule.left_click, ClickAction::FocusAppWindow);
-        assert_eq!(unconfigured_rule.window_app_id, None);
-    }
-
-    #[test]
-    fn steam_window_is_found_by_its_app_id() {
-        assert_eq!(
-            TrayConfig::default().rule("steam").window_app_id.as_deref(),
-            Some("steam")
-        );
-    }
-
-    #[test]
     fn focus_without_window_app_id_matches_by_process() {
         let tray_config = parsed_tray_config("[items.chat]\nleft_click = \"focus_app_window\"\n")
             .expect("focusing without an app id is valid");

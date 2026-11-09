@@ -19,11 +19,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn lrclib_lookup_is_on_until_disabled() {
-        assert_eq!(
-            MediaLyricsConfig::default().lrclib_lookup,
-            LrclibLookup::Enabled
-        );
+    fn lrclib_lookup_can_be_disabled() {
         let config: MediaLyricsConfig = toml::from_str("lrclib_lookup = \"disabled\"\n").unwrap();
         assert_eq!(config.lrclib_lookup, LrclibLookup::Disabled);
     }

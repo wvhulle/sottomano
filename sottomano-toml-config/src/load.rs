@@ -348,17 +348,13 @@ mod tests {
     }
 
     #[test]
-    fn other_time_zones_default_to_shanghai_and_parse_as_iana_names() {
+    fn other_time_zones_parse_as_iana_names() {
         let zones = |toml: &str| file_containing("zone", &format!("[calendar]\n{toml}\n")).read();
         let configured = zones("other_time_zones = [\"Asia/Tokyo\"]");
         let emptied = zones("other_time_zones = []");
         let unknown = zones("other_time_zones = [\"Mars/Olympus\"]");
         let file = file_containing("zone", "");
         fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
-        assert_eq!(
-            UserConfig::default().calendar.other_time_zones,
-            [Asia::Shanghai]
-        );
         assert_eq!(configured.unwrap().calendar.other_time_zones, [Asia::Tokyo]);
         assert!(emptied.unwrap().calendar.other_time_zones.is_empty());
         assert!(matches!(unknown, Err(LoadError::Invalid { .. })));

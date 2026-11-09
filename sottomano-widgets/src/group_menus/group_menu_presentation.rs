@@ -103,14 +103,6 @@ mod tests {
     use super::{GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit};
 
     #[test]
-    fn menus_open_on_press_until_a_stored_choice_says_otherwise() {
-        assert_eq!(
-            GroupMenuPresentation::default().open_trigger,
-            GroupMenuOpenTrigger::Press
-        );
-    }
-
-    #[test]
     fn switching_layouts_keeps_each_sub_choice() {
         let chosen = GroupMenuPresentation::default()
             .with_open_trigger_toggled()

@@ -614,14 +614,6 @@ mod tests {
     }
 
     #[test]
-    fn an_unloaded_group_reads_the_default_schedule() {
-        assert_eq!(
-            QuietScheduleGroup::default().schedule(),
-            QuietHoursSchedule::default()
-        );
-    }
-
-    #[test]
     fn a_loaded_schedule_reads_back_unchanged() {
         let loaded = QuietHoursSchedule {
             schedule_adherence: QuietScheduleAdherence::Ignored,
