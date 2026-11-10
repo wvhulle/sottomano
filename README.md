@@ -63,7 +63,7 @@ made up.
   shell needs until they land upstream.
 - [niri-ipc](https://github.com/YaLTeR/niri) and
   [swayipc-types](https://github.com/jaycefayne/swayipc-rs) for compositor IPC,
-  [zbus](https://dbus2.github.io/zbus/) for D-Bus services, PipeWire for audio,
+  [zbus](https://z-galaxy.github.io/zbus/) for D-Bus services, PipeWire for audio,
   and a CLI only where nothing else is available.
 
 ## Get started

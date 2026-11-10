@@ -210,7 +210,12 @@ labelled `nix` with KVM.
 
 The recordings in the [guide](guide/) and the README are rendered
 offscreen by `sottomano-widget-showcase` into the untracked root `recordings/`.
-`nix build .#readme-recordings` renders them all the way CI does.
+`nix build .#readme-recordings` renders them all the way CI does. Its source is
+only the crates the showcase links, the workspace manifests and `.cargo/`;
+`sottomano-shell` and `xtask` contribute their `Cargo.toml` (which takes part in
+workspace feature unification) and empty targets. Changes to the shell, xtask,
+the docs, the showcase's `.ice` tests or nix code that does not define the
+recordings keep the cached recordings.
 
 ```bash
 cargo run -p sottomano-widget-showcase
@@ -302,6 +307,8 @@ CI); `expect` sees plain text widgets, not rich text such as toast bodies.
 
 The recordings are not part of `main`: CI publishes them as the single commit of
 the orphan `recordings` branch, so the history of `main` stays free of media.
+That branch serves the recordings when the markdown is read on Codeberg; the
+documentation site serves its own copy (see below).
 Each recording appears either in the root `README.md` (a few highlights) or on
 a page of `docs/guide/` (the rest), as
 `<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/<name>.webp" width="<w>">`.
@@ -326,6 +333,14 @@ locally, and `nix build .#documentation-site` builds what the server hosts. The
 site updates when the nuremberg host in nixos-config is rebuilt with a newer
 sottomano input.
 
+The build rewrites the Codeberg recording and logo URLs and the absolute
+`https://sottomano.work/` links to site paths, and links `recordings/` to the
+output of `.#readme-recordings`, so the pages and their recordings come from the
+same commit. It then checks every link offline with lychee, heading anchors
+included, and fails on a missing page, anchor or recording. Building the site
+therefore needs `.#readme-recordings`: from the binary cache, or rendered on
+the spot.
+
 ## Upstream docs
 
 - [iced book](https://book.iced.rs/) and [API docs](https://docs.iced.rs/)
@@ -334,4 +349,4 @@ sottomano input.
 - [niri IPC](https://github.com/YaLTeR/niri) for the niri protocol
 - [sway-ipc(7)](https://man.archlinux.org/man/sway-ipc.7) for the sway protocol
 - [Hyprland IPC](https://wiki.hypr.land/IPC/) and its Lua dispatchers for Hyprland
-- [zbus](https://dbus2.github.io/zbus/) for D-Bus data sources
+- [zbus](https://z-galaxy.github.io/zbus/) for D-Bus data sources
