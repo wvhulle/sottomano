@@ -450,6 +450,10 @@ impl DesktopShell {
                 .widget_groups
                 .nspawn_containers_group
                 .hover_card_for(target, self.clock),
+            HoverTarget::CgroupMemoryLimit(target) => self
+                .widget_groups
+                .cgroup_memory_limits_group
+                .hover_card_for(target),
             HoverTarget::CiRuns(target) => self
                 .widget_groups
                 .ci_runs_group

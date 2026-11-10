@@ -434,6 +434,7 @@ impl DesktopShell {
             | Message::LlamaServer(_)
             | Message::PodmanEngines(_)
             | Message::NspawnContainers(_)
+            | Message::CgroupMemoryLimits(_)
             | Message::CiRuns(_)
             | Message::SessionFocus(_)
             | Message::LoginSession(_)

@@ -6,3 +6,4 @@ pub mod journal_follow;
 pub mod procfs_process_tree;
 pub mod shell_command_output;
 pub mod sysfs_attribute_reads;
+pub mod sysfs_cgroup_memory;

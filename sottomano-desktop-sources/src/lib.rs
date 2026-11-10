@@ -2,6 +2,7 @@ pub mod ai_usage_spend;
 pub mod battery_power_profiles;
 pub mod blocking_background_work;
 pub mod caldav_tasks_events;
+pub mod cgroup_memory_limits;
 pub mod ci_runner_tasks;
 pub mod compositor_window_ipc;
 pub mod cpu_memory_compute;

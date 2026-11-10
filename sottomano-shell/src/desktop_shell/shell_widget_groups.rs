@@ -16,6 +16,7 @@ use sottomano_widgets::{
         audio_group::AudioGroup,
         bluetooth_adapters_group::BluetoothAdaptersGroup,
         caldav_group::CaldavGroup,
+        cgroup_memory_limits_group::CgroupMemoryLimitsGroup,
         ci_runs_group::CiRunsGroup,
         claude_usage_group::ClaudeUsageGroup,
         clock_group::ClockGroup,
@@ -118,6 +119,7 @@ pub struct ShellWidgetGroups {
     pub podman_engines_group: PodmanEnginesGroup,
     pub virtual_machines_group: VirtualMachinesGroup,
     pub nspawn_containers_group: NspawnContainersGroup,
+    pub cgroup_memory_limits_group: CgroupMemoryLimitsGroup,
     pub ci_runs_group: CiRunsGroup,
     pub session_focus_group: SessionFocusGroup,
     pub login_session_group: LoginSessionGroup,
@@ -185,6 +187,7 @@ impl ShellWidgetGroups {
             podman_engines_group: PodmanEnginesGroup::default(),
             virtual_machines_group: VirtualMachinesGroup::default(),
             nspawn_containers_group: NspawnContainersGroup::default(),
+            cgroup_memory_limits_group: CgroupMemoryLimitsGroup::default(),
             ci_runs_group: CiRunsGroup::default(),
             session_focus_group: SessionFocusGroup::started_at(
                 &config.widget_groups.session_focus,
@@ -335,6 +338,10 @@ impl ShellWidgetGroups {
                 self.podman_engines_group.update(msg, clock);
                 Task::none()
             }
+            Message::CgroupMemoryLimits(limits_message) => self
+                .cgroup_memory_limits_group
+                .update(limits_message, clock)
+                .map(Message::CgroupMemoryLimits),
             Message::NspawnContainers(container_message) => self
                 .nspawn_containers_group
                 .update(container_message, clock)
@@ -502,6 +509,7 @@ impl ShellWidgetGroups {
         self.podman_engines_group.collapse();
         self.virtual_machines_group.collapse();
         self.nspawn_containers_group.collapse();
+        self.cgroup_memory_limits_group.collapse();
         self.ci_runs_group.collapse();
         self.session_focus_group.collapse();
         self.login_session_group.collapse();
