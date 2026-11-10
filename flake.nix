@@ -78,16 +78,14 @@
           pkgs.autoAddDriverRunpath
           pkgs.rustPlatform.bindgenHook
         ];
-        buildInputs = with pkgs; [
-          wayland
-          libxkbcommon
-          libGL
-          vulkan-loader
-          systemd
-          pipewire
-          openssl
-          libvirt
-        ];
+        buildInputs =
+          runtimeDlopenLibraries
+          ++ (with pkgs; [
+            systemd
+            pipewire
+            openssl
+            libvirt
+          ]);
         WEATHER_ICONS_SVG = "${pkgs.weather-icons.src}/svg";
         PHOSPHOR_SVG = "${phosphorCore}/assets";
         SIMPLE_ICONS_SVG = "${simpleIcons}/icons";
@@ -189,7 +187,12 @@
           umbra.packages.${system}.default
         ];
 
-      runtimeLibraryPath = "${pkgs.lib.makeLibraryPath commonArgs.buildInputs}:${pkgs.addDriverRunpath.driverLink}/lib";
+      runtimeDlopenLibraries = with pkgs; [
+        wayland
+        libxkbcommon
+        libGL
+        vulkan-loader
+      ];
 
       devShellLibraryPath = "${pkgs.lib.makeLibraryPath (pkgs.lib.remove pkgs.openssl commonArgs.buildInputs)}:${pkgs.addDriverRunpath.driverLink}/lib";
 
@@ -236,10 +239,12 @@
                 ${allocatorWrapperFlags} \
                 --prefix PATH : ${gsettingsRuntime.binPath} \
                 --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
-                --prefix LD_LIBRARY_PATH : ${runtimeLibraryPath} \
                 --prefix XDG_DATA_DIRS : ${gsettingsRuntime.schemaDir} \
                 --prefix XDG_DATA_DIRS : ${soundThemeShare} \
                 --prefix GIO_EXTRA_MODULES : ${gsettingsRuntime.gioModules}
+            '';
+            postFixup = ''
+              patchelf --add-rpath ${pkgs.lib.makeLibraryPath runtimeDlopenLibraries} $out/libexec/sottomano
             '';
             passthru = { inherit compositors; };
             meta.mainProgram = "sottomano";
