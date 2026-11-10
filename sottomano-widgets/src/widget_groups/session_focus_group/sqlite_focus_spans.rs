@@ -3,36 +3,16 @@ use sottomano_desktop_sources::{
     login_session_presence::focus_time_ledger::{
         FocusSpan, FocusUnit, LoadedSpans, PresenceSpan, SpanWrite, StoredFacet,
     },
-    sqlite_state_store::{Columns, StoreError, with_table},
+    sqlite_state_store::{Columns, StoreError, with_state_store},
 };
 
 const RETENTION: TimeDelta = TimeDelta::days(400);
-
-pub const SCHEMA: [&str; 3] = [
-    "CREATE TABLE IF NOT EXISTS window_focus_spans (
-        started_at TEXT PRIMARY KEY,
-        window_id INTEGER NOT NULL,
-        ended_at TEXT NOT NULL
-    )",
-    "CREATE TABLE IF NOT EXISTS window_focus_span_facets (
-        span_started_at TEXT NOT NULL
-            REFERENCES window_focus_spans (started_at),
-        facet TEXT NOT NULL,
-        value TEXT NOT NULL,
-        PRIMARY KEY (span_started_at, facet)
-    )",
-    "CREATE TABLE IF NOT EXISTS presence_spans (
-        started_at TEXT PRIMARY KEY,
-        ended_at TEXT NOT NULL,
-        state TEXT NOT NULL
-    )",
-];
 
 const SORTABLE_INSTANT: SecondsFormat = SecondsFormat::Nanos;
 const UTC_AS_Z: bool = true;
 
 pub async fn load_since(since: DateTime<Utc>, now: DateTime<Utc>) -> LoadedSpans {
-    with_table("focus spans: load failed", &SCHEMA, async |connection| {
+    with_state_store("focus spans: load failed", async |connection| {
         forget_before(connection, now - RETENTION).await?;
         read_spans(connection, since).await
     })
@@ -41,7 +21,7 @@ pub async fn load_since(since: DateTime<Utc>, now: DateTime<Utc>) -> LoadedSpans
 }
 
 pub async fn record(write: SpanWrite) {
-    with_table("focus spans: write failed", &SCHEMA, async |connection| {
+    with_state_store("focus spans: write failed", async |connection| {
         record_span(connection, &write).await
     })
     .await;
@@ -207,7 +187,7 @@ mod tests {
     use chrono::TimeDelta;
     use sottomano_desktop_sources::{
         login_session_presence::focus_time_ledger::Presence,
-        sqlite_state_store::in_memory_connection,
+        sqlite_state_store::migrated_in_memory_store,
     };
 
     use super::*;
@@ -236,7 +216,7 @@ mod tests {
 
     #[tokio::test]
     async fn recording_a_span_again_keeps_its_latest_end_in_any_order() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         let presence = PresenceSpan {
             state: Presence::ScreenOff,
             started_at: at(0),
@@ -278,7 +258,7 @@ mod tests {
 
     #[tokio::test]
     async fn spans_starting_within_the_same_second_stay_distinct() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         let first = focus_span(0);
         let second = FocusSpan {
             window: 43,
@@ -300,7 +280,7 @@ mod tests {
 
     #[tokio::test]
     async fn loading_skips_spans_that_ended_before_the_window() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         recorded(
             &connection,
             &[
@@ -316,7 +296,7 @@ mod tests {
 
     #[tokio::test]
     async fn forgetting_old_spans_takes_their_facets_along() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         recorded(
             &connection,
             &[SpanWrite::RecordWindowFocusSpan(focus_span(-30))],

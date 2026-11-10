@@ -113,6 +113,7 @@
               ./sottomano-phosphor-icons
               ./sottomano-simple-icons
               ./sottomano-weather-icons
+              ./db-migrations
               ./sottomano-desktop-sources
               ./sottomano-desktop-sinks
               ./sottomano-widgets

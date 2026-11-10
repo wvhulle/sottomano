@@ -1,25 +1,10 @@
 use std::collections::BTreeSet;
 
-use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, in_table, with_table};
+use sottomano_desktop_sources::sqlite_state_store::{
+    Columns, StoreError, in_state_store, with_state_store,
+};
 
 use crate::group_menus::group_menu_state::MenuPinState;
-
-pub const CREATE_GROUP_PINS_TABLE: &str = "CREATE TABLE IF NOT EXISTS pinned_widget_groups (
-    menu_topic TEXT NOT NULL,
-    group_family TEXT NOT NULL,
-    group_instance TEXT NOT NULL,
-    PRIMARY KEY (menu_topic, group_family, group_instance)
-)";
-
-pub const CREATE_ITEM_PINS_TABLE: &str = "CREATE TABLE IF NOT EXISTS pinned_group_items (
-    menu_topic TEXT NOT NULL,
-    group_family TEXT NOT NULL,
-    group_instance TEXT NOT NULL,
-    item_key TEXT NOT NULL,
-    PRIMARY KEY (menu_topic, group_family, group_instance, item_key)
-)";
-
-const CREATE_PIN_TABLES: [&str; 2] = [CREATE_GROUP_PINS_TABLE, CREATE_ITEM_PINS_TABLE];
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum StoredGroupMenuPin {
@@ -37,20 +22,13 @@ pub enum StoredGroupMenuPin {
 }
 
 pub async fn load() -> BTreeSet<StoredGroupMenuPin> {
-    with_table(
-        "group menu pins: load failed",
-        &CREATE_PIN_TABLES,
-        read_pins,
-    )
-    .await
-    .unwrap_or_default()
+    with_state_store("group menu pins: load failed", read_pins)
+        .await
+        .unwrap_or_default()
 }
 
 pub async fn save(pin: StoredGroupMenuPin, pin_state: MenuPinState) -> Result<(), StoreError> {
-    in_table(&CREATE_PIN_TABLES, async |connection| {
-        write_pin(connection, &pin, pin_state).await
-    })
-    .await
+    in_state_store(async |connection| write_pin(connection, &pin, pin_state).await).await
 }
 
 async fn read_pins(
@@ -155,9 +133,9 @@ async fn write_pin(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::migrated_in_memory_store;
 
-    use super::{CREATE_PIN_TABLES, MenuPinState, StoredGroupMenuPin, read_pins, write_pin};
+    use super::{MenuPinState, StoredGroupMenuPin, read_pins, write_pin};
 
     fn gpu_in_hardware() -> StoredGroupMenuPin {
         StoredGroupMenuPin::Group {
@@ -178,7 +156,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_pin_survives_a_round_trip() {
-        let connection = in_memory_connection(&CREATE_PIN_TABLES).await;
+        let connection = migrated_in_memory_store().await;
         write_pin(&connection, &gpu_in_hardware(), MenuPinState::Pinned)
             .await
             .unwrap();
@@ -191,7 +169,7 @@ mod tests {
 
     #[tokio::test]
     async fn unpinning_removes_the_stored_pin() {
-        let connection = in_memory_connection(&CREATE_PIN_TABLES).await;
+        let connection = migrated_in_memory_store().await;
         write_pin(&connection, &gpu_in_hardware(), MenuPinState::Pinned)
             .await
             .unwrap();
@@ -203,7 +181,7 @@ mod tests {
 
     #[tokio::test]
     async fn item_and_group_pins_of_one_group_coexist() {
-        let connection = in_memory_connection(&CREATE_PIN_TABLES).await;
+        let connection = migrated_in_memory_store().await;
         write_pin(&connection, &gpu_load_in_hardware(), MenuPinState::Pinned)
             .await
             .unwrap();

@@ -2,23 +2,10 @@ use std::time::Duration;
 
 use chrono::{NaiveTime, TimeDelta, Timelike};
 use sottomano_desktop_sources::sqlite_state_store::{
-    Columns, StoreError, flag, in_table, with_table,
+    Columns, StoreError, flag, in_state_store, with_state_store,
 };
 
 use crate::widget_groups::quiet_schedule_group::quiet_window::QuietScheduleAdherence;
-
-pub const SCHEMA: [&str; 2] = [
-    "CREATE TABLE IF NOT EXISTS quiet_hours (
-        id INTEGER PRIMARY KEY CHECK (id = 0),
-        follows_schedule INTEGER NOT NULL,
-        start_minutes INTEGER NOT NULL,
-        end_minutes INTEGER NOT NULL
-    )",
-    "CREATE TABLE IF NOT EXISTS quiet_hours_screen_off (
-        id INTEGER PRIMARY KEY CHECK (id = 0),
-        after_seconds INTEGER NOT NULL
-    )",
-];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QuietHoursSchedule {
@@ -40,16 +27,13 @@ impl Default for QuietHoursSchedule {
 }
 
 pub async fn load() -> QuietHoursSchedule {
-    with_table("quiet hours schedule: load failed", &SCHEMA, read_schedule)
+    with_state_store("quiet hours schedule: load failed", read_schedule)
         .await
         .unwrap_or_default()
 }
 
 pub async fn save(schedule: QuietHoursSchedule) -> Result<(), StoreError> {
-    in_table(&SCHEMA, async |connection| {
-        write_schedule(connection, schedule).await
-    })
-    .await
+    in_state_store(async |connection| write_schedule(connection, schedule).await).await
 }
 
 fn minutes_since_midnight(time: NaiveTime) -> i64 {
@@ -133,14 +117,14 @@ mod tests {
     use std::time::Duration;
 
     use chrono::NaiveTime;
-    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::migrated_in_memory_store;
 
-    use super::{QuietHoursSchedule, SCHEMA, read_schedule, write_schedule};
+    use super::{QuietHoursSchedule, read_schedule, write_schedule};
     use crate::widget_groups::quiet_schedule_group::quiet_window::QuietScheduleAdherence;
 
     #[tokio::test]
     async fn schedule_survives_a_round_trip() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         let schedule = QuietHoursSchedule {
             schedule_adherence: QuietScheduleAdherence::Ignored,
             start: NaiveTime::from_hms_opt(22, 15, 0).unwrap(),
@@ -154,7 +138,7 @@ mod tests {
 
     #[tokio::test]
     async fn disabled_screen_off_round_trips_as_null() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         let schedule = QuietHoursSchedule {
             screen_off: None,
             ..QuietHoursSchedule::default()

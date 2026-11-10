@@ -45,6 +45,7 @@ impl DesktopShell {
             GroupMenuTopic::Agenda => self.agenda_group_menu(),
             GroupMenuTopic::Media => self.media_group_menu(),
             GroupMenuTopic::Display => self.display_group_menu(),
+            GroupMenuTopic::Virtualization => self.virtualization_group_menu(),
             GroupMenuTopic::Services => self.services_group_menu(),
             GroupMenuTopic::Session => self.session_group_menu(),
             GroupMenuTopic::Appearance => self.group_menu(
@@ -342,6 +343,26 @@ impl DesktopShell {
         )
     }
 
+    fn virtualization_group_menu(&self) -> GroupMenuView<'_, Message> {
+        self.group_menu(
+            GroupMenuTopic::Virtualization,
+            [
+                self.widget_groups
+                    .virtual_machines_group
+                    .group_content()
+                    .map(Message::VirtualMachines),
+                self.widget_groups
+                    .nspawn_containers_group
+                    .group_content()
+                    .map(Message::NspawnContainers),
+                self.widget_groups
+                    .podman_engines_group
+                    .group_content()
+                    .map(Message::PodmanEngines),
+            ],
+        )
+    }
+
     fn services_group_menu(&self) -> GroupMenuView<'_, Message> {
         let config = &self.config;
         self.group_menu(
@@ -352,21 +373,9 @@ impl DesktopShell {
                     .group_content()
                     .map(Message::LlamaServer),
                 self.widget_groups
-                    .podman_engines_group
-                    .group_content()
-                    .map(Message::PodmanEngines),
-                self.widget_groups
                     .ci_runs_group
                     .group_content()
                     .map(Message::CiRuns),
-                self.widget_groups
-                    .virtual_machines_group
-                    .group_content()
-                    .map(Message::VirtualMachines),
-                self.widget_groups
-                    .nspawn_containers_group
-                    .group_content()
-                    .map(Message::NspawnContainers),
                 self.widget_groups
                     .claude_usage_group
                     .group_content()

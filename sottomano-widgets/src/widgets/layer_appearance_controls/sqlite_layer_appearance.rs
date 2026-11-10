@@ -1,5 +1,5 @@
 use sottomano_desktop_sources::sqlite_state_store::{
-    Columns, StoreError, flag, in_table, real, with_table,
+    Columns, StoreError, flag, in_state_store, real, with_state_store,
 };
 
 use crate::{
@@ -8,18 +8,6 @@ use crate::{
         LayerAppearance, OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle, ShellLayer,
     },
 };
-
-pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS layer_appearance (
-    layer TEXT PRIMARY KEY,
-    opacity REAL NOT NULL,
-    corner_radius_px REAL NOT NULL,
-    blurred INTEGER NOT NULL,
-    drop_shadow INTEGER NOT NULL,
-    shadow_softness_px REAL NOT NULL,
-    shadow_opacity REAL NOT NULL,
-    outline INTEGER NOT NULL,
-    outline_opacity REAL NOT NULL
-)";
 
 #[derive(Debug, Clone, Copy)]
 pub enum AppearanceSetting {
@@ -84,7 +72,7 @@ async fn with_table_for_appearance<T>(
     label: &str,
     work: impl AsyncFnOnce(&turso::Connection) -> Result<T, StoreError>,
 ) -> Option<T> {
-    with_table(label, &[CREATE_TABLE], work).await
+    with_state_store(label, work).await
 }
 
 pub async fn save(
@@ -92,20 +80,15 @@ pub async fn save(
     setting: AppearanceSetting,
     value: AppearanceValue,
 ) -> Result<(), StoreError> {
-    in_table(&[CREATE_TABLE], async |connection| {
-        write_setting(connection, layer, setting, value.into()).await
-    })
-    .await
+    in_state_store(async |connection| write_setting(connection, layer, setting, value.into()).await)
+        .await
 }
 
 pub async fn save_appearance(
     layer: ShellLayer,
     appearance: LayerAppearance,
 ) -> Result<(), StoreError> {
-    in_table(&[CREATE_TABLE], async |connection| {
-        write_appearance(connection, layer, appearance).await
-    })
-    .await
+    in_state_store(async |connection| write_appearance(connection, layer, appearance).await).await
 }
 
 pub async fn load(layer: ShellLayer) -> LayerAppearance {
@@ -241,11 +224,9 @@ async fn read_layer_appearance(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_desktop_sources::sqlite_state_store::{flag, in_memory_connection, real};
+    use sottomano_desktop_sources::sqlite_state_store::{flag, migrated_in_memory_store, real};
 
-    use super::{
-        AppearanceSetting, CREATE_TABLE, read_layer_appearance, write_appearance, write_setting,
-    };
+    use super::{AppearanceSetting, read_layer_appearance, write_appearance, write_setting};
     use crate::{
         desktop_panels::region_reporter::BackdropBlur,
         widgets::shell_layer_appearance::{
@@ -255,7 +236,7 @@ mod tests {
 
     #[tokio::test]
     async fn every_setting_round_trips_within_its_own_layer() {
-        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        let connection = migrated_in_memory_store().await;
         for (setting, value) in [
             (AppearanceSetting::Opacity, real(0.4)),
             (AppearanceSetting::CornerRadius, real(9.0)),
@@ -292,7 +273,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_whole_appearance_round_trips_in_one_write() {
-        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        let connection = migrated_in_memory_store().await;
         let written = LayerAppearance {
             opacity: 0.25,
             backdrop_blur: BackdropBlur::Clear,

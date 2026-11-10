@@ -198,9 +198,9 @@ pub const DEMOS: &[Demo] = &[
         name: "podman_engines",
         group: podman_engines::group,
         live: unchanging,
-        shown: GroupShown::InMenu(GroupMenuTopic::Services),
+        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Podman containers"),
         ],
     },
@@ -208,9 +208,9 @@ pub const DEMOS: &[Demo] = &[
         name: "virtual_machines",
         group: virtual_machines::group,
         live: unchanging,
-        shown: GroupShown::InMenu(GroupMenuTopic::Services),
+        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("VMs"),
             Step::Hover(HoverTarget::VirtualMachine(VirtualMachineTarget::of_pid(
                 virtual_machines::INTERACTIVE_VM_PID,
@@ -221,9 +221,9 @@ pub const DEMOS: &[Demo] = &[
         name: "nspawn_containers",
         group: nspawn_containers::group,
         live: unchanging,
-        shown: GroupShown::InMenu(GroupMenuTopic::Services),
+        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("nspawn containers"),
             Step::Hover(HoverTarget::NspawnContainer(
                 NspawnContainerTarget::of_machine(Cow::Borrowed(

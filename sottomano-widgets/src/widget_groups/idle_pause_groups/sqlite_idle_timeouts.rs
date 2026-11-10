@@ -4,13 +4,8 @@ use sottomano_desktop_sources::{
     login_session_presence::{
         idle_session_actions::IdleAction, session_power_actions::SessionAction,
     },
-    sqlite_state_store::{Columns, StoreError, in_table, with_table},
+    sqlite_state_store::{Columns, StoreError, in_state_store, with_state_store},
 };
-
-pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS idle_action_timeouts (
-    idle_action TEXT PRIMARY KEY,
-    after_seconds INTEGER NOT NULL
-)";
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Timeouts {
@@ -50,16 +45,13 @@ impl Timeouts {
 }
 
 pub async fn load() -> Timeouts {
-    with_table("idle timeouts: load failed", &[CREATE_TABLE], read_timeouts)
+    with_state_store("idle timeouts: load failed", read_timeouts)
         .await
         .unwrap_or_default()
 }
 
 pub async fn save(timeouts: Timeouts) -> Result<(), StoreError> {
-    in_table(&[CREATE_TABLE], async |connection| {
-        write_timeouts(connection, timeouts).await
-    })
-    .await
+    in_state_store(async |connection| write_timeouts(connection, timeouts).await).await
 }
 
 async fn read_timeouts(connection: &turso::Connection) -> Result<Timeouts, StoreError> {
@@ -123,14 +115,14 @@ mod tests {
 
     use sottomano_desktop_sources::{
         login_session_presence::session_power_actions::SessionAction,
-        sqlite_state_store::in_memory_connection,
+        sqlite_state_store::migrated_in_memory_store,
     };
 
-    use super::{CREATE_TABLE, ScheduledAfterIdle, Timeouts, read_timeouts, write_timeouts};
+    use super::{ScheduledAfterIdle, Timeouts, read_timeouts, write_timeouts};
 
     #[tokio::test]
     async fn timeouts_survive_a_round_trip() {
-        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        let connection = migrated_in_memory_store().await;
         let timeouts = Timeouts {
             lock_user: Some(Duration::from_secs(60)),
             screen_off: None,

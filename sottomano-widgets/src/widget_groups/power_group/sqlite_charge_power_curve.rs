@@ -1,19 +1,11 @@
 use sottomano_desktop_sources::{
     battery_power_profiles::battery_time_forecast::{CHARGE_BINS, ChargeCurve, PowerBin},
-    sqlite_state_store::{Columns, StoreError, with_table},
+    sqlite_state_store::{Columns, StoreError, with_state_store},
 };
-
-pub const SCHEMA: [&str; 1] = ["CREATE TABLE IF NOT EXISTS battery_charge_curve (
-        battery TEXT NOT NULL,
-        bin INTEGER NOT NULL,
-        mean_w REAL NOT NULL,
-        variance REAL NOT NULL,
-        PRIMARY KEY (battery, bin)
-    )"];
 
 pub async fn load(battery: String) -> Box<ChargeCurve> {
     Box::new(
-        with_table("charge curve: load failed", &SCHEMA, async |connection| {
+        with_state_store("charge curve: load failed", async |connection| {
             read_curve(connection, &battery).await
         })
         .await
@@ -22,7 +14,7 @@ pub async fn load(battery: String) -> Box<ChargeCurve> {
 }
 
 pub async fn save(battery: String, bin: usize, curve: ChargeCurve) {
-    with_table("charge curve: save failed", &SCHEMA, async |connection| {
+    with_state_store("charge curve: save failed", async |connection| {
         write_bin(connection, &battery, bin, &curve).await
     })
     .await;
@@ -76,13 +68,13 @@ async fn write_bin(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::migrated_in_memory_store;
 
     use super::*;
 
     #[tokio::test]
     async fn bins_survive_a_round_trip() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         let mut curve = ChargeCurve::default();
         curve.bins[3] = Some(PowerBin {
             mean_w: 28.5,
@@ -95,7 +87,7 @@ mod tests {
 
     #[tokio::test]
     async fn unknown_battery_has_an_empty_curve() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         assert_eq!(
             read_curve(&connection, "BAT9").await.unwrap(),
             ChargeCurve::default()

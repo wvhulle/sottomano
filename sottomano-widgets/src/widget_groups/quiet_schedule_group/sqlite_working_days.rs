@@ -1,10 +1,7 @@
 use chrono::{Weekday, WeekdaySet};
-use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, in_table, with_table};
-
-const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS working_days (
-    days_from_monday INTEGER PRIMARY KEY CHECK (days_from_monday BETWEEN 0 AND 6),
-    is_working INTEGER NOT NULL
-)";
+use sottomano_desktop_sources::sqlite_state_store::{
+    Columns, StoreError, in_state_store, with_state_store,
+};
 
 pub const MONDAY_TO_FRIDAY: WeekdaySet = WeekdaySet::from_array([
     Weekday::Mon,
@@ -24,16 +21,13 @@ pub fn with_day_toggled(working_days: WeekdaySet, day: Weekday) -> WeekdaySet {
 }
 
 pub async fn load() -> WeekdaySet {
-    with_table("working days: load failed", &[CREATE_TABLE], read_days)
+    with_state_store("working days: load failed", read_days)
         .await
         .unwrap_or(MONDAY_TO_FRIDAY)
 }
 
 pub async fn save(working_days: WeekdaySet) -> Result<(), StoreError> {
-    in_table(&[CREATE_TABLE], async |connection| {
-        write_days(connection, working_days).await
-    })
-    .await
+    in_state_store(async |connection| write_days(connection, working_days).await).await
 }
 
 async fn read_days(connection: &turso::Connection) -> Result<WeekdaySet, StoreError> {
@@ -85,20 +79,20 @@ async fn write_days(
 #[cfg(test)]
 mod tests {
     use chrono::{Weekday, WeekdaySet};
-    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::migrated_in_memory_store;
 
-    use super::{CREATE_TABLE, MONDAY_TO_FRIDAY, read_days, with_day_toggled, write_days};
+    use super::{MONDAY_TO_FRIDAY, read_days, with_day_toggled, write_days};
 
     #[tokio::test]
     async fn an_unsaved_week_reads_as_monday_to_friday() {
-        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        let connection = migrated_in_memory_store().await;
 
         assert_eq!(read_days(&connection).await.unwrap(), MONDAY_TO_FRIDAY);
     }
 
     #[tokio::test]
     async fn chosen_days_survive_a_round_trip() {
-        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        let connection = migrated_in_memory_store().await;
         let chosen_days = WeekdaySet::from_array([Weekday::Mon, Weekday::Tue, Weekday::Thu]);
         write_days(&connection, chosen_days).await.unwrap();
 
@@ -107,7 +101,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_empty_week_round_trips() {
-        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        let connection = migrated_in_memory_store().await;
         write_days(&connection, WeekdaySet::EMPTY).await.unwrap();
 
         assert_eq!(read_days(&connection).await.unwrap(), WeekdaySet::EMPTY);

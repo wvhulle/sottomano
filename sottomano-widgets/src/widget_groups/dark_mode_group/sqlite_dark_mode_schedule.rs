@@ -1,19 +1,12 @@
 use chrono::TimeDelta;
 use sottomano_desktop_sources::{
     screen_brightness_color::solar_switch_schedule::SunEventOffsets,
-    sqlite_state_store::{Columns, StoreError, flag, in_table, with_table},
+    sqlite_state_store::{Columns, StoreError, flag, in_state_store, with_state_store},
 };
 
 use crate::group_items::{
     reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
 };
-
-const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS dark_mode_schedule (
-    id INTEGER PRIMARY KEY CHECK (id = 0),
-    armed INTEGER NOT NULL,
-    sunrise_offset INTEGER NOT NULL,
-    sunset_offset INTEGER NOT NULL
-)";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AutoSwitchArming {
@@ -65,20 +58,13 @@ impl Default for DarkModeSchedule {
 }
 
 pub async fn load() -> DarkModeSchedule {
-    with_table(
-        "dark mode schedule: load failed",
-        &[CREATE_TABLE],
-        read_schedule,
-    )
-    .await
-    .unwrap_or_default()
+    with_state_store("dark mode schedule: load failed", read_schedule)
+        .await
+        .unwrap_or_default()
 }
 
 pub async fn save(schedule: DarkModeSchedule) -> Result<(), StoreError> {
-    in_table(&[CREATE_TABLE], async |connection| {
-        write_schedule(connection, schedule).await
-    })
-    .await
+    in_state_store(async |connection| write_schedule(connection, schedule).await).await
 }
 
 async fn read_schedule(connection: &turso::Connection) -> Result<DarkModeSchedule, StoreError> {

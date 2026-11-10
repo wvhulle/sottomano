@@ -1,26 +1,19 @@
 use chrono::{DateTime, Duration, Utc};
 use sottomano_desktop_sources::{
     desktop_windows_apps::app_launch_history::{Launch, LaunchWorkspace},
-    sqlite_state_store::{Columns, StoreError, with_table},
+    sqlite_state_store::{Columns, StoreError, with_state_store},
 };
 
 const TTL_DAYS: i64 = 60;
 
-pub const SCHEMA: [&str; 1] = ["CREATE TABLE IF NOT EXISTS launch_events (
-    workspace TEXT NOT NULL,
-    app_id TEXT NOT NULL,
-    launched_at TEXT NOT NULL,
-    PRIMARY KEY (workspace, app_id, launched_at)
-)"];
-
 pub async fn load() -> Vec<Launch> {
-    with_table("launch store: load failed", &SCHEMA, read_launches)
+    with_state_store("launch store: load failed", read_launches)
         .await
         .unwrap_or_default()
 }
 
 pub async fn record(launch: Launch) {
-    with_table("launch store: record failed", &SCHEMA, async |connection| {
+    with_state_store("launch store: record failed", async |connection| {
         write_launch(connection, &launch).await
     })
     .await;
@@ -74,9 +67,9 @@ async fn write_launch(connection: &turso::Connection, launch: &Launch) -> Result
 #[cfg(test)]
 mod tests {
     use chrono::{Duration, Utc};
-    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::migrated_in_memory_store;
 
-    use super::{Launch, LaunchWorkspace, SCHEMA, read_launches, write_launch};
+    use super::{Launch, LaunchWorkspace, read_launches, write_launch};
 
     fn firefox_on_web(minutes_ago: i64) -> Launch {
         Launch {
@@ -88,7 +81,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_launch_survives_a_round_trip() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         let launch = firefox_on_web(0);
         write_launch(&connection, &launch).await.unwrap();
 
@@ -97,7 +90,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_launch_on_an_unnamed_workspace_survives_a_round_trip() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         let launch = Launch {
             workspace: LaunchWorkspace::Unnamed,
             ..firefox_on_web(0)
@@ -109,7 +102,7 @@ mod tests {
 
     #[tokio::test]
     async fn repeated_launches_accumulate() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         write_launch(&connection, &firefox_on_web(5)).await.unwrap();
         write_launch(&connection, &firefox_on_web(0)).await.unwrap();
 
