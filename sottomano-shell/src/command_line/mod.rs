@@ -1,16 +1,16 @@
 use std::{error::Error, path::Path};
 
 use clap::{Parser, Subcommand};
-use sottomano_toml_config::{
-    SecretPaths, default_config_toml,
-    secrets::{SecretFile, SecretPresence},
-};
+
+mod default_config;
+mod secrets;
+mod setup;
 
 #[derive(Debug, Parser)]
 #[command(
     name = "sottomano",
     version,
-    about = "Desktop shell for the niri compositor: two panels with hoverable readings.",
+    about = "Desktop shell for niri, sway and Hyprland: two panels with hoverable readings.",
     long_about = "Desktop shell for niri, sway and Hyprland: two panels with hoverable readings. \
                   Without a subcommand it starts the shell; the subcommands describe its setup \
                   instead."
@@ -29,29 +29,22 @@ pub enum SetupCommand {
                  present."
     )]
     Secrets,
+    #[command(about = "Set up the system pieces the widgets read on a distribution.")]
+    Setup {
+        #[command(subcommand)]
+        distro: setup::DistroSetupCommand,
+    },
 }
 
 impl SetupCommand {
     pub fn print(&self, config_home: &Path) -> Result<(), Box<dyn Error>> {
         match self {
-            SetupCommand::DefaultConfig => print!("{}", default_config_toml()?),
-            SetupCommand::Secrets => print_secrets(config_home),
+            SetupCommand::DefaultConfig => default_config::print(),
+            SetupCommand::Secrets => {
+                secrets::print(config_home);
+                Ok(())
+            }
+            SetupCommand::Setup { distro } => setup::run(distro),
         }
-        Ok(())
-    }
-}
-
-fn print_secrets(config_home: &Path) {
-    let present = SecretPaths::discover(config_home);
-    println!(
-        "Secret files are read from {}",
-        SecretFile::directory(config_home).display()
-    );
-    for secret in SecretFile::ALL {
-        let state = match present.presence_of(secret) {
-            SecretPresence::Present => "present",
-            SecretPresence::Absent => "absent",
-        };
-        println!("\n{} ({state})\n  {}", secret.file_name(), secret.purpose());
     }
 }

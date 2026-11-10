@@ -14,11 +14,11 @@ The pages under this one are organized by package manager:
   route for other distributions.
 - [From source](from-source.md): building with cargo, for which each
   distribution's page lists its build headers.
-- [Ubuntu](ubuntu.md) and [Fedora](fedora.md): the commands specific to each
-  distribution, including the manual system setup that reproduces what the
-  NixOS module does.
+- [Ubuntu](ubuntu.md) and [Fedora](fedora.md): each distribution's build
+  headers and the `sudo sottomano setup <distro>` command that sets up the rest.
 - [System setup without NixOS](system-setup.md): the distro-neutral equivalent
-  of the NixOS module's system pieces.
+  of the NixOS module's system pieces, `sudo sottomano setup linux` and what
+  each step does.
 - [Session startup](../session.md): the systemd user service that starts the
   bar with the graphical session, outside home-manager.
 

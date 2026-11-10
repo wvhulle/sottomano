@@ -41,7 +41,7 @@ pkgs.stdenvNoCC.mkDerivation {
   installPhase = ''
     runHook preInstall
     mv site $out
-    rm $out/book.toml $out/theme/favicon.svg
+    rm $out/theme/favicon.svg
     ln -s ${readmeRecordings}/recordings $out/recordings
     cp logo.svg $out/logo.svg
     runHook postInstall

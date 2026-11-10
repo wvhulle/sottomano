@@ -124,7 +124,7 @@ labelled `nix` with KVM.
 
 ## Tour recordings
 
-The recordings in the [guide](guide/README.md) and the README are rendered
+The recordings in the [guide](guide/) and the README are rendered
 offscreen by `sottomano-widget-showcase` into the untracked root `recordings/`.
 `nix build .#readme-recordings` renders them all the way CI does. Its source is
 only the crates the showcase links, the workspace manifests and `.cargo/`;

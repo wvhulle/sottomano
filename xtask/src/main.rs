@@ -1,3 +1,4 @@
+mod icon_sets;
 mod recording_embed_widths;
 mod recordings_branch;
 
@@ -36,10 +37,13 @@ enum MaintenanceTask {
         check: bool,
     },
     #[command(
-        about = "Force-push the rendered recordings/ directory as the single commit of the \
-                 recordings branch on Codeberg, unless its tree is already published."
+        about = "Force-push the rendered recordings/ directory as the single commit of the \n                 recordings branch on Codeberg, unless its tree is already published."
     )]
     PublishRecordings,
+    #[command(
+        about = "Fetch the three icon sets at the revisions the flake pins and print the \n                 PHOSPHOR_SVG, SIMPLE_ICONS_SVG and WEATHER_ICONS_SVG exports for eval."
+    )]
+    FetchIconSvgs,
 }
 
 struct GeneratedSection {
@@ -165,5 +169,6 @@ fn main() -> Result<ExitCode, Box<dyn Error>> {
         MaintenanceTask::PublishRecordings => {
             recordings_branch::publish_recordings(Path::new(WORKSPACE_ROOT))
         }
+        MaintenanceTask::FetchIconSvgs => icon_sets::fetch_icon_sets(),
     }
 }

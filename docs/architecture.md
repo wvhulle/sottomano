@@ -115,7 +115,7 @@ flowchart TB
 The write tasks the widget groups produce go through the sinks crate: service
 commands and notification signals, and the compositor requests that rewrite the
 running compositor's window styling rule file, which each
-[compositor's page](compositors/README.md) includes in its config.
+[compositor's page](compositors/) includes in its config.
 
 ```mermaid
 flowchart TB
