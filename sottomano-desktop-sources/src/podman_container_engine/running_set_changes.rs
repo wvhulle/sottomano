@@ -11,7 +11,7 @@ use systemd::journal::Journal;
 use crate::{
     delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, StampedCadence},
     podman_container_engine::libpod_running_containers::ENGINE_POLL_PERIOD,
-    stream_operators::{StreamOperators, reread_on_trigger_or_deadline},
+    stream_operators::{StreamOperators, reread_on_trigger_or_deadline, resubscribed},
     system_protocol_clients::journal_follow::{JournalEvent, journal_windows},
 };
 
@@ -19,6 +19,7 @@ const PODMAN_TYPE_FIELD: &str = "PODMAN_TYPE";
 const CONTAINER_PODMAN_TYPE: &str = "container";
 const RUNNING_SET_EVENTS: [&str; 3] = ["start", "died", "remove"];
 const TRIGGER_BURST_GAP: Duration = Duration::from_secs(1);
+const JOURNAL_REOPEN_GAP: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct PodmanEventRecord {
@@ -58,18 +59,15 @@ impl JournalEvent for RunningSetChange {
 }
 
 fn running_set_triggers() -> impl Stream<Item = ()> + Send {
-    journal_windows::<RunningSetChange>()
-        .map(|window| {
-            if let Err(failure) = window {
-                tracing::warn!("podman events: {failure}, polling the engines instead");
-            }
-        })
-        .chain(
-            PeriodicPolling::every(ENGINE_POLL_PERIOD)
-                .poll_ticks()
-                .map(|_poll_tick| ()),
-        )
-        .at_most_once_per(TRIGGER_BURST_GAP)
+    resubscribed(JOURNAL_REOPEN_GAP, || async {
+        Ok(journal_windows::<RunningSetChange>())
+    })
+    .map(|window| {
+        if let Err(failure) = window {
+            tracing::warn!("podman events: {failure}, reopening the journal");
+        }
+    })
+    .at_most_once_per(TRIGGER_BURST_GAP)
 }
 
 pub(crate) struct ChangeTrackedSample<T> {

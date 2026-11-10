@@ -352,13 +352,49 @@ impl DesktopShell {
                     .group_content()
                     .map(Message::VirtualMachines),
                 self.widget_groups
+                    .virtualbox_machines_group
+                    .group_content()
+                    .map(Message::VirtualBoxMachines),
+                self.widget_groups
+                    .vmware_machines_group
+                    .group_content()
+                    .map(Message::VmwareMachines),
+                self.widget_groups
+                    .microvm_guests_group
+                    .group_content()
+                    .map(Message::MicrovmGuests),
+                self.widget_groups
+                    .incus_instances_group
+                    .group_content()
+                    .map(Message::IncusInstances),
+                self.widget_groups
                     .nspawn_containers_group
                     .group_content()
                     .map(Message::NspawnContainers),
                 self.widget_groups
+                    .lxc_containers_group
+                    .group_content()
+                    .map(Message::LxcContainers),
+                self.widget_groups
                     .podman_engines_group
                     .group_content()
                     .map(Message::PodmanEngines),
+                self.widget_groups
+                    .docker_engines_group
+                    .group_content()
+                    .map(Message::DockerEngines),
+                self.widget_groups
+                    .apptainer_containers_group
+                    .group_content()
+                    .map(Message::ApptainerContainers),
+                self.widget_groups
+                    .waydroid_container_group
+                    .group_content()
+                    .map(Message::WaydroidContainer),
+                self.widget_groups
+                    .flatpak_sandboxes_group
+                    .group_content()
+                    .map(Message::FlatpakSandboxes),
                 self.widget_groups
                     .cgroup_memory_limits_group
                     .group_content(&self.config)

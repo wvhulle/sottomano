@@ -83,6 +83,54 @@ impl ShellWidgetGroups {
                 .map(Message::WindowGroup),
             SessionFocusGroup::subscription(&config.widget_groups.session_focus)
                 .map(Message::SessionFocus),
+            self.microvm_guests_group
+                .subscription(
+                    self.group_menus
+                        .source_demand(WidgetGroupFamily::MicrovmGuests),
+                )
+                .map(Message::MicrovmGuests),
+            self.incus_instances_group
+                .subscription(
+                    self.group_menus
+                        .source_demand(WidgetGroupFamily::IncusInstances),
+                )
+                .map(Message::IncusInstances),
+            self.lxc_containers_group
+                .subscription(
+                    self.group_menus
+                        .source_demand(WidgetGroupFamily::LxcContainers),
+                )
+                .map(Message::LxcContainers),
+            self.flatpak_sandboxes_group
+                .subscription(
+                    self.group_menus
+                        .source_demand(WidgetGroupFamily::FlatpakSandboxes),
+                )
+                .map(Message::FlatpakSandboxes),
+            self.virtualbox_machines_group
+                .subscription(
+                    self.group_menus
+                        .source_demand(WidgetGroupFamily::VirtualBoxMachines),
+                )
+                .map(Message::VirtualBoxMachines),
+            self.vmware_machines_group
+                .subscription(
+                    self.group_menus
+                        .source_demand(WidgetGroupFamily::VmwareMachines),
+                )
+                .map(Message::VmwareMachines),
+            self.apptainer_containers_group
+                .subscription(
+                    self.group_menus
+                        .source_demand(WidgetGroupFamily::ApptainerContainers),
+                )
+                .map(Message::ApptainerContainers),
+            self.docker_engines_group
+                .subscription(
+                    self.group_menus
+                        .source_demand(WidgetGroupFamily::DockerEngines),
+                )
+                .map(Message::DockerEngines),
             self.cgroup_memory_limits_group
                 .subscription()
                 .map(Message::CgroupMemoryLimits),
@@ -108,13 +156,7 @@ impl ShellWidgetGroups {
             SystemdManagerGroup::subscription(&config.widget_groups.systemd_manager, buses)
                 .map(Message::SystemdManager),
             PendingUpgradesGroup::subscription(buses).map(Message::PendingUpgrades),
-            self.podman_engines_group
-                .subscription(buses)
-                .map(Message::PodmanEngines),
-            VirtualMachinesGroup::subscription(buses).map(Message::VirtualMachines),
-            self.nspawn_containers_group
-                .subscription(buses)
-                .map(Message::NspawnContainers),
+            self.virtualization_bus_subscriptions(buses),
             self.ci_runs_group.subscription(buses).map(Message::CiRuns),
             self.reachability_group
                 .subscription(
@@ -191,6 +233,25 @@ impl ShellWidgetGroups {
             self.llama_server_group
                 .subscription(buses)
                 .map(Message::LlamaServer),
+        ])
+    }
+
+    fn virtualization_bus_subscriptions(&self, buses: &DesktopBuses) -> Subscription<Message> {
+        Subscription::batch([
+            self.podman_engines_group
+                .subscription(buses)
+                .map(Message::PodmanEngines),
+            VirtualMachinesGroup::subscription(buses).map(Message::VirtualMachines),
+            self.waydroid_container_group
+                .subscription(
+                    buses,
+                    self.group_menus
+                        .source_demand(WidgetGroupFamily::WaydroidContainer),
+                )
+                .map(Message::WaydroidContainer),
+            self.nspawn_containers_group
+                .subscription(buses)
+                .map(Message::NspawnContainers),
         ])
     }
 }

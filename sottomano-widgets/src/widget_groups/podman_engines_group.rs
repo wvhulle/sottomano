@@ -79,11 +79,11 @@ struct PodmanEngineRow<'a> {
     readout: &'a EngineReadout,
 }
 
-fn running_summary(engine: &EngineContainers) -> String {
+pub(crate) fn running_summary(engine: &EngineContainers) -> String {
     format!("{} running", engine.containers.len())
 }
 
-fn containers_section(engine: &EngineContainers) -> Section {
+pub(crate) fn containers_section(engine: &EngineContainers) -> Section {
     Section::column_table(
         [
             ColumnHeading::titled("Image").align_x(Horizontal::Left),

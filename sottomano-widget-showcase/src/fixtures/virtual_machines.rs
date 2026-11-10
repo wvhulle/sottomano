@@ -31,6 +31,7 @@ fn interactive_sample_vm(clock: Clock) -> RunningVirtualMachine {
     RunningVirtualMachine {
         pid: INTERACTIVE_VM_PID,
         origin: VirtualMachineOrigin::SessionUser,
+        launch_context: Some("bootvine".to_owned()),
         launch: QemuLaunchArguments {
             machine_name: "sample-vm-slow-services".to_owned(),
             guest_cores: 2,
@@ -61,8 +62,9 @@ fn nixos_test_vm(clock: Clock) -> RunningVirtualMachine {
     RunningVirtualMachine {
         pid: 4200,
         origin: VirtualMachineOrigin::NixosTestBuild,
+        launch_context: Some("bootvine-encrypted-volume".to_owned()),
         launch: QemuLaunchArguments {
-            machine_name: "encrypted-volume".to_owned(),
+            machine_name: "machine".to_owned(),
             guest_cores: 2,
             guest_memory: ByteSize::gib(1),
             disk_images: vec![PathBuf::from("/build/vm-state-machine/machine.qcow2")],
@@ -83,6 +85,7 @@ fn paused_libvirt_domain(clock: Clock) -> RunningVirtualMachine {
     RunningVirtualMachine {
         pid: 4300,
         origin: VirtualMachineOrigin::LibvirtDomain,
+        launch_context: None,
         launch: QemuLaunchArguments {
             machine_name: "windows11".to_owned(),
             guest_cores: 4,

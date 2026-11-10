@@ -113,6 +113,63 @@ where
     until_first_failure(stream::once(connecting).try_flatten())
 }
 
+enum SubscriptionPhase<ConnectedStream> {
+    Connecting,
+    Streaming(ConnectedStream),
+    Reconnecting,
+}
+
+pub fn resubscribed<S, F, T, E>(
+    retry_gap: Duration,
+    subscribe: impl FnMut() -> F + Send,
+) -> impl Stream<Item = Result<T, E>> + Send
+where
+    S: Stream<Item = Result<T, E>> + Send,
+    F: Future<Output = Result<S, E>> + Send,
+    T: Send,
+    E: Send + Display,
+{
+    stream::unfold(
+        (SubscriptionPhase::Connecting, subscribe),
+        move |(phase, mut subscribe)| {
+            let retry_gap = retry_gap;
+            async move {
+                let mut phase = phase;
+                loop {
+                    match phase {
+                        SubscriptionPhase::Connecting | SubscriptionPhase::Reconnecting => {
+                            if matches!(phase, SubscriptionPhase::Reconnecting) {
+                                sleep(retry_gap).await;
+                            }
+                            phase = match subscribe().await {
+                                Ok(connected) => SubscriptionPhase::Streaming(Box::pin(connected)),
+                                Err(failure) => {
+                                    tracing::warn!("resubscription: {failure}");
+                                    return Some((
+                                        Err(failure),
+                                        (SubscriptionPhase::Reconnecting, subscribe),
+                                    ));
+                                }
+                            };
+                        }
+                        SubscriptionPhase::Streaming(mut connected) => {
+                            match connected.as_mut().next().await {
+                                Some(delivered) => {
+                                    return Some((
+                                        delivered,
+                                        (SubscriptionPhase::Streaming(connected), subscribe),
+                                    ));
+                                }
+                                None => phase = SubscriptionPhase::Reconnecting,
+                            }
+                        }
+                    }
+                }
+            }
+        },
+    )
+}
+
 pub fn resubscribing_until_failure<F, S, T, E>(
     subscribe: impl FnMut() -> F + Send,
 ) -> impl Stream<Item = Result<T, E>> + Send
@@ -320,6 +377,41 @@ mod tests {
     use super::*;
 
     const MINIMUM_GAP: Duration = Duration::from_secs(60);
+
+    #[tokio::test(start_paused = true)]
+    async fn a_resubscribed_stream_reconnects_after_its_source_ends() {
+        let started = time::Instant::now();
+        let mut planned_attempts = std::vec![
+            stream::iter(vec![Ok(1)]),
+            stream::iter(vec![Ok(0), Err("source ended")]),
+        ];
+        let mut resubscribed_events = pin!(resubscribed(MINIMUM_GAP, move || {
+            let next_attempt = planned_attempts
+                .pop()
+                .unwrap_or_else(|| stream::iter(Vec::new()));
+            async move { Ok(next_attempt) }
+        }));
+        assert_eq!(resubscribed_events.next().await, Some(Ok(0)));
+        assert_eq!(resubscribed_events.next().await, Some(Err("source ended")));
+        assert_eq!(started.elapsed(), Duration::ZERO);
+        assert_eq!(resubscribed_events.next().await, Some(Ok(1)));
+        assert_eq!(started.elapsed(), MINIMUM_GAP);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_failing_subscription_retries_after_the_gap() {
+        let started = time::Instant::now();
+        let mut resubscribed_events = pin!(resubscribed::<
+            stream::Iter<std::vec::IntoIter<Result<u8, &'static str>>>,
+            _,
+            u8,
+            &'static str,
+        >(MINIMUM_GAP, || async { Err("refused") }));
+        assert_eq!(resubscribed_events.next().await, Some(Err("refused")));
+        assert_eq!(started.elapsed(), Duration::ZERO);
+        assert_eq!(resubscribed_events.next().await, Some(Err("refused")));
+        assert_eq!(started.elapsed(), MINIMUM_GAP);
+    }
 
     #[tokio::test(start_paused = true)]
     async fn a_burst_of_triggers_yields_once_after_the_gap() {

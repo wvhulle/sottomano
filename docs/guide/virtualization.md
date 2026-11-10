@@ -1,6 +1,6 @@
 # Virtualization and CI runs
 
-The Virtualization menu holds everything that runs a guest on this computer: virtual machines, nspawn and Podman containers, and the memory caps that keep them from crowding out the desktop. Groups for kinds of guests this computer does not run stay hidden.
+The Virtualization menu holds everything that runs a guest on this computer: virtual machines, microVMs, Incus instances, nspawn, LXC, Podman and Docker containers, Waydroid, Flatpak sandboxes, and the memory caps that keep them from crowding out the desktop. Groups for kinds of guests this computer does not run stay hidden.
 
 ## Virtualization: Virtual machines
 
@@ -10,6 +10,16 @@ Pressing a machine that has its own window focuses that window. Right-pressing p
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/virtual_machines.webp" width="1059" alt="Opening the virtual machines group from the Virtualization menu and hovering a machine started from a terminal">
 
+## Virtualization: MicroVMs
+
+Every guest running under a lightweight hypervisor on this computer, one row each, with its memory use: Cloud Hypervisor, Firecracker, crosvm and kvmtool, as started by microvm.nix or by hand. A microvm.nix guest is named after its `microvm@` service and its memory is that service's; any other guest is named after its `--id` or `--name`, or its hypervisor and process. The card lists the hypervisor, guest memory and cores, uptime, service, kernel and API socket.
+
+Right-pressing a Cloud Hypervisor or Firecracker guest with an API socket this user can open presses its power button.
+
+## Virtualization: Incus instances
+
+Every Incus or LXD instance on this computer, containers and virtual machines alike, across all projects, one row each. A running instance shows its address, or its memory use when it has none; a stopped one says so. The card lists its kind, status, daemon, project, memory use, addresses and image. Pressing a stopped instance starts it and right-pressing a running one stops it. Reading the daemon needs your user in the `incus-admin` (or `lxd`) group; without it the daemon gets one row that says access is denied.
+
 ## Virtualization: nspawn containers
 
 Every systemd-nspawn container on this computer, one row each, including NixOS containers: the running ones machined knows about and the stopped ones that only have a `container@` or `systemd-nspawn@` service. A running container shows its address in its row; the others say whether they are stopped, starting or stopping. The card lists its service, addresses, uptime, memory use, leader process and root directory.
@@ -18,11 +28,27 @@ Pressing the switch on a row starts or stops the container's service. Containers
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/nspawn_containers.webp" width="1015" alt="Opening the nspawn containers group from the Virtualization menu and hovering a running NixOS container">
 
+## Virtualization: LXC containers
+
+Every plain LXC container on this computer, one row each: the running ones, found by their control group, and the stopped ones configured under `/var/lib/lxc`. A running container shows its memory use. The card lists its state, memory use, configured addresses and config file. Waydroid's container is left out here because it has its own group.
+
 ## Virtualization: Podman containers
 
 Every Podman engine a systemd service on this computer serves, one row each, named after its owner, with the number of containers running in it. An engine whose socket this user may not open shows a warning in its row, and its card says why. The card lists the running containers with their image, CPU and memory use, and the engine's unit and socket.
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/podman_engines.webp" width="684" alt="Opening the Podman containers group from the Virtualization menu">
+
+## Virtualization: Docker containers
+
+The Docker engines on this computer, one row each: the system engine at `/run/docker.sock` and a rootless engine in your runtime directory. An engine that is not installed or not running has no row. Each row shows how many containers run in it, and its card lists them with their image, CPU and memory use. A Woodpecker step is shown by its step name.
+
+## Virtualization: Waydroid
+
+The Android container Waydroid runs, as one row while its container or session is up, with the session's state. The card lists whether the container runs, its memory use, the session's state and user, and the screen density. Right-pressing it asks Waydroid to stop the container.
+
+## Virtualization: Flatpak apps
+
+Every Flatpak app you are running, one row per sandbox, with its memory use. The card lists the app, memory use, uptime, runtime, branch, instance number and sandbox process.
 
 ## Virtualization: Memory limits
 

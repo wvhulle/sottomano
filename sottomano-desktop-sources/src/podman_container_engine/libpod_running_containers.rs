@@ -152,7 +152,7 @@ enum ContainerProcessState {
     NoProcess,
 }
 
-async fn classified_engine_failure(
+pub(crate) async fn classified_engine_failure(
     socket_path: &Path,
     fetch_failure: http_json_client::Error,
 ) -> EngineReadError {

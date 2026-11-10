@@ -13,6 +13,7 @@ use sottomano_widgets::{
     widget_groups::{
         app_launcher_group::AppLauncherGroup,
         appearance_presets_group::AppearancePresetsGroup,
+        apptainer_containers_group::ApptainerContainersGroup,
         audio_group::AudioGroup,
         bluetooth_adapters_group::BluetoothAdaptersGroup,
         caldav_group::CaldavGroup,
@@ -25,16 +26,21 @@ use sottomano_widgets::{
         compute_group::{ComputeGroup, ComputeMessage},
         copilot_usage_group::CopilotUsageGroup,
         dark_mode_group::{DarkModeGroup, DarkModeMessage},
+        docker_engines_group::DockerEnginesGroup,
         ethernet_ports_group::EthernetPortsGroup,
+        flatpak_sandboxes_group::FlatpakSandboxesGroup,
         gamepad_group::GamepadGroup,
         global_menu_group::GlobalMenuGroup,
         gpu_group::GpuGroup,
         idle_pause_groups::IdlePauseGroups,
+        incus_instances_group::IncusInstancesGroup,
         journal_events_group::JournalEventsGroup,
         llama_server_group::LlamaServerGroup,
         login_session_group::LoginSessionGroup,
+        lxc_containers_group::LxcContainersGroup,
         media_group::MediaGroup,
         memory_board_group::{MemoryBoardGroup, MemoryBoardMessage},
+        microvm_guests_group::MicrovmGuestsGroup,
         mobile_modems_group::MobileModemsGroup,
         monitor_group::MonitorGroup,
         network_manager_vpn_group::NetworkManagerVpnGroup,
@@ -57,8 +63,11 @@ use sottomano_widgets::{
         tailnet_group::TailnetGroup,
         tray_group::TrayGroup,
         virtual_machines_group::VirtualMachinesGroup,
+        virtualbox_machines_group::VirtualBoxMachinesGroup,
+        vmware_machines_group::VmwareMachinesGroup,
         voice_dictation_group::VoiceDictationGroup,
         wallpaper_group::WallpaperGroup,
+        waydroid_container_group::WaydroidContainerGroup,
         weather_group::WeatherGroup,
         wifi_adapters_group::WifiAdaptersGroup,
         window_group::WindowGroup,
@@ -120,6 +129,15 @@ pub struct ShellWidgetGroups {
     pub virtual_machines_group: VirtualMachinesGroup,
     pub nspawn_containers_group: NspawnContainersGroup,
     pub cgroup_memory_limits_group: CgroupMemoryLimitsGroup,
+    pub docker_engines_group: DockerEnginesGroup,
+    pub apptainer_containers_group: ApptainerContainersGroup,
+    pub vmware_machines_group: VmwareMachinesGroup,
+    pub virtualbox_machines_group: VirtualBoxMachinesGroup,
+    pub waydroid_container_group: WaydroidContainerGroup,
+    pub flatpak_sandboxes_group: FlatpakSandboxesGroup,
+    pub lxc_containers_group: LxcContainersGroup,
+    pub incus_instances_group: IncusInstancesGroup,
+    pub microvm_guests_group: MicrovmGuestsGroup,
     pub ci_runs_group: CiRunsGroup,
     pub session_focus_group: SessionFocusGroup,
     pub login_session_group: LoginSessionGroup,
@@ -188,6 +206,15 @@ impl ShellWidgetGroups {
             virtual_machines_group: VirtualMachinesGroup::default(),
             nspawn_containers_group: NspawnContainersGroup::default(),
             cgroup_memory_limits_group: CgroupMemoryLimitsGroup::default(),
+            docker_engines_group: DockerEnginesGroup::default(),
+            apptainer_containers_group: ApptainerContainersGroup::default(),
+            vmware_machines_group: VmwareMachinesGroup::default(),
+            virtualbox_machines_group: VirtualBoxMachinesGroup::default(),
+            waydroid_container_group: WaydroidContainerGroup::default(),
+            flatpak_sandboxes_group: FlatpakSandboxesGroup::default(),
+            lxc_containers_group: LxcContainersGroup::default(),
+            incus_instances_group: IncusInstancesGroup::default(),
+            microvm_guests_group: MicrovmGuestsGroup::default(),
             ci_runs_group: CiRunsGroup::default(),
             session_focus_group: SessionFocusGroup::started_at(
                 &config.widget_groups.session_focus,
@@ -336,6 +363,42 @@ impl ShellWidgetGroups {
                 .map(Message::LlamaServer),
             Message::PodmanEngines(msg) => {
                 self.podman_engines_group.update(msg, clock);
+                Task::none()
+            }
+            Message::MicrovmGuests(microvm_message) => self
+                .microvm_guests_group
+                .update(microvm_message, clock)
+                .map(Message::MicrovmGuests),
+            Message::IncusInstances(group_message) => self
+                .incus_instances_group
+                .update(group_message, clock)
+                .map(Message::IncusInstances),
+            Message::LxcContainers(group_message) => {
+                self.lxc_containers_group.update(group_message, clock);
+                Task::none()
+            }
+            Message::FlatpakSandboxes(group_message) => {
+                self.flatpak_sandboxes_group.update(group_message, clock);
+                Task::none()
+            }
+            Message::WaydroidContainer(group_message) => self
+                .waydroid_container_group
+                .update(group_message, clock)
+                .map(Message::WaydroidContainer),
+            Message::VirtualBoxMachines(group_message) => self
+                .virtualbox_machines_group
+                .update(group_message, clock)
+                .map(Message::VirtualBoxMachines),
+            Message::VmwareMachines(group_message) => {
+                self.vmware_machines_group.update(group_message, clock);
+                Task::none()
+            }
+            Message::ApptainerContainers(group_message) => {
+                self.apptainer_containers_group.update(group_message, clock);
+                Task::none()
+            }
+            Message::DockerEngines(docker_message) => {
+                self.docker_engines_group.update(docker_message, clock);
                 Task::none()
             }
             Message::CgroupMemoryLimits(limits_message) => self
@@ -510,6 +573,15 @@ impl ShellWidgetGroups {
         self.virtual_machines_group.collapse();
         self.nspawn_containers_group.collapse();
         self.cgroup_memory_limits_group.collapse();
+        self.docker_engines_group.collapse();
+        self.apptainer_containers_group.collapse();
+        self.vmware_machines_group.collapse();
+        self.virtualbox_machines_group.collapse();
+        self.waydroid_container_group.collapse();
+        self.flatpak_sandboxes_group.collapse();
+        self.lxc_containers_group.collapse();
+        self.incus_instances_group.collapse();
+        self.microvm_guests_group.collapse();
         self.ci_runs_group.collapse();
         self.session_focus_group.collapse();
         self.login_session_group.collapse();

@@ -124,6 +124,9 @@ impl VirtualMachineRow<'_> {
             "Origin",
             origin_text(&machine.origin).into_owned(),
         )];
+        if let Some(launch_context) = &machine.launch_context {
+            entries.push(LabeledValue::new("Test or project", launch_context.clone()));
+        }
         if let Some(cpu_share) = cpu_share_quantity(machine.cpu_load) {
             entries.push(LabeledValue::new("CPU load", cpu_share));
         }
@@ -170,7 +173,12 @@ impl GroupItemReading for VirtualMachineRow<'_> {
     }
 
     fn menu_row_name(&self) -> Cow<'static, str> {
-        self.machine.launch.machine_name.clone().into()
+        match &self.machine.launch_context {
+            Some(launch_context) => {
+                format!("{} · {launch_context}", self.machine.launch.machine_name).into()
+            }
+            None => self.machine.launch.machine_name.clone().into(),
+        }
     }
 
     fn icon(&self) -> IconGlyph {
