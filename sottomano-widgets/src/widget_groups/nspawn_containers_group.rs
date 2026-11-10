@@ -113,6 +113,9 @@ impl NspawnContainerRow<'_> {
         {
             detail_entries.push(LabeledValue::new("Uptime", ValueCell::duration(uptime)));
         }
+        if let Some(memory_in_use) = registered_machine.memory_in_use {
+            detail_entries.push(LabeledValue::new("Memory use", memory_in_use.to_string()));
+        }
         detail_entries.push(LabeledValue::new(
             "Leader PID",
             registered_machine.leader_pid.to_string(),
@@ -365,6 +368,7 @@ mod tests {
                     IpAddr::V4(Ipv4Addr::new(10, 200, 0, 2)),
                 ],
                 root_directory: PathBuf::from("/var/lib/nixos-containers/arr-proton"),
+                memory_in_use: None,
             }),
         }
     }

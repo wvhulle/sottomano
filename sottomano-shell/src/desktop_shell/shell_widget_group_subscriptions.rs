@@ -83,6 +83,9 @@ impl ShellWidgetGroups {
                 .map(Message::WindowGroup),
             SessionFocusGroup::subscription(&config.widget_groups.session_focus)
                 .map(Message::SessionFocus),
+            self.cgroup_memory_limits_group
+                .subscription()
+                .map(Message::CgroupMemoryLimits),
         ])
     }
 

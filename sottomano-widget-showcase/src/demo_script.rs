@@ -14,6 +14,7 @@ use sottomano_widgets::{
         appearance_presets_group::AppearancePresetsTarget,
         audio_group::{AudioTarget, ControlKind},
         caldav_group::CaldavTarget,
+        cgroup_memory_limits_group::CgroupMemoryLimitTarget,
         ci_runs_group::{CiRunnerKind, CiRunsTarget},
         claude_usage_group::ClaudeUsageTarget,
         compute_group::ComputeTarget,
@@ -36,10 +37,10 @@ use sottomano_widgets::{
 
 use crate::{
     fixtures::{
-        app_launcher, appearance_presets, audio, caldav, ci_runner_tasks, claude_usage, compute,
-        desktop_session, gamepad, group_menu_members, idle_lock, login_session, media,
-        memory_board, notification_toasts, nspawn_containers, podman_engines, shell_settings,
-        tailnet, unchanging, virtual_machines, voice_dictation, wallpaper, weather,
+        app_launcher, appearance_presets, audio, caldav, cgroup_memory_limits, ci_runner_tasks,
+        claude_usage, compute, desktop_session, gamepad, group_menu_members, idle_lock,
+        login_session, media, memory_board, notification_toasts, nspawn_containers, podman_engines,
+        shell_settings, tailnet, unchanging, virtual_machines, voice_dictation, wallpaper, weather,
         wireguard_tunnels,
     },
     showcase_message::ShowcaseMessage,
@@ -228,6 +229,21 @@ pub const DEMOS: &[Demo] = &[
             Step::Hover(HoverTarget::NspawnContainer(
                 NspawnContainerTarget::of_machine(Cow::Borrowed(
                     nspawn_containers::HOVERED_CONTAINER_NAME,
+                )),
+            )),
+        ],
+    },
+    Demo {
+        name: "cgroup_memory_limits_ci_runners",
+        group: cgroup_memory_limits::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
+            Step::PressText("Memory limits"),
+            Step::Hover(HoverTarget::CgroupMemoryLimit(
+                CgroupMemoryLimitTarget::of_cgroup(Cow::Borrowed(
+                    cgroup_memory_limits::HOVERED_CGROUP_PATH,
                 )),
             )),
         ],

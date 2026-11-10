@@ -25,7 +25,7 @@
   - [Idle and session](guide/idle-and-session.md)
   - [AI usage](guide/ai-usage.md)
   - [Network](guide/network.md)
-  - [Virtual machines, containers and CI runs](guide/virtual-machines.md)
+  - [Virtualization and CI runs](guide/virtualization.md)
   - [Appearance](guide/appearance.md)
   - [Notification toasts](guide/toasts.md)
 

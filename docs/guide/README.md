@@ -31,7 +31,8 @@ The Menus group in the Behaviour menu changes how every menu opens. Menus can op
 | Appearance | bottom, left | panel, sidebar, overlay, window and menu settings with a unit |
 | Behaviour | bottom, left | the remaining panel, sidebar, overlay, window and menu settings, the application menu switch, looks |
 | Applications | bottom, middle | frequently launched apps, one group per category, launcher options |
-| Services | bottom, right | local models, virtual machines, Podman containers, nspawn containers, AI usage, systemd units, journal, upgrades |
+| Virtualization | bottom, right | virtual machines, nspawn containers, Podman containers, memory limits |
+| Services | bottom, right | local models, CI runs, AI usage, systemd units, journal, upgrades |
 | Session | bottom, right | idle timeouts, login session |
 
 ## Top panel
@@ -47,13 +48,13 @@ The Hardware, Network and Application menus on the left; the clock, Agenda menu 
 
 ## Bottom panel
 
-The Appearance and Behaviour menus and the workspaces on the left; the windows in the middle; the Services and Session menus and the system tray on the right.
+The Appearance and Behaviour menus and the workspaces on the left; the windows in the middle; the Virtualization, Services and Session menus and the system tray on the right.
 
 - [Windows and workspaces](windows-and-workspaces.md): previews, the window list and the process inspector.
 - [Idle and session](idle-and-session.md): idle timeouts and the login session.
 - [AI usage](ai-usage.md): subscription windows, billing block and spend.
 - [Network](network.md): WireGuard tunnels with a switch to connect or disconnect them, and who may reach this machine over Tailscale.
-- [Virtual machines, containers and CI runs](virtual-machines.md): running QEMU and libvirt machines, systemd-nspawn containers with a switch to start or stop them, the containers in each Podman engine and the runs of local CI runners.
+- [Virtualization and CI runs](virtualization.md): running QEMU and libvirt machines, systemd-nspawn containers with a switch to start or stop them, the containers in each Podman engine, memory caps on slices and services, and the runs of local CI runners.
 - [Appearance](appearance.md): the looks and how to switch them.
 
 ## Notification toasts

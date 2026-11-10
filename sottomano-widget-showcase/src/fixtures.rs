@@ -32,6 +32,7 @@ pub mod app_launcher;
 pub mod appearance_presets;
 pub mod audio;
 pub mod caldav;
+pub mod cgroup_memory_limits;
 pub mod ci_runner_tasks;
 pub mod claude_usage;
 pub mod compute;

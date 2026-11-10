@@ -359,6 +359,10 @@ impl DesktopShell {
                     .podman_engines_group
                     .group_content()
                     .map(Message::PodmanEngines),
+                self.widget_groups
+                    .cgroup_memory_limits_group
+                    .group_content(&self.config)
+                    .map(Message::CgroupMemoryLimits),
             ],
         )
     }

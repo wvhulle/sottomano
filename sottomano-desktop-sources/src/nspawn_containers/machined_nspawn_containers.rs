@@ -6,13 +6,16 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+use bytesize::ByteSize;
 use futures::{Stream, StreamExt};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, StampedCadence},
     stream_operators::{StreamOperators, reread_on_trigger_or_deadline},
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::{
+        dbus_desktop_buses::DesktopBuses, sysfs_cgroup_memory::unit_memory_of_process,
+    },
     systemd_units_journal::{
         machined_machine_registry::{
             MachineClass, RegisteredMachineListing, machine_set_changes, registered_machine_at,
@@ -36,6 +39,7 @@ pub struct RegisteredContainerMachine {
     pub started_at: Option<SystemTime>,
     pub ip_addresses: Vec<IpAddr>,
     pub root_directory: PathBuf,
+    pub memory_in_use: Option<ByteSize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -158,10 +162,12 @@ async fn registered_container_reading(
             ip_address_from(address_family, &address_bytes)
         })
         .collect();
+    let leader_pid = machine_proxy.leader().await.unwrap_or_default();
     Some(RegisteredContainerReading {
         unit_name: machine_proxy.unit().await.unwrap_or_default(),
         registered_machine: RegisteredContainerMachine {
-            leader_pid: machine_proxy.leader().await.unwrap_or_default(),
+            memory_in_use: unit_memory_of_process(leader_pid),
+            leader_pid,
             started_at: machine_proxy
                 .timestamp()
                 .await
@@ -255,6 +261,7 @@ mod tests {
                 started_at: wall_time_from_realtime_micros(1_793_974_883_916_598),
                 ip_addresses: vec![IpAddr::V4(Ipv4Addr::new(10, 200, 0, 2))],
                 root_directory: PathBuf::from("/var/lib/nixos-containers/arr-proton"),
+                memory_in_use: None,
             },
         }
     }

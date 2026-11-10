@@ -3,6 +3,7 @@ pub mod appearance_presets_group;
 pub mod audio_group;
 pub mod bluetooth_adapters_group;
 pub mod caldav_group;
+pub mod cgroup_memory_limits_group;
 pub mod ci_runs_group;
 pub mod claude_usage_group;
 pub mod clock_group;

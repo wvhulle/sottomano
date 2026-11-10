@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
@@ -35,6 +36,7 @@ fn running_media_container(clock: Clock) -> NspawnContainer {
                 IpAddr::V6(Ipv6Addr::new(0xfc00, 0, 0, 0, 0, 0, 0, 2)),
             ],
             root_directory: PathBuf::from("/var/lib/nixos-containers/arr-proton"),
+            memory_in_use: Some(ByteSize::mib(612)),
         }),
     }
 }
@@ -49,6 +51,7 @@ fn running_build_container(clock: Clock) -> NspawnContainer {
             started_at: Some(clock.wall - Duration::from_mins(7)),
             ip_addresses: vec![IpAddr::V4(Ipv4Addr::new(192, 168, 77, 14))],
             root_directory: PathBuf::from("/var/lib/machines/debian-build"),
+            memory_in_use: Some(ByteSize::mib(1_840)),
         }),
     }
 }

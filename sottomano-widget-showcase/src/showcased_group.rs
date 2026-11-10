@@ -27,6 +27,7 @@ use sottomano_widgets::{
         appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsMessage},
         audio_group::AudioGroup,
         caldav_group::CaldavGroup,
+        cgroup_memory_limits_group::CgroupMemoryLimitsGroup,
         ci_runs_group::CiRunsGroup,
         claude_usage_group::ClaudeUsageGroup,
         compositor_styling_group::CompositorStylingGroup,
@@ -128,6 +129,7 @@ pub enum ShowcasedGroup {
     PodmanEngines(Box<PodmanEnginesGroup>),
     VirtualMachines(Box<VirtualMachinesGroup>),
     NspawnContainers(Box<NspawnContainersGroup>),
+    CgroupMemoryLimits(Box<CgroupMemoryLimitsGroup>),
     CiRuns(Box<CiRunsGroup>),
     Tailnet(Box<TailnetGroup>),
     WireguardTunnels(Box<WireguardTunnelsGroup>),
@@ -411,6 +413,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::PodmanEngines(_)
             | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::NspawnContainers(_)
+            | ShowcasedGroup::CgroupMemoryLimits(_)
             | ShowcasedGroup::CiRuns(_)
             | ShowcasedGroup::Tailnet(_)
             | ShowcasedGroup::WireguardTunnels(_)
@@ -478,6 +481,13 @@ impl ShowcasedGroup {
             }
             ShowcasedGroup::NspawnContainers(group) => {
                 vec![group.group_content().map(ShowcaseMessage::NspawnContainers)]
+            }
+            ShowcasedGroup::CgroupMemoryLimits(group) => {
+                vec![
+                    group
+                        .group_content(config)
+                        .map(ShowcaseMessage::CgroupMemoryLimits),
+                ]
             }
             ShowcasedGroup::CiRuns(group) => {
                 vec![group.group_content().map(ShowcaseMessage::CiRuns)]
@@ -549,6 +559,12 @@ impl ShowcasedGroup {
             (ShowcasedGroup::CiRuns(group), ShowcaseMessage::CiRuns(message)) => {
                 let _ = group.update(message, clock);
             }
+            (
+                ShowcasedGroup::CgroupMemoryLimits(group),
+                ShowcaseMessage::CgroupMemoryLimits(limits_message),
+            ) => {
+                let _ = group.update(limits_message, clock);
+            }
             _ => {}
         }
     }
@@ -608,6 +624,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::PodmanEngines(_)
             | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::NspawnContainers(_)
+            | ShowcasedGroup::CgroupMemoryLimits(_)
             | ShowcasedGroup::CiRuns(_) => self.update_container_groups(message, clock),
             ShowcasedGroup::Caldav(group) => {
                 if let ShowcaseMessage::Caldav(message) = message {
@@ -757,6 +774,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::PodmanEngines(_)
             | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::NspawnContainers(_)
+            | ShowcasedGroup::CgroupMemoryLimits(_)
             | ShowcasedGroup::CiRuns(_)
             | ShowcasedGroup::AppearancePresets(_)
             | ShowcasedGroup::ShellSettings(_)
@@ -859,6 +877,12 @@ impl ShowcasedGroup {
                 };
                 group.hover_card_for(target, clock)
             }
+            ShowcasedGroup::CgroupMemoryLimits(group) => {
+                let HoverTarget::CgroupMemoryLimit(target) = target else {
+                    return None;
+                };
+                group.hover_card_for(target)
+            }
             ShowcasedGroup::CiRuns(group) => {
                 let HoverTarget::CiRuns(target) = target else {
                     return None;
@@ -927,6 +951,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::PodmanEngines(_)
             | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::NspawnContainers(_)
+            | ShowcasedGroup::CgroupMemoryLimits(_)
             | ShowcasedGroup::CiRuns(_)
             | ShowcasedGroup::Tailnet(_)
             | ShowcasedGroup::WireguardTunnels(_)
