@@ -228,9 +228,11 @@
           // {
             cargoArtifacts = shellArtifacts;
             cargoExtraArgs = compositorCargoArgs compositors;
-            nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.makeWrapper ];
+            nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.makeBinaryWrapper ];
             postInstall = ''
-              wrapProgram $out/bin/sottomano \
+              mkdir -p $out/libexec
+              mv $out/bin/sottomano $out/libexec/sottomano
+              makeWrapper $out/libexec/sottomano $out/bin/sottomano \
                 ${allocatorWrapperFlags} \
                 --prefix PATH : ${gsettingsRuntime.binPath} \
                 --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
