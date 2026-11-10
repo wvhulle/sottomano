@@ -100,18 +100,38 @@
 
       showcaseAppIcons = "${pkgs.papirus-icon-theme}/share/icons/Papirus/64x64/apps";
 
-      sourcesAffectingRecordings = pkgs.lib.fileset.toSource {
-        root = ./.;
-        fileset = pkgs.lib.fileset.difference ./. (
-          pkgs.lib.fileset.unions [
-            ./docs
-            ./README.md
-            ./.woodpecker
-            ./.forgejo
-            ./vm-tests
-          ]
-        );
-      };
+      sourcesAffectingRecordings =
+        let
+          inherit (pkgs.lib) fileset;
+          showcaseCrateSources = fileset.toSource {
+            root = ./.;
+            fileset = fileset.difference (fileset.unions [
+              ./Cargo.toml
+              ./Cargo.lock
+              ./.cargo
+              ./corredo
+              ./iced_controller_diagram
+              ./sottomano-toml-config
+              ./sottomano-phosphor-icons
+              ./sottomano-simple-icons
+              ./sottomano-weather-icons
+              ./sottomano-desktop-sources
+              ./sottomano-desktop-sinks
+              ./sottomano-widgets
+              ./sottomano-widget-showcase
+              ./sottomano-shell/Cargo.toml
+              ./xtask/Cargo.toml
+            ]) ./sottomano-widget-showcase/tests;
+          };
+        in
+        pkgs.runCommand "sottomano-showcase-source" { } ''
+          cp -r ${showcaseCrateSources} $out
+          chmod -R u+w $out
+          mkdir -p $out/sottomano-shell/src $out/xtask/src
+          touch $out/sottomano-shell/src/main.rs \
+            $out/sottomano-shell/src/secret_memory_holders_main.rs \
+            $out/xtask/src/main.rs
+        '';
 
       showcaseArgs = commonArgs // {
         src = sourcesAffectingRecordings;
@@ -260,7 +280,7 @@
 
       homeModule = import ./nix/hm-module.nix { inherit self; };
 
-      documentationSite = import ./nix/documentation-site.nix { inherit pkgs; };
+      documentationSite = import ./nix/documentation-site.nix { inherit pkgs readmeRecordings; };
 
       vmTests = import ./vm-tests {
         sottomanoNixosModule = self.nixosModules.default;
