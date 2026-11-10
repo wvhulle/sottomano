@@ -1,3 +1,4 @@
+pub mod versioned_schema_migrations;
 pub mod write_rate_limit;
 
 use std::{collections::HashMap, env, fs, io, ops::Deref, path::PathBuf, time::Duration};
@@ -44,34 +45,29 @@ impl Deref for TableConnection {
 }
 
 #[cfg(any(test, feature = "test-support"))]
-pub async fn in_memory_connection(schema: &[&str]) -> turso::Connection {
-    use futures::{StreamExt, stream};
+pub async fn migrated_in_memory_store() -> turso::Connection {
     let database = turso::Builder::new_local(":memory:").build().await.unwrap();
-    let conn = database.connect().unwrap();
-    stream::iter(schema)
-        .for_each(async |statement| {
-            conn.execute(*statement, ()).await.unwrap();
-        })
-        .await;
-    conn
+    let connection = database.connect().unwrap();
+    versioned_schema_migrations::apply_pending_migrations(&connection)
+        .await
+        .unwrap();
+    connection
 }
 
-pub async fn with_table<T>(
+pub async fn with_state_store<T>(
     label: &str,
-    schema: &[&str],
     work: impl AsyncFnOnce(&turso::Connection) -> Result<T, StoreError>,
 ) -> Option<T> {
-    in_table(schema, work)
+    in_state_store(work)
         .await
         .inspect_err(|error| tracing::warn!("{label}: {error}"))
         .ok()
 }
 
-pub async fn in_table<T>(
-    schema: &[&str],
+pub async fn in_state_store<T>(
     work: impl AsyncFnOnce(&turso::Connection) -> Result<T, StoreError>,
 ) -> Result<T, StoreError> {
-    let connection = connect(schema).await?;
+    let connection = connect_migrated_store().await?;
     work(&connection).await
 }
 
@@ -102,7 +98,7 @@ pub fn flag(value: bool) -> turso::Value {
     turso::Value::Integer(i64::from(value))
 }
 
-pub async fn connect(schema: &[&str]) -> Result<TableConnection, StoreError> {
+pub async fn connect_migrated_store() -> Result<TableConnection, StoreError> {
     let path = db_path().ok_or(StoreError::MissingStateDirectory)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -112,9 +108,7 @@ pub async fn connect(schema: &[&str]) -> Result<TableConnection, StoreError> {
         .await?;
     let connection = database.connect()?;
     connection.busy_timeout(BUSY_TIMEOUT)?;
-    for statement in schema {
-        connection.execute(statement, ()).await?;
-    }
+    versioned_schema_migrations::apply_pending_migrations(&connection).await?;
     Ok(TableConnection {
         connection,
         _database: database,

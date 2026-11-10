@@ -1,27 +1,17 @@
 use sottomano_desktop_sources::sqlite_state_store::{
-    Columns, StoreError, flag, in_table, real, with_table,
+    Columns, StoreError, flag, in_state_store, real, with_state_store,
 };
 
 use super::{GroupCollapsing, PanelGroupFraming, PanelLayout};
 
-pub(super) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS panel_layout (
-    id INTEGER PRIMARY KEY CHECK (id = 0),
-    disconnected_groups INTEGER NOT NULL,
-    auto_collapse_groups INTEGER NOT NULL,
-    float_offset_px REAL NOT NULL
-)";
-
 pub(super) async fn load() -> PanelLayout {
-    with_table("panel layout: load failed", &[CREATE_TABLE], read_layout)
+    with_state_store("panel layout: load failed", read_layout)
         .await
         .unwrap_or_default()
 }
 
 pub(super) async fn save(panel_layout: PanelLayout) -> Result<(), StoreError> {
-    in_table(&[CREATE_TABLE], async |connection| {
-        write_layout(connection, panel_layout).await
-    })
-    .await
+    in_state_store(async |connection| write_layout(connection, panel_layout).await).await
 }
 
 pub(super) async fn read_layout(connection: &turso::Connection) -> Result<PanelLayout, StoreError> {

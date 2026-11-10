@@ -1,14 +1,6 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::sqlite_state_store::{Columns, StoreError, connect, with_table};
-
-pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS rate_limit_backoff (
-    source TEXT PRIMARY KEY,
-    retry_after_unix INTEGER NOT NULL,
-    attempts INTEGER NOT NULL,
-    status INTEGER NOT NULL,
-    message TEXT
-)";
+use crate::sqlite_state_store::{Columns, StoreError, connect_migrated_store, with_state_store};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Backoff {
@@ -29,7 +21,7 @@ impl Backoff {
 }
 
 pub async fn load(source: &'static str) -> Option<Backoff> {
-    let stored = match connect(&[CREATE_TABLE]).await {
+    let stored = match connect_migrated_store().await {
         Ok(conn) => read_backoff(&conn, source).await,
         Err(error) => Err(error),
     };
@@ -44,18 +36,16 @@ pub async fn load(source: &'static str) -> Option<Backoff> {
 }
 
 pub async fn save(source: &'static str, backoff: &Backoff) {
-    with_table(
+    with_state_store(
         &format!("rate limit backoff: save failed for {source}"),
-        &[CREATE_TABLE],
         async |conn| write_backoff(conn, source, backoff).await,
     )
     .await;
 }
 
 pub async fn clear(source: &'static str) {
-    with_table(
+    with_state_store(
         &format!("rate limit backoff: clear failed for {source}"),
-        &[CREATE_TABLE],
         async |conn| clear_backoff(conn, source).await,
     )
     .await;
@@ -121,8 +111,8 @@ pub fn now_unix() -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{Backoff, CREATE_TABLE, read_backoff, write_backoff};
-    use crate::sqlite_state_store::in_memory_connection;
+    use super::{Backoff, read_backoff, write_backoff};
+    use crate::sqlite_state_store::migrated_in_memory_store;
 
     fn backoff() -> Backoff {
         Backoff {
@@ -135,7 +125,7 @@ mod tests {
 
     #[tokio::test]
     async fn backoff_survives_a_round_trip() {
-        let conn = in_memory_connection(&[CREATE_TABLE]).await;
+        let conn = migrated_in_memory_store().await;
         write_backoff(&conn, "claude", &backoff()).await.unwrap();
 
         assert_eq!(read_backoff(&conn, "claude").await.unwrap(), backoff());

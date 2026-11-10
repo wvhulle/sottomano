@@ -413,17 +413,17 @@ impl PanelSettingsGroup {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::migrated_in_memory_store;
 
     use super::{
         GroupCollapsing, PanelGroupFraming, PanelLayout, PanelSettingsGroup, PanelSettingsMessage,
-        sqlite_panel_layout::{CREATE_TABLE, read_layout, write_layout},
+        sqlite_panel_layout::{read_layout, write_layout},
     };
     use crate::widget_groups::window_group::WindowRowLayout;
 
     #[tokio::test]
     async fn panel_layout_survives_a_round_trip() {
-        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        let connection = migrated_in_memory_store().await;
         let stored = PanelLayout {
             group_framing: PanelGroupFraming::Disconnected,
             group_collapsing: GroupCollapsing::StayExpanded,
@@ -435,7 +435,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_unwritten_panel_layout_keeps_its_defaults() {
-        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        let connection = migrated_in_memory_store().await;
         assert_eq!(
             read_layout(&connection).await.unwrap(),
             PanelLayout::default()
@@ -444,7 +444,7 @@ mod tests {
 
     #[tokio::test]
     async fn the_panel_layout_table_refuses_a_missing_value() {
-        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        let connection = migrated_in_memory_store().await;
         let refused = connection
             .execute(
                 "INSERT INTO panel_layout (id, disconnected_groups, auto_collapse_groups, \

@@ -5,47 +5,23 @@ use sottomano_desktop_sources::{
     battery_power_profiles::{
         battery_time_forecast::RegressionState, power_profiles_daemon::Profile,
     },
-    sqlite_state_store::{Columns, StoreError, with_table},
+    sqlite_state_store::{Columns, StoreError, with_state_store},
 };
-
-pub const SCHEMA: [&str; 2] = [
-    "CREATE TABLE IF NOT EXISTS battery_draw_model (
-        battery TEXT NOT NULL,
-        profile TEXT NOT NULL,
-        base_w REAL NOT NULL,
-        k_bright REAL NOT NULL,
-        k_load REAL NOT NULL,
-        PRIMARY KEY (battery, profile)
-    )",
-    "CREATE TABLE IF NOT EXISTS battery_draw_covariance (
-        battery TEXT NOT NULL,
-        profile TEXT NOT NULL,
-        row_index INTEGER NOT NULL,
-        column_index INTEGER NOT NULL,
-        covariance REAL NOT NULL,
-        PRIMARY KEY (battery, profile, row_index, column_index),
-        CHECK (row_index <= column_index AND column_index < 3)
-    )",
-];
 
 const UPPER_TRIANGLE_ENTRIES: usize = 6;
 
 pub async fn load(battery: String) -> HashMap<Profile, RegressionState> {
-    with_table(
-        "power regression: load failed",
-        &SCHEMA,
-        async |connection| read_models(connection, &battery).await,
-    )
+    with_state_store("power regression: load failed", async |connection| {
+        read_models(connection, &battery).await
+    })
     .await
     .unwrap_or_default()
 }
 
 pub async fn save(battery: String, profile: Profile, state: RegressionState) {
-    with_table(
-        "power regression: save failed",
-        &SCHEMA,
-        async |connection| write_model(connection, &battery, profile, state).await,
-    )
+    with_state_store("power regression: save failed", async |connection| {
+        write_model(connection, &battery, profile, state).await
+    })
     .await;
 }
 
@@ -178,9 +154,9 @@ async fn write_model(
 #[cfg(test)]
 mod tests {
     use nalgebra::{Matrix3, Vector3};
-    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::migrated_in_memory_store;
 
-    use super::{Profile, RegressionState, SCHEMA, read_models, write_model};
+    use super::{Profile, RegressionState, read_models, write_model};
 
     fn distinct_state() -> RegressionState {
         RegressionState {
@@ -191,7 +167,7 @@ mod tests {
 
     #[tokio::test]
     async fn coefficients_and_covariance_survive_a_round_trip() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         write_model(&connection, "BAT0", Profile::Balanced, distinct_state())
             .await
             .unwrap();

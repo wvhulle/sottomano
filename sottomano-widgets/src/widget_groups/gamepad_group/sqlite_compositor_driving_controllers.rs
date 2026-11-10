@@ -1,15 +1,12 @@
 use std::collections::BTreeSet;
 
-use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, in_table, with_table};
-
-const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS compositor_driving_controllers (
-    controller_key TEXT PRIMARY KEY NOT NULL
-)";
+use sottomano_desktop_sources::sqlite_state_store::{
+    Columns, StoreError, in_state_store, with_state_store,
+};
 
 pub async fn load() -> BTreeSet<String> {
-    with_table(
+    with_state_store(
         "gamepad compositor control: load failed",
-        &[CREATE_TABLE],
         read_driving_controllers,
     )
     .await
@@ -17,7 +14,7 @@ pub async fn load() -> BTreeSet<String> {
 }
 
 pub async fn save(driving_controllers: BTreeSet<String>) -> Result<(), StoreError> {
-    in_table(&[CREATE_TABLE], async |connection| {
+    in_state_store(async |connection| {
         write_driving_controllers(connection, &driving_controllers).await
     })
     .await
@@ -60,13 +57,13 @@ async fn write_driving_controllers(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::migrated_in_memory_store;
 
     use super::*;
 
     #[tokio::test]
     async fn an_empty_table_hands_every_controller_to_the_focused_window() {
-        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        let connection = migrated_in_memory_store().await;
         assert!(
             read_driving_controllers(&connection)
                 .await
@@ -77,7 +74,7 @@ mod tests {
 
     #[tokio::test]
     async fn saved_driving_controllers_replace_the_previous_ones() {
-        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        let connection = migrated_in_memory_store().await;
         let first_save = BTreeSet::from(["AA:BB".to_owned(), "input31".to_owned()]);
         write_driving_controllers(&connection, &first_save)
             .await

@@ -6,7 +6,9 @@ use sottomano_desktop_sources::{
     compositor_window_ipc::compositor_styling_model::{
         CompositorStyling, HeatedWindow, SwitchHeat,
     },
-    sqlite_state_store::{Columns, StoreError, flag, in_table, upsert_column, with_table},
+    sqlite_state_store::{
+        Columns, StoreError, flag, in_state_store, upsert_column, with_state_store,
+    },
 };
 use sottomano_toml_config::theme::palette::Palette;
 
@@ -16,11 +18,6 @@ use crate::{
     widget_groups::compositor_styling_group::CompositorStylingMessage,
     widgets::phosphor::{Phosphor, Weight},
 };
-
-const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS switch_heat_borders (
-    id INTEGER PRIMARY KEY CHECK (id = 0),
-    shown INTEGER NOT NULL
-)";
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum SwitchHeatVisibility {
@@ -105,17 +102,13 @@ impl SwitchHeatBorders {
 }
 
 async fn load_visibility() -> SwitchHeatVisibility {
-    with_table(
-        "switch heat borders: load failed",
-        &[CREATE_TABLE],
-        read_visibility,
-    )
-    .await
-    .unwrap_or_default()
+    with_state_store("switch heat borders: load failed", read_visibility)
+        .await
+        .unwrap_or_default()
 }
 
 async fn save_visibility(heat_visibility: SwitchHeatVisibility) -> Result<(), StoreError> {
-    in_table(&[CREATE_TABLE], async |connection| {
+    in_state_store(async |connection| {
         upsert_column(
             connection,
             "switch_heat_borders",
@@ -146,14 +139,14 @@ async fn read_visibility(
 #[cfg(test)]
 mod tests {
     use sottomano_desktop_sources::sqlite_state_store::{
-        flag, in_memory_connection, upsert_column,
+        flag, migrated_in_memory_store, upsert_column,
     };
 
-    use super::{CREATE_TABLE, SwitchHeatVisibility, read_visibility};
+    use super::{SwitchHeatVisibility, read_visibility};
 
     #[tokio::test]
     async fn borders_show_until_turned_off() {
-        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        let connection = migrated_in_memory_store().await;
         assert_eq!(
             read_visibility(&connection).await.unwrap(),
             SwitchHeatVisibility::Shown

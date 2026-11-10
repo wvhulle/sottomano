@@ -5,20 +5,10 @@ use sottomano_desktop_sources::{
     compositor_window_ipc::compositor_styling_model::{
         AppWindowLayout, CompositorStyling, ShellBlurDepth,
     },
-    sqlite_state_store::{Columns, StoreError, in_table, real, upsert_column, with_table},
+    sqlite_state_store::{
+        Columns, StoreError, in_state_store, real, upsert_column, with_state_store,
+    },
 };
-
-const SCHEMA: [&str; 2] = [
-    "CREATE TABLE IF NOT EXISTS app_window_layout (
-    id INTEGER PRIMARY KEY CHECK (id = 0),
-    corner_radius_px REAL NOT NULL CHECK (corner_radius_px >= 0),
-    gaps_px REAL NOT NULL CHECK (gaps_px >= 0)
-)",
-    "CREATE TABLE IF NOT EXISTS shell_blur_depth (
-    id INTEGER PRIMARY KEY CHECK (id = 0),
-    depth TEXT NOT NULL CHECK (depth IN ('windows_behind', 'wallpaper_only'))
-)",
-];
 
 const WINDOWS_BEHIND: &str = "windows_behind";
 const WALLPAPER_ONLY: &str = "wallpaper_only";
@@ -130,27 +120,19 @@ async fn stored_or_imported(
 }
 
 pub async fn load(config_home: PathBuf) -> CompositorStyling {
-    with_table(
-        "compositor styling: load failed",
-        &SCHEMA,
-        async |connection| stored_or_imported(connection, config_home).await,
-    )
+    with_state_store("compositor styling: load failed", async |connection| {
+        stored_or_imported(connection, config_home).await
+    })
     .await
     .unwrap_or_default()
 }
 
 pub async fn save_layout(layout: AppWindowLayout) -> Result<(), StoreError> {
-    in_table(&SCHEMA, async |connection| {
-        write_layout(connection, layout).await
-    })
-    .await
+    in_state_store(async |connection| write_layout(connection, layout).await).await
 }
 
 pub async fn save_blur_depth(blur_depth: ShellBlurDepth) -> Result<(), StoreError> {
-    in_table(&SCHEMA, async |connection| {
-        write_blur_depth(connection, blur_depth).await
-    })
-    .await
+    in_state_store(async |connection| write_blur_depth(connection, blur_depth).await).await
 }
 
 #[cfg(test)]
@@ -161,10 +143,10 @@ mod tests {
         compositor_window_ipc::compositor_styling_model::{
             AppWindowLayout, CompositorStyling, ShellBlurDepth,
         },
-        sqlite_state_store::in_memory_connection,
+        sqlite_state_store::migrated_in_memory_store,
     };
 
-    use super::{SCHEMA, stored_or_imported, write_blur_depth, write_layout};
+    use super::{stored_or_imported, write_blur_depth, write_layout};
 
     fn styled() -> CompositorStyling {
         CompositorStyling {
@@ -178,7 +160,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_empty_store_without_niri_rules_reads_the_defaults() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         let config_home = env::temp_dir().join("sottomano-styling-no-niri-rules");
         assert_eq!(
             stored_or_imported(&connection, config_home).await.unwrap(),
@@ -188,7 +170,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_stored_styling_reads_back() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         write_layout(&connection, styled().layout).await.unwrap();
         write_blur_depth(&connection, styled().blur_depth)
             .await
@@ -202,7 +184,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_lone_blur_depth_keeps_the_default_layout() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         write_blur_depth(&connection, ShellBlurDepth::WallpaperOnly)
             .await
             .unwrap();
@@ -214,7 +196,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_empty_store_imports_the_niri_rules_once() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         let config_home =
             env::temp_dir().join(format!("sottomano-styling-import-{}", process::id()));
         let rules_directory = config_home.join("sottomano");

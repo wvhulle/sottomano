@@ -2,13 +2,7 @@ use std::ops::Add;
 
 use bytesize::ByteSize;
 use chrono::{Datelike, Months, NaiveDate};
-use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, with_table};
-
-pub const SCHEMA: [&str; 1] = ["CREATE TABLE IF NOT EXISTS metered_volume (
-        day TEXT PRIMARY KEY,
-        received_bytes INTEGER NOT NULL,
-        sent_bytes INTEGER NOT NULL
-    )"];
+use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, with_state_store};
 
 const DAY_FORMAT: &str = "%Y-%m-%d";
 
@@ -73,7 +67,7 @@ pub async fn add_and_reload(
     cycle_start_day: u32,
     transferred: TransferTotals,
 ) -> Option<MeteredVolumeTotals> {
-    with_table("metered volume: save failed", &SCHEMA, async |connection| {
+    with_state_store("metered volume: save failed", async |connection| {
         add_transferred(connection, today, transferred).await?;
         read_totals(connection, today, cycle_start(today, cycle_start_day)).await
     })
@@ -81,7 +75,7 @@ pub async fn add_and_reload(
 }
 
 pub async fn load(today: NaiveDate, cycle_start_day: u32) -> Option<MeteredVolumeTotals> {
-    with_table("metered volume: load failed", &SCHEMA, async |connection| {
+    with_state_store("metered volume: load failed", async |connection| {
         read_totals(connection, today, cycle_start(today, cycle_start_day)).await
     })
     .await
@@ -173,7 +167,7 @@ async fn read_totals(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::migrated_in_memory_store;
 
     use super::*;
 
@@ -202,7 +196,7 @@ mod tests {
 
     #[tokio::test]
     async fn additions_on_one_day_accumulate() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         let today = date(2026, 10, 28);
         add_transferred(&connection, today, totals(100, 10))
             .await
@@ -219,7 +213,7 @@ mod tests {
 
     #[tokio::test]
     async fn cycle_sums_only_days_since_its_start() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         add_transferred(&connection, date(2026, 9, 30), totals(1_000, 100))
             .await
             .unwrap();
@@ -239,7 +233,7 @@ mod tests {
 
     #[tokio::test]
     async fn empty_store_counts_from_today() {
-        let connection = in_memory_connection(&SCHEMA).await;
+        let connection = migrated_in_memory_store().await;
         let today = date(2026, 10, 28);
         let read_back = read_totals(&connection, today, date(2026, 10, 1))
             .await

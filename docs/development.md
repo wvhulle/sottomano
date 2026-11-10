@@ -19,6 +19,16 @@ Work inside the Nix devshell (`nix develop`).
 
 Version control is jj, not the `git` CLI.
 
+## State database schema
+
+Every table in `~/.local/state/sottomano/state.db` is defined in
+`db-migrations/`. A schema or data change is a new file named
+`NNNN_what_changes.sql` with the next number, registered in
+`sottomano-desktop-sources/src/sqlite_state_store/versioned_schema_migrations.rs`;
+a test fails when a file is missing there or out of order. Never edit a file
+that has shipped: the database records the last applied number in
+`PRAGMA user_version` and runs each newer file once, inside a transaction.
+
 ## Debugging with comet
 
 `cargo r --features devtools` attaches iced's devtools to the running shell, and
