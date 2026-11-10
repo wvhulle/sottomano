@@ -11,7 +11,7 @@ use sottomano_desktop_sources::{
             TailscaleExitNodes,
         },
         tailscale_inbound_access::{
-            InboundAccessRule, InboundPorts, InboundReach, TailscaleInboundAccess,
+            InboundAccessRule, InboundDestination, InboundPorts, TailscaleInboundAccess,
         },
         tailscale_status::{
             ExitNodeOffer, ExitNodeUse, KeyExpiry, Peer, PeerPath, Tailnet, Tailscale,
@@ -152,17 +152,24 @@ pub fn on_hover(target: &TailnetTarget) -> Vec<TailnetMessage> {
                 rules: vec![
                     InboundAccessRule {
                         source_name: "home-server".to_owned(),
-                        reach: InboundReach::ThisMachine,
+                        destination: InboundDestination::ThisMachine,
                         ports: InboundPorts::All,
                     },
                     InboundAccessRule {
                         source_name: "office-laptop".to_owned(),
-                        reach: InboundReach::ThisMachine,
+                        destination: InboundDestination::ThisMachine,
+                        ports: InboundPorts::Single(443),
+                    },
+                    InboundAccessRule {
+                        source_name: "office-laptop".to_owned(),
+                        destination: InboundDestination::HostedService {
+                            service_name: "nextcloud".to_owned(),
+                        },
                         ports: InboundPorts::Single(443),
                     },
                     InboundAccessRule {
                         source_name: "pixel-9".to_owned(),
-                        reach: InboundReach::RoutesThroughThisMachine,
+                        destination: InboundDestination::ExitNodeInternet,
                         ports: InboundPorts::All,
                     },
                 ],

@@ -67,7 +67,7 @@ pub enum ExitRoutingSwitch {
 
 impl ExitNodeOption {
     fn from_peer(peer: &TailscaleNodeJson) -> Option<Self> {
-        let ip = peer.tailscale_ips.first()?.clone();
+        let ip = peer.tailscale_ips.first()?.to_string();
         let reachability = if peer.online {
             ExitNodeReachability::Online
         } else {
