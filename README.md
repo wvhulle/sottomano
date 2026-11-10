@@ -70,7 +70,7 @@ made up.
 
 - Try it from a checkout: `cargo r` inside `nix develop`.
 - Install it with the home-manager and NixOS modules:
-  [installation](https://sottomano.work/installation.html).
+  [installation](https://sottomano.work/installation/).
 - Configure it with one TOML file whose complete default the shell prints:
   [configuration](https://sottomano.work/configuration.html).
 - Work on it: [development](https://sottomano.work/development.html) and

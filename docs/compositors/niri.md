@@ -3,25 +3,13 @@
 Sottomano talks to [niri](https://github.com/YaLTeR/niri) through `niri-ipc`
 26.4, so use niri 26.04 or newer. Everything the bar offers works on niri,
 including the overview, column moves and the workspace order restored from
-niri's config.
-
-## Install niri
-
-On NixOS, enable niri through
-[niri-hm](https://codeberg.org/wvhulle/niri-hm) (`services.niri.enable`), which
-`sottomano.homeModules.default` imports. Fedora packages niri:
-
-```bash
-sudo dnf install niri
-```
-
-If your Ubuntu release does not package niri 26.04 or newer, build it following
-[niri's instructions](https://github.com/YaLTeR/niri).
+niri's config. For installing niri itself, follow
+[its instructions](https://github.com/YaLTeR/niri).
 
 ## Start with the session
 
 niri's `niri-session` starts `graphical-session.target`, which starts the
-sottomano user service from [the installation guide](../installation.md#start-with-the-session).
+sottomano user service from [the session page](../session.md).
 
 The bar's frames only reach the screen through niri, so give niri at least the
 bar's CPU weight in `~/.config/systemd/user/niri.service.d/sottomano-priority.conf`,

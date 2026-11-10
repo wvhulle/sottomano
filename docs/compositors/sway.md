@@ -1,22 +1,13 @@
 # sway
 
 Sottomano follows [sway](https://swaywm.org) through its IPC socket
-(`SWAYSOCK`). It is tested with sway 1.12.
-
-## Install sway
-
-On NixOS, set `programs.sway.enable = true`. Ubuntu and Fedora package sway:
-
-```bash
-sudo apt install sway
-sudo dnf install sway
-```
+(`SWAYSOCK`). It is tested with sway 1.12. For installing sway itself, follow
+[its instructions](https://swaywm.org).
 
 ## Start with the session
 
 sway does not start `graphical-session.target` by itself, which the sottomano
-user service from [the installation guide](../installation.md#start-with-the-session)
-waits for. Start a target bound to it at the end of your sway config, after
+user service from [the session page](../session.md) waits for. Start a target bound to it at the end of your sway config, after
 exporting the session environment to systemd:
 
 ```text

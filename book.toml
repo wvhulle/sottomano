@@ -1,11 +1,14 @@
 [book]
 title = "Sottomano"
 language = "en"
-src = "."
+src = "docs"
 
 [build]
-build-dir = "../target/documentation-site"
+build-dir = "target/documentation-site"
 create-missing = false
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
 
 [output.html]
 site-url = "/"
@@ -13,4 +16,5 @@ git-repository-url = "https://codeberg.org/wvhulle/sottomano"
 edit-url-template = "https://codeberg.org/wvhulle/sottomano/_edit/main/docs/{path}"
 default-theme = "ayu"
 preferred-dark-theme = "ayu"
-additional-css = ["theme/sottomano.css"]
+additional-css = ["docs/theme/sottomano.css"]
+additional-js = ["mermaid.min.js", "mermaid-init.js"]
