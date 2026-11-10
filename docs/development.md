@@ -1,95 +1,11 @@
 # Development
 
-Setup and workflow for working on sottomano. The rules the code follows are in
-[Style](style.md).
+Setup and workflow for working on sottomano: building and checking it,
+debugging, CI, the VM tests and the tour recordings. How the crates fit
+together is in [Architecture](architecture.md); the rules the code follows are
+in [Style](style.md).
 
-## Workspace
-
-Work inside the Nix devshell (`nix develop`). The repository is a cargo
-workspace:
-
-- `sottomano-toml-config/` holds the TOML config types and their loading.
-- `sottomano-desktop-sources/` holds the data sources the shell reads, as
-  streams, together with the bus proxies and connection handles they share.
-- `sottomano-desktop-sinks/` holds what the shell writes: commands, settings and
-  signals sent to desktop services, built on the handles from the sources crate.
-- `corredo/` holds generic iced widgets that know nothing about the shell.
-- `sottomano-widgets/` holds the panels, group menus, widget groups, group items
-  and hover cards, one module per level of the hierarchy in `CONTRIBUTING.md`.
-  Each widget group restores and persists its own state.
-- `sottomano-shell/` composes them into the running shell (binary `sottomano`)
-  and defines the message type they produce.
-- `sottomano-widget-showcase/` plays widget fixtures for the tour recordings,
-  the `.ice` scenarios and the windowed tester.
-
-## Runtime
-
-The shell loads the config and starts its daemon. A data source becomes a
-subscription that yields a message while a reading it backs is on screen or can
-alert, decided the same way for pinned groups and groups in a menu. The update
-step applies each message, persisting state where needed, and the view renders
-the layer-shell surfaces. Windows and workspaces come from whichever compositor
-runs (niri, sway or Hyprland), detected from its socket variable; each
-compositor sits behind a cargo feature of the same name, all on by default.
-
-```mermaid
-flowchart TB
-  subgraph sources_crate [sottomano-desktop-sources]
-    desktop_bus["D-Bus (zbus)<br>power, login session, media, …"]
-    notification_server["freedesktop<br>notification server"]
-    compositor_events["compositor IPC<br>niri, sway or Hyprland events"]
-    wayland_outputs["Wayland outputs"]
-    file_watches["inotify<br>config file, desktop entries"]
-    snapshot_sources["snapshot sources"]
-  end
-
-  subgraph sinks_crate [sottomano-desktop-sinks]
-    service_commands["service commands<br>volume, power, network, tray, …"]
-    notification_signals["notification<br>signals"]
-    compositor_requests["compositor requests<br>and window styling rules"]
-  end
-
-  subgraph config_crate [sottomano-toml-config]
-    config_file[("$XDG_CONFIG_HOME/sottomano.toml")]
-    config_loading["config loading"]
-    config_file --> config_loading
-  end
-
-  subgraph widgets_crate [sottomano-widgets]
-    snapshot_subscription["snapshot subscription"]
-    widget_groups["widget groups<br>update, view"]
-    group_stores["per-group SQLite state<br>dark mode schedule, idle timeouts,<br>focus spans, shell settings, …"]
-    widget_groups <-->|restore / persist| group_stores
-  end
-
-  subgraph shell_crate [sottomano-shell]
-    shell_startup["shell startup"]
-    shell_message["shell messages"]
-    message_subscriptions["message subscriptions"]
-    shell_update["shell update"]
-    shell_view["shell view"]
-    app_launch_store["app launch history"]
-    layer_surfaces["layer-shell surfaces<br>bars, panel, sidebar, toasts, hover cards"]
-    shell_startup -->|startup load tasks| shell_update
-    shell_message --> message_subscriptions
-    message_subscriptions --> shell_update
-    shell_update -->|state| shell_view
-    shell_view --> layer_surfaces
-    shell_update <-->|restore / persist| app_launch_store
-  end
-
-  state_database[("$XDG_STATE_HOME/sottomano/state.db")]
-  compositor_rules_file[("$XDG_CONFIG_HOME/sottomano/<br>niri.kdl, sway.conf or hyprland.lua")]
-
-  config_loading --> shell_startup
-  desktop_bus & notification_server & compositor_events & wayland_outputs & file_watches --> message_subscriptions
-  snapshot_sources -->|snapshots| snapshot_subscription
-  snapshot_subscription --> shell_message
-  shell_update <-->|group messages and tasks| widget_groups
-  widget_groups -->|write tasks| service_commands & notification_signals & compositor_requests
-  group_stores & app_launch_store <--> state_database
-  compositor_requests -->|rewrite| compositor_rules_file
-```
+Work inside the Nix devshell (`nix develop`).
 
 ## Building and checking
 
@@ -208,7 +124,7 @@ labelled `nix` with KVM.
 
 ## Tour recordings
 
-The recordings in the [guide](guide/) and the README are rendered
+The recordings in the [guide](guide/README.md) and the README are rendered
 offscreen by `sottomano-widget-showcase` into the untracked root `recordings/`.
 `nix build .#readme-recordings` renders them all the way CI does. Its source is
 only the crates the showcase links, the workspace manifests and `.cargo/`;
@@ -328,8 +244,12 @@ the page behind them.
 ## Documentation site
 
 `docs/` is an mdBook published at [sottomano.work](https://sottomano.work); its
-first page includes the root `README.md`. `mdbook serve docs` previews it
-locally, and `nix build .#documentation-site` builds what the server hosts. The
+first page includes the root `README.md`. The mermaid diagrams render through
+the `mdbook-mermaid` preprocessor, whose `install` subcommand adds the bundled
+`mermaid.min.js` and `mermaid-init.js` to the book and the
+`[preprocessor.mermaid]` entry to `book.toml` (the nix build runs it on a copy;
+run it once yourself at the repo root before `mdbook serve`, which serves the
+book from there too). `mdbook serve` previews it locally, and `nix build .#documentation-site` builds what the server hosts. The
 site updates when the nuremberg host in nixos-config is rebuilt with a newer
 sottomano input.
 

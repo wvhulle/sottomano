@@ -8,16 +8,21 @@ pkgs.stdenvNoCC.mkDerivation {
   src = lib.fileset.toSource {
     root = ../.;
     fileset = lib.fileset.unions [
+      ../book.toml
       ../docs
       ../README.md
       ../logo.svg
     ];
   };
 
-  nativeBuildInputs = [ pkgs.mdbook ];
+  nativeBuildInputs = [
+    pkgs.mdbook
+    pkgs.mdbook-mermaid
+  ];
   nativeInstallCheckInputs = [ pkgs.lychee ];
 
   postPatch = ''
+    mdbook-mermaid install .
     shopt -s globstar
     for markdown in README.md docs/**/*.md; do
       substituteInPlace "$markdown" \
@@ -29,7 +34,7 @@ pkgs.stdenvNoCC.mkDerivation {
 
   buildPhase = ''
     runHook preBuild
-    mdbook build docs --dest-dir site
+    mdbook build . --dest-dir site
     runHook postBuild
   '';
 

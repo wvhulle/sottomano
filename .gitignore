@@ -2,3 +2,5 @@
 /result*
 rustc-ice-*
 recordings/
+/mermaid.min.js
+/mermaid-init.js

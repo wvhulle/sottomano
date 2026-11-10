@@ -3,19 +3,14 @@
 Sottomano follows [Hyprland](https://hypr.land) through its request and event
 sockets (`HYPRLAND_INSTANCE_SIGNATURE`). It sends its requests as Lua
 dispatchers (`hl.dsp`) and writes a Lua rule file, so it needs Hyprland 0.56 or
-newer with a Lua config (`hyprland.lua`). It is tested with Hyprland 0.56.2.
-
-## Install Hyprland
-
-On NixOS, set `programs.hyprland.enable = true`. For other distributions, follow
-[Hyprland's installation guide](https://wiki.hypr.land/Getting-Started/Installation/).
-Start Hyprland through `start-hyprland`.
+newer with a Lua config (`hyprland.lua`). It is tested with Hyprland 0.56.2. For
+installing Hyprland itself, follow
+[its installation guide](https://wiki.hypr.land/Getting-Started/Installation/).
 
 ## Start with the session
 
 Hyprland does not start `graphical-session.target` by itself, which the
-sottomano user service from
-[the installation guide](../installation.md#start-with-the-session) waits for.
+sottomano user service from [the session page](../session.md) waits for.
 Start a target bound to it from your Lua config, after exporting the session
 environment to systemd:
 

@@ -366,6 +366,7 @@
           ++ [
             pkgs.glib.bin
             pkgs.mdbook
+            pkgs.mdbook-mermaid
           ]
           ++ formatters
           ++ runtimeDeps;

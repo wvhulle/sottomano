@@ -2,12 +2,18 @@
 
 [Introduction](introduction.md)
 
-- [Installation](installation.md)
+- [Installation](installation/README.md)
+  - [Nix](installation/nix.md)
+  - [From source](installation/from-source.md)
+  - [Ubuntu](installation/ubuntu.md)
+  - [Fedora](installation/fedora.md)
+  - [System setup without NixOS](installation/system-setup.md)
 - [Configuration](configuration.md)
-- [Compositors]()
-  - [niri](compositors/niri.md)
-  - [sway](compositors/sway.md)
-  - [Hyprland](compositors/hyprland.md)
+  - [Session startup](session.md)
+  - [Compositors](compositors/README.md)
+    - [niri](compositors/niri.md)
+    - [sway](compositors/sway.md)
+    - [Hyprland](compositors/hyprland.md)
 - [Guide](guide/README.md)
   - [Compute](guide/compute.md)
   - [Memory and board](guide/memory-and-board.md)
@@ -26,4 +32,5 @@
 # Contributing
 
 - [Development](development.md)
+- [Architecture](architecture.md)
 - [Style](style.md)
