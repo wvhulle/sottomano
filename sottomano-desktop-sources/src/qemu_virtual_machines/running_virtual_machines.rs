@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     convert::Infallible,
     future::pending,
+    ops::Range,
     pin::pin,
     sync::{Arc, Mutex},
     time::{Duration, Instant, SystemTime},
@@ -24,8 +25,10 @@ use crate::{
         libvirt_domain_control::{LIBVIRT_DOMAIN_CONTROL_BUILT, libvirt_run_states},
         machined_libvirt_machines::libvirt_leader_pids,
         pidfd_process_exits::process_exit,
+        procfs_launch_context::launch_context_of,
         procfs_qemu_processes::{
-            ProcessWorkingDirectory, QemuProcess, account_names_by_uid, scanned_qemu_processes,
+            ProcessWorkingDirectory, QemuProcess, SubordinateUidRange, account_names_by_uid,
+            scanned_qemu_processes, subordinate_uid_ranges,
         },
         qemu_command_line_arguments::{QemuLaunchArguments, QmpSocketAccess},
         qmp_monitor_events::{GuestRunState, QmpPowerdownSender, follow_qmp_run_state},
@@ -41,6 +44,7 @@ use crate::{
 pub const VIRTUAL_MACHINE_POLL_PERIOD: Duration = Duration::from_secs(5);
 const TRIGGER_BURST_GAP: Duration = Duration::from_millis(200);
 const NIX_BUILD_ACCOUNT_PREFIX: &str = "nixbld";
+const AUTO_ALLOCATED_BUILD_UIDS: Range<u32> = 872_415_232..880_803_840;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VirtualMachineOrigin {
@@ -61,6 +65,7 @@ pub enum GuestPowerControl {
 pub struct RunningVirtualMachine {
     pub pid: i32,
     pub origin: VirtualMachineOrigin,
+    pub launch_context: Option<String>,
     pub launch: QemuLaunchArguments,
     pub run_state: GuestRunState,
     pub power_control: GuestPowerControl,
@@ -139,7 +144,7 @@ fn origin_of(
     qemu_process: &QemuProcess,
     libvirt_pids: &HashSet<i32>,
     session_uid: u32,
-    account_names: &HashMap<u32, String>,
+    known_accounts: &KnownAccounts,
 ) -> VirtualMachineOrigin {
     if libvirt_pids.contains(&qemu_process.pid) {
         return VirtualMachineOrigin::LibvirtDomain;
@@ -147,12 +152,38 @@ fn origin_of(
     if qemu_process.owner_uid == session_uid {
         return VirtualMachineOrigin::SessionUser;
     }
-    match account_names.get(&qemu_process.owner_uid) {
+    let owner_uid = qemu_process.owner_uid;
+    match known_accounts.names_by_uid.get(&owner_uid) {
         Some(account_name) if account_name.starts_with(NIX_BUILD_ACCOUNT_PREFIX) => {
             VirtualMachineOrigin::NixosTestBuild
         }
         Some(account_name) => VirtualMachineOrigin::OtherAccount(account_name.clone()),
-        None => VirtualMachineOrigin::OtherAccount(qemu_process.owner_uid.to_string()),
+        None if AUTO_ALLOCATED_BUILD_UIDS.contains(&owner_uid) => {
+            VirtualMachineOrigin::NixosTestBuild
+        }
+        None => VirtualMachineOrigin::OtherAccount(
+            known_accounts
+                .subordinate_ranges
+                .iter()
+                .find(|subordinate_range| subordinate_range.contains(owner_uid))
+                .map_or_else(
+                    || owner_uid.to_string(),
+                    |subordinate_range| format!("a container of {}", subordinate_range.owner_name),
+                ),
+        ),
+    }
+}
+
+#[derive(Default)]
+struct KnownAccounts {
+    names_by_uid: HashMap<u32, String>,
+    subordinate_ranges: Vec<SubordinateUidRange>,
+}
+
+fn read_known_accounts() -> KnownAccounts {
+    KnownAccounts {
+        names_by_uid: account_names_by_uid(),
+        subordinate_ranges: subordinate_uid_ranges(),
     }
 }
 
@@ -270,21 +301,21 @@ impl VirtualMachineSampler {
         }
         let libvirt_pids = libvirt_leader_pids(&self.system_bus).await;
         let session_uid = self.session_uid;
-        let account_names = if scan
+        let known_accounts = if scan
             .qemu_processes
             .iter()
             .any(|qemu_process| qemu_process.owner_uid != session_uid)
         {
-            blocking("account names", account_names_by_uid).await
+            blocking("account names", read_known_accounts).await
         } else {
-            HashMap::new()
+            KnownAccounts::default()
         };
         let identified_processes: Vec<IdentifiedQemuProcess> = scan
             .qemu_processes
             .into_iter()
             .map(|qemu_process| IdentifiedQemuProcess {
                 launch: launch_arguments_of(&qemu_process),
-                origin: origin_of(&qemu_process, &libvirt_pids, session_uid, &account_names),
+                origin: origin_of(&qemu_process, &libvirt_pids, session_uid, &known_accounts),
                 qemu_process,
             })
             .collect();
@@ -328,6 +359,9 @@ impl VirtualMachineSampler {
                     .unwrap_or(GuestRunState::Unreported);
                 RunningVirtualMachine {
                     pid,
+                    launch_context: (identified.origin != VirtualMachineOrigin::LibvirtDomain)
+                        .then(|| launch_context_of(pid))
+                        .flatten(),
                     power_control: self.power_control_of(&identified),
                     cpu_load: self.checkpoints_by_pid.load_since_previous(
                         pid,
@@ -406,16 +440,23 @@ mod tests {
     #[test]
     fn origins_follow_machined_then_ownership() {
         let libvirt_pids = HashSet::from([30]);
-        let account_names = HashMap::from([
-            (30001, "nixbld1".to_owned()),
-            (301, "qemu-libvirtd".to_owned()),
-        ]);
+        let known_accounts = KnownAccounts {
+            names_by_uid: HashMap::from([
+                (30001, "nixbld1".to_owned()),
+                (301, "qemu-libvirtd".to_owned()),
+            ]),
+            subordinate_ranges: vec![SubordinateUidRange {
+                owner_name: "forgejo-runner-codeberg".to_owned(),
+                first_uid: 200_000,
+                uid_count: 65_536,
+            }],
+        };
         let origin = |pid, owner_uid| {
             origin_of(
                 &qemu_process_of(pid, owner_uid),
                 &libvirt_pids,
                 1000,
-                &account_names,
+                &known_accounts,
             )
         };
         assert_eq!(origin(30, 301), VirtualMachineOrigin::LibvirtDomain);
@@ -428,6 +469,14 @@ mod tests {
         assert_eq!(
             origin(50, 4242),
             VirtualMachineOrigin::OtherAccount("4242".to_owned())
+        );
+        assert_eq!(
+            origin(60, 872_415_232),
+            VirtualMachineOrigin::NixosTestBuild
+        );
+        assert_eq!(
+            origin(70, 230_000),
+            VirtualMachineOrigin::OtherAccount("a container of forgejo-runner-codeberg".to_owned())
         );
     }
 }

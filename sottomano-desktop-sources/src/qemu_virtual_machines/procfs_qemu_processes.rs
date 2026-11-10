@@ -13,6 +13,7 @@ use crate::{
 };
 
 const ACCOUNT_DATABASE_PATH: &str = "/etc/passwd";
+const SUBORDINATE_UID_DATABASE_PATH: &str = "/etc/subuid";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ProcessWorkingDirectory {
@@ -104,6 +105,40 @@ pub(crate) fn account_names_by_uid() -> HashMap<u32, String> {
         .unwrap_or_default()
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SubordinateUidRange {
+    pub owner_name: String,
+    pub first_uid: u32,
+    pub uid_count: u32,
+}
+
+impl SubordinateUidRange {
+    pub(crate) fn contains(&self, uid: u32) -> bool {
+        uid >= self.first_uid && uid - self.first_uid < self.uid_count
+    }
+}
+
+fn subordinate_ranges_in(subordinate_database: &str) -> Vec<SubordinateUidRange> {
+    subordinate_database
+        .lines()
+        .filter_map(|range_line| {
+            let mut range_fields = range_line.split(':');
+            Some(SubordinateUidRange {
+                owner_name: range_fields.next()?.to_owned(),
+                first_uid: range_fields.next()?.parse().ok()?,
+                uid_count: range_fields.next()?.parse().ok()?,
+            })
+        })
+        .collect()
+}
+
+#[must_use]
+pub(crate) fn subordinate_uid_ranges() -> Vec<SubordinateUidRange> {
+    fs::read_to_string(SUBORDINATE_UID_DATABASE_PATH)
+        .map(|subordinate_database| subordinate_ranges_in(&subordinate_database))
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use std::process;
@@ -122,6 +157,20 @@ mod tests {
             Some("nixbld1")
         );
         assert_eq!(account_names.len(), 2);
+    }
+
+    #[test]
+    fn a_container_uid_belongs_to_the_account_owning_its_subordinate_range() {
+        let ranges =
+            subordinate_ranges_in("wvhulle:100000:65536\nforgejo-runner-codeberg:200000:65536\n");
+        let owner_of = |uid| {
+            ranges
+                .iter()
+                .find(|range| range.contains(uid))
+                .map(|range| range.owner_name.as_str())
+        };
+        assert_eq!(owner_of(230_000), Some("forgejo-runner-codeberg"));
+        assert_eq!(owner_of(265_536), None);
     }
 
     #[test]

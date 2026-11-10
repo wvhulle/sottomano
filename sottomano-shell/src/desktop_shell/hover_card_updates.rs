@@ -450,6 +450,42 @@ impl DesktopShell {
                 .widget_groups
                 .nspawn_containers_group
                 .hover_card_for(target, self.clock),
+            HoverTarget::MicrovmGuest(target) => self
+                .widget_groups
+                .microvm_guests_group
+                .hover_card_for(target, self.clock),
+            HoverTarget::IncusInstance(target) => self
+                .widget_groups
+                .incus_instances_group
+                .hover_card_for(target, self.clock),
+            HoverTarget::LxcContainer(target) => self
+                .widget_groups
+                .lxc_containers_group
+                .hover_card_for(target, self.clock),
+            HoverTarget::FlatpakSandbox(target) => self
+                .widget_groups
+                .flatpak_sandboxes_group
+                .hover_card_for(target, self.clock),
+            HoverTarget::WaydroidContainer(target) => self
+                .widget_groups
+                .waydroid_container_group
+                .hover_card_for(target, self.clock),
+            HoverTarget::VirtualBoxMachine(target) => self
+                .widget_groups
+                .virtualbox_machines_group
+                .hover_card_for(target, self.clock),
+            HoverTarget::VmwareMachine(target) => self
+                .widget_groups
+                .vmware_machines_group
+                .hover_card_for(target, self.clock),
+            HoverTarget::ApptainerContainer(target) => self
+                .widget_groups
+                .apptainer_containers_group
+                .hover_card_for(target, self.clock),
+            HoverTarget::DockerEngine(target) => self
+                .widget_groups
+                .docker_engines_group
+                .hover_card_for(target, self.clock),
             HoverTarget::CgroupMemoryLimit(target) => self
                 .widget_groups
                 .cgroup_memory_limits_group

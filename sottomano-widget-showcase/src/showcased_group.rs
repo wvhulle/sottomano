@@ -25,6 +25,7 @@ use sottomano_widgets::{
     widget_groups::{
         app_launcher_group::AppLauncherGroup,
         appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsMessage},
+        apptainer_containers_group::ApptainerContainersGroup,
         audio_group::AudioGroup,
         caldav_group::CaldavGroup,
         cgroup_memory_limits_group::CgroupMemoryLimitsGroup,
@@ -32,11 +33,16 @@ use sottomano_widgets::{
         claude_usage_group::ClaudeUsageGroup,
         compositor_styling_group::CompositorStylingGroup,
         compute_group::ComputeGroup,
+        docker_engines_group::DockerEnginesGroup,
+        flatpak_sandboxes_group::FlatpakSandboxesGroup,
         gamepad_group::GamepadGroup,
         idle_pause_groups::IdlePauseGroups,
+        incus_instances_group::IncusInstancesGroup,
         login_session_group::LoginSessionGroup,
+        lxc_containers_group::LxcContainersGroup,
         media_group::MediaGroup,
         memory_board_group::MemoryBoardGroup,
+        microvm_guests_group::MicrovmGuestsGroup,
         nspawn_containers_group::NspawnContainersGroup,
         overlay_settings_group::OverlaySettingsGroup,
         panel_settings_group::PanelSettingsGroup,
@@ -44,8 +50,11 @@ use sottomano_widgets::{
         sidebar_settings_group::SidebarSettingsGroup,
         tailnet_group::TailnetGroup,
         virtual_machines_group::VirtualMachinesGroup,
+        virtualbox_machines_group::VirtualBoxMachinesGroup,
+        vmware_machines_group::VmwareMachinesGroup,
         voice_dictation_group::VoiceDictationGroup,
         wallpaper_group::WallpaperGroup,
+        waydroid_container_group::WaydroidContainerGroup,
         weather_group::WeatherGroup,
         widget_group_content::WidgetGroupContent,
         window_group::{WindowGroup, WindowRowLayout, WindowTarget},
@@ -130,6 +139,15 @@ pub enum ShowcasedGroup {
     VirtualMachines(Box<VirtualMachinesGroup>),
     NspawnContainers(Box<NspawnContainersGroup>),
     CgroupMemoryLimits(Box<CgroupMemoryLimitsGroup>),
+    DockerEngines(Box<DockerEnginesGroup>),
+    ApptainerContainers(Box<ApptainerContainersGroup>),
+    VmwareMachines(Box<VmwareMachinesGroup>),
+    VirtualBoxMachines(Box<VirtualBoxMachinesGroup>),
+    WaydroidContainer(Box<WaydroidContainerGroup>),
+    FlatpakSandboxes(Box<FlatpakSandboxesGroup>),
+    LxcContainers(Box<LxcContainersGroup>),
+    IncusInstances(Box<IncusInstancesGroup>),
+    MicrovmGuests(Box<MicrovmGuestsGroup>),
     CiRuns(Box<CiRunsGroup>),
     Tailnet(Box<TailnetGroup>),
     WireguardTunnels(Box<WireguardTunnelsGroup>),
@@ -414,6 +432,15 @@ impl ShowcasedGroup {
             | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::NspawnContainers(_)
             | ShowcasedGroup::CgroupMemoryLimits(_)
+            | ShowcasedGroup::DockerEngines(_)
+            | ShowcasedGroup::ApptainerContainers(_)
+            | ShowcasedGroup::VmwareMachines(_)
+            | ShowcasedGroup::VirtualBoxMachines(_)
+            | ShowcasedGroup::WaydroidContainer(_)
+            | ShowcasedGroup::FlatpakSandboxes(_)
+            | ShowcasedGroup::LxcContainers(_)
+            | ShowcasedGroup::IncusInstances(_)
+            | ShowcasedGroup::MicrovmGuests(_)
             | ShowcasedGroup::CiRuns(_)
             | ShowcasedGroup::Tailnet(_)
             | ShowcasedGroup::WireguardTunnels(_)
@@ -473,25 +500,20 @@ impl ShowcasedGroup {
             ShowcasedGroup::VoiceDictation(group) => {
                 vec![group.group_content().map(ShowcaseMessage::VoiceDictation)]
             }
-            ShowcasedGroup::PodmanEngines(group) => {
-                vec![group.group_content().map(ShowcaseMessage::PodmanEngines)]
-            }
-            ShowcasedGroup::VirtualMachines(group) => {
-                vec![group.group_content().map(ShowcaseMessage::VirtualMachines)]
-            }
-            ShowcasedGroup::NspawnContainers(group) => {
-                vec![group.group_content().map(ShowcaseMessage::NspawnContainers)]
-            }
-            ShowcasedGroup::CgroupMemoryLimits(group) => {
-                vec![
-                    group
-                        .group_content(config)
-                        .map(ShowcaseMessage::CgroupMemoryLimits),
-                ]
-            }
-            ShowcasedGroup::CiRuns(group) => {
-                vec![group.group_content().map(ShowcaseMessage::CiRuns)]
-            }
+            ShowcasedGroup::PodmanEngines(_)
+            | ShowcasedGroup::VirtualMachines(_)
+            | ShowcasedGroup::NspawnContainers(_)
+            | ShowcasedGroup::DockerEngines(_)
+            | ShowcasedGroup::ApptainerContainers(_)
+            | ShowcasedGroup::VmwareMachines(_)
+            | ShowcasedGroup::VirtualBoxMachines(_)
+            | ShowcasedGroup::WaydroidContainer(_)
+            | ShowcasedGroup::FlatpakSandboxes(_)
+            | ShowcasedGroup::LxcContainers(_)
+            | ShowcasedGroup::IncusInstances(_)
+            | ShowcasedGroup::MicrovmGuests(_)
+            | ShowcasedGroup::CgroupMemoryLimits(_)
+            | ShowcasedGroup::CiRuns(_) => self.guest_group_contents(config),
             ShowcasedGroup::Caldav(group) => {
                 vec![
                     group
@@ -525,6 +547,73 @@ impl ShowcasedGroup {
         }
     }
 
+    fn guest_group_contents<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> Vec<WidgetGroupContent<'a, ShowcaseMessage>> {
+        match self {
+            ShowcasedGroup::PodmanEngines(group) => {
+                vec![group.group_content().map(ShowcaseMessage::PodmanEngines)]
+            }
+            ShowcasedGroup::VirtualMachines(group) => {
+                vec![group.group_content().map(ShowcaseMessage::VirtualMachines)]
+            }
+            ShowcasedGroup::NspawnContainers(group) => {
+                vec![group.group_content().map(ShowcaseMessage::NspawnContainers)]
+            }
+            ShowcasedGroup::DockerEngines(group) => {
+                vec![group.group_content().map(ShowcaseMessage::DockerEngines)]
+            }
+            ShowcasedGroup::ApptainerContainers(group) => {
+                vec![
+                    group
+                        .group_content()
+                        .map(ShowcaseMessage::ApptainerContainers),
+                ]
+            }
+            ShowcasedGroup::VmwareMachines(group) => {
+                vec![group.group_content().map(ShowcaseMessage::VmwareMachines)]
+            }
+            ShowcasedGroup::VirtualBoxMachines(group) => {
+                vec![
+                    group
+                        .group_content()
+                        .map(ShowcaseMessage::VirtualBoxMachines),
+                ]
+            }
+            ShowcasedGroup::WaydroidContainer(group) => {
+                vec![
+                    group
+                        .group_content()
+                        .map(ShowcaseMessage::WaydroidContainer),
+                ]
+            }
+            ShowcasedGroup::FlatpakSandboxes(group) => {
+                vec![group.group_content().map(ShowcaseMessage::FlatpakSandboxes)]
+            }
+            ShowcasedGroup::LxcContainers(group) => {
+                vec![group.group_content().map(ShowcaseMessage::LxcContainers)]
+            }
+            ShowcasedGroup::IncusInstances(group) => {
+                vec![group.group_content().map(ShowcaseMessage::IncusInstances)]
+            }
+            ShowcasedGroup::MicrovmGuests(group) => {
+                vec![group.group_content().map(ShowcaseMessage::MicrovmGuests)]
+            }
+            ShowcasedGroup::CgroupMemoryLimits(group) => {
+                vec![
+                    group
+                        .group_content(config)
+                        .map(ShowcaseMessage::CgroupMemoryLimits),
+                ]
+            }
+            ShowcasedGroup::CiRuns(group) => {
+                vec![group.group_content().map(ShowcaseMessage::CiRuns)]
+            }
+            _ => Vec::new(),
+        }
+    }
+
     pub fn panel_groups<'a>(
         &'a self,
         config: &'a Config,
@@ -542,7 +631,7 @@ impl ShowcasedGroup {
         }
     }
 
-    fn update_container_groups(&mut self, message: ShowcaseMessage, clock: Clock) {
+    fn update_paired_group(&mut self, message: ShowcaseMessage, clock: Clock) {
         match (self, message) {
             (ShowcasedGroup::PodmanEngines(group), ShowcaseMessage::PodmanEngines(message)) => {
                 group.update(message, clock);
@@ -559,11 +648,77 @@ impl ShowcasedGroup {
             (ShowcasedGroup::CiRuns(group), ShowcaseMessage::CiRuns(message)) => {
                 let _ = group.update(message, clock);
             }
+            (ShowcasedGroup::DockerEngines(group), ShowcaseMessage::DockerEngines(message)) => {
+                group.update(message, clock);
+            }
+            (
+                ShowcasedGroup::ApptainerContainers(group),
+                ShowcaseMessage::ApptainerContainers(group_message),
+            ) => {
+                group.update(group_message, clock);
+            }
+            (
+                ShowcasedGroup::VmwareMachines(group),
+                ShowcaseMessage::VmwareMachines(group_message),
+            ) => {
+                group.update(group_message, clock);
+            }
+            (
+                ShowcasedGroup::VirtualBoxMachines(group),
+                ShowcaseMessage::VirtualBoxMachines(group_message),
+            ) => {
+                let _ = group.update(group_message, clock);
+            }
+            (
+                ShowcasedGroup::WaydroidContainer(group),
+                ShowcaseMessage::WaydroidContainer(group_message),
+            ) => {
+                let _ = group.update(group_message, clock);
+            }
+            (
+                ShowcasedGroup::FlatpakSandboxes(group),
+                ShowcaseMessage::FlatpakSandboxes(group_message),
+            ) => {
+                group.update(group_message, clock);
+            }
+            (
+                ShowcasedGroup::LxcContainers(group),
+                ShowcaseMessage::LxcContainers(group_message),
+            ) => {
+                group.update(group_message, clock);
+            }
+            (
+                ShowcasedGroup::IncusInstances(group),
+                ShowcaseMessage::IncusInstances(group_message),
+            ) => {
+                let _ = group.update(group_message, clock);
+            }
+            (
+                ShowcasedGroup::MicrovmGuests(group),
+                ShowcaseMessage::MicrovmGuests(microvm_message),
+            ) => {
+                let _ = group.update(microvm_message, clock);
+            }
             (
                 ShowcasedGroup::CgroupMemoryLimits(group),
                 ShowcaseMessage::CgroupMemoryLimits(limits_message),
             ) => {
                 let _ = group.update(limits_message, clock);
+            }
+            (ShowcasedGroup::Caldav(group), ShowcaseMessage::Caldav(message)) => {
+                let _ = group.update(message, clock);
+            }
+            (
+                ShowcasedGroup::WireguardTunnels(group),
+                ShowcaseMessage::WireguardTunnels(message),
+            ) => {
+                let _ = group.update(message, clock);
+            }
+            (ShowcasedGroup::Tailnet(group), ShowcaseMessage::Tailnet(message)) => {
+                let _ = group.update(message, clock);
+            }
+            (ShowcasedGroup::LoginSession(group), ShowcaseMessage::LoginSession(message)) => {
+                let _ = group.update(message, clock);
             }
             _ => {}
         }
@@ -625,27 +780,20 @@ impl ShowcasedGroup {
             | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::NspawnContainers(_)
             | ShowcasedGroup::CgroupMemoryLimits(_)
-            | ShowcasedGroup::CiRuns(_) => self.update_container_groups(message, clock),
-            ShowcasedGroup::Caldav(group) => {
-                if let ShowcaseMessage::Caldav(message) = message {
-                    let _ = group.update(message, clock);
-                }
-            }
-            ShowcasedGroup::WireguardTunnels(group) => {
-                if let ShowcaseMessage::WireguardTunnels(message) = message {
-                    let _ = group.update(message, clock);
-                }
-            }
-            ShowcasedGroup::Tailnet(group) => {
-                if let ShowcaseMessage::Tailnet(message) = message {
-                    let _ = group.update(message, clock);
-                }
-            }
-            ShowcasedGroup::LoginSession(group) => {
-                if let ShowcaseMessage::LoginSession(message) = message {
-                    let _ = group.update(message, clock);
-                }
-            }
+            | ShowcasedGroup::DockerEngines(_)
+            | ShowcasedGroup::ApptainerContainers(_)
+            | ShowcasedGroup::VmwareMachines(_)
+            | ShowcasedGroup::VirtualBoxMachines(_)
+            | ShowcasedGroup::WaydroidContainer(_)
+            | ShowcasedGroup::FlatpakSandboxes(_)
+            | ShowcasedGroup::LxcContainers(_)
+            | ShowcasedGroup::IncusInstances(_)
+            | ShowcasedGroup::MicrovmGuests(_)
+            | ShowcasedGroup::CiRuns(_)
+            | ShowcasedGroup::Caldav(_)
+            | ShowcasedGroup::WireguardTunnels(_)
+            | ShowcasedGroup::Tailnet(_)
+            | ShowcasedGroup::LoginSession(_) => self.update_paired_group(message, clock),
             ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 if let ShowcaseMessage::WindowGroup(message) = message {
                     let _ = session.window_group.update(message, clock);
@@ -775,6 +923,15 @@ impl ShowcasedGroup {
             | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::NspawnContainers(_)
             | ShowcasedGroup::CgroupMemoryLimits(_)
+            | ShowcasedGroup::DockerEngines(_)
+            | ShowcasedGroup::ApptainerContainers(_)
+            | ShowcasedGroup::VmwareMachines(_)
+            | ShowcasedGroup::VirtualBoxMachines(_)
+            | ShowcasedGroup::WaydroidContainer(_)
+            | ShowcasedGroup::FlatpakSandboxes(_)
+            | ShowcasedGroup::LxcContainers(_)
+            | ShowcasedGroup::IncusInstances(_)
+            | ShowcasedGroup::MicrovmGuests(_)
             | ShowcasedGroup::CiRuns(_)
             | ShowcasedGroup::AppearancePresets(_)
             | ShowcasedGroup::ShellSettings(_)
@@ -877,6 +1034,60 @@ impl ShowcasedGroup {
                 };
                 group.hover_card_for(target, clock)
             }
+            ShowcasedGroup::DockerEngines(group) => {
+                let HoverTarget::DockerEngine(target) = target else {
+                    return None;
+                };
+                group.hover_card_for(target, clock)
+            }
+            ShowcasedGroup::ApptainerContainers(group) => {
+                let HoverTarget::ApptainerContainer(target) = target else {
+                    return None;
+                };
+                group.hover_card_for(target, clock)
+            }
+            ShowcasedGroup::VmwareMachines(group) => {
+                let HoverTarget::VmwareMachine(target) = target else {
+                    return None;
+                };
+                group.hover_card_for(target, clock)
+            }
+            ShowcasedGroup::VirtualBoxMachines(group) => {
+                let HoverTarget::VirtualBoxMachine(target) = target else {
+                    return None;
+                };
+                group.hover_card_for(target, clock)
+            }
+            ShowcasedGroup::WaydroidContainer(group) => {
+                let HoverTarget::WaydroidContainer(target) = target else {
+                    return None;
+                };
+                group.hover_card_for(target, clock)
+            }
+            ShowcasedGroup::FlatpakSandboxes(group) => {
+                let HoverTarget::FlatpakSandbox(target) = target else {
+                    return None;
+                };
+                group.hover_card_for(target, clock)
+            }
+            ShowcasedGroup::LxcContainers(group) => {
+                let HoverTarget::LxcContainer(target) = target else {
+                    return None;
+                };
+                group.hover_card_for(target, clock)
+            }
+            ShowcasedGroup::IncusInstances(group) => {
+                let HoverTarget::IncusInstance(target) = target else {
+                    return None;
+                };
+                group.hover_card_for(target, clock)
+            }
+            ShowcasedGroup::MicrovmGuests(group) => {
+                let HoverTarget::MicrovmGuest(target) = target else {
+                    return None;
+                };
+                group.hover_card_for(target, clock)
+            }
             ShowcasedGroup::CgroupMemoryLimits(group) => {
                 let HoverTarget::CgroupMemoryLimit(target) = target else {
                     return None;
@@ -952,6 +1163,15 @@ impl ShowcasedGroup {
             | ShowcasedGroup::VirtualMachines(_)
             | ShowcasedGroup::NspawnContainers(_)
             | ShowcasedGroup::CgroupMemoryLimits(_)
+            | ShowcasedGroup::DockerEngines(_)
+            | ShowcasedGroup::ApptainerContainers(_)
+            | ShowcasedGroup::VmwareMachines(_)
+            | ShowcasedGroup::VirtualBoxMachines(_)
+            | ShowcasedGroup::WaydroidContainer(_)
+            | ShowcasedGroup::FlatpakSandboxes(_)
+            | ShowcasedGroup::LxcContainers(_)
+            | ShowcasedGroup::IncusInstances(_)
+            | ShowcasedGroup::MicrovmGuests(_)
             | ShowcasedGroup::CiRuns(_)
             | ShowcasedGroup::Tailnet(_)
             | ShowcasedGroup::WireguardTunnels(_)

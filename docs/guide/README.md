@@ -31,7 +31,7 @@ The Menus group in the Behaviour menu changes how every menu opens. Menus can op
 | Appearance | bottom, left | panel, sidebar, overlay, window and menu settings with a unit |
 | Behaviour | bottom, left | the remaining panel, sidebar, overlay, window and menu settings, the application menu switch, looks |
 | Applications | bottom, middle | frequently launched apps, one group per category, launcher options |
-| Virtualization | bottom, right | virtual machines, nspawn containers, Podman containers, memory limits |
+| Virtualization | bottom, right | virtual machines, microVMs, Incus instances, nspawn containers, LXC containers, Podman containers, Docker containers, Waydroid, Flatpak apps, memory limits |
 | Services | bottom, right | local models, CI runs, AI usage, systemd units, journal, upgrades |
 | Session | bottom, right | idle timeouts, login session |
 
@@ -54,7 +54,7 @@ The Appearance and Behaviour menus and the workspaces on the left; the windows i
 - [Idle and session](idle-and-session.md): idle timeouts and the login session.
 - [AI usage](ai-usage.md): subscription windows, billing block and spend.
 - [Network](network.md): WireGuard tunnels with a switch to connect or disconnect them, and who may reach this machine over Tailscale.
-- [Virtualization and CI runs](virtualization.md): running QEMU and libvirt machines, systemd-nspawn containers with a switch to start or stop them, the containers in each Podman engine, memory caps on slices and services, and the runs of local CI runners.
+- [Virtualization and CI runs](virtualization.md): running QEMU, libvirt and microVM guests, Incus instances, systemd-nspawn and LXC containers, the containers in each Podman and Docker engine, Waydroid and Flatpak sandboxes, memory caps on slices and services, and the runs of local CI runners.
 - [Appearance](appearance.md): the looks and how to switch them.
 
 ## Notification toasts

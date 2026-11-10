@@ -75,7 +75,7 @@ impl WatchTarget {
 }
 
 pub fn changes(targets: Vec<WatchTarget>) -> impl Stream<Item = ()> + Send {
-    restarting("directory watch", move || ready(watch(&targets)))
+    restarting("directory watch", move || ready(armed_watch(&targets)))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,6 +88,33 @@ struct Accepted {
     descriptor: WatchDescriptor,
     name: Option<OsString>,
     grows_subdirectories: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DeferredArm {
+    descriptor: WatchDescriptor,
+    name: OsString,
+    arms_target: WatchTarget,
+}
+
+impl DeferredArm {
+    fn appears_in(&self, event: &inotify::Event<OsString>) -> bool {
+        event.wd == self.descriptor && event.name.as_ref() == Some(&self.name)
+    }
+}
+
+fn nearest_existing_ancestor(path: &Path) -> Option<(PathBuf, OsString)> {
+    let components: Vec<_> = path.components().collect();
+    for missing_prefix in (1..=components.len()).rev() {
+        let existing_ancestor: PathBuf = components[..missing_prefix].iter().copied().collect();
+        if !existing_ancestor.exists() {
+            continue;
+        }
+        return components
+            .get(missing_prefix)
+            .map(|component| (existing_ancestor, component.as_os_str().to_os_string()));
+    }
+    None
 }
 
 impl Accepted {
@@ -103,31 +130,20 @@ impl Accepted {
     }
 }
 
-fn watch(targets: &[WatchTarget]) -> io::Result<impl Stream<Item = ()> + Send + use<>> {
+pub fn armed_watch(targets: &[WatchTarget]) -> io::Result<impl Stream<Item = ()> + Send + use<>> {
     let inotify = Inotify::init()?;
     let mut watches = inotify.watches();
     let mut accepted = Vec::new();
+    let mut deferred = Vec::new();
     let mut symlinks = Vec::new();
     for target in targets {
-        let directory = target.directory();
-        symlink_steps(&directory, &mut symlinks);
-        if let Ok(descriptor) = watches.add(&directory, target.watched_events()) {
-            accepted.push(Accepted {
-                descriptor,
-                name: target.entry_name(),
-                grows_subdirectories: matches!(target, WatchTarget::OneLevelTree(_))
-                    .then(|| directory.clone()),
-            });
-        }
-        for subdirectory in target.subdirectories() {
-            if let Ok(descriptor) = watches.add(&subdirectory, entry_events()) {
-                accepted.push(Accepted {
-                    descriptor,
-                    name: None,
-                    grows_subdirectories: None,
-                });
-            }
-        }
+        arm(
+            target,
+            &mut watches,
+            &mut accepted,
+            &mut deferred,
+            &mut symlinks,
+        );
     }
     for symlink in symlinks {
         if let Ok(descriptor) = watches.add(&symlink.directory, relinking_events()) {
@@ -144,10 +160,37 @@ fn watch(targets: &[WatchTarget]) -> io::Result<impl Stream<Item = ()> + Send + 
             let Ok(event) = event else {
                 return ready(None);
             };
+            let mut fired = false;
             let appeared: Vec<PathBuf> = accepted
                 .iter()
                 .filter_map(|watched| watched.new_subdirectory(&event))
                 .collect();
+            let readied: Vec<(WatchTarget, DeferredArm)> = deferred
+                .iter()
+                .filter(|unread| unread.appears_in(&event))
+                .map(|unread| (unread.arms_target.clone(), unread.clone()))
+                .collect();
+            let mut followup_symlinks = Vec::new();
+            for (target, unread) in readied {
+                deferred.retain(|pending| pending != &unread);
+                arm(
+                    &target,
+                    &mut watches,
+                    &mut accepted,
+                    &mut deferred,
+                    &mut followup_symlinks,
+                );
+                fired = true;
+            }
+            for symlink in followup_symlinks {
+                if let Ok(descriptor) = watches.add(&symlink.directory, relinking_events()) {
+                    accepted.push(Accepted {
+                        descriptor,
+                        name: Some(symlink.name),
+                        grows_subdirectories: None,
+                    });
+                }
+            }
             for subdirectory in appeared {
                 if let Ok(descriptor) = watches.add(&subdirectory, entry_events()) {
                     accepted.push(Accepted {
@@ -157,19 +200,51 @@ fn watch(targets: &[WatchTarget]) -> io::Result<impl Stream<Item = ()> + Send + 
                     });
                 }
             }
-            ready(
-                accepted
-                    .iter()
-                    .any(|watched| {
-                        event.wd == watched.descriptor
-                            && watched
-                                .name
-                                .as_ref()
-                                .is_none_or(|name| event.name.as_ref() == Some(name))
-                    })
-                    .then_some(()),
-            )
+            let matched = accepted.iter().any(|watched| {
+                event.wd == watched.descriptor
+                    && watched
+                        .name
+                        .as_ref()
+                        .is_none_or(|name| event.name.as_ref() == Some(name))
+            });
+            ready((fired || matched).then_some(()))
         }))
+}
+
+fn arm(
+    target: &WatchTarget,
+    watches: &mut inotify::Watches,
+    accepted: &mut Vec<Accepted>,
+    deferred: &mut Vec<DeferredArm>,
+    symlinks: &mut Vec<NamedEntry>,
+) {
+    let directory = target.directory();
+    symlink_steps(&directory, symlinks);
+    if let Ok(descriptor) = watches.add(&directory, target.watched_events()) {
+        accepted.push(Accepted {
+            descriptor,
+            name: target.entry_name(),
+            grows_subdirectories: matches!(target, WatchTarget::OneLevelTree(_))
+                .then(|| directory.clone()),
+        });
+    } else if let Some((existing_ancestor, first_missing)) = nearest_existing_ancestor(&directory)
+        && let Ok(descriptor) = watches.add(&existing_ancestor, relinking_events())
+    {
+        deferred.push(DeferredArm {
+            descriptor,
+            name: first_missing,
+            arms_target: target.clone(),
+        });
+    }
+    for subdirectory in target.subdirectories() {
+        if let Ok(descriptor) = watches.add(&subdirectory, entry_events()) {
+            accepted.push(Accepted {
+                descriptor,
+                name: None,
+                grows_subdirectories: None,
+            });
+        }
+    }
 }
 
 fn entry_events() -> WatchMask {
@@ -217,12 +292,26 @@ mod tests {
     use futures::StreamExt;
     use tokio::time::timeout;
 
-    use super::{WatchTarget, watch};
+    use super::{WatchTarget, armed_watch};
 
     fn scratch_directory(test: &str) -> PathBuf {
         let directory = env::temp_dir().join(format!("sottomano-{test}-{}", process::id()));
         fs::create_dir_all(&directory).unwrap();
         directory
+    }
+
+    #[tokio::test]
+    async fn a_target_in_a_missing_directory_fires_when_the_directory_appears() {
+        let root = scratch_directory("deferred-arm");
+        let config = root.join("sottomano.toml");
+        fs::create_dir(root.join("elsewhere")).unwrap();
+        let mut changes = pin!(armed_watch(&[WatchTarget::WrittenFile(config.clone())]).unwrap());
+
+        fs::create_dir(root.join("sottomano")).unwrap();
+        fs::write(&config, "").unwrap();
+        let change = timeout(Duration::from_secs(2), changes.next()).await;
+        fs::remove_dir_all(&root).unwrap();
+        assert_eq!(change, Ok(Some(())));
     }
 
     #[tokio::test]
@@ -232,7 +321,7 @@ mod tests {
         fs::write(directory.join("light-sottomano.toml"), "").unwrap();
         let config = directory.join("sottomano.toml");
         symlink("dark-sottomano.toml", &config).unwrap();
-        let mut changes = pin!(watch(&[WatchTarget::WrittenFile(config.clone())]).unwrap());
+        let mut changes = pin!(armed_watch(&[WatchTarget::WrittenFile(config.clone())]).unwrap());
 
         let staged = directory.join("sottomano.toml.staged");
         symlink("light-sottomano.toml", &staged).unwrap();
@@ -247,7 +336,7 @@ mod tests {
     async fn editing_a_sibling_file_is_ignored() {
         let directory = scratch_directory("sibling-edit");
         let config = directory.join("sottomano.toml");
-        let mut changes = pin!(watch(&[WatchTarget::WrittenFile(config.clone())]).unwrap());
+        let mut changes = pin!(armed_watch(&[WatchTarget::WrittenFile(config.clone())]).unwrap());
 
         fs::write(directory.join("other.toml"), "").unwrap();
         let after_sibling = timeout(Duration::from_millis(200), changes.next()).await;

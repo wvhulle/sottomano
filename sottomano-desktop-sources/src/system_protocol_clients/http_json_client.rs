@@ -177,6 +177,7 @@ async fn exchanged_over_unix_socket(
     socket_path: &Path,
     method: Method,
     url: &str,
+    json_body: Option<&Value>,
 ) -> Result<UnixSocketReply, Error> {
     let socket_label = socket_path.display().to_string();
     let client = ClientBuilder::new()
@@ -185,14 +186,17 @@ async fn exchanged_over_unix_socket(
         .build()
         .map_err(|error| Error::Client(error.to_string()))?;
     let answered = async {
-        let response = client
-            .request(method, url)
-            .send()
-            .await
-            .map_err(|failure| Error::Unreachable {
-                host: socket_label.clone(),
-                detail: innermost_cause(&failure),
-            })?;
+        let request = client.request(method, url);
+        let request = match json_body {
+            Some(json_body) => request.header(CONTENT_TYPE, "application/json").body(
+                serde_json::to_vec(json_body).map_err(|error| Error::Body(error.to_string()))?,
+            ),
+            None => request,
+        };
+        let response = request.send().await.map_err(|failure| Error::Unreachable {
+            host: socket_label.clone(),
+            detail: innermost_cause(&failure),
+        })?;
         let status = response.status().as_u16();
         let body_bytes = response
             .bytes()
@@ -215,7 +219,7 @@ pub async fn get_json_over_unix_socket<T: DeserializeOwned>(
     socket_path: &Path,
     url: &str,
 ) -> Result<T, Error> {
-    let reply = exchanged_over_unix_socket(socket_path, Method::GET, url).await?;
+    let reply = exchanged_over_unix_socket(socket_path, Method::GET, url, None).await?;
     if reply.status != 200 {
         return Err(Error::status(reply.status, reply.body));
     }
@@ -223,7 +227,19 @@ pub async fn get_json_over_unix_socket<T: DeserializeOwned>(
 }
 
 pub async fn post_over_unix_socket(socket_path: &Path, url: &str) -> Result<u16, Error> {
-    let reply = exchanged_over_unix_socket(socket_path, Method::POST, url).await?;
+    let reply = exchanged_over_unix_socket(socket_path, Method::POST, url, None).await?;
+    if reply.status >= 400 {
+        return Err(Error::status(reply.status, reply.body));
+    }
+    Ok(reply.status)
+}
+
+pub async fn put_over_unix_socket(
+    socket_path: &Path,
+    url: &str,
+    json_body: Option<&Value>,
+) -> Result<u16, Error> {
+    let reply = exchanged_over_unix_socket(socket_path, Method::PUT, url, json_body).await?;
     if reply.status >= 400 {
         return Err(Error::status(reply.status, reply.body));
     }

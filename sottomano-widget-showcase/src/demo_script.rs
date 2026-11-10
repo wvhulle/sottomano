@@ -1,6 +1,8 @@
 use std::{borrow::Cow, time::Duration};
 
-use sottomano_desktop_sources::login_session_presence::idle_session_actions::IdleAction;
+use sottomano_desktop_sources::{
+    incus_instances::InstanceDaemon, login_session_presence::idle_session_actions::IdleAction,
+};
 use sottomano_widgets::{
     clock::Clock,
     group_menus::{
@@ -12,21 +14,30 @@ use sottomano_widgets::{
     hover_cards::HoverTarget,
     widget_groups::{
         appearance_presets_group::AppearancePresetsTarget,
+        apptainer_containers_group::ApptainerContainerTarget,
         audio_group::{AudioTarget, ControlKind},
         caldav_group::CaldavTarget,
         cgroup_memory_limits_group::CgroupMemoryLimitTarget,
         ci_runs_group::{CiRunnerKind, CiRunsTarget},
         claude_usage_group::ClaudeUsageTarget,
         compute_group::ComputeTarget,
+        docker_engines_group::DockerEngineTarget,
+        flatpak_sandboxes_group::FlatpakSandboxTarget,
         gamepad_group::GamepadTarget,
+        incus_instances_group::IncusInstanceTarget,
         login_session_group::LoginSessionTarget,
+        lxc_containers_group::LxcContainerTarget,
         media_group::{MediaTarget, PlayerTarget},
         memory_board_group::MemoryBoardTarget,
+        microvm_guests_group::MicrovmGuestTarget,
         nspawn_containers_group::NspawnContainerTarget,
         tailnet_group::TailnetTarget,
         virtual_machines_group::VirtualMachineTarget,
+        virtualbox_machines_group::VirtualBoxMachineTarget,
+        vmware_machines_group::VmwareMachineTarget,
         voice_dictation_group::VoiceDictationTarget,
         wallpaper_group::WallpaperTarget,
+        waydroid_container_group::WaydroidContainerTarget,
         weather_group::WeatherTarget,
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         window_group::WindowTarget,
@@ -37,11 +48,13 @@ use sottomano_widgets::{
 
 use crate::{
     fixtures::{
-        app_launcher, appearance_presets, audio, caldav, cgroup_memory_limits, ci_runner_tasks,
-        claude_usage, compute, desktop_session, gamepad, group_menu_members, idle_lock,
-        login_session, media, memory_board, notification_toasts, nspawn_containers, podman_engines,
-        shell_settings, tailnet, unchanging, virtual_machines, voice_dictation, wallpaper, weather,
-        wireguard_tunnels,
+        app_launcher, appearance_presets, apptainer_containers, audio, caldav,
+        cgroup_memory_limits, ci_runner_tasks, claude_usage, compute, desktop_session,
+        docker_engines, flatpak_sandboxes, gamepad, group_menu_members, idle_lock, incus_instances,
+        login_session, lxc_containers, media, memory_board, microvm_guests, notification_toasts,
+        nspawn_containers, podman_engines, shell_settings, tailnet, unchanging, virtual_machines,
+        virtualbox_machines, vmware_machines, voice_dictation, wallpaper, waydroid_container,
+        weather, wireguard_tunnels,
     },
     showcase_message::ShowcaseMessage,
     showcased_group::ShowcasedGroup,
@@ -219,6 +232,19 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
+        name: "microvm_guests_cloud_hypervisor",
+        group: microvm_guests::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
+            Step::PressText("MicroVMs"),
+            Step::Hover(HoverTarget::MicrovmGuest(MicrovmGuestTarget::of_pid(
+                microvm_guests::HOVERED_MICROVM_PID,
+            ))),
+        ],
+    },
+    Demo {
         name: "nspawn_containers",
         group: nspawn_containers::group,
         live: unchanging,
@@ -231,6 +257,113 @@ pub const DEMOS: &[Demo] = &[
                     nspawn_containers::HOVERED_CONTAINER_NAME,
                 )),
             )),
+        ],
+    },
+    Demo {
+        name: "incus_instances_container",
+        group: incus_instances::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
+            Step::PressText("Incus instances"),
+            Step::Hover(HoverTarget::IncusInstance(
+                IncusInstanceTarget::of_instance(
+                    InstanceDaemon::Incus,
+                    Cow::Borrowed(incus_instances::HOVERED_INSTANCE_NAME),
+                ),
+            )),
+        ],
+    },
+    Demo {
+        name: "lxc_containers_running",
+        group: lxc_containers::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
+            Step::PressText("LXC containers"),
+            Step::Hover(HoverTarget::LxcContainer(LxcContainerTarget::of_container(
+                Cow::Borrowed(lxc_containers::HOVERED_CONTAINER_NAME),
+            ))),
+        ],
+    },
+    Demo {
+        name: "flatpak_sandboxes_app",
+        group: flatpak_sandboxes::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
+            Step::PressText("Flatpak apps"),
+            Step::Hover(HoverTarget::FlatpakSandbox(
+                FlatpakSandboxTarget::of_instance(Cow::Borrowed(
+                    flatpak_sandboxes::HOVERED_INSTANCE_ID,
+                )),
+            )),
+        ],
+    },
+    Demo {
+        name: "waydroid_container_session",
+        group: waydroid_container::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
+            Step::PressText("Waydroid"),
+            Step::Hover(HoverTarget::WaydroidContainer(WaydroidContainerTarget)),
+        ],
+    },
+    Demo {
+        name: "virtualbox_machines_headless",
+        group: virtualbox_machines::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
+            Step::PressText("VirtualBox machines"),
+            Step::Hover(HoverTarget::VirtualBoxMachine(
+                VirtualBoxMachineTarget::of_pid(virtualbox_machines::HOVERED_MACHINE_PID),
+            )),
+        ],
+    },
+    Demo {
+        name: "vmware_machines_workstation",
+        group: vmware_machines::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
+            Step::PressText("VMware machines"),
+            Step::Hover(HoverTarget::VmwareMachine(VmwareMachineTarget::of_pid(
+                vmware_machines::HOVERED_MACHINE_PID,
+            ))),
+        ],
+    },
+    Demo {
+        name: "apptainer_containers_image",
+        group: apptainer_containers::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
+            Step::PressText("Apptainer containers"),
+            Step::Hover(HoverTarget::ApptainerContainer(
+                ApptainerContainerTarget::of_runtime(apptainer_containers::HOVERED_RUNTIME_PID),
+            )),
+        ],
+    },
+    Demo {
+        name: "docker_engines_rootful",
+        group: docker_engines::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
+            Step::PressText("Docker containers"),
+            Step::Hover(HoverTarget::DockerEngine(DockerEngineTarget::of_socket(
+                Cow::Borrowed(docker_engines::ROOTFUL_DOCKER_SOCKET),
+            ))),
         ],
     },
     Demo {
