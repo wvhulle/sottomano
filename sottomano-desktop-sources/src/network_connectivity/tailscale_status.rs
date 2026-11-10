@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, net::IpAddr, time::Duration};
 
 use chrono::{DateTime, Datelike, Utc};
 use futures::{Stream, stream};
@@ -202,7 +202,7 @@ pub(super) struct TailscaleNodeJson {
     #[serde(rename = "DNSName")]
     dns_name: String,
     #[serde(rename = "TailscaleIPs", default, deserialize_with = "null_as_empty")]
-    pub(super) tailscale_ips: Vec<String>,
+    pub(super) tailscale_ips: Vec<IpAddr>,
     #[serde(default)]
     pub(super) online: bool,
     #[serde(rename = "OS", default)]
@@ -275,7 +275,7 @@ impl TryFrom<&TailscaleNodeJson> for Peer {
         let ip = node.tailscale_ips.first().ok_or(Error::Malformed)?;
         Ok(Peer {
             name: node.short_name(),
-            ip: ip.clone(),
+            ip: ip.to_string(),
             os: node.os.clone(),
             path: node.peer_path(),
             received_bytes: node.rx_bytes,

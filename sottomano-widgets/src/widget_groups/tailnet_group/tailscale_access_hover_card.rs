@@ -1,8 +1,10 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use chrono::Locale;
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::network_connectivity::{
     tailscale_inbound_access::{
-        InboundAccessRule, InboundPorts, InboundReach, TailscaleInboundAccess,
+        InboundAccessRule, InboundDestination, InboundPorts, TailscaleInboundAccess,
     },
     tailscale_policy_file::{
         ACCESS_CONTROLS_URL, PolicyRule, PolicySshAction, PolicySshRule, TailscalePolicyFile,
@@ -115,40 +117,145 @@ fn inbound_ports_text(ports: &InboundPorts) -> String {
     }
 }
 
-impl IntoTableRecord<1> for &InboundAccessRule {
+#[derive(Default)]
+struct GrantedAccess {
+    ports: BTreeSet<InboundPorts>,
+    sources: BTreeSet<String>,
+}
+
+impl GrantedAccess {
+    fn ports_text(&self) -> String {
+        if self.ports.contains(&InboundPorts::All) {
+            return inbound_ports_text(&InboundPorts::All);
+        }
+        self.ports
+            .iter()
+            .map(inbound_ports_text)
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    fn sources_text(&self) -> String {
+        self.sources.iter().cloned().collect::<Vec<_>>().join(", ")
+    }
+}
+
+struct GrantedAccessRow<'access> {
+    row_name: &'access str,
+    access: &'access GrantedAccess,
+}
+
+impl IntoTableRecord<1> for GrantedAccessRow<'_> {
     fn into_table_record(self) -> TableRecord<1> {
+        TableRecord::new(self.row_name, [self.access.ports_text().into()])
+    }
+}
+
+impl IntoTableRecord<2> for GrantedAccessRow<'_> {
+    fn into_table_record(self) -> TableRecord<2> {
         TableRecord::new(
-            self.source_name.as_str(),
-            [inbound_ports_text(&self.ports).into()],
+            self.row_name,
+            [
+                self.access.ports_text().into(),
+                self.access.sources_text().into(),
+            ],
         )
     }
 }
 
-fn inbound_reach_section(
-    title: &'static str,
-    reach: InboundReach,
+fn access_grouped_by(
     rules: &[InboundAccessRule],
-) -> Option<Section> {
-    let matching_rules: Vec<&InboundAccessRule> =
-        rules.iter().filter(|rule| rule.reach == reach).collect();
-    (!matching_rules.is_empty()).then(|| {
+    row_name_of: impl Fn(&InboundAccessRule) -> Option<String>,
+) -> BTreeMap<String, GrantedAccess> {
+    rules
+        .iter()
+        .filter_map(|rule| row_name_of(rule).map(|row_name| (row_name, rule)))
+        .fold(BTreeMap::new(), |mut grouped_access, (row_name, rule)| {
+            let access: &mut GrantedAccess = grouped_access.entry(row_name).or_default();
+            access.ports.insert(rule.ports.clone());
+            access.sources.insert(rule.source_name.clone());
+            grouped_access
+        })
+}
+
+fn granted_access_rows(
+    grouped_access: &BTreeMap<String, GrantedAccess>,
+) -> impl Iterator<Item = GrantedAccessRow<'_>> {
+    grouped_access
+        .iter()
+        .map(|(row_name, access)| GrantedAccessRow { row_name, access })
+}
+
+fn this_machine_section(rules: &[InboundAccessRule]) -> Option<Section> {
+    let access_by_source = access_grouped_by(rules, |rule| {
+        (rule.destination == InboundDestination::ThisMachine).then(|| rule.source_name.clone())
+    });
+    (!access_by_source.is_empty()).then(|| {
         Section::column_table(
             [ColumnHeading::titled("Ports").align_x(Horizontal::Left)],
-            matching_rules,
+            granted_access_rows(&access_by_source),
+        )
+        .titled("This machine")
+    })
+}
+
+fn destination_section(
+    title: &'static str,
+    rules: &[InboundAccessRule],
+    destination_name_of: impl Fn(&InboundDestination) -> Option<&String>,
+) -> Option<Section> {
+    let access_by_destination = access_grouped_by(rules, |rule| {
+        destination_name_of(&rule.destination).cloned()
+    });
+    (!access_by_destination.is_empty()).then(|| {
+        Section::column_table(
+            [
+                ColumnHeading::titled("Ports").align_x(Horizontal::Left),
+                ColumnHeading::titled("From").align_x(Horizontal::Left),
+            ],
+            granted_access_rows(&access_by_destination),
         )
         .titled(title)
+    })
+}
+
+fn exit_node_section(rules: &[InboundAccessRule]) -> Option<Section> {
+    let exit_node_users: BTreeSet<&str> = rules
+        .iter()
+        .filter(|rule| rule.destination == InboundDestination::ExitNodeInternet)
+        .map(|rule| rule.source_name.as_str())
+        .collect();
+    (!exit_node_users.is_empty()).then(|| {
+        Section::note(exit_node_users.into_iter().collect::<Vec<_>>().join(", "))
+            .titled("Exit node used by")
     })
 }
 
 impl ReadingSections for TailscaleInboundAccess {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         [
-            inbound_reach_section("This machine", InboundReach::ThisMachine, &self.rules),
-            inbound_reach_section(
-                "Routes through this machine",
-                InboundReach::RoutesThroughThisMachine,
+            this_machine_section(&self.rules),
+            destination_section(
+                "Services hosted here",
                 &self.rules,
+                |destination| match destination {
+                    InboundDestination::HostedService { service_name } => Some(service_name),
+                    InboundDestination::ThisMachine
+                    | InboundDestination::SubnetRoute { .. }
+                    | InboundDestination::ExitNodeInternet => None,
+                },
             ),
+            destination_section(
+                "Subnet routes",
+                &self.rules,
+                |destination| match destination {
+                    InboundDestination::SubnetRoute { network } => Some(network),
+                    InboundDestination::ThisMachine
+                    | InboundDestination::HostedService { .. }
+                    | InboundDestination::ExitNodeInternet => None,
+                },
+            ),
+            exit_node_section(&self.rules),
         ]
         .into_iter()
         .flatten()
@@ -253,11 +360,21 @@ impl ReadingSections for TailscalePolicyFile {
 mod tests {
     use super::*;
 
-    fn inbound_rule(source_name: &str, reach: InboundReach) -> InboundAccessRule {
+    fn inbound_rule(
+        source_name: &str,
+        destination: InboundDestination,
+        ports: InboundPorts,
+    ) -> InboundAccessRule {
         InboundAccessRule {
             source_name: source_name.to_owned(),
-            reach,
-            ports: InboundPorts::All,
+            destination,
+            ports,
+        }
+    }
+
+    fn nextcloud() -> InboundDestination {
+        InboundDestination::HostedService {
+            service_name: "nextcloud".to_owned(),
         }
     }
 
@@ -271,24 +388,60 @@ mod tests {
     }
 
     #[test]
-    fn inbound_rules_split_by_what_they_reach() {
+    fn inbound_rules_split_by_destination() {
         let access = TailscaleInboundAccess {
             rules: vec![
-                inbound_rule("zbook", InboundReach::ThisMachine),
-                inbound_rule("iphone", InboundReach::RoutesThroughThisMachine),
+                inbound_rule("zbook", InboundDestination::ThisMachine, InboundPorts::All),
+                inbound_rule("x1", nextcloud(), InboundPorts::Single(443)),
+                inbound_rule(
+                    "x1",
+                    InboundDestination::SubnetRoute {
+                        network: "192.168.1.0/24".to_owned(),
+                    },
+                    InboundPorts::All,
+                ),
+                inbound_rule(
+                    "iphone",
+                    InboundDestination::ExitNodeInternet,
+                    InboundPorts::All,
+                ),
             ],
         };
         assert_eq!(
             section_titles(&access),
-            ["This machine", "Routes through this machine"]
+            [
+                "This machine",
+                "Services hosted here",
+                "Subnet routes",
+                "Exit node used by"
+            ]
         );
     }
 
     #[test]
-    fn an_unused_reach_has_no_section() {
+    fn an_unused_destination_has_no_section() {
         let access = TailscaleInboundAccess {
-            rules: vec![inbound_rule("zbook", InboundReach::ThisMachine)],
+            rules: vec![inbound_rule(
+                "zbook",
+                InboundDestination::ThisMachine,
+                InboundPorts::All,
+            )],
         };
         assert_eq!(section_titles(&access), ["This machine"]);
+    }
+
+    #[test]
+    fn one_service_row_merges_ports_and_sources() {
+        let rules = [
+            inbound_rule("zbook", nextcloud(), InboundPorts::Single(587)),
+            inbound_rule("x1", nextcloud(), InboundPorts::Single(143)),
+            inbound_rule("zbook", nextcloud(), InboundPorts::Single(143)),
+        ];
+        let access_by_service =
+            access_grouped_by(&rules, |rule| Some(format!("{:?}", rule.destination)));
+        let merged_access: Vec<&GrantedAccess> = access_by_service.values().collect();
+        assert_eq!(merged_access.len(), 1);
+        assert_eq!(merged_access[0].ports_text(), "143, 587");
+        assert_eq!(merged_access[0].sources_text(), "x1, zbook");
     }
 }

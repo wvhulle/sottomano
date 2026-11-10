@@ -28,6 +28,7 @@ icalendar = { version = "0.17.15", features = ["parser", "chrono-tz"] }
 icu_locale_core.workspace = true
 image.workspace = true
 inotify = "0.11.5"
+ipnet = { version = "2.12.2", features = ["serde"] }
 kdl.workspace = true
 libc = "0.2.190"
 nalgebra.workspace = true
