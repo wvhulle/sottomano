@@ -51,14 +51,14 @@ pub fn live(clock: Clock) -> Vec<ShowcaseMessage> {
     memory_readings(tick)
         .into_iter()
         .chain(hover_fetched_snapshot_messages(
-            MemoryBoardTarget::Memory,
+            &MemoryBoardTarget::Memory,
             tick,
         ))
         .map(ShowcaseMessage::MemoryBoard)
         .collect()
 }
 
-pub fn on_hover(target: MemoryBoardTarget) -> Vec<MemoryBoardMessage> {
+pub fn on_hover(target: &MemoryBoardTarget) -> Vec<MemoryBoardMessage> {
     hover_fetched_snapshot_messages(target, 0)
 }
 
@@ -93,6 +93,10 @@ fn memory_readings(tick: u32) -> Vec<MemoryBoardMessage> {
                 paged_out_per_second: ByteSize::b(0),
             }),
             polled_every(2),
+        )),
+        MemoryBoardMessage::ModuleTemperatures(SnapshotDelivery::fixture_delivered(
+            Ok(module_temperatures(tick)),
+            polled_every(5),
         )),
     ]
 }
@@ -138,12 +142,12 @@ fn stall_pressure(tick: u32) -> MemoryStallPressure {
 }
 
 fn hover_fetched_snapshot_messages(
-    target: MemoryBoardTarget,
+    target: &MemoryBoardTarget,
     tick: u32,
 ) -> Vec<MemoryBoardMessage> {
     match target {
-        MemoryBoardTarget::Memory => vec![
-            MemoryBoardMessage::MemoryProcessesFetched(SnapshotDelivery::fixture_delivered(
+        MemoryBoardTarget::Memory => vec![MemoryBoardMessage::MemoryProcessesFetched(
+            SnapshotDelivery::fixture_delivered(
                 Ok(MemoryProcesses {
                     processes: [
                         ("firefox", 5_800 + u64::from(tick % 4) * 120),
@@ -160,12 +164,8 @@ fn hover_fetched_snapshot_messages(
                     .collect(),
                 }),
                 DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(3))),
-            )),
-            MemoryBoardMessage::ModuleTemperaturesFetched(SnapshotDelivery::fixture_delivered(
-                Ok(module_temperatures(tick)),
-                DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
-            )),
-        ],
+            ),
+        )],
         MemoryBoardTarget::Swap => vec![MemoryBoardMessage::SwappedProcessesFetched(
             SnapshotDelivery::fixture_delivered(
                 Ok(SwappedProcesses {
@@ -186,9 +186,10 @@ fn hover_fetched_snapshot_messages(
                 DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(3))),
             ),
         )],
-        MemoryBoardTarget::Growth | MemoryBoardTarget::Pressure | MemoryBoardTarget::Board => {
-            Vec::new()
-        }
+        MemoryBoardTarget::Growth
+        | MemoryBoardTarget::Pressure
+        | MemoryBoardTarget::Slot(_)
+        | MemoryBoardTarget::TemperatureSensor(_) => Vec::new(),
     }
 }
 

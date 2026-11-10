@@ -39,7 +39,7 @@ impl ShellWidgetGroups {
                     .map(Message::Compute)
             }
             HoverTarget::MemoryBoard(target) => MemoryBoardGroup::refresh(
-                *target,
+                target,
                 &widget_group_settings.memory_board.growth_trend,
                 buses,
             )

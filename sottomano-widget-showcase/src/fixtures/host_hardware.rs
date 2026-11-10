@@ -7,8 +7,8 @@ use sottomano_desktop_sources::{
         hostname1_os_identity::MachineInfo,
         udev_hardware_identity::{
             CacheInstances, CacheKind, CacheLevel, CachePosition, CpuArchitecture, CpuCoreCounts,
-            CpuIdentity, CpuModel, CpuVendor, HostHardware, MemoryModule, MemoryModuleGroup,
-            MemoryModules,
+            CpuIdentity, CpuModel, CpuVendor, HostHardware, MemoryModule, MemoryModules,
+            MemorySlotModule,
         },
     },
 };
@@ -90,16 +90,28 @@ fn ryzen_workstation() -> HostHardware {
                 ],
             }],
         },
-        memory: MemoryModules(vec![MemoryModuleGroup {
-            module: MemoryModule {
-                manufacturer: Some("Kingston".to_owned()),
-                part_number: Some("KF556C36-32".to_owned()),
-                kind: Some("DDR5".to_owned()),
-                speed_mts: Some(5600),
-                size: ByteSize::gib(32),
+        memory: MemoryModules(vec![
+            MemorySlotModule {
+                locator: "DIMM_A1".to_owned(),
+                module: MemoryModule {
+                    manufacturer: Some("Kingston".to_owned()),
+                    part_number: Some("KF556C36-32".to_owned()),
+                    kind: Some("DDR5".to_owned()),
+                    speed_mts: Some(5600),
+                    size: ByteSize::gib(32),
+                },
             },
-            count: 2,
-        }]),
+            MemorySlotModule {
+                locator: "DIMM_B1".to_owned(),
+                module: MemoryModule {
+                    manufacturer: Some("Kingston".to_owned()),
+                    part_number: Some("KF556C36-32".to_owned()),
+                    kind: Some("DDR5".to_owned()),
+                    speed_mts: Some(5600),
+                    size: ByteSize::gib(32),
+                },
+            },
+        ]),
         machine: MachineInfo {
             board_pci_vendor: Some(MSI_PCI_VENDOR),
             hardware_vendor: Some("Micro-Star International Co., Ltd.".to_owned()),

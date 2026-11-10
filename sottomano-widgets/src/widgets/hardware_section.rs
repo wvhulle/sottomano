@@ -1,14 +1,14 @@
 use sottomano_desktop_sources::{
     cpu_memory_compute::pci_gpu_readings::{GpuModel, GpuNames},
     host_machine_identity::udev_hardware_identity::{
-        Adapter, CpuModel, DriveIdentity, MemoryModules, ModemIdentity, PowerSupplyIdentity,
+        Adapter, CpuModel, DriveIdentity, ModemIdentity, PowerSupplyIdentity,
     },
 };
 
 use crate::{
     hover_cards::hover_card_body::Section,
     widgets::{
-        localized_quantities::{DisplayUnit, Quantity},
+        localized_quantities::Quantity,
         value_cells::{LabeledValue, ValueCell},
         vendor_logo::{PciVendorId, VendorLogo},
     },
@@ -73,32 +73,6 @@ impl From<&CpuModel> for Section {
             LabeledValue::new(cache.position.to_string(), sizes)
         });
         Section::dictionary(identity.chain(counts).chain(caches)).titled("CPU model")
-    }
-}
-
-impl From<&MemoryModules> for Section {
-    fn from(modules: &MemoryModules) -> Self {
-        Section::hardware_identity(modules.0.iter().flat_map(|group| {
-            let module = &group.module;
-            let speed = module.speed_mts.map(|speed| {
-                LabeledValue::new(
-                    "Speed",
-                    Quantity::measured(f64::from(speed), DisplayUnit::MegatransfersPerSecond, 0),
-                )
-            });
-            [
-                ("Manufacturer", &module.manufacturer),
-                ("Part number", &module.part_number),
-                ("Type", &module.kind),
-            ]
-            .into_iter()
-            .filter_map(|(key, value)| Some(LabeledValue::new(key, value.as_deref()?)))
-            .chain(speed)
-            .chain([
-                LabeledValue::new("Module size", Quantity::size(module.size)),
-                LabeledValue::new("Modules", Quantity::count(group.count)),
-            ])
-        }))
     }
 }
 
