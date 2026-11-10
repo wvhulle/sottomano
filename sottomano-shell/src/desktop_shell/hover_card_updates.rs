@@ -305,7 +305,7 @@ impl DesktopShell {
             HoverTarget::MemoryBoard(target) => self
                 .widget_groups
                 .memory_board_group
-                .hover_card_for(*target, self.clock),
+                .hover_card_for(target, self.clock),
             HoverTarget::Gpu(target) => self
                 .widget_groups
                 .gpu_group

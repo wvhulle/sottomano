@@ -588,13 +588,13 @@ pub struct MemoryModule {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MemoryModuleGroup {
+pub struct MemorySlotModule {
+    pub locator: String,
     pub module: MemoryModule,
-    pub count: usize,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct MemoryModules(pub Vec<MemoryModuleGroup>);
+pub struct MemoryModules(pub Vec<MemorySlotModule>);
 
 impl MemoryModules {
     #[must_use]
@@ -603,29 +603,24 @@ impl MemoryModules {
     }
 
     fn from_properties(properties: &UdevProperties) -> Self {
-        let mut groups: Vec<MemoryModuleGroup> = Vec::new();
-        let modules = (0..)
-            .map_while(|slot| MemorySlot::read(properties, slot))
-            .filter_map(MemorySlot::populated);
-        for module in modules {
-            match groups.iter_mut().find(|group| group.module == module) {
-                Some(group) => group.count += 1,
-                None => groups.push(MemoryModuleGroup { module, count: 1 }),
-            }
-        }
-        Self(groups)
+        Self(
+            (0..)
+                .map_while(|slot| MemorySlot::read(properties, slot))
+                .filter_map(MemorySlot::populated)
+                .collect(),
+        )
     }
 }
 
 enum MemorySlot {
-    Populated(MemoryModule),
+    Populated(MemorySlotModule),
     Empty,
 }
 
 impl MemorySlot {
     fn read(properties: &UdevProperties, slot: usize) -> Option<Self> {
         let key = |field: &str| format!("MEMORY_DEVICE_{slot}_{field}");
-        properties.0.get(&key("LOCATOR"))?;
+        let locator = properties.0.get(&key("LOCATOR"))?;
         let Some(size) = properties
             .value(&key("SIZE"))
             .and_then(|bytes| bytes.parse().ok())
@@ -633,21 +628,24 @@ impl MemorySlot {
         else {
             return Some(MemorySlot::Empty);
         };
-        Some(MemorySlot::Populated(MemoryModule {
-            manufacturer: properties.value(&key("MANUFACTURER")),
-            part_number: properties.value(&key("PART_NUMBER")),
-            kind: properties.value(&key("TYPE")),
-            speed_mts: properties
-                .value(&key("CONFIGURED_SPEED_MTS"))
-                .or_else(|| properties.value(&key("SPEED_MTS")))
-                .and_then(|speed| speed.parse().ok()),
-            size,
+        Some(MemorySlot::Populated(MemorySlotModule {
+            locator: locator.clone(),
+            module: MemoryModule {
+                manufacturer: properties.value(&key("MANUFACTURER")),
+                part_number: properties.value(&key("PART_NUMBER")),
+                kind: properties.value(&key("TYPE")),
+                speed_mts: properties
+                    .value(&key("CONFIGURED_SPEED_MTS"))
+                    .or_else(|| properties.value(&key("SPEED_MTS")))
+                    .and_then(|speed| speed.parse().ok()),
+                size,
+            },
         }))
     }
 
-    fn populated(self) -> Option<MemoryModule> {
+    fn populated(self) -> Option<MemorySlotModule> {
         match self {
-            MemorySlot::Populated(module) => Some(module),
+            MemorySlot::Populated(slot_module) => Some(slot_module),
             MemorySlot::Empty => None,
         }
     }
@@ -782,21 +780,21 @@ E:MEMORY_ARRAY_LOCATION=System Board Or Motherboard
     }
 
     #[test]
-    fn identical_modules_are_counted_and_empty_slots_skipped() {
+    fn populated_slots_are_kept_per_locator_and_empty_slots_skipped() {
         let modules = MemoryModules::from_properties(&UdevProperties::parse(SOLDERED_LPDDR5));
-        assert_eq!(
-            modules,
-            MemoryModules(vec![MemoryModuleGroup {
-                module: MemoryModule {
-                    manufacturer: Some("Samsung".to_owned()),
-                    part_number: None,
-                    kind: Some("LPDDR5".to_owned()),
-                    speed_mts: Some(8533),
-                    size: ByteSize::gib(4),
-                },
-                count: 2,
-            }])
-        );
+        let samsung_lpddr5 = MemorySlotModule {
+            locator: "Controller0-ChannelA".to_owned(),
+            module: MemoryModule {
+                manufacturer: Some("Samsung".to_owned()),
+                part_number: None,
+                kind: Some("LPDDR5".to_owned()),
+                speed_mts: Some(8533),
+                size: ByteSize::gib(4),
+            },
+        };
+        assert_eq!(modules.0.len(), 2);
+        assert_eq!(modules.0[0], samsung_lpddr5);
+        assert_eq!(modules.0[1].locator, "Controller0-ChannelB");
     }
 
     #[test]

@@ -677,7 +677,7 @@ impl ShowcasedGroup {
                 let HoverTarget::MemoryBoard(target) = target else {
                     return Vec::new();
                 };
-                memory_board::on_hover(*target)
+                memory_board::on_hover(target)
                     .into_iter()
                     .map(ShowcaseMessage::MemoryBoard)
                     .collect()
@@ -782,7 +782,7 @@ impl ShowcasedGroup {
                 let HoverTarget::MemoryBoard(target) = target else {
                     return None;
                 };
-                group.hover_card_for(*target, clock)
+                group.hover_card_for(target, clock)
             }
             ShowcasedGroup::Weather(group) => {
                 let HoverTarget::Weather(target) = target else {
