@@ -135,6 +135,35 @@ mod tests {
         assert_eq!(read_timeouts(&connection).await.unwrap(), timeouts);
     }
 
+    #[tokio::test]
+    async fn a_fresh_store_locks_blanks_and_sleeps_but_never_hibernates_or_powers_off() {
+        let connection = migrated_in_memory_store().await;
+
+        assert_eq!(
+            read_timeouts(&connection).await.unwrap(),
+            Timeouts {
+                lock_user: Some(Duration::from_mins(5)),
+                screen_off: Some(Duration::from_mins(5)),
+                sleep: Some(Duration::from_mins(20)),
+                hibernate: None,
+                power_down: None,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn disabling_every_timeout_survives_a_reload() {
+        let connection = migrated_in_memory_store().await;
+        write_timeouts(&connection, Timeouts::default())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            read_timeouts(&connection).await.unwrap(),
+            Timeouts::default()
+        );
+    }
+
     #[test]
     fn the_hibernate_timeout_schedules_logind_hibernate() {
         let timeouts = Timeouts {
