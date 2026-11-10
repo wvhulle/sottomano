@@ -1,37 +1,30 @@
 # From source
 
-Sottomano builds with cargo on a nightly toolchain, which rustup picks up from
-`rust-toolchain.toml` in the checkout:
+Sottomano builds with cargo on a nightly toolchain, which
+[rustup](https://rustup.rs) picks up from `rust-toolchain.toml` in the
+checkout. The build headers it needs come from the distribution's package
+manager: [Ubuntu](ubuntu.md#build-headers) or
+[Fedora](fedora.md#build-headers).
 
 ```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-The build headers it needs come from the distribution's package manager:
-[Ubuntu](ubuntu.md#build-headers) or [Fedora](fedora.md#build-headers).
-
-The icon crates embed SVGs from three icon sets at build time, so check them
-out at the revisions the flake pins and point the build at them:
-
-```bash
-mkdir -p ~/src && cd ~/src
-git clone https://github.com/phosphor-icons/core phosphor-core
-git -C phosphor-core checkout 2b75f3ad12b420c9504ef05df8d2564a28f8500e
-git clone --depth 1 --branch 16.35.0 https://github.com/simple-icons/simple-icons
-git clone --depth 1 --branch 2.0.12 https://github.com/erikflowers/weather-icons
-
 git clone https://codeberg.org/wvhulle/sottomano && cd sottomano
-export PHOSPHOR_SVG=~/src/phosphor-core/assets
-export SIMPLE_ICONS_SVG=~/src/simple-icons/icons
-export WEATHER_ICONS_SVG=~/src/weather-icons/svg
+eval "$(cargo xtask fetch-icon-svgs)"
 cargo install --locked --path sottomano-shell
 ```
+
+`cargo xtask fetch-icon-svgs` clones the three icon sets the icon crates embed
+SVGs from — phosphor, simple-icons and weather-icons — into
+`~/.cache/sottomano/icon-sets/`, each at the revision the flake pins, and
+prints the `PHOSPHOR_SVG`, `SIMPLE_ICONS_SVG` and `WEATHER_ICONS_SVG` exports
+the build reads (a Nix build does this itself). The phosphor and simple-icons
+revisions come from `flake.nix`; the weather-icons version comes from the
+nixpkgs the flake pins, so that one needs `nix eval --inputs-from .`.
 
 To compile in only your compositor, add
 `--no-default-features --features niri,libvirt-domains` (or `sway`, `hyprland`)
 to `cargo install`.
 
 The widgets call distribution tools and D-Bus services when present and hide
-what they cannot read; the lists are on each
-[distribution page](ubuntu.md#runtime-tools-and-services). The system pieces
-some widgets read need a manual [system setup](system-setup.md).
+what they cannot read; `sudo sottomano setup <distro>` installs them, as the
+[distribution pages](ubuntu.md) show. The system pieces some widgets read need
+the same command's [system setup steps](system-setup.md).
