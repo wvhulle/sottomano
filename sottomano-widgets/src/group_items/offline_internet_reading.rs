@@ -14,7 +14,10 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::{
+        HoverCardBody, Section,
+        hover_card_source_delivery::{DeliveryTiming, SnapshotFreshness},
+    },
     widgets::{icon_glyph::IconGlyph, value_cells::LabeledValue},
 };
 
@@ -29,6 +32,16 @@ impl From<InternetUnreachable> for Section {
 pub struct OfflineSnapshot<S> {
     pub held_snapshot: S,
     pub offline_reason: Box<InternetUnreachable>,
+    pub delivery_timing: DeliveryTiming,
+}
+
+impl<S> OfflineSnapshot<S> {
+    pub fn offline_sections(&self, clock: Clock) -> Vec<Section> {
+        match self.delivery_timing.freshness_at(clock) {
+            SnapshotFreshness::Fresh => Vec::new(),
+            SnapshotFreshness::PastPollPeriod => vec![(*self.offline_reason).clone().into()],
+        }
+    }
 }
 
 impl<S: GroupItemReading> GroupItemReading for OfflineSnapshot<S> {
@@ -44,8 +57,11 @@ impl<S: GroupItemReading> GroupItemReading for OfflineSnapshot<S> {
         self.held_snapshot.label(clock, locale)
     }
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Off
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
+        match self.delivery_timing.freshness_at(clock) {
+            SnapshotFreshness::Fresh => self.held_snapshot.state(clock),
+            SnapshotFreshness::PastPollPeriod => ReadingDisplayState::Offline,
+        }
     }
 
     fn gauge(&self) -> Option<Ratio> {
@@ -71,7 +87,7 @@ impl<S: GroupItemReading> GroupItemReading for OfflineSnapshot<S> {
     fn hover_card(&self, clock: Clock) -> HoverCardBody {
         self.held_snapshot
             .hover_card(clock)
-            .with_sections([(*self.offline_reason).clone().into()])
+            .with_sections(self.offline_sections(clock))
     }
 }
 
@@ -96,7 +112,7 @@ impl<S: SnapshotSource + GroupItemReading> GroupItemReading for SnapshotPlacehol
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self.placeholder_cause {
-            PlaceholderCause::Offline(_) => ReadingDisplayState::Off,
+            PlaceholderCause::Offline(_) => ReadingDisplayState::Offline,
             PlaceholderCause::AwaitingFirstSnapshot => ReadingDisplayState::Pending,
         }
     }

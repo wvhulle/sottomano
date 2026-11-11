@@ -188,7 +188,7 @@ fn bind<Proxy: ProxyT>(
     registry
         .bind::<Proxy, _>(global)
         .inspect_err(|bind_error| {
-            tracing::warn!("audio: bind {label} {} failed: {bind_error}", global.id)
+            tracing::warn!("audio: bind {label} {} failed: {bind_error}", global.id);
         })
         .ok()
 }

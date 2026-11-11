@@ -19,7 +19,6 @@ use sottomano_desktop_sources::{
         },
         gtk_menus_menu_bar::{GtkActionGroups, GtkMenuActivation},
     },
-    stream_operators::restarting,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
@@ -318,9 +317,8 @@ impl GlobalMenuGroup {
         if self.global_menu_use == GlobalMenuUse::Disabled {
             return Subscription::none();
         }
-        let registrar =
-            Subscription::run(|| restarting("appmenu registrar", appmenu_registrar_server::serve))
-                .map(GlobalMenuMessage::RegistrationsChanged);
+        let registrar = Subscription::run(appmenu_registrar_server::registrations)
+            .map(GlobalMenuMessage::RegistrationsChanged);
         let menu_bar_query = MenuBarQuery {
             buses: buses.clone(),
             focused_window: self.focused_window.clone(),

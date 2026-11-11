@@ -5,7 +5,7 @@ use std::{
     time::SystemTime,
 };
 
-use futures::{Stream, StreamExt};
+use futures::Stream;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -14,14 +14,14 @@ use crate::{
         TaskUsage, TaskWebLog, images_of, sorted_unique,
         woodpecker_agent_varz::{AgentVarz, RunningWorkflow, fetch_agent_varz},
     },
+    delivery_cadence_drivers::SamplingNeed,
     podman_container_engine::{
         libpod_running_containers::{
             ContainerCiIdentity, EngineContainers, EngineReadError, RunningContainer,
             shared_engine_sampler,
         },
-        running_set_changes::samples_on_running_set_changes,
+        running_set_changes::deliveries_on_running_set_changes,
     },
-    stream_operators::StreamOperators,
     system_protocol_clients::http_json_client,
 };
 
@@ -169,28 +169,29 @@ impl SnapshotSource for WoodpeckerAgentTasks {
         let sampler = shared_engine_sampler(watch.engine_socket.clone());
         let engine_socket = watch.engine_socket;
         let varz_url = watch.varz_url;
-        samples_on_running_set_changes(
+        deliveries_on_running_set_changes(
             move || {
                 let sampler = sampler.clone();
                 let varz_url = varz_url.clone();
                 let engine_socket = engine_socket.clone();
                 async move {
                     let engine_read = sampler.lock().await.sample().await;
-                    fetch_agent_varz(&varz_url)
+                    let runner = fetch_agent_varz(&varz_url)
                         .await
                         .map_or_else(unreachable_agent, |varz| {
                             joined_agent_tasks(&varz, engine_read, &engine_socket)
-                        })
+                        });
+                    Ok(WoodpeckerAgentTasks { runner })
                 }
             },
-            CiRunnerTasks::sampling_need,
+            |delivered| {
+                delivered
+                    .as_ref()
+                    .map_or(SamplingNeed::KeepSampling, |tasks| {
+                        tasks.runner.sampling_need()
+                    })
+            },
         )
-        .map(|tracked| {
-            tracked.stamped_cadence.delivered(Ok(WoodpeckerAgentTasks {
-                runner: tracked.sample,
-            }))
-        })
-        .repeats_as_unchanged()
     }
 }
 
@@ -206,7 +207,6 @@ mod tests {
     use super::*;
     use crate::{
         ci_runner_tasks::woodpecker_agent_varz::captured_varz,
-        delivery_cadence_drivers::SamplingNeed,
         podman_container_engine::libpod_inspect_ci_identity::WoodpeckerStepIdentity,
         system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad,
     };

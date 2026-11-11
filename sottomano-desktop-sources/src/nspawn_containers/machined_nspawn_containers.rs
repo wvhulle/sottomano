@@ -3,16 +3,16 @@ use std::{
     convert::Infallible,
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
     path::PathBuf,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use bytesize::ByteSize;
-use futures::{Stream, StreamExt};
+use futures::Stream;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, StampedCadence},
-    stream_operators::{StreamOperators, reread_on_trigger_or_deadline},
+    delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, triggered_deliveries_with_recheck},
+    stream_operators::StreamOperators,
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses, sysfs_cgroup_memory::unit_memory_of_process,
     },
@@ -215,20 +215,6 @@ async fn read_container_listing(system_bus: &zbus::Connection) -> NspawnContaine
     }
 }
 
-fn container_listing_reads(
-    system_bus: zbus::Connection,
-) -> impl Stream<Item = NspawnContainersReadout> + Send {
-    let triggers = machine_set_changes(system_bus.clone()).at_most_once_per(TRIGGER_BURST_GAP);
-    reread_on_trigger_or_deadline(
-        triggers,
-        move || {
-            let system_bus = system_bus.clone();
-            async move { read_container_listing(&system_bus).await }
-        },
-        |_readout| Some(Instant::now() + CONTAINER_POLL_PERIOD),
-    )
-}
-
 impl SnapshotSource for NspawnContainersReadout {
     type Error = Infallible;
     type StreamInputs = DesktopBuses;
@@ -236,15 +222,18 @@ impl SnapshotSource for NspawnContainersReadout {
     const NAME: &'static str = "Nspawn containers";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        container_listing_reads(buses.system)
-            .map(|readout| {
-                StampedCadence::pushed_with_recheck_while(
-                    SamplingNeed::KeepSampling,
-                    PeriodicPolling::every(CONTAINER_POLL_PERIOD),
-                )
-                .delivered(Ok(readout))
-            })
-            .repeats_as_unchanged()
+        let system_bus = buses.system;
+        triggered_deliveries_with_recheck(
+            machine_set_changes(system_bus.clone()),
+            TRIGGER_BURST_GAP,
+            PeriodicPolling::every(CONTAINER_POLL_PERIOD),
+            move || {
+                let system_bus = system_bus.clone();
+                async move { Ok(read_container_listing(&system_bus).await) }
+            },
+            |_| SamplingNeed::KeepSampling,
+        )
+        .repeats_as_unchanged()
     }
 }
 

@@ -1,4 +1,4 @@
-use std::future::ready;
+use std::{future::ready, time::Duration};
 
 use futures::{Stream, StreamExt, stream};
 use serde::Serialize;
@@ -15,7 +15,8 @@ use zbus::{
 
 use crate::{
     desktop_windows_apps::dbusmenu_menu_bar_layout::DbusMenuLocation,
-    stream_operators::StreamOperators, system_protocol_clients::dbus_desktop_buses::OwnerProcess,
+    stream_operators::{StreamOperators, resubscribed},
+    system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 
 const REGISTRAR_PATH: &str = "/com/canonical/AppMenu/Registrar";
@@ -144,7 +145,15 @@ impl AppMenuRegistrar {
     async fn window_unregistered(emitter: &SignalEmitter<'_>, window_id: u32) -> zbus::Result<()>;
 }
 
-pub async fn serve() -> zbus::Result<impl Stream<Item = Vec<RegisteredMenuBar>> + Send> {
+pub fn registrations() -> impl Stream<Item = Vec<RegisteredMenuBar>> + Send {
+    use futures::StreamExt;
+    resubscribed(Duration::from_secs(1), || async {
+        Ok::<_, zbus::Error>(serve().await?.map(Ok::<_, zbus::Error>))
+    })
+    .filter_map(|delivery| ready(delivery.ok()))
+}
+
+async fn serve() -> zbus::Result<impl Stream<Item = Vec<RegisteredMenuBar>> + Send> {
     let (registered_menu_bars, registration_changes) = watch::channel(Vec::new());
     let connection = connection::Builder::session()?
         .serve_at(

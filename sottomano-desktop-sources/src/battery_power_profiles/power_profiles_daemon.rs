@@ -7,9 +7,10 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     cpu_memory_compute::cpu_core_loads,
     delivery_cadence_drivers::PeriodicPolling,
+    network_connectivity::interface_properties_changed,
     non_empty_text::non_empty,
     screen_brightness_color::clightd_backlight,
-    stream_operators::{StreamOperators, connected_until_failure},
+    stream_operators::{StreamOperators, connected_until_failure, read_once_then_per_burst},
     system_protocol_clients::{
         dbus_desktop_buses::{
             self, DbusPropertyLookup, DesktopBuses, Properties, name_owned, prop,
@@ -90,7 +91,8 @@ impl Profile {
 #[proxy(
     interface = "net.hadess.PowerProfiles",
     default_service = "net.hadess.PowerProfiles",
-    default_path = "/net/hadess/PowerProfiles"
+    default_path = "/net/hadess/PowerProfiles",
+    gen_blocking = false
 )]
 pub trait PowerProfiles {
     #[zbus(property)]
@@ -186,14 +188,10 @@ impl SnapshotSource for ProfileStatus {
 
 pub fn active_profile_changes(system: zbus::Connection) -> impl Stream<Item = ()> + Send {
     stream::once(async move {
-        match PowerProfilesProxy::new(&system).await {
-            Ok(daemon) => daemon
-                .receive_active_profile_changed()
-                .await
-                .map(drop)
-                .left_stream(),
-            Err(e) => {
-                tracing::debug!("power profiles: no daemon to follow: {e}");
+        match interface_properties_changed(&system, DAEMON_SERVICE, DAEMON_SERVICE).await {
+            Ok(changes) => changes.left_stream(),
+            Err(failure) => {
+                tracing::debug!("power profiles: no daemon to follow: {failure}");
                 stream::empty().right_stream()
             }
         }
@@ -208,20 +206,8 @@ async fn status_changes(
     dbus_desktop_buses::Error,
 > {
     let daemon = PowerProfilesProxy::new(&system).await?;
-    let changes = stream::select(
-        stream::select(
-            daemon.receive_active_profile_changed().await.map(drop),
-            daemon
-                .receive_active_profile_holds_changed()
-                .await
-                .map(drop),
-        ),
-        daemon
-            .receive_performance_degraded_changed()
-            .await
-            .map(drop),
-    );
-    Ok(stream::once(async {}).chain(changes).then(move |()| {
+    let changes = interface_properties_changed(&system, DAEMON_SERVICE, DAEMON_SERVICE).await?;
+    Ok(read_once_then_per_burst(changes, move || {
         let daemon = daemon.clone();
         async move { read_status(&daemon).await }
     }))

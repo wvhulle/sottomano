@@ -293,7 +293,7 @@ mod tests {
         assert_eq!(offline_events.label(Clock::real(), Locale::en_US), None);
         assert_eq!(
             offline_events.state(Clock::real()),
-            ReadingDisplayState::Off
+            ReadingDisplayState::Offline
         );
     }
 

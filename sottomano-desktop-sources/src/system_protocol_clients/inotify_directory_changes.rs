@@ -4,12 +4,13 @@ use std::{
     future::ready,
     io,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use futures::{Stream, StreamExt};
 use inotify::{EventMask, Inotify, WatchDescriptor, WatchMask};
 
-use crate::stream_operators::restarting;
+use crate::stream_operators::resubscribed;
 
 const EVENT_BUFFER_BYTES: usize = 4096;
 
@@ -75,7 +76,11 @@ impl WatchTarget {
 }
 
 pub fn changes(targets: Vec<WatchTarget>) -> impl Stream<Item = ()> + Send {
-    restarting("directory watch", move || ready(armed_watch(&targets)))
+    resubscribed(Duration::from_secs(1), move || {
+        let targets = targets.clone();
+        async move { armed_watch(&targets).map(|events| events.map(Ok::<_, io::Error>)) }
+    })
+    .filter_map(|event| ready(event.ok()))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

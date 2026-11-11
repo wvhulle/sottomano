@@ -3,6 +3,7 @@ use std::{
     convert::Infallible,
     future::ready,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
     time::SystemTime,
 };
 
@@ -17,10 +18,11 @@ use crate::{
         forgejo_runner_journal_repos::ForgejoTaskStart,
         images_of, sorted_unique,
     },
-    podman_container_engine::libpod_running_containers::{
-        EngineContainers, RunningContainer, engine_samples_on_running_set_changes,
+    delivery_cadence_drivers::SamplingNeed,
+    podman_container_engine::{
+        libpod_running_containers::{EngineContainers, RunningContainer, shared_engine_sampler},
+        running_set_changes::deliveries_on_running_set_changes,
     },
-    stream_operators::StreamOperators,
     system_protocol_clients::journal_follow::journal_windows,
 };
 
@@ -89,11 +91,6 @@ pub struct ForgejoRunnerWatch {
     pub engine_socket: PathBuf,
 }
 
-enum ForgejoRunnerInput<Sampled> {
-    TaskStarts(Vec<ForgejoTaskStart>),
-    EngineSampled(Sampled),
-}
-
 impl SnapshotSource for ForgejoRunnerTasks {
     type Error = Infallible;
     type StreamInputs = ForgejoRunnerWatch;
@@ -103,61 +100,69 @@ impl SnapshotSource for ForgejoRunnerTasks {
     fn delivery_stream(
         watch: ForgejoRunnerWatch,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let task_starts = journal_windows::<ForgejoTaskStart>().map(|window| {
-            ForgejoRunnerInput::TaskStarts(window.unwrap_or_else(|failure| {
+        let origins_by_task: Arc<Mutex<HashMap<u64, ForgejoTaskOrigin>>> = Arc::default();
+        let origins_for_journal = origins_by_task.clone();
+        let unit_name = watch.unit_name;
+        let task_starts = journal_windows::<ForgejoTaskStart>().filter_map(move |window| {
+            let starts = window.unwrap_or_else(|failure| {
                 tracing::warn!("{failure}");
                 Vec::new()
-            }))
-        });
-        let engine_socket = watch.engine_socket.clone();
-        let engine_samples = engine_samples_on_running_set_changes(watch.engine_socket)
-            .map(ForgejoRunnerInput::EngineSampled);
-        let unit_name = watch.unit_name;
-        stream::select(task_starts, engine_samples)
-            .scan(
-                HashMap::<u64, ForgejoTaskOrigin>::new(),
-                move |origins, input| {
-                    let delivery = match input {
-                        ForgejoRunnerInput::TaskStarts(starts) => {
-                            origins.extend(
-                                starts
-                                    .into_iter()
-                                    .filter(|start| start.unit_name == unit_name)
-                                    .map(|start| {
-                                        (
-                                            start.task_id,
-                                            ForgejoTaskOrigin {
-                                                repository: start.repository,
-                                                actions_page: start.actions_page,
-                                            },
-                                        )
-                                    }),
-                            );
-                            None
-                        }
-                        ForgejoRunnerInput::EngineSampled(tracked) => {
-                            let runner = match tracked.sample {
-                                Ok(engine) => CiRunnerTasks {
-                                    tasks: forgejo_tasks(&engine, origins, &engine_socket),
-                                    access: RunnerAccess::Complete,
+            });
+            if let Ok(mut origins) = origins_for_journal.lock() {
+                origins.extend(
+                    starts
+                        .into_iter()
+                        .filter(|start| start.unit_name == unit_name)
+                        .map(|start| {
+                            (
+                                start.task_id,
+                                ForgejoTaskOrigin {
+                                    repository: start.repository,
+                                    actions_page: start.actions_page,
                                 },
-                                Err(failure) => CiRunnerTasks {
-                                    tasks: Vec::new(),
-                                    access: RunnerAccess::EngineUnreadable(failure),
-                                },
-                            };
-                            Some(
-                                tracked
-                                    .stamped_cadence
-                                    .delivered(Ok(ForgejoRunnerTasks { runner })),
                             )
+                        }),
+                );
+            }
+            ready(None)
+        });
+        let sampler = shared_engine_sampler(watch.engine_socket.clone());
+        let engine_socket = watch.engine_socket;
+        let engine_deliveries = deliveries_on_running_set_changes(
+            move || {
+                let sampler = sampler.clone();
+                let origins_by_task = origins_by_task.clone();
+                let engine_socket = engine_socket.clone();
+                async move {
+                    let engine_read = sampler.lock().await.sample().await;
+                    let runner = match engine_read {
+                        Ok(engine) => {
+                            let tasks = origins_by_task.lock().map_or_else(
+                                |_| Vec::new(),
+                                |origins| forgejo_tasks(&engine, &origins, &engine_socket),
+                            );
+                            CiRunnerTasks {
+                                tasks,
+                                access: RunnerAccess::Complete,
+                            }
                         }
+                        Err(failure) => CiRunnerTasks {
+                            tasks: Vec::new(),
+                            access: RunnerAccess::EngineUnreadable(failure),
+                        },
                     };
-                    ready(Some(delivery))
-                },
-            )
-            .filter_map(ready)
-            .repeats_as_unchanged()
+                    Ok(ForgejoRunnerTasks { runner })
+                }
+            },
+            |delivered| {
+                delivered
+                    .as_ref()
+                    .map_or(SamplingNeed::KeepSampling, |tasks| {
+                        tasks.runner.sampling_need()
+                    })
+            },
+        );
+        stream::select(task_starts, engine_deliveries)
     }
 }
 

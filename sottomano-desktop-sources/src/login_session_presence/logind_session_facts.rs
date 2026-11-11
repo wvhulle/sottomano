@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use chrono::{DateTime, Utc};
-use futures::{Stream, StreamExt, stream::select_all};
+use futures::Stream;
 use procfs::process::Process as Proc;
 use zbus::{proxy, zvariant::OwnedObjectPath};
 
@@ -12,13 +12,19 @@ use crate::{
         greetd_greeter_program::greeter_program,
         logind_manager::{ManagerProxy, session_id},
     },
+    network_connectivity::interface_properties_changed,
     non_empty_text::non_empty,
+    stream_operators::read_once_then_per_burst,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
 };
 
+const LOGIN_SERVICE: &str = "org.freedesktop.login1";
+const SESSION_INTERFACE: &str = "org.freedesktop.login1.Session";
+
 #[proxy(
     interface = "org.freedesktop.login1.Session",
-    default_service = "org.freedesktop.login1"
+    default_service = "org.freedesktop.login1",
+    gen_blocking = false
 )]
 trait Session {
     #[zbus(property)]
@@ -89,14 +95,16 @@ async fn identity_changes(
         virtual_terminal: NonZeroU32::new(session.vt_nr().await?),
         login_manager: session.service().await?,
         desktop: session.desktop().await.ok().and_then(non_empty),
-        session_type: session.session_type().await?,
+        session_type: String::new(),
     };
-    let changes = session.receive_session_type_changed().await;
-    Ok(changes.then(move |session_type| {
+    let changes =
+        interface_properties_changed(&buses.system, LOGIN_SERVICE, SESSION_INTERFACE).await?;
+    Ok(read_once_then_per_burst(changes, move || {
+        let session = session.clone();
         let identity = identity.clone();
         async move {
             Ok(SessionIdentity {
-                session_type: session_type.get().await?,
+                session_type: session.session_type().await?,
                 ..identity
             })
         }
@@ -153,16 +161,9 @@ async fn session_changes(
         since: at_micros(session.timestamp().await?).ok_or(dbus_desktop_buses::Error::Absent)?,
         idle_since: None,
     };
-    let changes = select_all([
-        session.receive_state_changed().await.map(drop).boxed(),
-        session.receive_idle_hint_changed().await.map(drop).boxed(),
-        session
-            .receive_idle_since_hint_changed()
-            .await
-            .map(drop)
-            .boxed(),
-    ]);
-    Ok(changes.then(move |()| {
+    let changes =
+        interface_properties_changed(&buses.system, LOGIN_SERVICE, SESSION_INTERFACE).await?;
+    Ok(read_once_then_per_burst(changes, move || {
         let session = session.clone();
         let info = info.clone();
         async move {

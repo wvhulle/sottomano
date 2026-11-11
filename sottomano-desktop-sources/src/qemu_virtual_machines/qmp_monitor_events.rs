@@ -1,7 +1,4 @@
-use std::{
-    io,
-    path::{Path, PathBuf},
-};
+use std::{io, path::Path};
 
 use serde_json::Value;
 use tokio::{
@@ -10,7 +7,6 @@ use tokio::{
         UnixStream,
         unix::{OwnedReadHalf, OwnedWriteHalf},
     },
-    sync::mpsc,
 };
 
 const CAPABILITIES_COMMAND: &[u8] = b"{\"execute\":\"qmp_capabilities\"}\n";
@@ -23,45 +19,6 @@ pub enum GuestRunState {
     Paused,
     ShuttingDown,
     Unreported,
-}
-
-#[derive(Debug, Clone)]
-pub struct QmpPowerdownSender {
-    socket_path: PathBuf,
-    powerdown_requests: mpsc::UnboundedSender<()>,
-}
-
-impl QmpPowerdownSender {
-    pub(crate) fn new(socket_path: PathBuf, powerdown_requests: mpsc::UnboundedSender<()>) -> Self {
-        Self {
-            socket_path,
-            powerdown_requests,
-        }
-    }
-
-    #[cfg(feature = "test-support")]
-    #[must_use]
-    pub fn detached_fixture(socket_path: PathBuf) -> Self {
-        Self::new(socket_path, mpsc::unbounded_channel().0)
-    }
-
-    pub fn request_powerdown(&self) -> Result<(), mpsc::error::SendError<()>> {
-        self.powerdown_requests.send(())
-    }
-
-    #[must_use]
-    pub fn socket_path(&self) -> &Path {
-        &self.socket_path
-    }
-}
-
-impl PartialEq for QmpPowerdownSender {
-    fn eq(&self, other: &Self) -> bool {
-        self.socket_path == other.socket_path
-            && self
-                .powerdown_requests
-                .same_channel(&other.powerdown_requests)
-    }
 }
 
 fn run_state_of_status(status: &str) -> GuestRunState {
@@ -146,42 +103,25 @@ impl QmpSession {
     }
 }
 
-pub(crate) async fn follow_qmp_run_state(
-    socket_path: &Path,
-    mut powerdown_requests: mpsc::UnboundedReceiver<()>,
-    mut on_run_state: impl FnMut(GuestRunState),
-) -> io::Result<()> {
+pub async fn query_qmp_run_state(socket_path: &Path) -> io::Result<GuestRunState> {
     let mut session = QmpSession::negotiated(socket_path).await?;
     session.commands.write_all(QUERY_STATUS_COMMAND).await?;
-    on_run_state(
-        run_state_of_message(&session.reply_skipping_events().await?)
-            .unwrap_or(GuestRunState::Unreported),
-    );
-    let QmpSession { replies, commands } = &mut session;
-    loop {
-        tokio::select! {
-            message_line = replies.next_line() => {
-                let message_line = message_line?
-                    .ok_or_else(|| io::Error::from(io::ErrorKind::UnexpectedEof))?;
-                if let Some(run_state) = run_state_of_message(&message_line) {
-                    on_run_state(run_state);
-                }
-            }
-            powerdown_request = powerdown_requests.recv() => {
-                if powerdown_request.is_none() {
-                    return Ok(());
-                }
-                commands.write_all(POWERDOWN_COMMAND).await?;
-            }
-        }
-    }
+    let reply = session.reply_skipping_events().await?;
+    Ok(run_state_of_message(&reply).unwrap_or(GuestRunState::Unreported))
+}
+
+pub async fn send_qmp_powerdown(socket_path: &Path) -> io::Result<()> {
+    let mut session = QmpSession::negotiated(socket_path).await?;
+    session.commands.write_all(POWERDOWN_COMMAND).await?;
+    session.reply_skipping_events().await?;
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use std::{env, fs, process, time::Duration};
 
-    use tokio::{net::UnixListener, sync::mpsc::unbounded_channel, time::timeout};
+    use tokio::{net::UnixListener, time::timeout};
 
     use super::*;
 
@@ -213,52 +153,44 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_follower_reports_state_and_forwards_a_powerdown() {
+    async fn qmp_session_queries_status_and_sends_powerdown() {
         let socket_directory = env::temp_dir().join(format!("sottomano-qmp-{}", process::id()));
         fs::create_dir_all(&socket_directory).expect("socket directory is created");
         let socket_path = socket_directory.join("guest.qmp");
         let _ = fs::remove_file(&socket_path);
         let listener = UnixListener::bind(&socket_path).expect("fake qmp binds");
         let fake_qemu = tokio::spawn(async move {
-            let (connection, _) = listener.accept().await.expect("follower connects");
-            let (read_half, mut write_half) = connection.into_split();
-            let mut commands = BufReader::new(read_half).lines();
-            write_half
-                .write_all(b"{\"QMP\": {\"version\": {}, \"capabilities\": []}}\n")
-                .await
-                .expect("greeting is sent");
             let mut received_commands = Vec::new();
-            while let Ok(Some(command_line)) = commands.next_line().await {
-                let reply: &[u8] = if command_line.contains("query-status") {
-                    b"{\"return\": {\"status\": \"running\", \"running\": true}}\n{\"event\": \"STOP\"}\n"
-                } else {
-                    b"{\"return\": {}}\n"
-                };
-                write_half.write_all(reply).await.expect("reply is sent");
-                received_commands.push(command_line.clone());
-                if command_line.contains("system_powerdown") {
-                    break;
+            for _ in 0..2 {
+                let (connection, _) = listener.accept().await.expect("client connects");
+                let (read_half, mut write_half) = connection.into_split();
+                let mut commands = BufReader::new(read_half).lines();
+                write_half
+                    .write_all(b"{\"QMP\": {\"version\": {}, \"capabilities\": []}}\n")
+                    .await
+                    .expect("greeting is sent");
+                while let Ok(Some(command_line)) = commands.next_line().await {
+                    let reply: &[u8] = if command_line.contains("query-status") {
+                        b"{\"return\": {\"status\": \"running\", \"running\": true}}\n"
+                    } else {
+                        b"{\"return\": {}}\n"
+                    };
+                    write_half.write_all(reply).await.expect("reply is sent");
+                    received_commands.push(command_line.clone());
+                    if command_line.contains("query-status")
+                        || command_line.contains("system_powerdown")
+                    {
+                        break;
+                    }
                 }
             }
             received_commands
         });
-        let (powerdown_sender, powerdown_receiver) = unbounded_channel();
-        let (run_state_sender, mut run_state_receiver) = unbounded_channel();
-        let follower = tokio::spawn({
-            let socket_path = socket_path.clone();
-            async move {
-                follow_qmp_run_state(&socket_path, powerdown_receiver, |run_state| {
-                    let _ = run_state_sender.send(run_state);
-                })
-                .await
-            }
-        });
         assert_eq!(
-            run_state_receiver.recv().await,
-            Some(GuestRunState::Running)
+            query_qmp_run_state(&socket_path).await.unwrap(),
+            GuestRunState::Running
         );
-        assert_eq!(run_state_receiver.recv().await, Some(GuestRunState::Paused));
-        powerdown_sender.send(()).expect("follower is listening");
+        send_qmp_powerdown(&socket_path).await.unwrap();
         let received_commands = timeout(Duration::from_secs(5), fake_qemu)
             .await
             .expect("fake qemu finishes")
@@ -268,7 +200,6 @@ mod tests {
                 .last()
                 .is_some_and(|command| command.contains("system_powerdown"))
         );
-        follower.abort();
         let _ = fs::remove_dir_all(&socket_directory);
     }
 }

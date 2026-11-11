@@ -9,7 +9,7 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use futures::{Stream, StreamExt};
+use futures::Stream;
 use serde::Deserialize;
 use tokio::{net::UnixStream, sync::Mutex};
 
@@ -20,9 +20,8 @@ use crate::{
     podman_container_engine::{
         libpod_inspect_ci_identity::{WoodpeckerStepIdentity, fetch_woodpecker_step_identity},
         procfs_conmon_sessions::ConmonSessions,
-        running_set_changes::{ChangeTrackedSample, samples_on_running_set_changes},
+        running_set_changes::deliveries_on_running_set_changes,
     },
-    stream_operators::StreamOperators,
     system_protocol_clients::{
         http_json_client,
         procfs_process_tree::{
@@ -328,30 +327,8 @@ impl EngineSampler {
     }
 }
 
-pub(crate) type EngineRead = Result<EngineContainers, EngineReadError>;
-
-fn engine_sampling_need(engine_read: &EngineRead) -> SamplingNeed {
-    match engine_read {
-        Ok(engine) if engine.containers.is_empty() => SamplingNeed::Settled,
-        Ok(_) | Err(_) => SamplingNeed::KeepSampling,
-    }
-}
-
 pub(crate) fn shared_engine_sampler(socket_path: PathBuf) -> Arc<Mutex<EngineSampler>> {
     Arc::new(Mutex::new(EngineSampler::new(socket_path)))
-}
-
-pub(crate) fn engine_samples_on_running_set_changes(
-    socket_path: PathBuf,
-) -> impl Stream<Item = ChangeTrackedSample<EngineRead>> + Send {
-    let sampler = shared_engine_sampler(socket_path);
-    samples_on_running_set_changes(
-        move || {
-            let sampler = sampler.clone();
-            async move { sampler.lock().await.sample().await }
-        },
-        engine_sampling_need,
-    )
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -360,11 +337,24 @@ pub enum EngineReadout {
     Unreadable(EngineReadError),
 }
 
-impl From<EngineRead> for EngineReadout {
-    fn from(engine_read: EngineRead) -> Self {
+impl From<Result<EngineContainers, EngineReadError>> for EngineReadout {
+    fn from(engine_read: Result<EngineContainers, EngineReadError>) -> Self {
         match engine_read {
             Ok(engine) => EngineReadout::Containers(engine),
             Err(failure) => EngineReadout::Unreadable(failure),
+        }
+    }
+}
+
+impl EngineReadout {
+    pub(crate) fn sampling_need(&self) -> SamplingNeed {
+        match self {
+            EngineReadout::Containers(engine) if engine.containers.is_empty() => {
+                SamplingNeed::Settled
+            }
+            EngineReadout::Containers(_) | EngineReadout::Unreadable(_) => {
+                SamplingNeed::KeepSampling
+            }
         }
     }
 }
@@ -376,9 +366,18 @@ impl SnapshotSource for EngineReadout {
     const NAME: &'static str = "Podman containers";
 
     fn delivery_stream(socket_path: PathBuf) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        engine_samples_on_running_set_changes(socket_path)
-            .map(|tracked| tracked.stamped_cadence.delivered(Ok(tracked.sample.into())))
-            .repeats_as_unchanged()
+        let sampler = shared_engine_sampler(socket_path);
+        deliveries_on_running_set_changes(
+            move || {
+                let sampler = sampler.clone();
+                async move { Ok(sampler.lock().await.sample().await.into()) }
+            },
+            |delivered| {
+                delivered
+                    .as_ref()
+                    .map_or(SamplingNeed::KeepSampling, EngineReadout::sampling_need)
+            },
+        )
     }
 }
 
@@ -395,7 +394,6 @@ mod tests {
 
     use super::*;
     use crate::{
-        delivery_cadence_drivers::SamplingNeed,
         desktop_windows_apps::process_tree_inspection::CpuCapacity,
         system_protocol_clients::procfs_process_tree::ProcessSample,
     };
@@ -548,12 +546,12 @@ mod tests {
 
     #[test]
     fn only_a_readable_empty_engine_stops_usage_sampling() {
-        let empty: EngineRead = Ok(EngineContainers {
+        let empty = EngineReadout::Containers(EngineContainers {
             containers: Vec::new(),
         });
-        assert_eq!(engine_sampling_need(&empty), SamplingNeed::Settled);
+        assert_eq!(empty.sampling_need(), SamplingNeed::Settled);
         assert_eq!(
-            engine_sampling_need(&Err(EngineReadError::SocketMissing)),
+            EngineReadout::Unreadable(EngineReadError::SocketMissing).sampling_need(),
             SamplingNeed::KeepSampling
         );
     }

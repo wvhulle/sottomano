@@ -1,7 +1,7 @@
 use std::{
-    future::Future,
+    future::{Future, ready},
     io,
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, SystemTime},
 };
 
 use futures::{Stream, StreamExt};
@@ -9,9 +9,10 @@ use serde::Deserialize;
 use systemd::journal::Journal;
 
 use crate::{
-    delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, StampedCadence},
+    SnapshotDelivery, SnapshotSource,
+    delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, triggered_deliveries_with_recheck},
     podman_container_engine::libpod_running_containers::ENGINE_POLL_PERIOD,
-    stream_operators::{StreamOperators, reread_on_trigger_or_deadline, resubscribed},
+    stream_operators::{StreamOperators, resubscribed},
     system_protocol_clients::journal_follow::{JournalEvent, journal_windows},
 };
 
@@ -58,43 +59,35 @@ impl JournalEvent for RunningSetChange {
     }
 }
 
-fn running_set_triggers() -> impl Stream<Item = ()> + Send {
+pub(crate) fn running_set_triggers() -> impl Stream<Item = ()> + Send {
     resubscribed(JOURNAL_REOPEN_GAP, || async {
         Ok(journal_windows::<RunningSetChange>())
     })
-    .map(|window| {
+    .filter_map(|window| {
         if let Err(failure) = window {
             tracing::warn!("podman events: {failure}, reopening the journal");
+            return ready(None);
         }
+        ready(Some(()))
     })
-    .at_most_once_per(TRIGGER_BURST_GAP)
 }
 
-pub(crate) struct ChangeTrackedSample<T> {
-    pub sample: T,
-    pub stamped_cadence: StampedCadence,
-}
-
-pub(crate) fn samples_on_running_set_changes<T, F>(
-    read: impl FnMut() -> F + Send + 'static,
-    sampling_need: fn(&T) -> SamplingNeed,
-) -> impl Stream<Item = ChangeTrackedSample<T>> + Send
+pub(crate) fn deliveries_on_running_set_changes<Source, ReadFuture>(
+    read: impl FnMut() -> ReadFuture + Send + 'static,
+    sampling_need: fn(&Result<Source, Source::Error>) -> SamplingNeed,
+) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
 where
-    T: Send + 'static,
-    F: Future<Output = T> + Send + 'static,
+    Source: SnapshotSource + PartialEq,
+    ReadFuture: Future<Output = Result<Source, Source::Error>> + Send + 'static,
 {
-    let usage_recheck = PeriodicPolling::every(ENGINE_POLL_PERIOD);
-    reread_on_trigger_or_deadline(running_set_triggers(), read, move |sample| {
-        (sampling_need(sample) == SamplingNeed::KeepSampling)
-            .then(|| Instant::now() + ENGINE_POLL_PERIOD)
-    })
-    .map(move |sample| ChangeTrackedSample {
-        stamped_cadence: StampedCadence::pushed_with_recheck_while(
-            sampling_need(&sample),
-            usage_recheck,
-        ),
-        sample,
-    })
+    triggered_deliveries_with_recheck(
+        running_set_triggers(),
+        TRIGGER_BURST_GAP,
+        PeriodicPolling::every(ENGINE_POLL_PERIOD),
+        read,
+        sampling_need,
+    )
+    .repeats_as_unchanged()
 }
 
 #[cfg(test)]

@@ -15,7 +15,6 @@ use sottomano_desktop_sources::{
         workspace_window_snapshot,
     },
     media_playback_audio::pipewire_audio::WindowAudio,
-    stream_operators::restarting,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use sottomano_toml_config::{
@@ -124,7 +123,7 @@ pub enum Action {
 impl WindowList {
     pub fn subscription(agents: &WindowAgentsConfig) -> Subscription<WindowListMessage> {
         Subscription::batch([
-            Subscription::run(|| restarting("job view", kde_job_view_progress::serve))
+            Subscription::run(kde_job_view_progress::job_progress)
                 .map(WindowListMessage::JobsChanged),
             if [agents.kitty, agents.wezterm, agents.pty_shells]
                 .contains(&TerminalAgentUse::Enabled)

@@ -37,7 +37,8 @@ impl RegisteredMachineListing {
 #[proxy(
     interface = "org.freedesktop.machine1.Manager",
     default_service = "org.freedesktop.machine1",
-    default_path = "/org/freedesktop/machine1"
+    default_path = "/org/freedesktop/machine1",
+    gen_blocking = false
 )]
 pub(crate) trait MachineManager {
     fn list_machines(&self) -> zbus::Result<Vec<RegisteredMachineListing>>;
@@ -51,7 +52,8 @@ pub(crate) trait MachineManager {
 
 #[proxy(
     interface = "org.freedesktop.machine1.Machine",
-    default_service = "org.freedesktop.machine1"
+    default_service = "org.freedesktop.machine1",
+    gen_blocking = false
 )]
 pub(crate) trait RegisteredMachine {
     fn get_addresses(&self) -> zbus::Result<Vec<(i32, Vec<u8>)>>;

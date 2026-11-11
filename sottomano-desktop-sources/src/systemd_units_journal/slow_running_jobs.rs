@@ -9,7 +9,9 @@ use super::{
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    stream_operators::{StreamOperators, connected_until_failure, reread_on_trigger_or_deadline},
+    stream_operators::{
+        RereadSchedule, StreamOperators, connected_until_failure, reread_on_trigger_or_deadline,
+    },
 };
 
 const RUNNING_JOB_STATE: &str = "running";
@@ -110,8 +112,13 @@ async fn watch_running_jobs(
             async move { running_jobs(&manager).await }
         },
         move |listed| {
-            let running = listed.as_ref().ok()?;
-            next_slow_deadline(running, slow_after, SystemTime::now()).map(instant_at)
+            let Ok(running) = listed.as_ref() else {
+                return RereadSchedule::WaitForTrigger;
+            };
+            next_slow_deadline(running, slow_after, SystemTime::now())
+                .map_or(RereadSchedule::WaitForTrigger, |deadline| {
+                    RereadSchedule::RecheckAt(instant_at(deadline))
+                })
         },
     );
     Ok(listings.map(move |listed| {

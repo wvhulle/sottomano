@@ -20,7 +20,7 @@ use uom::si::{
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::{PeriodicPolling, PollTick},
+    delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     network_connectivity::{
         network_manager_proxies, network_manager_proxies::Metering, nm_readings,
     },
@@ -121,11 +121,14 @@ impl SnapshotSource for InterfaceThroughput {
                     ThroughputEvent::UplinkUnreadable(failure) => {
                         Some(SnapshotDelivery::live_push(Err(failure)))
                     }
-                    ThroughputEvent::Tick(poll_tick) => {
-                        *sampler = mem::take(sampler).observed(ThroughputEvent::Tick(poll_tick));
+                    ThroughputEvent::Tick(polling) => {
+                        *sampler = mem::take(sampler).observed(ThroughputEvent::Tick(polling));
                         sampler
                             .readings()
-                            .map(|readings| poll_tick.stamped(Ok(readings)))
+                            .map(|readings| SnapshotDelivery::SnapshotDelivered {
+                                snapshot_fetch: Ok(readings),
+                                delivery_cadence: DeliveryCadence::PeriodicPolling(polling),
+                            })
                     }
                     ThroughputEvent::UplinkChanged(uplink) => {
                         *sampler =
@@ -143,7 +146,7 @@ impl SnapshotSource for InterfaceThroughput {
 enum ThroughputEvent {
     UplinkChanged(Option<network_manager_proxies::Uplink>),
     UplinkUnreadable(zbus::Error),
-    Tick(PollTick),
+    Tick(PeriodicPolling),
 }
 
 #[derive(Default)]

@@ -1,5 +1,8 @@
+use std::{io, path::Path};
+
 #[cfg(feature = "libvirt-domains")]
 use sottomano_desktop_sources::qemu_virtual_machines::libvirt_domain_control::with_system_connection;
+use sottomano_desktop_sources::qemu_virtual_machines::qmp_monitor_events::send_qmp_powerdown;
 #[cfg(feature = "libvirt-domains")]
 use virt::domain::Domain;
 
@@ -16,4 +19,8 @@ pub fn request_libvirt_shutdown(domain_name: &str) -> Result<(), String> {
 #[cfg(not(feature = "libvirt-domains"))]
 pub fn request_libvirt_shutdown(_domain_name: &str) -> Result<(), String> {
     Err("sottomano was built without the libvirt-domains feature".to_owned())
+}
+
+pub async fn request_qmp_powerdown(socket_path: &Path) -> io::Result<()> {
+    send_qmp_powerdown(socket_path).await
 }

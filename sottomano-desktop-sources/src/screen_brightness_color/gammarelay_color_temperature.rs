@@ -1,21 +1,24 @@
 use std::ops::RangeInclusive;
 
-use futures::{Stream, StreamExt, stream};
+use futures::Stream;
 use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature};
 use zbus::{Connection, proxy};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    stream_operators::StreamOperators,
+    network_connectivity::interface_properties_changed,
+    stream_operators::{StreamOperators, read_once_then_per_burst},
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error, name_owned},
 };
 
 const RELAY_SERVICE: &str = "rs.wl-gammarelay";
+const RELAY_INTERFACE: &str = "rs.wl.gammarelay";
 
 #[proxy(
     interface = "rs.wl.gammarelay",
     default_service = "rs.wl-gammarelay",
-    default_path = "/"
+    default_path = "/",
+    gen_blocking = false
 )]
 pub trait GammaRelay {
     #[zbus(property)]
@@ -53,11 +56,9 @@ async fn relay_changes(
     buses: DesktopBuses,
 ) -> Result<impl Stream<Item = Result<ColorTemperature, Error>> + Send, Error> {
     let relay = GammaRelayProxy::new(&buses.session).await?;
-    let changes = stream::select(
-        relay.receive_brightness_changed().await.map(drop),
-        relay.receive_temperature_changed().await.map(drop),
-    );
-    Ok(changes.then(move |()| {
+    let changes =
+        interface_properties_changed(&buses.session, RELAY_SERVICE, RELAY_INTERFACE).await?;
+    Ok(read_once_then_per_burst(changes, move || {
         let relay = relay.clone();
         async move { ColorTemperature::read(&relay).await }
     }))

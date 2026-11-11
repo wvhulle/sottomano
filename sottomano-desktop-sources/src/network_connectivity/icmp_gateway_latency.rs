@@ -8,7 +8,7 @@ use futures::{
 
 use crate::{
     SnapshotDelivery, SnapshotSource, SourceCaption,
-    delivery_cadence_drivers::PollTick,
+    delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     network_connectivity::{
         icmp_echo_probes::{
             LatencyProbeError, PROBE_POLLING, ProbeOutcome, ProbeWindow, echo_round_trip,
@@ -69,8 +69,8 @@ impl SnapshotSource for GatewayLatencies {
                 loop {
                     match probe_events.next().await? {
                         ProbeEvent::GatewaysChanged(gateways) => prober.retarget(gateways),
-                        ProbeEvent::Tick(poll_tick) => {
-                            let delivery = prober.probe_round(poll_tick).await;
+                        ProbeEvent::Tick(polling) => {
+                            let delivery = prober.probe_round(polling).await;
                             return Some((delivery, (probe_events, prober)));
                         }
                     }
@@ -83,7 +83,7 @@ impl SnapshotSource for GatewayLatencies {
 
 enum ProbeEvent {
     GatewaysChanged(Vec<DeviceGateway>),
-    Tick(PollTick),
+    Tick(PeriodicPolling),
 }
 
 #[derive(Default)]
@@ -106,7 +106,10 @@ impl GatewayProber {
             .collect();
     }
 
-    async fn probe_round(&mut self, poll_tick: PollTick) -> SnapshotDelivery<GatewayLatencies> {
+    async fn probe_round(
+        &mut self,
+        polling: PeriodicPolling,
+    ) -> SnapshotDelivery<GatewayLatencies> {
         let sequence = self.next_sequence;
         self.next_sequence = self.next_sequence.wrapping_add(1);
         let outcomes: Vec<Result<ProbeOutcome, LatencyProbeError>> =
@@ -119,20 +122,28 @@ impl GatewayProber {
             .await;
         let outcomes = match outcomes.into_iter().collect::<Result<Vec<_>, _>>() {
             Ok(outcomes) => outcomes,
-            Err(failure) => return poll_tick.stamped(Err(failure)),
+            Err(failure) => {
+                return SnapshotDelivery::SnapshotDelivered {
+                    snapshot_fetch: Err(failure),
+                    delivery_cadence: DeliveryCadence::PeriodicPolling(polling),
+                };
+            }
         };
         for (window, outcome) in self.windows.values_mut().zip(outcomes) {
             *window = window.clone().recorded(outcome);
         }
-        poll_tick.stamped(Ok(GatewayLatencies {
-            gateways: self
-                .windows
-                .iter()
-                .map(|(device_gateway, window)| GatewayLatency {
-                    interface: device_gateway.interface.clone(),
-                    window: window.clone(),
-                })
-                .collect(),
-        }))
+        SnapshotDelivery::SnapshotDelivered {
+            snapshot_fetch: Ok(GatewayLatencies {
+                gateways: self
+                    .windows
+                    .iter()
+                    .map(|(device_gateway, window)| GatewayLatency {
+                        interface: device_gateway.interface.clone(),
+                        window: window.clone(),
+                    })
+                    .collect(),
+            }),
+            delivery_cadence: DeliveryCadence::PeriodicPolling(polling),
+        }
     }
 }

@@ -26,7 +26,8 @@ pub struct InhibitorRow {
 #[proxy(
     interface = "org.freedesktop.login1.Manager",
     default_service = "org.freedesktop.login1",
-    default_path = "/org/freedesktop/login1"
+    default_path = "/org/freedesktop/login1",
+    gen_blocking = false
 )]
 pub trait Manager {
     fn suspend(&self, interactive: bool) -> zbus::Result<()>;

@@ -86,7 +86,8 @@ impl Connectivity {
 #[proxy(
     interface = "org.freedesktop.NetworkManager",
     default_service = "org.freedesktop.NetworkManager",
-    default_path = "/org/freedesktop/NetworkManager"
+    default_path = "/org/freedesktop/NetworkManager",
+    gen_blocking = false
 )]
 pub trait Manager {
     fn get_devices(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
@@ -123,7 +124,8 @@ pub trait Manager {
 
 #[proxy(
     interface = "org.freedesktop.NetworkManager.Device",
-    default_service = "org.freedesktop.NetworkManager"
+    default_service = "org.freedesktop.NetworkManager",
+    gen_blocking = false
 )]
 pub trait Device {
     fn disconnect(&self) -> zbus::Result<()>;
@@ -153,7 +155,8 @@ pub trait Device {
 
 #[proxy(
     interface = "org.freedesktop.NetworkManager.Device.Wired",
-    default_service = "org.freedesktop.NetworkManager"
+    default_service = "org.freedesktop.NetworkManager",
+    gen_blocking = false
 )]
 trait Wired {
     #[zbus(property)]
@@ -162,7 +165,8 @@ trait Wired {
 
 #[proxy(
     interface = "org.freedesktop.NetworkManager.Device.Wireless",
-    default_service = "org.freedesktop.NetworkManager"
+    default_service = "org.freedesktop.NetworkManager",
+    gen_blocking = false
 )]
 trait Wireless {
     fn get_all_access_points(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
@@ -175,7 +179,8 @@ trait Wireless {
 
 #[proxy(
     interface = "org.freedesktop.NetworkManager.AccessPoint",
-    default_service = "org.freedesktop.NetworkManager"
+    default_service = "org.freedesktop.NetworkManager",
+    gen_blocking = false
 )]
 trait AccessPoint {
     #[zbus(property)]
@@ -194,7 +199,8 @@ trait AccessPoint {
 
 #[proxy(
     interface = "org.freedesktop.NetworkManager.Connection.Active",
-    default_service = "org.freedesktop.NetworkManager"
+    default_service = "org.freedesktop.NetworkManager",
+    gen_blocking = false
 )]
 trait ActiveConnection {
     #[zbus(property)]
@@ -217,7 +223,8 @@ trait ActiveConnection {
 
 #[proxy(
     interface = "org.freedesktop.NetworkManager.VPN.Connection",
-    default_service = "org.freedesktop.NetworkManager"
+    default_service = "org.freedesktop.NetworkManager",
+    gen_blocking = false
 )]
 trait VpnConnection {
     #[zbus(property)]
@@ -228,7 +235,8 @@ trait VpnConnection {
 
 #[proxy(
     interface = "org.freedesktop.NetworkManager.Settings.Connection",
-    default_service = "org.freedesktop.NetworkManager"
+    default_service = "org.freedesktop.NetworkManager",
+    gen_blocking = false
 )]
 trait SettingsConnection {
     fn get_settings(&self) -> zbus::Result<HashMap<String, HashMap<String, OwnedValue>>>;
@@ -237,7 +245,8 @@ trait SettingsConnection {
 #[proxy(
     interface = "org.freedesktop.NetworkManager.Settings",
     default_service = "org.freedesktop.NetworkManager",
-    default_path = "/org/freedesktop/NetworkManager/Settings"
+    default_path = "/org/freedesktop/NetworkManager/Settings",
+    gen_blocking = false
 )]
 trait Settings {
     fn list_connections(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
@@ -245,7 +254,8 @@ trait Settings {
 
 #[proxy(
     interface = "org.freedesktop.NetworkManager.IP4Config",
-    default_service = "org.freedesktop.NetworkManager"
+    default_service = "org.freedesktop.NetworkManager",
+    gen_blocking = false
 )]
 trait Ip4Config {
     #[zbus(property)]
@@ -258,7 +268,8 @@ trait Ip4Config {
 
 #[proxy(
     interface = "org.freedesktop.NetworkManager.IP6Config",
-    default_service = "org.freedesktop.NetworkManager"
+    default_service = "org.freedesktop.NetworkManager",
+    gen_blocking = false
 )]
 trait Ip6Config {
     #[zbus(property)]
@@ -1147,7 +1158,7 @@ pub const MANAGER_PROPERTIES: &str = "org.freedesktop.NetworkManager";
 pub const DEVICE_PROPERTIES: &str = "org.freedesktop.NetworkManager.Device";
 pub const WIRED_PROPERTIES: &str = "org.freedesktop.NetworkManager.Device.Wired";
 pub const WIRELESS_PROPERTIES: &str = "org.freedesktop.NetworkManager.Device.Wireless";
-const ACCESS_POINT_PROPERTIES: &str = "org.freedesktop.NetworkManager.AccessPoint";
+pub const ACCESS_POINT_PROPERTIES: &str = "org.freedesktop.NetworkManager.AccessPoint";
 pub const IP4_CONFIG_PROPERTIES: &str = "org.freedesktop.NetworkManager.IP4Config";
 pub const IP6_CONFIG_PROPERTIES: &str = "org.freedesktop.NetworkManager.IP6Config";
 pub const ACTIVE_CONNECTION_PROPERTIES: &str = "org.freedesktop.NetworkManager.Connection.Active";
@@ -1170,22 +1181,10 @@ pub async fn changes(
 ) -> zbus::Result<impl Stream<Item = ()> + use<>> {
     let streams = try_join_all(watched_properties.iter().map(|interface| async move {
         let rule = properties_changed_rule(interface)?.build();
-        MessageStream::for_match_rule(rule, connection, Some(16)).await
+        MessageStream::for_match_rule(rule, connection, Some(64)).await
     }))
     .await?;
     Ok(stream::select_all(streams).map(|_| ()))
-}
-
-pub async fn access_point_changes(
-    connection: &Connection,
-    access_point: OwnedObjectPath,
-) -> zbus::Result<impl Stream<Item = ()> + use<>> {
-    let rule = properties_changed_rule(ACCESS_POINT_PROPERTIES)?
-        .path(access_point)?
-        .build();
-    Ok(MessageStream::for_match_rule(rule, connection, Some(16))
-        .await?
-        .map(|_| ()))
 }
 
 fn properties_changed_rule(interface: &str) -> zbus::Result<match_rule::Builder<'_>> {

@@ -7,6 +7,7 @@ use futures::{Stream, StreamExt};
 
 use crate::{
     SnapshotDelivery, SnapshotSource, SourceCaption,
+    delivery_cadence_drivers::DeliveryCadence,
     network_connectivity::icmp_echo_probes::{
         LatencyProbeError, PROBE_POLLING, ProbeWindow, echo_round_trip,
     },
@@ -32,25 +33,28 @@ impl SnapshotSource for InternetLatency {
         PROBE_POLLING
             .poll_ticks()
             .enumerate()
-            .then(move |(tick_count, poll_tick)| async move {
+            .then(move |(tick_count, polling)| async move {
                 #[allow(clippy::cast_possible_truncation)]
                 let sequence = tick_count as u16;
                 let outcome = echo_round_trip(SocketAddr::new(internet_host, 0), sequence).await;
-                (poll_tick, outcome)
+                (polling, outcome)
             })
             .scan(
                 ProbeWindow::empty(internet_host),
-                |window, (poll_tick, outcome)| {
-                    let delivery = match outcome {
+                |window, (polling, outcome)| {
+                    let snapshot_fetch = match outcome {
                         Ok(outcome) => {
                             *window = window.clone().recorded(outcome);
-                            poll_tick.stamped(Ok(InternetLatency {
+                            Ok(InternetLatency {
                                 window: window.clone(),
-                            }))
+                            })
                         }
-                        Err(failure) => poll_tick.stamped(Err(failure)),
+                        Err(failure) => Err(failure),
                     };
-                    ready(Some(delivery))
+                    ready(Some(SnapshotDelivery::SnapshotDelivered {
+                        snapshot_fetch,
+                        delivery_cadence: DeliveryCadence::PeriodicPolling(polling),
+                    }))
                 },
             )
             .distinct_until_changed()

@@ -46,7 +46,7 @@ use std::{
 use futures::Stream;
 
 use crate::{
-    delivery_cadence_drivers::StampedCadence,
+    delivery_cadence_drivers::DeliveryCadence,
     network_connectivity::internet_connectivity_gate::InternetUnreachable,
 };
 
@@ -74,7 +74,7 @@ pub enum SnapshotDelivery<S: SnapshotSource> {
     InternetUnreachable(InternetUnreachable),
     SnapshotDelivered {
         snapshot_fetch: Result<S, S::Error>,
-        stamped_cadence: StampedCadence,
+        delivery_cadence: DeliveryCadence,
     },
     SnapshotUnchanged,
 }
@@ -91,13 +91,13 @@ impl<S: SnapshotSource + PartialEq> PartialEq for SnapshotDelivery<S> {
             ),
             SnapshotDelivery::SnapshotDelivered {
                 snapshot_fetch: Ok(snapshot),
-                stamped_cadence,
+                delivery_cadence,
             } => matches!(
                 other,
                 SnapshotDelivery::SnapshotDelivered {
                     snapshot_fetch: Ok(known_snapshot),
-                    stamped_cadence: known_cadence,
-                } if known_snapshot == snapshot && known_cadence == stamped_cadence
+                    delivery_cadence: known_cadence,
+                } if known_snapshot == snapshot && known_cadence == delivery_cadence
             ),
             SnapshotDelivery::SnapshotDelivered {
                 snapshot_fetch: Err(_),

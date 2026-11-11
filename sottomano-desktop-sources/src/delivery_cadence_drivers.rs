@@ -1,8 +1,7 @@
 use std::{
     convert::identity,
     future::{Future, ready},
-    sync::Arc,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use chrono::{DateTime, Local};
@@ -13,7 +12,10 @@ use tokio_stream::wrappers::IntervalStream;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::{Panicked, blocking_poll},
-    stream_operators::{StreamOperators, connected_until_failure, reread_on_trigger_or_deadline},
+    stream_operators::{
+        RereadSchedule, StreamOperators, connected_until_failure,
+        reread_on_spaced_trigger_or_deadline,
+    },
 };
 
 const SHORTEST_POLL_PERIOD: Duration = Duration::from_secs(1);
@@ -32,24 +34,9 @@ pub enum DeliveryCadence {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TriggeredRereadCadence {
-    PeriodicPolling(PeriodicPolling),
-    LivePushWithRecheck(PeriodicPolling),
-    LivePush,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StampedCadence {
-    delivery_cadence: DeliveryCadence,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PollTick {
-    polling: PeriodicPolling,
-}
-
-pub struct AdaptiveCadence<CurrentCadence> {
-    pub current_cadence: CurrentCadence,
+pub enum SamplingNeed {
+    KeepSampling,
+    Settled,
 }
 
 impl PeriodicPolling {
@@ -69,48 +56,53 @@ impl PeriodicPolling {
         self.poll_period
     }
 
-    pub fn poll_ticks(self) -> impl Stream<Item = PollTick> + Send {
+    pub(crate) fn poll_ticks(self) -> impl Stream<Item = Self> + Send {
         let mut timer = interval(self.poll_period);
         timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        IntervalStream::new(timer).map(move |_| PollTick { polling: self })
+        IntervalStream::new(timer).map(move |_| self)
     }
 
-    pub fn poll_deliveries<S, F>(
+    pub fn poll_deliveries<Source, PollFuture>(
         self,
-        poll: impl Fn() -> F + Send + Clone + 'static,
-    ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
+        poll: impl Fn() -> PollFuture + Send + Clone + 'static,
+    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
     where
-        S: SnapshotSource + PartialEq,
-        F: Future<Output = Result<S, S::Error>> + Send,
+        Source: SnapshotSource + PartialEq,
+        PollFuture: Future<Output = Result<Source, Source::Error>> + Send,
     {
         self.poll_ticks()
-            .then(move |poll_tick| {
+            .then(move |polling| {
                 let poll = poll.clone();
-                async move { poll_tick.stamped(poll().await) }
+                async move {
+                    SnapshotDelivery::SnapshotDelivered {
+                        snapshot_fetch: poll().await,
+                        delivery_cadence: DeliveryCadence::PeriodicPolling(polling),
+                    }
+                }
             })
             .repeats_as_unchanged()
     }
 
-    pub fn blocking_poll_deliveries<S>(
+    pub fn blocking_poll_deliveries<Source>(
         self,
-        read: impl Fn() -> Result<S, S::Error> + Send + Sync + Clone + 'static,
-    ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
+        read: impl Fn() -> Result<Source, Source::Error> + Send + Sync + Clone + 'static,
+    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
     where
-        S: SnapshotSource + PartialEq,
-        S::Error: From<Panicked>,
+        Source: SnapshotSource + PartialEq,
+        Source::Error: From<Panicked>,
     {
         self.poll_deliveries(move || blocking_poll(read.clone()))
     }
 
-    pub fn blocking_poll_deliveries_after_setup<S, P>(
+    pub fn blocking_poll_deliveries_after_setup<Source, Prepared>(
         self,
-        setup: impl Future<Output = Result<P, S::Error>> + Send,
-        read: impl Fn(P) -> Result<S, S::Error> + Send + Sync + Clone + 'static,
-    ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
+        setup: impl Future<Output = Result<Prepared, Source::Error>> + Send,
+        read: impl Fn(Prepared) -> Result<Source, Source::Error> + Send + Sync + Clone + 'static,
+    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
     where
-        S: SnapshotSource + PartialEq,
-        S::Error: From<Panicked>,
-        P: Clone + Send + 'static,
+        Source: SnapshotSource + PartialEq,
+        Source::Error: From<Panicked>,
+        Prepared: Clone + Send + 'static,
     {
         self.poll_deliveries_after_setup(setup, move |prepared| {
             let read = read.clone();
@@ -118,15 +110,15 @@ impl PeriodicPolling {
         })
     }
 
-    pub fn poll_deliveries_after_setup<S, P, F>(
+    pub fn poll_deliveries_after_setup<Source, Prepared, PollFuture>(
         self,
-        setup: impl Future<Output = Result<P, S::Error>> + Send,
-        poll: impl Fn(P) -> F + Send + Clone + 'static,
-    ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
+        setup: impl Future<Output = Result<Prepared, Source::Error>> + Send,
+        poll: impl Fn(Prepared) -> PollFuture + Send + Clone + 'static,
+    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
     where
-        S: SnapshotSource + PartialEq,
-        P: Clone + Send + 'static,
-        F: Future<Output = Result<S, S::Error>> + Send,
+        Source: SnapshotSource + PartialEq,
+        Prepared: Clone + Send + 'static,
+        PollFuture: Future<Output = Result<Source, Source::Error>> + Send,
     {
         stream::once(setup).flat_map(move |prepared| match prepared {
             Ok(prepared) => {
@@ -140,171 +132,102 @@ impl PeriodicPolling {
         })
     }
 
-    pub fn boundary_aligned_deliveries<S: SnapshotSource>(
+    pub fn boundary_aligned_deliveries<Source: SnapshotSource>(
         self,
-        snapshot: impl Fn() -> S + Send + Clone + 'static,
-    ) -> impl Stream<Item = SnapshotDelivery<S>> + Send {
+        snapshot: impl Fn() -> Source + Send + Clone + 'static,
+    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send {
         stream::repeat_with(move || {
             let snapshot = snapshot.clone();
             async move {
                 sleep(until_next_boundary(Local::now(), self.poll_period)).await;
-                PollTick { polling: self }.stamped(Ok(snapshot()))
+                SnapshotDelivery::SnapshotDelivered {
+                    snapshot_fetch: Ok(snapshot()),
+                    delivery_cadence: DeliveryCadence::PeriodicPolling(self),
+                }
             }
         })
         .then(identity)
     }
-}
 
-impl PollTick {
-    pub fn stamped<S: SnapshotSource>(
-        self,
-        snapshot_fetch: Result<S, S::Error>,
-    ) -> SnapshotDelivery<S> {
-        SnapshotDelivery::SnapshotDelivered {
-            snapshot_fetch,
-            stamped_cadence: StampedCadence {
-                delivery_cadence: DeliveryCadence::PeriodicPolling(self.polling),
-            },
-        }
-    }
-}
-
-impl StampedCadence {
-    #[must_use]
-    pub fn delivery_cadence(self) -> DeliveryCadence {
-        self.delivery_cadence
-    }
-
-    pub(crate) fn pushed_with_recheck_while(
-        sampling_need: SamplingNeed,
-        recheck: PeriodicPolling,
-    ) -> Self {
-        Self {
-            delivery_cadence: match sampling_need {
-                SamplingNeed::KeepSampling => DeliveryCadence::LivePushWithRecheck(recheck),
-                SamplingNeed::Settled => DeliveryCadence::LivePush,
-            },
-        }
-    }
-
-    pub(crate) fn delivered<S: SnapshotSource>(
-        self,
-        snapshot_fetch: Result<S, S::Error>,
-    ) -> SnapshotDelivery<S> {
-        SnapshotDelivery::SnapshotDelivered {
-            snapshot_fetch,
-            stamped_cadence: self,
-        }
-    }
-
-    fn recheck_deadline(self) -> Option<Instant> {
-        match self.delivery_cadence {
-            DeliveryCadence::PeriodicPolling(polling)
-            | DeliveryCadence::LivePushWithRecheck(polling) => {
-                Some(TokioClockInstant::now().into_std() + polling.poll_period)
-            }
-            DeliveryCadence::LivePush | DeliveryCadence::SingleRead => None,
-        }
-    }
-}
-
-impl From<TriggeredRereadCadence> for DeliveryCadence {
-    fn from(cadence: TriggeredRereadCadence) -> Self {
-        match cadence {
-            TriggeredRereadCadence::PeriodicPolling(polling) => {
-                DeliveryCadence::PeriodicPolling(polling)
-            }
-            TriggeredRereadCadence::LivePushWithRecheck(polling) => {
-                DeliveryCadence::LivePushWithRecheck(polling)
-            }
-            TriggeredRereadCadence::LivePush => DeliveryCadence::LivePush,
-        }
-    }
-}
-
-impl TriggeredRereadCadence {
-    pub fn triggered_deliveries<S, F>(
+    pub fn triggered_deliveries<Source, ReadFuture>(
         self,
         triggers: impl Stream<Item = ()> + Send + 'static,
-        read: impl FnMut() -> F + Send + 'static,
-    ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
+        read: impl FnMut() -> ReadFuture + Send + 'static,
+    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
     where
-        S: SnapshotSource,
-        F: Future<Output = Result<S, S::Error>> + Send + 'static,
+        Source: SnapshotSource,
+        ReadFuture: Future<Output = Result<Source, Source::Error>> + Send + 'static,
     {
-        AdaptiveCadence {
-            current_cadence: move || self,
-        }
-        .triggered_deliveries(triggers, read)
+        triggered_deliveries_with_recheck(triggers, Duration::ZERO, self, read, |_| {
+            SamplingNeed::KeepSampling
+        })
     }
 }
 
-impl<CurrentCadence> AdaptiveCadence<CurrentCadence>
+pub fn triggered_deliveries_with_recheck<Source, ReadFuture>(
+    triggers: impl Stream<Item = ()> + Send + 'static,
+    minimum_trigger_gap: Duration,
+    recheck: PeriodicPolling,
+    mut read: impl FnMut() -> ReadFuture + Send + 'static,
+    sampling_need: fn(&Result<Source, Source::Error>) -> SamplingNeed,
+) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
 where
-    CurrentCadence: Fn() -> TriggeredRereadCadence + Send + Sync + 'static,
+    Source: SnapshotSource,
+    ReadFuture: Future<Output = Result<Source, Source::Error>> + Send + 'static,
 {
-    pub fn triggered_deliveries<S, F>(
-        self,
-        triggers: impl Stream<Item = ()> + Send + 'static,
-        mut read: impl FnMut() -> F + Send + 'static,
-    ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
-    where
-        S: SnapshotSource,
-        F: Future<Output = Result<S, S::Error>> + Send + 'static,
-    {
-        let current_cadence = Arc::new(self.current_cadence);
-        reread_on_trigger_or_deadline(
-            triggers,
-            move || {
-                let fetching = read();
-                let current_cadence = current_cadence.clone();
-                async move {
-                    let snapshot_fetch = fetching.await;
-                    SnapshotDelivery::SnapshotDelivered {
-                        snapshot_fetch,
-                        stamped_cadence: StampedCadence {
-                            delivery_cadence: current_cadence().into(),
-                        },
-                    }
-                }
-            },
-            |delivery| match delivery {
+    reread_on_spaced_trigger_or_deadline(
+        triggers,
+        minimum_trigger_gap,
+        move || {
+            let fetching = read();
+            async move {
+                let snapshot_fetch = fetching.await;
+                let delivery_cadence = match sampling_need(&snapshot_fetch) {
+                    SamplingNeed::KeepSampling => DeliveryCadence::LivePushWithRecheck(recheck),
+                    SamplingNeed::Settled => DeliveryCadence::LivePush,
+                };
                 SnapshotDelivery::SnapshotDelivered {
-                    stamped_cadence, ..
-                } => stamped_cadence.recheck_deadline(),
-                SnapshotDelivery::SourceUnavailable
-                | SnapshotDelivery::InternetUnreachable(_)
-                | SnapshotDelivery::SnapshotUnchanged => None,
-            },
-        )
-    }
+                    snapshot_fetch,
+                    delivery_cadence,
+                }
+            }
+        },
+        move |delivery| match delivery {
+            SnapshotDelivery::SnapshotDelivered {
+                delivery_cadence: DeliveryCadence::LivePushWithRecheck(polling),
+                ..
+            } => {
+                RereadSchedule::RecheckAt(TokioClockInstant::now().into_std() + polling.poll_period)
+            }
+            SnapshotDelivery::SnapshotDelivered { .. }
+            | SnapshotDelivery::SourceUnavailable
+            | SnapshotDelivery::InternetUnreachable(_)
+            | SnapshotDelivery::SnapshotUnchanged => RereadSchedule::WaitForTrigger,
+        },
+    )
 }
 
-impl<S: SnapshotSource> SnapshotDelivery<S> {
-    pub fn live_push(snapshot_fetch: Result<S, S::Error>) -> Self {
+impl<Source: SnapshotSource> SnapshotDelivery<Source> {
+    pub fn live_push(snapshot_fetch: Result<Source, Source::Error>) -> Self {
         SnapshotDelivery::SnapshotDelivered {
             snapshot_fetch,
-            stamped_cadence: StampedCadence {
-                delivery_cadence: DeliveryCadence::LivePush,
-            },
+            delivery_cadence: DeliveryCadence::LivePush,
         }
     }
 
-    pub fn single_read(snapshot_fetch: Result<S, S::Error>) -> Self {
+    pub fn single_read(snapshot_fetch: Result<Source, Source::Error>) -> Self {
         SnapshotDelivery::SnapshotDelivered {
             snapshot_fetch,
-            stamped_cadence: StampedCadence {
-                delivery_cadence: DeliveryCadence::SingleRead,
-            },
+            delivery_cadence: DeliveryCadence::SingleRead,
         }
     }
 
-    pub fn live_push_deliveries<R>(
-        connect: impl Future<Output = Result<R, S::Error>> + Send,
+    pub fn live_push_deliveries<ReadStream>(
+        connect: impl Future<Output = Result<ReadStream, Source::Error>> + Send,
     ) -> impl Stream<Item = Self> + Send
     where
-        S: PartialEq,
-        R: Stream<Item = Result<S, S::Error>> + Send,
+        Source: PartialEq,
+        ReadStream: Stream<Item = Result<Source, Source::Error>> + Send,
     {
         connected_until_failure(connect)
             .map(SnapshotDelivery::live_push)
@@ -313,17 +236,17 @@ impl<S: SnapshotSource> SnapshotDelivery<S> {
 
     #[cfg(any(test, feature = "test-support"))]
     pub fn fixture_delivered(
-        snapshot_fetch: Result<S, S::Error>,
+        snapshot_fetch: Result<Source, Source::Error>,
         delivery_cadence: DeliveryCadence,
     ) -> Self {
         SnapshotDelivery::SnapshotDelivered {
             snapshot_fetch,
-            stamped_cadence: StampedCadence { delivery_cadence },
+            delivery_cadence,
         }
     }
 
     pub fn single_read_deliveries(
-        read: impl Future<Output = Result<S, S::Error>> + Send,
+        read: impl Future<Output = Result<Source, Source::Error>> + Send,
     ) -> impl Stream<Item = Self> + Send {
         stream::once(read).map(SnapshotDelivery::single_read)
     }
@@ -339,18 +262,9 @@ fn until_next_boundary(now: DateTime<Local>, period: Duration) -> Duration {
         .saturating_sub(Duration::from_nanos(subsec_ns))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SamplingNeed {
-    KeepSampling,
-    Settled,
-}
-
 #[cfg(test)]
 mod tests {
-    use std::{
-        fmt::{Display, Formatter, Result as FmtResult},
-        sync::atomic::{AtomicBool, Ordering},
-    };
+    use std::fmt::{Display, Formatter, Result as FmtResult};
 
     use chrono::TimeZone;
     use futures::{StreamExt, stream};
@@ -364,8 +278,8 @@ mod tests {
     struct NeverFails;
 
     impl Display for NeverFails {
-        fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-            write!(f, "never fails")
+        fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+            write!(formatter, "never fails")
         }
     }
 
@@ -380,14 +294,14 @@ mod tests {
         }
     }
 
-    fn stamped_cadence_of(delivery: &SnapshotDelivery<CountedSnapshot>) -> DeliveryCadence {
+    fn delivery_cadence_of(delivery: &SnapshotDelivery<CountedSnapshot>) -> DeliveryCadence {
         let SnapshotDelivery::SnapshotDelivered {
-            stamped_cadence, ..
+            delivery_cadence, ..
         } = delivery
         else {
             panic!("expected a delivered snapshot, got {delivery:?}");
         };
-        stamped_cadence.delivery_cadence()
+        *delivery_cadence
     }
 
     #[test]
@@ -411,7 +325,7 @@ mod tests {
             .collect()
             .await;
         assert_eq!(
-            stamped_cadence_of(&deliveries[0]),
+            delivery_cadence_of(&deliveries[0]),
             DeliveryCadence::PeriodicPolling(polling)
         );
         assert!(matches!(deliveries[1], SnapshotDelivery::SnapshotUnchanged));
@@ -434,29 +348,14 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn an_adaptive_cadence_stamps_and_schedules_from_the_same_value() {
-        let push_connected = Arc::new(AtomicBool::new(false));
-        let polling = PeriodicPolling::every(Duration::from_mins(1));
+    async fn triggered_deliveries_recheck_on_the_polling_period() {
         let recheck = PeriodicPolling::every(Duration::from_mins(15));
-        let cadence_switch = push_connected.clone();
-        let adaptive = AdaptiveCadence {
-            current_cadence: move || {
-                if cadence_switch.load(Ordering::Relaxed) {
-                    TriggeredRereadCadence::LivePushWithRecheck(recheck)
-                } else {
-                    TriggeredRereadCadence::PeriodicPolling(polling)
-                }
-            },
-        };
-        let read_switch = push_connected.clone();
-        let mut deliveries =
-            Box::pin(adaptive.triggered_deliveries(stream::pending(), move || {
-                read_switch.store(true, Ordering::Relaxed);
-                ready(Ok(CountedSnapshot(1)))
-            }));
+        let mut deliveries = Box::pin(
+            recheck.triggered_deliveries(stream::pending(), || ready(Ok(CountedSnapshot(1)))),
+        );
         let first = deliveries.next().await.unwrap();
         assert_eq!(
-            stamped_cadence_of(&first),
+            delivery_cadence_of(&first),
             DeliveryCadence::LivePushWithRecheck(recheck)
         );
         let started_waiting = TokioClockInstant::now();

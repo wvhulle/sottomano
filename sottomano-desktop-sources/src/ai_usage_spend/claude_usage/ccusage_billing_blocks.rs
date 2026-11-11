@@ -7,12 +7,14 @@ use super::{Error, local_log_readings};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     ai_usage_spend::{
-        ccusage_cli_reports::{self, Agent, BillingBlock, RecentUsage},
+        ccusage_cli_reports::{
+            self, Agent, BillingBlock, RecentUsage, TRANSCRIPT_REREAD_MINIMUM_GAP,
+        },
         claude_usage::SubscriptionCoverage,
         usage_quota::Quota,
         working_time_forecast::SpendBudget,
     },
-    stream_operators::reread_on_trigger_or_deadline,
+    stream_operators::{RereadSchedule, reread_on_spaced_trigger_or_deadline},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -46,8 +48,9 @@ impl SnapshotSource for ClaudeCcusagePeriods {
 
     fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         local_log_readings(logs, SubscriptionCoverage::Uncovered, |logs| {
-            SnapshotDelivery::live_push_deliveries(ready(Ok(reread_on_trigger_or_deadline(
+            SnapshotDelivery::live_push_deliveries(ready(Ok(reread_on_spaced_trigger_or_deadline(
                 ccusage_cli_reports::transcript_changes(Agent::ClaudeCode),
+                TRANSCRIPT_REREAD_MINIMUM_GAP,
                 move || Self::read(logs.clone()),
                 |_| ccusage_cli_reports::next_local_midnight(),
             ))))
@@ -77,15 +80,20 @@ impl SnapshotSource for ClaudeCcusageBlock {
 
     fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         local_log_readings(logs, SubscriptionCoverage::Covered, |_| {
-            SnapshotDelivery::live_push_deliveries(ready(Ok(reread_on_trigger_or_deadline(
+            SnapshotDelivery::live_push_deliveries(ready(Ok(reread_on_spaced_trigger_or_deadline(
                 ccusage_cli_reports::transcript_changes(Agent::ClaudeCode),
+                TRANSCRIPT_REREAD_MINIMUM_GAP,
                 Self::read,
                 |block| {
                     block
                         .as_ref()
                         .ok()
                         .and_then(|block| block.active.as_ref())
-                        .map(|active| ccusage_cli_reports::instant_of(active.ends_at))
+                        .map_or(RereadSchedule::WaitForTrigger, |active| {
+                            RereadSchedule::RecheckAt(ccusage_cli_reports::instant_of(
+                                active.ends_at,
+                            ))
+                        })
                 },
             ))))
         })

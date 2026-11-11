@@ -9,7 +9,7 @@ use sottomano_desktop_sources::{
             ForwardedGuestPort, GuestDisplay, NixosSystemClosure, QemuLaunchArguments,
             QmpSocketAccess,
         },
-        qmp_monitor_events::{GuestRunState, QmpPowerdownSender},
+        qmp_monitor_events::GuestRunState,
         running_virtual_machines::{
             GuestPowerControl, RunningVirtualMachine, VirtualMachineOrigin, VirtualMachinesReadout,
         },
@@ -49,9 +49,7 @@ fn interactive_sample_vm(clock: Clock) -> RunningVirtualMachine {
             nixos_system: NixosSystemClosure::Named("sample-vm-slow-services-26.11".to_owned()),
         },
         run_state: GuestRunState::Running,
-        power_control: GuestPowerControl::QmpSession(QmpPowerdownSender::detached_fixture(
-            qmp_socket,
-        )),
+        power_control: GuestPowerControl::QmpSocket(qmp_socket),
         started_at: clock.wall - Duration::from_mins(12),
         cpu_load: ProcessTreeCpuLoad::BusyShare(Ratio::new::<percent>(1.2)),
         resident_memory: ByteSize::mib(1150),

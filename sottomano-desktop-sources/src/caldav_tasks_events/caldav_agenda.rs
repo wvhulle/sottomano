@@ -3,10 +3,7 @@ use std::{
     mem,
     path::PathBuf,
     str::FromStr,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, atomic::AtomicBool},
     time::Duration,
 };
 
@@ -28,7 +25,7 @@ use crate::{
         caldav_server_provider::CaldavProvider,
         nextcloud_notify_push::{PushLogin, activity_pings},
     },
-    delivery_cadence_drivers::{AdaptiveCadence, PeriodicPolling, TriggeredRereadCadence},
+    delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, triggered_deliveries_with_recheck},
     network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
     secret_file_reads::read_secret,
     stream_operators::StreamOperators,
@@ -148,23 +145,18 @@ fn push_or_poll_session<Poller: AgendaSnapshotPolling>(
         user: account.user.clone(),
         password: account.password.clone(),
     };
-    let change_polling = PeriodicPolling::every(account.change_poll_interval);
-    let push_recheck = PeriodicPolling::every(account.push_safety_recheck_interval);
-    let cadence_live = push_live.clone();
+    let recheck = PeriodicPolling::every(account.push_safety_recheck_interval);
     let poller = Arc::new(Mutex::new(poller));
-    AdaptiveCadence {
-        current_cadence: move || {
-            if cadence_live.load(Ordering::Relaxed) {
-                TriggeredRereadCadence::LivePushWithRecheck(push_recheck)
-            } else {
-                TriggeredRereadCadence::PeriodicPolling(change_polling)
-            }
+    triggered_deliveries_with_recheck(
+        activity_pings(push_login, push_live),
+        account.change_poll_interval,
+        recheck,
+        move || {
+            let poller = poller.clone();
+            async move { poller.lock().await.polled_snapshot().await }
         },
-    }
-    .triggered_deliveries(activity_pings(push_login, push_live), move || {
-        let poller = poller.clone();
-        async move { poller.lock().await.polled_snapshot().await }
-    })
+        |_| SamplingNeed::KeepSampling,
+    )
     .repeats_as_unchanged()
 }
 

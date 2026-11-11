@@ -2,7 +2,9 @@ use std::borrow::Cow;
 
 use chrono::Locale;
 use iced::{Subscription, Task};
-use sottomano_desktop_sinks::qemu_virtual_machines::libvirt_domain_shutdown::request_libvirt_shutdown;
+use sottomano_desktop_sinks::qemu_virtual_machines::libvirt_domain_shutdown::{
+    request_libvirt_shutdown, request_qmp_powerdown,
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::window_edge_placement::WindowOwner,
@@ -95,7 +97,7 @@ fn forwarded_port_text(forwarded_port: &ForwardedGuestPort) -> String {
 
 fn power_control_text(power_control: &GuestPowerControl) -> &'static str {
     match power_control {
-        GuestPowerControl::QmpSession(_) => "QMP",
+        GuestPowerControl::QmpSocket(_) => "QMP",
         GuestPowerControl::LibvirtDomain(_) => "libvirt",
         GuestPowerControl::Unavailable => "unavailable",
     }
@@ -103,7 +105,7 @@ fn power_control_text(power_control: &GuestPowerControl) -> &'static str {
 
 fn qmp_socket_text(machine: &RunningVirtualMachine) -> Option<String> {
     match (&machine.launch.qmp_socket, &machine.power_control) {
-        (QmpSocketAccess::UnixSocket(socket_path), GuestPowerControl::QmpSession(_)) => {
+        (QmpSocketAccess::UnixSocket(socket_path), GuestPowerControl::QmpSocket(_)) => {
             Some(socket_path.display().to_string())
         }
         (QmpSocketAccess::UnixSocket(socket_path), _) => {
@@ -226,15 +228,19 @@ pub enum Action {
 
 fn power_off_task(power_control: GuestPowerControl) -> Task<VirtualMachinesMessage> {
     match power_control {
-        GuestPowerControl::QmpSession(powerdown_sender) => {
-            match powerdown_sender.request_powerdown() {
-                Ok(()) => Task::none(),
-                Err(_) => Task::done(VirtualMachinesMessage::PowerOffRefused(format!(
-                    "the QMP session on {} has closed",
-                    powerdown_sender.socket_path().display()
-                ))),
-            }
-        }
+        GuestPowerControl::QmpSocket(socket_path) => Task::perform(
+            async move {
+                let target_label = socket_path.display().to_string();
+                request_qmp_powerdown(&socket_path)
+                    .await
+                    .map(|()| target_label)
+                    .map_err(|failure| failure.to_string())
+            },
+            |shutdown| match shutdown {
+                Ok(target_label) => VirtualMachinesMessage::PowerOffAccepted(target_label),
+                Err(failure) => VirtualMachinesMessage::PowerOffRefused(failure),
+            },
+        ),
         GuestPowerControl::LibvirtDomain(domain_name) => Task::perform(
             async move {
                 spawn_blocking(move || request_libvirt_shutdown(&domain_name).map(|()| domain_name))
