@@ -20,7 +20,7 @@ use crate::{
     widgets::{
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
         phosphor::{Phosphor, Weight},
-        shell_layer_appearance::{LayerAppearance, ShellLayer},
+        shell_layer_appearance::ShellLayer,
     },
 };
 
@@ -98,7 +98,7 @@ pub enum OverlaySettingsMessage {
 pub struct OverlaySettingsGroup {
     expansion: WidgetGroupExpansion,
     toast_arrangement: ToastArrangement,
-    appearance: LayerAppearanceControls,
+    pub layer: LayerAppearanceControls,
 }
 
 impl Default for OverlaySettingsGroup {
@@ -106,7 +106,7 @@ impl Default for OverlaySettingsGroup {
         Self {
             expansion: WidgetGroupExpansion::default(),
             toast_arrangement: ToastArrangement::BesideSender,
-            appearance: LayerAppearanceControls::new(ShellLayer::Overlays, |target| {
+            layer: LayerAppearanceControls::new(ShellLayer::Overlays, |target| {
                 OverlaySettingsTarget::Appearance(target).into()
             }),
         }
@@ -131,25 +131,20 @@ impl OverlaySettingsGroup {
     }
 
     #[must_use]
-    pub fn overlay_appearance(&self) -> LayerAppearance {
-        self.appearance.appearance()
-    }
-
-    #[must_use]
     pub fn hover_card_for(&self, target: OverlaySettingsTarget, clock: Clock) -> HoverCard {
         match target {
             OverlaySettingsTarget::ToastSpatialLayout => {
                 toast_spatial_layout_toggle(self.toast_arrangement).switch_hover_card(clock)
             }
             OverlaySettingsTarget::Appearance(target) => {
-                self.appearance.hover_card_for(target, clock)
+                self.layer.hover_card_for(target, clock)
             }
         }
     }
 
     pub fn collapse(&mut self) {
         if self.expansion.collapse() == ExpansionChange::JustCollapsed {
-            self.appearance.close();
+            self.layer.close();
         }
     }
 
@@ -157,7 +152,7 @@ impl OverlaySettingsGroup {
         match msg {
             OverlaySettingsMessage::Expansion(menu) => {
                 if self.expansion.update(menu) == ExpansionChange::JustCollapsed {
-                    self.appearance.close();
+                    self.layer.close();
                 }
                 Action::Run(Task::none())
             }
@@ -169,7 +164,7 @@ impl OverlaySettingsGroup {
                 ))
             }
             OverlaySettingsMessage::Appearance(msg) => Action::Run(
-                self.appearance
+                self.layer
                     .update(msg)
                     .map(OverlaySettingsMessage::Appearance),
             ),
@@ -195,7 +190,7 @@ impl OverlaySettingsGroup {
             )]
             .into_iter()
             .chain(
-                self.appearance
+                self.layer
                     .items(config, OverlaySettingsMessage::Appearance),
             ),
         )

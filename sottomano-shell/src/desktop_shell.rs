@@ -554,15 +554,13 @@ impl DesktopShell {
             &self.config,
             &self
                 .widget_groups
-                .group_menus
-                .menu_appearance()
+                .group_menus.layer.appearance()
                 .with_background_faded(satellite_fade_level),
             &InspectionCard {
                 hover_card: &inspected_hover_card,
                 card_appearance: self
                     .widget_groups
-                    .overlay_settings_group
-                    .overlay_appearance()
+                    .overlay_settings_group.layer.appearance()
                     .with_background_faded(satellite_fade_level),
                 assets: self.window_assets(),
                 clock: self.clock,
@@ -574,8 +572,7 @@ impl DesktopShell {
     fn interactive_panel(&self, target: &HoverTarget) -> Option<Element<'_, Message>> {
         let popup_corners = Radius::from(
             self.widget_groups
-                .overlay_settings_group
-                .overlay_appearance()
+                .overlay_settings_group.layer.appearance()
                 .corner_radius_px,
         );
         match target {
@@ -657,8 +654,7 @@ impl DesktopShell {
                     ToastSurfaceStyle {
                         overlay_appearance: self
                             .widget_groups
-                            .overlay_settings_group
-                            .overlay_appearance(),
+                            .overlay_settings_group.layer.appearance(),
                         panel_clearance: self.panel_clearance(output),
                         background_fade: self.card_background_fade(output),
                     },

@@ -249,17 +249,17 @@ impl From<&HeatedWindow> for WindowRule {
         Self {
             matches: Some(WindowMatch {
                 app_id: heated
-                    .app_id()
+                    .app_id.as_deref()
                     .map(|app_id| format!("^{}$", escaped_for_regex(app_id))),
                 title: format!(
                     "^\\W*{}$",
-                    escaped_for_regex(heated.title_without_status_prefix())
+                    escaped_for_regex(&heated.title_without_status_prefix)
                 ),
             }),
             geometry_corner_radius: None,
             clip_to_geometry: None,
             focus_ring: None,
-            border: Some(UniformBorder::colored(heated.border_color())),
+            border: Some(UniformBorder::colored(&heated.border_color)),
         }
     }
 }

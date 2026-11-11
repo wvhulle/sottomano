@@ -1,4 +1,5 @@
 use chrono::Locale;
+use std::num::NonZeroUsize;
 use sottomano_desktop_sources::ai_usage_spend::openrouter_model_rankings::{
     OpenRouterModelRankings, ScoredModel,
 };
@@ -20,7 +21,7 @@ use crate::{
     },
 };
 
-const LISTED_MODELS: usize = 16;
+const LISTED_MODELS: NonZeroUsize = NonZeroUsize::new(16).unwrap();
 const INTELLIGENCE_INDEX_DECIMALS: u8 = 1;
 const OPENROUTER_RANKINGS_URL: &str = "https://openrouter.ai/rankings";
 const OPENROUTER_TOOL_MODELS_URL: &str = "https://openrouter.ai/models?supported_parameters=tools";
@@ -56,9 +57,9 @@ impl GroupItemReading for OpenRouterModelRankings {
             ],
             self.best_first
                 .iter()
-                .take(LISTED_MODELS)
                 .map(TableRecord::from),
         )
+        .truncated_to(LISTED_MODELS)
         .titled((
             format!(
                 "Tool-Capable Models ≤ {} Blended",

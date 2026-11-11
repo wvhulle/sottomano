@@ -188,7 +188,7 @@ mod tests {
     };
 
     fn keys(rows: impl IntoIterator<Item = LabeledValue>) -> Vec<ValueCell> {
-        rows.into_iter().map(|row| row.key().clone()).collect()
+        rows.into_iter().map(|row| row.key.clone()).collect()
     }
 
     #[test]

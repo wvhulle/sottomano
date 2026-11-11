@@ -101,7 +101,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         state
             .typing_under_cards
             .subscription(
-                if state.notifications.live_count() > 0 || state.hover_card.placement().is_some() {
+                if state.notifications.live.len() > 0 || state.hover_card.placement().is_some() {
                     CardVisibility::Shown
                 } else {
                     CardVisibility::Hidden

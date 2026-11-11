@@ -3,6 +3,9 @@ pub mod hover_card_source_delivery;
 
 use std::{convert::Infallible, fmt::Display, num::NonZeroUsize};
 
+use corredo::record_table::RecordTable;
+use sottomano_toml_config::severity::Severity;
+
 use sottomano_desktop_sources::{
     SnapshotSource, SourceCaption, desktop_windows_apps::process_tree_inspection::Process,
 };
@@ -12,10 +15,15 @@ use crate::{
     clock::Clock,
     widget_groups::window_group::process_tree::Folding,
     widgets::{
-        keyed_record_table::{ColumnHeading, IntoTableRecord, KeyedRecordTable, TableColumns},
-        value_cells::LabeledValue,
+        keyed_record_table::{
+            ColumnHeading, IntoTableRecord, RecordCells, TableColumns, column_record_table,
+            grouped_record_table, labeled_value_record_table, record_cells,
+        },
+        value_cells::{LabeledValue, ValueCell},
     },
 };
+
+pub type SectionTable = RecordTable<'static, ValueCell, Severity>;
 
 pub trait ReadingSections {
     fn sections(&self, clock: Clock) -> Vec<Section>;
@@ -23,7 +31,7 @@ pub trait ReadingSections {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SectionBody {
-    ColumnTable(KeyedRecordTable),
+    ColumnTable(SectionTable),
     Tree { root: Process, folding: Folding },
     CoreGrid(Vec<ChipletCells>),
     ControllerDiagram(ControllerCallouts),
@@ -153,7 +161,7 @@ impl Section {
     }
 
     pub fn dictionary(entries: impl IntoIterator<Item = LabeledValue>) -> Self {
-        Self::untitled(SectionBody::ColumnTable(KeyedRecordTable::labeled_values(
+        Self::untitled(SectionBody::ColumnTable(labeled_value_record_table(
             entries,
         )))
     }
@@ -162,7 +170,7 @@ impl Section {
         headings: [ColumnHeading; COLUMNS],
         records: impl IntoIterator<Item: IntoTableRecord<COLUMNS>>,
     ) -> Self {
-        Self::untitled(SectionBody::ColumnTable(KeyedRecordTable::new(
+        Self::untitled(SectionBody::ColumnTable(column_record_table(
             TableColumns::Headed(headings.into()),
             records,
         )))
@@ -172,7 +180,7 @@ impl Section {
         headings: [ColumnHeading; COLUMNS],
         groups: impl IntoIterator<Item: IntoIterator<Item: IntoTableRecord<COLUMNS>>>,
     ) -> Self {
-        Self::untitled(SectionBody::ColumnTable(KeyedRecordTable::grouped(
+        Self::untitled(SectionBody::ColumnTable(grouped_record_table(
             TableColumns::Headed(headings.into()),
             groups,
         )))
@@ -182,7 +190,7 @@ impl Section {
         Self::dictionary([LabeledValue::new("Error", message.to_string())])
     }
 
-    fn with_changed_table(self, change: impl FnOnce(KeyedRecordTable) -> KeyedRecordTable) -> Self {
+    fn with_changed_table(self, change: impl FnOnce(SectionTable) -> SectionTable) -> Self {
         match self.body {
             SectionBody::ColumnTable(table) => Self {
                 body: SectionBody::ColumnTable(change(table)),
@@ -197,7 +205,9 @@ impl Section {
 
     #[must_use]
     pub fn with_entries(self, extra: impl IntoIterator<Item = LabeledValue>) -> Self {
-        self.with_changed_table(|table| table.with_appended_records(extra))
+        self.with_changed_table(|table| {
+            table.with_appended_records(record_cells::<1>(extra))
+        })
     }
 
     #[must_use]
@@ -207,12 +217,14 @@ impl Section {
 
     #[must_use]
     pub fn without_blank_columns(self) -> Self {
-        self.with_changed_table(KeyedRecordTable::without_blank_columns)
+        self.with_changed_table(|table| {
+            table.without_blank_columns(|cell| matches!(cell, ValueCell::Blank))
+        })
     }
 
     #[must_use]
     pub fn marked_as_continuing(self) -> Self {
-        self.with_changed_table(KeyedRecordTable::marked_as_continuing)
+        self.with_changed_table(RecordTable::marked_as_continuing)
     }
 
     #[must_use]
@@ -220,7 +232,9 @@ impl Section {
         self,
         total: impl IntoTableRecord<COLUMNS>,
     ) -> Self {
-        self.with_changed_table(|table| table.with_total_record(total))
+        self.with_changed_table(|table| {
+            table.with_total_record(RecordCells::from(total.into_table_record()))
+        })
     }
 
     #[must_use]

@@ -85,12 +85,6 @@ impl ClaudeUsageWindows {
             .fold(Ratio::new::<percent>(0.0), Ratio::max)
     }
 
-    fn all_usage_windows(&self) -> impl Iterator<Item = &WindowUsage> {
-        [&self.session, &self.weekly]
-            .into_iter()
-            .chain(&self.sonnet)
-    }
-
     #[must_use]
     pub fn session_quota(&self, now: DateTime<Utc>) -> Option<Quota> {
         self.session.quota("Claude session", SESSION_LENGTH, now)
@@ -99,6 +93,12 @@ impl ClaudeUsageWindows {
     #[must_use]
     pub fn weekly_quota(&self, now: DateTime<Utc>) -> Option<Quota> {
         self.weekly.quota("Claude weekly limit", WEEKLY_LENGTH, now)
+    }
+
+    fn all_usage_windows(&self) -> impl Iterator<Item = &WindowUsage> {
+        [&self.session, &self.weekly]
+            .into_iter()
+            .chain(&self.sonnet)
     }
 
     #[must_use]

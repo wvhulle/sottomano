@@ -56,10 +56,10 @@ fn heated_window_rule(heat_index: usize, heated: &HeatedWindow) -> String {
         "title = {}",
         lua_string(&format!(
             "^\\W*{}$",
-            escaped_for_regex(heated.title_without_status_prefix())
+            escaped_for_regex(&heated.title_without_status_prefix)
         ))
     );
-    if let Some(app_id) = heated.app_id() {
+    if let Some(app_id) = heated.app_id.as_deref() {
         let _ = write!(
             window_match,
             ", class = {}",
@@ -69,7 +69,7 @@ fn heated_window_rule(heat_index: usize, heated: &HeatedWindow) -> String {
     format!(
         "hl.window_rule({{\n    name = \"sottomano-switch-heat-{heat_index}\",\n    match = {{ \
          {window_match} }},\n    border_color = {},\n}})\n",
-        lua_string(&hyprland_color(heated.border_color())),
+        lua_string(&hyprland_color(&heated.border_color)),
     )
 }
 

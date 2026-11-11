@@ -117,7 +117,7 @@ mod tests {
         };
         let rows: Vec<(ValueCell, ValueCell)> = InferenceHardware(&engine)
             .hardware_rows()
-            .map(|row| (row.key().clone(), row.value().clone()))
+            .map(|row| (row.key.clone(), row.value.clone()))
             .collect();
         assert_eq!(
             rows,

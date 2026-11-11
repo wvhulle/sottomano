@@ -35,7 +35,7 @@ impl GroupItemReading for OpenRouterSpend {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        let today = self.today.cost();
+        let today = self.today.models.total();
         today
             .is_positive()
             .then(|| format!("{} today", spend_text(&today)))
@@ -56,7 +56,7 @@ impl GroupItemReading for OpenRouterSpend {
                 .level(self.daily_severity());
         let monthly_budget = LabeledValue::monthly_budget(
             &self.budget,
-            &self.month.cost(),
+            &self.month.models.total(),
             self.month.projected_cost(now, &self.budget),
         );
         let span_section = |title: String, spent: &SpanSpend, threshold: Option<LabeledValue>| {
@@ -65,7 +65,7 @@ impl GroupItemReading for OpenRouterSpend {
                 .map(|cost| LabeledValue::new("Projected Cost", Quantity::spend(cost)));
             Section::dictionary(
                 [
-                    Some(LabeledValue::new("Cost", Quantity::spend(spent.cost()))),
+                    Some(LabeledValue::new("Cost", Quantity::spend(spent.models.total()))),
                     projected,
                     threshold,
                 ]
@@ -98,7 +98,7 @@ impl GroupItemReading for OpenRouterSpend {
     }
 
     fn panel_visibility(&self) -> PanelVisibility {
-        if self.month.cost().is_positive() {
+        if self.month.models.total().is_positive() {
             PanelVisibility::Shown
         } else {
             PanelVisibility::Hidden

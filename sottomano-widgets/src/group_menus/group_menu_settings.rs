@@ -104,7 +104,7 @@ impl GroupMenuState {
             .into_iter()
             .chain(accordion_only_item)
             .chain(
-                self.menu_appearance_controls()
+                self.layer
                     .items(config, GroupMenuMessage::Appearance),
             ),
         )
@@ -127,7 +127,7 @@ impl GroupMenuState {
                 keep_one_group_open_toggle(presentation).switch_hover_card(clock)
             }
             GroupMenuSettingsTarget::Appearance(target) => self
-                .menu_appearance_controls()
+                .layer
                 .hover_card_for(target, clock),
         }
     }

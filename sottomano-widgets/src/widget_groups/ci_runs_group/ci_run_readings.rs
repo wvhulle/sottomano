@@ -339,7 +339,7 @@ mod tests {
         ))
         .expect("a linked run has a log entry");
         assert_eq!(
-            linked.value(),
+            &linked.value,
             &ValueCell::Link {
                 label: "open in browser".to_owned(),
                 url: "https://codeberg.org/wvhulle/bindrune/actions".to_owned(),

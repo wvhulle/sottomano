@@ -1,5 +1,6 @@
 use std::{
     iter::{empty, once},
+    rc::Rc,
     time::{Duration, SystemTime},
 };
 
@@ -10,8 +11,9 @@ use iced::{
     mouse::Interaction,
     widget::{Column, Space, Text, button, container, row, text, text::Wrapping},
 };
+use corredo::record_table::RecordTableStyle;
 use iced_controller_diagram::{Style as DiagramStyle, controller_diagram};
-use sottomano_toml_config::Config;
+use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
     clock::Clock,
@@ -34,19 +36,21 @@ use crate::{
     },
     widgets::{
         configured_theme::{
-            primary_color, primary_shades, primary_weak_color, secondary_text_color, success_color,
-            success_shades, text_color,
+            background_strong_color, primary_color, primary_shades, primary_weak_color,
+            secondary_text_color, success_color, success_shades, text_color,
         },
         icon_glyph::IconGlyph,
-        keyed_record_table::{KeyedRecordTable, KeyedRecordTableStyle},
+        keyed_record_table::labeled_value_record_table,
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
         pressable_text::pressable_text,
         refresh_dial::RefreshDial,
-        text::{LINE_HEIGHT, font_faces_of, panel_text, text_effects_of, text_face_of},
+        text::{
+            LINE_HEIGHT, column_heading, font_faces_of, panel_text, text_effects_of, text_face_of,
+        },
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
-        value_cells::{ValueCellPressMessages, ValueCellView, wrapped_text},
+        value_cells::{ValueCell, ValueCellPressMessages, ValueCellView, wrapped_text},
         window_icon::WindowAssets,
     },
 };
@@ -540,13 +544,35 @@ impl<'a> HoverCardContent<'a> {
         }
     }
 
-    fn record_table_style(&self) -> KeyedRecordTableStyle<PopupMessage> {
-        KeyedRecordTableStyle {
-            cell_view: self.value_cell_view(),
-            key_color: text_color,
-            heading_font: self.config.theme.font.clone(),
-            column_gap: self.config.theme.spacing.group_gap,
-            row_spacing: self.config.theme.spacing.item_gap,
+    fn record_table_style(&self) -> RecordTableStyle<ValueCell, Severity, PopupMessage> {
+        let key_view = self.value_cell_view().key_view();
+        let omitted_key_view = key_view.clone();
+        let cell_view = self.value_cell_view();
+        let heading_font = self.config.theme.font.clone();
+        RecordTableStyle {
+            key_cell: Rc::new(move |record| {
+                key_view.key(record.key().clone(), text_color)
+            }),
+            value_cell: Rc::new(move |record, position| {
+                let state = ReadingDisplayState::from(*record.level());
+                cell_view.value(
+                    record.cell(position).cloned().unwrap_or(ValueCell::Blank),
+                    move |theme| state.color(theme),
+                    record.key(),
+                )
+            }),
+            omitted_count: Rc::new(move |omitted_count| {
+                omitted_key_view.key(
+                    ValueCell::from(format!("{omitted_count} more")),
+                    background_strong_color,
+                )
+            }),
+            heading: Rc::new(move |label| {
+                column_heading(&heading_font, label.to_owned()).into()
+            }),
+            text_size_px: self.config.theme.font.text_size_px,
+            column_gap_px: self.config.theme.spacing.group_gap,
+            row_spacing_px: self.config.theme.spacing.item_gap,
         }
     }
 
@@ -588,7 +614,7 @@ impl<'a> HoverCardContent<'a> {
                 .into(),
                 row![
                     cells,
-                    KeyedRecordTable::labeled_values(chiplet.facts.clone())
+                    labeled_value_record_table(chiplet.facts.clone())
                         .view(&self.record_table_style())
                 ]
                 .spacing(self.config.theme.spacing.group_gap)

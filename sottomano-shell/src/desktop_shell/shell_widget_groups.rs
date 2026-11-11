@@ -446,10 +446,10 @@ impl ShellWidgetGroups {
     pub fn shell_appearance(&self) -> ShellAppearance {
         ShellAppearance {
             scheme: self.dark_mode_group.scheme(),
-            panels: self.panel_settings_group.panel_appearance(),
-            sidebar: self.sidebar_settings_group.sidebar_appearance(),
-            overlays: self.overlay_settings_group.overlay_appearance(),
-            menus: self.group_menus.menu_appearance(),
+            panels: self.panel_settings_group.layer.appearance(),
+            sidebar: self.sidebar_settings_group.layer.appearance(),
+            overlays: self.overlay_settings_group.layer.appearance(),
+            menus: self.group_menus.layer.appearance(),
         }
     }
 
@@ -502,8 +502,8 @@ impl ShellWidgetGroups {
         background_fade: CardBackgroundFade,
     ) -> HoverCardSurfaceStyle {
         HoverCardSurfaceStyle {
-            overlay_appearance: self.overlay_settings_group.overlay_appearance(),
-            menu_appearance: self.group_menus.menu_appearance(),
+            overlay_appearance: self.overlay_settings_group.layer.appearance(),
+            menu_appearance: self.group_menus.layer.appearance(),
             background_fade,
             float_offset_px: self.panel_settings_group.float_offset_px(),
         }
