@@ -249,7 +249,8 @@ impl From<&HeatedWindow> for WindowRule {
         Self {
             matches: Some(WindowMatch {
                 app_id: heated
-                    .app_id.as_deref()
+                    .app_id
+                    .as_deref()
                     .map(|app_id| format!("^{}$", escaped_for_regex(app_id))),
                 title: format!(
                     "^\\W*{}$",

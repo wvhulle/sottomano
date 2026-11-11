@@ -109,17 +109,13 @@ impl KernelErrorListing<'_> {
     #[must_use]
     pub fn section(&self) -> Option<Section> {
         (!self.is_empty()).then(|| {
-            let listed = self
-                .kernel_errors
-                .iter()
-                .rev()
-                .map(|error| {
-                    LabeledValue::new(
-                        ValueCell::RelativeMoment(DateTime::<Utc>::from(error.at)),
-                        error.message.clone(),
-                    )
-                    .level(Severity::Warning)
-                });
+            let listed = self.kernel_errors.iter().rev().map(|error| {
+                LabeledValue::new(
+                    ValueCell::RelativeMoment(DateTime::<Utc>::from(error.at)),
+                    error.message.clone(),
+                )
+                .level(Severity::Warning)
+            });
             Section::dictionary(
                 [LabeledValue::new(
                     "Errors in the last 10 minutes",

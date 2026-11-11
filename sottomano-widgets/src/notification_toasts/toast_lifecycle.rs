@@ -306,7 +306,6 @@ impl<Routed> Notification<Routed> {
     pub fn scale(&self, now: Instant) -> f32 {
         self.visibility.interpolate(SHRUNK_SCALE, 1.0, now)
     }
-
 }
 
 fn appearing(now: Instant, config: &Config) -> Animation<bool> {

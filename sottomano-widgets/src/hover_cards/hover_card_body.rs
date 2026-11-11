@@ -4,11 +4,10 @@ pub mod hover_card_source_delivery;
 use std::{convert::Infallible, fmt::Display, num::NonZeroUsize};
 
 use corredo::record_table::RecordTable;
-use sottomano_toml_config::severity::Severity;
-
 use sottomano_desktop_sources::{
     SnapshotSource, SourceCaption, desktop_windows_apps::process_tree_inspection::Process,
 };
+use sottomano_toml_config::severity::Severity;
 
 use self::hover_card_figure_payloads::{ChipletCells, ControllerCallouts, WorkspacePreview};
 use crate::{
@@ -205,9 +204,7 @@ impl Section {
 
     #[must_use]
     pub fn with_entries(self, extra: impl IntoIterator<Item = LabeledValue>) -> Self {
-        self.with_changed_table(|table| {
-            table.with_appended_records(record_cells::<1>(extra))
-        })
+        self.with_changed_table(|table| table.with_appended_records(record_cells::<1>(extra)))
     }
 
     #[must_use]

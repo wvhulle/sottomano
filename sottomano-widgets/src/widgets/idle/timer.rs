@@ -132,7 +132,11 @@ impl IdleTimer {
 
     #[must_use]
     pub fn hover_card(&self, clock: Clock) -> HoverCard {
-        self.hover_card_of(timeout_at(self.control.device_setting.wanted_value()), None, clock)
+        self.hover_card_of(
+            timeout_at(self.control.device_setting.wanted_value()),
+            None,
+            clock,
+        )
     }
 
     #[must_use]

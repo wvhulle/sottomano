@@ -260,9 +260,7 @@ impl PanelSettingsGroup {
                 window_row_layout_toggle(self.window_row_layout).switch_hover_card(clock)
             }
             PanelSettingsTarget::FloatOffset => self.float_offset.readout_hover_card("Offset"),
-            PanelSettingsTarget::Appearance(target) => {
-                self.layer.hover_card_for(target, clock)
-            }
+            PanelSettingsTarget::Appearance(target) => self.layer.hover_card_for(target, clock),
         }
     }
 
@@ -329,11 +327,9 @@ impl PanelSettingsGroup {
                 Action::Run(Task::none())
             }
             PanelSettingsMessage::FloatOffset(control) => self.update_float_offset(control),
-            PanelSettingsMessage::Appearance(msg) => Action::Run(
-                self.layer
-                    .update(msg)
-                    .map(PanelSettingsMessage::Appearance),
-            ),
+            PanelSettingsMessage::Appearance(msg) => {
+                Action::Run(self.layer.update(msg).map(PanelSettingsMessage::Appearance))
+            }
             PanelSettingsMessage::LayoutLoaded(panel_layout) => {
                 self.adopt_layout(panel_layout);
                 Action::Reflow(Task::none())
@@ -395,10 +391,7 @@ impl PanelSettingsGroup {
                 ),
             ]
             .into_iter()
-            .chain(
-                self.layer
-                    .items(config, PanelSettingsMessage::Appearance),
-            ),
+            .chain(self.layer.items(config, PanelSettingsMessage::Appearance)),
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Rows(Weight::Regular).into(),

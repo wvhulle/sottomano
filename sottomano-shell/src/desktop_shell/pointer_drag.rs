@@ -43,8 +43,7 @@ impl DesktopShell {
                 })
             );
         let ghost_layer = if dragging_sidebar_workspace {
-            self.widget_groups
-                .sidebar_settings_group.layer.appearance()
+            self.widget_groups.sidebar_settings_group.layer.appearance()
         } else {
             self.widget_groups.panel_settings_group.layer.appearance()
         };
