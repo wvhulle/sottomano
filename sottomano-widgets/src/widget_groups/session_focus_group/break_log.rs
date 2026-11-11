@@ -70,7 +70,10 @@ impl RecentBreaks {
         (!self.taken_breaks.is_empty()).then(|| {
             Section::column_table(
                 BREAK_TABLE_HEADINGS,
-                self.taken_breaks.iter().rev().map(|taken| self.break_record(taken)),
+                self.taken_breaks
+                    .iter()
+                    .rev()
+                    .map(|taken| self.break_record(taken)),
             )
             .truncated_to(LISTED_BREAKS_LIMIT)
             .titled((

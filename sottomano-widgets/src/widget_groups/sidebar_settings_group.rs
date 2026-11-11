@@ -207,9 +207,7 @@ impl SidebarSettingsGroup {
                 auto_collapse_workspaces_toggle(self.empty_workspace_folding.mode())
                     .switch_hover_card(clock)
             }
-            SidebarSettingsTarget::Appearance(target) => {
-                self.layer.hover_card_for(target, clock)
-            }
+            SidebarSettingsTarget::Appearance(target) => self.layer.hover_card_for(target, clock),
         }
     }
 
@@ -293,10 +291,7 @@ impl SidebarSettingsGroup {
             .into_iter()
             .chain(
                 sidebar_shown
-                    .then(|| {
-                        self.layer
-                            .items(config, SidebarSettingsMessage::Appearance)
-                    })
+                    .then(|| self.layer.items(config, SidebarSettingsMessage::Appearance))
                     .into_iter()
                     .flatten(),
             ),

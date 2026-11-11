@@ -136,9 +136,7 @@ impl OverlaySettingsGroup {
             OverlaySettingsTarget::ToastSpatialLayout => {
                 toast_spatial_layout_toggle(self.toast_arrangement).switch_hover_card(clock)
             }
-            OverlaySettingsTarget::Appearance(target) => {
-                self.layer.hover_card_for(target, clock)
-            }
+            OverlaySettingsTarget::Appearance(target) => self.layer.hover_card_for(target, clock),
         }
     }
 
@@ -189,10 +187,7 @@ impl OverlaySettingsGroup {
                 OverlaySettingsMessage::ToggleToastSpatialLayout,
             )]
             .into_iter()
-            .chain(
-                self.layer
-                    .items(config, OverlaySettingsMessage::Appearance),
-            ),
+            .chain(self.layer.items(config, OverlaySettingsMessage::Appearance)),
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Stack(Weight::Regular).into(),

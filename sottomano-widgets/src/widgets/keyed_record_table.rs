@@ -89,8 +89,9 @@ pub fn grouped_record_table<const COLUMNS: usize>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::num::NonZeroUsize;
+
+    use super::*;
 
     struct Planet {
         name: &'static str,
@@ -120,9 +121,7 @@ mod tests {
         names.iter().map(|name| Planet { name, moons: 1 }).collect()
     }
 
-    fn row_shapes(
-        table: &RecordTable<'static, ValueCell, Severity>,
-    ) -> Vec<&'static str> {
+    fn row_shapes(table: &RecordTable<'static, ValueCell, Severity>) -> Vec<&'static str> {
         table
             .rows()
             .iter()
@@ -138,9 +137,8 @@ mod tests {
 
     #[test]
     fn columns_blank_in_every_displayed_record_are_dropped() {
-        let table =
-            column_record_table(moon_columns(), &planets(&["Mars", "Venus"]))
-                .without_blank_columns(|cell| matches!(cell, ValueCell::Blank));
+        let table = column_record_table(moon_columns(), &planets(&["Mars", "Venus"]))
+            .without_blank_columns(|cell| matches!(cell, ValueCell::Blank));
         assert_eq!(
             table.columns(),
             &TableColumns::Headed(vec![ColumnHeading::titled("Moons")])
@@ -207,16 +205,14 @@ mod tests {
     #[test]
     fn markers_follow_the_records() {
         let solar_system = planets(&["Mercury", "Venus"]);
-        let continuing =
-            column_record_table(moon_columns(), &solar_system).marked_as_continuing();
+        let continuing = column_record_table(moon_columns(), &solar_system).marked_as_continuing();
         assert_eq!(
             row_shapes(&continuing),
             ["record", "record", "continuation"]
         );
-        let totalled =
-            column_record_table(moon_columns(), &solar_system).with_total_record(
-                RecordCells::from(TableRecord::new("Total", ["2".into(), ValueCell::Blank])),
-            );
+        let totalled = column_record_table(moon_columns(), &solar_system).with_total_record(
+            RecordCells::from(TableRecord::new("Total", ["2".into(), ValueCell::Blank])),
+        );
         assert_eq!(row_shapes(&totalled), ["record", "record", "total"]);
         assert_eq!(totalled.records().count(), 2);
     }

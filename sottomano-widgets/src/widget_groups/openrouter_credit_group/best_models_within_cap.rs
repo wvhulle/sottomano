@@ -1,5 +1,6 @@
-use chrono::Locale;
 use std::num::NonZeroUsize;
+
+use chrono::Locale;
 use sottomano_desktop_sources::ai_usage_spend::openrouter_model_rankings::{
     OpenRouterModelRankings, ScoredModel,
 };
@@ -54,10 +55,9 @@ impl GroupItemReading for OpenRouterModelRankings {
                 ColumnHeading::titled("In/Mtok"),
                 ColumnHeading::titled("Out/Mtok"),
                 ColumnHeading::titled("Context"),
+                ColumnHeading::titled("Page"),
             ],
-            self.best_first
-                .iter()
-                .map(TableRecord::from),
+            self.best_first.iter().map(TableRecord::from),
         )
         .truncated_to(LISTED_MODELS)
         .titled((
@@ -107,13 +107,10 @@ impl GroupItemReading for OpenRouterModelRankings {
     }
 }
 
-impl From<&ScoredModel> for TableRecord<4> {
+impl From<&ScoredModel> for TableRecord<5> {
     fn from(scored: &ScoredModel) -> Self {
         TableRecord::new(
-            ValueCell::Link {
-                label: scored.model.clone(),
-                url: scored.openrouter_page(),
-            },
+            ValueCell::Text(scored.model.clone()),
             [
                 Quantity::measured(
                     scored.intelligence_index,
@@ -124,6 +121,10 @@ impl From<&ScoredModel> for TableRecord<4> {
                 Quantity::spend(scored.input_per_million).into(),
                 Quantity::spend(scored.output_per_million).into(),
                 Quantity::compact_count(scored.context_tokens).into(),
+                ValueCell::Link {
+                    label: "↗".to_owned(),
+                    url: scored.openrouter_page(),
+                },
             ],
         )
     }

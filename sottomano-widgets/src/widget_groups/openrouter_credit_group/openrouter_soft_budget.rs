@@ -65,7 +65,10 @@ impl GroupItemReading for OpenRouterSpend {
                 .map(|cost| LabeledValue::new("Projected Cost", Quantity::spend(cost)));
             Section::dictionary(
                 [
-                    Some(LabeledValue::new("Cost", Quantity::spend(spent.models.total()))),
+                    Some(LabeledValue::new(
+                        "Cost",
+                        Quantity::spend(spent.models.total()),
+                    )),
                     projected,
                     threshold,
                 ]

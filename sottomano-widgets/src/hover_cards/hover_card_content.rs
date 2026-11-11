@@ -4,6 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use corredo::record_table::RecordTableStyle;
 use iced::{
     Background, Element, Length, Padding, Pixels,
     alignment::Vertical,
@@ -11,7 +12,6 @@ use iced::{
     mouse::Interaction,
     widget::{Column, Space, Text, button, container, row, text, text::Wrapping},
 };
-use corredo::record_table::RecordTableStyle;
 use iced_controller_diagram::{Style as DiagramStyle, controller_diagram};
 use sottomano_toml_config::{Config, severity::Severity};
 
@@ -550,9 +550,7 @@ impl<'a> HoverCardContent<'a> {
         let cell_view = self.value_cell_view();
         let heading_font = self.config.theme.font.clone();
         RecordTableStyle {
-            key_cell: Rc::new(move |record| {
-                key_view.key(record.key().clone(), text_color)
-            }),
+            key_cell: Rc::new(move |record| key_view.key(record.key().clone(), text_color)),
             value_cell: Rc::new(move |record, position| {
                 let state = ReadingDisplayState::from(*record.level());
                 cell_view.value(
@@ -567,9 +565,7 @@ impl<'a> HoverCardContent<'a> {
                     background_strong_color,
                 )
             }),
-            heading: Rc::new(move |label| {
-                column_heading(&heading_font, label.to_owned()).into()
-            }),
+            heading: Rc::new(move |label| column_heading(&heading_font, label.to_owned()).into()),
             text_size_px: self.config.theme.font.text_size_px,
             column_gap_px: self.config.theme.spacing.group_gap,
             row_spacing_px: self.config.theme.spacing.item_gap,

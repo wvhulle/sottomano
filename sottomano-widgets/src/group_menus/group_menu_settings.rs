@@ -103,10 +103,7 @@ impl GroupMenuState {
             ]
             .into_iter()
             .chain(accordion_only_item)
-            .chain(
-                self.layer
-                    .items(config, GroupMenuMessage::Appearance),
-            ),
+            .chain(self.layer.items(config, GroupMenuMessage::Appearance)),
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::ListDashes(Weight::Regular).into(),
@@ -126,9 +123,7 @@ impl GroupMenuState {
             GroupMenuSettingsTarget::KeepOneGroupOpen => {
                 keep_one_group_open_toggle(presentation).switch_hover_card(clock)
             }
-            GroupMenuSettingsTarget::Appearance(target) => self
-                .layer
-                .hover_card_for(target, clock),
+            GroupMenuSettingsTarget::Appearance(target) => self.layer.hover_card_for(target, clock),
         }
     }
 }

@@ -341,7 +341,6 @@ impl GroupMenuState {
         }
     }
 
-
     #[must_use]
     pub const fn presentation(&self) -> GroupMenuPresentation {
         self.presentation

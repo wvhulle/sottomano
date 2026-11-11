@@ -316,7 +316,10 @@ impl SliderControl {
 
     #[must_use]
     pub fn readout_cell(&self) -> ValueCell {
-        ValueCell::Readout(SliderReadout::new(self.device_setting.wanted_value(), self.readout))
+        ValueCell::Readout(SliderReadout::new(
+            self.device_setting.wanted_value(),
+            self.readout,
+        ))
     }
 
     pub fn readout_hover_card(&self, label: impl Into<ValueCell>) -> HoverCard {
@@ -404,7 +407,8 @@ impl SliderControl {
                 let shown_before = self.device_setting.wanted_value();
                 self.device_setting
                     .device_reported(reading, self.slider_step);
-                let moved = (self.device_setting.wanted_value() - shown_before).abs() >= self.slider_step / 2.0;
+                let moved = (self.device_setting.wanted_value() - shown_before).abs()
+                    >= self.slider_step / 2.0;
                 let change_origin = match tracking_before {
                     DeviceTracking::FollowingDevice if moved => LevelChangeOrigin::OutsidePanel,
                     DeviceTracking::FollowingDevice | DeviceTracking::Diverging => {
@@ -635,7 +639,8 @@ impl GroupItemReading for SliderControl {
     }
 
     fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        self.label.and_then(|format| format(self.device_setting.wanted_value(), locale))
+        self.label
+            .and_then(|format| format(self.device_setting.wanted_value(), locale))
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {

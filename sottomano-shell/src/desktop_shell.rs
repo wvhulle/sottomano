@@ -554,13 +554,17 @@ impl DesktopShell {
             &self.config,
             &self
                 .widget_groups
-                .group_menus.layer.appearance()
+                .group_menus
+                .layer
+                .appearance()
                 .with_background_faded(satellite_fade_level),
             &InspectionCard {
                 hover_card: &inspected_hover_card,
                 card_appearance: self
                     .widget_groups
-                    .overlay_settings_group.layer.appearance()
+                    .overlay_settings_group
+                    .layer
+                    .appearance()
                     .with_background_faded(satellite_fade_level),
                 assets: self.window_assets(),
                 clock: self.clock,
@@ -572,7 +576,9 @@ impl DesktopShell {
     fn interactive_panel(&self, target: &HoverTarget) -> Option<Element<'_, Message>> {
         let popup_corners = Radius::from(
             self.widget_groups
-                .overlay_settings_group.layer.appearance()
+                .overlay_settings_group
+                .layer
+                .appearance()
                 .corner_radius_px,
         );
         match target {
@@ -646,21 +652,18 @@ impl DesktopShell {
                 output,
                 role: SurfaceRole::NotificationToasts,
                 ..
-            }) => Element::from(
-                self.notifications.anchored_toasts(
-                    output,
-                    &self.config,
-                    &self.theme,
-                    ToastSurfaceStyle {
-                        overlay_appearance: self
-                            .widget_groups
-                            .overlay_settings_group.layer.appearance(),
-                        panel_clearance: self.panel_clearance(output),
-                        background_fade: self.card_background_fade(output),
-                    },
-                    self.clock,
-                ),
-            )
+            }) => Element::from(self.notifications.anchored_toasts(
+                output,
+                &self.config,
+                &self.theme,
+                ToastSurfaceStyle {
+                    overlay_appearance:
+                        self.widget_groups.overlay_settings_group.layer.appearance(),
+                    panel_clearance: self.panel_clearance(output),
+                    background_fade: self.card_background_fade(output),
+                },
+                self.clock,
+            ))
             .map(Message::Notification),
             _ => blank().into(),
         }
