@@ -114,7 +114,7 @@ mod tests {
     use super::*;
 
     fn row_keys(activity: &PipelineActivity) -> Vec<ValueCell> {
-        stage_rows(activity).map(|row| row.key().clone()).collect()
+        stage_rows(activity).map(|row| row.key.clone()).collect()
     }
 
     fn cells(keys: &[&str]) -> Vec<ValueCell> {

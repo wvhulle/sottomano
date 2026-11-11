@@ -63,7 +63,7 @@ pub struct SliderControl {
     name: &'static str,
     expansion_state: ExpansionState,
     accum: f32,
-    device_setting: DeviceSetting,
+    pub(crate) device_setting: DeviceSetting,
     slider_activity: SliderActivity,
     live: f32,
     range: RangeInclusive<f32>,
@@ -289,7 +289,7 @@ impl SliderControl {
 
     fn fraction_of_range(&self) -> f32 {
         let span = self.range.end() - self.range.start();
-        ((self.current() - self.range.start()) / span).clamp(0.0, 1.0)
+        ((self.device_setting.wanted_value() - self.range.start()) / span).clamp(0.0, 1.0)
     }
 
     fn range_fill(&self) -> Ratio {
@@ -310,23 +310,13 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn current(&self) -> f32 {
-        self.device_setting.wanted_value()
-    }
-
-    #[must_use]
-    pub fn settled_value(&self) -> f32 {
-        self.device_setting.reported_value()
-    }
-
-    #[must_use]
     pub fn readout_text(&self, locale: Locale) -> String {
-        (self.readout)(self.current(), locale)
+        (self.readout)(self.device_setting.wanted_value(), locale)
     }
 
     #[must_use]
     pub fn readout_cell(&self) -> ValueCell {
-        ValueCell::Readout(SliderReadout::new(self.current(), self.readout))
+        ValueCell::Readout(SliderReadout::new(self.device_setting.wanted_value(), self.readout))
     }
 
     pub fn readout_hover_card(&self, label: impl Into<ValueCell>) -> HoverCard {
@@ -340,13 +330,13 @@ impl SliderControl {
         self.thresholds
             .as_ref()
             .map_or(Severity::Normal, |thresholds| {
-                thresholds.level(self.current())
+                thresholds.level(self.device_setting.wanted_value())
             })
     }
 
     fn effective_icon(&self) -> IconGlyph {
         self.glyph.map_or(self.icon, |glyph| {
-            glyph(self.current(), self.slider_activity).into()
+            glyph(self.device_setting.wanted_value(), self.slider_activity).into()
         })
     }
 
@@ -368,11 +358,11 @@ impl SliderControl {
                     return Action::None;
                 };
                 #[allow(clippy::cast_precision_loss)]
-                let target = (self.current() + step as f32 * self.scroll_step)
+                let target = (self.device_setting.wanted_value() + step as f32 * self.scroll_step)
                     .clamp(*self.range.start(), *self.range.end());
                 if self.relative_scroll {
                     let nudge = Nudge {
-                        step_delta: target - self.current(),
+                        step_delta: target - self.device_setting.wanted_value(),
                         resulting_value: target,
                     };
                     into_action(self.device_setting.nudged_by(nudge))
@@ -411,10 +401,10 @@ impl SliderControl {
             }
             ControlMessage::Reading(reading) => {
                 let tracking_before = self.device_setting.device_tracking();
-                let shown_before = self.current();
+                let shown_before = self.device_setting.wanted_value();
                 self.device_setting
                     .device_reported(reading, self.slider_step);
-                let moved = (self.current() - shown_before).abs() >= self.slider_step / 2.0;
+                let moved = (self.device_setting.wanted_value() - shown_before).abs() >= self.slider_step / 2.0;
                 let change_origin = match tracking_before {
                     DeviceTracking::FollowingDevice if moved => LevelChangeOrigin::OutsidePanel,
                     DeviceTracking::FollowingDevice | DeviceTracking::Diverging => {
@@ -549,7 +539,7 @@ impl SliderControl {
         inline_slider(
             config,
             self.range.clone(),
-            self.current(),
+            self.device_setting.wanted_value(),
             self.device_setting.lagging_device_value(self.slider_step),
             self.slider_step,
             self.severity(),
@@ -645,7 +635,7 @@ impl GroupItemReading for SliderControl {
     }
 
     fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        self.label.and_then(|format| format(self.current(), locale))
+        self.label.and_then(|format| format(self.device_setting.wanted_value(), locale))
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {

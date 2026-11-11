@@ -208,8 +208,8 @@ impl CompositorStylingGroup {
     #[must_use]
     pub fn app_window_layout(&self) -> AppWindowLayout {
         AppWindowLayout {
-            window_corner_radius_px: self.corner_radius.settled_value(),
-            gaps_px: self.gaps.settled_value(),
+            window_corner_radius_px: self.corner_radius.device_setting.reported_value(),
+            gaps_px: self.gaps.device_setting.reported_value(),
         }
     }
 
@@ -223,8 +223,8 @@ impl CompositorStylingGroup {
 
     fn requested_layout(&self) -> AppWindowLayout {
         AppWindowLayout {
-            window_corner_radius_px: self.corner_radius.current(),
-            gaps_px: self.gaps.current(),
+            window_corner_radius_px: self.corner_radius.device_setting.wanted_value(),
+            gaps_px: self.gaps.device_setting.wanted_value(),
         }
     }
 

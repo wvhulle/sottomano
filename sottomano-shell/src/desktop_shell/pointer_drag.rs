@@ -44,17 +44,16 @@ impl DesktopShell {
             );
         let ghost_layer = if dragging_sidebar_workspace {
             self.widget_groups
-                .sidebar_settings_group
-                .sidebar_appearance()
+                .sidebar_settings_group.layer.appearance()
         } else {
-            self.widget_groups.panel_settings_group.panel_appearance()
+            self.widget_groups.panel_settings_group.layer.appearance()
         };
         DragView::new(&self.pointer_drag, ghost_layer.frame_style())
     }
 
     #[must_use]
     pub fn panel_slot_context(&self, edge: Position) -> PanelSlotContext<'_> {
-        let panel_appearance = self.widget_groups.panel_settings_group.panel_appearance();
+        let panel_appearance = self.widget_groups.panel_settings_group.layer.appearance();
         PanelSlotContext {
             config: &self.config,
             edge,

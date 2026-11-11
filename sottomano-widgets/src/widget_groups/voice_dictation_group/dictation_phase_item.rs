@@ -156,7 +156,7 @@ mod tests {
     use crate::widgets::value_cells::ValueCell;
 
     fn keys(rows: &[LabeledValue]) -> Vec<ValueCell> {
-        rows.iter().map(|row| row.key().clone()).collect()
+        rows.iter().map(|row| row.key.clone()).collect()
     }
 
     #[test]
@@ -174,8 +174,8 @@ mod tests {
                 .map(ValueCell::from)
                 .to_vec()
         );
-        assert_eq!(rows[0].value(), &ValueCell::from("No mic"));
-        assert_eq!(rows[2].value(), &ValueCell::from("Built-in, USB"));
+        assert_eq!(&rows[0].value, &ValueCell::from("No mic"));
+        assert_eq!(&rows[2].value, &ValueCell::from("Built-in, USB"));
     }
 
     #[test]

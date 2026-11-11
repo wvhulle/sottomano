@@ -67,9 +67,9 @@ impl StyledSurface {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeatedWindow {
-    app_id: Option<String>,
-    title_without_status_prefix: String,
-    border_color: String,
+    pub app_id: Option<String>,
+    pub title_without_status_prefix: String,
+    pub border_color: String,
 }
 
 impl HeatedWindow {
@@ -82,16 +82,6 @@ impl HeatedWindow {
             title_without_status_prefix: title_without_status_prefix.to_owned(),
             border_color,
         })
-    }
-
-    #[must_use]
-    pub fn app_id(&self) -> Option<&str> {
-        self.app_id.as_deref()
-    }
-
-    #[must_use]
-    pub fn title_without_status_prefix(&self) -> &str {
-        &self.title_without_status_prefix
     }
 
     #[must_use]

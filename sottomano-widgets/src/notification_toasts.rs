@@ -138,8 +138,8 @@ pub(super) struct SnoozedOngoingToast {
 pub struct NotificationLayer<Routed> {
     signals: Option<NotificationSignals>,
     sound_theme: SoundTheme,
-    live: Vec<Notification<Routed>>,
-    held: Vec<NotificationData>,
+    pub live: Vec<Notification<Routed>>,
+    pub held: Vec<NotificationData>,
     next_seq: u64,
     hovered: Option<u32>,
     reply_focus: ReplyFocus,
@@ -209,7 +209,7 @@ impl<Routed: Clone> NotificationLayer<Routed> {
                         })
                         .background_fade(background_fade)
                         .reveal(notif.opacity(now)),
-                    notif.slot(now),
+                    notif.slot.interpolate(0.0, 1.0, now),
                     notif.scale(now),
                 ),
                 motion: notif.motion(now),
@@ -235,16 +235,6 @@ impl<Routed: Clone> NotificationLayer<Routed> {
         } else {
             MotionState::Settled
         }
-    }
-
-    #[must_use]
-    pub fn live_count(&self) -> usize {
-        self.live.len()
-    }
-
-    #[must_use]
-    pub fn held_count(&self) -> usize {
-        self.held.len()
     }
 
     #[must_use]

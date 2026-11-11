@@ -114,7 +114,7 @@ impl DesktopShell {
         position: Position,
         content: impl Into<Element<'a, Message>>,
     ) -> Element<'a, Message> {
-        let panels = self.widget_groups.panel_settings_group.panel_appearance();
+        let panels = self.widget_groups.panel_settings_group.layer.appearance();
         let centered = mouse_area(
             container(content)
                 .width(Length::Fill)
@@ -155,7 +155,7 @@ impl DesktopShell {
         groups: impl IntoIterator<Item = Element<'a, Message>>,
     ) -> Element<'a, Message> {
         let config = &self.config;
-        let panels = self.widget_groups.panel_settings_group.panel_appearance();
+        let panels = self.widget_groups.panel_settings_group.layer.appearance();
         let group_framing = self.widget_groups.panel_settings_group.group_framing();
         let frame_style = panels.frame_style();
         let outlined_sides = outlined_sides_inward_of(position)

@@ -30,7 +30,7 @@ use crate::{
     widgets::{
         layer_appearance_controls::{AppearanceMessage, LayerAppearanceControls},
         phosphor::{Phosphor, Weight},
-        shell_layer_appearance::{LayerAppearance, ShellLayer},
+        shell_layer_appearance::ShellLayer,
     },
 };
 
@@ -230,7 +230,7 @@ enum GroupRevealIntent {
 
 pub struct GroupMenuState {
     reveal_intent: GroupRevealIntent,
-    menu_appearance: LayerAppearanceControls,
+    pub layer: LayerAppearanceControls,
     settings_expansion: WidgetGroupExpansion,
     presentation: GroupMenuPresentation,
     pinned: BTreeSet<StoredGroupMenuPin>,
@@ -243,7 +243,7 @@ impl Default for GroupMenuState {
     fn default() -> Self {
         Self {
             reveal_intent: GroupRevealIntent::Idle,
-            menu_appearance: LayerAppearanceControls::new(ShellLayer::Menus, |target| {
+            layer: LayerAppearanceControls::new(ShellLayer::Menus, |target| {
                 GroupMenuSettingsTarget::Appearance(target).into()
             }),
             settings_expansion: WidgetGroupExpansion::default(),
@@ -337,19 +337,10 @@ impl GroupMenuState {
 
     pub fn collapse_settings(&mut self) {
         if self.settings_expansion.collapse() == ExpansionChange::JustCollapsed {
-            self.menu_appearance.close();
+            self.layer.close();
         }
     }
 
-    #[must_use]
-    pub fn menu_appearance(&self) -> LayerAppearance {
-        self.menu_appearance.appearance()
-    }
-
-    #[must_use]
-    pub(crate) const fn menu_appearance_controls(&self) -> &LayerAppearanceControls {
-        &self.menu_appearance
-    }
 
     #[must_use]
     pub const fn presentation(&self) -> GroupMenuPresentation {
@@ -490,12 +481,12 @@ impl GroupMenuState {
             }
             GroupMenuMessage::SettingsExpansion(expansion) => {
                 if self.settings_expansion.update(expansion) == ExpansionChange::JustCollapsed {
-                    self.menu_appearance.close();
+                    self.layer.close();
                 }
                 Task::none()
             }
             GroupMenuMessage::Appearance(appearance) => self
-                .menu_appearance
+                .layer
                 .update(appearance)
                 .map(GroupMenuMessage::Appearance),
             GroupMenuMessage::PresentationLoaded(presentation) => {

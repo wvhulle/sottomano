@@ -75,13 +75,8 @@ pub struct SpanSpend {
 
 impl SpanSpend {
     #[must_use]
-    pub fn cost(&self) -> Money {
-        self.models.total()
-    }
-
-    #[must_use]
     pub fn projected_cost(&self, now: DateTime<Local>, budget: &SpendBudget) -> Option<Money> {
-        self.span.projected_cost(&self.cost(), now, budget)
+        self.span.projected_cost(&self.models.total(), now, budget)
     }
 
     fn within(span: CalendarSpan, hourly: &[Usage]) -> Self {
@@ -123,7 +118,7 @@ impl OpenRouterSpend {
 
     #[must_use]
     pub fn daily_severity(&self) -> Severity {
-        if self.today.cost().amount() >= self.daily_warning().amount() {
+        if self.today.models.total().amount() >= self.daily_warning().amount() {
             Severity::Warning
         } else {
             Severity::Normal
@@ -134,7 +129,7 @@ impl OpenRouterSpend {
     pub fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
         vec![self.month.span.budget_quota(
             "OpenRouter monthly budget",
-            &self.month.cost(),
+            &self.month.models.total(),
             &self.budget,
             now.with_timezone(&Local),
         )]

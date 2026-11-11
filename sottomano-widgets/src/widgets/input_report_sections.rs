@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use chrono::{DateTime, Utc};
 use sottomano_desktop_sources::{
     gamepad_controller_input::accelerometer_report_timing::{DeviceClock, ReportTiming},
@@ -15,7 +17,7 @@ use crate::{
 };
 
 const NOTICEABLE_LOSS_PERCENT: f64 = 5.0;
-const LISTED_KERNEL_ERRORS: usize = 5;
+const LISTED_KERNEL_ERRORS: NonZeroUsize = NonZeroUsize::new(5).unwrap();
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MeasuredReportTiming {
@@ -111,7 +113,6 @@ impl KernelErrorListing<'_> {
                 .kernel_errors
                 .iter()
                 .rev()
-                .take(LISTED_KERNEL_ERRORS)
                 .map(|error| {
                     LabeledValue::new(
                         ValueCell::RelativeMoment(DateTime::<Utc>::from(error.at)),
@@ -128,6 +129,7 @@ impl KernelErrorListing<'_> {
                 .into_iter()
                 .chain(listed),
             )
+            .truncated_to(LISTED_KERNEL_ERRORS)
             .titled("Kernel messages")
         })
     }

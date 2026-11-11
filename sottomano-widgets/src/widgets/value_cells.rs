@@ -125,9 +125,9 @@ impl From<&str> for ValueCell {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LabeledValue {
-    key: ValueCell,
-    value: ValueCell,
-    level: Severity,
+    pub key: ValueCell,
+    pub value: ValueCell,
+    pub severity: Severity,
 }
 
 impl LabeledValue {
@@ -135,28 +135,13 @@ impl LabeledValue {
         Self {
             key: key.into(),
             value: value.into(),
-            level: Severity::Normal,
+            severity: Severity::Normal,
         }
     }
 
     #[must_use]
-    pub fn level(self, level: Severity) -> Self {
-        Self { level, ..self }
-    }
-
-    #[must_use]
-    pub fn key(&self) -> &ValueCell {
-        &self.key
-    }
-
-    #[must_use]
-    pub fn value(&self) -> &ValueCell {
-        &self.value
-    }
-
-    #[must_use]
-    pub fn severity(&self) -> Severity {
-        self.level
+    pub fn level(self, severity: Severity) -> Self {
+        Self { severity, ..self }
     }
 }
 

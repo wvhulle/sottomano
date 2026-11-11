@@ -19,8 +19,8 @@ pub struct ChipletLiveState<'a> {
 impl ChipletLiveState<'_> {
     pub fn title(&self, group: &CoreGroup) -> String {
         match self.scheduler_preference(group) {
-            SchedulerPreference::Preferred => format!("{} ★", group.title()),
-            SchedulerPreference::Ordinary => group.title(),
+            SchedulerPreference::Preferred => format!("{} ★", group.role.title()),
+            SchedulerPreference::Ordinary => group.role.title(),
         }
     }
 

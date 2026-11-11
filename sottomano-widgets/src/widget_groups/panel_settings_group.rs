@@ -24,7 +24,7 @@ use crate::{
     widgets::{
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
         phosphor::{Phosphor, Weight},
-        shell_layer_appearance::{LayerAppearance, ShellLayer},
+        shell_layer_appearance::ShellLayer,
     },
 };
 
@@ -184,7 +184,7 @@ pub struct PanelSettingsGroup {
     group_collapsing: GroupCollapsing,
     window_row_layout: WindowRowLayout,
     float_offset: SliderControl,
-    appearance: LayerAppearanceControls,
+    pub layer: LayerAppearanceControls,
 }
 
 impl Default for PanelSettingsGroup {
@@ -203,7 +203,7 @@ impl Default for PanelSettingsGroup {
             )
             .icon_only()
             .readout(|value, _| format!("{} px", value.round())),
-            appearance: LayerAppearanceControls::new(ShellLayer::Panels, |target| {
+            layer: LayerAppearanceControls::new(ShellLayer::Panels, |target| {
                 PanelSettingsTarget::Appearance(target).into()
             }),
         };
@@ -244,12 +244,7 @@ impl PanelSettingsGroup {
 
     #[must_use]
     pub fn float_offset_px(&self) -> f32 {
-        self.float_offset.settled_value()
-    }
-
-    #[must_use]
-    pub fn panel_appearance(&self) -> LayerAppearance {
-        self.appearance.appearance()
+        self.float_offset.device_setting.reported_value()
     }
 
     #[must_use]
@@ -266,7 +261,7 @@ impl PanelSettingsGroup {
             }
             PanelSettingsTarget::FloatOffset => self.float_offset.readout_hover_card("Offset"),
             PanelSettingsTarget::Appearance(target) => {
-                self.appearance.hover_card_for(target, clock)
+                self.layer.hover_card_for(target, clock)
             }
         }
     }
@@ -275,7 +270,7 @@ impl PanelSettingsGroup {
         PanelLayout {
             group_framing: self.group_framing,
             group_collapsing: self.group_collapsing,
-            float_offset_px: self.float_offset.settled_value(),
+            float_offset_px: self.float_offset.device_setting.reported_value(),
         }
     }
 
@@ -288,7 +283,7 @@ impl PanelSettingsGroup {
 
     fn close_sliders(&mut self) {
         self.float_offset.close();
-        self.appearance.close();
+        self.layer.close();
     }
 
     pub fn collapse(&mut self) {
@@ -335,7 +330,7 @@ impl PanelSettingsGroup {
             }
             PanelSettingsMessage::FloatOffset(control) => self.update_float_offset(control),
             PanelSettingsMessage::Appearance(msg) => Action::Run(
-                self.appearance
+                self.layer
                     .update(msg)
                     .map(PanelSettingsMessage::Appearance),
             ),
@@ -348,7 +343,7 @@ impl PanelSettingsGroup {
 
     #[allow(clippy::float_cmp)]
     fn update_float_offset(&mut self, control: ControlMessage) -> Action {
-        let settled_before = self.float_offset.settled_value();
+        let settled_before = self.float_offset.device_setting.reported_value();
         let persisting = match self.float_offset.update(control) {
             SliderAction::Commit(value) => Task::future(sqlite_panel_layout::save(PanelLayout {
                 float_offset_px: value,
@@ -362,7 +357,7 @@ impl PanelSettingsGroup {
             | SliderAction::Adjust(_)
             | SliderAction::Right => Task::none(),
         };
-        if self.float_offset.settled_value() == settled_before {
+        if self.float_offset.device_setting.reported_value() == settled_before {
             Action::Run(persisting)
         } else {
             Action::Reflow(persisting)
@@ -401,7 +396,7 @@ impl PanelSettingsGroup {
             ]
             .into_iter()
             .chain(
-                self.appearance
+                self.layer
                     .items(config, PanelSettingsMessage::Appearance),
             ),
         )

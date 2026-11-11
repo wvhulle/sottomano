@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use chrono::{DateTime, Local, Locale, Utc};
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
@@ -17,7 +19,7 @@ use crate::{
     },
 };
 
-const LISTED_BREAKS_LIMIT: usize = 12;
+const LISTED_BREAKS_LIMIT: NonZeroUsize = NonZeroUsize::new(12).unwrap();
 
 const BREAK_TABLE_HEADINGS: [ColumnHeading; 3] = [
     ColumnHeading::titled("Ended"),
@@ -64,33 +66,16 @@ impl RecentBreaks {
         )
     }
 
-    fn listed_breaks(&self) -> &[TakenBreak] {
-        &self.taken_breaks[self.taken_breaks.len().saturating_sub(LISTED_BREAKS_LIMIT)..]
-    }
-
-    fn table_caption(&self) -> String {
-        let listed_count = self.listed_breaks().len();
-        if listed_count < self.taken_breaks.len() {
-            format!(
-                "{listed_count} most recent of {}, by start time.",
-                self.taken_breaks.len()
-            )
-        } else {
-            "By start time.".to_owned()
-        }
-    }
-
     fn breaks_table(&self) -> Option<Section> {
         (!self.taken_breaks.is_empty()).then(|| {
             Section::column_table(
                 BREAK_TABLE_HEADINGS,
-                self.listed_breaks()
-                    .iter()
-                    .map(|taken| self.break_record(taken)),
+                self.taken_breaks.iter().rev().map(|taken| self.break_record(taken)),
             )
+            .truncated_to(LISTED_BREAKS_LIMIT)
             .titled((
                 "Breaks in the last 24 hours".to_owned(),
-                self.table_caption(),
+                "Most recent first.".to_owned(),
             ))
         })
     }

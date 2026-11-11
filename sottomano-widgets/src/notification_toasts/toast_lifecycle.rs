@@ -184,7 +184,7 @@ pub struct Notification<Routed> {
     pub(super) seq: u64,
     pub(super) reply_draft: String,
     visibility: Animation<bool>,
-    slot: Animation<bool>,
+    pub(crate) slot: Animation<bool>,
 }
 
 impl<Routed> Notification<Routed> {
@@ -307,9 +307,6 @@ impl<Routed> Notification<Routed> {
         self.visibility.interpolate(SHRUNK_SCALE, 1.0, now)
     }
 
-    pub fn slot(&self, now: Instant) -> f32 {
-        self.slot.interpolate(0.0, 1.0, now)
-    }
 }
 
 fn appearing(now: Instant, config: &Config) -> Animation<bool> {

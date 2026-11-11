@@ -46,14 +46,14 @@ impl CoreRole {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct CpuTopology {
-    core_groups: Vec<CoreGroup>,
+    pub core_groups: Vec<CoreGroup>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CoreGroup {
-    role: CoreRole,
-    physical_cores: Vec<PhysicalCore>,
-    chiplets: Vec<Chiplet>,
+    pub role: CoreRole,
+    pub physical_cores: Vec<PhysicalCore>,
+    pub chiplets: Vec<Chiplet>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -76,11 +76,6 @@ impl CoreGroup {
             chiplets,
         }
         .ordered()
-    }
-
-    #[must_use]
-    pub fn title(&self) -> String {
-        self.role.title()
     }
 
     #[must_use]
@@ -245,7 +240,7 @@ impl CoreDesign {
 }
 
 struct AssignedCpu<'a> {
-    role: CoreRole,
+    pub role: CoreRole,
     cpu: &'a LogicalCpu,
     chiplet: Option<Chiplet>,
 }

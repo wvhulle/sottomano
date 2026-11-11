@@ -25,7 +25,7 @@ use crate::{
     widgets::{
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
         phosphor::{Phosphor, Weight},
-        shell_layer_appearance::{LayerAppearance, ShellLayer},
+        shell_layer_appearance::ShellLayer,
     },
 };
 
@@ -131,7 +131,7 @@ pub struct SidebarSettingsGroup {
     workspaces_placement: WorkspacesPlacement,
     empty_workspace_folding: EmptyWorkspaceFolding,
     reveal_fold_timer: Option<task::Handle>,
-    appearance: LayerAppearanceControls,
+    pub layer: LayerAppearanceControls,
 }
 
 impl Default for SidebarSettingsGroup {
@@ -141,7 +141,7 @@ impl Default for SidebarSettingsGroup {
             workspaces_placement: WorkspacesPlacement::Sidebar,
             empty_workspace_folding: EmptyWorkspaceFolding::default(),
             reveal_fold_timer: None,
-            appearance: LayerAppearanceControls::new(ShellLayer::Sidebar, |target| {
+            layer: LayerAppearanceControls::new(ShellLayer::Sidebar, |target| {
                 SidebarSettingsTarget::Appearance(target).into()
             }),
         }
@@ -198,11 +198,6 @@ impl SidebarSettingsGroup {
     }
 
     #[must_use]
-    pub fn sidebar_appearance(&self) -> LayerAppearance {
-        self.appearance.appearance()
-    }
-
-    #[must_use]
     pub fn hover_card_for(&self, target: SidebarSettingsTarget, clock: Clock) -> HoverCard {
         match target {
             SidebarSettingsTarget::WorkspacesPlacement => {
@@ -213,14 +208,14 @@ impl SidebarSettingsGroup {
                     .switch_hover_card(clock)
             }
             SidebarSettingsTarget::Appearance(target) => {
-                self.appearance.hover_card_for(target, clock)
+                self.layer.hover_card_for(target, clock)
             }
         }
     }
 
     pub fn collapse(&mut self) {
         if self.expansion.collapse() == ExpansionChange::JustCollapsed {
-            self.appearance.close();
+            self.layer.close();
         }
     }
 
@@ -228,7 +223,7 @@ impl SidebarSettingsGroup {
         match msg {
             SidebarSettingsMessage::Expansion(menu) => {
                 if self.expansion.update(menu) == ExpansionChange::JustCollapsed {
-                    self.appearance.close();
+                    self.layer.close();
                 }
                 Task::none()
             }
@@ -258,7 +253,7 @@ impl SidebarSettingsGroup {
                 Task::none()
             }
             SidebarSettingsMessage::Appearance(msg) => self
-                .appearance
+                .layer
                 .update(msg)
                 .map(SidebarSettingsMessage::Appearance),
             SidebarSettingsMessage::PlacementLoaded(placement) => {
@@ -299,7 +294,7 @@ impl SidebarSettingsGroup {
             .chain(
                 sidebar_shown
                     .then(|| {
-                        self.appearance
+                        self.layer
                             .items(config, SidebarSettingsMessage::Appearance)
                     })
                     .into_iter()
