@@ -108,7 +108,6 @@ where
     },
     SnapshotHeldOffline {
         offline_snapshot: OfflineSnapshot<S>,
-        delivery_timing: DeliveryTiming,
     },
     OfflineBeforeSnapshot {
         offline_placeholder: SnapshotPlaceholder<S>,
@@ -238,10 +237,10 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy>
             }
             | LatestSnapshot::SnapshotFetchFailed {
                 delivery_timing, ..
-            }
-            | LatestSnapshot::SnapshotHeldOffline {
-                delivery_timing, ..
             } => Some(*delivery_timing),
+            LatestSnapshot::SnapshotHeldOffline { offline_snapshot } => {
+                Some(offline_snapshot.delivery_timing)
+            }
         }
     }
 
@@ -265,12 +264,10 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy>
             SnapshotDelivery::SnapshotUnchanged => self.redelivered(clock),
             SnapshotDelivery::SnapshotDelivered {
                 snapshot_fetch,
-                stamped_cadence,
+                delivery_cadence,
             } => {
-                let delivery_timing = DeliveryTiming::from_delivery_cadence(
-                    stamped_cadence.delivery_cadence(),
-                    clock,
-                );
+                let delivery_timing =
+                    DeliveryTiming::from_delivery_cadence(delivery_cadence, clock);
                 match snapshot_fetch {
                     Ok(held_snapshot) => LatestSnapshot::SnapshotHeld {
                         held_snapshot,
@@ -289,14 +286,18 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy>
                 delivery_timing,
             }
             | LatestSnapshot::SnapshotHeldOffline {
-                offline_snapshot: OfflineSnapshot { held_snapshot, .. },
-                delivery_timing,
+                offline_snapshot:
+                    OfflineSnapshot {
+                        held_snapshot,
+                        delivery_timing,
+                        ..
+                    },
             } => LatestSnapshot::SnapshotHeldOffline {
                 offline_snapshot: OfflineSnapshot {
                     held_snapshot,
                     offline_reason: Box::new(offline_reason),
+                    delivery_timing,
                 },
-                delivery_timing,
             },
             LatestSnapshot::AwaitingFirstSnapshot
             | LatestSnapshot::SourceUnavailable
@@ -341,13 +342,14 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy>
                 fetch_failure,
                 delivery_timing: delivery_timing.redelivered(clock),
             },
-            LatestSnapshot::SnapshotHeldOffline {
-                offline_snapshot,
-                delivery_timing,
-            } => LatestSnapshot::SnapshotHeldOffline {
-                offline_snapshot,
-                delivery_timing: delivery_timing.redelivered(clock),
-            },
+            LatestSnapshot::SnapshotHeldOffline { offline_snapshot } => {
+                LatestSnapshot::SnapshotHeldOffline {
+                    offline_snapshot: OfflineSnapshot {
+                        delivery_timing: offline_snapshot.delivery_timing.redelivered(clock),
+                        ..offline_snapshot
+                    },
+                }
+            }
             LatestSnapshot::AwaitingFirstSnapshot
             | LatestSnapshot::SourceUnavailable
             | LatestSnapshot::OfflineBeforeSnapshot { .. } => self,
@@ -363,11 +365,11 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy>
         }
     }
 
-    fn offline_sections(&self) -> Vec<Section> {
+    fn offline_sections(&self, clock: Clock) -> Vec<Section> {
         match self {
-            LatestSnapshot::SnapshotHeldOffline {
-                offline_snapshot, ..
-            } => vec![(*offline_snapshot.offline_reason).clone().into()],
+            LatestSnapshot::SnapshotHeldOffline { offline_snapshot } => {
+                offline_snapshot.offline_sections(clock)
+            }
             _ => Vec::new(),
         }
     }
@@ -378,7 +380,7 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy>
     ) -> Option<SourcedSections> {
         let held_snapshot = self.get()?;
         Some(SourcedSections::delivered(
-            HoverCardBody::sections(describe(held_snapshot)).with_sections(self.offline_sections()),
+            HoverCardBody::sections(describe(held_snapshot)),
             self.delivery_timing()?,
         ))
     }
@@ -400,7 +402,7 @@ impl<S: SnapshotSource + ReadingSections, Policy: FetchFailurePolicy<S>> LatestS
         let held_snapshot = self.get()?;
         Some(SourcedSections::source_delivered::<S>(
             HoverCardBody::sections(held_snapshot.sections(clock))
-                .with_sections(self.offline_sections()),
+                .with_sections(self.offline_sections(clock)),
             self.delivery_timing()?,
         ))
     }
@@ -627,17 +629,21 @@ mod tests {
     }
 
     #[test]
-    fn going_offline_keeps_the_held_snapshot_with_its_reason() {
+    fn going_offline_keeps_the_held_snapshot_normal_until_its_poll_period_expires() {
         let mut latest: LatestSnapshot<CountedSnapshot> = LatestSnapshot::default();
         latest.receive(polled_delivery(Ok(CountedSnapshot(1))), clock_at(10));
         latest.receive(
             SnapshotDelivery::InternetUnreachable(InternetUnreachable::NoConnection),
-            clock_at(13),
+            clock_at(11),
         );
         assert_eq!(latest.get(), Some(&CountedSnapshot(1)));
         assert_eq!(
+            latest.display().map(|widget| widget.state(clock_at(12))),
+            Some(ReadingDisplayState::Idle)
+        );
+        assert_eq!(
             latest.display().map(|widget| widget.state(clock_at(13))),
-            Some(ReadingDisplayState::Off)
+            Some(ReadingDisplayState::Offline)
         );
         latest.receive(polled_delivery(Ok(CountedSnapshot(2))), clock_at(16));
         assert!(matches!(latest, LatestSnapshot::SnapshotHeld { .. }));

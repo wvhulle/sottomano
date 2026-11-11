@@ -17,7 +17,8 @@ const FWUPD_SERVICE: &str = "org.freedesktop.fwupd";
 #[proxy(
     interface = "org.freedesktop.fwupd",
     default_service = "org.freedesktop.fwupd",
-    default_path = "/"
+    default_path = "/",
+    gen_blocking = false
 )]
 trait Fwupd {
     fn get_devices(&self) -> zbus::Result<Vec<Properties>>;
@@ -83,8 +84,6 @@ impl FirmwareUpgrade {
     }
 }
 
-pub type PendingUpgrades = Result<Vec<FirmwareUpgrade>, dbus_desktop_buses::Error>;
-
 impl SnapshotSource for Vec<FirmwareUpgrade> {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
@@ -99,13 +98,18 @@ impl SnapshotSource for Vec<FirmwareUpgrade> {
     }
 }
 
-fn signalled_upgrades(system: zbus::Connection) -> impl Stream<Item = PendingUpgrades> + Send {
+fn signalled_upgrades(
+    system: zbus::Connection,
+) -> impl Stream<Item = Result<Vec<FirmwareUpgrade>, dbus_desktop_buses::Error>> + Send {
     connected_until_failure(upgrades_on_daemon_changes(system))
 }
 
 async fn upgrades_on_daemon_changes(
     system: zbus::Connection,
-) -> Result<impl Stream<Item = PendingUpgrades> + Send, dbus_desktop_buses::Error> {
+) -> Result<
+    impl Stream<Item = Result<Vec<FirmwareUpgrade>, dbus_desktop_buses::Error>> + Send,
+    dbus_desktop_buses::Error,
+> {
     let fwupd = FwupdProxy::new(&system).await?;
     let changes = stream::select(
         stream::select(
@@ -123,7 +127,9 @@ async fn upgrades_on_daemon_changes(
     }))
 }
 
-async fn pending_upgrades(system: &zbus::Connection) -> PendingUpgrades {
+async fn pending_upgrades(
+    system: &zbus::Connection,
+) -> Result<Vec<FirmwareUpgrade>, dbus_desktop_buses::Error> {
     let fwupd = FwupdProxy::new(system).await?;
     let devices = match fwupd
         .get_devices()

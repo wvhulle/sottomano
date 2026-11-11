@@ -102,13 +102,10 @@ impl<S: SnapshotSource> HoverFetchProgress<S> {
             }
             SnapshotDelivery::SnapshotDelivered {
                 snapshot_fetch,
-                stamped_cadence,
+                delivery_cadence,
             } => HoverFetchProgress::Delivered {
                 snapshot_fetch,
-                delivery_timing: DeliveryTiming::from_delivery_cadence(
-                    stamped_cadence.delivery_cadence(),
-                    clock,
-                ),
+                delivery_timing: DeliveryTiming::from_delivery_cadence(delivery_cadence, clock),
             },
             SnapshotDelivery::SnapshotUnchanged => match self {
                 HoverFetchProgress::Delivered {

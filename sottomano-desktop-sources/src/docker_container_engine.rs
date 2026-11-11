@@ -17,7 +17,7 @@ use tokio::sync::Mutex;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking_poll,
-    delivery_cadence_drivers::SamplingNeed,
+    delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, triggered_deliveries_with_recheck},
     podman_container_engine::{
         libpod_running_containers::{
             ContainerCiIdentity, EngineContainers, EngineReadError, EngineReadout,
@@ -25,7 +25,9 @@ use crate::{
         },
         systemd_service_engine_discovery::EngineOwner,
     },
-    stream_operators::{Availability, StreamOperators, reread_on_trigger_or_deadline},
+    stream_operators::{
+        Availability, RereadSchedule, StreamOperators, reread_on_spaced_trigger_or_deadline,
+    },
     system_protocol_clients::{
         http_json_client,
         inotify_file_presence::path_present,
@@ -291,13 +293,14 @@ impl SnapshotSource for DockerEngineListing {
         let listed_socket = socket_path.clone();
         path_present(socket_path).available_while(move || {
             let listed_socket = listed_socket.clone();
-            SnapshotDelivery::live_push_deliveries(ready(Ok(reread_on_trigger_or_deadline(
+            SnapshotDelivery::live_push_deliveries(ready(Ok(reread_on_spaced_trigger_or_deadline(
                 docker_events::docker_container_event_triggers(listed_socket.clone()),
+                docker_events::TRIGGER_BURST_GAP,
                 move || {
                     let listed_socket = listed_socket.clone();
                     async move { listed_docker_names(&listed_socket).await }
                 },
-                |_: &Result<Self, EngineReadError>| None,
+                |_: &Result<Self, EngineReadError>| RereadSchedule::WaitForTrigger,
             ))))
         })
     }
@@ -337,8 +340,10 @@ impl SnapshotSource for DockerEngineReadout {
         path_present(socket_path).available_while(move || {
             let sampled_socket = sampled_socket.clone();
             let sampler = Arc::new(Mutex::new(DockerEngineSampler::new(sampled_socket.clone())));
-            SnapshotDelivery::live_push_deliveries(ready(Ok(reread_on_trigger_or_deadline(
+            triggered_deliveries_with_recheck(
                 docker_events::docker_container_event_triggers(sampled_socket),
+                docker_events::TRIGGER_BURST_GAP,
+                PeriodicPolling::every(DOCKER_POLL_PERIOD),
                 move || {
                     let sampler = sampler.clone();
                     async move {
@@ -347,24 +352,15 @@ impl SnapshotSource for DockerEngineReadout {
                     }
                 },
                 |delivered: &Result<Self, Infallible>| {
-                    let sampling_need = delivered
+                    delivered
                         .as_ref()
-                        .ok()
-                        .map_or(SamplingNeed::KeepSampling, docker_readout_sampling_need);
-                    (sampling_need == SamplingNeed::KeepSampling)
-                        .then(|| Instant::now() + DOCKER_POLL_PERIOD)
+                        .map_or(SamplingNeed::KeepSampling, |readout| {
+                            readout.0.sampling_need()
+                        })
                 },
-            ))))
+            )
+            .repeats_as_unchanged()
         })
-    }
-}
-
-fn docker_readout_sampling_need(readout: &DockerEngineReadout) -> SamplingNeed {
-    match &readout.0 {
-        EngineReadout::Containers(containers) if containers.containers.is_empty() => {
-            SamplingNeed::Settled
-        }
-        EngineReadout::Containers(_) | EngineReadout::Unreadable(_) => SamplingNeed::KeepSampling,
     }
 }
 

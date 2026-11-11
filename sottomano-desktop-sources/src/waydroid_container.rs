@@ -27,7 +27,8 @@ const WAYDROID_PAYLOAD_CGROUP: &str = "lxc.payload.waydroid";
 #[proxy(
     interface = "id.waydro.ContainerManager",
     default_service = "id.waydro.Container",
-    default_path = "/ContainerManager"
+    default_path = "/ContainerManager",
+    gen_blocking = false
 )]
 pub trait WaydroidContainerManager {
     fn get_session(&self) -> zbus::Result<HashMap<String, String>>;

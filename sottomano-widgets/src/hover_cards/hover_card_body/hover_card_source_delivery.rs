@@ -83,6 +83,12 @@ impl SourcedSections {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SnapshotFreshness {
+    Fresh,
+    PastPollPeriod,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeliveryTiming {
     PeriodicPolling {
         poll_period: Duration,
@@ -104,11 +110,8 @@ impl DeliveryTiming {
     ) -> Option<Self> {
         match delivery {
             SnapshotDelivery::SnapshotDelivered {
-                stamped_cadence, ..
-            } => Some(Self::from_delivery_cadence(
-                stamped_cadence.delivery_cadence(),
-                clock,
-            )),
+                delivery_cadence, ..
+            } => Some(Self::from_delivery_cadence(*delivery_cadence, clock)),
             SnapshotDelivery::SourceUnavailable
             | SnapshotDelivery::InternetUnreachable(_)
             | SnapshotDelivery::SnapshotUnchanged => None,
@@ -147,6 +150,30 @@ impl DeliveryTiming {
                 }
             }
             DeliveryTiming::LivePush | DeliveryTiming::SingleRead => self,
+        }
+    }
+
+    #[must_use]
+    pub fn freshness_at(self, clock: Clock) -> SnapshotFreshness {
+        let (DeliveryTiming::PeriodicPolling {
+            poll_period: refresh_period,
+            delivered_at,
+        }
+        | DeliveryTiming::LivePushWithRecheck {
+            recheck_period: refresh_period,
+            delivered_at,
+        }) = self
+        else {
+            return SnapshotFreshness::Fresh;
+        };
+        let elapsed = clock
+            .wall
+            .duration_since(delivered_at)
+            .unwrap_or(Duration::ZERO);
+        if elapsed >= refresh_period {
+            SnapshotFreshness::PastPollPeriod
+        } else {
+            SnapshotFreshness::Fresh
         }
     }
 }

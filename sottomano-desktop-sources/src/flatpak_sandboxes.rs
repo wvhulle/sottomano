@@ -12,7 +12,7 @@ use serde::Deserialize;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
-    stream_operators::reread_on_trigger_or_deadline,
+    stream_operators::read_once_then_per_burst,
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
         sysfs_attribute_reads::Error,
@@ -48,10 +48,9 @@ impl SnapshotSource for FlatpakProbe {
             }
             None => stream::empty::<()>().boxed(),
         };
-        SnapshotDelivery::live_push_deliveries(ready(Ok(reread_on_trigger_or_deadline(
+        SnapshotDelivery::live_push_deliveries(ready(Ok(read_once_then_per_burst(
             watch_target,
             || ready(counted_running_instances()),
-            |_: &Result<Self, Error>| None,
         ))))
     }
 }

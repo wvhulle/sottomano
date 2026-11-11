@@ -1,39 +1,33 @@
 use std::{
     collections::{HashMap, HashSet},
     convert::Infallible,
-    future::pending,
     ops::Range,
-    pin::pin,
-    sync::{Arc, Mutex},
+    path::PathBuf,
+    sync::Arc,
     time::{Duration, Instant, SystemTime},
 };
 
 use bytesize::ByteSize;
-use futures::{Stream, StreamExt, future::select, stream};
+use futures::{Stream, future::join_all};
 use rustix::process::getuid;
-use tokio::{
-    sync::{Mutex as AsyncMutex, mpsc},
-    task::JoinHandle,
-};
-use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio::sync::Mutex as AsyncMutex;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking,
-    delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, StampedCadence},
+    delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, triggered_deliveries_with_recheck},
     qemu_virtual_machines::{
         libvirt_domain_control::{LIBVIRT_DOMAIN_CONTROL_BUILT, libvirt_run_states},
         machined_libvirt_machines::libvirt_leader_pids,
-        pidfd_process_exits::process_exit,
         procfs_launch_context::launch_context_of,
         procfs_qemu_processes::{
             ProcessWorkingDirectory, QemuProcess, SubordinateUidRange, account_names_by_uid,
             scanned_qemu_processes, subordinate_uid_ranges,
         },
         qemu_command_line_arguments::{QemuLaunchArguments, QmpSocketAccess},
-        qmp_monitor_events::{GuestRunState, QmpPowerdownSender, follow_qmp_run_state},
+        qmp_monitor_events::{GuestRunState, query_qmp_run_state},
     },
-    stream_operators::{StreamOperators, reread_on_trigger_or_deadline},
+    stream_operators::StreamOperators,
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses,
         procfs_process_tree::{CpuTickCheckpoints, ProcessTreeCpuLoad},
@@ -54,9 +48,9 @@ pub enum VirtualMachineOrigin {
     OtherAccount(String),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GuestPowerControl {
-    QmpSession(QmpPowerdownSender),
+    QmpSocket(PathBuf),
     LibvirtDomain(String),
     Unavailable,
 }
@@ -77,67 +71,6 @@ pub struct RunningVirtualMachine {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct VirtualMachinesReadout {
     pub machines: Vec<RunningVirtualMachine>,
-}
-
-type SharedRunStates = Arc<Mutex<HashMap<i32, GuestRunState>>>;
-
-enum QmpWatch {
-    Following(QmpPowerdownSender),
-    NotConfigured,
-}
-
-struct WatchedMachine {
-    watcher: JoinHandle<()>,
-    qmp_watch: QmpWatch,
-}
-
-fn record_run_state(run_states: &SharedRunStates, pid: i32, run_state: GuestRunState) {
-    if let Ok(mut states_by_pid) = run_states.lock() {
-        states_by_pid.insert(pid, run_state);
-    }
-}
-
-fn forget_run_state(run_states: &SharedRunStates, pid: i32) {
-    if let Ok(mut states_by_pid) = run_states.lock() {
-        states_by_pid.remove(&pid);
-    }
-}
-
-async fn watch_machine(
-    pid: i32,
-    qmp_socket: QmpSocketAccess,
-    powerdown_requests: mpsc::UnboundedReceiver<()>,
-    run_states: SharedRunStates,
-    rescan_requests: mpsc::UnboundedSender<()>,
-) {
-    let follow_qmp = {
-        let run_states = run_states.clone();
-        let rescan_requests = rescan_requests.clone();
-        async move {
-            if let Some(socket_path) = qmp_socket.connectable_path() {
-                let followed = follow_qmp_run_state(socket_path, powerdown_requests, |run_state| {
-                    record_run_state(&run_states, pid, run_state);
-                    let _ = rescan_requests.send(());
-                })
-                .await;
-                if let Err(failure) = followed {
-                    tracing::debug!("qmp {}: {failure}", socket_path.display());
-                }
-                forget_run_state(&run_states, pid);
-                let _ = rescan_requests.send(());
-            }
-            pending::<()>().await;
-        }
-    };
-    let exited = async move {
-        if let Err(failure) = process_exit(pid).await {
-            tracing::debug!("pidfd {pid}: {failure}");
-            pending::<()>().await;
-        }
-    };
-    select(pin!(follow_qmp), pin!(exited)).await;
-    forget_run_state(&run_states, pid);
-    let _ = rescan_requests.send(());
 }
 
 fn origin_of(
@@ -204,99 +137,64 @@ struct IdentifiedQemuProcess {
     origin: VirtualMachineOrigin,
 }
 
+enum QmpStatus {
+    Connected {
+        socket_path: PathBuf,
+        run_state: GuestRunState,
+    },
+    Unreachable,
+}
+
+async fn probe_qmp_status(qmp_socket: &QmpSocketAccess) -> QmpStatus {
+    let Some(socket_path) = qmp_socket.connectable_path() else {
+        return QmpStatus::Unreachable;
+    };
+    match query_qmp_run_state(socket_path).await {
+        Ok(run_state) => QmpStatus::Connected {
+            socket_path: socket_path.to_path_buf(),
+            run_state,
+        },
+        Err(failure) => {
+            tracing::debug!("qmp {}: {failure}", socket_path.display());
+            QmpStatus::Unreachable
+        }
+    }
+}
+
+fn power_control_of(
+    identified: &IdentifiedQemuProcess,
+    qmp_status: &QmpStatus,
+) -> GuestPowerControl {
+    if identified.origin == VirtualMachineOrigin::LibvirtDomain && LIBVIRT_DOMAIN_CONTROL_BUILT {
+        return GuestPowerControl::LibvirtDomain(identified.launch.machine_name.clone());
+    }
+    match qmp_status {
+        QmpStatus::Connected { socket_path, .. } => {
+            GuestPowerControl::QmpSocket(socket_path.clone())
+        }
+        QmpStatus::Unreachable => GuestPowerControl::Unavailable,
+    }
+}
+
 pub(crate) struct VirtualMachineSampler {
     system_bus: zbus::Connection,
     session_uid: u32,
-    watched_by_pid: HashMap<i32, WatchedMachine>,
-    qmp_run_states: SharedRunStates,
     checkpoints_by_pid: CpuTickCheckpoints<i32>,
-    rescan_requests: mpsc::UnboundedSender<()>,
-}
-
-impl Drop for VirtualMachineSampler {
-    fn drop(&mut self) {
-        self.watched_by_pid
-            .values()
-            .for_each(|watched| watched.watcher.abort());
-    }
 }
 
 impl VirtualMachineSampler {
-    fn new(system_bus: zbus::Connection, rescan_requests: mpsc::UnboundedSender<()>) -> Self {
+    fn new(system_bus: zbus::Connection) -> Self {
         Self {
             system_bus,
             session_uid: getuid().as_raw(),
-            watched_by_pid: HashMap::new(),
-            qmp_run_states: Arc::default(),
             checkpoints_by_pid: CpuTickCheckpoints::default(),
-            rescan_requests,
-        }
-    }
-
-    fn watch_new_machine(&mut self, pid: i32, qmp_socket: &QmpSocketAccess) {
-        let (powerdown_sender, powerdown_receiver) = mpsc::unbounded_channel();
-        let qmp_watch = match qmp_socket.connectable_path() {
-            Some(socket_path) => QmpWatch::Following(QmpPowerdownSender::new(
-                socket_path.to_path_buf(),
-                powerdown_sender,
-            )),
-            None => QmpWatch::NotConfigured,
-        };
-        let watcher = tokio::spawn(watch_machine(
-            pid,
-            qmp_socket.clone(),
-            powerdown_receiver,
-            self.qmp_run_states.clone(),
-            self.rescan_requests.clone(),
-        ));
-        self.watched_by_pid
-            .insert(pid, WatchedMachine { watcher, qmp_watch });
-    }
-
-    fn forget_gone_machines(&mut self, live_pids: &HashSet<i32>) {
-        self.watched_by_pid.retain(|pid, watched| {
-            let still_running = live_pids.contains(pid);
-            if !still_running {
-                watched.watcher.abort();
-            }
-            still_running
-        });
-        self.checkpoints_by_pid
-            .retain_keys(|pid| live_pids.contains(pid));
-        if let Ok(mut states_by_pid) = self.qmp_run_states.lock() {
-            states_by_pid.retain(|pid, _| live_pids.contains(pid));
-        }
-    }
-
-    fn qmp_run_state_of(&self, pid: i32) -> Option<GuestRunState> {
-        self.qmp_run_states
-            .lock()
-            .ok()
-            .and_then(|states_by_pid| states_by_pid.get(&pid).copied())
-    }
-
-    fn power_control_of(&self, identified: &IdentifiedQemuProcess) -> GuestPowerControl {
-        if identified.origin == VirtualMachineOrigin::LibvirtDomain && LIBVIRT_DOMAIN_CONTROL_BUILT
-        {
-            return GuestPowerControl::LibvirtDomain(identified.launch.machine_name.clone());
-        }
-        let qmp_session_live = self.qmp_run_state_of(identified.qemu_process.pid).is_some();
-        match self
-            .watched_by_pid
-            .get(&identified.qemu_process.pid)
-            .map(|watched| &watched.qmp_watch)
-        {
-            Some(QmpWatch::Following(powerdown_sender)) if qmp_session_live => {
-                GuestPowerControl::QmpSession(powerdown_sender.clone())
-            }
-            _ => GuestPowerControl::Unavailable,
         }
     }
 
     async fn sample(&mut self) -> VirtualMachinesReadout {
         let scan = blocking("qemu process scan", scanned_qemu_processes).await;
         if scan.qemu_processes.is_empty() {
-            self.forget_gone_machines(&HashSet::new());
+            self.checkpoints_by_pid.clear();
             return VirtualMachinesReadout::default();
         }
         let libvirt_pids = libvirt_leader_pids(&self.system_bus).await;
@@ -336,33 +234,37 @@ impl VirtualMachineSampler {
             .iter()
             .map(|identified| identified.qemu_process.pid)
             .collect();
-        self.forget_gone_machines(&live_pids);
-        for identified in &identified_processes {
-            if !self
-                .watched_by_pid
-                .contains_key(&identified.qemu_process.pid)
-            {
-                self.watch_new_machine(identified.qemu_process.pid, &identified.launch.qmp_socket);
-            }
-        }
+        self.checkpoints_by_pid
+            .retain_keys(|pid| live_pids.contains(pid));
+        let qmp_statuses = join_all(
+            identified_processes
+                .iter()
+                .map(|identified| probe_qmp_status(&identified.launch.qmp_socket)),
+        )
+        .await;
         let taken_at = Instant::now();
         let mut machines: Vec<RunningVirtualMachine> = identified_processes
             .into_iter()
-            .map(|identified| {
+            .zip(qmp_statuses)
+            .map(|(identified, qmp_status)| {
                 let pid = identified.qemu_process.pid;
                 let totals = scan.process_table.tree_totals(pid);
+                let qmp_run_state = match &qmp_status {
+                    QmpStatus::Connected { run_state, .. } => Some(*run_state),
+                    QmpStatus::Unreachable => None,
+                };
                 let run_state = libvirt_states
                     .get(&identified.launch.machine_name)
                     .copied()
                     .filter(|_| identified.origin == VirtualMachineOrigin::LibvirtDomain)
-                    .or_else(|| self.qmp_run_state_of(pid))
+                    .or(qmp_run_state)
                     .unwrap_or(GuestRunState::Unreported);
                 RunningVirtualMachine {
                     pid,
                     launch_context: (identified.origin != VirtualMachineOrigin::LibvirtDomain)
                         .then(|| launch_context_of(pid))
                         .flatten(),
-                    power_control: self.power_control_of(&identified),
+                    power_control: power_control_of(&identified, &qmp_status),
                     cpu_load: self.checkpoints_by_pid.load_since_previous(
                         pid,
                         totals.spent_ticks,
@@ -381,29 +283,6 @@ impl VirtualMachineSampler {
     }
 }
 
-fn virtual_machine_samples(
-    system_bus: zbus::Connection,
-) -> impl Stream<Item = VirtualMachinesReadout> + Send {
-    let (rescan_sender, rescan_receiver) = mpsc::unbounded_channel();
-    let sampler = Arc::new(AsyncMutex::new(VirtualMachineSampler::new(
-        system_bus.clone(),
-        rescan_sender,
-    )));
-    let triggers = stream::select(
-        UnboundedReceiverStream::new(rescan_receiver),
-        machine_set_changes(system_bus),
-    )
-    .at_most_once_per(TRIGGER_BURST_GAP);
-    reread_on_trigger_or_deadline(
-        triggers,
-        move || {
-            let sampler = sampler.clone();
-            async move { sampler.lock().await.sample().await }
-        },
-        |_readout| Some(Instant::now() + VIRTUAL_MACHINE_POLL_PERIOD),
-    )
-}
-
 impl SnapshotSource for VirtualMachinesReadout {
     type Error = Infallible;
     type StreamInputs = DesktopBuses;
@@ -411,15 +290,21 @@ impl SnapshotSource for VirtualMachinesReadout {
     const NAME: &'static str = "Virtual machines";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        virtual_machine_samples(buses.system)
-            .map(|readout| {
-                StampedCadence::pushed_with_recheck_while(
-                    SamplingNeed::KeepSampling,
-                    PeriodicPolling::every(VIRTUAL_MACHINE_POLL_PERIOD),
-                )
-                .delivered(Ok(readout))
-            })
-            .repeats_as_unchanged()
+        let system_bus = buses.system;
+        let sampler = Arc::new(AsyncMutex::new(VirtualMachineSampler::new(
+            system_bus.clone(),
+        )));
+        triggered_deliveries_with_recheck(
+            machine_set_changes(system_bus),
+            TRIGGER_BURST_GAP,
+            PeriodicPolling::every(VIRTUAL_MACHINE_POLL_PERIOD),
+            move || {
+                let sampler = sampler.clone();
+                async move { Ok(sampler.lock().await.sample().await) }
+            },
+            |_| SamplingNeed::KeepSampling,
+        )
+        .repeats_as_unchanged()
     }
 }
 

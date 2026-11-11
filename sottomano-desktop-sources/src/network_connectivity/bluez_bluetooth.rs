@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path, time::Duration};
+use std::{collections::HashMap, future::ready, path::Path, time::Duration};
 
 use futures::{Stream, StreamExt, stream::select};
 use zbus::{
@@ -14,12 +14,12 @@ pub use crate::network_connectivity::hid_sysfs_bluetooth_peripherals::{
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::{PeriodicPolling, TriggeredRereadCadence},
+    delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::{
         hid_sysfs_bluetooth_peripherals::hid_peripherals_with_address, interface,
         properties_changed,
     },
-    stream_operators::{StreamOperators, restarting},
+    stream_operators::{StreamOperators, resubscribed},
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBuses, Properties, name_owned, prop},
         sysfs_attribute_reads::read_trimmed,
@@ -34,7 +34,11 @@ const BATTERY: &str = "org.bluez.Battery1";
 const BLUETOOTH_CLASS_DIRECTORY: &str = "/sys/class/bluetooth";
 const PERIPHERAL_BATTERY_RECHECK: Duration = Duration::from_secs(60);
 
-#[proxy(interface = "org.bluez.Adapter1", default_service = "org.bluez")]
+#[proxy(
+    interface = "org.bluez.Adapter1",
+    default_service = "org.bluez",
+    gen_blocking = false
+)]
 pub trait BluezAdapter {
     #[zbus(property)]
     fn powered(&self) -> zbus::Result<bool>;
@@ -43,7 +47,11 @@ pub trait BluezAdapter {
     fn set_powered(&self, powered: bool) -> zbus::Result<()>;
 }
 
-#[proxy(interface = "org.bluez.Device1", default_service = "org.bluez")]
+#[proxy(
+    interface = "org.bluez.Device1",
+    default_service = "org.bluez",
+    gen_blocking = false
+)]
 pub trait BluezDevice {
     fn disconnect(&self) -> zbus::Result<()>;
 }
@@ -297,13 +305,16 @@ impl SnapshotSource for Bluetooth {
         name_owned(system.clone(), SERVICE).available_while(move || {
             let signal_connection = system.clone();
             let read_connection = system.clone();
-            TriggeredRereadCadence::LivePushWithRecheck(PeriodicPolling::every(
-                PERIPHERAL_BATTERY_RECHECK,
-            ))
-            .triggered_deliveries(
-                restarting("bluez object changes", move || {
-                    bluez_object_signals(signal_connection.clone())
-                }),
+            PeriodicPolling::every(PERIPHERAL_BATTERY_RECHECK).triggered_deliveries(
+                resubscribed(Duration::from_secs(1), move || {
+                    let signal_connection = signal_connection.clone();
+                    async move {
+                        Ok(bluez_object_signals(signal_connection)
+                            .await?
+                            .map(Ok::<_, zbus::Error>))
+                    }
+                })
+                .filter_map(|signal| ready(signal.ok())),
                 move || read_bluetooth(read_connection.clone()),
             )
         })

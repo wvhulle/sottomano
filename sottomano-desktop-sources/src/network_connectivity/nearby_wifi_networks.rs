@@ -82,7 +82,7 @@ fn strongest_network_per_ssid(access_points: Vec<ApInfo>) -> Vec<VisibleNetwork>
 fn split_known_networks(
     device: String,
     access_points: Vec<ApInfo>,
-    profiles: Vec<WirelessProfile>,
+    profiles: &[WirelessProfile],
 ) -> AdapterNearbyNetworks {
     let (known, unknown) = strongest_network_per_ssid(access_points).into_iter().fold(
         (Vec::new(), Vec::new()),
@@ -119,7 +119,7 @@ async fn adapter_nearby_networks(
     Ok(split_known_networks(
         device.interface,
         access_points,
-        profiles,
+        &profiles,
     ))
 }
 
@@ -201,7 +201,7 @@ mod tests {
                 access_point("HomeNet", 70),
                 access_point("Cafe", 55),
             ],
-            vec![saved_profile("HomeNet")],
+            &[saved_profile("HomeNet")],
         );
         let known_ssids: Vec<_> = nearby_networks
             .known
@@ -229,7 +229,7 @@ mod tests {
             ..access_point("ignored", 90)
         };
         let nearby_networks =
-            split_known_networks("wlan0".to_owned(), vec![hidden_access_point], Vec::new());
+            split_known_networks("wlan0".to_owned(), vec![hidden_access_point], &[]);
         assert!(nearby_networks.known.is_empty());
         assert!(nearby_networks.unknown.is_empty());
     }

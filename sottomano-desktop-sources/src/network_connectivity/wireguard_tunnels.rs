@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    future::ready,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -10,11 +11,11 @@ use zbus::{Connection, zvariant::OwnedObjectPath};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::{PeriodicPolling, TriggeredRereadCadence},
+    delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::network_manager_proxies::{
         self, ActivationState, ActiveWireguard, WireguardPeerSettings, WireguardProfile,
     },
-    stream_operators::{read_once_then_per_burst, restarting},
+    stream_operators::{read_once_then_per_burst, resubscribed},
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBuses, SERVICE_ABSENT_ERRORS},
         shell_command_output,
@@ -396,20 +397,21 @@ impl SnapshotSource for Wireguard {
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let signal_connection = buses.system.clone();
         let read_connection = buses.system;
-        TriggeredRereadCadence::LivePushWithRecheck(PeriodicPolling::every(STATISTICS_RECHECK))
-            .triggered_deliveries(
-                restarting("NetworkManager WireGuard changes", move || {
-                    let signal_connection = signal_connection.clone();
-                    async move {
-                        network_manager_proxies::changes(
-                            &signal_connection,
-                            WATCHED_WIREGUARD_PROPERTIES,
-                        )
-                        .await
-                    }
-                }),
-                move || read_wireguard(read_connection.clone()),
-            )
+        PeriodicPolling::every(STATISTICS_RECHECK).triggered_deliveries(
+            resubscribed(Duration::from_secs(1), move || {
+                let signal_connection = signal_connection.clone();
+                async move {
+                    Ok(network_manager_proxies::changes(
+                        &signal_connection,
+                        WATCHED_WIREGUARD_PROPERTIES,
+                    )
+                    .await?
+                    .map(Ok::<_, zbus::Error>))
+                }
+            })
+            .filter_map(|signal| ready(signal.ok())),
+            move || read_wireguard(read_connection.clone()),
+        )
     }
 }
 

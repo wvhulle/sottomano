@@ -1,4 +1,4 @@
-use std::{io, marker::PhantomData, mem::take, time::Duration};
+use std::{future::ready, io, marker::PhantomData, mem::take, time::Duration};
 
 use futures::{Stream, StreamExt, stream};
 use wayrs_client::{Connection, EventCtx, global::GlobalExt, protocol::WlSeat};
@@ -6,7 +6,7 @@ use wayrs_protocols::ext_idle_notify_v1::{
     ExtIdleNotificationV1, ExtIdleNotifierV1, ext_idle_notification_v1,
 };
 
-use crate::stream_operators::restarting;
+use crate::stream_operators::resubscribed;
 
 #[derive(Debug, thiserror::Error)]
 pub enum WaylandError {
@@ -200,9 +200,10 @@ fn notification_cb<Tag: Copy>(
 }
 
 pub fn input_idle_edges(after: Duration) -> impl Stream<Item = InputIdleEdge> + Send {
-    restarting("input idle edges", move || {
-        connected_input_idle_edges(after)
+    resubscribed(Duration::from_secs(1), move || async move {
+        Ok::<_, WaylandError>(connected_input_idle_edges(after).await?.map(Ok))
     })
+    .filter_map(|edge| ready(edge.ok()))
 }
 
 async fn connected_input_idle_edges(

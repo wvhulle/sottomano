@@ -6,11 +6,11 @@ use serde::Deserialize;
 
 use super::DOCKER_API_ROOT;
 use crate::{
-    stream_operators::{StreamOperators, resubscribed},
+    stream_operators::resubscribed,
     system_protocol_clients::http_json_client::{CONNECT_TIMEOUT, Error},
 };
 
-const TRIGGER_BURST_GAP: Duration = Duration::from_secs(1);
+pub(crate) const TRIGGER_BURST_GAP: Duration = Duration::from_secs(1);
 const RETRY_GAP: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Deserialize)]
@@ -30,13 +30,13 @@ pub(crate) fn docker_container_event_triggers(
         let trigger_socket = socket_path.clone();
         async move { opened_event_records(trigger_socket).await }
     })
-    .map(|delivered| {
-        delivered.map_or_else(
-            |failure| tracing::warn!("docker events: {failure}, resubscribing"),
-            |_| (),
-        );
+    .filter_map(|delivered| {
+        if let Err(failure) = delivered {
+            tracing::warn!("docker events: {failure}, resubscribing");
+            return ready(None);
+        }
+        ready(Some(()))
     })
-    .at_most_once_per(TRIGGER_BURST_GAP)
 }
 
 async fn opened_event_records(

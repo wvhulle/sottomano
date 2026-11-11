@@ -354,7 +354,8 @@ fn length(metadata: &Properties) -> Option<Duration> {
 
 #[proxy(
     interface = "org.mpris.MediaPlayer2.Player",
-    default_path = "/org/mpris/MediaPlayer2"
+    default_path = "/org/mpris/MediaPlayer2",
+    gen_blocking = false
 )]
 pub trait Player {
     fn next(&self) -> zbus::Result<()>;
@@ -372,7 +373,8 @@ pub trait Player {
 
 #[proxy(
     interface = "org.mpris.MediaPlayer2",
-    default_path = "/org/mpris/MediaPlayer2"
+    default_path = "/org/mpris/MediaPlayer2",
+    gen_blocking = false
 )]
 pub trait MediaPlayer2 {
     fn raise(&self) -> zbus::Result<()>;

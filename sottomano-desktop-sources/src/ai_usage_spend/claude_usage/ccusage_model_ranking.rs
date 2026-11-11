@@ -6,11 +6,11 @@ use super::{Error, logins};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     ai_usage_spend::{
-        ccusage_cli_reports::{self, Agent},
+        ccusage_cli_reports::{self, Agent, TRANSCRIPT_REREAD_MINIMUM_GAP},
         claude_usage::SubscriptionCoverage,
         model_spend_ranking::ModelRanking,
     },
-    stream_operators::{StreamOperators, reread_on_trigger_or_deadline},
+    stream_operators::{StreamOperators, reread_on_spaced_trigger_or_deadline},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -41,8 +41,9 @@ impl SnapshotSource for ClaudeCcusageModels {
                 .distinct_until_changed()
                 .switch_map(|subscription_coverage| {
                     SnapshotDelivery::live_push_deliveries(ready(Ok(
-                        reread_on_trigger_or_deadline(
+                        reread_on_spaced_trigger_or_deadline(
                             ccusage_cli_reports::transcript_changes(Agent::ClaudeCode),
+                            TRANSCRIPT_REREAD_MINIMUM_GAP,
                             move || Self::read(subscription_coverage),
                             |_| ccusage_cli_reports::next_local_midnight(),
                         ),

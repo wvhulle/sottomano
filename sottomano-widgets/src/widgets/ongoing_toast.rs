@@ -133,6 +133,7 @@ const fn alerting_severity_of(state: ReadingDisplayState) -> Severity {
         ReadingDisplayState::Critical => Severity::Critical,
         ReadingDisplayState::Failed
         | ReadingDisplayState::Off
+        | ReadingDisplayState::Offline
         | ReadingDisplayState::Idle
         | ReadingDisplayState::Pending
         | ReadingDisplayState::On

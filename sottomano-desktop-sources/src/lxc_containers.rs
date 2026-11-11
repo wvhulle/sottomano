@@ -12,7 +12,7 @@ use futures::Stream;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
-    stream_operators::reread_on_trigger_or_deadline,
+    stream_operators::read_once_then_per_burst,
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
         sysfs_attribute_reads::Error,
@@ -55,7 +55,7 @@ impl SnapshotSource for LxcProbe {
             WatchTarget::EntriesOf(Path::new(DEFAULT_LXC_PATH).to_path_buf()),
             WatchTarget::EntriesOf(Path::new(CGROUP_ROOT).to_path_buf()),
         ]);
-        SnapshotDelivery::live_push_deliveries(ready(Ok(reread_on_trigger_or_deadline(
+        SnapshotDelivery::live_push_deliveries(ready(Ok(read_once_then_per_burst(
             triggers,
             || {
                 ready(Ok(counted_lxc_containers(
@@ -63,7 +63,6 @@ impl SnapshotSource for LxcProbe {
                     Path::new(CGROUP_ROOT),
                 )))
             },
-            |_: &Result<Self, Error>| None,
         ))))
     }
 }

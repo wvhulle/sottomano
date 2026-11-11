@@ -1,29 +1,19 @@
-use std::future::ready;
-
-use futures::{
-    Stream, StreamExt,
-    future::try_join_all,
-    stream::{self, select},
-    try_join,
-};
+use futures::{Stream, future::try_join_all, try_join};
 use uom::si::f64::{Frequency, InformationRate};
-use zbus::{Connection, zvariant::OwnedObjectPath};
+use zbus::Connection;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     host_machine_identity::udev_hardware_identity::Adapter,
     network_connectivity::{
-        ReadingError, device_or_absent, device_readings,
-        interface_bus_attachment::InterfaceAttachment, network_manager_proxies, nm_readings,
-        sysfs_interface_faults::InterfaceFaultCounters,
+        ReadingError, device_or_absent, interface_bus_attachment::InterfaceAttachment,
+        network_manager_proxies, nm_readings, sysfs_interface_faults::InterfaceFaultCounters,
     },
-    stream_operators::{read_once_then_per_burst, resubscribing_until_failure},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 #[derive(Debug, Clone)]
 pub struct Link {
-    access_point: OwnedObjectPath,
     pub ssid: Option<String>,
     pub signal: i64,
     pub frequency: Frequency,
@@ -85,9 +75,8 @@ async fn adapter_link(
     };
     match ap_path.and_then(network_manager_proxies::assigned_object_path) {
         Some(path) => {
-            let ap = network_manager_proxies::access_point(connection, path.clone()).await?;
+            let ap = network_manager_proxies::access_point(connection, path).await?;
             Ok(Some(Link {
-                access_point: path,
                 ssid: ap.ssid,
                 signal: ap.signal,
                 frequency: ap.frequency,
@@ -180,61 +169,18 @@ impl SnapshotSource for Wifi {
             system.clone(),
             network_manager_proxies::SERVICE,
             move || {
-                let system = system.clone();
-                resubscribing_until_failure(move || {
-                    readings_while_access_points_hold(system.clone())
-                })
+                nm_readings(
+                    system.clone(),
+                    &[
+                        network_manager_proxies::MANAGER_PROPERTIES,
+                        network_manager_proxies::DEVICE_PROPERTIES,
+                        network_manager_proxies::WIRELESS_PROPERTIES,
+                        network_manager_proxies::ACCESS_POINT_PROPERTIES,
+                    ],
+                    read,
+                )
             },
         )
-    }
-}
-
-async fn readings_while_access_points_hold(
-    connection: Connection,
-) -> zbus::Result<impl Stream<Item = zbus::Result<Option<Wifi>>>> {
-    let watched_access_points = read(connection.clone())
-        .await
-        .map_or_else(|_| Vec::new(), |wifi| wifi.access_points());
-    let device_changes = network_manager_proxies::changes(
-        &connection,
-        &[
-            network_manager_proxies::MANAGER_PROPERTIES,
-            network_manager_proxies::DEVICE_PROPERTIES,
-            network_manager_proxies::WIRELESS_PROPERTIES,
-        ],
-    )
-    .await?;
-    let strength_changes =
-        try_join_all(watched_access_points.iter().cloned().map(|access_point| {
-            let connection = &connection;
-            async move {
-                network_manager_proxies::access_point_changes(connection, access_point)
-                    .await
-                    .map(StreamExt::boxed)
-            }
-        }))
-        .await?;
-    let readings = read_once_then_per_burst(
-        select(device_changes, stream::select_all(strength_changes)),
-        move || read(connection.clone()),
-    )
-    .take_while(move |reading| {
-        ready(
-            reading
-                .as_ref()
-                .map_or(true, |wifi| wifi.access_points() == watched_access_points),
-        )
-    });
-    Ok(device_readings(readings))
-}
-
-impl Wifi {
-    fn access_points(&self) -> Vec<OwnedObjectPath> {
-        self.adapters
-            .iter()
-            .filter_map(|adapter| adapter.link.as_ref())
-            .map(|link| link.access_point.clone())
-            .collect()
     }
 }
 

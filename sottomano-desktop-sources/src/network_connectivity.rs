@@ -148,7 +148,24 @@ pub async fn properties_changed(
         .interface("org.freedesktop.DBus.Properties")?
         .member("PropertiesChanged")?
         .build();
-    MessageStream::for_match_rule(rule, connection, Some(16)).await
+    MessageStream::for_match_rule(rule, connection, Some(64)).await
+}
+
+pub async fn interface_properties_changed(
+    connection: &Connection,
+    service: &'static str,
+    interface: &'static str,
+) -> zbus::Result<impl Stream<Item = ()> + Send + use<>> {
+    let rule = MatchRule::builder()
+        .msg_type(Type::Signal)
+        .sender(service)?
+        .interface("org.freedesktop.DBus.Properties")?
+        .member("PropertiesChanged")?
+        .add_arg(interface)?
+        .build();
+    Ok(MessageStream::for_match_rule(rule, connection, Some(64))
+        .await?
+        .map(|_| ()))
 }
 
 #[must_use]

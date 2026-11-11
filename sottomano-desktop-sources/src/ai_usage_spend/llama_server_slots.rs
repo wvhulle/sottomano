@@ -1,5 +1,4 @@
 use std::{
-    future::ready,
     path::PathBuf,
     time::{Duration, Instant},
 };
@@ -10,7 +9,7 @@ use uom::si::{f64::Frequency, frequency::hertz};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::{PeriodicPolling, PollTick},
+    delivery_cadence_drivers::PeriodicPolling,
     stream_operators::StreamOperators,
     system_protocol_clients::{dbus_desktop_buses::DesktopBuses, http_json_client},
     systemd_units_journal::{
@@ -271,11 +270,6 @@ async fn fetch_server(endpoint: &str) -> Result<LlamaServer, http_json_client::E
     })
 }
 
-struct PolledServerFetch {
-    poll_tick: PollTick,
-    fetched_server: Result<LlamaServer, http_json_client::Error>,
-}
-
 impl SnapshotSource for LlamaServer {
     type Error = http_json_client::Error;
     type StreamInputs = LlamaServerOnBus;
@@ -292,29 +286,37 @@ impl SnapshotSource for LlamaServer {
         });
         running.available_while(move || {
             let endpoint = server.endpoint.clone();
+            let mut previous = None;
             PeriodicPolling::every(POLL_INTERVAL)
-                .poll_ticks()
-                .then(move |poll_tick| {
+                .poll_deliveries(move || {
                     let endpoint = endpoint.clone();
-                    async move {
-                        PolledServerFetch {
-                            poll_tick,
-                            fetched_server: fetch_server(&endpoint).await,
+                    async move { fetch_server(&endpoint).await }
+                })
+                .map(move |delivery| match delivery {
+                    SnapshotDelivery::SnapshotDelivered {
+                        snapshot_fetch: Ok(server),
+                        delivery_cadence,
+                    } => {
+                        let rated_server = server.rated_since(previous.as_ref());
+                        previous = Some(rated_server.clone());
+                        SnapshotDelivery::SnapshotDelivered {
+                            snapshot_fetch: Ok(rated_server),
+                            delivery_cadence,
                         }
                     }
-                })
-                .scan(
-                    None,
-                    |previous: &mut Option<Self>, polled: PolledServerFetch| {
-                        let rated = polled
-                            .fetched_server
-                            .map(|server| server.rated_since(previous.as_ref()));
-                        if let Ok(server) = &rated {
-                            *previous = Some(server.clone());
-                        }
-                        ready(Some(polled.poll_tick.stamped(rated)))
+                    SnapshotDelivery::SnapshotDelivered {
+                        snapshot_fetch: Err(failure),
+                        delivery_cadence,
+                    } => SnapshotDelivery::SnapshotDelivered {
+                        snapshot_fetch: Err(failure),
+                        delivery_cadence,
                     },
-                )
+                    SnapshotDelivery::SourceUnavailable => SnapshotDelivery::SourceUnavailable,
+                    SnapshotDelivery::InternetUnreachable(reason) => {
+                        SnapshotDelivery::InternetUnreachable(reason)
+                    }
+                    SnapshotDelivery::SnapshotUnchanged => SnapshotDelivery::SnapshotUnchanged,
+                })
         })
     }
 }

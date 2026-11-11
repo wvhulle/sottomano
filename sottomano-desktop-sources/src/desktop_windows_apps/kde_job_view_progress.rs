@@ -1,12 +1,14 @@
 use std::{
     collections::HashMap,
+    future::ready,
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
     },
+    time::Duration,
 };
 
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use tokio::sync::watch;
 use tokio_stream::wrappers::WatchStream;
 use zbus::{
@@ -16,7 +18,7 @@ use zbus::{
     zvariant::{OwnedObjectPath, OwnedValue},
 };
 
-use crate::stream_operators::StreamOperators;
+use crate::stream_operators::{StreamOperators, resubscribed};
 
 const PATH: &str = "/JobViewServer";
 const SERVER_NAME: &str = "org.kde.JobViewServer";
@@ -316,7 +318,14 @@ impl JobView {
     }
 }
 
-pub async fn serve() -> zbus::Result<impl Stream<Item = JobProgress>> {
+pub fn job_progress() -> impl Stream<Item = JobProgress> + Send {
+    resubscribed(Duration::from_secs(1), || async {
+        Ok::<_, zbus::Error>(serve().await?.map(Ok::<_, zbus::Error>))
+    })
+    .filter_map(|delivery| ready(delivery.ok()))
+}
+
+async fn serve() -> zbus::Result<impl Stream<Item = JobProgress>> {
     let (states, updates) = watch::channel(JobProgress::default());
     let tracker = Arc::new(Tracker {
         jobs: Mutex::default(),

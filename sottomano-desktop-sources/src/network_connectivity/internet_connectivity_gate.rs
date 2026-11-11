@@ -10,6 +10,7 @@ use zbus::Connection;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    login_session_presence::logind_manager::resumes,
     network_connectivity::network_manager_proxies::{
         self, ActiveConnectionUplink, ConnectedScope, Connectivity, ManagerState, UplinkIdentity,
     },
@@ -161,7 +162,7 @@ where
     S: SnapshotSource,
     R: Stream<Item = SnapshotDelivery<S>> + Send,
 {
-    held_while_reachable(internet_access_states(buses.system), start)
+    held_while_reachable(internet_access_states(buses), start)
 }
 
 fn held_while_reachable<S, R>(
@@ -183,10 +184,10 @@ where
 }
 
 fn internet_access_states(
-    system: Connection,
+    buses: DesktopBuses,
 ) -> impl Stream<Item = Result<(), InternetUnreachable>> + Send {
     stream::repeat_with(move || {
-        connected_until_failure(watched_internet_access(system.clone()))
+        connected_until_failure(watched_internet_access(buses.clone()))
             .map(|access| {
                 access.unwrap_or_else(|failure| {
                     tracing::warn!("network connectivity watch, assuming online: {failure}");
@@ -199,15 +200,16 @@ fn internet_access_states(
 }
 
 async fn watched_internet_access(
-    system: Connection,
+    buses: DesktopBuses,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<Result<(), InternetUnreachable>>> + Send> {
     let signals = network_manager_proxies::changes(
-        &system,
+        &buses.system,
         network_manager_proxies::INTERNET_ACCESS_PROPERTIES,
     )
     .await?;
-    Ok(read_once_then_per_burst(signals, move || {
-        read_internet_access(system.clone())
+    let triggers = stream::select(signals, resumes(&buses));
+    Ok(read_once_then_per_burst(triggers, move || {
+        read_internet_access(buses.system.clone())
     }))
 }
 

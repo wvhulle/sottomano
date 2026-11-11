@@ -6,7 +6,7 @@ use zbus::{proxy, proxy::CacheProperties, zvariant::Type};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::{PeriodicPolling, TriggeredRereadCadence},
+    delivery_cadence_drivers::PeriodicPolling,
     stream_operators::StreamOperators,
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBuses, name_owned},
@@ -19,7 +19,8 @@ const CLIGHTD_SERVICE: &str = "org.clightd.clightd";
 #[proxy(
     interface = "org.clightd.clightd.Backlight",
     default_service = "org.clightd.clightd",
-    default_path = "/org/clightd/clightd/Backlight"
+    default_path = "/org/clightd/clightd/Backlight",
+    gen_blocking = false
 )]
 pub trait ClightdBacklight {
     fn get_all(&self, serial: &str) -> zbus::Result<Vec<BacklightReading>>;
@@ -54,8 +55,7 @@ pub struct Backlight {
     pub percent: i64,
 }
 
-const BACKLIGHT_RECHECK: TriggeredRereadCadence =
-    TriggeredRereadCadence::LivePushWithRecheck(PeriodicPolling::every(Duration::from_secs(10)));
+const BACKLIGHT_RECHECK: PeriodicPolling = PeriodicPolling::every(Duration::from_secs(10));
 
 impl SnapshotSource for Vec<Backlight> {
     type Error = zbus::Error;

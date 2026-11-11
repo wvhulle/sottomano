@@ -3,6 +3,7 @@ use std::{
     future::ready,
     hash::{Hash, Hasher},
     pin::pin,
+    time::Duration,
 };
 
 use futures::{Stream, StreamExt, future::select, stream};
@@ -14,7 +15,7 @@ use zbus::{
 
 use crate::{
     non_empty_text::non_empty,
-    stream_operators::{Availability, connected_until_failure, resubscribing_until_failure},
+    stream_operators::{Availability, resubscribed},
 };
 
 pub type Properties = HashMap<String, OwnedValue>;
@@ -131,7 +132,7 @@ pub enum DesktopBusEvent {
 }
 
 pub fn desktop_bus_events() -> impl Stream<Item = Result<DesktopBusEvent, zbus::Error>> + Send {
-    resubscribing_until_failure(connected_until_closed)
+    resubscribed(Duration::from_secs(1), connected_until_closed)
 }
 
 async fn connected_until_closed()
@@ -177,9 +178,12 @@ pub fn name_owned(
     connection: zbus::Connection,
     name: &'static str,
 ) -> impl Stream<Item = Availability> + Send {
-    connected_until_failure(owner_changes(connection, name)).map(move |owned| {
-        owned.unwrap_or_else(|e| {
-            tracing::warn!("{name}: owner watch: {e}");
+    resubscribed(Duration::from_secs(1), move || {
+        owner_changes(connection.clone(), name)
+    })
+    .map(move |owned| {
+        owned.unwrap_or_else(|failure| {
+            tracing::warn!("{name}: owner watch: {failure}");
             Availability::Unavailable
         })
     })

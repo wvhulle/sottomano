@@ -1,22 +1,26 @@
 use std::{fs, str::FromStr};
 
 use chrono::{DateTime, Utc};
-use futures::{Stream, StreamExt, stream};
+use futures::Stream;
 use zbus::proxy;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     host_machine_identity::udev_hardware_identity::host_bridge_subsystem_vendor,
+    network_connectivity::interface_properties_changed,
     non_empty_text::non_empty,
+    stream_operators::read_once_then_per_burst,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
 };
 
 const OS_RELEASE_PATHS: [&str; 2] = ["/etc/os-release", "/usr/lib/os-release"];
+const HOSTNAME_SERVICE: &str = "org.freedesktop.hostname1";
 
 #[proxy(
     interface = "org.freedesktop.hostname1",
     default_service = "org.freedesktop.hostname1",
-    default_path = "/org/freedesktop/hostname1"
+    default_path = "/org/freedesktop/hostname1",
+    gen_blocking = false
 )]
 trait Hostname {
     #[zbus(property)]
@@ -97,11 +101,9 @@ async fn identity_changes(
     let kernel = hostname.kernel_release().await?;
     let operating_system = hostname.operating_system_pretty_name().await?;
     let distribution_ids = current_distribution_ids();
-    let changes = stream::select(
-        hostname.receive_hostname_changed().await.map(drop),
-        hostname.receive_chassis_changed().await.map(drop),
-    );
-    Ok(changes.then(move |()| {
+    let changes =
+        interface_properties_changed(&buses.system, HOSTNAME_SERVICE, HOSTNAME_SERVICE).await?;
+    Ok(read_once_then_per_burst(changes, move || {
         let hostname = hostname.clone();
         let kernel = kernel.clone();
         let operating_system = operating_system.clone();

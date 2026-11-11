@@ -4,6 +4,7 @@ use std::{
     ffi::OsString,
     fs, io,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use futures::{Stream, StreamExt, TryStreamExt, future::ready, stream};
@@ -14,7 +15,7 @@ use uom::si::{angle::degree, f64::Angle};
 
 use crate::{
     secret_file_reads::read_secret,
-    stream_operators::{Availability, restarting},
+    stream_operators::{Availability, resubscribed},
     system_protocol_clients::{http_json_client, shell_command_output},
 };
 
@@ -122,11 +123,22 @@ pub enum DisplayedWallpaper {
 
 pub fn displayed()
 -> impl Stream<Item = Result<DisplayedWallpaper, shell_command_output::Error>> + Send {
-    restarting("wallpaper watch", watch)
+    resubscribed(Duration::from_secs(1), || {
+        let watched = watch();
+        async move {
+            match watched {
+                Ok(events) => Ok(events),
+                Err(failure) => Err(shell_command_output::Error::Spawn {
+                    program: "wallpaper watch".to_owned(),
+                    detail: failure.to_string(),
+                }),
+            }
+        }
+    })
 }
 
-async fn watch()
--> io::Result<impl Stream<Item = Result<DisplayedWallpaper, shell_command_output::Error>>> {
+fn watch()
+-> io::Result<impl Stream<Item = Result<DisplayedWallpaper, shell_command_output::Error>> + Send> {
     let Some(base) = cache_base() else {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,

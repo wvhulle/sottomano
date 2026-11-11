@@ -211,7 +211,7 @@ fn holding_earliest_critical(
         let delivery = match delivery {
             SnapshotDelivery::SnapshotDelivered {
                 snapshot_fetch: Ok(reading),
-                stamped_cadence,
+                delivery_cadence,
             } => {
                 *held = reading.critical_since.map(|now| held.unwrap_or(now));
                 SnapshotDelivery::SnapshotDelivered {
@@ -219,7 +219,7 @@ fn holding_earliest_critical(
                         critical_since: *held,
                         ..reading
                     }),
-                    stamped_cadence,
+                    delivery_cadence,
                 }
             }
             SnapshotDelivery::SnapshotUnchanged => SnapshotDelivery::SnapshotUnchanged,

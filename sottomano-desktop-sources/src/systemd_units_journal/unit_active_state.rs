@@ -3,10 +3,13 @@ use std::{pin::pin, sync::Arc};
 use futures::{Stream, StreamExt, stream};
 use tokio::select;
 
-use super::{ManagerProxy, SystemdUnitOnBus, UnitProxy, connect_systemd_bus};
+use super::{
+    ManagerProxy, SystemdUnitOnBus, UNIT_INTERFACE, UnitProxy, connect_systemd_bus,
+    signals_matching, systemd_signal,
+};
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    stream_operators::{Availability, connected_until_failure},
+    stream_operators::{Availability, connected_until_failure, read_once_then_per_burst},
     systemd_units_journal::SystemdUnitScope,
 };
 
@@ -106,18 +109,30 @@ async fn activity_changes(
 ) -> zbus::Result<impl Stream<Item = zbus::Result<UnitActivity>> + Send> {
     let manager = ManagerProxy::new(&connection).await?;
     manager.ensure_subscribed().await?;
+    let unit_path = manager.load_unit(&unit).await?;
     let unit = UnitProxy::builder(&connection)
-        .path(manager.load_unit(&unit).await?)?
+        .path(unit_path.clone())?
         .build()
         .await?;
-    let current = unit.active_state().await?;
-    let changes = unit
-        .receive_active_state_changed()
-        .await
-        .then(|change| async move { change.get().await });
-    Ok(stream::iter([Ok(current)])
-        .chain(changes)
-        .map(|state| state.map(|state| UnitActivity::from(state.as_str()))))
+    let changes = signals_matching(
+        &connection,
+        [systemd_signal()?
+            .path(unit_path)?
+            .interface("org.freedesktop.DBus.Properties")?
+            .member("PropertiesChanged")?
+            .arg(0, UNIT_INTERFACE)?
+            .build()],
+    )
+    .await?
+    .map(drop);
+    Ok(read_once_then_per_burst(changes, move || {
+        let unit = unit.clone();
+        async move {
+            unit.active_state()
+                .await
+                .map(|state| UnitActivity::from(state.as_str()))
+        }
+    }))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -22,9 +22,10 @@ use zbus::{Connection, proxy, zvariant::OwnedObjectPath};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking_poll,
-    delivery_cadence_drivers::{PeriodicPolling, TriggeredRereadCadence},
+    delivery_cadence_drivers::PeriodicPolling,
     host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
-    stream_operators::{Availability, StreamOperators, connected_until_failure, restarting},
+    network_connectivity::interface_properties_changed,
+    stream_operators::{Availability, StreamOperators, connected_until_failure, resubscribed},
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses,
         sysfs_attribute_reads::{Error, list_dir, parse_field, read_field, read_i64, read_trimmed},
@@ -205,32 +206,23 @@ impl SnapshotSource for Battery {
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
         present(system.clone()).available_while(move || {
-            TriggeredRereadCadence::LivePushWithRecheck(PeriodicPolling::every(
-                BATTERY_POLL_INTERVAL,
-            ))
-            .triggered_deliveries(supply_state_changes(system.clone()), || {
-                blocking_poll(read_battery)
-            })
+            PeriodicPolling::every(BATTERY_POLL_INTERVAL)
+                .triggered_deliveries(supply_state_changes(system.clone()), || {
+                    blocking_poll(read_battery)
+                })
         })
     }
 }
 
 pub const BATTERY_POLL_INTERVAL: Duration = Duration::from_secs(5);
-
-#[proxy(
-    interface = "org.freedesktop.UPower.Device",
-    default_service = "org.freedesktop.UPower",
-    default_path = "/org/freedesktop/UPower/devices/DisplayDevice"
-)]
-trait DisplayDevice {
-    #[zbus(property)]
-    fn state(&self) -> zbus::Result<u32>;
-}
+const UPOWER_SERVICE: &str = "org.freedesktop.UPower";
+const UPOWER_DEVICE_INTERFACE: &str = "org.freedesktop.UPower.Device";
 
 #[proxy(
     interface = "org.freedesktop.UPower",
     default_service = "org.freedesktop.UPower",
-    default_path = "/org/freedesktop/UPower"
+    default_path = "/org/freedesktop/UPower",
+    gen_blocking = false
 )]
 trait UPower {
     #[zbus(signal)]
@@ -269,14 +261,17 @@ async fn device_changes(
 }
 
 fn supply_state_changes(system: Connection) -> impl Stream<Item = ()> + Send {
-    restarting("upower supply state", move || {
-        supply_state_signals(system.clone())
+    resubscribed(Duration::from_secs(1), move || {
+        let system = system.clone();
+        async move {
+            Ok(
+                interface_properties_changed(&system, UPOWER_SERVICE, UPOWER_DEVICE_INTERFACE)
+                    .await?
+                    .map(Ok::<_, zbus::Error>),
+            )
+        }
     })
-}
-
-async fn supply_state_signals(system: Connection) -> zbus::Result<impl Stream<Item = ()>> {
-    let device = DisplayDeviceProxy::new(&system).await?;
-    Ok(device.receive_state_changed().await.map(drop))
+    .filter_map(|signal| ready(signal.ok()))
 }
 
 fn read_battery() -> Result<Battery, Error> {

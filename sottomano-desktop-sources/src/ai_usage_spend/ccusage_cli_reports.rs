@@ -17,7 +17,7 @@ use crate::{
         usage_quota::Quota,
         working_time_forecast::{CalendarSpan, SpendBudget},
     },
-    stream_operators::{Availability, StreamOperators},
+    stream_operators::{Availability, RereadSchedule},
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
         shell_command_output::{self, program_availability},
@@ -25,7 +25,7 @@ use crate::{
 };
 
 const PROGRAM: &str = "ccusage";
-const TRANSCRIPT_REREAD_MINIMUM_GAP: Duration = Duration::from_secs(60);
+pub const TRANSCRIPT_REREAD_MINIMUM_GAP: Duration = Duration::from_secs(60);
 
 pub fn transcript_changes(agent: Agent) -> impl Stream<Item = ()> + Send {
     changes(
@@ -35,19 +35,24 @@ pub fn transcript_changes(agent: Agent) -> impl Stream<Item = ()> + Send {
             .map(WatchTarget::OneLevelTree)
             .collect(),
     )
-    .at_most_once_per(TRANSCRIPT_REREAD_MINIMUM_GAP)
 }
 
 #[must_use]
-pub fn next_local_midnight() -> Option<Instant> {
+pub fn next_local_midnight() -> RereadSchedule {
     let now = Local::now();
-    let midnight = now
-        .date_naive()
-        .succ_opt()?
-        .and_hms_opt(0, 0, 0)?
-        .and_local_timezone(Local)
-        .earliest()?;
-    Some(Instant::now() + (midnight - now).to_std().ok()?)
+    let Some(tomorrow) = now.date_naive().succ_opt() else {
+        return RereadSchedule::WaitForTrigger;
+    };
+    let Some(midnight_naive) = tomorrow.and_hms_opt(0, 0, 0) else {
+        return RereadSchedule::WaitForTrigger;
+    };
+    let Some(midnight) = midnight_naive.and_local_timezone(Local).earliest() else {
+        return RereadSchedule::WaitForTrigger;
+    };
+    let Ok(until_midnight) = (midnight - now).to_std() else {
+        return RereadSchedule::WaitForTrigger;
+    };
+    RereadSchedule::RecheckAt(Instant::now() + until_midnight)
 }
 
 #[must_use]

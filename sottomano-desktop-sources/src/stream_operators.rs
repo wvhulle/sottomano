@@ -1,6 +1,4 @@
 use std::{
-    convert::identity,
-    fmt::Display,
     future::{Future, ready},
     pin::Pin,
     task::{Context, Poll, ready},
@@ -8,7 +6,7 @@ use std::{
 };
 
 use futures::{
-    FutureExt, Stream, StreamExt, TryStreamExt,
+    Stream, StreamExt, TryStreamExt,
     stream::{self, Fuse, FusedStream},
 };
 use pin_project_lite::pin_project;
@@ -16,99 +14,149 @@ use tokio::time::{Sleep, sleep, sleep_until};
 
 use crate::{SnapshotDelivery, SnapshotSource};
 
-pub fn read_once_then_per_burst<T, F>(
-    triggers: impl Stream<Item = ()> + Send + 'static,
-    read: impl FnMut() -> F + Send + 'static,
-) -> impl Stream<Item = T> + Send
-where
-    T: Send + 'static,
-    F: Future<Output = T> + Send,
-{
-    reread_on_trigger_or_deadline(triggers, read, |_| None)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RereadSchedule {
+    WaitForTrigger,
+    RecheckAt(Instant),
 }
 
-pub fn reread_on_trigger_or_deadline<T, F>(
+pub fn read_once_then_per_burst<Produced, ReadFuture>(
     triggers: impl Stream<Item = ()> + Send + 'static,
-    read: impl FnMut() -> F + Send + 'static,
-    deadline_after: impl Fn(&T) -> Option<Instant> + Send + 'static,
-) -> impl Stream<Item = T> + Send
+    read: impl FnMut() -> ReadFuture + Send + 'static,
+) -> impl Stream<Item = Produced> + Send
 where
-    T: Send + 'static,
-    F: Future<Output = T> + Send,
+    Produced: Send + 'static,
+    ReadFuture: Future<Output = Produced> + Send,
+{
+    reread_on_trigger_or_deadline(triggers, read, |_| RereadSchedule::WaitForTrigger)
+}
+
+pub fn reread_on_trigger_or_deadline<Produced, ReadFuture>(
+    triggers: impl Stream<Item = ()> + Send + 'static,
+    read: impl FnMut() -> ReadFuture + Send + 'static,
+    schedule_after: impl Fn(&Produced) -> RereadSchedule + Send + 'static,
+) -> impl Stream<Item = Produced> + Send
+where
+    Produced: Send + 'static,
+    ReadFuture: Future<Output = Produced> + Send,
+{
+    reread_on_spaced_trigger_or_deadline(triggers, Duration::ZERO, read, schedule_after)
+}
+
+pub fn reread_on_spaced_trigger_or_deadline<Produced, ReadFuture>(
+    triggers: impl Stream<Item = ()> + Send + 'static,
+    minimum_trigger_gap: Duration,
+    read: impl FnMut() -> ReadFuture + Send + 'static,
+    schedule_after: impl Fn(&Produced) -> RereadSchedule + Send + 'static,
+) -> impl Stream<Item = Produced> + Send
+where
+    Produced: Send + 'static,
+    ReadFuture: Future<Output = Produced> + Send,
 {
     RereadOnTrigger {
         triggers: triggers.fuse(),
+        minimum_trigger_gap,
         read,
-        deadline_after,
+        schedule_after,
         reading: None,
+        cooldown: None,
         deadline: None,
         triggered: true,
     }
 }
 
 pin_project! {
-    struct RereadOnTrigger<S, Read, Deadline, F> {
+    struct RereadOnTrigger<TriggerStream, ReadFn, ScheduleFn, ReadFuture> {
         #[pin]
-        triggers: Fuse<S>,
-        read: Read,
-        deadline_after: Deadline,
+        triggers: Fuse<TriggerStream>,
+        minimum_trigger_gap: Duration,
+        read: ReadFn,
+        schedule_after: ScheduleFn,
         #[pin]
-        reading: Option<F>,
+        reading: Option<ReadFuture>,
+        #[pin]
+        cooldown: Option<Sleep>,
         #[pin]
         deadline: Option<Sleep>,
         triggered: bool,
     }
 }
 
-impl<S, Read, Deadline, F> Stream for RereadOnTrigger<S, Read, Deadline, F>
+impl<TriggerStream, ReadFn, ScheduleFn, ReadFuture> Stream
+    for RereadOnTrigger<TriggerStream, ReadFn, ScheduleFn, ReadFuture>
 where
-    S: Stream<Item = ()>,
-    Read: FnMut() -> F,
-    Deadline: Fn(&F::Output) -> Option<Instant>,
-    F: Future,
+    TriggerStream: Stream<Item = ()>,
+    ReadFn: FnMut() -> ReadFuture,
+    ScheduleFn: Fn(&ReadFuture::Output) -> RereadSchedule,
+    ReadFuture: Future,
 {
-    type Item = F::Output;
+    type Item = ReadFuture::Output;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<F::Output>> {
-        let mut this = self.project();
-        while let Poll::Ready(Some(())) = this.triggers.as_mut().poll_next(cx) {
-            *this.triggered = true;
+    fn poll_next(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+    ) -> Poll<Option<ReadFuture::Output>> {
+        let mut projected = self.project();
+        while let Poll::Ready(Some(())) = projected.triggers.as_mut().poll_next(context) {
+            *projected.triggered = true;
         }
-        if let Some(deadline) = this.deadline.as_mut().as_pin_mut()
-            && deadline.poll(cx).is_ready()
+        if let Some(cooldown) = projected.cooldown.as_mut().as_pin_mut()
+            && cooldown.poll(context).is_ready()
         {
-            *this.triggered = true;
-            this.deadline.set(None);
+            projected.cooldown.set(None);
         }
-        if this.reading.is_none() {
-            if !*this.triggered {
-                return if this.triggers.is_terminated() {
+        if let Some(deadline) = projected.deadline.as_mut().as_pin_mut()
+            && deadline.poll(context).is_ready()
+        {
+            *projected.triggered = true;
+            projected.deadline.set(None);
+            projected.cooldown.set(None);
+        }
+        if projected.reading.is_none() {
+            if !*projected.triggered {
+                return if projected.triggers.is_terminated() && projected.deadline.is_none() {
                     Poll::Ready(None)
                 } else {
                     Poll::Pending
                 };
             }
-            *this.triggered = false;
-            this.reading.set(Some((this.read)()));
+            if projected.cooldown.is_some() {
+                return Poll::Pending;
+            }
+            *projected.triggered = false;
+            if !projected.minimum_trigger_gap.is_zero() {
+                projected
+                    .cooldown
+                    .set(Some(sleep(*projected.minimum_trigger_gap)));
+                if let Some(cooldown) = projected.cooldown.as_mut().as_pin_mut()
+                    && cooldown.poll(context).is_ready()
+                {
+                    projected.cooldown.set(None);
+                }
+            }
+            projected.reading.set(Some((projected.read)()));
         }
-        let Some(reading) = this.reading.as_mut().as_pin_mut() else {
+        let Some(reading) = projected.reading.as_mut().as_pin_mut() else {
             return Poll::Pending;
         };
-        let produced = ready!(reading.poll(cx));
-        this.reading.set(None);
-        let next_deadline = (this.deadline_after)(&produced).map(|at| sleep_until(at.into()));
-        this.deadline.set(next_deadline);
+        let produced = ready!(reading.poll(context));
+        projected.reading.set(None);
+        let next_deadline = match (projected.schedule_after)(&produced) {
+            RereadSchedule::WaitForTrigger => None,
+            RereadSchedule::RecheckAt(recheck_instant) => Some(sleep_until(recheck_instant.into())),
+        };
+        projected.deadline.set(next_deadline);
         Poll::Ready(Some(produced))
     }
 }
 
-pub fn connected_until_failure<S, T, E>(
-    connecting: impl Future<Output = Result<S, E>> + Send,
-) -> impl Stream<Item = Result<T, E>> + Send
+pub fn connected_until_failure<ConnectedStream, ItemValue, Failure>(
+    connecting: impl Future<Output = Result<ConnectedStream, Failure>> + Send,
+) -> impl Stream<Item = Result<ItemValue, Failure>> + Send
 where
-    S: Stream<Item = Result<T, E>> + Send,
-    T: Send,
-    E: Send,
+    ConnectedStream: Stream<Item = Result<ItemValue, Failure>> + Send,
+    ItemValue: Send,
+    Failure: Send,
 {
     until_first_failure(stream::once(connecting).try_flatten())
 }
@@ -119,15 +167,15 @@ enum SubscriptionPhase<ConnectedStream> {
     Reconnecting,
 }
 
-pub fn resubscribed<S, F, T, E>(
+pub fn resubscribed<ConnectedStream, SubscribeFuture, ItemValue, Failure>(
     retry_gap: Duration,
-    subscribe: impl FnMut() -> F + Send,
-) -> impl Stream<Item = Result<T, E>> + Send
+    subscribe: impl FnMut() -> SubscribeFuture + Send,
+) -> impl Stream<Item = Result<ItemValue, Failure>> + Send
 where
-    S: Stream<Item = Result<T, E>> + Send,
-    F: Future<Output = Result<S, E>> + Send,
-    T: Send,
-    E: Send + Display,
+    ConnectedStream: Stream<Item = Result<ItemValue, Failure>> + Send,
+    SubscribeFuture: Future<Output = Result<ConnectedStream, Failure>> + Send,
+    ItemValue: Send,
+    Failure: Send,
 {
     stream::unfold(
         (SubscriptionPhase::Connecting, subscribe),
@@ -144,7 +192,6 @@ where
                             phase = match subscribe().await {
                                 Ok(connected) => SubscriptionPhase::Streaming(Box::pin(connected)),
                                 Err(failure) => {
-                                    tracing::warn!("resubscription: {failure}");
                                     return Some((
                                         Err(failure),
                                         (SubscriptionPhase::Reconnecting, subscribe),
@@ -170,63 +217,22 @@ where
     )
 }
 
-pub fn resubscribing_until_failure<F, S, T, E>(
-    subscribe: impl FnMut() -> F + Send,
-) -> impl Stream<Item = Result<T, E>> + Send
+fn until_first_failure<ItemValue, Failure>(
+    outcomes: impl Stream<Item = Result<ItemValue, Failure>> + Send,
+) -> impl Stream<Item = Result<ItemValue, Failure>> + Send
 where
-    F: Future<Output = Result<S, E>> + Send,
-    S: Stream<Item = Result<T, E>> + Send,
-    T: Send,
-    E: Send,
-{
-    until_first_failure(stream::repeat_with(subscribe).then(identity).try_flatten())
-}
-
-fn until_first_failure<T, E>(
-    results: impl Stream<Item = Result<T, E>> + Send,
-) -> impl Stream<Item = Result<T, E>> + Send
-where
-    T: Send,
-    E: Send,
+    ItemValue: Send,
+    Failure: Send,
 {
     let mut failed = false;
-    results.take_while(move |outcome| {
+    outcomes.take_while(move |outcome| {
         let before_failure = !failed;
         failed = outcome.is_err();
         ready(before_failure)
     })
 }
 
-pub fn restarting<F, S, E>(
-    source: &'static str,
-    connect: impl FnMut() -> F,
-) -> impl Stream<Item = S::Item>
-where
-    F: Future<Output = Result<S, E>>,
-    S: Stream,
-    E: Display,
-{
-    stream::repeat_with(connect)
-        .then(identity)
-        .inspect_err(move |e| tracing::warn!("{source}: {e}"))
-        .take_while(|attempt| ready(attempt.is_ok()))
-        .filter_map(|attempt| ready(attempt.ok()))
-        .flatten()
-}
-
 pub trait StreamOperators: Stream + Sized {
-    fn at_most_once_per(self, minimum_gap: Duration) -> impl Stream<Item = ()> + Send
-    where
-        Self: Stream<Item = ()> + Send,
-    {
-        stream::unfold(Box::pin(self.fuse()), move |mut triggers| async move {
-            triggers.next().await?;
-            sleep(minimum_gap).await;
-            while let Some(Some(())) = triggers.next().now_or_never() {}
-            Some(((), triggers))
-        })
-    }
-
     fn distinct_until_changed(self) -> impl Stream<Item = Self::Item> + Send
     where
         Self: Send,
@@ -240,14 +246,14 @@ pub trait StreamOperators: Stream + Sized {
         .filter_map(ready)
     }
 
-    fn repeats_as_unchanged<S>(self) -> impl Stream<Item = SnapshotDelivery<S>> + Send
+    fn repeats_as_unchanged<Source>(self) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
     where
-        Self: Stream<Item = SnapshotDelivery<S>> + Send,
-        S: SnapshotSource + PartialEq,
+        Self: Stream<Item = SnapshotDelivery<Source>> + Send,
+        Source: SnapshotSource + PartialEq,
     {
         self.scan(
             None,
-            |previous: &mut Option<SnapshotDelivery<S>>, delivery| {
+            |previous: &mut Option<SnapshotDelivery<Source>>, delivery| {
                 let repeated_snapshot = matches!(
                     delivery,
                     SnapshotDelivery::SnapshotDelivered {
@@ -275,10 +281,13 @@ pub trait StreamOperators: Stream + Sized {
         })
     }
 
-    fn switch_map<F, R>(self, switch: F) -> SwitchMap<Self, F, R>
+    fn switch_map<SwitchFn, InnerStream>(
+        self,
+        switch: SwitchFn,
+    ) -> SwitchMap<Self, SwitchFn, InnerStream>
     where
-        F: FnMut(Self::Item) -> R,
-        R: Stream,
+        SwitchFn: FnMut(Self::Item) -> InnerStream,
+        InnerStream: Stream,
     {
         SwitchMap {
             outer: self.fuse(),
@@ -287,27 +296,27 @@ pub trait StreamOperators: Stream + Sized {
         }
     }
 
-    fn available_while<S, R>(
+    fn available_while<Source, InnerStream>(
         self,
-        start: impl FnMut() -> R + Send,
-    ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
+        start: impl FnMut() -> InnerStream + Send,
+    ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
     where
         Self: Stream<Item = Availability> + Send,
-        S: SnapshotSource,
-        R: Stream<Item = SnapshotDelivery<S>> + Send,
+        Source: SnapshotSource,
+        InnerStream: Stream<Item = SnapshotDelivery<Source>> + Send,
     {
         self.while_held(start, SnapshotDelivery::SourceUnavailable)
     }
 
-    fn while_held<R>(
+    fn while_held<InnerStream>(
         self,
-        mut start: impl FnMut() -> R + Send,
-        released: R::Item,
-    ) -> impl Stream<Item = R::Item> + Send
+        mut start: impl FnMut() -> InnerStream + Send,
+        released: InnerStream::Item,
+    ) -> impl Stream<Item = InnerStream::Item> + Send
     where
         Self: Stream<Item = Availability> + Send,
-        R: Stream + Send,
-        R::Item: Clone + Send,
+        InnerStream: Stream + Send,
+        InnerStream::Item: Clone + Send,
     {
         self.distinct_until_changed()
             .switch_map(move |availability| match availability {
@@ -317,43 +326,43 @@ pub trait StreamOperators: Stream + Sized {
     }
 }
 
-impl<S: Stream> StreamOperators for S {}
+impl<SourceStream: Stream> StreamOperators for SourceStream {}
 
 pin_project! {
-    pub struct SwitchMap<O, F, R> {
+    pub struct SwitchMap<OuterStream, SwitchFn, InnerStream> {
         #[pin]
-        outer: Fuse<O>,
-        switch: F,
+        outer: Fuse<OuterStream>,
+        switch: SwitchFn,
         #[pin]
-        inner: Option<R>,
+        inner: Option<InnerStream>,
     }
 }
 
-impl<O, F, R> Stream for SwitchMap<O, F, R>
+impl<OuterStream, SwitchFn, InnerStream> Stream for SwitchMap<OuterStream, SwitchFn, InnerStream>
 where
-    O: Stream,
-    F: FnMut(O::Item) -> R,
-    R: Stream,
+    OuterStream: Stream,
+    SwitchFn: FnMut(OuterStream::Item) -> InnerStream,
+    InnerStream: Stream,
 {
-    type Item = R::Item;
+    type Item = InnerStream::Item;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut this = self.project();
-        while let Poll::Ready(Some(item)) = this.outer.as_mut().poll_next(cx) {
-            this.inner.set(Some((this.switch)(item)));
+    fn poll_next(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut projected = self.project();
+        while let Poll::Ready(Some(item)) = projected.outer.as_mut().poll_next(context) {
+            projected.inner.set(Some((projected.switch)(item)));
         }
-        let outer_ended = this.outer.is_terminated();
+        let outer_ended = projected.outer.is_terminated();
         let idle = if outer_ended {
             Poll::Ready(None)
         } else {
             Poll::Pending
         };
-        let Some(inner) = this.inner.as_mut().as_pin_mut() else {
+        let Some(inner) = projected.inner.as_mut().as_pin_mut() else {
             return idle;
         };
-        match inner.poll_next(cx) {
+        match inner.poll_next(context) {
             Poll::Ready(None) => {
-                this.inner.set(None);
+                projected.inner.set(None);
                 idle
             }
             polled => polled,
@@ -369,7 +378,7 @@ pub enum Availability {
 
 #[cfg(test)]
 mod tests {
-    use std::pin::pin;
+    use std::{pin::pin, vec::IntoIter};
 
     use futures::channel::mpsc;
     use tokio::time::{self, timeout};
@@ -402,7 +411,7 @@ mod tests {
     async fn a_failing_subscription_retries_after_the_gap() {
         let started = time::Instant::now();
         let mut resubscribed_events = pin!(resubscribed::<
-            stream::Iter<std::vec::IntoIter<Result<u8, &'static str>>>,
+            stream::Iter<IntoIter<Result<u8, &'static str>>>,
             _,
             u8,
             &'static str,
@@ -414,36 +423,25 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn a_burst_of_triggers_yields_once_after_the_gap() {
-        let started = time::Instant::now();
-        let burst = stream::iter([(), (), ()]).chain(stream::pending());
-        let mut limited = pin!(burst.at_most_once_per(MINIMUM_GAP));
-        assert_eq!(limited.next().await, Some(()));
-        assert_eq!(started.elapsed(), MINIMUM_GAP);
-        assert!(timeout(MINIMUM_GAP * 10, limited.next()).await.is_err());
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn triggers_arriving_after_a_yield_wait_a_full_gap() {
+    async fn spaced_rereads_drain_burst_triggers_and_wait_the_gap() {
         let started = time::Instant::now();
         let (trigger_sender, trigger_receiver) = mpsc::unbounded();
-        let mut limited = pin!(trigger_receiver.at_most_once_per(MINIMUM_GAP));
+        let mut read_count = 0_u32;
+        let mut rereads = pin!(reread_on_spaced_trigger_or_deadline(
+            trigger_receiver,
+            MINIMUM_GAP,
+            move || {
+                read_count += 1;
+                ready(read_count)
+            },
+            |_| RereadSchedule::WaitForTrigger,
+        ));
+        assert_eq!(rereads.next().await, Some(1));
+        assert_eq!(started.elapsed(), Duration::ZERO);
         trigger_sender.unbounded_send(()).unwrap();
-        assert_eq!(limited.next().await, Some(()));
         trigger_sender.unbounded_send(()).unwrap();
-        assert_eq!(limited.next().await, Some(()));
-        assert_eq!(started.elapsed(), MINIMUM_GAP * 2);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn silence_yields_nothing() {
-        let mut limited = pin!(stream::pending::<()>().at_most_once_per(MINIMUM_GAP));
-        assert!(timeout(MINIMUM_GAP * 10, limited.next()).await.is_err());
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn an_ended_trigger_stream_ends_the_limited_stream() {
-        let mut limited = pin!(stream::empty::<()>().at_most_once_per(MINIMUM_GAP));
-        assert_eq!(limited.next().await, None);
+        assert_eq!(rereads.next().await, Some(2));
+        assert_eq!(started.elapsed(), MINIMUM_GAP);
+        assert!(timeout(MINIMUM_GAP * 10, rereads.next()).await.is_err());
     }
 }

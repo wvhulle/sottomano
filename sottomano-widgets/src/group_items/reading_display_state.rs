@@ -20,6 +20,7 @@ use crate::widgets::{
 pub enum ReadingDisplayState {
     Failed,
     Off,
+    Offline,
     #[default]
     Idle,
     Pending,
@@ -35,8 +36,8 @@ impl ReadingDisplayState {
         match self {
             ReadingDisplayState::Failed => Weight::Thin,
             ReadingDisplayState::Off => Weight::Light,
+            ReadingDisplayState::Offline | ReadingDisplayState::Pending => Weight::Duotone,
             ReadingDisplayState::Idle => Weight::Regular,
-            ReadingDisplayState::Pending => Weight::Duotone,
             ReadingDisplayState::Warning => Weight::Bold,
             ReadingDisplayState::On | ReadingDisplayState::Live | ReadingDisplayState::Critical => {
                 Weight::Fill
@@ -51,7 +52,9 @@ impl ReadingDisplayState {
             ReadingDisplayState::Off => secondary_text_color(theme),
             ReadingDisplayState::Idle | ReadingDisplayState::On => text_color(theme),
             ReadingDisplayState::Live => primary_color(theme),
-            ReadingDisplayState::Pending | ReadingDisplayState::Warning => warning_color(theme),
+            ReadingDisplayState::Offline
+            | ReadingDisplayState::Pending
+            | ReadingDisplayState::Warning => warning_color(theme),
         }
     }
 
@@ -62,7 +65,9 @@ impl ReadingDisplayState {
             ReadingDisplayState::Off => text::secondary,
             ReadingDisplayState::Idle | ReadingDisplayState::On => text::base,
             ReadingDisplayState::Live => text::primary,
-            ReadingDisplayState::Pending | ReadingDisplayState::Warning => text::warning,
+            ReadingDisplayState::Offline
+            | ReadingDisplayState::Pending
+            | ReadingDisplayState::Warning => text::warning,
         }
     }
 
@@ -72,6 +77,7 @@ impl ReadingDisplayState {
             ReadingDisplayState::Failed | ReadingDisplayState::Critical => Severity::Critical,
             ReadingDisplayState::Warning => Severity::Warning,
             ReadingDisplayState::Off
+            | ReadingDisplayState::Offline
             | ReadingDisplayState::Idle
             | ReadingDisplayState::Pending
             | ReadingDisplayState::On
@@ -206,6 +212,10 @@ mod tests {
             warning_color(&theme)
         );
         assert_eq!(
+            ReadingDisplayState::Offline.color(&theme),
+            warning_color(&theme)
+        );
+        assert_eq!(
             ReadingDisplayState::Off.color(&theme),
             secondary_text_color(&theme)
         );
@@ -221,6 +231,7 @@ mod tests {
         [
             ReadingDisplayState::Failed,
             ReadingDisplayState::Off,
+            ReadingDisplayState::Offline,
             ReadingDisplayState::Idle,
             ReadingDisplayState::Live,
             ReadingDisplayState::Warning,
@@ -251,6 +262,10 @@ mod tests {
                 .iter()
                 .enumerate()
                 .all(|(index, weight)| !weights[index + 1..].contains(weight))
+        );
+        assert_eq!(
+            ReadingDisplayState::Offline.weight(),
+            ReadingDisplayState::Pending.weight()
         );
         assert_eq!(
             ReadingDisplayState::Critical.weight(),

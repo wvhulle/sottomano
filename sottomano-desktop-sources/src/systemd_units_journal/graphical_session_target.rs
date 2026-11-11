@@ -8,8 +8,11 @@ use crate::{
     compositor_window_ipc::compositor_connection::compositor_version,
     host_machine_identity::hostname1_os_identity::at_micros,
     non_empty_text::non_empty,
+    stream_operators::read_once_then_per_burst,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
-    systemd_units_journal::{ManagerProxy, UnitProxy},
+    systemd_units_journal::{
+        ManagerProxy, UNIT_INTERFACE, UnitProxy, signals_matching, systemd_signal,
+    },
 };
 
 const GRAPHICAL_TARGET: &str = "graphical-session.target";
@@ -86,13 +89,17 @@ async fn target_changes(
         .path(manager.load_unit(GRAPHICAL_TARGET).await?)?
         .build()
         .await?;
-    let changes = stream::select(
-        unit.receive_active_state_changed().await.map(drop),
-        unit.receive_active_enter_timestamp_changed()
-            .await
-            .map(drop),
-    );
-    Ok(changes.then(move |()| {
+    let changes = signals_matching(
+        &buses.session,
+        [systemd_signal()?
+            .interface("org.freedesktop.DBus.Properties")?
+            .member("PropertiesChanged")?
+            .arg(0, UNIT_INTERFACE)?
+            .build()],
+    )
+    .await?
+    .map(drop);
+    Ok(read_once_then_per_burst(changes, move || {
         let unit = unit.clone();
         async move {
             Ok(GraphicalSessionTarget {

@@ -18,7 +18,8 @@ const CLIGHT_SERVICE: &str = "org.clight.clight";
 #[proxy(
     interface = "org.clight.clight.Conf.Backlight",
     default_service = "org.clight.clight",
-    default_path = "/org/clight/clight/Conf/Backlight"
+    default_path = "/org/clight/clight/Conf/Backlight",
+    gen_blocking = false
 )]
 pub trait ConfBacklight {
     #[zbus(property)]
@@ -30,7 +31,8 @@ pub trait ConfBacklight {
 #[proxy(
     interface = "org.clight.clight",
     default_service = "org.clight.clight",
-    default_path = "/org/clight/clight"
+    default_path = "/org/clight/clight",
+    gen_blocking = false
 )]
 pub trait ClightDaemon {
     fn capture(&self, reset_timer: bool, capture_only: bool) -> zbus::Result<()>;
