@@ -23,9 +23,9 @@ use sottomano_widgets::{
         clock_group::ClockGroup,
         color_temperature_group::ColorTemperatureGroup,
         compositor_styling_group::CompositorStylingGroup,
-        compute_group::{ComputeGroup, ComputeMessage},
+        compute_group::ComputeGroup,
         copilot_usage_group::CopilotUsageGroup,
-        dark_mode_group::{DarkModeGroup, DarkModeMessage},
+        dark_mode_group::{DarkModeGroup, DarkModeInteraction, DarkModeMessage},
         docker_engines_group::DockerEnginesGroup,
         ethernet_ports_group::EthernetPortsGroup,
         flatpak_sandboxes_group::FlatpakSandboxesGroup,
@@ -39,7 +39,7 @@ use sottomano_widgets::{
         login_session_group::LoginSessionGroup,
         lxc_containers_group::LxcContainersGroup,
         media_group::MediaGroup,
-        memory_board_group::{MemoryBoardGroup, MemoryBoardMessage},
+        memory_board_group::MemoryBoardGroup,
         microvm_guests_group::MicrovmGuestsGroup,
         mobile_modems_group::MobileModemsGroup,
         monitor_group::MonitorGroup,
@@ -264,14 +264,6 @@ impl ShellWidgetGroups {
                 .memory_board_group
                 .update(msg, clock)
                 .map(Message::MemoryBoard),
-            Message::HostHardware(delivery) => Task::batch([
-                self.compute_group
-                    .update(ComputeMessage::HostHardware(delivery.clone()), clock)
-                    .map(Message::Compute),
-                self.memory_board_group
-                    .update(MemoryBoardMessage::Hardware(delivery), clock)
-                    .map(Message::MemoryBoard),
-            ]),
             Message::Gpu(msg) => self.gpu_group.update(msg, clock).map(Message::Gpu),
             Message::Storage(msg) => self
                 .storage_space_group
@@ -457,8 +449,8 @@ impl ShellWidgetGroups {
         let current = self.shell_appearance();
         let next = preset.applied_to(current);
         let scheme_switch = (next.scheme != current.scheme).then(|| {
-            Task::done(Message::DarkMode(DarkModeMessage::SwitchScheme(
-                next.scheme,
+            Task::done(Message::DarkMode(DarkModeMessage::Interaction(
+                DarkModeInteraction::SwitchScheme(next.scheme),
             )))
         });
         Task::batch(

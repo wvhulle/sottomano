@@ -1,3 +1,23 @@
+use sottomano_desktop_sources::delivery_cadence_drivers::ChangeWatchFailure;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StoppedChangeWatch {
+    ConfigFile,
+    FirefoxProfile,
+}
+
+impl StoppedChangeWatch {
+    const fn stale_consequence(self) -> &'static str {
+        match self {
+            StoppedChangeWatch::ConfigFile => {
+                "Edits to the config file are not picked up until the shell restarts."
+            }
+            StoppedChangeWatch::FirefoxProfile => {
+                "Firefox favicons stop refreshing until the shell restarts."
+            }
+        }
+    }
+}
 use std::{borrow::Cow, iter, mem, path::Path};
 
 use iced::{
@@ -338,6 +358,32 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
                 escape(failure.to_string())
             )),
             ..NotificationData::from_shell(toast_id, "Could not connect to the D-Bus buses")
+        };
+        self.serve(
+            ToastContent::shell_failure(
+                data,
+                Routed::from(PopupMessage::CopyText(failure.to_string())),
+                context.clock.wall,
+            ),
+            context,
+        )
+    }
+
+    pub fn show_change_watch_failure(
+        &mut self,
+        stopped_watch: StoppedChangeWatch,
+        failure: &ChangeWatchFailure,
+        context: &ToastContext,
+    ) -> Task<Routed> {
+        let toast_id = self.fresh_shell_toast_id();
+        let data = NotificationData {
+            severity: Severity::Warning,
+            body: Some(format!(
+                "{}<pre>{}</pre>",
+                stopped_watch.stale_consequence(),
+                escape(failure.to_string())
+            )),
+            ..NotificationData::from_shell(toast_id, "A change watch stopped")
         };
         self.serve(
             ToastContent::shell_failure(

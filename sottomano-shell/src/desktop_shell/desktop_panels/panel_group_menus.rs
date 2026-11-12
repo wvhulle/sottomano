@@ -14,7 +14,7 @@ use crate::{
         DesktopShell,
         desktop_panels::panel_bar_composition::{FixedPanelEntry, StandaloneWidgetGroup},
     },
-    shell_message::Message,
+    shell_message::ShellInteraction,
 };
 
 impl DesktopShell {
@@ -22,7 +22,7 @@ impl DesktopShell {
         &self,
         topic: GroupMenuTopic,
         output: &str,
-    ) -> GroupMenuView<'_, Message> {
+    ) -> GroupMenuView<'_, ShellInteraction> {
         match topic {
             GroupMenuTopic::Applications => self.group_menu(
                 GroupMenuTopic::Applications,
@@ -30,7 +30,7 @@ impl DesktopShell {
                     .app_launcher_group
                     .group_contents(&self.desktop_entries, &self.config, output)
                     .into_iter()
-                    .map(|group| group.map(Message::AppLauncher)),
+                    .map(|group| group.map(ShellInteraction::AppLauncher)),
             ),
             GroupMenuTopic::ApplicationMenu => self.group_menu(
                 GroupMenuTopic::ApplicationMenu,
@@ -38,7 +38,7 @@ impl DesktopShell {
                     .global_menu_group
                     .group_contents()
                     .into_iter()
-                    .map(|group| group.map(Message::GlobalMenu)),
+                    .map(|group| group.map(ShellInteraction::GlobalMenu)),
             ),
             GroupMenuTopic::Hardware => self.hardware_group_menu(),
             GroupMenuTopic::Network => self.network_group_menu(),
@@ -62,7 +62,7 @@ impl DesktopShell {
                         self.widget_groups
                             .appearance_presets_group
                             .group_content(&self.widget_groups.shell_appearance())
-                            .map(Message::AppearancePresets),
+                            .map(ShellInteraction::AppearancePresets),
                     )),
             ),
         }
@@ -71,20 +71,20 @@ impl DesktopShell {
     pub(in crate::desktop_shell) fn fixed_panel_group(
         &self,
         entry: FixedPanelEntry,
-    ) -> FixedPanelGroup<'_, Message> {
+    ) -> FixedPanelGroup<'_, ShellInteraction> {
         match entry {
             FixedPanelEntry::SessionPower => self
                 .widget_groups
                 .session_power_group
                 .group_content()
-                .map(Message::Session),
+                .map(ShellInteraction::Session),
         }
     }
 
     pub(in crate::desktop_shell) fn standalone_group(
         &self,
         group: StandaloneWidgetGroup,
-    ) -> WidgetGroupContent<'_, Message> {
+    ) -> WidgetGroupContent<'_, ShellInteraction> {
         let config = &self.config;
         let window_placement = Placement::derive(&self.compositor);
         match group {
@@ -92,55 +92,55 @@ impl DesktopShell {
                 .widget_groups
                 .clock_group
                 .group_content()
-                .map(Message::Clock),
+                .map(ShellInteraction::Clock),
             StandaloneWidgetGroup::Notifications => self
                 .widget_groups
                 .notification_group
                 .group_content(self.notification_status())
-                .map(Message::NotificationGroup),
+                .map(ShellInteraction::NotificationGroup),
             StandaloneWidgetGroup::Tray => self
                 .widget_groups
                 .tray_group
                 .group_content(config, &|owner| {
                     window_placement.window_owned_by(owner).is_some()
                 })
-                .map(Message::Tray),
+                .map(ShellInteraction::Tray),
         }
     }
 
     pub(in crate::desktop_shell) fn group_menu<'a>(
         &'a self,
         topic: GroupMenuTopic,
-        groups: impl IntoIterator<Item = WidgetGroupContent<'a, Message>>,
-    ) -> GroupMenuView<'a, Message> {
+        groups: impl IntoIterator<Item = WidgetGroupContent<'a, ShellInteraction>>,
+    ) -> GroupMenuView<'a, ShellInteraction> {
         GroupMenuView::new(
             topic,
             &self.widget_groups.group_menus,
-            Message::GroupMenuState,
+            ShellInteraction::GroupMenuState,
             groups,
         )
     }
 
-    fn network_group_menu(&self) -> GroupMenuView<'_, Message> {
+    fn network_group_menu(&self) -> GroupMenuView<'_, ShellInteraction> {
         let groups = self
             .widget_groups
             .wifi_adapters_group
             .group_contents()
             .into_iter()
-            .map(|group| group.map(Message::WifiAdapters))
+            .map(|group| group.map(ShellInteraction::WifiAdapters))
             .chain(
                 self.widget_groups
                     .mobile_modems_group
                     .group_contents()
                     .into_iter()
-                    .map(|group| group.map(Message::MobileModems)),
+                    .map(|group| group.map(ShellInteraction::MobileModems)),
             )
             .chain(
                 self.widget_groups
                     .ethernet_ports_group
                     .group_contents()
                     .into_iter()
-                    .map(|group| group.map(Message::EthernetPorts)),
+                    .map(|group| group.map(ShellInteraction::EthernetPorts)),
             )
             .chain(
                 self.widget_groups
@@ -154,70 +154,70 @@ impl DesktopShell {
                         self.clock,
                     )
                     .into_iter()
-                    .map(|group| group.map(Message::BluetoothAdapters)),
+                    .map(|group| group.map(ShellInteraction::BluetoothAdapters)),
             )
             .chain([
                 self.widget_groups
                     .reachability_group
                     .group_content()
-                    .map(Message::Reachability),
+                    .map(ShellInteraction::Reachability),
                 self.widget_groups
                     .tailnet_group
                     .group_content()
-                    .map(Message::Tailnet),
+                    .map(ShellInteraction::Tailnet),
                 self.widget_groups
                     .wireguard_tunnels_group
                     .group_content()
-                    .map(Message::WireguardTunnels),
+                    .map(ShellInteraction::WireguardTunnels),
                 self.widget_groups
                     .network_manager_vpn_group
                     .group_content()
-                    .map(Message::NetworkManagerVpns),
+                    .map(ShellInteraction::NetworkManagerVpns),
             ]);
         self.group_menu(GroupMenuTopic::Network, groups)
     }
 
-    fn hardware_group_menu(&self) -> GroupMenuView<'_, Message> {
+    fn hardware_group_menu(&self) -> GroupMenuView<'_, ShellInteraction> {
         let config = &self.config;
         let groups = [
             self.widget_groups
                 .power_group
                 .group_content(config)
-                .map(Message::Power),
+                .map(ShellInteraction::Power),
             self.widget_groups
                 .compute_group
                 .group_content()
-                .map(Message::Compute),
+                .map(ShellInteraction::Compute),
             self.widget_groups
                 .memory_board_group
                 .group_content()
-                .map(Message::MemoryBoard),
+                .map(ShellInteraction::MemoryBoard),
         ]
         .into_iter()
         .chain(
             self.widget_groups
                 .gpu_group
                 .group_contents()
-                .map(|group| group.map(Message::Gpu)),
+                .map(|group| group.map(ShellInteraction::Gpu)),
         )
         .chain(
             self.widget_groups
                 .storage_space_group
                 .group_contents()
                 .into_iter()
-                .map(|group| group.map(Message::Storage)),
+                .map(|group| group.map(ShellInteraction::Storage)),
         )
         .chain(
             self.widget_groups
                 .physical_drive_group
                 .group_contents()
                 .into_iter()
-                .map(|group| group.map(Message::Drive)),
+                .map(|group| group.map(ShellInteraction::Drive)),
         );
         self.group_menu(GroupMenuTopic::Hardware, groups)
     }
 
-    fn agenda_group_menu(&self) -> GroupMenuView<'_, Message> {
+    fn agenda_group_menu(&self) -> GroupMenuView<'_, ShellInteraction> {
         let config = &self.config;
         self.group_menu(
             GroupMenuTopic::Agenda,
@@ -225,82 +225,82 @@ impl DesktopShell {
                 self.widget_groups
                     .caldav_group
                     .group_content(&config.widget_groups.caldav)
-                    .map(Message::Caldav),
+                    .map(ShellInteraction::Caldav),
                 self.widget_groups
                     .weather_group
                     .group_content(config)
-                    .map(Message::Weather),
+                    .map(ShellInteraction::Weather),
                 self.widget_groups
                     .quiet_schedule_group
                     .group_content(config)
-                    .map(Message::QuietSchedule),
+                    .map(ShellInteraction::QuietSchedule),
                 self.widget_groups
                     .session_focus_group
                     .group_content(config)
-                    .map(Message::SessionFocus),
+                    .map(ShellInteraction::SessionFocus),
             ],
         )
     }
 
-    fn media_group_menu(&self) -> GroupMenuView<'_, Message> {
+    fn media_group_menu(&self) -> GroupMenuView<'_, ShellInteraction> {
         let config = &self.config;
         let media_groups = self
             .widget_groups
             .media_group
             .group_contents(config, self.clock)
-            .map(|group| group.map(Message::Media));
+            .map(|group| group.map(ShellInteraction::Media));
         let gamepad_groups = self
             .widget_groups
             .gamepad_group
             .group_contents(&config.widget_groups.gamepad)
             .into_iter()
-            .map(|group| group.map(Message::Gamepad));
+            .map(|group| group.map(ShellInteraction::Gamepad));
         let groups = media_groups
             .chain([
                 self.widget_groups
                     .audio_group
                     .group_content(config)
-                    .map(Message::Audio),
+                    .map(ShellInteraction::Audio),
                 self.widget_groups
                     .voice_dictation_group
                     .group_content()
-                    .map(Message::VoiceDictation),
+                    .map(ShellInteraction::VoiceDictation),
             ])
             .chain(gamepad_groups);
         self.group_menu(GroupMenuTopic::Media, groups)
     }
 
-    fn settings_groups(&self) -> [WidgetGroupContent<'_, Message>; 6] {
+    fn settings_groups(&self) -> [WidgetGroupContent<'_, ShellInteraction>; 6] {
         let config = &self.config;
         [
             self.widget_groups
                 .panel_settings_group
                 .group_content(config)
-                .map(Message::PanelSettings),
+                .map(ShellInteraction::PanelSettings),
             self.widget_groups
                 .sidebar_settings_group
                 .group_content(config)
-                .map(Message::SidebarSettings),
+                .map(ShellInteraction::SidebarSettings),
             self.widget_groups
                 .overlay_settings_group
                 .group_content(config)
-                .map(Message::OverlaySettings),
+                .map(ShellInteraction::OverlaySettings),
             self.widget_groups
                 .compositor_styling_group
                 .group_content(config)
-                .map(Message::CompositorStyling),
+                .map(ShellInteraction::CompositorStyling),
             self.widget_groups
                 .group_menus
                 .settings_content(config)
-                .map(Message::GroupMenuState),
+                .map(ShellInteraction::GroupMenuState),
             self.widget_groups
                 .global_menu_group
                 .switch_content()
-                .map(Message::GlobalMenu),
+                .map(ShellInteraction::GlobalMenu),
         ]
     }
 
-    fn display_group_menu(&self) -> GroupMenuView<'_, Message> {
+    fn display_group_menu(&self) -> GroupMenuView<'_, ShellInteraction> {
         let config = &self.config;
         self.group_menu(
             GroupMenuTopic::Display,
@@ -308,102 +308,102 @@ impl DesktopShell {
                 self.widget_groups
                     .monitor_group
                     .group_content(config)
-                    .map(Message::Monitor),
+                    .map(ShellInteraction::Monitor),
                 self.widget_groups
                     .dark_mode_group
                     .group_content(config)
-                    .map(Message::DarkMode),
+                    .map(ShellInteraction::DarkMode),
                 self.widget_groups
                     .color_temperature_group
                     .group_content(config)
-                    .map(Message::ColorTemperature),
+                    .map(ShellInteraction::ColorTemperature),
                 self.widget_groups
                     .wallpaper_group
                     .group_content()
-                    .map(Message::Wallpaper),
+                    .map(ShellInteraction::Wallpaper),
             ],
         )
     }
 
-    fn session_group_menu(&self) -> GroupMenuView<'_, Message> {
+    fn session_group_menu(&self) -> GroupMenuView<'_, ShellInteraction> {
         let pause_groups = self
             .widget_groups
             .idle_pause_groups
             .pause_groups(&self.config)
             .into_iter()
-            .map(|group| group.map(Message::IdleTimeouts));
+            .map(|group| group.map(ShellInteraction::IdleTimeouts));
         let login_session = self
             .widget_groups
             .login_session_group
             .group_content()
-            .map(Message::LoginSession);
+            .map(ShellInteraction::LoginSession);
         self.group_menu(
             GroupMenuTopic::Session,
             pause_groups.chain(once(login_session)),
         )
     }
 
-    fn virtualization_group_menu(&self) -> GroupMenuView<'_, Message> {
+    fn virtualization_group_menu(&self) -> GroupMenuView<'_, ShellInteraction> {
         self.group_menu(
             GroupMenuTopic::Virtualization,
             [
                 self.widget_groups
                     .virtual_machines_group
                     .group_content()
-                    .map(Message::VirtualMachines),
+                    .map(ShellInteraction::VirtualMachines),
                 self.widget_groups
                     .virtualbox_machines_group
                     .group_content()
-                    .map(Message::VirtualBoxMachines),
+                    .map(ShellInteraction::VirtualBoxMachines),
                 self.widget_groups
                     .vmware_machines_group
                     .group_content()
-                    .map(Message::VmwareMachines),
+                    .map(ShellInteraction::VmwareMachines),
                 self.widget_groups
                     .microvm_guests_group
                     .group_content()
-                    .map(Message::MicrovmGuests),
+                    .map(ShellInteraction::MicrovmGuests),
                 self.widget_groups
                     .incus_instances_group
                     .group_content()
-                    .map(Message::IncusInstances),
+                    .map(ShellInteraction::IncusInstances),
                 self.widget_groups
                     .nspawn_containers_group
                     .group_content()
-                    .map(Message::NspawnContainers),
+                    .map(ShellInteraction::NspawnContainers),
                 self.widget_groups
                     .lxc_containers_group
                     .group_content()
-                    .map(Message::LxcContainers),
+                    .map(ShellInteraction::LxcContainers),
                 self.widget_groups
                     .podman_engines_group
                     .group_content()
-                    .map(Message::PodmanEngines),
+                    .map(ShellInteraction::PodmanEngines),
                 self.widget_groups
                     .docker_engines_group
                     .group_content()
-                    .map(Message::DockerEngines),
+                    .map(ShellInteraction::DockerEngines),
                 self.widget_groups
                     .apptainer_containers_group
                     .group_content()
-                    .map(Message::ApptainerContainers),
+                    .map(ShellInteraction::ApptainerContainers),
                 self.widget_groups
                     .waydroid_container_group
                     .group_content()
-                    .map(Message::WaydroidContainer),
+                    .map(ShellInteraction::WaydroidContainer),
                 self.widget_groups
                     .flatpak_sandboxes_group
                     .group_content()
-                    .map(Message::FlatpakSandboxes),
+                    .map(ShellInteraction::FlatpakSandboxes),
                 self.widget_groups
                     .cgroup_memory_limits_group
                     .group_content(&self.config)
-                    .map(Message::CgroupMemoryLimits),
+                    .map(ShellInteraction::CgroupMemoryLimits),
             ],
         )
     }
 
-    fn services_group_menu(&self) -> GroupMenuView<'_, Message> {
+    fn services_group_menu(&self) -> GroupMenuView<'_, ShellInteraction> {
         let config = &self.config;
         self.group_menu(
             GroupMenuTopic::Services,
@@ -411,35 +411,35 @@ impl DesktopShell {
                 self.widget_groups
                     .llama_server_group
                     .group_content()
-                    .map(Message::LlamaServer),
+                    .map(ShellInteraction::LlamaServer),
                 self.widget_groups
                     .ci_runs_group
                     .group_content()
-                    .map(Message::CiRuns),
+                    .map(ShellInteraction::CiRuns),
                 self.widget_groups
                     .claude_usage_group
                     .group_content()
-                    .map(Message::ClaudeUsage),
+                    .map(ShellInteraction::ClaudeUsage),
                 self.widget_groups
                     .copilot_usage_group
                     .group_content()
-                    .map(Message::CopilotUsage),
+                    .map(ShellInteraction::CopilotUsage),
                 self.widget_groups
                     .openrouter_credit_group
                     .group_content()
-                    .map(Message::OpenRouterCredit),
+                    .map(ShellInteraction::OpenRouterCredit),
                 self.widget_groups
                     .systemd_manager_group
                     .group_content(config, self.clock)
-                    .map(Message::SystemdManager),
+                    .map(ShellInteraction::SystemdManager),
                 self.widget_groups
                     .journal_events_group
                     .group_content(config)
-                    .map(Message::JournalEvents),
+                    .map(ShellInteraction::JournalEvents),
                 self.widget_groups
                     .pending_upgrades_group
                     .group_content(config)
-                    .map(Message::PendingUpgrades),
+                    .map(ShellInteraction::PendingUpgrades),
             ],
         )
     }

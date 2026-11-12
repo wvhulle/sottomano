@@ -97,12 +97,14 @@ impl DesktopShell {
 
     pub(super) fn reflow_toasts(&mut self) -> Task<Message> {
         let placement = window_edge_placement::Placement::derive(&self.compositor);
-        self.notifications.on_compositor_changed(
-            &placement,
-            &self.config,
-            self.widget_groups.notification_settings(),
-            self.clock.instant,
-        )
+        self.notifications
+            .on_compositor_changed(
+                &placement,
+                &self.config,
+                self.widget_groups.notification_settings(),
+                self.clock.instant,
+            )
+            .map(Message::from)
     }
 
     pub(super) fn refocus_session(&mut self) -> Task<Message> {

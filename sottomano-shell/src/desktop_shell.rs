@@ -1,3 +1,4 @@
+use sottomano_widgets::notification_toasts::toast_updates::StoppedChangeWatch;
 mod compositor_update_handling;
 mod config_adoption;
 pub mod desktop_panels;
@@ -86,7 +87,7 @@ use crate::{
         pointer_drag::ShellDrag,
         shell_widget_groups::ShellWidgetGroups,
     },
-    shell_message::Message,
+    shell_message::{Message, ShellInteraction},
 };
 
 pub struct DesktopShell {
@@ -105,7 +106,7 @@ pub struct DesktopShell {
     pub backdrops: BTreeMap<Id, Position>,
     pub sidebar_widths: HashMap<Id, f32>,
     pub hover_card: HoverCardHost,
-    pub notifications: NotificationLayer<Message>,
+    pub notifications: NotificationLayer<ShellInteraction>,
     pub desktop_entries: DesktopIndex,
     pub favicons: Favicons,
     pub controller_artwork: ControllerArtwork,
@@ -237,15 +238,17 @@ impl DesktopShell {
             promoted_groups,
             self.clock.instant,
         );
-        self.notifications.show_widget_toasts(
-            toast_requests,
-            &self.widget_groups.toast_context(
-                &self.compositor,
-                self.desktop_entries.get(),
-                &self.config,
-                self.clock,
-            ),
-        )
+        self.notifications
+            .show_widget_toasts(
+                toast_requests,
+                &self.widget_groups.toast_context(
+                    &self.compositor,
+                    self.desktop_entries.get(),
+                    &self.config,
+                    self.clock,
+                ),
+            )
+            .map(Message::from)
     }
 
     #[allow(clippy::too_many_lines)]
@@ -266,10 +269,13 @@ impl DesktopShell {
             Message::FaviconsResolved(raw) => {
                 self.favicons.merge(raw).map(Message::FaviconsResolved)
             }
-            Message::FirefoxProfileChanged => self
+            Message::FirefoxProfileChanged(Ok(())) => self
                 .favicons
                 .retry_unresolved()
                 .map(Message::FaviconsResolved),
+            Message::FirefoxProfileChanged(Err(watch_failure)) => {
+                self.show_change_watch_failure(StoppedChangeWatch::FirefoxProfile, &watch_failure)
+            }
             Message::Gamepad(msg) => self.update_gamepad(msg),
             Message::Notification(msg) => self.update_notification(msg),
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
@@ -316,7 +322,10 @@ impl DesktopShell {
                 self.notifications.adopt_sound_theme(theme);
                 Task::none()
             }
-            Message::ConfigFileChanged => self.reload_config(),
+            Message::ConfigFileChanged(Ok(())) => self.reload_config(),
+            Message::ConfigFileChanged(Err(watch_failure)) => {
+                self.show_change_watch_failure(StoppedChangeWatch::ConfigFile, &watch_failure)
+            }
             Message::ConfigLoaded(Ok(config)) => self.adopt_config(*config),
             Message::ConfigLoaded(Err(error)) => self.reject_config(&error),
             Message::DismissPressed => {
@@ -357,15 +366,17 @@ impl DesktopShell {
             }
             Message::DesktopBus(Err(failure)) => {
                 tracing::error!("desktop buses: {failure}");
-                self.notifications.show_bus_failure(
-                    &failure,
-                    &self.widget_groups.toast_context(
-                        &self.compositor,
-                        self.desktop_entries.get(),
-                        &self.config,
-                        self.clock,
-                    ),
-                )
+                self.notifications
+                    .show_bus_failure(
+                        &failure,
+                        &self.widget_groups.toast_context(
+                            &self.compositor,
+                            self.desktop_entries.get(),
+                            &self.config,
+                            self.clock,
+                        ),
+                    )
+                    .map(Message::from)
             }
             Message::NiriConfigRead(Ok(configured)) => {
                 self.configured_workspaces = Some(configured);
@@ -406,7 +417,6 @@ impl DesktopShell {
             | Message::Power(_)
             | Message::Compute(_)
             | Message::MemoryBoard(_)
-            | Message::HostHardware(_)
             | Message::Gpu(_)
             | Message::Storage(_)
             | Message::Drive(_)
@@ -476,7 +486,10 @@ impl DesktopShell {
         }
     }
 
-    pub(super) fn hover_content(&self, target: &HoverTarget) -> Option<HoverContent<'_, Message>> {
+    pub(super) fn hover_content(
+        &self,
+        target: &HoverTarget,
+    ) -> Option<HoverContent<'_, ShellInteraction>> {
         if let Some(GroupMenuCascadeSurfaces {
             primary,
             satellites,
@@ -531,7 +544,7 @@ impl DesktopShell {
     fn group_menu_surfaces(
         &self,
         target: &HoverTarget,
-    ) -> Option<GroupMenuCascadeSurfaces<'_, Message>> {
+    ) -> Option<GroupMenuCascadeSurfaces<'_, ShellInteraction>> {
         let HoverTarget::GroupMenu(topic) = target else {
             return None;
         };
@@ -573,7 +586,7 @@ impl DesktopShell {
         )
     }
 
-    fn interactive_panel(&self, target: &HoverTarget) -> Option<Element<'_, Message>> {
+    fn interactive_panel(&self, target: &HoverTarget) -> Option<Element<'_, ShellInteraction>> {
         let popup_corners = Radius::from(
             self.widget_groups
                 .overlay_settings_group
@@ -586,7 +599,7 @@ impl DesktopShell {
                 .widget_groups
                 .tray_group
                 .menu_panel(address, &self.config, popup_corners)
-                .map(|panel| panel.map(Message::Tray)),
+                .map(|panel| panel.map(ShellInteraction::Tray)),
             HoverTarget::Session(session_power_group::SessionTarget::Menu) => Some(
                 self.widget_groups
                     .session_power_group
@@ -595,7 +608,7 @@ impl DesktopShell {
                         popup_corners,
                         self.widget_groups.idle_pause_groups.timeouts(),
                     )
-                    .map(Message::Session),
+                    .map(ShellInteraction::Session),
             ),
             _ => None,
         }
@@ -619,7 +632,7 @@ impl DesktopShell {
         )
     }
 
-    fn hover_card_layer<'a>(&'a self, output: &str) -> Element<'a, Message> {
+    fn hover_card_layer<'a>(&'a self, output: &str) -> Element<'a, ShellInteraction> {
         self.hover_card.view(
             output,
             &self.config,
@@ -635,6 +648,10 @@ impl DesktopShell {
     }
 
     pub fn view(&self, window: Id) -> Element<'_, Message> {
+        self.interaction_view(window).map(Message::from)
+    }
+
+    fn interaction_view(&self, window: Id) -> Element<'_, ShellInteraction> {
         let _span = tracing::trace_span!("view", ?window).entered();
         let blank = || Space::new().width(Length::Fill).height(Length::Fill);
         if self.backdrops.contains_key(&window) {
@@ -664,7 +681,7 @@ impl DesktopShell {
                 },
                 self.clock,
             ))
-            .map(Message::Notification),
+            .map(ShellInteraction::Notification),
             _ => blank().into(),
         }
     }

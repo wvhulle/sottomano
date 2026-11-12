@@ -14,14 +14,14 @@ use sottomano_widgets::{
     },
 };
 
-use crate::{desktop_shell::DesktopShell, shell_message::Message};
+use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};
 
 impl DesktopShell {
     pub(super) fn workspace_sidebar<'a>(
         &'a self,
         window: Id,
         output: &str,
-    ) -> Element<'a, Message> {
+    ) -> Element<'a, ShellInteraction> {
         let sidebar = self.widget_groups.sidebar_settings_group.layer.appearance();
         let frame_style = sidebar.frame_style();
         let outlined_sides = outlined_sides_inward_of(Position::Left)
@@ -45,10 +45,13 @@ impl DesktopShell {
                 )
             })
             .map(|workspaces| {
-                panel_frame(container(workspaces.map(Message::from)), frame_style)
-                    .outlined_sides(outlined_sides)
-                    .backdrop_blur(sidebar.backdrop_blur)
-                    .into()
+                panel_frame(
+                    container(workspaces.map(ShellInteraction::from)),
+                    frame_style,
+                )
+                .outlined_sides(outlined_sides)
+                .backdrop_blur(sidebar.backdrop_blur)
+                .into()
             });
         region_reporter(
             Column::with_children(framed_workspaces),
@@ -57,7 +60,7 @@ impl DesktopShell {
                 ..RegionRoles::default()
             },
         )
-        .on_width_change(move |width| Message::SidebarWidthChanged { window, width })
+        .on_width_change(move |width| ShellInteraction::SidebarWidthChanged { window, width })
         .into()
     }
 }

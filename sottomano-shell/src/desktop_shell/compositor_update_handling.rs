@@ -38,15 +38,17 @@ impl DesktopShell {
     ) -> Task<Message> {
         tracing::warn!("{failure}");
         self.derive_window_snapshot();
-        self.notifications.show_compositor_failure(
-            failure,
-            &self.widget_groups.toast_context(
-                &self.compositor,
-                self.desktop_entries.get(),
-                &self.config,
-                self.clock,
-            ),
-        )
+        self.notifications
+            .show_compositor_failure(
+                failure,
+                &self.widget_groups.toast_context(
+                    &self.compositor,
+                    self.desktop_entries.get(),
+                    &self.config,
+                    self.clock,
+                ),
+            )
+            .map(Message::from)
     }
 
     pub(super) fn read_niri_workspace_order(&self) -> Task<Message> {

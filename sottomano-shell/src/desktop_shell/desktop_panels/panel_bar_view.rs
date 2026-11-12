@@ -22,7 +22,7 @@ use crate::{
         DesktopShell,
         desktop_panels::panel_bar_composition::{PanelBarComposition, PanelZone, PanelZoneEntry},
     },
-    shell_message::Message,
+    shell_message::ShellInteraction,
 };
 
 impl DesktopShell {
@@ -30,7 +30,7 @@ impl DesktopShell {
         &'a self,
         composition: &PanelBarComposition,
         output: &'a str,
-    ) -> Element<'a, Message> {
+    ) -> Element<'a, ShellInteraction> {
         let position = composition.position;
         let zone_row = |zone| {
             self.panel_zone_row(
@@ -58,7 +58,7 @@ impl DesktopShell {
         entry: PanelZoneEntry,
         position: Position,
         output: &'a str,
-    ) -> Vec<Element<'a, Message>> {
+    ) -> Vec<Element<'a, ShellInteraction>> {
         let config = &self.config;
         match entry {
             PanelZoneEntry::Menu(GroupMenuTopic::ApplicationMenu)
@@ -112,8 +112,8 @@ impl DesktopShell {
     fn panel_band<'a>(
         &'a self,
         position: Position,
-        content: impl Into<Element<'a, Message>>,
-    ) -> Element<'a, Message> {
+        content: impl Into<Element<'a, ShellInteraction>>,
+    ) -> Element<'a, ShellInteraction> {
         let panels = self.widget_groups.panel_settings_group.layer.appearance();
         let centered = mouse_area(
             container(content)
@@ -121,7 +121,7 @@ impl DesktopShell {
                 .height(Length::Fill)
                 .align_y(Vertical::Center),
         )
-        .on_press(Message::DismissPressed);
+        .on_press(ShellInteraction::DismissPressed);
         let group_framing = self.widget_groups.panel_settings_group.group_framing();
         let band = container(centered)
             .width(Length::Fill)
@@ -152,8 +152,8 @@ impl DesktopShell {
     fn panel_zone_row<'a>(
         &'a self,
         position: Position,
-        groups: impl IntoIterator<Item = Element<'a, Message>>,
-    ) -> Element<'a, Message> {
+        groups: impl IntoIterator<Item = Element<'a, ShellInteraction>>,
+    ) -> Element<'a, ShellInteraction> {
         let config = &self.config;
         let panels = self.widget_groups.panel_settings_group.layer.appearance();
         let group_framing = self.widget_groups.panel_settings_group.group_framing();
@@ -190,7 +190,7 @@ impl DesktopShell {
         &'a self,
         position: Position,
         output: &'a str,
-    ) -> Option<Element<'a, Message>> {
+    ) -> Option<Element<'a, ShellInteraction>> {
         match self
             .widget_groups
             .sidebar_settings_group
@@ -206,7 +206,7 @@ impl DesktopShell {
                     .empty_workspace_folding(),
                 self.panel_slot_context(position),
             )
-            .map(|workspaces| workspaces.map(Message::from)),
+            .map(|workspaces| workspaces.map(ShellInteraction::from)),
         }
     }
 
@@ -214,7 +214,7 @@ impl DesktopShell {
         &'a self,
         position: Position,
         output: &'a str,
-    ) -> Option<Element<'a, Message>> {
+    ) -> Option<Element<'a, ShellInteraction>> {
         self.widget_groups
             .window_group
             .view(
@@ -224,6 +224,9 @@ impl DesktopShell {
                 output,
                 self.panel_slot_context(position),
             )
-            .map(|element| element.map(|event| Message::from(event.map(Message::WindowGroup))))
+            .map(|element| {
+                element
+                    .map(|event| ShellInteraction::from(event.map(ShellInteraction::WindowGroup)))
+            })
     }
 }

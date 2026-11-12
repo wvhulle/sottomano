@@ -8,15 +8,25 @@ use sottomano_widgets::{
     background_work::snapshot_subscription,
     group_menus::group_source_demand::GroupSourceDemand,
     widget_groups::{
-        audio_group::AudioGroup, bluetooth_adapters_group::BluetoothAdaptersGroup,
-        copilot_usage_group::CopilotUsageGroup, dark_mode_group::DarkModeGroup,
-        idle_pause_groups::IdlePauseGroups, journal_events_group::JournalEventsGroup,
-        login_session_group::LoginSessionGroup, memory_board_group::MemoryBoardGroup,
-        mobile_modems_group::MobileModemsGroup, monitor_group::MonitorGroup,
-        pending_upgrades_group::PendingUpgradesGroup, power_group::PowerGroup,
-        quiet_schedule_group::QuietScheduleGroup, session_focus_group::SessionFocusGroup,
-        systemd_manager_group::SystemdManagerGroup, tray_group::TrayGroup,
-        virtual_machines_group::VirtualMachinesGroup, widget_group_identity::WidgetGroupFamily,
+        audio_group::AudioGroup,
+        bluetooth_adapters_group::BluetoothAdaptersGroup,
+        compute_group::ComputeMessage,
+        copilot_usage_group::CopilotUsageGroup,
+        dark_mode_group::DarkModeGroup,
+        idle_pause_groups::IdlePauseGroups,
+        journal_events_group::JournalEventsGroup,
+        login_session_group::LoginSessionGroup,
+        memory_board_group::{MemoryBoardGroup, MemoryBoardMessage},
+        mobile_modems_group::MobileModemsGroup,
+        monitor_group::MonitorGroup,
+        pending_upgrades_group::PendingUpgradesGroup,
+        power_group::PowerGroup,
+        quiet_schedule_group::QuietScheduleGroup,
+        session_focus_group::SessionFocusGroup,
+        systemd_manager_group::SystemdManagerGroup,
+        tray_group::TrayGroup,
+        virtual_machines_group::VirtualMachinesGroup,
+        widget_group_identity::WidgetGroupFamily,
         window_group::WindowGroup,
     },
 };
@@ -223,7 +233,10 @@ impl ShellWidgetGroups {
             SessionFocusGroup::sleep_subscription(buses).map(Message::SessionFocus),
             WindowGroup::launcher_entry_subscription(buses).map(Message::WindowGroup),
             snapshot_subscription::<HostHardware>(buses.clone())
-                .map(|delivery| Message::HostHardware(Box::new(delivery))),
+                .map(|delivery| Message::Compute(ComputeMessage::HostHardware(Box::new(delivery)))),
+            snapshot_subscription::<HostHardware>(buses.clone()).map(|delivery| {
+                Message::MemoryBoard(MemoryBoardMessage::Hardware(Box::new(delivery)))
+            }),
             self.copilot_usage_group
                 .account_subscription(buses)
                 .map(Message::CopilotUsage),

@@ -20,7 +20,7 @@ use crate::{
         DesktopShell,
         desktop_panels::panel_bar_composition::{composed_menu_topics, composed_standalone_groups},
     },
-    shell_message::Message,
+    shell_message::{Message, ShellInteraction},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,7 +53,7 @@ pub(super) fn alert_rescan_need(message: &Message) -> AlertRescanNeed {
 }
 
 pub(super) struct GroupAlertScan {
-    pub toast_requests: GroupToastRequests<Message>,
+    pub toast_requests: GroupToastRequests<ShellInteraction>,
     pub promoted_groups: Vec<AlertPromotedGroup>,
 }
 
@@ -90,18 +90,20 @@ impl DesktopShell {
             .notification_toast_surfaces()
             .map(|(id, output)| (output.to_owned(), id))
             .collect();
-        self.notifications.update(
-            msg,
-            &ToastContext::new(
-                &self.compositor,
-                self.desktop_entries.get(),
-                &self.config,
-                self.widget_groups.notification_settings(),
-                self.widget_groups.quiet_schedule_group.quiet_phase(),
-                self.clock,
-            ),
-            &|output| toast_surfaces.get(output).copied(),
-        )
+        self.notifications
+            .update(
+                msg,
+                &ToastContext::new(
+                    &self.compositor,
+                    self.desktop_entries.get(),
+                    &self.config,
+                    self.widget_groups.notification_settings(),
+                    self.widget_groups.quiet_schedule_group.quiet_phase(),
+                    self.clock,
+                ),
+                &|output| toast_surfaces.get(output).copied(),
+            )
+            .map(Message::from)
     }
 
     pub fn update_notification_group(&mut self, msg: NotificationGroupMessage) -> Task<Message> {
@@ -138,14 +140,17 @@ impl DesktopShell {
                 .override_screen_off(None)
                 .map(Message::IdleTimeouts),
             QuietChange::Ended => {
-                let released = self.notifications.release_held(&ToastContext::new(
-                    &self.compositor,
-                    self.desktop_entries.get(),
-                    &self.config,
-                    self.widget_groups.notification_settings(),
-                    QuietPhase::Inactive,
-                    self.clock,
-                ));
+                let released = self
+                    .notifications
+                    .release_held(&ToastContext::new(
+                        &self.compositor,
+                        self.desktop_entries.get(),
+                        &self.config,
+                        self.widget_groups.notification_settings(),
+                        QuietPhase::Inactive,
+                        self.clock,
+                    ))
+                    .map(Message::from);
                 Task::batch([
                     released,
                     self.widget_groups

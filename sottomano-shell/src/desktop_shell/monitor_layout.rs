@@ -6,7 +6,7 @@ use iced::{
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     hover_cards::{HoverCardMessage, WidgetAnchor},
-    widget_groups::{window_group::WindowGroupMessage, workspaces_group},
+    widget_groups::{window_group::WindowGroupInteraction, workspaces_group},
     widgets::pointer_drag::{
         DraggedPanelSlot, ListDeparture,
         drag_ghost::{GhostPlacement, drag_ghost},
@@ -18,18 +18,18 @@ use crate::{
         DesktopShell,
         desktop_panels::panel_bar_composition::{BOTTOM_PANEL, TOP_PANEL},
     },
-    shell_message::Message,
+    shell_message::ShellInteraction,
 };
 
 fn anchor_hover_cards_on_surface(
     surface: Id,
     position: Position,
     origin_in_overlay: Vector,
-    content: Element<'_, Message>,
-) -> Element<'_, Message> {
+    content: Element<'_, ShellInteraction>,
+) -> Element<'_, ShellInteraction> {
     content.map(move |message| match message {
-        Message::HoverCard(HoverCardMessage::AnchorLaidOut(widget_anchor)) => {
-            Message::HoverCard(HoverCardMessage::LaidOut {
+        ShellInteraction::HoverCard(HoverCardMessage::AnchorLaidOut(widget_anchor)) => {
+            ShellInteraction::HoverCard(HoverCardMessage::LaidOut {
                 surface,
                 widget_anchor: WidgetAnchor {
                     anchor: widget_anchor.anchor + origin_in_overlay,
@@ -37,30 +37,30 @@ fn anchor_hover_cards_on_surface(
                 },
             })
         }
-        Message::HoverCard(HoverCardMessage::EnterAnchor {
+        ShellInteraction::HoverCard(HoverCardMessage::EnterAnchor {
             target,
             announcement,
-        }) => Message::HoverCard(HoverCardMessage::Enter {
+        }) => ShellInteraction::HoverCard(HoverCardMessage::Enter {
             surface,
             position,
             target,
             announcement,
         }),
-        Message::HoverCard(HoverCardMessage::MenuHandlePointedAnchor {
+        ShellInteraction::HoverCard(HoverCardMessage::MenuHandlePointedAnchor {
             target,
             pointing,
             announcement,
-        }) => Message::HoverCard(HoverCardMessage::MenuHandlePointed {
+        }) => ShellInteraction::HoverCard(HoverCardMessage::MenuHandlePointed {
             surface,
             position,
             target,
             pointing,
             announcement,
         }),
-        Message::HoverCard(HoverCardMessage::MenuHandlePressedAnchor {
+        ShellInteraction::HoverCard(HoverCardMessage::MenuHandlePressedAnchor {
             target,
             announcement,
-        }) => Message::HoverCard(HoverCardMessage::MenuHandlePressed {
+        }) => ShellInteraction::HoverCard(HoverCardMessage::MenuHandlePressed {
             surface,
             position,
             target,
@@ -75,7 +75,7 @@ impl DesktopShell {
         &'a self,
         window: Id,
         output: &'a str,
-    ) -> Element<'a, Message> {
+    ) -> Element<'a, ShellInteraction> {
         let float = self.widget_groups.panel_settings_group.float_offset_px();
         let origin = Vector::new(-float, -float);
         let on_edge =
@@ -99,7 +99,11 @@ impl DesktopShell {
         .into()
     }
 
-    fn drag_ghost_layer<'a>(&'a self, window: Id, output: &'a str) -> Option<Element<'a, Message>> {
+    fn drag_ghost_layer<'a>(
+        &'a self,
+        window: Id,
+        output: &'a str,
+    ) -> Option<Element<'a, ShellInteraction>> {
         let slot_context = self.panel_slot_context(Position::Bottom);
         let view = slot_context.drag;
         let drag = view.drag.filter(|drag| drag.surface == window)?;
@@ -107,7 +111,7 @@ impl DesktopShell {
         let card = match drag.item {
             DraggedPanelSlot::Workspace(workspace) => {
                 workspaces_group::drag_ghost(snapshot, output, workspace, slot_context)?
-                    .map(Message::from)
+                    .map(ShellInteraction::from)
             }
             DraggedPanelSlot::Window { window, .. } => self
                 .widget_groups
@@ -120,7 +124,9 @@ impl DesktopShell {
                     window,
                     slot_context,
                 )?
-                .map(|message| Message::WindowGroup(WindowGroupMessage::WindowList(message))),
+                .map(|message| {
+                    ShellInteraction::WindowGroup(WindowGroupInteraction::WindowList(message))
+                }),
         };
         let placement = match drag.item {
             DraggedPanelSlot::Window { .. }

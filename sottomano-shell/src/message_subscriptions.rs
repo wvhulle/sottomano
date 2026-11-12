@@ -69,7 +69,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
                 config_file.path().to_path_buf(),
             )])
         })
-        .map(|()| Message::ConfigFileChanged),
+        .map(Message::ConfigFileChanged),
         state
             .widget_groups
             .subscription(&state.config, state.desktop_buses.as_ref()),
@@ -95,7 +95,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         Subscription::run(desktop_entry_changes::application_changes)
             .map(|()| Message::ReloadDesktopEntries),
         Subscription::run(firefox_favicon_lookup::profile_changes)
-            .map(|()| Message::FirefoxProfileChanged),
+            .map(Message::FirefoxProfileChanged),
         compositor_subscription(),
         notifications_subscription(),
         state
