@@ -147,7 +147,10 @@ impl Snapshot {
             return self;
         };
         let moved = indicators.remove(from);
-        indicators.insert(to_idx.saturating_sub(1).min(indicators.len()), moved);
+        let to_position = to_idx
+            .checked_sub(1)
+            .expect("compositor workspace indices start at 1");
+        indicators.insert(to_position.min(indicators.len()), moved);
         indicators
             .iter_mut()
             .zip(1..)

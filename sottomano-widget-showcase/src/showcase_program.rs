@@ -422,7 +422,8 @@ impl ShowcaseState {
     fn advance_frame(&mut self, frame: Clock) -> Task<ShowcaseMessage> {
         let elapsed = frame
             .instant
-            .saturating_duration_since(self.booted_at.instant);
+            .checked_duration_since(self.booted_at.instant)
+            .expect("animation frames start after the showcase booted");
         let clock = self.booted_at.advanced(elapsed);
         self.clock = clock;
         let mut tasks = Vec::new();

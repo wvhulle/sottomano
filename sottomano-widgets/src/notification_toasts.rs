@@ -298,8 +298,7 @@ impl<Routed: Clone> NotificationLayer<Routed> {
         }
     }
 
-    #[allow(clippy::cast_possible_truncation)]
     fn fresh_shell_toast_id(&self) -> u32 {
-        u32::MAX.wrapping_sub(self.next_seq as u32)
+        u32::MAX - u32::try_from(self.next_seq).expect("a session shows fewer than u32::MAX toasts")
     }
 }

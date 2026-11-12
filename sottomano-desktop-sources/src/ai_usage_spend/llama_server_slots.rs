@@ -132,7 +132,8 @@ impl LlamaServer {
         let generation_rate = previous.and_then(|previous| {
             let elapsed = self
                 .sampled_at
-                .duration_since(previous.sampled_at)
+                .checked_duration_since(previous.sampled_at)
+                .expect("the previous slot sample was taken earlier")
                 .as_secs_f64();
             let decoded: Vec<u32> = self
                 .busy_slots()
@@ -144,7 +145,17 @@ impl LlamaServer {
                         .find(|earlier| earlier.id == slot.id)?
                         .task
                         .filter(|before| before.id == task.id)?;
-                    Some(task.decoded_tokens.saturating_sub(before.decoded_tokens))
+                    let Some(decoded_since) =
+                        task.decoded_tokens.checked_sub(before.decoded_tokens)
+                    else {
+                        tracing::debug!(
+                            "llama slots: task {} in slot {} decoded fewer tokens than before",
+                            task.id,
+                            slot.id
+                        );
+                        return None;
+                    };
+                    Some(decoded_since)
                 })
                 .collect();
             (elapsed > 0.0 && !decoded.is_empty())

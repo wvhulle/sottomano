@@ -27,6 +27,11 @@ pub struct BtrfsSpace {
 
 impl BtrfsSpace {
     #[must_use]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "used and allocated come from separate sysfs reads, so a chunk freed in between \
+                  can make used pass allocated"
+    )]
     pub fn metadata_slack(&self) -> ByteSize {
         ByteSize::b(
             self.metadata
@@ -95,7 +100,10 @@ impl BtrfsFilesystem {
                 .map(ByteSize::b)?,
             metadata_chunk: self
                 .allocation_bytes("metadata", "chunk_size")
-                .unwrap_or(FALLBACK_METADATA_CHUNK),
+                .unwrap_or_else(|chunk_failure| {
+                    tracing::debug!("btrfs: metadata chunk size: {chunk_failure}");
+                    FALLBACK_METADATA_CHUNK
+                }),
         })
     }
 
@@ -133,9 +141,15 @@ impl BtrfsFilesystem {
                     .map(|bytes| bytes.as_u64())
             })
             .sum::<Result<_, _>>()?;
-        Ok(ByteSize::b(
-            (device_sectors * SECTOR_BYTES).saturating_sub(allocated),
-        ))
+        (device_sectors * SECTOR_BYTES)
+            .checked_sub(allocated)
+            .map(ByteSize::b)
+            .ok_or_else(|| {
+                Error::Unparsable(format!(
+                    "{}: allocated chunks exceed the device size",
+                    self.dir.display()
+                ))
+            })
     }
 
     fn allocation_bytes(&self, kind: &str, counter: &str) -> Result<ByteSize, Error> {

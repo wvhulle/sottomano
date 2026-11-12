@@ -13,7 +13,7 @@ mod window_focus_timeline;
 
 use std::{mem::take, path::Path};
 
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Utc};
 use sottomano_toml_config::widget_groups::session_focus::SessionFocusConfig;
 
 use self::{away_reasons::LatestAwayReasons, window_focus_timeline::OngoingWindowFocus};
@@ -75,8 +75,7 @@ impl FocusLedger {
 
     pub fn load_history(&mut self, loaded: LoadedSpans, config: &SessionFocusConfig) {
         let tracking_started_at = self.tracking_started_at;
-        let shortest_counted_focus =
-            TimeDelta::from_std(config.shortest_counted_focus).unwrap_or(TimeDelta::MAX);
+        let shortest_counted_focus = config.shortest_counted_focus;
         let tracked_spans = take(&mut self.finished_window_focus_spans);
         for span in loaded
             .window_focus_spans
@@ -108,8 +107,7 @@ impl FocusLedger {
         now: DateTime<Utc>,
         config: &SessionFocusConfig,
     ) -> Vec<SpanWrite> {
-        let shortest_counted_focus =
-            TimeDelta::from_std(config.shortest_counted_focus).unwrap_or(TimeDelta::MAX);
+        let shortest_counted_focus = config.shortest_counted_focus;
         self.ongoing_presence_span.ended_at = now;
         let mut span_writes: Vec<SpanWrite> = self
             .ongoing_focus_write(now, shortest_counted_focus)
@@ -143,6 +141,8 @@ impl FocusLedger {
 
 #[cfg(test)]
 mod tests {
+    use chrono::TimeDelta;
+
     use super::{
         test_steps::{at, config, focused, focused_in, folded, no_window_focused, step, whole_day},
         *,

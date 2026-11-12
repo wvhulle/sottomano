@@ -68,6 +68,16 @@ impl BootStage {
     }
 }
 
+fn phase_between(phase_start: Duration, phase_end: Duration, stage: BootStage) -> Option<Duration> {
+    let phase_length = phase_end.checked_sub(phase_start);
+    if phase_length.is_none() {
+        tracing::debug!(
+            "boot timeline: {stage:?} ends at {phase_end:?}, before it starts at {phase_start:?}"
+        );
+    }
+    phase_length
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BootPhase {
     pub stage: BootStage,
@@ -79,17 +89,17 @@ impl BootPhases {
         let userspace_start = timestamps.userspace?;
         let loader_start = timestamps.loader;
         Some(Self {
-            firmware: timestamps.firmware.map(|firmware_start| {
-                loader_start.map_or(firmware_start, |loader_start| {
-                    firmware_start.saturating_sub(loader_start)
+            firmware: timestamps.firmware.and_then(|firmware_start| {
+                loader_start.map_or(Some(firmware_start), |loader_start| {
+                    phase_between(loader_start, firmware_start, BootStage::Firmware)
                 })
             }),
             loader: loader_start,
             kernel: timestamps.initrd.unwrap_or(userspace_start),
-            initrd: timestamps
-                .initrd
-                .map(|initrd_start| userspace_start.saturating_sub(initrd_start)),
-            userspace: finish.saturating_sub(userspace_start),
+            initrd: timestamps.initrd.and_then(|initrd_start| {
+                phase_between(initrd_start, userspace_start, BootStage::Initrd)
+            }),
+            userspace: phase_between(userspace_start, finish, BootStage::Userspace)?,
         })
     }
 
@@ -201,7 +211,11 @@ impl DurationComparison {
         Some(Self {
             previous,
             change,
-            severity: thresholds.severity(current.saturating_sub(previous), change),
+            severity: current
+                .checked_sub(previous)
+                .map_or(Severity::Normal, |slowdown| {
+                    thresholds.severity(slowdown, change)
+                }),
         })
     }
 }
@@ -355,9 +369,10 @@ async fn system_boot(
     let phases = BootPhases::of_timestamps(&startup.timestamps, startup.finish)
         .ok_or_else(|| zbus::Error::Failure("systemd reports no userspace start".to_owned()))?;
     let previous_os_startup = blocking("systemd startup history", || {
-        read_previous_os_startup()
-            .inspect_err(|e| tracing::warn!("systemd startup history: {e}"))
-            .unwrap_or_default()
+        read_previous_os_startup().unwrap_or_else(|history_failure| {
+            tracing::warn!("systemd startup history: {history_failure}");
+            None
+        })
     })
     .await;
     Ok(BootTimeline {

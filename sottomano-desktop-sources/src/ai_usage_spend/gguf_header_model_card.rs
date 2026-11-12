@@ -61,6 +61,7 @@ pub enum GgufHeaderError {
     NotGguf,
     UnsupportedVersion(u32),
     UnknownValueType(u32),
+    NonUnicodeText,
 }
 
 impl fmt::Display for GgufHeaderError {
@@ -78,6 +79,9 @@ impl fmt::Display for GgufHeaderError {
                     formatter,
                     "GGUF metadata uses unknown value type {value_type}"
                 )
+            }
+            GgufHeaderError::NonUnicodeText => {
+                formatter.write_str("GGUF metadata holds text that is not unicode")
             }
         }
     }
@@ -125,7 +129,7 @@ impl<Source: Read + Seek> HeaderReader<Source> {
         let length = usize::try_from(self.unsigned_64()?).map_err(|_| GgufHeaderError::NotGguf)?;
         let mut buffer = vec![0; length];
         self.source.read_exact(&mut buffer)?;
-        Ok(String::from_utf8_lossy(&buffer).into_owned())
+        String::from_utf8(buffer).map_err(|_| GgufHeaderError::NonUnicodeText)
     }
 
     fn skip_text(&mut self) -> Result<(), GgufHeaderError> {

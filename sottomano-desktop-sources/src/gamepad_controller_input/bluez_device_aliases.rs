@@ -28,6 +28,8 @@ async fn bluetooth_alias_lookup(connection: &Connection) -> zbus::Result<HashMap
 pub async fn bluetooth_aliases(connection: &Connection) -> HashMap<String, String> {
     bluetooth_alias_lookup(connection)
         .await
-        .inspect_err(|e| tracing::debug!("gamepad: no Bluetooth aliases: {e}"))
-        .unwrap_or_default()
+        .unwrap_or_else(|alias_failure| {
+            tracing::debug!("gamepad: no Bluetooth aliases: {alias_failure}");
+            HashMap::new()
+        })
 }

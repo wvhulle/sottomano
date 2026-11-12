@@ -1,4 +1,4 @@
-use std::{fs, sync::Arc, time::Duration};
+use std::{fs, io, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
 use futures::Stream;
@@ -16,7 +16,10 @@ use crate::{
         logind_manager::{InhibitorRow, ManagerProxy},
     },
     non_empty_text::non_empty,
-    system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
+    system_protocol_clients::{
+        dbus_desktop_buses::{self, DesktopBuses},
+        shell_command_output::shown_process_text,
+    },
 };
 
 const OBSTACLE_POLL_PERIOD: Duration = Duration::from_secs(30);
@@ -272,7 +275,14 @@ async fn read_obstacles(
 }
 
 fn read_kernel_text(path: &str) -> String {
-    fs::read_to_string(path).unwrap_or_default()
+    match fs::read_to_string(path) {
+        Ok(kernel_text) => kernel_text,
+        Err(read_failure) if read_failure.kind() == io::ErrorKind::NotFound => String::new(),
+        Err(read_failure) => {
+            tracing::warn!("sleep obstacles: {path} is unreadable: {read_failure}");
+            String::new()
+        }
+    }
 }
 
 async fn read_kernel_hibernation(app_names: &InhibitorAppNames) -> KernelHibernation {
@@ -305,10 +315,31 @@ enum SecretMemoryScan {
 
 async fn secret_memory_scan() -> SecretMemoryScan {
     match Command::new(SECRET_MEMORY_HELPER_PATH).output().await {
-        Ok(output) if output.status.success() => SecretMemoryScan::Scanned(pids_in_helper_output(
-            &String::from_utf8_lossy(&output.stdout),
-        )),
-        Ok(_) | Err(_) => SecretMemoryScan::Unavailable,
+        Ok(output) if output.status.success() => match String::from_utf8(output.stdout) {
+            Ok(helper_output) => SecretMemoryScan::Scanned(pids_in_helper_output(&helper_output)),
+            Err(encoding_failure) => {
+                tracing::warn!(
+                    "sleep obstacles: secret memory helper output is not utf-8: {encoding_failure}"
+                );
+                SecretMemoryScan::Unavailable
+            }
+        },
+        Ok(failed_output) => {
+            tracing::warn!(
+                "sleep obstacles: secret memory helper failed with {}: {}",
+                failed_output.status,
+                shown_process_text(&failed_output.stderr).trim()
+            );
+            SecretMemoryScan::Unavailable
+        }
+        Err(launch_failure) if launch_failure.kind() == io::ErrorKind::NotFound => {
+            tracing::debug!("sleep obstacles: secret memory helper is not installed");
+            SecretMemoryScan::Unavailable
+        }
+        Err(launch_failure) => {
+            tracing::warn!("sleep obstacles: secret memory helper did not start: {launch_failure}");
+            SecretMemoryScan::Unavailable
+        }
     }
 }
 
@@ -381,7 +412,10 @@ async fn open_window_owners() -> CompositorWindows {
     };
     spawn_blocking(move || window_owners_of(compositor_pids))
         .await
-        .unwrap_or(CompositorWindows::Unavailable)
+        .unwrap_or_else(|join_failure| {
+            tracing::warn!("sleep obstacles: window owner lookup did not finish: {join_failure}");
+            CompositorWindows::Unavailable
+        })
 }
 
 fn window_owners_of(compositor_pids: Vec<i32>) -> CompositorWindows {

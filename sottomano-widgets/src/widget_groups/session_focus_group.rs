@@ -7,7 +7,7 @@ mod session_face;
 mod sqlite_focus_spans;
 mod window_usage;
 
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Utc};
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::login_session_presence::logind_session_commands::perform_session_action;
 use sottomano_desktop_sources::{
@@ -170,8 +170,7 @@ impl SessionFocusGroup {
                 Task::future(perform_session_action(action)).discard()
             }
             SessionFocusMessage::WarningSnoozed => {
-                let snooze_length =
-                    TimeDelta::from_std(config.warning_snooze).unwrap_or(TimeDelta::MAX);
+                let snooze_length = config.warning_snooze;
                 self.snooze = Some(WarningSnooze {
                     until: clock.utc() + snooze_length,
                 });

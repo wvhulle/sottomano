@@ -65,7 +65,7 @@ async fn read_timeouts(connection: &turso::Connection) -> Result<Timeouts, Store
     let mut timeouts = Timeouts::default();
     while let Some(row) = rows.next().await? {
         let after = Some(Duration::from_secs(
-            u64::try_from(columns.integer(&row, "after_seconds")?).unwrap_or_default(),
+            columns.ranged_integer(&row, "after_seconds")?,
         ));
         match columns.text(&row, "idle_action")?.as_str() {
             "lock_user" => timeouts.lock_user = after,
@@ -100,7 +100,8 @@ async fn write_timeouts(
                     "INSERT INTO idle_action_timeouts (idle_action, after_seconds) VALUES (?1, ?2)",
                     (
                         idle_action,
-                        i64::try_from(duration.as_secs()).unwrap_or(i64::MAX),
+                        i64::try_from(duration.as_secs())
+                            .expect("an idle timeout is shorter than i64::MAX seconds"),
                     ),
                 )
                 .await?;

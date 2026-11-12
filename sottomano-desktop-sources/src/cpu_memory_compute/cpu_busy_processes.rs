@@ -113,7 +113,9 @@ fn read_cpu_busy_processes() -> Result<CpuBusyProcesses, Error> {
                 pid: stat.pid,
                 started: stat.starttime,
             };
-            let spent = (stat.utime + stat.stime).saturating_sub(*earlier.get(&incarnation)?);
+            let spent = (stat.utime + stat.stime)
+                .checked_sub(*earlier.get(&incarnation)?)
+                .expect("the cpu time of one process incarnation never decreases");
             (spent > 0).then(|| CpuBusyProcess {
                 pid: stat.pid,
                 name: binary_name(&process).unwrap_or(stat.comm),

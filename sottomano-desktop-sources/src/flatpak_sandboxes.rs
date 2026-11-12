@@ -1,5 +1,6 @@
 use std::{
-    env, fs,
+    env,
+    fs::{self, DirEntry},
     future::ready,
     io,
     path::{Path, PathBuf},
@@ -126,8 +127,9 @@ fn listed_sandboxes_in(instances_directory: &Path, proc_root: &Path) -> FlatpakS
             let instance_info = parsed_instance_info(&info_text);
             let sandbox_pid = sandbox_pid_in(&entry.path())?;
             let process_directory = proc_root.join(sandbox_pid.to_string());
+            let instance_id = instance_id_of(&entry)?;
             process_directory.exists().then_some(FlatpakSandboxListing {
-                instance_id: entry.file_name().to_string_lossy().into_owned(),
+                instance_id,
                 application_id: instance_info.application_id?,
                 running: true,
             })
@@ -296,7 +298,7 @@ fn running_sandboxes_in(instances_directory: &Path, proc_root: &Path) -> Flatpak
                 return None;
             }
             Some(FlatpakSandbox {
-                instance_id: entry.file_name().to_string_lossy().into_owned(),
+                instance_id: instance_id_of(&entry)?,
                 application_id: instance_info.application_id?,
                 runtime_reference: instance_info.runtime_reference,
                 branch: instance_info.branch,
@@ -321,6 +323,19 @@ fn running_sandboxes_in(instances_directory: &Path, proc_root: &Path) -> Flatpak
             .then_with(|| first.instance_id.cmp(&second.instance_id))
     });
     FlatpakSandboxes { sandboxes }
+}
+
+fn instance_id_of(entry: &DirEntry) -> Option<String> {
+    entry
+        .file_name()
+        .into_string()
+        .inspect_err(|non_utf8_name| {
+            tracing::warn!(
+                "flatpak: skipping instance directory with a non-utf-8 name {}",
+                non_utf8_name.display()
+            );
+        })
+        .ok()
 }
 
 #[cfg(test)]

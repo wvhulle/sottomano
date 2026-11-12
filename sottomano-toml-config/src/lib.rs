@@ -3,6 +3,7 @@ pub mod desktop_panels;
 pub mod group_items;
 pub mod group_menus;
 pub mod hover_cards;
+pub mod humantime_time_delta;
 pub mod launched_programs;
 pub mod load;
 pub mod notification_toasts;

@@ -70,8 +70,8 @@ impl GroupItemReading for Vec<CoredumpEntry> {
         Phosphor::Bug(Weight::Regular).into()
     }
 
-    fn badge(&self) -> Option<u32> {
-        Some(u32::try_from(self.len()).unwrap_or(u32::MAX))
+    fn badge(&self) -> Option<usize> {
+        Some(self.len())
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {

@@ -67,12 +67,17 @@ pub async fn download_feed_events(
         tracing::debug!(
             "subscription {calendar_name}: expanded {} bytes in {:?}",
             feed_text.len(),
-            expansion_started.elapsed(),
+            Instant::now()
+                .checked_duration_since(expansion_started)
+                .expect("the expansion started before it finished"),
         );
         expanded_events
     })
     .await
-    .unwrap_or(Err(FeedExpansionError::ExpansionInterrupted))
+    .unwrap_or_else(|join_failure| {
+        tracing::warn!("calendar feed: expansion did not finish: {join_failure}");
+        Err(FeedExpansionError::ExpansionInterrupted)
+    })
 }
 
 pub fn expanded_feed_events(
@@ -112,7 +117,8 @@ fn series_calendars(feed: &ICalendar) -> impl Iterator<Item = ICalendar> + '_ {
 }
 
 fn calendar_without_time_ranges(feed: &ICalendar) -> ICalendar {
-    let component_count = u32::try_from(feed.components.len()).unwrap_or(u32::MAX);
+    let component_count = u32::try_from(feed.components.len())
+        .expect("icalendar component ids are u32, so a feed holds fewer components");
     let time_range_ids: Vec<u32> = (0..component_count)
         .filter(|component_id| {
             feed.component_by_id(*component_id)
@@ -153,7 +159,8 @@ fn appended_component_id(
         .map(|child| appended_component_id(series, feed, child))
         .collect();
     series.components[appended_index].component_ids = child_ids;
-    u32::try_from(appended_index).unwrap_or(u32::MAX)
+    u32::try_from(appended_index)
+        .expect("icalendar component ids are u32, so a series holds fewer components")
 }
 
 fn series_events_in_window(

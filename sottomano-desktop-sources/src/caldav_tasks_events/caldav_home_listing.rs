@@ -60,9 +60,7 @@ impl CalendarHome {
             )
             .into());
         }
-        Ok(parsed_home_listing(&String::from_utf8_lossy(
-            response.body(),
-        ))?)
+        Ok(parsed_home_listing(str::from_utf8(response.body())?)?)
     }
 }
 

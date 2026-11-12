@@ -90,7 +90,7 @@ fn named_runtime_parents() -> Result<ApptainerContainerListings, Error> {
             let image_file = container_process.and_then(|container| image_file_of(container.pid));
             let container_name = image_file.as_deref().and_then(Path::file_stem).map_or_else(
                 || format!("container {}", runtime_parent.pid),
-                |image_stem| image_stem.to_string_lossy().into_owned(),
+                |image_stem| image_stem.display().to_string(),
             );
             ApptainerContainerListing {
                 runtime_pid: runtime_parent.pid,
@@ -122,7 +122,7 @@ impl ApptainerContainer {
             .and_then(Path::file_stem)
             .map_or_else(
                 || format!("container {}", self.runtime_pid),
-                |image_stem| image_stem.to_string_lossy().into_owned(),
+                |image_stem| image_stem.display().to_string(),
             )
     }
 }

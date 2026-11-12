@@ -132,9 +132,13 @@ fn read_menu_properties(
                 PROPERTY_LENGTH_WORDS,
             )?
             .reply()?;
-        let property_text = String::from_utf8_lossy(&property_reply.value)
-            .trim_end_matches('\0')
-            .to_owned();
+        let property_text = match String::from_utf8(property_reply.value) {
+            Ok(property_text) => property_text.trim_end_matches('\0').to_owned(),
+            Err(encoding_failure) => {
+                tracing::warn!("global menu: x11 {property_name} is not utf-8: {encoding_failure}");
+                continue;
+            }
+        };
         if !property_text.is_empty() {
             property_values.insert(property_name, property_text);
         }

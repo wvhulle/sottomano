@@ -62,14 +62,17 @@ fn read_swap_activity(
     now: Instant,
 ) -> Result<SwapActivity, Error> {
     let info = Meminfo::current().map_err(|_| Error::Unreadable(MEMINFO.to_owned()))?;
-    let swap = if info.swap_total == 0 {
-        Swap::NotConfigured
-    } else {
-        Swap::Configured {
-            used: ByteSize::b(info.swap_total.saturating_sub(info.swap_free)),
-            total: ByteSize::b(info.swap_total),
-        }
-    };
+    let swap =
+        if info.swap_total == 0 {
+            Swap::NotConfigured
+        } else {
+            Swap::Configured {
+                used: ByteSize::b(info.swap_total.checked_sub(info.swap_free).ok_or_else(
+                    || Error::Unparsable(format!("{MEMINFO} SwapFree above SwapTotal")),
+                )?),
+                total: ByteSize::b(info.swap_total),
+            }
+        };
     let counters = vmstat().map_err(|_| Error::Unreadable(VMSTAT.to_owned()))?;
     let page_counter = |field: &str| {
         let pages = counters
@@ -105,13 +108,17 @@ fn paging_rates(
 ) -> (ByteSize, ByteSize) {
     let elapsed_seconds = later
         .sampled_at
-        .saturating_duration_since(earlier.sampled_at)
+        .checked_duration_since(earlier.sampled_at)
+        .expect("the earlier paging counters were sampled first")
         .as_secs_f64();
     if elapsed_seconds <= 0.0 {
         return (ByteSize::b(0), ByteSize::b(0));
     }
     let bytes_per_second = |pages_before: u64, pages_after: u64| {
-        let swapped_bytes = pages_after.saturating_sub(pages_before) * page_bytes;
+        let swapped_bytes = pages_after
+            .checked_sub(pages_before)
+            .expect("the cumulative swap page counters never decrease")
+            * page_bytes;
         ByteSize::b((swapped_bytes as f64 / elapsed_seconds) as u64)
     };
     (

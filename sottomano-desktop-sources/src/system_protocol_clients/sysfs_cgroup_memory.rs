@@ -192,7 +192,7 @@ pub fn unit_cgroup_enclosing(cgroup_directory: &Path) -> Option<&Path> {
     let is_slice = |directory: &Path| {
         directory
             .file_name()
-            .is_some_and(|directory_name| directory_name.to_string_lossy().ends_with(".slice"))
+            .is_some_and(|directory_name| directory_name.as_encoded_bytes().ends_with(b".slice"))
     };
     cgroup_directory
         .ancestors()

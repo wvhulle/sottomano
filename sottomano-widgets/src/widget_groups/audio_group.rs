@@ -1,6 +1,8 @@
 mod channel_level_control;
 
-use std::{collections::HashMap, env, ops::RangeInclusive, thread, time::Duration};
+use std::{
+    collections::HashMap, convert::identity, env, ops::RangeInclusive, thread, time::Duration,
+};
 
 use iced::{Function, Subscription, Task};
 use sottomano_desktop_sinks::media_playback_audio::pipewire_level_commands;
@@ -241,9 +243,10 @@ impl AudioGroup {
             pipewire_level_commands::set_volume(&commands, target, as_percent(value)).map(drop)
         });
         ControlMessage::commit("audio set volume", value, async move {
-            volume_write.await.unwrap_or(Err(
-                pipewire_level_commands::VolumeChangeFailure::WorkerPanicked,
-            ))
+            volume_write
+                .await
+                .map_err(pipewire_level_commands::VolumeChangeFailure::from)
+                .and_then(identity)
         })
         .map(move |m| AudioMessage::Control(kind, m))
     }

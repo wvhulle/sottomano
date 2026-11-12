@@ -83,7 +83,7 @@ fn informative_directory_name(working_directory: &Path) -> Option<String> {
     }
     working_directory
         .file_name()
-        .map(|directory_name| directory_name.to_string_lossy().into_owned())
+        .map(|directory_name| directory_name.display().to_string())
 }
 
 fn program_file_name(command_line: &[String]) -> Option<&str> {
@@ -133,8 +133,15 @@ fn command_line_of(pid: i32) -> Vec<String> {
             command_line_bytes
                 .split(|byte| *byte == 0)
                 .filter(|argument| !argument.is_empty())
-                .map(|argument| String::from_utf8_lossy(argument).into_owned())
-                .collect()
+                .map(|argument| String::from_utf8(argument.to_vec()))
+                .collect::<Result<Vec<String>, _>>()
+                .unwrap_or_else(|non_utf8_argument| {
+                    tracing::debug!(
+                        "launch context: command line of process {pid} is not utf-8: \
+                         {non_utf8_argument}"
+                    );
+                    Vec::new()
+                })
         },
     )
 }

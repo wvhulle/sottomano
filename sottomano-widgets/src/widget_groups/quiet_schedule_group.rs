@@ -6,7 +6,7 @@ pub mod weekday_picker;
 
 use std::{ops::RangeInclusive, time::Duration};
 
-use chrono::{DateTime, Local, Locale, Utc, Weekday, WeekdaySet};
+use chrono::{DateTime, Local, Locale, TimeDelta, Utc, Weekday, WeekdaySet};
 use iced::{Function, Subscription, Task, task};
 use sottomano_desktop_sources::{
     login_session_presence::logind_manager,
@@ -402,7 +402,10 @@ impl QuietScheduleGroup {
             self.armed_edge = None;
             return Task::none();
         };
-        let remaining = (at - now).to_std().unwrap_or_default();
+        let remaining = (at - now)
+            .max(TimeDelta::zero())
+            .to_std()
+            .expect("a non-negative time delta fits a std duration");
         let (timer, handle) = Task::future(sleep(remaining + EDGE_TIMER_MARGIN))
             .map(|()| QuietScheduleMessage::EdgeDue)
             .abortable();

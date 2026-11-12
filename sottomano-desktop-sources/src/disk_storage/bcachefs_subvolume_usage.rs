@@ -99,10 +99,12 @@ struct MountedSnapshotTree {
 
 impl MountedSnapshotTree {
     fn read(mount_point: &Path) -> Result<Self, Error> {
-        let mount_point_text = mount_point.to_string_lossy();
+        let mount_point_text = mount_point
+            .to_str()
+            .ok_or_else(|| Error::Unparsable(mount_point.display().to_string()))?;
         let listing = shell_command_output::blocking::output(
             BCACHEFS_PROGRAM,
-            &["subvolume", "list-snapshots", "--json", &mount_point_text],
+            &["subvolume", "list-snapshots", "--json", mount_point_text],
         )?;
         let tree = serde_json::from_str(&listing).map_err(|_| {
             Error::Unparsable(format!("{BCACHEFS_PROGRAM} output for {mount_point_text}"))

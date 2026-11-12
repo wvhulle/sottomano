@@ -163,7 +163,13 @@ impl<Tag: Copy + Send + 'static, Counting: CountedActivity> IdleNotifier<Tag, Co
             notification.destroy(&mut self.conn);
         }
         for trigger in triggers {
-            let after_ms = u32::try_from(trigger.after.as_millis()).unwrap_or(u32::MAX);
+            let Ok(after_ms) = u32::try_from(trigger.after.as_millis()) else {
+                tracing::warn!(
+                    "idle notify: {} is longer than the protocol's u32 milliseconds, not arming it",
+                    humantime::format_duration(trigger.after)
+                );
+                continue;
+            };
             for seat in self.state.seats.clone() {
                 let notification = Counting::request_notification(
                     self.state.notifier,

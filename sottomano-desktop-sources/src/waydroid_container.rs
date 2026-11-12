@@ -91,12 +91,20 @@ impl SnapshotSource for WaydroidListing {
     }
 }
 
+async fn waydroid_session(system_bus: &zbus::Connection) -> HashMap<String, String> {
+    let session = match WaydroidContainerManagerProxy::new(system_bus).await {
+        Ok(manager) => manager.get_session().await,
+        Err(proxy_failure) => Err(proxy_failure),
+    };
+    session.unwrap_or_else(|session_failure| {
+        tracing::debug!("waydroid: no session: {session_failure}");
+        HashMap::new()
+    })
+}
+
 async fn read_waydroid_listing(system_bus: &zbus::Connection) -> WaydroidListing {
     let container_running = waydroid_payload_cgroup().exists();
-    let session = match WaydroidContainerManagerProxy::new(system_bus).await {
-        Ok(manager) => manager.get_session().await.unwrap_or_default(),
-        Err(_) => HashMap::new(),
-    };
+    let session = waydroid_session(system_bus).await;
     WaydroidListing {
         state: state_of_session(&session, container_running),
         container_running,
@@ -132,10 +140,7 @@ async fn read_waydroid(system_bus: &zbus::Connection) -> WaydroidReadout {
     let payload_cgroup = waydroid_payload_cgroup();
     let container_memory = read_cgroup_memory(&payload_cgroup);
     let container_running = container_memory.is_some();
-    let session = match WaydroidContainerManagerProxy::new(system_bus).await {
-        Ok(manager) => manager.get_session().await.unwrap_or_default(),
-        Err(_) => HashMap::new(),
-    };
+    let session = waydroid_session(system_bus).await;
     WaydroidReadout {
         state: state_of_session(&session, container_running),
         container_running,

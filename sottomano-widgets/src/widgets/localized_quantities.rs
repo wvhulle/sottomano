@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, time::Duration};
+use std::{cell::RefCell, collections::HashMap, fmt::Debug, time::Duration};
 
 use bytesize::ByteSize;
 use chrono::Locale;
@@ -298,8 +298,8 @@ impl Quantity {
     }
 
     #[must_use]
-    pub fn count(count: impl TryInto<i64>) -> Self {
-        Quantity::Count(count.try_into().unwrap_or(i64::MAX))
+    pub fn count(count: impl TryInto<i64, Error: Debug>) -> Self {
+        Quantity::Count(count.try_into().expect("a displayed count fits i64"))
     }
 
     #[must_use]

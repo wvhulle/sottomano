@@ -238,7 +238,10 @@ impl GtkMenuTreeBuilder<'_> {
         let mut menu_nodes = Vec::new();
         for menu_item in items {
             if let Some(section_key) = menu_item.get(SECTION_LINK).and_then(linked_menu_key) {
-                let section_nodes = self.menu_nodes(section_key, depth_left.saturating_sub(1));
+                let Some(section_depth_left) = depth_left.checked_sub(1) else {
+                    continue;
+                };
+                let section_nodes = self.menu_nodes(section_key, section_depth_left);
                 if !menu_nodes.is_empty() && !section_nodes.is_empty() {
                     menu_nodes.push(self.separator_node());
                 }

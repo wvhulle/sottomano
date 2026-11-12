@@ -46,8 +46,8 @@ impl DistroSetupCommand {
         }
     }
 
-    fn distro_setup(&self) -> DistroSetup {
-        match self {
+    fn distro_setup(&self) -> io::Result<DistroSetup> {
+        Ok(match self {
             DistroSetupCommand::Ubuntu(_) => DistroSetup {
                 admin_group: "sudo".to_string(),
                 runtime_tools: Some(
@@ -64,10 +64,10 @@ impl DistroSetupCommand {
                 ),
             },
             DistroSetupCommand::Linux(_) => DistroSetup {
-                admin_group: auto_detected_admin_group(),
+                admin_group: auto_detected_admin_group()?,
                 runtime_tools: None,
             },
-        }
+        })
     }
 }
 
@@ -105,15 +105,15 @@ struct DistroSetup {
     runtime_tools: Option<&'static str>,
 }
 
-fn auto_detected_admin_group() -> String {
-    let group_database = fs::read_to_string("/etc/group").unwrap_or_default();
+fn auto_detected_admin_group() -> io::Result<String> {
+    let group_database = fs::read_to_string("/etc/group")?;
     if group_database
         .lines()
         .any(|group_line| group_line.starts_with("wheel:"))
     {
-        "wheel".to_string()
+        Ok("wheel".to_string())
     } else {
-        "sudo".to_string()
+        Ok("sudo".to_string())
     }
 }
 
@@ -316,7 +316,7 @@ fn apply_step(step: &SetupStep) -> Result<(), Box<dyn Error>> {
 
 pub fn run(distro: &DistroSetupCommand) -> Result<(), Box<dyn Error>> {
     let arguments = distro.arguments();
-    let distro_setup = distro.distro_setup();
+    let distro_setup = distro.distro_setup()?;
     let steps = setup_steps(&distro_setup, &arguments.skip);
     if !skipped(arguments, SetupStepName::Rapl) {
         println!(

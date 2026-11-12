@@ -161,21 +161,27 @@ async fn registered_container_reading(
     let ip_addresses = machine_proxy
         .get_addresses()
         .await
-        .inspect_err(|address_error| {
+        .unwrap_or_else(|address_error| {
             tracing::debug!(
                 "machined {} addresses: {address_error}",
                 listing.machine_name
             );
+            Vec::new()
         })
-        .unwrap_or_default()
         .into_iter()
         .filter_map(|(address_family, address_bytes)| {
             ip_address_from(address_family, &address_bytes)
         })
         .collect();
-    let leader_pid = machine_proxy.leader().await.unwrap_or_default();
+    let leader_pid = machine_proxy.leader().await.unwrap_or_else(|leader_error| {
+        tracing::debug!("machined {} leader: {leader_error}", listing.machine_name);
+        0
+    });
     Some(RegisteredContainerReading {
-        unit_name: machine_proxy.unit().await.unwrap_or_default(),
+        unit_name: machine_proxy.unit().await.unwrap_or_else(|unit_error| {
+            tracing::debug!("machined {} unit: {unit_error}", listing.machine_name);
+            String::new()
+        }),
         registered_machine: RegisteredContainerMachine {
             memory_in_use: unit_memory_of_process(leader_pid),
             leader_pid,
@@ -191,7 +197,12 @@ async fn registered_container_reading(
                 .ok()
                 .and_then(wall_time_from_realtime_micros),
             ip_addresses,
-            root_directory: PathBuf::from(machine_proxy.root_directory().await.unwrap_or_default()),
+            root_directory: PathBuf::from(machine_proxy.root_directory().await.unwrap_or_else(
+                |root_error| {
+                    tracing::debug!("machined {} root: {root_error}", listing.machine_name);
+                    String::new()
+                },
+            )),
         },
         machine_name: listing.machine_name,
     })
@@ -223,10 +234,10 @@ async fn read_container_listing(system_bus: &zbus::Connection) -> NspawnContaine
     let registered_readings = registered_container_readings(system_bus).await;
     let discovered_units = listed_template_instances(system_bus, &CONTAINER_UNIT_TEMPLATES)
         .await
-        .inspect_err(|unit_listing_error| {
+        .unwrap_or_else(|unit_listing_error| {
             tracing::debug!("container units: {unit_listing_error}");
-        })
-        .unwrap_or_default();
+            Vec::new()
+        });
     NspawnContainersReadout {
         containers: merged_containers(registered_readings, discovered_units),
     }

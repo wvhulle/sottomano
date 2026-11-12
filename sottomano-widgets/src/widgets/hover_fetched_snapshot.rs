@@ -83,9 +83,9 @@ impl<S: SnapshotSource> RememberedSnapshot<S> {
             return RefetchSchedule::FetchNow;
         };
         let elapsed = clock
-            .wall
-            .duration_since(delivered_at)
-            .unwrap_or(Duration::ZERO);
+            .instant
+            .checked_duration_since(delivered_at)
+            .expect("a delivery is stamped no later than the clock that reads it");
         match refresh_period.checked_sub(elapsed) {
             Some(remaining) if !remaining.is_zero() => RefetchSchedule::FetchAfter(remaining),
             Some(_) | None => RefetchSchedule::FetchNow,
@@ -343,10 +343,23 @@ mod tests {
 
     const POLL_PERIOD: Duration = Duration::from_mins(10);
 
-    fn clock_at(seconds_since_epoch: u64) -> Clock {
-        Clock {
-            wall: SystemTime::UNIX_EPOCH + Duration::from_secs(seconds_since_epoch),
-            ..Clock::real()
+    struct TestTimeline {
+        started: Clock,
+    }
+
+    impl TestTimeline {
+        fn starting_now() -> Self {
+            Self {
+                started: Clock::real(),
+            }
+        }
+
+        fn at(&self, seconds_since_epoch: u64) -> Clock {
+            let elapsed = Duration::from_secs(seconds_since_epoch);
+            Clock {
+                instant: self.started.instant + elapsed,
+                wall: SystemTime::UNIX_EPOCH + elapsed,
+            }
         }
     }
 
@@ -370,8 +383,9 @@ mod tests {
 
     #[test]
     fn a_first_hover_shows_a_loading_state_without_a_cadence() {
+        let timeline = TestTimeline::starting_now();
         let mut hover = HoverFetchedSnapshot::default();
-        hovered_at(&mut hover, 1, clock_at(0));
+        hovered_at(&mut hover, 1, timeline.at(0));
         assert_eq!(
             delivery_state(&hover),
             SectionsDeliveryState::AwaitingDelivery
@@ -388,18 +402,19 @@ mod tests {
 
     #[test]
     fn a_rehover_within_the_poll_period_serves_the_remembered_snapshot() {
+        let timeline = TestTimeline::starting_now();
         let mut hover = HoverFetchedSnapshot::default();
-        hovered_at(&mut hover, 1, clock_at(0));
-        hover.receive(polled_snapshot(4), clock_at(0));
+        hovered_at(&mut hover, 1, timeline.at(0));
+        hover.receive(polled_snapshot(4), timeline.at(0));
         hover.stop();
-        hovered_at(&mut hover, 1, clock_at(60));
+        hovered_at(&mut hover, 1, timeline.at(60));
         assert_eq!(hover.reading(), Some(&CountedSnapshot(4)));
         assert_eq!(
             delivery_state(&hover),
             SectionsDeliveryState::Delivered {
                 delivery_timing: DeliveryTiming::PeriodicPolling {
                     poll_period: POLL_PERIOD,
-                    delivered_at: SystemTime::UNIX_EPOCH,
+                    delivered_at: timeline.at(0).instant,
                 },
             }
         );
@@ -407,11 +422,12 @@ mod tests {
 
     #[test]
     fn a_rehover_after_the_poll_period_loads_while_showing_the_remembered_snapshot() {
+        let timeline = TestTimeline::starting_now();
         let mut hover = HoverFetchedSnapshot::default();
-        hovered_at(&mut hover, 1, clock_at(0));
-        hover.receive(polled_snapshot(4), clock_at(0));
+        hovered_at(&mut hover, 1, timeline.at(0));
+        hover.receive(polled_snapshot(4), timeline.at(0));
         hover.stop();
-        hovered_at(&mut hover, 1, clock_at(601));
+        hovered_at(&mut hover, 1, timeline.at(601));
         assert_eq!(hover.reading(), Some(&CountedSnapshot(4)));
         assert_eq!(
             delivery_state(&hover),
@@ -421,11 +437,12 @@ mod tests {
 
     #[test]
     fn another_window_never_shows_the_previous_windows_snapshot() {
+        let timeline = TestTimeline::starting_now();
         let mut hover = HoverFetchedSnapshot::default();
-        hovered_at(&mut hover, 1, clock_at(0));
-        hover.receive(polled_snapshot(4), clock_at(0));
+        hovered_at(&mut hover, 1, timeline.at(0));
+        hover.receive(polled_snapshot(4), timeline.at(0));
         hover.stop();
-        hovered_at(&mut hover, 2, clock_at(30));
+        hovered_at(&mut hover, 2, timeline.at(30));
         assert!(hover.reading().is_none());
         assert_eq!(
             delivery_state(&hover),
@@ -435,12 +452,13 @@ mod tests {
 
     #[test]
     fn an_unavailable_source_forgets_its_remembered_snapshot() {
+        let timeline = TestTimeline::starting_now();
         let mut hover = HoverFetchedSnapshot::default();
-        hovered_at(&mut hover, 1, clock_at(0));
-        hover.receive(polled_snapshot(4), clock_at(0));
-        hover.receive(SnapshotDelivery::SourceUnavailable, clock_at(3));
+        hovered_at(&mut hover, 1, timeline.at(0));
+        hover.receive(polled_snapshot(4), timeline.at(0));
+        hover.receive(SnapshotDelivery::SourceUnavailable, timeline.at(3));
         hover.stop();
-        hovered_at(&mut hover, 1, clock_at(30));
+        hovered_at(&mut hover, 1, timeline.at(30));
         assert!(hover.reading().is_none());
     }
 }

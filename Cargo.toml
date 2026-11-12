@@ -24,6 +24,7 @@ version = "0.0.1"
 [workspace.lints.clippy]
 absolute_paths = "warn"
 disallowed_methods = "deny"
+disallowed_types = "deny"
 cast_possible_truncation = "allow"
 cast_precision_loss = "allow"
 cast_sign_loss = "allow"

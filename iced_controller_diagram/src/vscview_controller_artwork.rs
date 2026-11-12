@@ -158,8 +158,11 @@ mod tests {
     #[test]
     fn bundled_drawings_are_svg_documents() {
         for drawing in [DUALSENSE_SVG, XBOX_SERIES_SVG, SWITCH_PRO_SVG] {
-            let head = String::from_utf8_lossy(&drawing[..drawing.len().min(512)]);
-            assert!(head.contains("<svg"), "bundled drawing lacks an svg root");
+            let head = &drawing[..drawing.len().min(512)];
+            assert!(
+                head.windows(4).any(|window| window == b"<svg"),
+                "bundled drawing lacks an svg root"
+            );
         }
     }
 

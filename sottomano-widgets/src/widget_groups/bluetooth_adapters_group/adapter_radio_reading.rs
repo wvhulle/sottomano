@@ -95,9 +95,8 @@ impl GroupItemReading for AdapterRadioReading<'_> {
         }
     }
 
-    fn badge(&self) -> Option<u32> {
-        Some(u32::try_from(self.adapter.power.connected_devices().len()).unwrap_or(u32::MAX))
-            .filter(|count| *count > 0)
+    fn badge(&self) -> Option<usize> {
+        Some(self.adapter.power.connected_devices().len()).filter(|count| *count > 0)
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {

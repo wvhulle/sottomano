@@ -124,7 +124,11 @@ fn hyprland_state_of(
             let id = regular_workspace_id(workspace.id)?;
             let index = next_index_by_monitor
                 .entry(workspace.monitor.as_str())
-                .and_modify(|index| *index = index.saturating_add(1))
+                .and_modify(|index| {
+                    *index = index
+                        .checked_add(1)
+                        .expect("fewer than 255 workspaces share one monitor");
+                })
                 .or_insert(1);
             let is_active = monitor_named(&workspace.monitor)
                 .is_some_and(|monitor| monitor.active_workspace.id == workspace.id);

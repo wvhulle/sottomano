@@ -183,14 +183,19 @@ impl<PlaybackSession: Clone + PartialEq> SeekBar<PlaybackSession> {
     }
 }
 
-fn signed_micros(duration: Duration) -> i64 {
-    i64::try_from(duration.as_micros()).unwrap_or(i64::MAX)
-}
-
+#[expect(
+    clippy::disallowed_methods,
+    reason = "scrolling back past the start seeks to the start"
+)]
 fn scrolled_position(shown: Duration, steps: i64, length: Duration) -> Duration {
-    let target =
-        signed_micros(shown).saturating_add(steps.saturating_mul(signed_micros(SCROLL_SEEK_STEP)));
-    Duration::from_micros(u64::try_from(target).unwrap_or(0)).min(length)
+    let seek_distance = SCROLL_SEEK_STEP
+        * u32::try_from(steps.unsigned_abs())
+            .expect("a scroll gesture moves fewer than u32::MAX steps");
+    if steps >= 0 {
+        (shown + seek_distance).min(length)
+    } else {
+        shown.saturating_sub(seek_distance)
+    }
 }
 
 #[cfg(test)]

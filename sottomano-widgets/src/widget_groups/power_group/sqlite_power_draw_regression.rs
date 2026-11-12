@@ -39,9 +39,8 @@ async fn read_covariances(
     let columns = Columns::of(&rows);
     let mut entries: HashMap<String, Vec<(usize, usize, f64)>> = HashMap::new();
     while let Some(row) = rows.next().await? {
-        let index_of = |name: &str| -> Result<usize, StoreError> {
-            Ok(usize::try_from(columns.integer(&row, name)?).unwrap_or_default())
-        };
+        let index_of =
+            |name: &str| -> Result<usize, StoreError> { columns.ranged_integer(&row, name) };
         entries
             .entry(columns.text(&row, "profile")?)
             .or_default()
@@ -140,8 +139,8 @@ async fn write_model(
                     (
                         battery,
                         profile_name.clone(),
-                        i64::try_from(row_index).unwrap_or_default(),
-                        i64::try_from(column_index).unwrap_or_default(),
+                        i64::try_from(row_index).expect("regression matrix rows are few"),
+                        i64::try_from(column_index).expect("regression matrix columns are few"),
                         state.covariance[(row_index, column_index)],
                     ),
                 )

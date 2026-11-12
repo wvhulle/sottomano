@@ -175,7 +175,11 @@ pub async fn echo_round_trip(
         loop {
             let received_length = icmp_socket.recv(&mut reply_buffer).await?;
             if echo_reply_sequence(&reply_buffer[..received_length], reply_kind) == Some(sequence) {
-                return Ok::<Duration, io::Error>(sent_at.elapsed());
+                return Ok::<Duration, io::Error>(
+                    Instant::now()
+                        .checked_duration_since(sent_at)
+                        .expect("an echo reply arrives after its request was sent"),
+                );
             }
         }
     };

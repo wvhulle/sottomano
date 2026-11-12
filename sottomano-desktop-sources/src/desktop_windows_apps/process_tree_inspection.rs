@@ -89,7 +89,13 @@ impl Process {
 
     fn born(stat: &Stat, booted: f64) -> Duration {
         let started = started_seconds(stat);
-        Duration::try_from_secs_f64(booted - started).unwrap_or_default()
+        Duration::try_from_secs_f64(booted - started).unwrap_or_else(|negative_age| {
+            tracing::debug!(
+                "process tree: process {} started after boot time {booted}: {negative_age}",
+                stat.pid
+            );
+            Duration::ZERO
+        })
     }
 
     fn of(process: &Proc, stat: Stat, uptime: Duration, cpu: Ratio) -> Self {
@@ -98,7 +104,8 @@ impl Process {
             parent: stat.ppid,
             memory: ByteSize::b(stat.rss_bytes().get()),
             cpu,
-            threads: u64::try_from(stat.num_threads).unwrap_or_default(),
+            threads: u64::try_from(stat.num_threads)
+                .expect("the kernel never reports a negative thread count"),
             uptime,
             name: binary_name(process).unwrap_or(stat.comm),
             children: Vec::new(),
@@ -195,9 +202,12 @@ struct CpuWindow<'a> {
 impl CpuWindow<'_> {
     fn busy_fraction(&self, incarnation: Incarnation, ticks: u64, uptime: Duration) -> Ratio {
         match self.previous.ticks.get(&incarnation) {
-            Some(before) => self
-                .capacity
-                .busy_fraction(ticks.saturating_sub(*before), self.elapsed),
+            Some(before) => self.capacity.busy_fraction(
+                ticks
+                    .checked_sub(*before)
+                    .expect("the kernel counts a process's cpu ticks monotonically"),
+                self.elapsed,
+            ),
             None => self.capacity.busy_fraction(ticks, uptime),
         }
     }
@@ -212,7 +222,10 @@ fn sample(previous: &CpuSamples, capacity: CpuCapacity) -> Sampled {
     let mut samples = CpuSamples::none_yet();
     let window = CpuWindow {
         previous,
-        elapsed: samples.taken.duration_since(previous.taken),
+        elapsed: samples
+            .taken
+            .checked_duration_since(previous.taken)
+            .expect("the previous cpu sample was taken earlier"),
         capacity,
     };
     let forest = forest(&window, &mut samples);
@@ -338,7 +351,10 @@ pub fn launch(pid: i32) -> Option<Launch> {
                 tracing::debug!("process launch: exe of {pid}: {exe_failure}");
             })
             .ok(),
-        arguments: process.cmdline().unwrap_or_default(),
+        arguments: process.cmdline().unwrap_or_else(|cmdline_failure| {
+            tracing::debug!("process launch: cmdline of {pid}: {cmdline_failure}");
+            Vec::new()
+        }),
         scope: scope(&process),
     })
 }

@@ -48,7 +48,7 @@ struct AwayIntervals {
 
 impl Accounting<'_> {
     fn idle_after(&self) -> TimeDelta {
-        TimeDelta::from_std(self.config.idle_after).unwrap_or(TimeDelta::MAX)
+        self.config.idle_after
     }
 
     fn intervals_in_state(&self, state: Presence, now: DateTime<Utc>) -> Vec<Interval> {

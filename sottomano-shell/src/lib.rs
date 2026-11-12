@@ -5,7 +5,11 @@ mod message_subscriptions;
 mod process_memory_report;
 mod shell_message;
 
-use std::{env, error::Error, sync::Arc};
+use std::{
+    env::{self, VarError},
+    error::Error,
+    sync::Arc,
+};
 
 use clap::Parser;
 use command_line::CommandLine;
@@ -41,11 +45,19 @@ fn log_output_layer<Subscriber>() -> impl Layer<Subscriber>
 where
     Subscriber: tracing::Subscriber + for<'span> LookupSpan<'span>,
 {
+    let environment_directives = match env::var(EnvFilter::DEFAULT_ENV) {
+        Ok(directives) => directives,
+        Err(VarError::NotPresent) => String::new(),
+        Err(VarError::NotUnicode(raw_directives)) => panic!(
+            "{} holds non-unicode log directives: {}",
+            EnvFilter::DEFAULT_ENV,
+            raw_directives.display()
+        ),
+    };
     fmt::layer()
         .with_span_events(FmtSpan::CLOSE)
         .with_filter(EnvFilter::new(format!(
-            "{DEFAULT_LOG_DIRECTIVES},{}",
-            env::var(EnvFilter::DEFAULT_ENV).unwrap_or_default()
+            "{DEFAULT_LOG_DIRECTIVES},{environment_directives}"
         )))
 }
 

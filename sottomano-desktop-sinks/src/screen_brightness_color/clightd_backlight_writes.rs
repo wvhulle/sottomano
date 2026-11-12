@@ -16,7 +16,7 @@ pub enum BacklightWriteError {
 }
 
 pub async fn set(serial: String, percent: i64) -> Result<(), BacklightWriteError> {
-    let frac = f64::from(i32::try_from(percent.clamp(0, 100)).unwrap_or(0)) / 100.0;
+    let frac = percent.clamp(0, 100) as f64 / 100.0;
     clight_calibration_writes::pause_auto_calib().await;
     clightd_set(&serial, frac).await
 }
@@ -27,7 +27,7 @@ pub async fn halt_ramp() {
             async |Backlight {
                        serial, percent, ..
                    }| {
-                let current_fraction = f64::from(i32::try_from(percent).unwrap_or(0)) / 100.0;
+                let current_fraction = percent as f64 / 100.0;
                 if let Err(halt_failure) = clightd_set(&serial, current_fraction).await {
                     tracing::warn!("backlight {serial}: halting the ramp: {halt_failure}");
                 }

@@ -345,6 +345,10 @@ impl Countdown {
     }
 
     #[must_use]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a toast paused after its deadline but before the expiry tick has no time left"
+    )]
     pub fn paused(self, now: Instant) -> Self {
         match self {
             Self::Running { deadline } => Self::Paused {

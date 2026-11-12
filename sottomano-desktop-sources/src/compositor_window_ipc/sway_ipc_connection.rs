@@ -70,7 +70,11 @@ impl SwayIpcConnection {
         }
         let payload_length = u32::from_ne_bytes([length_0, length_1, length_2, length_3]);
         let message_type = u32::from_ne_bytes([type_0, type_1, type_2, type_3]);
-        let mut payload = vec![0; usize::try_from(payload_length).unwrap_or(usize::MAX)];
+        let mut payload = vec![
+            0;
+            usize::try_from(payload_length)
+                .expect("usize holds every u32 on supported platforms")
+        ];
         self.stream.read_exact(&mut payload).await?;
         Ok((message_type, payload))
     }

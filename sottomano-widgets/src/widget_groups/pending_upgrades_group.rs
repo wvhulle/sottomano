@@ -143,8 +143,8 @@ impl GroupItemReading for PendingUpgradesGroup {
         Phosphor::ArrowCircleUp(Weight::Regular).into()
     }
 
-    fn badge(&self) -> Option<u32> {
-        let total: u32 = self
+    fn badge(&self) -> Option<usize> {
+        let total: usize = self
             .categories()
             .into_iter()
             .flatten()

@@ -36,7 +36,12 @@ impl IdleSnapshot {
     }
 
     pub(super) fn deep_idle_since(&self, earlier: &IdleSnapshot) -> Vec<CoreDeepIdle> {
-        let window = Time::new::<second>(self.at.duration_since(earlier.at).as_secs_f64());
+        let window = Time::new::<second>(
+            self.at
+                .checked_duration_since(earlier.at)
+                .expect("the earlier idle snapshot was read first")
+                .as_secs_f64(),
+        );
         if window <= Time::new::<second>(0.0) {
             return Vec::new();
         }

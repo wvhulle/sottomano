@@ -23,6 +23,8 @@ pub enum Error {
     NotInstalled { program: String },
     #[error("cannot run {program}: {detail}")]
     Spawn { program: String, detail: String },
+    #[error("{program} printed output that is not utf-8: {detail}")]
+    NotUtf8 { program: String, detail: String },
     #[error("{program} failed: {stderr}")]
     Failed { program: String, stderr: String },
     #[error("{program} exited with {exit_status}")]
@@ -47,13 +49,32 @@ fn spawn_failure(program: &str, error: &io::Error) -> Error {
 
 fn captured(program: &str, output: &Output) -> Result<String, Error> {
     if output.status.success() {
-        return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
+        return String::from_utf8(output.stdout.clone()).map_err(|non_utf8_output| {
+            Error::NotUtf8 {
+                program: program.to_owned(),
+                detail: non_utf8_output.utf8_error().to_string(),
+            }
+        });
     }
-    let stderr = String::from_utf8_lossy(&output.stderr);
     Err(Error::Failed {
         program: program.to_owned(),
-        stderr: stderr.trim().chars().take(200).collect(),
+        stderr: shown_process_text(&output.stderr)
+            .trim()
+            .chars()
+            .take(200)
+            .collect(),
     })
+}
+
+#[must_use]
+pub fn shown_process_text(process_bytes: &[u8]) -> String {
+    process_bytes
+        .utf8_chunks()
+        .fold(String::new(), |mut shown_text, utf8_chunk| {
+            shown_text.push_str(utf8_chunk.valid());
+            shown_text.extend(utf8_chunk.invalid().escape_ascii().map(char::from));
+            shown_text
+        })
 }
 
 pub mod blocking {

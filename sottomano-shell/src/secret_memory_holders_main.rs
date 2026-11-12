@@ -61,13 +61,20 @@ fn process_mapping_kind(process_directory: &Path) -> io::Result<MappingKind> {
     }
 }
 
+const SECRET_MEMORY_MARKER: &[u8] = b"secretmem";
+
 fn mapping_kind(map_line: &[u8]) -> MappingKind {
-    let mapped_path = String::from_utf8_lossy(map_line)
-        .split_whitespace()
+    let mapped_path = map_line
+        .split(u8::is_ascii_whitespace)
+        .filter(|map_field| !map_field.is_empty())
         .skip(5)
         .collect::<Vec<_>>()
-        .join(" ");
-    if mapped_path.contains("secretmem") && mapped_path.matches('/').count() <= 1 {
+        .join(&b' ');
+    let names_secret_memory = mapped_path
+        .windows(SECRET_MEMORY_MARKER.len())
+        .any(|path_window| path_window == SECRET_MEMORY_MARKER);
+    let slash_count = mapped_path.split(|path_byte| *path_byte == b'/').count() - 1;
+    if names_secret_memory && slash_count <= 1 {
         MappingKind::SecretMemory
     } else {
         MappingKind::Ordinary

@@ -188,7 +188,7 @@ fn failure_marker<'a, Message: 'a>(
 fn badged<'a, Message: 'a>(
     config: &Config,
     reading: Element<'a, Message>,
-    badge: Option<u32>,
+    badge: Option<usize>,
     tint: ReadingStateTint,
 ) -> Element<'a, Message> {
     match badge {

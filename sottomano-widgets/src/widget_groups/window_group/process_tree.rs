@@ -358,8 +358,12 @@ fn outline(node: &Process, depth: usize, folding: &Folding, branches: &mut Vec<B
     for child in node.children.iter().take(MAX_CHILDREN) {
         outline(child, depth + 1, folding, branches);
     }
-    let hidden = node.children.len().saturating_sub(MAX_CHILDREN);
-    if hidden > 0 {
+    if let Some(hidden) = node
+        .children
+        .len()
+        .checked_sub(MAX_CHILDREN)
+        .filter(|hidden| *hidden > 0)
+    {
         branches.push(Branch {
             depth: depth + 1,
             entry: Entry::Elided { hidden },

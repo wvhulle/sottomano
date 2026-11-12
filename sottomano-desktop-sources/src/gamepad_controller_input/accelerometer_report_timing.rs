@@ -87,18 +87,29 @@ fn lost_share(missed: usize, sent: usize) -> Ratio {
     }
 }
 
+fn elapsed_between(earlier: SystemTime, later: SystemTime) -> Duration {
+    later.duration_since(earlier).unwrap_or_else(|clock_step| {
+        tracing::debug!("gamepad report timing: the wall clock stepped back: {clock_step}");
+        Duration::ZERO
+    })
+}
+
 fn host_gaps(arrivals: &[SystemTime], silence_until: SystemTime) -> Vec<Duration> {
     arrivals
         .windows(2)
-        .map(|pair| pair[1].duration_since(pair[0]).unwrap_or_default())
+        .map(|pair| elapsed_between(pair[0], pair[1]))
         .chain(
             arrivals
                 .last()
-                .map(|last| silence_until.duration_since(*last).unwrap_or_default()),
+                .map(|last| elapsed_between(*last, silence_until)),
         )
         .collect()
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the controller stamps reports with a u32 microsecond clock that wraps around"
+)]
 fn device_gaps(stamps: &[u32]) -> Vec<u32> {
     stamps
         .windows(2)
@@ -119,6 +130,10 @@ fn missed_reports(gaps: &[u32], nominal_gap: u32) -> usize {
         .sum()
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the controller stamps reports with a u32 microsecond clock that wraps around"
+)]
 fn arrival_spread(reports: &[(SystemTime, u32)]) -> Duration {
     let Some((first_arrival, first_stamp)) = reports.first() else {
         return Duration::ZERO;
@@ -127,17 +142,18 @@ fn arrival_spread(reports: &[(SystemTime, u32)]) -> Duration {
         .iter()
         .scan(0_i128, |device_elapsed, (arrived_at, stamp)| {
             *device_elapsed = i128::from(stamp.wrapping_sub(*first_stamp));
-            let host_elapsed = arrived_at
-                .duration_since(*first_arrival)
-                .unwrap_or_default()
-                .as_micros();
-            let host_elapsed = i128::try_from(host_elapsed).unwrap_or(i128::MAX);
+            let host_elapsed = elapsed_between(*first_arrival, *arrived_at).as_micros();
+            let host_elapsed = i128::try_from(host_elapsed)
+                .expect("report windows last far less than i128 micros");
             Some(host_elapsed - *device_elapsed)
         })
         .collect();
     let spread =
         offsets.iter().max().copied().unwrap_or(0) - offsets.iter().min().copied().unwrap_or(0);
-    Duration::from_micros(u64::try_from(spread).unwrap_or(0))
+    Duration::from_micros(
+        u64::try_from(spread)
+            .expect("a spread between the largest and smallest offset is not negative and short"),
+    )
 }
 
 fn sent_reports(sequence: &[MotionReport], arrived: usize, elapsed: Duration) -> DeviceClock {
@@ -218,7 +234,7 @@ impl ReportWindow {
         Some(ReportTiming {
             arrival_rate: report_rate(window.reports.len(), elapsed),
             stalls: u32::try_from(gaps.iter().filter(|gap| **gap > STALL_GAP).count())
-                .unwrap_or(u32::MAX),
+                .expect("a report window holds fewer than u32::MAX gaps"),
             longest_gap: gaps.iter().max().copied().unwrap_or_default(),
             device_clock: sent_reports(&sequence, window.reports.len(), elapsed),
         })
@@ -383,6 +399,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the controller stamps reports with a u32 microsecond clock that wraps around"
+    )]
     fn the_device_clock_may_wrap_around() {
         let mut window = opened_window();
         let start = u32::MAX - 4000;

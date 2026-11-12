@@ -66,7 +66,7 @@ impl Job {
             return 0;
         }
         let ratio = self.processed.min(self.total) * 100 / self.total;
-        u8::try_from(ratio).unwrap_or(100)
+        u8::try_from(ratio).expect("a ratio of processed to total capped at 100 fits a byte")
     }
 }
 
@@ -88,9 +88,8 @@ fn number(properties: &HashMap<String, OwnedValue>, key: &str) -> Option<u64> {
 }
 
 fn mean(percents: &[u8]) -> u8 {
-    let sum: u32 = percents.iter().copied().map(u32::from).sum();
-    let count = u32::try_from(percents.len()).unwrap_or(1).max(1);
-    u8::try_from(sum / count).unwrap_or(100)
+    let sum: usize = percents.iter().copied().map(usize::from).sum();
+    u8::try_from(sum / percents.len().max(1)).expect("a mean of percentages fits a byte")
 }
 
 struct Tracker {
@@ -270,7 +269,8 @@ impl JobView {
 
     #[zbus(name = "setPercent")]
     fn set_percent(&self, percent: u32) {
-        let percent = u8::try_from(percent.min(100)).unwrap_or(100);
+        let percent =
+            u8::try_from(percent.min(100)).expect("a percentage capped at 100 fits a byte");
         self.tracker
             .amend(self.id, |job| job.percent = Some(percent));
     }

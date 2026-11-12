@@ -1,3 +1,4 @@
+use sottomano_desktop_sources::system_protocol_clients::shell_command_output::shown_process_text;
 use tokio::process::Command;
 
 const VIRTUALBOX_MANAGER_PROGRAM: &str = "VBoxManage";
@@ -13,7 +14,7 @@ pub async fn press_virtualbox_power_button(machine_reference: &str) -> Result<()
     } else {
         Err(format!(
             "{VIRTUALBOX_MANAGER_PROGRAM} controlvm {machine_reference}: {}",
-            String::from_utf8_lossy(&pressed.stderr).trim()
+            shown_process_text(&pressed.stderr).trim()
         ))
     }
 }

@@ -164,7 +164,7 @@ fn machine_name_of(command_line: &[String]) -> String {
             command_line
                 .first()
                 .and_then(|executable| Path::new(executable).file_name())
-                .map(|file_name| file_name.to_string_lossy().into_owned())
+                .map(|file_name| file_name.display().to_string())
         })
         .unwrap_or_default()
 }

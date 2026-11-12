@@ -288,7 +288,9 @@ impl<SlotId: Copy + PartialEq> DragView<SlotId> {
     #[must_use]
     pub fn hover_charge(&self, item: SlotId, full_after: Duration, now: Instant) -> Option<f32> {
         let hover = self.hovers(item)?;
-        let held = now.saturating_duration_since(hover.since);
+        let held = now
+            .checked_duration_since(hover.since)
+            .expect("a foreign hover starts no later than the clock that charges it");
         Some((held.as_secs_f32() / full_after.as_secs_f32().max(f32::EPSILON)).min(1.0))
     }
 

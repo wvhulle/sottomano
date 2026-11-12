@@ -85,7 +85,7 @@ fn collect_limited_cgroups(
                 limited_cgroups.push(LimitedCgroup {
                     unit_name: child_directory.file_name().map_or_else(
                         || cgroup_path.clone(),
-                        |unit_name| unit_name.to_string_lossy().into_owned(),
+                        |unit_name| unit_name.display().to_string(),
                     ),
                     cgroup_path,
                     memory,

@@ -6908,6 +6908,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "color",
+ "humantime",
  "humantime-serde",
  "rust_decimal",
  "serde",

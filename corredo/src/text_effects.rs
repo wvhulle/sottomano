@@ -57,7 +57,9 @@ impl IntroEffect {
             | IntroEffect::Decode { duration, .. }
             | IntroEffect::Wipe { duration } => duration,
             IntroEffect::Typewriter { per_char } => {
-                per_char.saturating_mul(u32::try_from(text.chars().count()).unwrap_or(u32::MAX))
+                per_char
+                    * u32::try_from(text.chars().count())
+                        .expect("an animated text has fewer than u32::MAX characters")
             }
             IntroEffect::Immediate => Duration::ZERO,
         }

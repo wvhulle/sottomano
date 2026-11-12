@@ -61,8 +61,8 @@ async fn read_backoff(conn: &turso::Connection, source: &str) -> Result<Backoff,
     let row = rows.next().await?.ok_or(StoreError::NoRow)?;
     Ok(Backoff {
         retry_after_unix: columns.integer(&row, "retry_after_unix")?,
-        attempts: u32::try_from(columns.integer(&row, "attempts")?).unwrap_or(u32::MAX),
-        status: u16::try_from(columns.integer(&row, "status")?).unwrap_or(u16::MAX),
+        attempts: columns.ranged_integer(&row, "attempts")?,
+        status: columns.ranged_integer(&row, "status")?,
         message: columns.optional_text(&row, "message"),
     })
 }
@@ -100,11 +100,13 @@ async fn clear_backoff(conn: &turso::Connection, source: &str) -> Result<(), Sto
 
 #[must_use]
 pub fn now_unix() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |elapsed| {
-            i64::try_from(elapsed.as_secs()).unwrap_or(i64::MAX)
-        })
+    let seconds_of = |span: Duration| {
+        i64::try_from(span.as_secs()).expect("seconds since 1970 fit i64 for billions of years")
+    };
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(since_epoch) => seconds_of(since_epoch),
+        Err(before_epoch) => -seconds_of(before_epoch.duration()),
+    }
 }
 
 #[cfg(test)]

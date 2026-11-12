@@ -30,8 +30,10 @@ impl ContextSwitchRate<'_> {
 
     fn severity(&self, now: DateTime<Utc>) -> Severity {
         let config = self.accounting.config;
-        let critical = usize::try_from(config.switches_per_hour_critical).unwrap_or(usize::MAX);
-        let warning = usize::try_from(config.switches_per_hour_warning).unwrap_or(usize::MAX);
+        let critical = usize::try_from(config.switches_per_hour_critical)
+            .expect("usize holds a u32 on supported targets");
+        let warning = usize::try_from(config.switches_per_hour_warning)
+            .expect("usize holds a u32 on supported targets");
         match self.per_hour(now) {
             rate if rate > critical => Severity::Critical,
             rate if rate > warning => Severity::Warning,
@@ -43,8 +45,11 @@ impl ContextSwitchRate<'_> {
         let last_day = LAST_DAY.ending_at(now);
         let switches_last_day = self.accounting.switches_within(last_day, now);
         let active_last_day = self.accounting.screen_spent(last_day, now);
-        let average_span = (switches_last_day > 0)
-            .then(|| active_last_day / i32::try_from(switches_last_day).unwrap_or(i32::MAX));
+        let average_span = (switches_last_day > 0).then(|| {
+            active_last_day
+                / i32::try_from(switches_last_day)
+                    .expect("a day holds fewer than i32::MAX focus switches")
+        });
         let readings = Section::dictionary(
             [
                 Some(

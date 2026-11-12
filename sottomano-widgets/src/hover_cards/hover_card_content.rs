@@ -1,7 +1,7 @@
 use std::{
     iter::{empty, once},
     rc::Rc,
-    time::{Duration, SystemTime},
+    time::{Duration, Instant},
 };
 
 use corredo::record_table::RecordTableStyle;
@@ -416,7 +416,7 @@ impl<'a> HoverCardContent<'a> {
         &self,
         label_text: String,
         refresh_period: Duration,
-        delivered_at: SystemTime,
+        delivered_at: Instant,
     ) -> Element<'static, PopupMessage> {
         let glyph_size = self.config.theme.font.small_text_size_px;
         Element::from(
@@ -425,9 +425,9 @@ impl<'a> HoverCardContent<'a> {
                     self.small_dim_text(label_text).into(),
                     RefreshDial::new(
                         self.clock
-                            .wall
-                            .duration_since(delivered_at)
-                            .unwrap_or(Duration::ZERO),
+                            .instant
+                            .checked_duration_since(delivered_at)
+                            .expect("a delivery is stamped no later than the clock that reads it"),
                         refresh_period,
                         self.clock.instant,
                         glyph_size,

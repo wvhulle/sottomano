@@ -4,7 +4,7 @@ use std::{
     sync::LazyLock,
 };
 
-use chrono::{DateTime, Local, Locale, NaiveDate, TimeDelta, Timelike, Utc};
+use chrono::{DateTime, Local, Locale, NaiveDate, Timelike, Utc};
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::weather::{
     buienradar_rain::{Downpour, Rain, RainOutlook, precipitation::millimeter_per_hour},
@@ -521,7 +521,7 @@ impl RadarRainForecast<'_> {
     }
 
     fn alerting_spell(&self, now: DateTime<Local>) -> Option<RainSpell<'_>> {
-        let lead_time = TimeDelta::from_std(self.alerts.lead_time).unwrap_or(TimeDelta::MAX);
+        let lead_time = self.alerts.lead_time;
         self.spell_above_minimum(now)
             .filter(|spell| spell.starts_at - now <= lead_time)
     }

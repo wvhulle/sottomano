@@ -3,7 +3,7 @@ use iced::border::Radius;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ListEndCorners {
     frame_corners: Radius,
-    last_position: usize,
+    last_position: Option<usize>,
 }
 
 impl ListEndCorners {
@@ -11,7 +11,7 @@ impl ListEndCorners {
     pub fn new(item_count: usize, frame_corners: Radius) -> Self {
         Self {
             frame_corners,
-            last_position: item_count.saturating_sub(1),
+            last_position: item_count.checked_sub(1),
         }
     }
 
@@ -27,7 +27,7 @@ impl ListEndCorners {
         } else {
             Radius::default()
         };
-        if position == self.last_position {
+        if Some(position) == self.last_position {
             Radius {
                 bottom_left: frame.bottom_left,
                 bottom_right: frame.bottom_right,

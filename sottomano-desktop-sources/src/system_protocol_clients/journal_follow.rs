@@ -185,12 +185,10 @@ impl<E: JournalEvent> EventWindow<E> {
 
     fn time_until_next_expiry(&self, now: SystemTime) -> Option<Duration> {
         let oldest = self.events.front()?;
-        Some(
-            oldest
-                .expires_at()
-                .duration_since(now)
-                .unwrap_or(Duration::ZERO),
-        )
+        Some(match oldest.expires_at().duration_since(now) {
+            Ok(ahead) => ahead,
+            Err(_already_expired) => Duration::ZERO,
+        })
     }
 }
 

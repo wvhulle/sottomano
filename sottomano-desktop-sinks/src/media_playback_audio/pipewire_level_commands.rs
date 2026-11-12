@@ -1,13 +1,14 @@
 use sottomano_desktop_sources::media_playback_audio::pipewire_audio::{
     CommandKind, Commands, Target,
 };
+use tokio::task::JoinError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum VolumeChangeFailure {
     #[error("the pipewire loop did not answer the volume change")]
     Unanswered,
-    #[error("the volume change task panicked")]
-    WorkerPanicked,
+    #[error("the volume change task did not finish: {0}")]
+    WorkerStopped(#[from] JoinError),
 }
 
 pub fn set_volume(

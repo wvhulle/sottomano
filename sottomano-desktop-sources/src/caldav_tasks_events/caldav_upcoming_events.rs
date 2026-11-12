@@ -136,7 +136,10 @@ impl UpcomingEventPoller {
                 match cached {
                     Some(cached)
                         if cached.window == window
-                            && cached.downloaded_at.elapsed() < refresh_interval =>
+                            && Instant::now()
+                                .checked_duration_since(cached.downloaded_at)
+                                .expect("a cached subscription was downloaded before now")
+                                < refresh_interval =>
                     {
                         cached
                     }

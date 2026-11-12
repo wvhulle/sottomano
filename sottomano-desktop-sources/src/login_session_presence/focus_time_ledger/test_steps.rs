@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use sottomano_toml_config::widget_groups::session_focus::SessionFocusConfig;
@@ -18,7 +18,7 @@ pub(super) fn at(minutes: i64) -> DateTime<Utc> {
 
 pub(super) fn config() -> SessionFocusConfig {
     SessionFocusConfig {
-        idle_after: Duration::from_mins(3),
+        idle_after: TimeDelta::minutes(3),
         ..SessionFocusConfig::default()
     }
 }

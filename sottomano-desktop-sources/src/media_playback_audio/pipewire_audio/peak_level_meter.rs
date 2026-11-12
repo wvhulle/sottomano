@@ -97,11 +97,11 @@ struct Capture {
 }
 
 impl Capture {
-    fn new(direction: Direction, peaks: watch::Sender<Peaks>) -> Self {
+    fn new(direction: Direction, peaks: watch::Sender<Peaks>, created_at: Instant) -> Self {
         Self {
             direction,
-            envelope: Envelope::silent(),
-            published_at: Instant::now(),
+            envelope: Envelope::silent(created_at),
+            published_at: created_at,
             reported: false,
             peaks,
         }
@@ -113,7 +113,7 @@ impl Capture {
     }
 
     fn silence(&mut self, now: Instant) {
-        self.envelope = Envelope::silent();
+        self.envelope = Envelope::silent(now);
         self.publish(now);
     }
 
@@ -121,7 +121,10 @@ impl Capture {
     fn publish(&mut self, now: Instant) {
         let next = quantize(self.envelope.value);
         let direction = self.direction;
-        let due = now.duration_since(self.published_at) >= PUBLISH_INTERVAL;
+        let due = now
+            .checked_duration_since(self.published_at)
+            .expect("the last publish happened at an earlier observation")
+            >= PUBLISH_INTERVAL;
         let published = self.peaks.send_if_modified(|peaks| {
             let current = channel(peaks, direction);
             let sustained = next != 0.0 && *current != 0.0;
@@ -168,7 +171,7 @@ fn capture(
 
     let stream = StreamRc::new(core.clone(), stream_name(direction), props)?;
     let listener = stream
-        .add_local_listener_with_user_data(Capture::new(direction, peaks.clone()))
+        .add_local_listener_with_user_data(Capture::new(direction, peaks.clone(), Instant::now()))
         .state_changed(|_, capture, _, state| {
             capture.report(&state);
             if !matches!(state, StreamState::Streaming) {
@@ -204,7 +207,9 @@ fn quantum_peak(stream: &Stream) -> Option<f32> {
 fn sample_peak(data: &mut Data) -> f32 {
     let chunk = data.chunk();
     let offset = chunk.offset() as usize;
-    let end = offset.saturating_add(chunk.size() as usize);
+    let end = offset
+        .checked_add(chunk.size() as usize)
+        .expect("a chunk offset plus size of two u32 values fits usize");
     data.data()
         .and_then(|samples| samples.get(offset..end.min(samples.len())))
         .map_or(0.0, |region| {
@@ -237,15 +242,18 @@ struct Envelope {
 }
 
 impl Envelope {
-    fn silent() -> Self {
+    fn silent(observed: Instant) -> Self {
         Self {
             value: 0.0,
-            observed: Instant::now(),
+            observed,
         }
     }
 
     fn decayed_to(self, now: Instant) -> Self {
-        let elapsed = now.duration_since(self.observed).as_secs_f32();
+        let elapsed = now
+            .checked_duration_since(self.observed)
+            .expect("the envelope was observed at an earlier sample")
+            .as_secs_f32();
         Self {
             value: self.value * (-elapsed / RELEASE.as_secs_f32()).exp(),
             observed: now,
@@ -274,15 +282,15 @@ fn quantize(value: f32) -> f32 {
 mod tests {
     use super::*;
 
-    fn capture_of(direction: Direction) -> (Capture, watch::Receiver<Peaks>) {
+    fn capture_of(direction: Direction, created_at: Instant) -> (Capture, watch::Receiver<Peaks>) {
         let (peaks, receiver) = watch::channel(Peaks::default());
-        (Capture::new(direction, peaks), receiver)
+        (Capture::new(direction, peaks, created_at), receiver)
     }
 
     #[test]
     fn attack_is_immediate_and_release_is_gradual() {
-        let (mut capture, _receiver) = capture_of(Direction::Output);
         let start = Instant::now();
+        let (mut capture, _receiver) = capture_of(Direction::Output, start);
         capture.observe(1.0, start);
         assert_eq!(capture.envelope.value, 1.0);
 
@@ -296,8 +304,8 @@ mod tests {
 
     #[test]
     fn silence_publishes_immediately_after_a_peak() {
-        let (mut capture, receiver) = capture_of(Direction::Output);
         let start = Instant::now();
+        let (mut capture, receiver) = capture_of(Direction::Output, start);
         capture.observe(1.0, start);
         assert_eq!(receiver.borrow().output, 1.0);
 
@@ -307,8 +315,8 @@ mod tests {
 
     #[test]
     fn rapid_peaks_are_rate_limited() {
-        let (mut capture, receiver) = capture_of(Direction::Output);
         let start = Instant::now();
+        let (mut capture, receiver) = capture_of(Direction::Output, start);
         capture.observe(1.0, start);
         capture.observe(0.001, start + Duration::from_millis(1));
         assert_eq!(receiver.borrow().output, 1.0);
@@ -320,9 +328,9 @@ mod tests {
     #[test]
     fn each_direction_publishes_into_its_own_channel() {
         let (peaks, receiver) = watch::channel(Peaks::default());
-        let mut output = Capture::new(Direction::Output, peaks.clone());
-        let mut input = Capture::new(Direction::Input, peaks);
         let start = Instant::now();
+        let mut output = Capture::new(Direction::Output, peaks.clone(), start);
+        let mut input = Capture::new(Direction::Input, peaks, start);
 
         input.observe(1.0, start);
         assert_eq!(receiver.borrow().input, 1.0);
