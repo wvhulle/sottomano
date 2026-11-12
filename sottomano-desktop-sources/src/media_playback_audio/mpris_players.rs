@@ -26,7 +26,7 @@ use crate::{
     media_playback_audio::lrclib_synced_lyrics::LyricsQuery,
     system_protocol_clients::{
         dbus_change_signals::signal_messages,
-        dbus_desktop_buses::{DbusPropertyLookup, DesktopBuses, OwnerProcess, Properties},
+        dbus_desktop_buses::{DesktopBuses, OwnerProcess, Properties, prop, text_prop},
         protocol_peer_reconnects::subscribed,
     },
 };
@@ -138,7 +138,7 @@ pub enum SeekMode {
 
 impl SeekMode {
     fn declared(metadata: &Properties) -> Self {
-        let Some(track) = metadata.object_path("mpris:trackid") else {
+        let Some(track) = prop::<OwnedObjectPath>(metadata, "mpris:trackid") else {
             return Self::Relative;
         };
         if track.as_str() == NO_TRACK {
@@ -163,8 +163,8 @@ pub struct Capabilities {
 
 impl Capabilities {
     fn declared(player: &Properties, root: &Properties) -> Self {
-        let control = player.flag("CanControl");
-        let controllable = |key| control && player.flag(key);
+        let control = prop(player, "CanControl").unwrap_or(false);
+        let controllable = |key| control && prop(player, key).unwrap_or(false);
         Self {
             play: controllable("CanPlay"),
             pause: controllable("CanPause"),
@@ -172,8 +172,8 @@ impl Capabilities {
             seek: controllable("CanSeek"),
             go_next: controllable("CanGoNext"),
             go_previous: controllable("CanGoPrevious"),
-            raise: root.flag("CanRaise"),
-            quit: root.flag("CanQuit"),
+            raise: prop(root, "CanRaise").unwrap_or(false),
+            quit: prop(root, "CanQuit").unwrap_or(false),
         }
     }
 }
@@ -211,8 +211,8 @@ impl Progress {
 
     fn timed(player: &Properties, metadata: &Properties) -> Option<Self> {
         let length = length(metadata).filter(|length| !length.is_zero())?;
-        let position = u64::try_from(player.integer("Position")?).ok()?;
-        let rate = player.float("Rate")?;
+        let position = u64::try_from(prop::<i64>(player, "Position")?).ok()?;
+        let rate = prop::<f64>(player, "Rate")?;
         Some(Self::Timed {
             position: Duration::from_micros(position),
             sampled_at: Instant::now(),
@@ -299,13 +299,15 @@ fn controllable_setting<Setting>(
     declared: Option<Setting>,
 ) -> PlayerSetting<Setting> {
     match declared {
-        Some(setting) if player.flag("CanControl") => PlayerSetting::Controllable(setting),
+        Some(setting) if prop(player, "CanControl").unwrap_or(false) => {
+            PlayerSetting::Controllable(setting)
+        }
         Some(_) | None => PlayerSetting::Uncontrollable,
     }
 }
 
 fn declared_queue_order(player: &Properties) -> Option<QueueOrder> {
-    let shuffled = player.boolean("Shuffle")?;
+    let shuffled = prop::<bool>(player, "Shuffle")?;
     Some(if shuffled {
         QueueOrder::Shuffled
     } else {
@@ -341,7 +343,7 @@ fn artists(metadata: &Properties) -> Vec<String> {
 }
 
 fn parsed<T: FromStr>(metadata: &Properties, key: &str) -> Option<T> {
-    metadata.text(key)?.parse().ok()
+    text_prop(metadata, key)?.parse().ok()
 }
 
 fn length(metadata: &Properties) -> Option<Duration> {
@@ -413,25 +415,25 @@ async fn read_media(
 ) -> zbus::Result<Media> {
     let root = properties(connection, bus, ROOT_INTERFACE).await?;
     let player = properties(connection, bus, PLAYER_INTERFACE).await?;
-    let Some(status) = player.text("PlaybackStatus") else {
+    let Some(status) = text_prop(&player, "PlaybackStatus") else {
         return Err(zbus::Error::Failure(
             "PlaybackStatus is not declared".to_owned(),
         ));
     };
     let status = status.parse()?;
-    let metadata = player.dictionary("Metadata").unwrap_or_default();
+    let metadata = prop::<Properties>(&player, "Metadata").unwrap_or_default();
     Ok(Media {
         bus: bus.to_owned(),
         owner: owner_process(dbus, bus).await,
-        identity: root.text("Identity").unwrap_or_else(|| bus.to_owned()),
-        desktop_entry: root.text("DesktopEntry"),
-        title: metadata.text("xesam:title"),
+        identity: text_prop(&root, "Identity").unwrap_or_else(|| bus.to_owned()),
+        desktop_entry: text_prop(&root, "DesktopEntry"),
+        title: text_prop(&metadata, "xesam:title"),
         artists: artists(&metadata),
-        album: metadata.text("xesam:album"),
+        album: text_prop(&metadata, "xesam:album"),
         url: parsed(&metadata, "xesam:url"),
         status,
         progress: Progress::declared(&player, &metadata),
-        art_url: metadata.text("mpris:artUrl"),
+        art_url: text_prop(&metadata, "mpris:artUrl"),
         capabilities: Capabilities::declared(&player, &root),
         queue_order: controllable_setting(&player, declared_queue_order(&player)),
         loop_mode: controllable_setting(&player, parsed(&player, "LoopStatus")),

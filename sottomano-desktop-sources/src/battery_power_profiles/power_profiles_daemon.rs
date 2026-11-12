@@ -12,9 +12,7 @@ use crate::{
     screen_brightness_color::clightd_backlight,
     system_protocol_clients::{
         dbus_change_signals::{change_triggers, properties_changed_rule},
-        dbus_desktop_buses::{
-            self, DbusPropertyLookup, DesktopBuses, Properties, name_owned, prop,
-        },
+        dbus_desktop_buses::{self, DesktopBuses, Properties, name_owned, prop, text_prop},
         protocol_peer_reconnects::subscribed,
         sysfs_attribute_reads,
     },
@@ -162,8 +160,8 @@ pub struct ProfileHold {
 impl ProfileHold {
     fn from_properties(properties: &Properties) -> Option<Self> {
         Some(ProfileHold {
-            application_id: properties.text("ApplicationId")?,
-            profile: Profile::from_name(&properties.text("Profile")?)?,
+            application_id: text_prop(properties, "ApplicationId")?,
+            profile: Profile::from_name(&text_prop(properties, "Profile")?)?,
             reason: prop(properties, "Reason")?,
         })
     }
