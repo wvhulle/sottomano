@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use iced::{
     Color, Element, Font, Length, Padding, Theme, border,
     widget::{Column, Row, container, stack, text},
@@ -78,7 +80,7 @@ use crate::{
         claude_usage, compute, desktop_session, login_session, memory_board, tailnet,
         voice_dictation, wireguard_tunnels,
     },
-    showcase_message::ShowcaseMessage,
+    showcase_message::{ShowcaseInteraction, ShowcaseMessage},
     showcase_program::SHOWCASE_FLOAT_OFFSET_PX,
 };
 
@@ -183,23 +185,23 @@ impl ShowcasedShellSettings {
     fn group_contents<'a>(
         &'a self,
         config: &'a Config,
-    ) -> Vec<WidgetGroupContent<'a, ShowcaseMessage>> {
+    ) -> Vec<WidgetGroupContent<'a, ShowcaseInteraction>> {
         let inert_settings = [
             self.panels
                 .group_content(config)
-                .map(|_| ShowcaseMessage::OutsideShowcase),
+                .map(|_| ShowcaseInteraction::OutsideShowcase),
             self.sidebar
                 .group_content(config)
-                .map(|_| ShowcaseMessage::OutsideShowcase),
+                .map(|_| ShowcaseInteraction::OutsideShowcase),
             self.overlays
                 .group_content(config)
-                .map(|_| ShowcaseMessage::OutsideShowcase),
+                .map(|_| ShowcaseInteraction::OutsideShowcase),
             self.compositor_styling
                 .group_content(config)
-                .map(|_| ShowcaseMessage::OutsideShowcase),
+                .map(|_| ShowcaseInteraction::OutsideShowcase),
             self.menus
                 .settings_content(config)
-                .map(|_| ShowcaseMessage::OutsideShowcase),
+                .map(|_| ShowcaseInteraction::OutsideShowcase),
         ];
         match self.shown_items {
             ShownSettingItems::SharingAUnit => inert_settings
@@ -259,7 +261,7 @@ pub enum TerminalLine {
 }
 
 impl TerminalLine {
-    fn view<'a>(&self) -> Element<'a, ShowcaseMessage> {
+    fn view<'a>(&self) -> Element<'a, ShowcaseInteraction> {
         match self {
             TerminalLine::Prompt { directory, command } => {
                 terminal_row(directory, primary_color, command)
@@ -273,7 +275,7 @@ fn terminal_row<'a>(
     lead: &'static str,
     lead_color: fn(&Theme) -> Color,
     rest: &'static str,
-) -> Element<'a, ShowcaseMessage> {
+) -> Element<'a, ShowcaseInteraction> {
     Row::with_children([
         text(lead)
             .font(Font::MONOSPACE)
@@ -287,7 +289,7 @@ fn terminal_row<'a>(
 }
 
 impl ShowcasedToasts {
-    fn window_frames(&self) -> Element<'_, ShowcaseMessage> {
+    fn window_frames(&self) -> Element<'_, ShowcaseInteraction> {
         let frames = self.compositor.windows.values().filter_map(|window| {
             let (x, y) = window.layout.tile_position_in_view?;
             let (width, height) = window.layout.window_size;
@@ -339,7 +341,7 @@ impl ShowcasedDesktopSession {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> Vec<Element<'a, ShowcaseMessage>> {
+    ) -> Vec<Element<'a, ShowcaseInteraction>> {
         sidebar_column::vertical_view(
             &self.snapshot,
             SHOWCASE_OUTPUT,
@@ -351,7 +353,7 @@ impl ShowcasedDesktopSession {
             ),
             undragged_slot_context(config, Position::Left, clock, self.window_row_layout),
         )
-        .map(|workspaces| workspaces.map(ShowcaseMessage::from))
+        .map(|workspaces| workspaces.map(ShowcaseInteraction::from))
         .into_iter()
         .collect()
     }
@@ -360,7 +362,7 @@ impl ShowcasedDesktopSession {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> Vec<Element<'a, ShowcaseMessage>> {
+    ) -> Vec<Element<'a, ShowcaseInteraction>> {
         let snapshot = &self.snapshot;
         let workspaces = inline_strip::inline_view(
             snapshot,
@@ -369,7 +371,7 @@ impl ShowcasedDesktopSession {
             &EmptyWorkspaceFolding::new(EmptyWorkspaces::Shown),
             undragged_slot_context(config, Position::Bottom, clock, self.window_row_layout),
         )
-        .map(|workspaces| workspaces.map(ShowcaseMessage::from));
+        .map(|workspaces| workspaces.map(ShowcaseInteraction::from));
         let windows = self
             .window_group
             .view(
@@ -384,7 +386,9 @@ impl ShowcasedDesktopSession {
                 undragged_slot_context(config, Position::Bottom, clock, self.window_row_layout),
             )
             .map(|element| {
-                element.map(|event| ShowcaseMessage::from(event.map(ShowcaseMessage::WindowGroup)))
+                element.map(|event| {
+                    ShowcaseInteraction::from(event.map(ShowcaseInteraction::WindowGroup))
+                })
             });
         workspaces.into_iter().chain(windows).collect()
     }
@@ -455,50 +459,58 @@ impl ShowcasedGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> Vec<WidgetGroupContent<'a, ShowcaseMessage>> {
+    ) -> Vec<WidgetGroupContent<'a, ShowcaseInteraction>> {
         match self {
             ShowcasedGroup::AppLauncher(launcher) => launcher
                 .group
                 .group_contents(&launcher.desktop_entries, config, SHOWCASE_OUTPUT)
                 .into_iter()
-                .map(|group| group.map(|_| ShowcaseMessage::OutsideShowcase))
+                .map(|group| group.map(|_| ShowcaseInteraction::OutsideShowcase))
                 .collect(),
             ShowcasedGroup::Compute(group) => {
-                vec![group.group_content().map(ShowcaseMessage::Compute)]
+                vec![group.group_content().map(ShowcaseInteraction::Compute)]
             }
             ShowcasedGroup::MemoryBoard(group) => {
-                vec![group.group_content().map(ShowcaseMessage::MemoryBoard)]
+                vec![group.group_content().map(ShowcaseInteraction::MemoryBoard)]
             }
             ShowcasedGroup::Weather(group) => {
-                vec![group.group_content(config).map(ShowcaseMessage::Weather)]
+                vec![
+                    group
+                        .group_content(config)
+                        .map(ShowcaseInteraction::Weather),
+                ]
             }
             ShowcasedGroup::ClaudeUsage(group) => {
-                vec![group.group_content().map(ShowcaseMessage::ClaudeUsage)]
+                vec![group.group_content().map(ShowcaseInteraction::ClaudeUsage)]
             }
             ShowcasedGroup::Media(media) => media
                 .group
                 .group_contents(config, clock)
-                .map(|group| group.map(ShowcaseMessage::Media))
+                .map(|group| group.map(ShowcaseInteraction::Media))
                 .collect(),
             ShowcasedGroup::IdleTimeouts(group) => group
                 .pause_groups(config)
                 .into_iter()
-                .map(|pause_group| pause_group.map(ShowcaseMessage::IdleTimeouts))
+                .map(|pause_group| pause_group.map(ShowcaseInteraction::IdleTimeouts))
                 .collect(),
             ShowcasedGroup::Wallpaper(group) => {
-                vec![group.group_content().map(ShowcaseMessage::Wallpaper)]
+                vec![group.group_content().map(ShowcaseInteraction::Wallpaper)]
             }
             ShowcasedGroup::Audio(group) => {
-                vec![group.group_content(config).map(ShowcaseMessage::Audio)]
+                vec![group.group_content(config).map(ShowcaseInteraction::Audio)]
             }
             ShowcasedGroup::Gamepad(gamepad) => gamepad
                 .group
                 .group_contents(&gamepad.bindings)
                 .into_iter()
-                .map(|group| group.map(ShowcaseMessage::Gamepad))
+                .map(|group| group.map(ShowcaseInteraction::Gamepad))
                 .collect(),
             ShowcasedGroup::VoiceDictation(group) => {
-                vec![group.group_content().map(ShowcaseMessage::VoiceDictation)]
+                vec![
+                    group
+                        .group_content()
+                        .map(ShowcaseInteraction::VoiceDictation),
+                ]
             }
             ShowcasedGroup::PodmanEngines(_)
             | ShowcasedGroup::VirtualMachines(_)
@@ -518,17 +530,21 @@ impl ShowcasedGroup {
                 vec![
                     group
                         .group_content(&config.widget_groups.caldav)
-                        .map(ShowcaseMessage::Caldav),
+                        .map(ShowcaseInteraction::Caldav),
                 ]
             }
             ShowcasedGroup::Tailnet(group) => {
-                vec![group.group_content().map(ShowcaseMessage::Tailnet)]
+                vec![group.group_content().map(ShowcaseInteraction::Tailnet)]
             }
             ShowcasedGroup::WireguardTunnels(group) => {
-                vec![group.group_content().map(ShowcaseMessage::WireguardTunnels)]
+                vec![
+                    group
+                        .group_content()
+                        .map(ShowcaseInteraction::WireguardTunnels),
+                ]
             }
             ShowcasedGroup::LoginSession(group) => {
-                vec![group.group_content().map(ShowcaseMessage::LoginSession)]
+                vec![group.group_content().map(ShowcaseInteraction::LoginSession)]
             }
             ShowcasedGroup::MenuMembers(groups) => groups
                 .iter()
@@ -539,7 +555,7 @@ impl ShowcasedGroup {
                 presets
                     .group
                     .group_content(&presets.appearance)
-                    .map(ShowcaseMessage::AppearancePresets),
+                    .map(ShowcaseInteraction::AppearancePresets),
             ],
             ShowcasedGroup::BottomPanel(_)
             | ShowcasedGroup::WorkspaceSidebar(_)
@@ -550,65 +566,101 @@ impl ShowcasedGroup {
     fn guest_group_contents<'a>(
         &'a self,
         config: &'a Config,
-    ) -> Vec<WidgetGroupContent<'a, ShowcaseMessage>> {
+    ) -> Vec<WidgetGroupContent<'a, ShowcaseInteraction>> {
         match self {
             ShowcasedGroup::PodmanEngines(group) => {
-                vec![group.group_content().map(ShowcaseMessage::PodmanEngines)]
+                vec![
+                    group
+                        .group_content()
+                        .map(ShowcaseInteraction::PodmanEngines),
+                ]
             }
             ShowcasedGroup::VirtualMachines(group) => {
-                vec![group.group_content().map(ShowcaseMessage::VirtualMachines)]
+                vec![
+                    group
+                        .group_content()
+                        .map(ShowcaseInteraction::VirtualMachines),
+                ]
             }
             ShowcasedGroup::NspawnContainers(group) => {
-                vec![group.group_content().map(ShowcaseMessage::NspawnContainers)]
+                vec![
+                    group
+                        .group_content()
+                        .map(ShowcaseInteraction::NspawnContainers),
+                ]
             }
             ShowcasedGroup::DockerEngines(group) => {
-                vec![group.group_content().map(ShowcaseMessage::DockerEngines)]
+                vec![
+                    group
+                        .group_content()
+                        .map(ShowcaseInteraction::DockerEngines),
+                ]
             }
             ShowcasedGroup::ApptainerContainers(group) => {
                 vec![
                     group
                         .group_content()
-                        .map(ShowcaseMessage::ApptainerContainers),
+                        .map(ShowcaseInteraction::ApptainerContainers),
                 ]
             }
             ShowcasedGroup::VmwareMachines(group) => {
-                vec![group.group_content().map(ShowcaseMessage::VmwareMachines)]
+                vec![
+                    group
+                        .group_content()
+                        .map(ShowcaseInteraction::VmwareMachines),
+                ]
             }
             ShowcasedGroup::VirtualBoxMachines(group) => {
                 vec![
                     group
                         .group_content()
-                        .map(ShowcaseMessage::VirtualBoxMachines),
+                        .map(ShowcaseInteraction::VirtualBoxMachines),
                 ]
             }
             ShowcasedGroup::WaydroidContainer(group) => {
                 vec![
                     group
                         .group_content()
-                        .map(ShowcaseMessage::WaydroidContainer),
+                        .map(ShowcaseInteraction::WaydroidContainer),
                 ]
             }
             ShowcasedGroup::FlatpakSandboxes(group) => {
-                vec![group.group_content().map(ShowcaseMessage::FlatpakSandboxes)]
+                vec![
+                    group
+                        .group_content()
+                        .map(ShowcaseInteraction::FlatpakSandboxes),
+                ]
             }
             ShowcasedGroup::LxcContainers(group) => {
-                vec![group.group_content().map(ShowcaseMessage::LxcContainers)]
+                vec![
+                    group
+                        .group_content()
+                        .map(ShowcaseInteraction::LxcContainers),
+                ]
             }
             ShowcasedGroup::IncusInstances(group) => {
-                vec![group.group_content().map(ShowcaseMessage::IncusInstances)]
+                vec![
+                    group
+                        .group_content()
+                        .map(ShowcaseInteraction::IncusInstances),
+                ]
             }
             ShowcasedGroup::MicrovmGuests(group) => {
-                vec![group.group_content().map(ShowcaseMessage::MicrovmGuests)]
+                vec![
+                    group
+                        .group_content()
+                        .map(ShowcaseInteraction::MicrovmGuests),
+                ]
             }
             ShowcasedGroup::CgroupMemoryLimits(group) => {
                 vec![
                     group
                         .group_content(config)
-                        .map(ShowcaseMessage::CgroupMemoryLimits),
+                        .map(ShowcaseInteraction::CgroupMemoryLimits),
                 ]
             }
             ShowcasedGroup::CiRuns(group) => {
-                vec![group.group_content().map(ShowcaseMessage::CiRuns)]
+                vec![group.group_content().map(ShowcaseInteraction::CiRuns)]
             }
             _ => Vec::new(),
         }
@@ -618,7 +670,7 @@ impl ShowcasedGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> Vec<Element<'a, ShowcaseMessage>> {
+    ) -> Vec<Element<'a, ShowcaseInteraction>> {
         let position = self.position();
         match self {
             ShowcasedGroup::BottomPanel(session) => session.workspaces_and_windows(config, clock),
@@ -631,7 +683,11 @@ impl ShowcasedGroup {
         }
     }
 
-    fn update_paired_group(&mut self, message: ShowcaseMessage, clock: Clock) {
+    fn update_paired_group(
+        &mut self,
+        message: ShowcaseMessage,
+        clock: Clock,
+    ) -> Result<(), ShowcaseMessage> {
         match (self, message) {
             (ShowcasedGroup::PodmanEngines(group), ShowcaseMessage::PodmanEngines(message)) => {
                 group.update(message, clock);
@@ -720,60 +776,85 @@ impl ShowcasedGroup {
             (ShowcasedGroup::LoginSession(group), ShowcaseMessage::LoginSession(message)) => {
                 let _ = group.update(message, clock);
             }
-            _ => {}
+            (_, unclaimed) => return Err(unclaimed),
         }
+        Ok(())
     }
 
-    pub fn update(&mut self, message: ShowcaseMessage, clock: Clock) {
+    pub fn update(
+        &mut self,
+        message: ShowcaseMessage,
+        clock: Clock,
+    ) -> Result<(), ShowcaseMessage> {
         match self {
             ShowcasedGroup::Compute(group) => {
                 if let ShowcaseMessage::Compute(message) = message {
                     let _ = group.update(message, clock);
+                } else {
+                    return Err(message);
                 }
             }
             ShowcasedGroup::MemoryBoard(group) => {
                 if let ShowcaseMessage::MemoryBoard(message) = message {
                     let _ = group.update(message, clock);
+                } else {
+                    return Err(message);
                 }
             }
             ShowcasedGroup::Weather(group) => {
                 if let ShowcaseMessage::Weather(message) = message {
                     let _ = group.update(message, clock);
+                } else {
+                    return Err(message);
                 }
             }
             ShowcasedGroup::ClaudeUsage(group) => {
                 if let ShowcaseMessage::ClaudeUsage(message) = message {
                     let _ = group.update(message, clock);
+                } else {
+                    return Err(message);
                 }
             }
             ShowcasedGroup::Media(media) => {
                 if let ShowcaseMessage::Media(message) = message {
                     let _ = media.group.update(message, clock);
+                } else {
+                    return Err(message);
                 }
             }
             ShowcasedGroup::IdleTimeouts(group) => {
                 if let ShowcaseMessage::IdleTimeouts(message) = message {
                     let _ = group.update(message, clock);
+                } else {
+                    return Err(message);
                 }
             }
             ShowcasedGroup::Wallpaper(group) => {
                 if let ShowcaseMessage::Wallpaper(message) = message {
                     let _ = group.update(message, clock);
+                } else {
+                    return Err(message);
                 }
             }
             ShowcasedGroup::Audio(group) => {
                 if let ShowcaseMessage::Audio(message) = message {
                     let _ = group.update(message, clock);
+                } else {
+                    return Err(message);
                 }
             }
             ShowcasedGroup::Gamepad(gamepad) => {
                 if let ShowcaseMessage::Gamepad(message) = message {
                     let _ = gamepad.group.update(message, &gamepad.bindings);
+                } else {
+                    return Err(message);
                 }
             }
             ShowcasedGroup::VoiceDictation(group) => {
                 if let ShowcaseMessage::VoiceDictation(message) = message {
                     let _ = group.update(message, clock);
+                } else {
+                    return Err(message);
                 }
             }
             ShowcasedGroup::PodmanEngines(_)
@@ -793,16 +874,25 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Caldav(_)
             | ShowcasedGroup::WireguardTunnels(_)
             | ShowcasedGroup::Tailnet(_)
-            | ShowcasedGroup::LoginSession(_) => self.update_paired_group(message, clock),
+            | ShowcasedGroup::LoginSession(_) => return self.update_paired_group(message, clock),
             ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 if let ShowcaseMessage::WindowGroup(message) = message {
                     let _ = session.window_group.update(message, clock);
+                } else {
+                    return Err(message);
                 }
             }
             ShowcasedGroup::MenuMembers(groups) => {
-                for member in groups {
-                    member.update(message.clone(), clock);
-                }
+                return groups
+                    .iter_mut()
+                    .try_fold(message, |unclaimed, member| {
+                        match member.update(unclaimed, clock) {
+                            Ok(()) => ControlFlow::Break(()),
+                            Err(still_unclaimed) => ControlFlow::Continue(still_unclaimed),
+                        }
+                    })
+                    .continue_value()
+                    .map_or(Ok(()), Err);
             }
             ShowcasedGroup::AppearancePresets(presets) => match message {
                 ShowcaseMessage::AppearancePresets(AppearancePresetsMessage::Apply(preset)) => {
@@ -811,12 +901,13 @@ impl ShowcasedGroup {
                 ShowcaseMessage::AppearancePresets(AppearancePresetsMessage::Expansion(
                     expansion,
                 )) => presets.group.update_expansion(expansion),
-                _ => {}
+                unclaimed => return Err(unclaimed),
             },
             ShowcasedGroup::AppLauncher(_)
             | ShowcasedGroup::Toasts(_)
-            | ShowcasedGroup::ShellSettings(_) => {}
+            | ShowcasedGroup::ShellSettings(_) => return Err(message),
         }
+        Ok(())
     }
 
     #[allow(clippy::too_many_lines)]
@@ -1189,7 +1280,7 @@ impl ShowcasedGroup {
         }
     }
 
-    pub fn backdrop(&self) -> Option<Element<'_, ShowcaseMessage>> {
+    pub fn backdrop(&self) -> Option<Element<'_, ShowcaseInteraction>> {
         match self {
             ShowcasedGroup::Toasts(toasts) => Some(toasts.window_frames()),
             _ => None,

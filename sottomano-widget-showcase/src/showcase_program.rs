@@ -60,7 +60,7 @@ use crate::{
     demo_script::{DEMOS, Demo, GroupShown},
     fixtures::{sample, showcase_epoch},
     scripted_frames::scripted_frames,
-    showcase_message::ShowcaseMessage,
+    showcase_message::{ShowcaseInteraction, ShowcaseMessage},
     showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup, recorded_look},
 };
 
@@ -135,7 +135,7 @@ pub struct ShowcaseState {
     group: ShowcasedGroup,
     group_menus: GroupMenuState,
     hover_card: HoverCardHost,
-    notifications: NotificationLayer<ShowcaseMessage>,
+    notifications: NotificationLayer<ShowcaseInteraction>,
     clock: Clock,
     booted_at: Clock,
     delivered_sample: u32,
@@ -283,11 +283,11 @@ impl ShowcaseState {
                 self.appearance = preset.applied_to(self.appearance);
                 self.theme =
                     configured_theme(&scheme_palette(&self.config, self.appearance.scheme));
-                self.group.update(message, self.clock);
+                let _message_for_another_group = self.group.update(message, self.clock);
                 Task::none()
             }
             other => {
-                self.group.update(other, self.clock);
+                let _message_for_another_group = self.group.update(other, self.clock);
                 Task::none()
             }
         }
@@ -339,16 +339,16 @@ impl ShowcaseState {
             .collect();
     }
 
-    fn group_menu(&self, kind: GroupMenuTopic) -> GroupMenuView<'_, ShowcaseMessage> {
+    fn group_menu(&self, kind: GroupMenuTopic) -> GroupMenuView<'_, ShowcaseInteraction> {
         GroupMenuView::new(
             kind,
             &self.group_menus,
-            ShowcaseMessage::GroupMenuState,
+            ShowcaseInteraction::GroupMenuState,
             self.group.group_contents(&self.config, self.clock),
         )
     }
 
-    fn strip_groups(&self) -> Vec<Element<'_, ShowcaseMessage>> {
+    fn strip_groups(&self) -> Vec<Element<'_, ShowcaseInteraction>> {
         match self.demo.shown {
             GroupShown::InMenu(kind)
             | GroupShown::InMenuPresented { menu: kind, .. }
@@ -366,7 +366,7 @@ impl ShowcaseState {
         }
     }
 
-    fn menu_cascade(&self, kind: GroupMenuTopic) -> HoverContent<'_, ShowcaseMessage> {
+    fn menu_cascade(&self, kind: GroupMenuTopic) -> HoverContent<'_, ShowcaseInteraction> {
         let group_menu = self.group_menu(kind);
         let inspected_hover_card = self
             .group_menus
@@ -459,7 +459,7 @@ impl ShowcaseState {
         Task::batch(tasks)
     }
 
-    fn toast_layer(&self) -> Element<'_, ShowcaseMessage> {
+    fn toast_layer(&self) -> Element<'_, ShowcaseInteraction> {
         Element::from(self.notifications.anchored_toasts(
             SHOWCASE_OUTPUT,
             &self.config,
@@ -471,7 +471,7 @@ impl ShowcaseState {
             },
             self.clock,
         ))
-        .map(ShowcaseMessage::Notification)
+        .map(ShowcaseInteraction::Notification)
     }
 
     fn update_notification(&mut self, message: NotificationMessage) -> Task<ShowcaseMessage> {
@@ -484,7 +484,9 @@ impl ShowcaseState {
             QuietPhase::Inactive,
             self.clock,
         );
-        self.notifications.update(message, &context, &|_| None)
+        self.notifications
+            .update(message, &context, &|_| None)
+            .map(ShowcaseMessage::from)
     }
 
     fn shown_hover_card(&self) -> Option<HoverCard> {
@@ -500,7 +502,7 @@ impl ShowcaseState {
         }
     }
 
-    fn group_strip(&self) -> Element<'_, ShowcaseMessage> {
+    fn group_strip(&self) -> Element<'_, ShowcaseInteraction> {
         let panel = &self.config.desktop_panels;
         let position = self.group.position();
         let layer = match position {
@@ -534,7 +536,7 @@ impl ShowcaseState {
         }
     }
 
-    fn hover_card_layer(&self) -> Element<'_, ShowcaseMessage> {
+    fn hover_card_layer(&self) -> Element<'_, ShowcaseInteraction> {
         self.hover_card.view(
             SHOWCASE_OUTPUT,
             &self.config,
@@ -628,7 +630,7 @@ impl Program for ShowcaseProgram {
         )
         .width(Length::Fill)
         .height(Length::Fill);
-        scripted_frames(state.clock.instant, layers)
+        scripted_frames(state.clock.instant, layers).map(ShowcaseMessage::from)
     }
 
     fn subscription(&self, _state: &ShowcaseState) -> Subscription<ShowcaseMessage> {

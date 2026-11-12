@@ -1,10 +1,13 @@
 use std::{mem, sync::Arc};
 
 use iced::{Task, font};
-use sottomano_desktop_sources::blocking_background_work::blocking;
+use sottomano_desktop_sources::{
+    blocking_background_work::blocking, delivery_cadence_drivers::ChangeWatchFailure,
+};
 use sottomano_toml_config::{Config, LoadError, theme::Theme};
-use sottomano_widgets::widgets::{
-    configured_theme::configured_theme, text::point_generic_font_families_at,
+use sottomano_widgets::{
+    notification_toasts::toast_updates::StoppedChangeWatch,
+    widgets::{configured_theme::configured_theme, text::point_generic_font_families_at},
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::Message};
@@ -27,7 +30,8 @@ impl DesktopShell {
         self.theme = configured_theme(&self.config.theme.palette);
         Task::batch([
             self.notifications
-                .withdraw_config_error(&self.config, self.clock.instant),
+                .withdraw_config_error(&self.config, self.clock.instant)
+                .map(Message::from),
             self.adopt_fonts(&previous.theme),
             self.adopt_panel_geometry(&previous),
         ])
@@ -63,18 +67,40 @@ impl DesktopShell {
         Task::batch([self.resize_backdrops(), self.reserve()])
     }
 
+    pub(super) fn show_change_watch_failure(
+        &mut self,
+        stopped_watch: StoppedChangeWatch,
+        watch_failure: &ChangeWatchFailure,
+    ) -> Task<Message> {
+        tracing::warn!("change watch: {watch_failure}");
+        self.notifications
+            .show_change_watch_failure(
+                stopped_watch,
+                watch_failure,
+                &self.widget_groups.toast_context(
+                    &self.compositor,
+                    self.desktop_entries.get(),
+                    &self.config,
+                    self.clock,
+                ),
+            )
+            .map(Message::from)
+    }
+
     pub(super) fn reject_config(&mut self, error: &LoadError) -> Task<Message> {
         let path = self.config_file.path();
         tracing::warn!("invalid configuration {}: {error}", path.display());
-        self.notifications.show_config_error(
-            path,
-            error,
-            &self.widget_groups.toast_context(
-                &self.compositor,
-                self.desktop_entries.get(),
-                &self.config,
-                self.clock,
-            ),
-        )
+        self.notifications
+            .show_config_error(
+                path,
+                error,
+                &self.widget_groups.toast_context(
+                    &self.compositor,
+                    self.desktop_entries.get(),
+                    &self.config,
+                    self.clock,
+                ),
+            )
+            .map(Message::from)
     }
 }
