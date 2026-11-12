@@ -318,15 +318,19 @@ impl IdlePauseGroups {
 
     fn rearm(&mut self) -> Task<IdlePauseMessage> {
         self.refresh_pause_blockers();
-        let screen_power_edges =
-            performed_idle_action_edges(self.triggers()).filter_map(|tagged| {
-                ready((tagged.tag == IdleAction::ScreenOff).then_some(
-                    IdlePauseMessage::ScreenPowerChangedByIdleAction(match tagged.edge {
-                        IdleEdge::Idled => ScreenEdge::Off,
-                        IdleEdge::Resumed => ScreenEdge::On,
-                    }),
-                ))
-            });
+        let triggers = self.triggers();
+        if triggers.is_empty() {
+            self.idle_watcher = None;
+            return Task::none();
+        }
+        let screen_power_edges = performed_idle_action_edges(triggers).filter_map(|tagged| {
+            ready((tagged.tag == IdleAction::ScreenOff).then_some(
+                IdlePauseMessage::ScreenPowerChangedByIdleAction(match tagged.edge {
+                    IdleEdge::Idled => ScreenEdge::Off,
+                    IdleEdge::Resumed => ScreenEdge::On,
+                }),
+            ))
+        });
         let (watcher, handle) = Task::run(screen_power_edges, identity).abortable();
         self.idle_watcher = Some(handle.abort_on_drop());
         watcher

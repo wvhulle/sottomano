@@ -19,9 +19,12 @@ pub trait AvailabilityStreams: Stream<Item = Availability> + Sized {
         InnerStream::Item: Clone + Send,
     {
         self.distinct_until_changed()
-            .switch_map(move |availability| match availability {
-                Availability::Available => start().left_stream(),
-                Availability::Unavailable => stream::iter([released.clone()]).right_stream(),
+            .switch_map(move |availability| {
+                let (released_items, started_inner) = match availability {
+                    Availability::Available => (Vec::new(), vec![start()]),
+                    Availability::Unavailable => (vec![released.clone()], Vec::new()),
+                };
+                stream::iter(released_items).chain(stream::iter(started_inner).flatten())
             })
     }
 }

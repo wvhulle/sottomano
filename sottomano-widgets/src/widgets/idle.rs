@@ -1,18 +1,19 @@
 pub mod timer;
 
-use std::time::Duration;
+use std::{future::ready, time::Duration};
 
 use iced::futures::{Stream, StreamExt, stream};
 use sottomano_desktop_sinks::login_session_presence::logind_session_commands::perform_session_action;
-use sottomano_desktop_sources::login_session_presence::{
-    idle_session_actions::IdleAction,
-    wayland_idle_notify::{
-        IdleEdge, IdleNotifier, IdleTrigger, InputOrInhibitors, TaggedEdge, WaylandError,
+use sottomano_desktop_sources::{
+    login_session_presence::{
+        idle_session_actions::IdleAction,
+        wayland_idle_notify::{
+            IdleEdge, IdleNotifier, IdleTrigger, InputOrInhibitors, TaggedEdge, WaylandError,
+        },
     },
+    system_protocol_clients::protocol_peer_reconnects::subscribed,
 };
 use tokio::task::spawn;
-
-const RECONNECT_ATTEMPTS: usize = 3;
 
 const LADDER: [Duration; 11] = [
     Duration::from_secs(10),
@@ -49,69 +50,6 @@ pub type ActionTrigger = IdleTrigger<IdleAction>;
 
 pub type IdleActionEdge = TaggedEdge<IdleAction>;
 
-enum IdleActionConnection {
-    Reconnecting {
-        attempts_left: usize,
-    },
-    Connected {
-        notifier: Box<IdleNotifier<IdleAction, InputOrInhibitors>>,
-        attempts_left: usize,
-    },
-}
-
-type NextIdleActionEdges = Option<(Vec<IdleActionEdge>, IdleActionConnection)>;
-
-impl IdleActionConnection {
-    async fn next_edges(self, triggers: &[ActionTrigger]) -> NextIdleActionEdges {
-        match self {
-            IdleActionConnection::Reconnecting { attempts_left: 0 } => None,
-            IdleActionConnection::Reconnecting { attempts_left } => {
-                match IdleNotifier::connect().await {
-                    Ok(mut notifier) => {
-                        notifier.arm(triggers);
-                        Some((
-                            Vec::new(),
-                            IdleActionConnection::Connected {
-                                notifier: Box::new(notifier),
-                                attempts_left,
-                            },
-                        ))
-                    }
-                    Err(failure) => after_failure(&failure, attempts_left),
-                }
-            }
-            IdleActionConnection::Connected {
-                mut notifier,
-                attempts_left,
-            } => match notifier.edges().await {
-                Ok(edges) => {
-                    perform_idled_actions(&edges);
-                    Some((
-                        edges,
-                        IdleActionConnection::Connected {
-                            notifier,
-                            attempts_left,
-                        },
-                    ))
-                }
-                Err(failure) => after_failure(&failure, attempts_left),
-            },
-        }
-    }
-}
-
-fn after_failure(failure: &WaylandError, attempts_left: usize) -> NextIdleActionEdges {
-    tracing::warn!("idle daemon: {failure}");
-    matches!(failure, WaylandError::Io(_)).then(|| {
-        (
-            Vec::new(),
-            IdleActionConnection::Reconnecting {
-                attempts_left: attempts_left - 1,
-            },
-        )
-    })
-}
-
 fn perform_idled_actions(edges: &[IdleActionEdge]) {
     edges
         .iter()
@@ -125,17 +63,28 @@ fn perform_idled_actions(edges: &[IdleActionEdge]) {
 pub fn performed_idle_action_edges(
     triggers: Vec<ActionTrigger>,
 ) -> impl Stream<Item = IdleActionEdge> + Send {
-    let attempts_left = if triggers.is_empty() {
-        0
-    } else {
-        RECONNECT_ATTEMPTS
-    };
-    stream::unfold(
-        IdleActionConnection::Reconnecting { attempts_left },
-        move |connection| {
-            let triggers = triggers.clone();
-            async move { connection.next_edges(&triggers).await }
-        },
-    )
+    subscribed(triggers, |triggers| async move {
+        let mut notifier = IdleNotifier::<IdleAction, InputOrInhibitors>::connect().await?;
+        notifier.arm(&triggers);
+        Ok::<_, WaylandError>(stream::unfold(notifier, |mut notifier| async move {
+            match notifier.edges().await {
+                Ok(edges) => {
+                    perform_idled_actions(&edges);
+                    Some((Ok(edges), notifier))
+                }
+                Err(failure) => {
+                    tracing::warn!("idle daemon: {failure}");
+                    None
+                }
+            }
+        }))
+    })
+    .filter_map(|edges| {
+        ready(
+            edges
+                .inspect_err(|failure| tracing::warn!("idle daemon: {failure}"))
+                .ok(),
+        )
+    })
     .flat_map(stream::iter)
 }

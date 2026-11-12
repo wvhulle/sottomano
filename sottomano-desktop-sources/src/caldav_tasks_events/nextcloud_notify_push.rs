@@ -1,5 +1,6 @@
 use std::{
     fmt::{Display, Formatter, Result as FmtResult},
+    future::ready,
     path::PathBuf,
     sync::{
         Arc,
@@ -11,22 +12,19 @@ use std::{
 use base64::{Engine, engine::general_purpose::STANDARD};
 use futures::{SinkExt, Stream, StreamExt, stream};
 use serde::Deserialize;
-use tokio::{
-    net::TcpStream,
-    time::{sleep, timeout},
-};
+use tokio::{net::TcpStream, time::timeout};
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async,
     tungstenite::{Error as WebSocketError, Message},
 };
 
-use crate::{secret_file_reads::read_secret, system_protocol_clients::http_json_client};
+use crate::{
+    secret_file_reads::read_secret,
+    system_protocol_clients::{http_json_client, protocol_peer_reconnects::subscribed},
+};
 
 const CAPABILITIES_PATH: &str = "/ocs/v2.php/cloud/capabilities?format=json";
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(15);
-const FIRST_RETRY: Duration = Duration::from_secs(30);
-const LONGEST_RETRY: Duration = Duration::from_mins(30);
-const UNSUPPORTED_RECHECK: Duration = Duration::from_hours(1);
 
 type PushSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
@@ -37,9 +35,10 @@ pub struct PushLogin {
     pub password: PathBuf,
 }
 
-enum PushLink {
-    Connecting { after: Duration },
-    Listening(Box<PushSocket>),
+#[derive(Clone)]
+struct PushSubscription {
+    login: PushLogin,
+    push_live: Arc<AtomicBool>,
 }
 
 enum ConnectFailure {
@@ -114,55 +113,36 @@ pub fn activity_pings(
     login: PushLogin,
     push_live: Arc<AtomicBool>,
 ) -> impl Stream<Item = ()> + Send {
-    stream::unfold(
-        PushLink::Connecting {
-            after: Duration::ZERO,
-        },
-        move |link| {
-            let login = login.clone();
-            let push_live = push_live.clone();
-            async move { Some(((), next_activity_ping(link, &login, &push_live).await)) }
+    subscribed(
+        PushSubscription { login, push_live },
+        |push_subscription| async move {
+            let socket = listen_for_activity(&push_subscription.login).await?;
+            push_subscription.push_live.store(true, Ordering::Relaxed);
+            let lost_link = push_subscription.push_live.clone();
+            Ok(socket
+                .filter_map(|message| {
+                    ready(match message {
+                        Ok(Message::Text(text)) if text.as_str().starts_with("notify_activity") => {
+                            Some(Ok::<(), ConnectFailure>(()))
+                        }
+                        Ok(_) | Err(_) => None,
+                    })
+                })
+                .chain(
+                    stream::once(async move {
+                        lost_link.store(false, Ordering::Relaxed);
+                    })
+                    .filter_map(|()| ready(None)),
+                ))
         },
     )
-}
-
-async fn next_activity_ping(
-    mut link: PushLink,
-    login: &PushLogin,
-    push_live: &AtomicBool,
-) -> PushLink {
-    loop {
-        link = match link {
-            PushLink::Connecting { after } => {
-                sleep(after).await;
-                match listen_for_activity(login).await {
-                    Ok(socket) => {
-                        push_live.store(true, Ordering::Relaxed);
-                        return PushLink::Listening(Box::new(socket));
-                    }
-                    Err(ConnectFailure::Unsupported) => PushLink::Connecting {
-                        after: UNSUPPORTED_RECHECK,
-                    },
-                    Err(failure) => {
-                        tracing::warn!("nextcloud notify_push: {failure}");
-                        PushLink::Connecting {
-                            after: (after * 2).clamp(FIRST_RETRY, LONGEST_RETRY),
-                        }
-                    }
-                }
-            }
-            PushLink::Listening(mut socket) => match socket.next().await {
-                Some(Ok(Message::Text(text))) if text.as_str().starts_with("notify_activity") => {
-                    return PushLink::Listening(socket);
-                }
-                Some(Ok(_)) => PushLink::Listening(socket),
-                Some(Err(_)) | None => {
-                    push_live.store(false, Ordering::Relaxed);
-                    PushLink::Connecting { after: FIRST_RETRY }
-                }
-            },
-        }
-    }
+    .filter_map(|activity_ping| {
+        ready(
+            activity_ping
+                .inspect_err(|failure| tracing::warn!("nextcloud notify_push: {failure}"))
+                .ok(),
+        )
+    })
 }
 
 async fn listen_for_activity(login: &PushLogin) -> Result<PushSocket, ConnectFailure> {

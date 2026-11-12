@@ -1,7 +1,8 @@
-use std::{collections::HashMap, future::ready, time::Duration};
+use std::collections::HashMap;
 
-use futures::{Stream, StreamExt, stream};
-use tokio::{fs, time};
+use futures::{Stream, StreamExt, stream, stream::BoxStream};
+use futures_rx::RxExt;
+use tokio::fs;
 
 use crate::{
     compositor_window_ipc::compositor_window_state::CompositorWindow,
@@ -16,15 +17,13 @@ use crate::{
             gtk_menu_bar_source_of_app, gtk_menu_bar_updates,
         },
         x11_window_menu_properties::{
-            ActiveX11Window, X11WindowMenu, active_x11_window, x11_window_menu,
+            ActiveX11Window, X11WindowMenu, active_x11_window_changes, x11_window_menu,
         },
     },
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OwnerProcess},
 };
 
 const X11_BRIDGE_EXECUTABLES: [&str; 2] = ["xwayland-satellite", "Xwayland"];
-const ACTIVE_X11_WINDOW_ATTEMPTS: u32 = 5;
-const ACTIVE_X11_WINDOW_RETRY_DELAY: Duration = Duration::from_millis(100);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FocusedWindowOwner {
@@ -224,23 +223,6 @@ async fn window_protocol_of_process(process_id: u32) -> WindowProtocol {
         .map_or(WindowProtocol::Native, window_protocol_of_executable)
 }
 
-async fn settled_active_x11_window() -> ActiveX11Window {
-    for attempt in 1..=ACTIVE_X11_WINDOW_ATTEMPTS {
-        match active_x11_window().await {
-            Ok(ActiveX11Window::Window(window_id)) => return ActiveX11Window::Window(window_id),
-            Ok(ActiveX11Window::NoneActive) => {}
-            Err(lookup_failure) => {
-                tracing::debug!("global menu: active x11 window: {lookup_failure}");
-                return ActiveX11Window::NoneActive;
-            }
-        }
-        if attempt < ACTIVE_X11_WINDOW_ATTEMPTS {
-            time::sleep(ACTIVE_X11_WINDOW_RETRY_DELAY).await;
-        }
-    }
-    ActiveX11Window::NoneActive
-}
-
 fn registered_for_x11_window(
     registered_menu_bars: &[RegisteredMenuBar],
     x11_window_id: u32,
@@ -252,8 +234,11 @@ fn registered_for_x11_window(
         .map(DbusMenuLocation::from)
 }
 
-async fn x11_menu_bar_candidate(registered_menu_bars: &[RegisteredMenuBar]) -> MenuBarCandidate {
-    let ActiveX11Window::Window(x11_window_id) = settled_active_x11_window().await else {
+async fn x11_menu_bar_candidate(
+    registered_menu_bars: &[RegisteredMenuBar],
+    active_window: ActiveX11Window,
+) -> MenuBarCandidate {
+    let ActiveX11Window::Window(x11_window_id) = active_window else {
         return MenuBarCandidate::Absent;
     };
     if let Some(location) = registered_for_x11_window(registered_menu_bars, x11_window_id) {
@@ -304,24 +289,14 @@ async fn native_menu_bar_candidate(
     }
 }
 
-async fn menu_bar_candidate(
-    connection: &zbus::Connection,
-    owner: &FocusedWindowOwner,
-    registered_menu_bars: &[RegisteredMenuBar],
-) -> MenuBarCandidate {
-    let window_protocol = match owner {
+async fn window_protocol_of_owner(owner: &FocusedWindowOwner) -> WindowProtocol {
+    match owner {
         FocusedWindowOwner::ProcessAndApp { process_id, .. }
         | FocusedWindowOwner::ProcessOnly { process_id } => {
             window_protocol_of_process(*process_id).await
         }
         FocusedWindowOwner::AppOnly { .. } | FocusedWindowOwner::Unidentified => {
             WindowProtocol::Native
-        }
-    };
-    match window_protocol {
-        WindowProtocol::X11Bridged => x11_menu_bar_candidate(registered_menu_bars).await,
-        WindowProtocol::Native => {
-            native_menu_bar_candidate(connection, owner, registered_menu_bars).await
         }
     }
 }
@@ -405,60 +380,82 @@ async fn gtk_application_stream(
     }
 }
 
-fn without_repeats(
-    menu_bar_updates: impl Stream<Item = FocusedMenuBar> + Send,
-) -> impl Stream<Item = FocusedMenuBar> + Send {
-    menu_bar_updates
-        .scan(
-            None,
-            |previous_menu_bar: &mut Option<FocusedMenuBar>, current_menu_bar| {
-                let changed_menu_bar = (previous_menu_bar.as_ref() != Some(&current_menu_bar))
-                    .then(|| current_menu_bar.clone());
-                *previous_menu_bar = Some(current_menu_bar);
-                ready(Some(changed_menu_bar))
-            },
-        )
-        .filter_map(ready)
+fn candidate_menu_bars(
+    connection: zbus::Connection,
+    owner: &FocusedWindowOwner,
+    candidate: MenuBarCandidate,
+) -> BoxStream<'static, FocusedMenuBar> {
+    match candidate {
+        MenuBarCandidate::DbusMenu {
+            location,
+            menu_bar_match,
+        } => {
+            tracing::debug!("global menu: {owner:?} exports {location:?} ({menu_bar_match:?})");
+            dbusmenu_menu_bar_stream(connection, location, menu_bar_match).boxed()
+        }
+        MenuBarCandidate::GtkMenus {
+            source,
+            menu_bar_match,
+        } => {
+            tracing::debug!("global menu: {owner:?} exports {source:?} ({menu_bar_match:?})");
+            gtk_menu_bar_stream(connection, source, menu_bar_match).boxed()
+        }
+        MenuBarCandidate::GtkApplication { app_id } => {
+            stream::once(gtk_application_stream(connection, app_id))
+                .flatten()
+                .boxed()
+        }
+        MenuBarCandidate::Absent => {
+            tracing::debug!("global menu: {owner:?} exports no menu bar");
+            stream::iter([FocusedMenuBar::NotExported]).boxed()
+        }
+    }
+}
+
+fn x11_window_menu_bars(
+    connection: zbus::Connection,
+    owner: FocusedWindowOwner,
+    registered_menu_bars: Vec<RegisteredMenuBar>,
+) -> BoxStream<'static, FocusedMenuBar> {
+    active_x11_window_changes()
+        .switch_map(move |active_window| {
+            let connection = connection.clone();
+            let owner = owner.clone();
+            let registered_menu_bars = registered_menu_bars.clone();
+            stream::once(async move {
+                let candidate = x11_menu_bar_candidate(&registered_menu_bars, active_window).await;
+                candidate_menu_bars(connection, &owner, candidate)
+            })
+            .flatten()
+        })
+        .boxed()
 }
 
 pub fn focused_menu_bar_updates(
     query: &MenuBarQuery,
 ) -> impl Stream<Item = FocusedMenuBar> + Send + use<> {
     let query = query.clone();
-    let lookups = stream::once(async move {
+    stream::once(async move {
         let connection = query.buses.session.clone();
         let FocusedWindowIdentity::Window { owner, .. } = &query.focused_window else {
             return stream::iter([FocusedMenuBar::NoFocusedWindow]).boxed();
         };
-        let candidate = menu_bar_candidate(&connection, owner, &query.registered_menu_bars).await;
-        match candidate {
-            MenuBarCandidate::DbusMenu {
-                location,
-                menu_bar_match,
-            } => {
-                tracing::debug!("global menu: {owner:?} exports {location:?} ({menu_bar_match:?})");
-                dbusmenu_menu_bar_stream(connection, location, menu_bar_match).boxed()
-            }
-            MenuBarCandidate::GtkMenus {
-                source,
-                menu_bar_match,
-            } => {
-                tracing::debug!("global menu: {owner:?} exports {source:?} ({menu_bar_match:?})");
-                gtk_menu_bar_stream(connection, source, menu_bar_match).boxed()
-            }
-            MenuBarCandidate::GtkApplication { app_id } => {
-                stream::once(gtk_application_stream(connection, app_id))
-                    .flatten()
-                    .boxed()
-            }
-            MenuBarCandidate::Absent => {
-                tracing::debug!("global menu: {owner:?} exports no menu bar");
-                stream::iter([FocusedMenuBar::NotExported]).boxed()
+        match window_protocol_of_owner(owner).await {
+            WindowProtocol::X11Bridged => x11_window_menu_bars(
+                connection,
+                owner.clone(),
+                query.registered_menu_bars.clone(),
+            ),
+            WindowProtocol::Native => {
+                let candidate =
+                    native_menu_bar_candidate(&connection, owner, &query.registered_menu_bars)
+                        .await;
+                candidate_menu_bars(connection, owner, candidate)
             }
         }
     })
-    .flatten();
-    without_repeats(lookups)
+    .flatten()
+    .distinct_until_changed()
 }
 
 #[cfg(test)]
@@ -576,21 +573,6 @@ mod tests {
         assert_eq!(
             window_protocol_of_executable("dolphin"),
             WindowProtocol::Native
-        );
-    }
-
-    #[tokio::test]
-    async fn repeated_menu_bars_are_delivered_once() {
-        let delivered: Vec<FocusedMenuBar> = without_repeats(stream::iter([
-            FocusedMenuBar::NotExported,
-            FocusedMenuBar::NotExported,
-            FocusedMenuBar::NoFocusedWindow,
-        ]))
-        .collect()
-        .await;
-        assert_eq!(
-            delivered,
-            [FocusedMenuBar::NotExported, FocusedMenuBar::NoFocusedWindow]
         );
     }
 }

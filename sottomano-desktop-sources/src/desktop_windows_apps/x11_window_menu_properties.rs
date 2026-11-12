@@ -1,21 +1,33 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    future::ready,
+    io,
+    os::fd::{AsRawFd, RawFd},
+};
 
+use futures::{Stream, StreamExt, stream};
+use tokio::io::unix::AsyncFd;
 use x11rb::{
     connection::Connection as _,
-    errors::{ConnectError, ConnectionError, ReplyError},
-    protocol::xproto::{AtomEnum, ConnectionExt},
+    errors::{ConnectError, ConnectionError, ReplyError, ReplyOrIdError},
+    protocol::{
+        Event,
+        xproto::{AtomEnum, ChangeWindowAttributesAux, ConnectionExt, EventMask},
+    },
     rust_connection::RustConnection,
 };
 use zbus::{names::OwnedBusName, zvariant::OwnedObjectPath};
 
 use crate::{
     blocking_background_work::{Panicked, blocking_poll},
+    delivery_cadence_drivers::ChangeTriggerStreams,
     desktop_windows_apps::{
         dbusmenu_menu_bar_layout::DbusMenuLocation,
         gtk_menus_menu_bar::{
             ApplicationActionPath, GtkActionGroups, GtkMenuBarSource, WindowActionPath,
         },
     },
+    system_protocol_clients::protocol_peer_reconnects::subscribed,
 };
 
 const ACTIVE_WINDOW_PROPERTY: &str = "_NET_ACTIVE_WINDOW";
@@ -45,6 +57,20 @@ pub enum X11MenuLookupError {
     Reply(#[from] ReplyError),
     #[error("x11 lookup: {0}")]
     Panicked(#[from] Panicked),
+    #[error("x11 event wait: {0}")]
+    EventWait(#[from] io::Error),
+    #[error("x11 request: {0}")]
+    RequestOrId(#[from] ReplyOrIdError),
+}
+
+struct X11EventSocket {
+    connection: RustConnection,
+}
+
+impl AsRawFd for X11EventSocket {
+    fn as_raw_fd(&self) -> RawFd {
+        self.connection.stream().as_raw_fd()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -159,6 +185,65 @@ fn window_menu_of_properties(property_values: &HashMap<&'static str, String>) ->
 
 pub async fn active_x11_window() -> Result<ActiveX11Window, X11MenuLookupError> {
     blocking_poll(read_active_window).await
+}
+
+pub fn active_x11_window_changes() -> impl Stream<Item = ActiveX11Window> + Send {
+    subscribed((), |()| active_window_property_notifications())
+        .filter_map(|notification| {
+            ready(
+                notification
+                    .inspect_err(|watch_failure| {
+                        tracing::debug!("global menu: x11 active window watch: {watch_failure}");
+                    })
+                    .ok(),
+            )
+        })
+        .triggered_rereads(active_x11_window)
+        .map(|active_window| {
+            active_window.unwrap_or_else(|lookup_failure| {
+                tracing::debug!("global menu: active x11 window: {lookup_failure}");
+                ActiveX11Window::NoneActive
+            })
+        })
+}
+
+async fn active_window_property_notifications()
+-> Result<impl Stream<Item = Result<(), X11MenuLookupError>> + Send, X11MenuLookupError> {
+    let (connection, screen_number) = x11rb::connect(None)?;
+    let root_window = connection.setup().roots[screen_number].root;
+    let active_atom = atom_named(&connection, ACTIVE_WINDOW_PROPERTY)?;
+    connection
+        .change_window_attributes(
+            root_window,
+            &ChangeWindowAttributesAux::new().event_mask(EventMask::PROPERTY_CHANGE),
+        )?
+        .check()?;
+    let readable_socket =
+        unsafe { AsyncFd::register(X11EventSocket { connection }) }.map_err(io::Error::from)?;
+    Ok(stream::unfold(
+        readable_socket,
+        move |readable_socket| async move {
+            loop {
+                match readable_socket.get_ref().connection.poll_for_event() {
+                    Ok(Some(Event::PropertyNotify(notification)))
+                        if notification.atom == active_atom =>
+                    {
+                        return Some((Ok(()), readable_socket));
+                    }
+                    Ok(Some(_)) => continue,
+                    Ok(None) => {}
+                    Err(connection_failure) => {
+                        tracing::debug!("global menu: x11 event connection: {connection_failure}");
+                        return None;
+                    }
+                }
+                let Ok(mut readiness) = readable_socket.readable().await else {
+                    return None;
+                };
+                readiness.clear_ready();
+            }
+        },
+    ))
 }
 
 pub async fn x11_window_menu(window_id: u32) -> Result<X11WindowMenu, X11MenuLookupError> {
