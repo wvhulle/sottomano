@@ -5,11 +5,10 @@ use futures::{
     future::join_all,
     stream::{self, select},
 };
-use futures_rx::RxExt;
 
 use crate::{
     SnapshotDelivery, SnapshotSource, SourceCaption,
-    delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
+    delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling, SnapshotDeliveryStreams},
     network_connectivity::{
         icmp_echo_probes::{
             LatencyProbeError, PROBE_POLLING, ProbeOutcome, ProbeWindow, echo_round_trip,
@@ -77,7 +76,7 @@ impl SnapshotSource for GatewayLatencies {
                 }
             },
         )
-        .distinct_until_changed()
+        .repeats_as_unchanged()
     }
 }
 

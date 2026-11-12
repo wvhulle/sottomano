@@ -52,7 +52,7 @@ impl SnapshotSource for CopilotCcusage {
                     )))
                 })
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }

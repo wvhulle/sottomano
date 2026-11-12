@@ -66,6 +66,6 @@ where
                     async move { Ok(followed.await?.map(move |value| Ok(snapshot_of(value?)))) }
                 })
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
 }

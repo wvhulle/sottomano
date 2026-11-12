@@ -311,7 +311,7 @@ impl SnapshotSource for DockerEngineListing {
                     )))
                 })
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }
@@ -340,7 +340,7 @@ async fn listed_docker_names(socket_path: &Path) -> Result<DockerEngineListing, 
 pub struct DockerEngineReadout(pub EngineReadout);
 
 impl SnapshotSource for DockerEngineReadout {
-    type Error = Infallible;
+    type Error = http_json_client::Error;
     type StreamInputs = PathBuf;
 
     const NAME: &'static str = "Docker containers";
@@ -363,7 +363,7 @@ impl SnapshotSource for DockerEngineReadout {
                             Ok(DockerEngineReadout(engine_read.into()))
                         }
                     },
-                    |delivered: &Result<Self, Infallible>| {
+                    |delivered: &Result<Self, http_json_client::Error>| {
                         delivered
                             .as_ref()
                             .map_or(SamplingNeed::KeepSampling, |readout| {
@@ -373,7 +373,7 @@ impl SnapshotSource for DockerEngineReadout {
                 )
                 .repeats_as_unchanged()
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }

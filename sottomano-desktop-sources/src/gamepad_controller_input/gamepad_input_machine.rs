@@ -14,6 +14,7 @@ use super::{
         FlickTracker, PointerDisplacement, StickPosition, pointer_displacement,
     },
 };
+use crate::delivery_cadence_drivers::ChangeWatchFailure;
 
 const POINTER_TICK: Duration = Duration::from_millis(8);
 const LONGEST_POINTER_STEP: Duration = Duration::from_millis(32);
@@ -53,8 +54,9 @@ pub struct GamepadStreamSettings {
     pub gate: PointerGate,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum GamepadInput {
+    DiscoveryFailed(ChangeWatchFailure),
     Roster(Vec<ConnectedGamepad>),
     Button {
         slot: usize,
@@ -81,13 +83,13 @@ pub enum PointerEffect {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum MachineEffect {
     Deliver(GamepadInput),
     Pointer(PointerEffect),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum MachineInput {
     Raw(RawGamepadEvent),
     Tick,
@@ -174,6 +176,11 @@ impl GamepadMachine {
 
     pub fn step(&mut self, input: MachineInput, now: Instant) -> Vec<MachineEffect> {
         let effects = match input {
+            MachineInput::Raw(RawGamepadEvent::DiscoveryFailed(watch_failure)) => {
+                vec![MachineEffect::Deliver(GamepadInput::DiscoveryFailed(
+                    watch_failure,
+                ))]
+            }
             MachineInput::Raw(RawGamepadEvent::Roster(roster)) => {
                 self.sticks
                     .retain(|slot, _| roster.iter().any(|gamepad| gamepad.slot == *slot));

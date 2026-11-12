@@ -41,7 +41,8 @@ struct PushSubscription {
     push_live: Arc<AtomicBool>,
 }
 
-enum ConnectFailure {
+#[derive(Debug)]
+pub enum NotifyPushFailure {
     Unsupported,
     PasswordUnreadable,
     Capabilities(http_json_client::Error),
@@ -50,31 +51,31 @@ enum ConnectFailure {
     NoAuthenticationReply,
 }
 
-impl Display for ConnectFailure {
+impl Display for NotifyPushFailure {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            ConnectFailure::Unsupported => write!(f, "server offers no notify_push"),
-            ConnectFailure::PasswordUnreadable => write!(f, "password unreadable"),
-            ConnectFailure::Capabilities(error) => write!(f, "capabilities request: {error}"),
-            ConnectFailure::WebSocket(error) => write!(f, "websocket: {error}"),
-            ConnectFailure::AuthenticationRefused => write!(f, "credentials refused"),
-            ConnectFailure::NoAuthenticationReply => write!(f, "no authentication reply"),
+            NotifyPushFailure::Unsupported => write!(f, "server offers no notify_push"),
+            NotifyPushFailure::PasswordUnreadable => write!(f, "password unreadable"),
+            NotifyPushFailure::Capabilities(error) => write!(f, "capabilities request: {error}"),
+            NotifyPushFailure::WebSocket(error) => write!(f, "websocket: {error}"),
+            NotifyPushFailure::AuthenticationRefused => write!(f, "credentials refused"),
+            NotifyPushFailure::NoAuthenticationReply => write!(f, "no authentication reply"),
         }
     }
 }
 
-impl From<WebSocketError> for ConnectFailure {
+impl From<WebSocketError> for NotifyPushFailure {
     fn from(error: WebSocketError) -> Self {
-        ConnectFailure::WebSocket(error)
+        NotifyPushFailure::WebSocket(error)
     }
 }
 
-impl From<http_json_client::Error> for ConnectFailure {
+impl From<http_json_client::Error> for NotifyPushFailure {
     fn from(error: http_json_client::Error) -> Self {
         match error {
             http_json_client::Error::Status { status: 404, .. }
-            | http_json_client::Error::Decode(_) => ConnectFailure::Unsupported,
-            other => ConnectFailure::Capabilities(other),
+            | http_json_client::Error::Decode(_) => NotifyPushFailure::Unsupported,
+            other => NotifyPushFailure::Capabilities(other),
         }
     }
 }
@@ -112,20 +113,27 @@ struct NotifyPushEndpoints {
 pub fn activity_pings(
     login: PushLogin,
     push_live: Arc<AtomicBool>,
-) -> impl Stream<Item = ()> + Send {
+) -> impl Stream<Item = Result<(), NotifyPushFailure>> + Send {
     subscribed(
         PushSubscription { login, push_live },
         |push_subscription| async move {
-            let socket = listen_for_activity(&push_subscription.login).await?;
+            let socket = match listen_for_activity(&push_subscription.login).await {
+                Ok(socket) => socket,
+                Err(NotifyPushFailure::Unsupported) => {
+                    return Ok(stream::pending().boxed());
+                }
+                Err(connect_failure) => return Err(connect_failure),
+            };
             push_subscription.push_live.store(true, Ordering::Relaxed);
             let lost_link = push_subscription.push_live.clone();
             Ok(socket
                 .filter_map(|message| {
                     ready(match message {
                         Ok(Message::Text(text)) if text.as_str().starts_with("notify_activity") => {
-                            Some(Ok::<(), ConnectFailure>(()))
+                            Some(Ok(()))
                         }
-                        Ok(_) | Err(_) => None,
+                        Ok(_) => None,
+                        Err(socket_failure) => Some(Err(NotifyPushFailure::from(socket_failure))),
                     })
                 })
                 .chain(
@@ -133,21 +141,15 @@ pub fn activity_pings(
                         lost_link.store(false, Ordering::Relaxed);
                     })
                     .filter_map(|()| ready(None)),
-                ))
+                )
+                .boxed())
         },
     )
-    .filter_map(|activity_ping| {
-        ready(
-            activity_ping
-                .inspect_err(|failure| tracing::warn!("nextcloud notify_push: {failure}"))
-                .ok(),
-        )
-    })
 }
 
-async fn listen_for_activity(login: &PushLogin) -> Result<PushSocket, ConnectFailure> {
+async fn listen_for_activity(login: &PushLogin) -> Result<PushSocket, NotifyPushFailure> {
     let Some(password) = read_secret(&login.password) else {
-        return Err(ConnectFailure::PasswordUnreadable);
+        return Err(NotifyPushFailure::PasswordUnreadable);
     };
     let websocket_url = advertised_websocket(login, &password).await?;
     let (mut socket, _) = connect_async(websocket_url.as_str()).await?;
@@ -155,12 +157,15 @@ async fn listen_for_activity(login: &PushLogin) -> Result<PushSocket, ConnectFai
     socket.send(Message::text(password.as_str())).await?;
     match timeout(HANDSHAKE_TIMEOUT, socket.next()).await {
         Ok(Some(Ok(Message::Text(reply)))) if reply.as_str() == "authenticated" => Ok(socket),
-        Ok(Some(Ok(Message::Text(_)))) => Err(ConnectFailure::AuthenticationRefused),
-        _ => Err(ConnectFailure::NoAuthenticationReply),
+        Ok(Some(Ok(Message::Text(_)))) => Err(NotifyPushFailure::AuthenticationRefused),
+        _ => Err(NotifyPushFailure::NoAuthenticationReply),
     }
 }
 
-async fn advertised_websocket(login: &PushLogin, password: &str) -> Result<String, ConnectFailure> {
+async fn advertised_websocket(
+    login: &PushLogin,
+    password: &str,
+) -> Result<String, NotifyPushFailure> {
     let url = format!(
         "{}{CAPABILITIES_PATH}",
         login.server_url.trim_end_matches('/')
@@ -179,7 +184,7 @@ async fn advertised_websocket(login: &PushLogin, password: &str) -> Result<Strin
     )
     .await?;
     let Some(notify_push) = capabilities.ocs.data.capabilities.notify_push else {
-        return Err(ConnectFailure::Unsupported);
+        return Err(NotifyPushFailure::Unsupported);
     };
     Ok(notify_push.endpoints.websocket)
 }

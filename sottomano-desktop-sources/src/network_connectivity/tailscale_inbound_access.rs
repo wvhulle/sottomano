@@ -295,7 +295,7 @@ impl SnapshotSource for TailscaleInboundAccess {
                 PeriodicPolling::every(Duration::from_mins(1))
                     .poll_deliveries(move || Self::poll(()))
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }

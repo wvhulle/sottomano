@@ -101,7 +101,7 @@ impl SnapshotSource for DaemonInstanceListings {
                     Ok(read_daemon_instance_listings(&watched_daemon.socket_path()).await)
                 })
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }
@@ -276,7 +276,7 @@ impl SnapshotSource for DaemonInstancesReadout {
                     Ok(read_daemon_instances(&watched_daemon.socket_path()).await)
                 })
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }

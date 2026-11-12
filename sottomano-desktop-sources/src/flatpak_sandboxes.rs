@@ -6,12 +6,14 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use futures::{Stream, StreamExt, stream, stream::BoxStream};
+use futures::{Stream, StreamExt};
 use serde::Deserialize;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::{ChangeTriggerStreams, PeriodicPolling},
+    delivery_cadence_drivers::{
+        ChangeTriggerStreams, ChangeWatchFailure, PeriodicPolling, SnapshotDeliveryStreams,
+    },
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
         sysfs_attribute_reads::Error,
@@ -41,21 +43,20 @@ impl SnapshotSource for FlatpakProbe {
     fn delivery_stream(
         (): Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries((), |()| {
-            ready(Ok(
-                flatpak_instance_changes().triggered_rereads(|| ready(counted_running_instances()))
-            ))
-        })
+        flatpak_instance_changes()
+            .triggered_rereads(|| ready(counted_running_instances()))
+            .map(SnapshotDelivery::live_push)
+            .repeats_as_unchanged()
     }
 }
 
-fn flatpak_instance_changes() -> BoxStream<'static, ()> {
-    match flatpak_instances_directory() {
-        Some(instances_directory) => {
-            changes(vec![WatchTarget::EntriesOf(instances_directory)]).boxed()
-        }
-        None => stream::empty::<()>().boxed(),
-    }
+fn flatpak_instance_changes() -> impl Stream<Item = Result<(), ChangeWatchFailure>> + Send {
+    changes(
+        flatpak_instances_directory()
+            .map(WatchTarget::EntriesOf)
+            .into_iter()
+            .collect(),
+    )
 }
 
 fn flatpak_instances_directory() -> Option<PathBuf> {

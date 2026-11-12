@@ -98,8 +98,7 @@ async fn target_changes(
             .arg(0, UNIT_INTERFACE)?
             .build()],
     )
-    .await?
-    .map(drop);
+    .await?;
     Ok(changes.triggered_rereads(move || {
         let unit = unit.clone();
         async move {

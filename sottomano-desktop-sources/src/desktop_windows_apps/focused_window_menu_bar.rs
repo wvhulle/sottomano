@@ -17,7 +17,8 @@ use crate::{
             gtk_menu_bar_source_of_app, gtk_menu_bar_updates,
         },
         x11_window_menu_properties::{
-            ActiveX11Window, X11WindowMenu, active_x11_window_changes, x11_window_menu,
+            ActiveX11Window, X11MenuLookupError, X11WindowMenu, active_x11_window_changes,
+            x11_window_menu,
         },
     },
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OwnerProcess},
@@ -98,11 +99,12 @@ pub struct ShownMenuBar {
     pub menu_bar_match: MenuBarMatch,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum FocusedMenuBar {
     Shown(ShownMenuBar),
     NotExported,
     NoFocusedWindow,
+    LookupFailed(X11MenuLookupError),
 }
 
 fn shown_gtk_menu_bar(gtk_menu_bar: GtkMenuBar, menu_bar_match: MenuBarMatch) -> ShownMenuBar {
@@ -419,14 +421,29 @@ fn x11_window_menu_bars(
 ) -> BoxStream<'static, FocusedMenuBar> {
     active_x11_window_changes()
         .switch_map(move |active_window| {
+            let (lookup_failures, active_windows) = match active_window {
+                Ok(active_window) => (Vec::new(), vec![active_window]),
+                Err(lookup_failure) => (
+                    vec![FocusedMenuBar::LookupFailed(lookup_failure)],
+                    Vec::new(),
+                ),
+            };
             let connection = connection.clone();
             let owner = owner.clone();
             let registered_menu_bars = registered_menu_bars.clone();
-            stream::once(async move {
-                let candidate = x11_menu_bar_candidate(&registered_menu_bars, active_window).await;
-                candidate_menu_bars(connection, &owner, candidate)
-            })
-            .flatten()
+            stream::iter(lookup_failures).chain(stream::iter(active_windows).flat_map(
+                move |active_window| {
+                    let connection = connection.clone();
+                    let owner = owner.clone();
+                    let registered_menu_bars = registered_menu_bars.clone();
+                    stream::once(async move {
+                        let candidate =
+                            x11_menu_bar_candidate(&registered_menu_bars, active_window).await;
+                        candidate_menu_bars(connection, &owner, candidate)
+                    })
+                    .flatten()
+                },
+            ))
         })
         .boxed()
 }
@@ -455,7 +472,6 @@ pub fn focused_menu_bar_updates(
         }
     })
     .flatten()
-    .distinct_until_changed()
 }
 
 #[cfg(test)]

@@ -131,8 +131,7 @@ async fn watch_service_commands(
             manager_signal("Reloading")?,
         ],
     )
-    .await?
-    .map(drop);
+    .await?;
     Ok(signals
         .triggered_rereads(move || {
             let manager = manager.clone();

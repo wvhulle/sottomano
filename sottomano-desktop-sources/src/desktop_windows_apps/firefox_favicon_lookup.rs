@@ -9,6 +9,7 @@ use rusqlite::{Connection, OpenFlags};
 
 use crate::{
     compositor_window_ipc::compositor_window_state::CompositorWindowState,
+    delivery_cadence_drivers::ChangeWatchFailure,
     desktop_windows_apps::window_title_labels::{
         WindowLabel, firefox_page_titles::strip_unread_badge,
     },
@@ -194,7 +195,7 @@ fn state_dir() -> Option<PathBuf> {
     Some(dir)
 }
 
-pub fn profile_changes() -> impl Stream<Item = ()> + Send {
+pub fn profile_changes() -> impl Stream<Item = Result<(), ChangeWatchFailure>> + Send {
     let written = profile_dir()
         .into_iter()
         .flat_map(|profile| {

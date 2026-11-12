@@ -1,8 +1,8 @@
 use futures::{Stream, StreamExt};
-use futures_rx::RxExt;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    delivery_cadence_drivers::SnapshotDeliveryStreams,
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error, InterfaceOffer},
     voice_dictation_input::notulist_interface_offers,
 };
@@ -33,6 +33,6 @@ impl SnapshotSource for NotulistInterfaceMismatch {
                     SnapshotDelivery::SourceUnavailable
                 }
             })
-            .distinct_until_changed()
+            .repeats_as_unchanged()
     }
 }

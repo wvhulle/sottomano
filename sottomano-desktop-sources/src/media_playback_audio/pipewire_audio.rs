@@ -247,7 +247,7 @@ impl From<pipewire::Error> for AudioConnectError {
 
 pub fn connection_events()
 -> impl Stream<Item = Option<Result<AudioEvent, AudioConnectError>>> + Send {
-    socket_present().while_available(|| subscribed((), |()| connect()).map(Some), None)
+    socket_present().while_available(|| subscribed((), |()| connect()).map(Some), || None)
 }
 
 fn socket_present() -> impl Stream<Item = Availability> + Send {
@@ -273,7 +273,7 @@ impl SnapshotSource for AudioState {
                     Err(e) => Some(SnapshotDelivery::live_push(Err(e))),
                 })
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }

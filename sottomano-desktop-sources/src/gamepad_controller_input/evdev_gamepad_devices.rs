@@ -17,7 +17,7 @@ use super::{
     player_indicator_leds::PlayerIndicator,
 };
 use crate::{
-    delivery_cadence_drivers::{ChangeTriggerStreams, PeriodicPolling},
+    delivery_cadence_drivers::{ChangeTriggerStreams, ChangeWatchFailure, PeriodicPolling},
     system_protocol_clients::{
         inotify_directory_changes::{self, WatchTarget},
         sysfs_attribute_reads,
@@ -208,8 +208,9 @@ pub enum StickAxis {
     Vertical,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum RawGamepadEvent {
+    DiscoveryFailed(ChangeWatchFailure),
     Roster(Vec<ConnectedGamepad>),
     Button {
         slot: usize,
@@ -647,10 +648,37 @@ pub fn raw_gamepad_events() -> impl Stream<Item = RawGamepadEvent> + Send {
     device_changes
         .triggered_rereads(|| async {
             sleep(PERMISSION_SETTLE_DELAY).await;
-            discovered_gamepads()
+            Ok(discovered_gamepads())
         })
-        .distinct_until_changed()
-        .switch_map(connected_gamepad_events)
+        .scan(
+            None,
+            |known_gamepads: &mut Option<Vec<DiscoveredGamepad>>, discovery| {
+                ready(Some(match discovery {
+                    Ok(gamepads) if known_gamepads.as_ref() == Some(&gamepads) => None,
+                    Ok(gamepads) => {
+                        *known_gamepads = Some(gamepads.clone());
+                        Some(GamepadDiscovery {
+                            failure_events: Vec::new(),
+                            gamepads,
+                        })
+                    }
+                    Err(watch_failure) => Some(GamepadDiscovery {
+                        failure_events: vec![RawGamepadEvent::DiscoveryFailed(watch_failure)],
+                        gamepads: known_gamepads.clone().unwrap_or_default(),
+                    }),
+                }))
+            },
+        )
+        .filter_map(ready)
+        .switch_map(|discovery| {
+            stream::iter(discovery.failure_events)
+                .chain(connected_gamepad_events(discovery.gamepads))
+        })
+}
+
+struct GamepadDiscovery {
+    failure_events: Vec<RawGamepadEvent>,
+    gamepads: Vec<DiscoveredGamepad>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

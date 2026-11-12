@@ -1,6 +1,5 @@
 use std::{
     collections::BTreeMap,
-    convert::Infallible,
     path::{Path, PathBuf},
     time::SystemTime,
 };
@@ -22,7 +21,7 @@ use crate::{
         },
         running_set_changes::deliveries_on_running_set_changes,
     },
-    system_protocol_clients::http_json_client,
+    system_protocol_clients::{http_json_client, journal_follow::JournalFollowError},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -158,7 +157,7 @@ fn unreachable_agent(failure: http_json_client::Error) -> CiRunnerTasks {
 }
 
 impl SnapshotSource for WoodpeckerAgentTasks {
-    type Error = Infallible;
+    type Error = JournalFollowError;
     type StreamInputs = WoodpeckerAgentWatch;
 
     const NAME: &'static str = "Woodpecker agent tasks";

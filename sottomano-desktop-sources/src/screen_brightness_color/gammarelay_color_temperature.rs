@@ -54,7 +54,7 @@ impl SnapshotSource for ColorTemperature {
                 let buses = buses.clone();
                 SnapshotDelivery::live_push_deliveries(buses, relay_changes)
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }

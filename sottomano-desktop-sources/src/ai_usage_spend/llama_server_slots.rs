@@ -319,7 +319,7 @@ impl SnapshotSource for LlamaServer {
                         SnapshotDelivery::SnapshotUnchanged => SnapshotDelivery::SnapshotUnchanged,
                     })
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }

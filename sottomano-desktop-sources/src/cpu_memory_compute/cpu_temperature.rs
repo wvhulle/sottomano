@@ -196,7 +196,7 @@ impl SnapshotSource for Temperature {
                     |probe| read_temperature(&probe),
                 )
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         ))
     }
 }

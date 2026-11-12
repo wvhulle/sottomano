@@ -5,7 +5,7 @@ use std::{
 };
 
 use futures::{
-    Stream, StreamExt,
+    Stream, StreamExt, TryStreamExt,
     stream::{self, select},
 };
 use uom::si::{
@@ -23,7 +23,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::{Availability, AvailabilityStreams},
     blocking_background_work::blocking_poll,
-    delivery_cadence_drivers::PeriodicPolling,
+    delivery_cadence_drivers::{ChangeWatchFailure, PeriodicPolling},
     host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
     system_protocol_clients::{
         dbus_change_signals::{change_triggers, properties_changed_rule},
@@ -208,12 +208,12 @@ impl SnapshotSource for Battery {
         let system = buses.system;
         present(system.clone()).while_available(
             move || {
-                PeriodicPolling::every(BATTERY_POLL_INTERVAL)
-                    .triggered_deliveries(supply_state_changes(system.clone()), || {
-                        blocking_poll(read_battery)
-                    })
+                PeriodicPolling::every(BATTERY_POLL_INTERVAL).triggered_deliveries(
+                    supply_state_changes(system.clone()).map_err(ChangeWatchFailure::from),
+                    || blocking_poll(read_battery),
+                )
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }
@@ -264,19 +264,14 @@ async fn device_changes(
         .map(|()| Ok(battery_availability())))
 }
 
-fn supply_state_changes(system: Connection) -> impl Stream<Item = ()> + Send {
+fn supply_state_changes(system: Connection) -> impl Stream<Item = zbus::Result<()>> + Send {
     subscribed(system, |system| async move {
-        Ok(change_triggers(
-            &system,
-            [properties_changed_rule(
-                UPOWER_SERVICE,
-                UPOWER_DEVICE_INTERFACE,
-            )?],
-        )
-        .await?
-        .map(Ok::<_, zbus::Error>))
+        let rules = [properties_changed_rule(
+            UPOWER_SERVICE,
+            UPOWER_DEVICE_INTERFACE,
+        )?];
+        change_triggers(&system, rules).await
     })
-    .filter_map(|signal| ready(signal.ok()))
 }
 
 fn read_battery() -> Result<Battery, Error> {

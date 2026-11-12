@@ -23,7 +23,7 @@ use crate::{
         caldav_event_query::EventWindow,
         caldav_home_listing::{CalendarHomeListing, CalendarVisibility},
         caldav_server_provider::CaldavProvider,
-        nextcloud_notify_push::{PushLogin, activity_pings},
+        nextcloud_notify_push::{NotifyPushFailure, PushLogin, activity_pings},
     },
     delivery_cadence_drivers::{
         PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams, triggered_deliveries_with_recheck,
@@ -48,6 +48,14 @@ pub enum Error {
     ListingUnparseable(#[from] roxmltree::Error),
     #[error("{0}")]
     Dav(Arc<fast_dav_rs::Error>),
+    #[error("nextcloud push: {0}")]
+    NotifyPush(Arc<NotifyPushFailure>),
+}
+
+impl From<NotifyPushFailure> for Error {
+    fn from(push_failure: NotifyPushFailure) -> Self {
+        Error::NotifyPush(Arc::new(push_failure))
+    }
 }
 
 impl From<fast_dav_rs::Error> for Error {

@@ -1,14 +1,13 @@
 use std::{collections::HashSet, fs, future::ready, path::PathBuf, time::Duration};
 
 use futures::{Stream, StreamExt, stream};
-use futures_rx::RxExt;
 use serde::{Deserialize, Serialize};
 use zbus::{proxy, proxy::CacheProperties, zvariant::Type};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::AvailabilityStreams,
-    delivery_cadence_drivers::PeriodicPolling,
+    delivery_cadence_drivers::{PeriodicPolling, SnapshotDeliveryStreams},
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBuses, name_owned},
         sysfs_attribute_reads::{list_dir, read_i64},
@@ -67,8 +66,8 @@ impl SnapshotSource for Vec<Backlight> {
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
         name_owned(system.clone(), CLIGHTD_SERVICE).while_available(
-            move || backlight_deliveries(system.clone()).distinct_until_changed(),
-            SnapshotDelivery::SourceUnavailable,
+            move || backlight_deliveries(system.clone()).repeats_as_unchanged(),
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }
@@ -96,12 +95,12 @@ fn backlight_deliveries(
 
 async fn watched_backlights(
     system: zbus::Connection,
-) -> zbus::Result<BacklightWatch<impl Stream<Item = ()> + Send + 'static>> {
+) -> zbus::Result<BacklightWatch<impl Stream<Item = zbus::Result<()>> + Send + 'static>> {
     let proxy: ClightdBacklightProxy<'static> = proxy::Builder::new(&system)
         .cache_properties(CacheProperties::No)
         .build()
         .await?;
-    let changes = proxy.receive_changed().await?.map(drop);
+    let changes = proxy.receive_changed().await?.map(|_| Ok(()));
     Ok(BacklightWatch { proxy, changes })
 }
 

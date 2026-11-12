@@ -284,7 +284,9 @@ pub async fn read_bluetooth(connection: Connection) -> zbus::Result<Bluetooth> {
     Ok(reading(&objects))
 }
 
-async fn bluez_object_signals(connection: Connection) -> zbus::Result<impl Stream<Item = ()>> {
+async fn bluez_object_signals(
+    connection: Connection,
+) -> zbus::Result<impl Stream<Item = zbus::Result<()>>> {
     object_manager_changes(&connection, SERVICE, ROOT).await
 }
 
@@ -310,7 +312,7 @@ impl SnapshotSource for Bluetooth {
                     move || read_bluetooth(read_connection.clone()),
                 )
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }

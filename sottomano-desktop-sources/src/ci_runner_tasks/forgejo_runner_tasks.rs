@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    convert::Infallible,
     future::ready,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -23,7 +22,7 @@ use crate::{
         libpod_running_containers::{EngineContainers, RunningContainer, shared_engine_sampler},
         running_set_changes::deliveries_on_running_set_changes,
     },
-    system_protocol_clients::journal_follow::journal_windows,
+    system_protocol_clients::journal_follow::{JournalFollowError, journal_windows},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,7 +91,7 @@ pub struct ForgejoRunnerWatch {
 }
 
 impl SnapshotSource for ForgejoRunnerTasks {
-    type Error = Infallible;
+    type Error = JournalFollowError;
     type StreamInputs = ForgejoRunnerWatch;
 
     const NAME: &'static str = "Forgejo runner tasks";

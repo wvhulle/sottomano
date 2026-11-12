@@ -50,24 +50,24 @@ pub async fn signal_messages(
 pub async fn change_triggers<Rules: IntoIterator<Item = MatchRule<'static>>>(
     connection: &Connection,
     rules: Rules,
-) -> zbus::Result<impl Stream<Item = ()> + Send + use<Rules>> {
+) -> zbus::Result<impl Stream<Item = zbus::Result<()>> + Send + use<Rules>> {
     let message_streams = try_join_all(
         rules
             .into_iter()
             .map(|rule| signal_messages(connection, rule)),
     )
     .await?;
-    Ok(stream::select_all(message_streams).map(drop))
+    Ok(stream::select_all(message_streams).map(|message| message.map(drop)))
 }
 
 pub async fn object_manager_changes(
     connection: &Connection,
     service: &'static str,
     object_path: &'static str,
-) -> zbus::Result<impl Stream<Item = ()> + Send + use<>> {
+) -> zbus::Result<impl Stream<Item = zbus::Result<()>> + Send + use<>> {
     let objects = ObjectManagerProxy::new(connection, service, object_path).await?;
-    let added_interfaces = objects.receive_interfaces_added().await?.map(drop);
-    let removed_interfaces = objects.receive_interfaces_removed().await?.map(drop);
+    let added_interfaces = objects.receive_interfaces_added().await?.map(|_| Ok(()));
+    let removed_interfaces = objects.receive_interfaces_removed().await?.map(|_| Ok(()));
     let changed_properties =
         change_triggers(connection, [any_properties_changed_rule(service)?]).await?;
     Ok(stream::select_all([

@@ -508,10 +508,10 @@ async fn connect(
         "PropertiesChanged",
     )
     .await?
-    .map(drop);
+    .map(|message| message.map(drop));
     let seeks = signals(&connection, PLAYER_INTERFACE, "Seeked")
         .await?
-        .map(drop);
+        .map(|message| message.map(drop));
     let owners = dbus
         .receive_name_owner_changed()
         .await?
@@ -522,7 +522,7 @@ async fn connect(
                     .is_ok_and(|args| args.name().as_str().starts_with(PREFIX)),
             )
         })
-        .map(drop);
+        .map(|_| Ok(()));
     Ok(
         select(select(properties, seeks), owners).triggered_rereads(move || {
             let connection = connection.clone();

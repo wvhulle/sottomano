@@ -6,10 +6,12 @@ use std::{
 
 use uom::si::{f64::Frequency, frequency::kilohertz};
 
-use crate::blocking_background_work::Panicked;
+use crate::{blocking_background_work::Panicked, delivery_cadence_drivers::ChangeWatchFailure};
 
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("change watch: {0}")]
+    ChangeWatch(#[from] ChangeWatchFailure),
     #[error("cannot read {0}")]
     Unreadable(String),
     #[error("cannot write {path}: {detail}")]

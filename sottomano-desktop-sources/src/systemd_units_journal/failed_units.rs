@@ -100,8 +100,7 @@ async fn watch_failed(
             manager_signal("Reloading")?,
         ],
     )
-    .await?
-    .map(drop);
+    .await?;
     Ok(unit_signals.triggered_rereads(move || {
         let manager = manager.clone();
         async move { failed_units(&manager, unit_scope).await }

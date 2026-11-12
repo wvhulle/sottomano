@@ -104,11 +104,14 @@ pub async fn menu_bar_layout_updates(
     location: DbusMenuLocation,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<Vec<MenuNode>>> + Send> {
     let menu_proxy = dbusmenu_proxy(&connection, &location).await?;
-    let layout_changes = menu_proxy.receive_layout_updated().await?.map(drop);
+    let layout_changes = menu_proxy
+        .receive_layout_updated()
+        .await?
+        .map(|_| Ok::<(), zbus::Error>(()));
     let property_changes = menu_proxy
         .receive_items_properties_updated()
         .await?
-        .map(drop);
+        .map(|_| Ok::<(), zbus::Error>(()));
     Ok(
         stream::select(layout_changes, property_changes).triggered_rereads(move || {
             let menu_proxy = menu_proxy.clone();
