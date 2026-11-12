@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use futures::{Stream, StreamExt, stream, stream::BoxStream};
+use futures::{Stream, StreamExt, TryStreamExt, stream, stream::BoxStream};
 use futures_rx::RxExt;
 use tokio::fs;
 
@@ -316,30 +316,31 @@ fn dbusmenu_menu_bar_stream(
     location: DbusMenuLocation,
     menu_bar_match: MenuBarMatch,
 ) -> impl Stream<Item = FocusedMenuBar> + Send {
-    stream::once(menu_bar_layout_updates(connection, location.clone())).flat_map(
-        move |layout_updates| {
+    let logged_location = location.clone();
+    stream::once(menu_bar_layout_updates(connection, location.clone()))
+        .map_ok(move |layout_updates| {
             let location = location.clone();
-            match layout_updates {
-                Ok(layout_updates) => layout_updates
-                    .map(move |top_menus| match top_menus {
-                        Ok(top_menus) => shown_or_not_exported(ShownMenuBar {
-                            top_menus,
-                            activation_route: MenuActivationRoute::DbusMenu(location.clone()),
-                            menu_bar_match,
-                        }),
-                        Err(layout_failure) => {
-                            tracing::debug!("global menu: dbusmenu layout: {layout_failure}");
-                            FocusedMenuBar::NotExported
-                        }
-                    })
-                    .left_stream(),
-                Err(connect_failure) => {
-                    tracing::debug!("global menu: dbusmenu {location:?}: {connect_failure}");
-                    stream::iter([FocusedMenuBar::NotExported]).right_stream()
-                }
-            }
-        },
-    )
+            layout_updates
+                .map(move |top_menus| match top_menus {
+                    Ok(top_menus) => shown_or_not_exported(ShownMenuBar {
+                        top_menus,
+                        activation_route: MenuActivationRoute::DbusMenu(location.clone()),
+                        menu_bar_match,
+                    }),
+                    Err(layout_failure) => {
+                        tracing::debug!("global menu: dbusmenu layout: {layout_failure}");
+                        FocusedMenuBar::NotExported
+                    }
+                })
+                .map(Ok::<_, zbus::Error>)
+        })
+        .try_flatten()
+        .map(move |menu_bar| {
+            menu_bar.unwrap_or_else(|connect_failure| {
+                tracing::debug!("global menu: dbusmenu {logged_location:?}: {connect_failure}");
+                FocusedMenuBar::NotExported
+            })
+        })
 }
 
 fn gtk_menu_bar_stream(
@@ -347,9 +348,9 @@ fn gtk_menu_bar_stream(
     source: GtkMenuBarSource,
     menu_bar_match: MenuBarMatch,
 ) -> impl Stream<Item = FocusedMenuBar> + Send {
-    stream::once(gtk_menu_bar_updates(connection, source)).flat_map(move |menu_bar_updates| {
-        match menu_bar_updates {
-            Ok(menu_bar_updates) => menu_bar_updates
+    stream::once(gtk_menu_bar_updates(connection, source))
+        .map_ok(move |menu_bar_updates| {
+            menu_bar_updates
                 .map(move |gtk_menu_bar| match gtk_menu_bar {
                     Ok(gtk_menu_bar) => {
                         shown_or_not_exported(shown_gtk_menu_bar(gtk_menu_bar, menu_bar_match))
@@ -359,27 +360,36 @@ fn gtk_menu_bar_stream(
                         FocusedMenuBar::NotExported
                     }
                 })
-                .left_stream(),
-            Err(connect_failure) => {
+                .map(Ok::<_, zbus::Error>)
+        })
+        .try_flatten()
+        .map(|menu_bar| {
+            menu_bar.unwrap_or_else(|connect_failure| {
                 tracing::debug!("global menu: no gtk menu bar: {connect_failure}");
-                stream::iter([FocusedMenuBar::NotExported]).right_stream()
-            }
-        }
-    })
+                FocusedMenuBar::NotExported
+            })
+        })
 }
 
-async fn gtk_application_stream(
+fn gtk_application_stream(
     connection: zbus::Connection,
     app_id: String,
 ) -> impl Stream<Item = FocusedMenuBar> + Send {
-    match gtk_menu_bar_source_of_app(&connection, &app_id).await {
-        Ok(source) => gtk_menu_bar_stream(connection, source, MenuBarMatch::OnlyProcessCandidate)
-            .left_stream(),
-        Err(source_failure) => {
-            tracing::debug!("global menu: {app_id} is no gtk application name: {source_failure}");
-            stream::iter([FocusedMenuBar::NotExported]).right_stream()
-        }
-    }
+    stream::once(async move {
+        gtk_menu_bar_source_of_app(&connection, &app_id)
+            .await
+            .map(|source| {
+                gtk_menu_bar_stream(connection, source, MenuBarMatch::OnlyProcessCandidate)
+                    .map(Ok::<_, zbus::Error>)
+            })
+            .inspect_err(|source_failure| {
+                tracing::debug!(
+                    "global menu: {app_id} is no gtk application name: {source_failure}"
+                );
+            })
+    })
+    .try_flatten()
+    .map(|menu_bar| menu_bar.unwrap_or(FocusedMenuBar::NotExported))
 }
 
 fn candidate_menu_bars(
@@ -403,9 +413,7 @@ fn candidate_menu_bars(
             gtk_menu_bar_stream(connection, source, menu_bar_match).boxed()
         }
         MenuBarCandidate::GtkApplication { app_id } => {
-            stream::once(gtk_application_stream(connection, app_id))
-                .flatten()
-                .boxed()
+            gtk_application_stream(connection, app_id).boxed()
         }
         MenuBarCandidate::Absent => {
             tracing::debug!("global menu: {owner:?} exports no menu bar");

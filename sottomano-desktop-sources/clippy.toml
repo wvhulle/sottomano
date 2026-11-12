@@ -3,6 +3,6 @@ disallowed-methods = [
   { path = "iced_widget::helpers::scrollable", reason = "scrollable translates content only while drawing, so hover anchors inside it are off by the scroll offset" },
   { path = "futures_util::stream::stream::StreamExt::take_while", reason = "a finished take_while keeps its inner stream and any bus subscription alive without polling it; end the stream instead and let subscribed reconnect" },
   { path = "futures_util::stream::stream::StreamExt::then", reason = "then stops polling the upstream while the body awaits, so bus signals pile up; use ChangeTriggerStreams::triggered_rereads" },
-  { path = "futures_util::stream::stream::StreamExt::left_stream", reason = "branch by chaining optional items or move the decision to the caller" },
-  { path = "futures_util::stream::stream::StreamExt::right_stream", reason = "branch by chaining optional items or move the decision to the caller" },
+  { path = "futures_util::stream::stream::StreamExt::left_stream", reason = "branch with map_ok and try_flatten, chain optional items, or move the decision to the caller" },
+  { path = "futures_util::stream::stream::StreamExt::right_stream", reason = "branch with map_ok and try_flatten, chain optional items, or move the decision to the caller" },
 ]

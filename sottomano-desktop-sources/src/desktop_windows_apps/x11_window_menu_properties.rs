@@ -4,7 +4,7 @@ use std::{
     os::fd::{AsRawFd, RawFd},
 };
 
-use futures::{Stream, stream};
+use futures::{Stream, future::ready, stream};
 use tokio::io::unix::AsyncFd;
 use x11rb::{
     connection::Connection as _,
@@ -194,10 +194,11 @@ pub async fn active_x11_window() -> Result<ActiveX11Window, X11MenuLookupError> 
 
 pub fn active_x11_window_changes()
 -> impl Stream<Item = Result<ActiveX11Window, X11MenuLookupError>> + Send {
-    subscribed((), |()| active_window_property_notifications()).triggered_rereads(active_x11_window)
+    subscribed((), |()| ready(active_window_property_notifications()))
+        .triggered_rereads(active_x11_window)
 }
 
-async fn active_window_property_notifications()
+fn active_window_property_notifications()
 -> Result<impl Stream<Item = Result<(), X11MenuLookupError>> + Send, X11MenuLookupError> {
     let (connection, screen_number) = x11rb::connect(None)?;
     let root_window = connection.setup().roots[screen_number].root;

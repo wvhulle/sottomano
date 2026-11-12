@@ -34,12 +34,14 @@ impl SnapshotSource for ClaudeCcusageModels {
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(ccusage_cli_reports::ccusage_availability()).while_available(
             move || {
-                let subscription_logins = match credentials.clone() {
-                    Some(credentials) => logins(credentials)
-                        .map(SubscriptionCoverage::from)
-                        .left_stream(),
-                    None => stream::iter([SubscriptionCoverage::Uncovered]).right_stream(),
-                };
+                let logged_out = credentials
+                    .is_none()
+                    .then_some(SubscriptionCoverage::Uncovered);
+                let subscription_logins = stream::iter(logged_out).chain(
+                    stream::iter(credentials.clone())
+                        .flat_map(logins)
+                        .map(SubscriptionCoverage::from),
+                );
                 subscription_logins
                     .distinct_until_changed()
                     .switch_map(|subscription_coverage| {

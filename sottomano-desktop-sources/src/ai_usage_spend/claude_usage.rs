@@ -202,10 +202,10 @@ where
                     Availability::Unavailable
                 }
             };
-            let login_matches = match logs.credentials.clone() {
-                Some(credentials) => logins(credentials).map(coverage_availability).left_stream(),
-                None => stream::iter([coverage_availability(LoginKind::LoggedOut)]).right_stream(),
-            };
+            let logged_out = logs.credentials.is_none().then_some(LoginKind::LoggedOut);
+            let login_matches = stream::iter(logged_out)
+                .chain(stream::iter(logs.credentials.clone()).flat_map(logins))
+                .map(coverage_availability);
             let logs = logs.clone();
             let readings = readings.clone();
             login_matches.while_available(

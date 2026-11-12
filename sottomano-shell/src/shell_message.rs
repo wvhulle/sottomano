@@ -197,6 +197,7 @@ pub enum Message {
     TypingUnderCards(TypingSignal),
     HoverCard(HoverCardMessage),
     Notification(NotificationMessage),
+    NotificationServerFailed(zbus::Error),
     OutputsResolved(HashMap<String, compositor_output_facts::OutputInfo>),
     Output(OutputChange),
     ReloadDesktopEntries,

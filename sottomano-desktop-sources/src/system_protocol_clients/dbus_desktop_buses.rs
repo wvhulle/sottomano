@@ -303,6 +303,23 @@ impl From<zbus::Error> for Error {
     }
 }
 
+pub trait ServingConnectionStreams: Stream + Sized {
+    fn while_serving(
+        self,
+        serving_connection: zbus::Connection,
+    ) -> impl Stream<Item = Self::Item> + Send
+    where
+        Self: Send,
+    {
+        self.map(move |served_item| {
+            let _ = &serving_connection;
+            served_item
+        })
+    }
+}
+
+impl<ServedStream: Stream> ServingConnectionStreams for ServedStream {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -349,20 +366,3 @@ mod tests {
         );
     }
 }
-
-pub trait ServingConnectionStreams: Stream + Sized {
-    fn while_serving(
-        self,
-        serving_connection: zbus::Connection,
-    ) -> impl Stream<Item = Self::Item> + Send
-    where
-        Self: Send,
-    {
-        self.map(move |served_item| {
-            let _ = &serving_connection;
-            served_item
-        })
-    }
-}
-
-impl<ServedStream: Stream> ServingConnectionStreams for ServedStream {}

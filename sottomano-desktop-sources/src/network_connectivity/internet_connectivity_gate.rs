@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-use futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt, TryStreamExt, future::ready, stream};
 use futures_rx::RxExt;
 use zbus::Connection;
 
@@ -171,11 +171,10 @@ where
 {
     access_states
         .distinct_until_changed()
-        .switch_map(move |access| match access {
-            Ok(()) => start().left_stream(),
-            Err(reason) => {
-                stream::iter([SnapshotDelivery::InternetUnreachable(reason)]).right_stream()
-            }
+        .switch_map(move |access| {
+            stream::once(ready(access.map(|()| start().map(Ok))))
+                .try_flatten()
+                .map(|delivery| delivery.unwrap_or_else(SnapshotDelivery::InternetUnreachable))
         })
 }
 

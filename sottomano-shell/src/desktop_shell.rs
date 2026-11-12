@@ -278,6 +278,10 @@ impl DesktopShell {
             }
             Message::Gamepad(msg) => self.update_gamepad(msg),
             Message::Notification(msg) => self.update_notification(msg),
+            Message::NotificationServerFailed(server_failure) => {
+                tracing::error!("notifications: server stopped, restarting: {server_failure}");
+                Task::none()
+            }
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
             Message::OverlaySettings(msg) => self.update_overlay_settings(msg),
             Message::NotificationGroup(msg) => self.update_notification_group(msg),

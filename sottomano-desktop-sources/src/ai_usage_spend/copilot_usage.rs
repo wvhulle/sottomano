@@ -9,7 +9,7 @@ use std::{
 };
 
 use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
-use futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt, TryStreamExt, stream};
 use serde::Deserialize;
 
 pub use self::{
@@ -18,7 +18,7 @@ pub use self::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     ai_usage_spend::ccusage_cli_reports,
-    backing_service_availability::AvailabilityStreams,
+    backing_service_availability::{Availability, AvailabilityStreams},
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::internet_connectivity_gate,
     secret_file_reads::read_secret,
@@ -125,21 +125,31 @@ where
                 let checked = account.gh_auth_token.clone();
                 let polled = account.clone();
                 let poll = poll.clone();
-                stream::once(async move { user_info(&checked).await }).flat_map(move |info| {
-                    match info {
-                        Ok(info) if info.plan_kind() == wanted_plan => {
-                            let polled = polled.clone();
-                            let poll = poll.clone();
-                            USER_POLLING
-                                .poll_deliveries(move || poll(polled.clone()))
-                                .left_stream()
-                        }
-                        Ok(_) => stream::iter([SnapshotDelivery::SourceUnavailable]).right_stream(),
-                        Err(e) => {
-                            stream::iter([SnapshotDelivery::single_read(Err(e))]).right_stream()
-                        }
-                    }
-                })
+                stream::once(async move { user_info(&checked).await })
+                    .map_ok(move |info| {
+                        let plan_availability = if info.plan_kind() == wanted_plan {
+                            Availability::Available
+                        } else {
+                            Availability::Unavailable
+                        };
+                        let polled = polled.clone();
+                        let poll = poll.clone();
+                        stream::iter([plan_availability])
+                            .while_available(
+                                move || {
+                                    let polled = polled.clone();
+                                    let poll = poll.clone();
+                                    USER_POLLING.poll_deliveries(move || poll(polled.clone()))
+                                },
+                                || SnapshotDelivery::SourceUnavailable,
+                            )
+                            .map(Ok)
+                    })
+                    .try_flatten()
+                    .map(|delivery| {
+                        delivery
+                            .unwrap_or_else(|failure| SnapshotDelivery::single_read(Err(failure)))
+                    })
             })
         },
         || SnapshotDelivery::SourceUnavailable,

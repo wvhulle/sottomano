@@ -104,7 +104,7 @@ impl DesktopShell {
         if windows_changed || workspaces_changed || focus_changed {
             tasks.push(self.refresh_app_launcher());
         }
-        if self.notifications.live.len() > 0 {
+        if !self.notifications.live.is_empty() {
             tasks.push(self.reflow_toasts());
         }
         Task::batch(tasks)

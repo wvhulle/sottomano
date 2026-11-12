@@ -15,6 +15,7 @@ use sottomano_desktop_sources::{
     system_protocol_clients::{
         dbus_desktop_buses::desktop_bus_events,
         inotify_directory_changes::{WatchTarget, changes},
+        protocol_peer_reconnects::subscribed,
     },
 };
 use sottomano_widgets::{
@@ -101,7 +102,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         state
             .typing_under_cards
             .subscription(
-                if state.notifications.live.len() > 0 || state.hover_card.placement().is_some() {
+                if !state.notifications.live.is_empty() || state.hover_card.placement().is_some() {
                     CardVisibility::Shown
                 } else {
                     CardVisibility::Hidden
@@ -125,22 +126,19 @@ fn compositor_subscription() -> Subscription<Message> {
 }
 
 fn notifications_subscription() -> Subscription<Message> {
-    use iced::futures::{StreamExt, stream};
+    use iced::futures::StreamExt;
     Subscription::run(|| {
-        stream::once(served_notifications()).flat_map(|served| match served {
-            Ok(messages) => messages.left_stream(),
-            Err(startup_failure) => {
-                tracing::error!("notifications: server failed to start: {startup_failure}");
-                stream::empty().right_stream()
-            }
+        subscribed((), |()| served_notifications()).map(|served| {
+            served.map_or_else(Message::NotificationServerFailed, Message::Notification)
         })
     })
 }
 
-async fn served_notifications() -> zbus::Result<impl Stream<Item = Message>> {
+async fn served_notifications()
+-> zbus::Result<impl Stream<Item = zbus::Result<NotificationMessage>>> {
     use iced::futures::{StreamExt, stream};
     let (server_events, signals) = freedesktop_notification_server::serve().await?;
     Ok(stream::iter([NotificationMessage::Connected(signals)])
         .chain(server_events.map(NotificationMessage::from))
-        .map(Message::Notification))
+        .map(Ok))
 }

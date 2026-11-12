@@ -95,6 +95,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::{
+        iter::repeat_with,
         pin::pin,
         sync::{
             Arc, Mutex,
@@ -114,13 +115,11 @@ mod tests {
     #[test]
     fn reconnect_delays_double_up_to_the_cap_and_reset_after_a_delivery() {
         let mut backoff = ReconnectBackoff::default();
-        let first_delays: Vec<Duration> = std::iter::repeat_with(|| backoff.next_delay())
-            .take(3)
-            .collect();
+        let first_delays: Vec<Duration> = repeat_with(|| backoff.next_delay()).take(3).collect();
         assert!(within_jitter_of(first_delays[0], Duration::from_secs(1)));
         assert!(within_jitter_of(first_delays[1], Duration::from_secs(2)));
         assert!(within_jitter_of(first_delays[2], Duration::from_secs(4)));
-        let capped_delay = std::iter::repeat_with(|| backoff.next_delay())
+        let capped_delay = repeat_with(|| backoff.next_delay())
             .take(40)
             .last()
             .unwrap();
