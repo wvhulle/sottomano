@@ -5,7 +5,7 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sinks::waydroid_container::stop_waydroid_container;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    stream_operators::Availability,
+    backing_service_availability::Availability,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     waydroid_container::{WaydroidListing, WaydroidProbe, WaydroidReadout, WaydroidState},
 };

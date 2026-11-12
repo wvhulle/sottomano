@@ -5,12 +5,12 @@ use futures::{Stream, stream};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    backing_service_availability::AvailabilityStreams,
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::tailscale_status::{
         Error, ExitNodeOffer, ExitNodeUse, NodeLastSeen, TailscaleNodeJson, TailscalePrefsJson,
         TailscaleStatusJson,
     },
-    stream_operators::StreamOperators,
     system_protocol_clients::shell_command_output,
 };
 
@@ -121,11 +121,12 @@ impl SnapshotSource for TailscaleExitNodes {
     const NAME: &'static str = "Tailscale exit nodes";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(shell_command_output::program_availability("tailscale")).available_while(
+        stream::once(shell_command_output::program_availability("tailscale")).while_available(
             move || {
                 PeriodicPolling::every(Duration::from_secs(10))
                     .poll_deliveries(move || Self::poll(()))
             },
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

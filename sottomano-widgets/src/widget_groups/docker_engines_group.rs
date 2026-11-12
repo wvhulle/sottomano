@@ -8,12 +8,12 @@ use chrono::Locale;
 use iced::Subscription;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    backing_service_availability::Availability,
     docker_container_engine::{
         DockerEngineListing, DockerEngineProbe, DockerEngineReadout, DockerEngineSocket,
         candidate_docker_sockets,
     },
     podman_container_engine::libpod_running_containers::{EngineReadError, EngineReadout},
-    stream_operators::Availability,
 };
 
 use crate::{

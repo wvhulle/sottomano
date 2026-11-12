@@ -10,6 +10,7 @@ use std::{
 
 use bytesize::ByteSize;
 use futures::{Stream, StreamExt, stream::select};
+use futures_rx::RxExt;
 use uom::si::{
     f64::{Information, InformationRate, Time},
     information::byte,
@@ -24,7 +25,6 @@ use crate::{
     network_connectivity::{
         network_manager_proxies, network_manager_proxies::Metering, nm_readings,
     },
-    stream_operators::StreamOperators,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 

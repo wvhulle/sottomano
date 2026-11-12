@@ -12,8 +12,8 @@ use zbus::proxy;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    backing_service_availability::Availability,
     delivery_cadence_drivers::PeriodicPolling,
-    stream_operators::Availability,
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses,
         inotify_file_presence::path_present,
@@ -59,9 +59,11 @@ impl SnapshotSource for WaydroidProbe {
     fn delivery_stream(
         (): Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries(ready(Ok(
-            path_present(waydroid_payload_cgroup()).map(|presence| Ok(WaydroidProbe(presence)))
-        )))
+        SnapshotDelivery::live_push_deliveries((), |()| {
+            ready(Ok(
+                path_present(waydroid_payload_cgroup()).map(|presence| Ok(WaydroidProbe(presence)))
+            ))
+        })
     }
 }
 

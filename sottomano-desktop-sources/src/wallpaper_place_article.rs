@@ -14,9 +14,11 @@ use serde::Deserialize;
 use uom::si::{angle::degree, f64::Angle};
 
 use crate::{
+    backing_service_availability::Availability,
     secret_file_reads::read_secret,
-    stream_operators::{Availability, resubscribed},
-    system_protocol_clients::{http_json_client, shell_command_output},
+    system_protocol_clients::{
+        http_json_client, protocol_peer_reconnects::resubscribed, shell_command_output,
+    },
 };
 
 const EVENT_BUFFER_BYTES: usize = 1024;
@@ -123,7 +125,7 @@ pub enum DisplayedWallpaper {
 
 pub fn displayed()
 -> impl Stream<Item = Result<DisplayedWallpaper, shell_command_output::Error>> + Send {
-    resubscribed(Duration::from_secs(1), || {
+    resubscribed(Duration::from_secs(1), (), |()| {
         let watched = watch();
         async move {
             match watched {

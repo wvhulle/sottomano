@@ -5,7 +5,8 @@ use zbus::{Connection, proxy, proxy::CacheProperties};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    stream_operators::{StreamOperators, read_once_then_per_burst},
+    backing_service_availability::AvailabilityStreams,
+    delivery_cadence_drivers::ChangeTriggerStreams,
     system_protocol_clients::{
         dbus_desktop_buses,
         dbus_desktop_buses::{DesktopBuses, Error, name_owned},
@@ -66,9 +67,13 @@ impl SnapshotSource for AutoBrightness {
     const NAME: &'static str = "Clight auto brightness";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        name_owned(buses.session.clone(), CLIGHT_SERVICE).available_while(move || {
-            SnapshotDelivery::live_push_deliveries(calibration_changes(buses.clone()))
-        })
+        name_owned(buses.session.clone(), CLIGHT_SERVICE).while_available(
+            move || {
+                let buses = buses.clone();
+                SnapshotDelivery::live_push_deliveries(buses, calibration_changes)
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 
@@ -80,7 +85,7 @@ async fn calibration_changes(
         .build()
         .await?;
     let config_written = changes(config_file().map(WatchTarget::File).into_iter().collect());
-    Ok(read_once_then_per_burst(config_written, move || {
+    Ok(config_written.triggered_rereads(move || {
         let conf = conf.clone();
         async move {
             Ok(AutoBrightness {

@@ -18,7 +18,9 @@ use zbus::{
     zvariant::{OwnedObjectPath, OwnedValue},
 };
 
-use crate::stream_operators::{StreamOperators, resubscribed};
+use crate::system_protocol_clients::{
+    dbus_desktop_buses::ServingConnectionStreams, protocol_peer_reconnects::resubscribed,
+};
 
 const PATH: &str = "/JobViewServer";
 const SERVER_NAME: &str = "org.kde.JobViewServer";
@@ -319,7 +321,7 @@ impl JobView {
 }
 
 pub fn job_progress() -> impl Stream<Item = JobProgress> + Send {
-    resubscribed(Duration::from_secs(1), || async {
+    resubscribed(Duration::from_secs(1), (), |()| async {
         Ok::<_, zbus::Error>(serve().await?.map(Ok::<_, zbus::Error>))
     })
     .filter_map(|delivery| ready(delivery.ok()))
@@ -351,7 +353,7 @@ async fn serve() -> zbus::Result<impl Stream<Item = JobProgress>> {
     claim(&connection, SERVER_NAME).await?;
     claim(&connection, KUISERVER_NAME).await?;
 
-    Ok(WatchStream::from_changes(updates).keeping_alive(connection))
+    Ok(WatchStream::from_changes(updates).while_serving(connection))
 }
 
 async fn claim(connection: &Connection, name: &str) -> zbus::Result<()> {

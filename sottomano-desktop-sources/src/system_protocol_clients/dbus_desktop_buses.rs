@@ -14,8 +14,8 @@ use zbus::{
 };
 
 use crate::{
-    non_empty_text::non_empty,
-    stream_operators::{Availability, resubscribed},
+    backing_service_availability::Availability, non_empty_text::non_empty,
+    system_protocol_clients::protocol_peer_reconnects::resubscribed,
 };
 
 pub type Properties = HashMap<String, OwnedValue>;
@@ -132,7 +132,7 @@ pub enum DesktopBusEvent {
 }
 
 pub fn desktop_bus_events() -> impl Stream<Item = Result<DesktopBusEvent, zbus::Error>> + Send {
-    resubscribed(Duration::from_secs(1), connected_until_closed)
+    resubscribed(Duration::from_secs(1), (), |()| connected_until_closed())
 }
 
 async fn connected_until_closed()
@@ -178,8 +178,8 @@ pub fn name_owned(
     connection: zbus::Connection,
     name: &'static str,
 ) -> impl Stream<Item = Availability> + Send {
-    resubscribed(Duration::from_secs(1), move || {
-        owner_changes(connection.clone(), name)
+    resubscribed(Duration::from_secs(1), connection, move |connection| {
+        owner_changes(connection, name)
     })
     .map(move |owned| {
         owned.unwrap_or_else(|failure| {
@@ -348,3 +348,20 @@ mod tests {
         );
     }
 }
+
+pub trait ServingConnectionStreams: Stream + Sized {
+    fn while_serving(
+        self,
+        serving_connection: zbus::Connection,
+    ) -> impl Stream<Item = Self::Item> + Send
+    where
+        Self: Send,
+    {
+        self.map(move |served_item| {
+            let _ = &serving_connection;
+            served_item
+        })
+    }
+}
+
+impl<ServedStream: Stream> ServingConnectionStreams for ServedStream {}

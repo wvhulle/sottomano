@@ -4,8 +4,9 @@ use futures::{Stream, stream};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    backing_service_availability::AvailabilityStreams,
+    delivery_cadence_drivers::ChangeTriggerStreams,
     screen_brightness_color::solar_switch_schedule::ColorMode,
-    stream_operators::{StreamOperators, read_once_then_per_burst},
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
         shell_command_output,
@@ -24,12 +25,17 @@ impl SnapshotSource for DarkMode {
     const NAME: &'static str = "Dark mode";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(shell_command_output::program_availability("umbra")).available_while(|| {
-            SnapshotDelivery::live_push_deliveries(ready(Ok(read_once_then_per_burst(
-                changes(mode_file().map(WatchTarget::File).into_iter().collect()),
-                Self::read,
-            ))))
-        })
+        stream::once(shell_command_output::program_availability("umbra")).while_available(
+            || {
+                SnapshotDelivery::live_push_deliveries((), |()| {
+                    ready(Ok(changes(
+                        mode_file().map(WatchTarget::File).into_iter().collect(),
+                    )
+                    .triggered_rereads(Self::read)))
+                })
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 

@@ -7,6 +7,7 @@ use std::{
 
 use evdev::{AbsoluteAxisCode, BusType, Device, EventSummary, InputEvent, KeyCode};
 use futures::{Stream, StreamExt, stream};
+use futures_rx::RxExt;
 use sottomano_toml_config::widget_groups::gamepad_bindings::{GamepadButton, GamepadStick};
 use tokio::time::sleep;
 
@@ -16,8 +17,7 @@ use super::{
     player_indicator_leds::PlayerIndicator,
 };
 use crate::{
-    delivery_cadence_drivers::PeriodicPolling,
-    stream_operators::{StreamOperators, read_once_then_per_burst},
+    delivery_cadence_drivers::{ChangeTriggerStreams, PeriodicPolling},
     system_protocol_clients::{
         inotify_directory_changes::{self, WatchTarget},
         sysfs_attribute_reads,
@@ -635,12 +635,13 @@ pub fn raw_gamepad_events() -> impl Stream<Item = RawGamepadEvent> + Send {
     let device_changes = inotify_directory_changes::changes(vec![WatchTarget::NamesIn(
         PathBuf::from(INPUT_DEVICE_DIRECTORY),
     )]);
-    read_once_then_per_burst(device_changes, || async {
-        sleep(PERMISSION_SETTLE_DELAY).await;
-        discovered_gamepads()
-    })
-    .distinct_until_changed()
-    .switch_map(connected_gamepad_events)
+    device_changes
+        .triggered_rereads(|| async {
+            sleep(PERMISSION_SETTLE_DELAY).await;
+            discovered_gamepads()
+        })
+        .distinct_until_changed()
+        .switch_map(connected_gamepad_events)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

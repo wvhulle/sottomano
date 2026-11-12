@@ -10,10 +10,14 @@ use systemd::journal::Journal;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, triggered_deliveries_with_recheck},
+    delivery_cadence_drivers::{
+        PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams, triggered_deliveries_with_recheck,
+    },
     podman_container_engine::libpod_running_containers::ENGINE_POLL_PERIOD,
-    stream_operators::{StreamOperators, resubscribed},
-    system_protocol_clients::journal_follow::{JournalEvent, journal_windows},
+    system_protocol_clients::{
+        journal_follow::{JournalEvent, journal_windows},
+        protocol_peer_reconnects::resubscribed,
+    },
 };
 
 const PODMAN_TYPE_FIELD: &str = "PODMAN_TYPE";
@@ -60,7 +64,7 @@ impl JournalEvent for RunningSetChange {
 }
 
 pub(crate) fn running_set_triggers() -> impl Stream<Item = ()> + Send {
-    resubscribed(JOURNAL_REOPEN_GAP, || async {
+    resubscribed(JOURNAL_REOPEN_GAP, (), |()| async {
         Ok(journal_windows::<RunningSetChange>())
     })
     .filter_map(|window| {

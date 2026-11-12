@@ -17,7 +17,8 @@ use crate::{
         usage_quota::Quota,
         working_time_forecast::{CalendarSpan, SpendBudget},
     },
-    stream_operators::{Availability, RereadSchedule},
+    backing_service_availability::Availability,
+    delivery_cadence_drivers::RereadSchedule,
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
         shell_command_output::{self, program_availability},

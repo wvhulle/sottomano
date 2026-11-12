@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use futures::{Stream, StreamExt, stream};
 
 use crate::{
-    stream_operators::Availability,
+    backing_service_availability::Availability,
     system_protocol_clients::inotify_directory_changes::{WatchTarget, armed_watch},
 };
 

@@ -6,7 +6,7 @@ use wayrs_protocols::ext_idle_notify_v1::{
     ExtIdleNotificationV1, ExtIdleNotifierV1, ext_idle_notification_v1,
 };
 
-use crate::stream_operators::resubscribed;
+use crate::system_protocol_clients::protocol_peer_reconnects::resubscribed;
 
 #[derive(Debug, thiserror::Error)]
 pub enum WaylandError {
@@ -200,7 +200,7 @@ fn notification_cb<Tag: Copy>(
 }
 
 pub fn input_idle_edges(after: Duration) -> impl Stream<Item = InputIdleEdge> + Send {
-    resubscribed(Duration::from_secs(1), move || async move {
+    resubscribed(Duration::from_secs(1), after, |after| async move {
         Ok::<_, WaylandError>(connected_input_idle_edges(after).await?.map(Ok))
     })
     .filter_map(|edge| ready(edge.ok()))

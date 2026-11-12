@@ -1,5 +1,6 @@
 pub mod ai_usage_spend;
 pub mod apptainer_containers;
+pub mod backing_service_availability;
 pub mod battery_power_profiles;
 pub mod blocking_background_work;
 pub mod caldav_tasks_events;
@@ -28,7 +29,6 @@ pub mod qemu_virtual_machines;
 pub mod screen_brightness_color;
 pub mod secret_file_reads;
 pub mod sqlite_state_store;
-pub mod stream_operators;
 pub mod system_protocol_clients;
 pub mod systemd_units_journal;
 pub mod virtualbox_machines;

@@ -3,11 +3,12 @@ use std::{
     path::PathBuf,
 };
 
+use futures_rx::RxExt;
 use iced::futures::{Stream, StreamExt, stream};
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
+    backing_service_availability::AvailabilityStreams,
     network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
-    stream_operators::StreamOperators,
     system_protocol_clients::shell_command_output,
     wallpaper_place_article::{self, DisplayedWallpaper, Wallpaper},
 };
@@ -78,15 +79,20 @@ impl SnapshotSource for Lookup {
             source_inputs: unsplash_key,
         }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(wallpaper_place_article::daemon_availability()).available_while(move || {
-            let unsplash_key = unsplash_key.clone();
-            internet_connectivity_gate::while_online(buses.clone(), move || {
+        stream::once(wallpaper_place_article::daemon_availability()).while_available(
+            move || {
                 let unsplash_key = unsplash_key.clone();
-                wallpaper_place_article::displayed()
-                    .distinct_until_changed()
-                    .flat_map(move |displayed| displayed_lookups(displayed, unsplash_key.clone()))
-            })
-        })
+                internet_connectivity_gate::while_online(buses.clone(), move || {
+                    let unsplash_key = unsplash_key.clone();
+                    wallpaper_place_article::displayed()
+                        .distinct_until_changed()
+                        .flat_map(move |displayed| {
+                            displayed_lookups(displayed, unsplash_key.clone())
+                        })
+                })
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 

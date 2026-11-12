@@ -5,9 +5,9 @@ use reqwest::ClientBuilder;
 use serde::Deserialize;
 
 use super::DOCKER_API_ROOT;
-use crate::{
-    stream_operators::resubscribed,
-    system_protocol_clients::http_json_client::{CONNECT_TIMEOUT, Error},
+use crate::system_protocol_clients::{
+    http_json_client::{CONNECT_TIMEOUT, Error},
+    protocol_peer_reconnects::resubscribed,
 };
 
 pub(crate) const TRIGGER_BURST_GAP: Duration = Duration::from_secs(1);
@@ -26,11 +26,7 @@ struct DockerEventRecord {
 pub(crate) fn docker_container_event_triggers(
     socket_path: PathBuf,
 ) -> impl Stream<Item = ()> + Send {
-    resubscribed(RETRY_GAP, move || {
-        let trigger_socket = socket_path.clone();
-        async move { opened_event_records(trigger_socket).await }
-    })
-    .filter_map(|delivered| {
+    resubscribed(RETRY_GAP, socket_path, opened_event_records).filter_map(|delivered| {
         if let Err(failure) = delivered {
             tracing::warn!("docker events: {failure}, resubscribing");
             return ready(None);

@@ -15,8 +15,10 @@ use zbus::{
 
 use crate::{
     desktop_windows_apps::dbusmenu_menu_bar_layout::DbusMenuLocation,
-    stream_operators::{StreamOperators, resubscribed},
-    system_protocol_clients::dbus_desktop_buses::OwnerProcess,
+    system_protocol_clients::{
+        dbus_desktop_buses::{OwnerProcess, ServingConnectionStreams},
+        protocol_peer_reconnects::resubscribed,
+    },
 };
 
 const REGISTRAR_PATH: &str = "/com/canonical/AppMenu/Registrar";
@@ -147,7 +149,7 @@ impl AppMenuRegistrar {
 
 pub fn registrations() -> impl Stream<Item = Vec<RegisteredMenuBar>> + Send {
     use futures::StreamExt;
-    resubscribed(Duration::from_secs(1), || async {
+    resubscribed(Duration::from_secs(1), (), |()| async {
         Ok::<_, zbus::Error>(serve().await?.map(Ok::<_, zbus::Error>))
     })
     .filter_map(|delivery| ready(delivery.ok()))
@@ -187,7 +189,7 @@ async fn serve() -> zbus::Result<impl Stream<Item = Vec<RegisteredMenuBar>> + Se
     });
     Ok(
         stream::select(WatchStream::new(registration_changes), pruned_on_vanish)
-            .keeping_alive(connection),
+            .while_serving(connection),
     )
 }
 

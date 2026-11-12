@@ -5,6 +5,7 @@ pub mod inotify_file_presence;
 pub mod journal_follow;
 pub mod procfs_process_scan;
 pub mod procfs_process_tree;
+pub mod protocol_peer_reconnects;
 pub mod shell_command_output;
 pub mod sysfs_attribute_reads;
 pub mod sysfs_cgroup_memory;

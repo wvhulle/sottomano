@@ -12,11 +12,11 @@ use serde::Deserialize;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    backing_service_availability::{Availability, AvailabilityStreams},
     delivery_cadence_drivers::PeriodicPolling,
     podman_container_engine::libpod_running_containers::{
         EngineReadError, classified_engine_failure,
     },
-    stream_operators::{Availability, StreamOperators},
     system_protocol_clients::{http_json_client, inotify_file_presence::path_present},
 };
 
@@ -35,10 +35,9 @@ impl SnapshotSource for Availability {
     fn delivery_stream(
         instance_daemon: InstanceDaemon,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries(ready(Ok(path_present(
-            instance_daemon.socket_path(),
-        )
-        .map(Ok))))
+        SnapshotDelivery::live_push_deliveries(instance_daemon, |instance_daemon| {
+            ready(Ok(path_present(instance_daemon.socket_path()).map(Ok)))
+        })
     }
 }
 
@@ -95,12 +94,15 @@ impl SnapshotSource for DaemonInstanceListings {
         instance_daemon: InstanceDaemon,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let watched_daemon = instance_daemon;
-        path_present(instance_daemon.socket_path()).available_while(move || {
-            let watched_daemon = watched_daemon;
-            PeriodicPolling::every(INSTANCE_POLL_PERIOD).poll_deliveries(move || async move {
-                Ok(read_daemon_instance_listings(&watched_daemon.socket_path()).await)
-            })
-        })
+        path_present(instance_daemon.socket_path()).while_available(
+            move || {
+                let watched_daemon = watched_daemon;
+                PeriodicPolling::every(INSTANCE_POLL_PERIOD).poll_deliveries(move || async move {
+                    Ok(read_daemon_instance_listings(&watched_daemon.socket_path()).await)
+                })
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 
@@ -267,12 +269,15 @@ impl SnapshotSource for DaemonInstancesReadout {
         instance_daemon: InstanceDaemon,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let watched_daemon = instance_daemon;
-        path_present(instance_daemon.socket_path()).available_while(move || {
-            let watched_daemon = watched_daemon;
-            PeriodicPolling::every(INSTANCE_POLL_PERIOD).poll_deliveries(move || async move {
-                Ok(read_daemon_instances(&watched_daemon.socket_path()).await)
-            })
-        })
+        path_present(instance_daemon.socket_path()).while_available(
+            move || {
+                let watched_daemon = watched_daemon;
+                PeriodicPolling::every(INSTANCE_POLL_PERIOD).poll_deliveries(move || async move {
+                    Ok(read_daemon_instances(&watched_daemon.socket_path()).await)
+                })
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 

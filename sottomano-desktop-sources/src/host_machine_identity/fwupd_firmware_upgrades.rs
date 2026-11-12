@@ -5,9 +5,13 @@ use zbus::proxy;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    stream_operators::{StreamOperators, connected_until_failure, read_once_then_per_burst},
-    system_protocol_clients::dbus_desktop_buses::{
-        self, DesktopBuses, Properties, SERVICE_ABSENT_ERRORS, name_owned, prop,
+    backing_service_availability::AvailabilityStreams,
+    delivery_cadence_drivers::ChangeTriggerStreams,
+    system_protocol_clients::{
+        dbus_desktop_buses::{
+            self, DesktopBuses, Properties, SERVICE_ABSENT_ERRORS, name_owned, prop,
+        },
+        protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
     },
 };
 
@@ -92,16 +96,17 @@ impl SnapshotSource for Vec<FirmwareUpgrade> {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
-        name_owned(system.clone(), FWUPD_SERVICE).available_while(move || {
-            signalled_upgrades(system.clone()).map(SnapshotDelivery::live_push)
-        })
+        name_owned(system.clone(), FWUPD_SERVICE).while_available(
+            move || signalled_upgrades(system.clone()).map(SnapshotDelivery::live_push),
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 
 fn signalled_upgrades(
     system: zbus::Connection,
 ) -> impl Stream<Item = Result<Vec<FirmwareUpgrade>, dbus_desktop_buses::Error>> + Send {
-    connected_until_failure(upgrades_on_daemon_changes(system))
+    resubscribed(PEER_RECONNECT_GAP, system, upgrades_on_daemon_changes)
 }
 
 async fn upgrades_on_daemon_changes(
@@ -121,7 +126,7 @@ async fn upgrades_on_daemon_changes(
             fwupd.receive_device_changed().await?.map(drop),
         ),
     );
-    Ok(read_once_then_per_burst(changes, move || {
+    Ok(changes.triggered_rereads(move || {
         let system = system.clone();
         async move { pending_upgrades(&system).await }
     }))

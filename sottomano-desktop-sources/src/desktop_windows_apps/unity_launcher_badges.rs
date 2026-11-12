@@ -10,8 +10,10 @@ use zbus::{
 
 use crate::{
     non_empty_text::non_empty,
-    stream_operators::connected_until_failure,
-    system_protocol_clients::dbus_desktop_buses::{DbusPropertyLookup, DesktopBuses},
+    system_protocol_clients::{
+        dbus_desktop_buses::{DbusPropertyLookup, DesktopBuses},
+        protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+    },
 };
 
 const INTERFACE: &str = "com.canonical.Unity.LauncherEntry";
@@ -137,7 +139,8 @@ enum Signal {
 }
 
 pub fn entry_updates(buses: &DesktopBuses) -> impl Stream<Item = LauncherEntries> + Send + use<> {
-    connected_until_failure(connect(buses.session.clone())).filter_map(|entries| {
+    let session = buses.session.clone();
+    resubscribed(PEER_RECONNECT_GAP, session, connect).filter_map(|entries| {
         ready(
             entries
                 .inspect_err(|e| tracing::warn!("launcher entry: {e}"))

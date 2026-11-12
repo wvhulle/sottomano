@@ -24,9 +24,9 @@ pub use self::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     ai_usage_spend::ccusage_cli_reports,
+    backing_service_availability::{Availability, AvailabilityStreams},
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
-    stream_operators::{Availability, StreamOperators},
     system_protocol_clients::{http_json_client, inotify_file_presence::path_present},
 };
 
@@ -158,7 +158,7 @@ where
                 Availability::Unavailable
             }
         })
-        .while_held(
+        .while_available(
             move || {
                 let credentials = credentials.clone();
                 let poll = poll.clone();
@@ -181,7 +181,7 @@ where
     S: SnapshotSource<StreamInputs = ClaudeLocalLogs> + PartialEq,
     R: Stream<Item = SnapshotDelivery<S>> + Send,
 {
-    stream::once(ccusage_cli_reports::ccusage_availability()).while_held(
+    stream::once(ccusage_cli_reports::ccusage_availability()).while_available(
         move || {
             let coverage_availability = move |kind: LoginKind| {
                 if SubscriptionCoverage::from(kind) == wanted_coverage {
@@ -196,7 +196,7 @@ where
             };
             let logs = logs.clone();
             let readings = readings.clone();
-            login_matches.while_held(
+            login_matches.while_available(
                 move || readings(logs.clone()),
                 SnapshotDelivery::SourceUnavailable,
             )

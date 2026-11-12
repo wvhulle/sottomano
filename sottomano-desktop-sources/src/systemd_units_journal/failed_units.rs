@@ -10,7 +10,8 @@ use super::{
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    stream_operators::{connected_until_failure, read_once_then_per_burst},
+    delivery_cadence_drivers::ChangeTriggerStreams,
+    system_protocol_clients::protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
     systemd_units_journal::{
         journal_coredumps::CoredumpEntry, journal_record_fields::JournalPriority,
     },
@@ -68,9 +69,13 @@ impl SnapshotSource for FailedUnits {
 
     fn delivery_stream(systemd: SystemdOnBus) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let scope = systemd.scope;
-        connected_until_failure(watch_failed(systemd.connection(), scope))
-            .map(move |listed| listed.map(|units| FailedUnits { units, scope }))
-            .map(SnapshotDelivery::live_push)
+        resubscribed(
+            PEER_RECONNECT_GAP,
+            systemd.connection(),
+            move |connection| watch_failed(connection, scope),
+        )
+        .map(move |listed| listed.map(|units| FailedUnits { units, scope }))
+        .map(SnapshotDelivery::live_push)
     }
 }
 
@@ -97,7 +102,7 @@ async fn watch_failed(
     )
     .await?
     .map(drop);
-    Ok(read_once_then_per_burst(unit_signals, move || {
+    Ok(unit_signals.triggered_rereads(move || {
         let manager = manager.clone();
         async move { failed_units(&manager, unit_scope).await }
     }))

@@ -25,10 +25,11 @@ use crate::{
         caldav_server_provider::CaldavProvider,
         nextcloud_notify_push::{PushLogin, activity_pings},
     },
-    delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, triggered_deliveries_with_recheck},
+    delivery_cadence_drivers::{
+        PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams, triggered_deliveries_with_recheck,
+    },
     network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
     secret_file_reads::read_secret,
-    stream_operators::StreamOperators,
 };
 
 #[derive(Debug, Clone, thiserror::Error)]

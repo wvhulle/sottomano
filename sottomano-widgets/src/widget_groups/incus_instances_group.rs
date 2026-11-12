@@ -5,12 +5,12 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sinks::incus_instances::{InstanceStateChange, change_instance_state};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    backing_service_availability::Availability,
     incus_instances::{
         DaemonInstance, DaemonInstanceListing, DaemonInstanceListings, DaemonInstancesReadout,
         InstanceDaemon, InstanceKind,
     },
     podman_container_engine::libpod_running_containers::EngineReadError,
-    stream_operators::Availability,
 };
 
 use crate::{

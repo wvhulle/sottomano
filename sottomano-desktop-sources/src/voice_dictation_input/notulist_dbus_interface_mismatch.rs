@@ -1,8 +1,8 @@
 use futures::{Stream, StreamExt};
+use futures_rx::RxExt;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    stream_operators::StreamOperators,
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error, InterfaceOffer},
     voice_dictation_input::notulist_interface_offers,
 };

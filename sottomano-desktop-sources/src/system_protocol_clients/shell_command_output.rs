@@ -5,7 +5,7 @@ use std::{
 
 use tokio::process::Command;
 
-use crate::stream_operators::Availability;
+use crate::backing_service_availability::Availability;
 
 const TRANSIENT_SCOPE_PROGRAM: &str = "systemd-run";
 const BACKGROUND_SCOPE_ARGS: [&str; 6] = [

@@ -10,6 +10,7 @@ workspace = true
 [dependencies]
 corredo = { path = "../corredo", features = ["chrono", "karaoke", "markup"] }
 strum.workspace = true
+futures-rx.workspace = true
 sottomano-toml-config = { path = "../sottomano-toml-config" }
 sottomano-phosphor-icons = { path = "../sottomano-phosphor-icons" }
 sottomano-simple-icons = { path = "../sottomano-simple-icons" }

@@ -11,8 +11,7 @@ use serde::Deserialize;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::PeriodicPolling,
-    stream_operators::read_once_then_per_burst,
+    delivery_cadence_drivers::{ChangeTriggerStreams, PeriodicPolling},
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
         sysfs_attribute_reads::Error,
@@ -42,16 +41,20 @@ impl SnapshotSource for FlatpakProbe {
     fn delivery_stream(
         (): Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let watch_target: BoxStream<'static, ()> = match flatpak_instances_directory() {
-            Some(instances_directory) => {
-                changes(vec![WatchTarget::EntriesOf(instances_directory)]).boxed()
-            }
-            None => stream::empty::<()>().boxed(),
-        };
-        SnapshotDelivery::live_push_deliveries(ready(Ok(read_once_then_per_burst(
-            watch_target,
-            || ready(counted_running_instances()),
-        ))))
+        SnapshotDelivery::live_push_deliveries((), |()| {
+            ready(Ok(
+                flatpak_instance_changes().triggered_rereads(|| ready(counted_running_instances()))
+            ))
+        })
+    }
+}
+
+fn flatpak_instance_changes() -> BoxStream<'static, ()> {
+    match flatpak_instances_directory() {
+        Some(instances_directory) => {
+            changes(vec![WatchTarget::EntriesOf(instances_directory)]).boxed()
+        }
+        None => stream::empty::<()>().boxed(),
     }
 }
 

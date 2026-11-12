@@ -22,10 +22,11 @@ use zbus::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking,
+    delivery_cadence_drivers::ChangeTriggerStreams,
     media_playback_audio::lrclib_synced_lyrics::LyricsQuery,
-    stream_operators::{connected_until_failure, read_once_then_per_burst},
-    system_protocol_clients::dbus_desktop_buses::{
-        DbusPropertyLookup, DesktopBuses, OwnerProcess, Properties,
+    system_protocol_clients::{
+        dbus_desktop_buses::{DbusPropertyLookup, DesktopBuses, OwnerProcess, Properties},
+        protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
     },
 };
 
@@ -492,7 +493,7 @@ impl SnapshotSource for Vec<Media> {
     const NAME: &'static str = "Media players";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        connected_until_failure(connect(buses.session)).map(SnapshotDelivery::live_push)
+        resubscribed(PEER_RECONNECT_GAP, buses.session, connect).map(SnapshotDelivery::live_push)
     }
 }
 
@@ -521,14 +522,13 @@ async fn connect(
             )
         })
         .map(drop);
-    Ok(read_once_then_per_burst(
-        select(select(properties, seeks), owners),
-        move || {
+    Ok(
+        select(select(properties, seeks), owners).triggered_rereads(move || {
             let connection = connection.clone();
             let dbus = dbus.clone();
             async move { read_all(&connection, &dbus).await }
-        },
-    ))
+        }),
+    )
 }
 
 async fn signals(

@@ -6,9 +6,9 @@ use futures::{Stream, StreamExt, stream};
 use crate::{
     SnapshotDelivery, SnapshotSource, SourceCaption,
     compositor_window_ipc::compositor_connection::compositor_version,
+    delivery_cadence_drivers::ChangeTriggerStreams,
     host_machine_identity::hostname1_os_identity::at_micros,
     non_empty_text::non_empty,
-    stream_operators::read_once_then_per_burst,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
     systemd_units_journal::{
         ManagerProxy, UNIT_INTERFACE, UnitProxy, signals_matching, systemd_signal,
@@ -73,7 +73,7 @@ impl SnapshotSource for GraphicalSessionTarget {
     );
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries(target_changes(buses))
+        SnapshotDelivery::live_push_deliveries(buses, target_changes)
     }
 }
 
@@ -99,7 +99,7 @@ async fn target_changes(
     )
     .await?
     .map(drop);
-    Ok(read_once_then_per_burst(changes, move || {
+    Ok(changes.triggered_rereads(move || {
         let unit = unit.clone();
         async move {
             Ok(GraphicalSessionTarget {

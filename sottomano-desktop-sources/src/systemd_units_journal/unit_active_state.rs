@@ -9,7 +9,9 @@ use super::{
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    stream_operators::{Availability, connected_until_failure, read_once_then_per_burst},
+    backing_service_availability::Availability,
+    delivery_cadence_drivers::ChangeTriggerStreams,
+    system_protocol_clients::protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
     systemd_units_journal::SystemdUnitScope,
 };
 
@@ -100,7 +102,9 @@ pub fn unit_running(unit: SystemdUnitOnBus) -> impl Stream<Item = Availability> 
 }
 
 fn unit_activity(unit: SystemdUnitOnBus) -> impl Stream<Item = zbus::Result<UnitActivity>> + Send {
-    connected_until_failure(activity_changes(unit.connection(), unit.unit.unit_name))
+    resubscribed(PEER_RECONNECT_GAP, unit, |unit| {
+        activity_changes(unit.connection(), unit.unit.unit_name)
+    })
 }
 
 async fn activity_changes(
@@ -125,7 +129,7 @@ async fn activity_changes(
     )
     .await?
     .map(drop);
-    Ok(read_once_then_per_burst(changes, move || {
+    Ok(changes.triggered_rereads(move || {
         let unit = unit.clone();
         async move {
             unit.active_state()
