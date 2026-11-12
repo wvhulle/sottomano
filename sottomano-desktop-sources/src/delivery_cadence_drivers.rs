@@ -9,7 +9,7 @@ use std::{
 
 use chrono::{DateTime, Local};
 use futures::{
-    Stream, StreamExt,
+    Stream, StreamExt, TryStreamExt,
     stream::{self, Fuse, FusedStream},
 };
 use pin_project_lite::pin_project;
@@ -139,7 +139,7 @@ where
             match trigger {
                 Ok(()) => *projected.triggered = true,
                 Err(trigger_failure) => {
-                    projected.trigger_failures.push_back(trigger_failure.into())
+                    projected.trigger_failures.push_back(trigger_failure.into());
                 }
             }
         }
@@ -342,16 +342,15 @@ impl PeriodicPolling {
         Prepared: Clone + Send + 'static,
         PollFuture: Future<Output = Result<Source, Source::Error>> + Send,
     {
-        stream::once(setup).flat_map(move |prepared| match prepared {
-            Ok(prepared) => {
+        stream::once(setup)
+            .map_ok(move |prepared| {
                 let poll = poll.clone();
-                self.poll_deliveries(move || poll(prepared.clone()))
-                    .left_stream()
-            }
-            Err(failure) => {
-                stream::once(ready(SnapshotDelivery::single_read(Err(failure)))).right_stream()
-            }
-        })
+                self.poll_deliveries(move || poll(prepared.clone())).map(Ok)
+            })
+            .try_flatten()
+            .map(|delivery| {
+                delivery.unwrap_or_else(|failure| SnapshotDelivery::single_read(Err(failure)))
+            })
     }
 
     pub fn boundary_aligned_deliveries<Source: SnapshotSource>(
@@ -483,7 +482,8 @@ mod tests {
     use std::fmt::{Display, Formatter, Result as FmtResult};
 
     use chrono::TimeZone;
-    use futures::{StreamExt, stream};
+    use futures::{StreamExt, channel::mpsc, future::pending, stream};
+    use tokio::time::timeout;
 
     use super::*;
 
@@ -567,8 +567,7 @@ mod tests {
     async fn spaced_rereads_drain_burst_triggers_and_wait_the_gap() {
         let minimum_trigger_gap = Duration::from_mins(1);
         let started = TokioClockInstant::now();
-        let (trigger_sender, trigger_receiver) =
-            futures::channel::mpsc::unbounded::<Result<(), &'static str>>();
+        let (trigger_sender, trigger_receiver) = mpsc::unbounded::<Result<(), &'static str>>();
         let mut read_count = 0_u32;
         let mut rereads = Box::pin(trigger_receiver.paced_rereads(
             minimum_trigger_gap,
@@ -585,7 +584,7 @@ mod tests {
         assert_eq!(rereads.next().await, Some(Ok(2)));
         assert_eq!(started.elapsed(), minimum_trigger_gap);
         assert!(
-            tokio::time::timeout(minimum_trigger_gap * 10, rereads.next())
+            timeout(minimum_trigger_gap * 10, rereads.next())
                 .await
                 .is_err()
         );
@@ -593,14 +592,11 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn triggers_drain_while_a_read_is_pending() {
-        let (trigger_sender, trigger_receiver) =
-            futures::channel::mpsc::channel::<Result<(), &'static str>>(4);
-        let mut rereads = Box::pin(
-            trigger_receiver
-                .triggered_rereads(futures::future::pending::<Result<(), &'static str>>),
-        );
+        let (trigger_sender, trigger_receiver) = mpsc::channel::<Result<(), &'static str>>(4);
+        let mut rereads =
+            Box::pin(trigger_receiver.triggered_rereads(pending::<Result<(), &'static str>>));
         let pending_read = tokio::spawn(async move { rereads.next().await });
-        let sent_triggers = tokio::time::timeout(
+        let sent_triggers = timeout(
             Duration::from_secs(1),
             stream::repeat(Ok(()))
                 .take(200)
@@ -617,8 +613,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn a_trigger_failure_is_delivered_before_the_next_read() {
-        let (trigger_sender, trigger_receiver) =
-            futures::channel::mpsc::unbounded::<Result<(), &'static str>>();
+        let (trigger_sender, trigger_receiver) = mpsc::unbounded::<Result<(), &'static str>>();
         let mut read_count = 0_u32;
         let mut rereads = Box::pin(trigger_receiver.triggered_rereads(move || {
             read_count += 1;

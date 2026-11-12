@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt, TryStreamExt, stream};
 use image::{
     RgbaImage,
     imageops::{self, FilterType},
@@ -311,12 +311,12 @@ async fn connect_tray_host() -> Result<ConnectedTrayHost, TrayHostError> {
 }
 
 pub fn updates() -> impl Stream<Item = TrayUpdate> + Send {
-    stream::once(connect_tray_host()).flat_map(|connection| match connection {
-        Ok(connected_host) => hosted_updates(connected_host).left_stream(),
-        Err(host_failure) => {
-            stream::iter([TrayUpdate::HostFailed(Arc::new(host_failure))]).right_stream()
-        }
-    })
+    stream::once(connect_tray_host())
+        .map_ok(|connected_host| hosted_updates(connected_host).map(Ok))
+        .try_flatten()
+        .map(|update| {
+            update.unwrap_or_else(|host_failure| TrayUpdate::HostFailed(Arc::new(host_failure)))
+        })
 }
 
 fn hosted_updates(connected_host: ConnectedTrayHost) -> impl Stream<Item = TrayUpdate> + Send {

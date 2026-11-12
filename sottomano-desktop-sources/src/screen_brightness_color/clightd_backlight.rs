@@ -1,6 +1,6 @@
-use std::{collections::HashSet, fs, future::ready, path::PathBuf, time::Duration};
+use std::{collections::HashSet, fs, path::PathBuf, time::Duration};
 
-use futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt, TryStreamExt, stream};
 use serde::{Deserialize, Serialize};
 use zbus::{proxy, proxy::CacheProperties, zvariant::Type};
 
@@ -80,17 +80,19 @@ struct BacklightWatch<Changes> {
 fn backlight_deliveries(
     system: zbus::Connection,
 ) -> impl Stream<Item = SnapshotDelivery<Vec<Backlight>>> + Send {
-    stream::once(watched_backlights(system)).flat_map(|watched| match watched {
-        Ok(BacklightWatch { proxy, changes }) => BACKLIGHT_RECHECK
-            .triggered_deliveries(changes, move || {
-                let proxy = proxy.clone();
-                async move { proxy.get_all("").await.map(backlights) }
-            })
-            .left_stream(),
-        Err(failure) => {
-            stream::once(ready(SnapshotDelivery::live_push(Err(failure)))).right_stream()
-        }
-    })
+    stream::once(watched_backlights(system))
+        .map_ok(|BacklightWatch { proxy, changes }| {
+            BACKLIGHT_RECHECK
+                .triggered_deliveries(changes, move || {
+                    let proxy = proxy.clone();
+                    async move { proxy.get_all("").await.map(backlights) }
+                })
+                .map(Ok)
+        })
+        .try_flatten()
+        .map(|delivery| {
+            delivery.unwrap_or_else(|failure| SnapshotDelivery::live_push(Err(failure)))
+        })
 }
 
 async fn watched_backlights(

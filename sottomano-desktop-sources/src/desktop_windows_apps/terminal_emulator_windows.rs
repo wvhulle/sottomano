@@ -503,10 +503,19 @@ impl PairingWorker {
 }
 
 pub fn window_pairings(agents: WindowAgentsConfig) -> impl Stream<Item = WindowProcesses> + Send {
-    let Some(home) = env::home_dir() else {
+    let home = env::home_dir();
+    if home.is_none() {
         tracing::warn!("window pairing stopped: no home directory");
-        return stream::empty().left_stream();
-    };
+    }
+    stream::iter(home.map(|home| paired_window_processes(home, agents)))
+        .flatten()
+        .distinct_until_changed()
+}
+
+fn paired_window_processes(
+    home: PathBuf,
+    agents: WindowAgentsConfig,
+) -> impl Stream<Item = WindowProcesses> + Send {
     let worker = PairingWorker {
         pairing: Pairing::new(home.clone(), agents),
         access: LiveTerminalAgents { home },
@@ -522,8 +531,6 @@ pub fn window_pairings(agents: WindowAgentsConfig) -> impl Stream<Item = WindowP
             Some((processes, (window_updates, worker)))
         },
     )
-    .distinct_until_changed()
-    .right_stream()
 }
 
 #[cfg(test)]
