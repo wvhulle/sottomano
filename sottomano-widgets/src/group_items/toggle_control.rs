@@ -18,7 +18,7 @@ use crate::{
     hover_cards::{
         HoverTarget,
         hover_card_body::{
-            HoverCardBody, Section,
+            HoverCardBody,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
     },
@@ -142,7 +142,7 @@ impl GroupItemReading for IconToggle {
     }
 }
 
-pub trait ToggleableSource: SnapshotSource<Error: Into<Section>> + GroupItemReading {
+pub trait ToggleableSource: SnapshotSource + GroupItemReading {
     #[must_use]
     fn toggled_value(&self) -> Self;
     fn apply_toggle(&self) -> impl Future<Output = Result<(), Self::Error>> + Send + 'static;
@@ -162,10 +162,9 @@ impl<S: ToggleableSource> Default for ToggleControl<S> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ToggleMessage<S: ToggleableSource> {
     Reading(SnapshotDelivery<S>),
-    Press,
     Applied,
     Refused(S::Error),
 }
@@ -185,18 +184,6 @@ impl<S: ToggleableSource> ToggleControl<S> {
                 self.reading.receive(reading, clock);
                 Task::none()
             }
-            ToggleMessage::Press => match self.reading.get().cloned() {
-                Some(current) => {
-                    self.reading.apply_command(CommandOutcome::Applied {
-                        expected_snapshot: current.toggled_value(),
-                    });
-                    Task::future(current.apply_toggle()).map(|applied| match applied {
-                        Ok(()) => ToggleMessage::Applied,
-                        Err(refusal) => ToggleMessage::Refused(refusal),
-                    })
-                }
-                None => Task::none(),
-            },
             ToggleMessage::Applied => Task::none(),
             ToggleMessage::Refused(refusal) => {
                 self.reading
@@ -204,6 +191,19 @@ impl<S: ToggleableSource> ToggleControl<S> {
                 Task::none()
             }
         }
+    }
+
+    pub fn press(&mut self) -> Task<ToggleMessage<S>> {
+        let Some(current) = self.reading.get().cloned() else {
+            return Task::none();
+        };
+        self.reading.apply_command(CommandOutcome::Applied {
+            expected_snapshot: current.toggled_value(),
+        });
+        Task::future(current.apply_toggle()).map(|applied| match applied {
+            Ok(()) => ToggleMessage::Applied,
+            Err(refusal) => ToggleMessage::Refused(refusal),
+        })
     }
 
     pub fn apply_command(&mut self, command_outcome: CommandOutcome<S>) {
@@ -227,17 +227,17 @@ impl<S: ToggleableSource> ToggleControl<S> {
             .map(|display| display as &dyn GroupItemReading)
     }
 
-    pub fn group_item<M: 'static>(
+    pub fn group_item<M: Clone + 'static>(
         &self,
         target: impl Into<HoverTarget>,
-        on_toggle: fn(ToggleMessage<S>) -> M,
+        on_press: M,
     ) -> Option<GroupItem<'_, M>> {
         let shown = self.reading.group_item(target)?;
         Some(match self.reading.get() {
             Some(current) => shown.on_switch_press(
                 current.switch_position(),
                 current.press_action_text(),
-                on_toggle(ToggleMessage::Press),
+                on_press,
             ),
             None => shown,
         })
@@ -282,10 +282,7 @@ mod tests {
         assert_eq!(shown.state(Clock::real()), ReadingDisplayState::Failed);
         assert!(
             control
-                .group_item::<()>(
-                    HoverTarget::Compute(ComputeTarget::X3dCachePreference),
-                    |_| ()
-                )
+                .group_item(HoverTarget::Compute(ComputeTarget::X3dCachePreference), ())
                 .is_some()
         );
         let hover_card = format!(

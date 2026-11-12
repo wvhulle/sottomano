@@ -1,7 +1,7 @@
 use iced::{Subscription, Task};
 use sottomano_toml_config::Config;
 
-use crate::widget_groups::widget_group_identity::WidgetGroupFamily;
+use crate::hover_cards::hover_card_body::widget_groups::widget_group_identity::WidgetGroupFamily;
 
 mod geolocation_fix;
 mod pollen_count_gauge;
@@ -52,15 +52,6 @@ pub enum WeatherTarget {
     Pollen,
     Allergen(Allergen),
     Location,
-}
-
-impl From<weather::Error> for Section {
-    fn from(error: weather::Error) -> Self {
-        match error {
-            weather::Error::Fetch(fetch) => fetch.into(),
-            other => Section::error(other),
-        }
-    }
 }
 
 impl From<WeatherTarget> for HoverTarget {

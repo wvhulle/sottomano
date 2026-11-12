@@ -1,7 +1,8 @@
+use iced::futures::TryFutureExt;
 use sottomano_desktop_sinks::screen_brightness_color::umbra_mode_writes;
-use sottomano_desktop_sources::{
-    screen_brightness_color::{solar_switch_schedule::ColorMode, umbra_dark_mode::DarkMode},
-    system_protocol_clients::shell_command_output,
+use sottomano_desktop_sources::screen_brightness_color::{
+    solar_switch_schedule::ColorMode,
+    umbra_dark_mode::{DarkMode, DarkModeReadError},
 };
 
 use crate::{
@@ -41,10 +42,8 @@ impl ToggleableSource for DarkMode {
         }
     }
 
-    fn apply_toggle(
-        &self,
-    ) -> impl Future<Output = Result<(), shell_command_output::Error>> + Send + 'static {
-        umbra_mode_writes::toggle_mode()
+    fn apply_toggle(&self) -> impl Future<Output = Result<(), DarkModeReadError>> + Send + 'static {
+        umbra_mode_writes::toggle_mode().map_err(DarkModeReadError::from)
     }
 
     fn switch_position(&self) -> SwitchPosition {

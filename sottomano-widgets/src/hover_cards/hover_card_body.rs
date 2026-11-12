@@ -1,7 +1,7 @@
 pub mod hover_card_figure_payloads;
 pub mod hover_card_source_delivery;
 
-use std::{convert::Infallible, fmt::Display, num::NonZeroUsize};
+use std::{fmt::Display, num::NonZeroUsize};
 
 use corredo::record_table::RecordTable;
 use sottomano_desktop_sources::{
@@ -117,14 +117,6 @@ impl<Title: Into<String>, Caption: Into<String>> From<(Title, Caption)> for Head
 pub enum SectionHeading {
     Untitled,
     Titled(Heading),
-}
-
-pub trait ShownAsErrorSection: Display {}
-
-impl<Failure: ShownAsErrorSection> From<Failure> for Section {
-    fn from(failure: Failure) -> Self {
-        Section::error(failure)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -303,11 +295,5 @@ impl HoverCardBody {
 impl From<Section> for HoverCardBody {
     fn from(section: Section) -> Self {
         Self::sections([section])
-    }
-}
-
-impl From<Infallible> for Section {
-    fn from(never: Infallible) -> Self {
-        match never {}
     }
 }

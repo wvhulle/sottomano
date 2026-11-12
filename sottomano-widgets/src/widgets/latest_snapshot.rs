@@ -37,7 +37,7 @@ impl<S: SnapshotSource + GroupItemReading> FailedSnapshotFetch<S> {
     }
 }
 
-impl<S: SnapshotSource<Error: Into<Section>>> GroupItemReading for FailedSnapshotFetch<S> {
+impl<S: SnapshotSource> GroupItemReading for FailedSnapshotFetch<S> {
     fn name(&self) -> &'static str {
         "Failed reading"
     }
@@ -51,7 +51,7 @@ impl<S: SnapshotSource<Error: Into<Section>>> GroupItemReading for FailedSnapsho
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections([self.error.clone().into()])
+        HoverCardBody::sections([Section::error(&self.error)])
     }
 }
 
@@ -114,10 +114,7 @@ where
     },
 }
 
-impl<S: SnapshotSource + GroupItemReading> FetchFailurePolicy<S> for ShowsFetchFailures
-where
-    S::Error: Into<Section>,
-{
+impl<S: SnapshotSource + GroupItemReading> FetchFailurePolicy<S> for ShowsFetchFailures {
     type ShownFailure = FailedSnapshotFetch<S>;
 
     fn after_failed_fetch(
@@ -143,10 +140,7 @@ where
     }
 }
 
-impl<S: SnapshotSource + GroupItemReading> FetchFailurePolicy<S> for HidesFailuresAfterSuccess
-where
-    S::Error: Into<Section>,
-{
+impl<S: SnapshotSource + GroupItemReading> FetchFailurePolicy<S> for HidesFailuresAfterSuccess {
     type ShownFailure = FailedSnapshotFetch<S>;
 
     fn after_failed_fetch(
@@ -511,12 +505,6 @@ mod tests {
     impl Display for CountingFailure {
         fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
             write!(f, "counting failed")
-        }
-    }
-
-    impl From<CountingFailure> for Section {
-        fn from(failure: CountingFailure) -> Self {
-            Section::error(failure)
         }
     }
 

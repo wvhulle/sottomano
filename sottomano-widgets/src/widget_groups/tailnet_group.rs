@@ -32,10 +32,7 @@ use crate::{
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
         HoverTarget,
-        hover_card_body::{
-            ShownAsErrorSection,
-            hover_card_source_delivery::{HoverCard, SourcedSections},
-        },
+        hover_card_body::hover_card_source_delivery::{HoverCard, SourcedSections},
     },
     widget_groups::{
         tailnet_group::{
@@ -76,10 +73,6 @@ impl From<TailnetTarget> for HoverTarget {
         HoverTarget::Tailnet(target)
     }
 }
-
-impl ShownAsErrorSection for tailscale_status::Error {}
-
-impl ShownAsErrorSection for PolicyFileError {}
 
 enum PolicyFileAccess {
     NoApiToken,

@@ -103,10 +103,9 @@ pub struct UnitSwitch {
     active_state: LatestSnapshot<UnitActiveState, HidesFetchFailures>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum UnitSwitchMessage {
     ActiveState(SnapshotDelivery<UnitActiveState>),
-    Press,
     Requested {
         change: UnitChange,
         before: Option<UnitActivity>,
@@ -143,10 +142,6 @@ impl UnitSwitch {
                 self.active_state.receive(delivery, clock);
                 Task::none()
             }
-            UnitSwitchMessage::Press => match self.activity() {
-                Some(activity) => self.request(activity.press_change()),
-                None => Task::none(),
-            },
             UnitSwitchMessage::Requested {
                 change,
                 before,
@@ -169,6 +164,13 @@ impl UnitSwitch {
                 }
                 Task::none()
             }
+        }
+    }
+
+    pub fn press(&mut self) -> Task<UnitSwitchMessage> {
+        match self.activity() {
+            Some(activity) => self.request(activity.press_change()),
+            None => Task::none(),
         }
     }
 

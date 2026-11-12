@@ -55,23 +55,6 @@ pub enum ClaudeUsageTarget {
     MostUsedModelSpend,
 }
 
-impl From<claude_usage::Error> for Section {
-    fn from(error: claude_usage::Error) -> Self {
-        match error {
-            claude_usage::Error::RateLimited(cause) | claude_usage::Error::Fetch(cause) => {
-                cause.into()
-            }
-            claude_usage::Error::Backoff { remaining, cause } => {
-                Section::from(cause).with_entries([LabeledValue::new(
-                    "Retry in",
-                    ValueCell::duration(remaining),
-                )])
-            }
-            other => Section::error(other),
-        }
-    }
-}
-
 impl From<ClaudeUsageTarget> for HoverTarget {
     fn from(target: ClaudeUsageTarget) -> Self {
         HoverTarget::ClaudeUsage(target)

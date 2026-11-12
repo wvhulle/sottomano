@@ -107,7 +107,7 @@ impl GroupItemReading for CiRunnerFailureRow<'_> {
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::sections(self.watched.failure_section())
+        HoverCardBody::sections(Section::error(self.watched))
     }
 }
 

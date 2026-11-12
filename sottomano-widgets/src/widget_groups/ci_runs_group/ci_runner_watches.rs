@@ -9,6 +9,7 @@ use sottomano_desktop_sources::{
         systemd_service_runner_discovery::DiscoveredCiRunner,
         woodpecker_agent_tasks::{WoodpeckerAgentTasks, WoodpeckerAgentWatch},
     },
+    system_protocol_clients::journal_follow::JournalFollowError,
     systemd_units_journal::{SystemdUnitScope, service_commands::ServiceCommand},
 };
 
@@ -22,7 +23,7 @@ use crate::{
     },
 };
 
-pub trait CiRunnerSnapshot: SnapshotSource<Error = Infallible> {
+pub trait CiRunnerSnapshot: SnapshotSource<Error = JournalFollowError> {
     const KIND: CiRunnerKind;
 
     fn runner(&self) -> &CiRunnerTasks;

@@ -1,8 +1,8 @@
 use iced::{Subscription, Task};
 
 use crate::{
-    hover_cards::hover_card_body::ShownAsErrorSection,
-    widget_groups::widget_group_identity::WidgetGroupFamily, widgets::phosphor::Weight,
+    hover_cards::hover_card_body::widget_groups::widget_group_identity::WidgetGroupFamily,
+    widgets::phosphor::Weight,
 };
 
 mod coredump_log;
@@ -53,8 +53,6 @@ pub enum JournalTarget {
     Coredumps,
     OomKills,
 }
-
-impl ShownAsErrorSection for JournalFollowError {}
 
 impl From<JournalTarget> for HoverTarget {
     fn from(target: JournalTarget) -> Self {

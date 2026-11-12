@@ -37,10 +37,7 @@ use crate::{
         toggle_control::{ToggleControl, ToggleMessage},
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{ShownAsErrorSection, hover_card_source_delivery::HoverCard},
-    },
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -63,8 +60,6 @@ pub enum ComputeTarget {
     CpuModel,
     X3dCachePreference,
 }
-
-impl ShownAsErrorSection for HostHardwareError {}
 
 impl From<ComputeTarget> for HoverTarget {
     fn from(target: ComputeTarget) -> Self {

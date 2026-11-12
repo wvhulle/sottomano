@@ -17,7 +17,7 @@ use crate::{
 const DISCOVERED_SCOPES: [SystemdUnitScope; 2] =
     [SystemdUnitScope::UserSession, SystemdUnitScope::SystemWide];
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ScopedServiceCommands {
     pub scope: SystemdUnitScope,
     pub delivery: SnapshotDelivery<ServiceCommands>,

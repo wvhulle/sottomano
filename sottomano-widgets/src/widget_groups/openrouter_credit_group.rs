@@ -47,15 +47,6 @@ pub enum OpenRouterCreditTarget {
     BestModelsWithinCap,
 }
 
-impl From<openrouter_credits::Error> for Section {
-    fn from(error: openrouter_credits::Error) -> Self {
-        match error {
-            openrouter_credits::Error::Fetch(fetch) => fetch.into(),
-            secret @ openrouter_credits::Error::Secret => Section::error(secret),
-        }
-    }
-}
-
 impl From<OpenRouterCreditTarget> for HoverTarget {
     fn from(target: OpenRouterCreditTarget) -> Self {
         HoverTarget::OpenRouterCredit(target)
