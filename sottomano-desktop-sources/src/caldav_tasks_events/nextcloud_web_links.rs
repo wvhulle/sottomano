@@ -20,7 +20,13 @@ impl NextcloudWebRoot {
     #[must_use]
     pub fn detected(server_url: &str, calendar_href: &str) -> Option<Self> {
         let (install_path, _) = calendar_href.split_once(NEXTCLOUD_DAV_PATH)?;
-        let origin = Url::parse(server_url).ok()?.origin().ascii_serialization();
+        let origin = Url::parse(server_url)
+            .inspect_err(|parse_failure| {
+                tracing::debug!("caldav: server url {server_url} is malformed: {parse_failure}");
+            })
+            .ok()?
+            .origin()
+            .ascii_serialization();
         Some(Self {
             root: format!("{origin}{install_path}"),
         })

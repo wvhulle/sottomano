@@ -164,7 +164,12 @@ fn listed_gpus() -> Vec<ListedGpu> {
 }
 
 fn gpu_vendor_of_pci_id(vendor_id: &str) -> Option<GpuVendor> {
-    match u16::from_str_radix(vendor_id, 16).ok()? {
+    let vendor_number = u16::from_str_radix(vendor_id, 16)
+        .inspect_err(|parse_failure| {
+            tracing::warn!("gpu discovery: invalid pci vendor id {vendor_id:?}: {parse_failure}");
+        })
+        .ok()?;
+    match vendor_number {
         0x10de => Some(GpuVendor::Nvidia),
         0x8086 => Some(GpuVendor::Intel),
         0x1002 => Some(GpuVendor::Amd),
@@ -219,7 +224,7 @@ impl GpuSampleWorker {
                     let _ = reply.send(refreshed.and_then(|()| self.clocks()));
                 }
                 SampleRequest::Processes(reply) => {
-                    let _ = reply.send(refreshed.map(|()| self.processes()));
+                    let _ = reply.send(refreshed.and_then(|()| self.processes()));
                 }
             }
         }
@@ -245,13 +250,8 @@ impl GpuSampleWorker {
             .ok_or(Error::DeviceVanished)
     }
 
-    fn client_samples(&self) -> Vec<ClientSample> {
-        let Some(clients) = self
-            .device()
-            .ok()
-            .and_then(DrmDeviceInfo::clients)
-            .and_then(|clients| clients.upgrade())
-        else {
+    fn client_samples(device: &DrmDeviceInfo) -> Vec<ClientSample> {
+        let Some(clients) = device.clients().and_then(|clients| clients.upgrade()) else {
             return Vec::new();
         };
         let clients = clients.borrow();
@@ -278,7 +278,7 @@ impl GpuSampleWorker {
                 .first()
                 .filter(|frequencies| frequencies.act_freq > 0)
                 .map(|frequencies| megahertz_frequency(frequencies.act_freq)),
-            memory: self.gpu_memory(device),
+            memory: Self::gpu_memory(device),
             temperature: device
                 .dev_type
                 .is_discrete()
@@ -292,7 +292,7 @@ impl GpuSampleWorker {
         })
     }
 
-    fn gpu_memory(&self, device: &DrmDeviceInfo) -> GpuMemory {
+    fn gpu_memory(device: &DrmDeviceInfo) -> GpuMemory {
         if let Some(memory) = device
             .mem_info
             .as_ref()
@@ -303,7 +303,7 @@ impl GpuSampleWorker {
                 total: ByteSize::b(memory.vram_total),
             });
         }
-        let clients = self.client_samples();
+        let clients = Self::client_samples(device);
         GpuMemory::SharedWithSystem(SharedGpuMemory {
             resident: clients
                 .iter()
@@ -313,7 +313,11 @@ impl GpuSampleWorker {
                 .iter()
                 .map(|client| ByteSize::b(client.memory.smem_used))
                 .sum(),
-            system: read_meminfo().ok(),
+            system: read_meminfo()
+                .inspect_err(|meminfo_failure| {
+                    tracing::warn!("gpu memory: cannot read system memory: {meminfo_failure}");
+                })
+                .ok(),
         })
     }
 
@@ -337,9 +341,10 @@ impl GpuSampleWorker {
         })
     }
 
-    fn processes(&self) -> GpuProcesses {
+    fn processes(&self) -> Result<GpuProcesses, Error> {
+        let device = self.device()?;
         let mut processes_by_pid: BTreeMap<u32, GpuProcess> = BTreeMap::new();
-        for client in self.client_samples() {
+        for client in Self::client_samples(device) {
             let resident = ByteSize::b(client.memory.smem_used + client.memory.vram_used);
             let process = processes_by_pid
                 .entry(client.pid)
@@ -354,7 +359,7 @@ impl GpuSampleWorker {
         }
         let mut processes: Vec<GpuProcess> = processes_by_pid.into_values().collect();
         processes.sort_by_key(|process| Reverse(process.resident_memory));
-        GpuProcesses { processes }
+        Ok(GpuProcesses { processes })
     }
 }
 

@@ -52,8 +52,26 @@ pub(crate) struct ProcessIncarnation {
 fn spent_ticks_by_process() -> Result<HashMap<ProcessIncarnation, u64>, Error> {
     Ok(all_processes()
         .map_err(|_| Error::Unreadable(PROC.to_owned()))?
-        .filter_map(Result::ok)
-        .filter_map(|process| process.stat().ok())
+        .filter_map(|process_entry| {
+            process_entry
+                .inspect_err(|listing_failure| {
+                    tracing::debug!(
+                        "busy processes: skipping unlistable process: {listing_failure}"
+                    );
+                })
+                .ok()
+        })
+        .filter_map(|process| {
+            process
+                .stat()
+                .inspect_err(|stat_failure| {
+                    tracing::debug!(
+                        "busy processes: cannot read stat of process {}: {stat_failure}",
+                        process.pid()
+                    );
+                })
+                .ok()
+        })
         .map(|stat| {
             (
                 ProcessIncarnation {
@@ -72,9 +90,25 @@ fn read_cpu_busy_processes() -> Result<CpuBusyProcesses, Error> {
     thread::sleep(SAMPLE_GAP);
     let mut processes: Vec<CpuBusyProcess> = all_processes()
         .map_err(|_| Error::Unreadable(PROC.to_owned()))?
-        .filter_map(Result::ok)
+        .filter_map(|process_entry| {
+            process_entry
+                .inspect_err(|listing_failure| {
+                    tracing::debug!(
+                        "busy processes: skipping unlistable process: {listing_failure}"
+                    );
+                })
+                .ok()
+        })
         .filter_map(|process| {
-            let stat = process.stat().ok()?;
+            let stat = process
+                .stat()
+                .inspect_err(|stat_failure| {
+                    tracing::debug!(
+                        "busy processes: cannot read stat of process {}: {stat_failure}",
+                        process.pid()
+                    );
+                })
+                .ok()?;
             let incarnation = ProcessIncarnation {
                 pid: stat.pid,
                 started: stat.starttime,

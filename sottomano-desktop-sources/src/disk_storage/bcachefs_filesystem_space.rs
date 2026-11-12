@@ -158,7 +158,14 @@ impl BcachefsFilesystem {
 
 impl BcachefsMember {
     fn at(dir: PathBuf) -> Option<Self> {
-        let block = fs::read_link(dir.join("block")).ok()?;
+        let block = fs::read_link(dir.join("block"))
+            .inspect_err(|read_failure| {
+                tracing::debug!(
+                    "bcachefs: block link of {} unreadable: {read_failure}",
+                    dir.display()
+                );
+            })
+            .ok()?;
         let partition = block.file_name()?.to_str()?.to_owned();
         Some(BcachefsMember { dir, partition })
     }
@@ -206,7 +213,18 @@ impl BucketCounts {
                 .take_while(|line| !line.trim().is_empty())
                 .find_map(|line| {
                     let mut fields = line.split_whitespace();
-                    (fields.next()? == name).then(|| fields.next()?.parse().ok())?
+                    (fields.next()? == name).then(|| {
+                        let count_text = fields.next()?;
+                        count_text
+                            .parse()
+                            .inspect_err(|parse_failure| {
+                                tracing::warn!(
+                                    "bcachefs: alloc_debug {name} count {count_text} is \
+                                     malformed: {parse_failure}"
+                                );
+                            })
+                            .ok()
+                    })?
                 })
         };
         Some(BucketCounts {
@@ -260,7 +278,18 @@ fn parse_errors_since_reset(io_errors: &str) -> Vec<ErrorCount> {
             .lines()
             .filter_map(|line| line.split_once(':'))
             .find(|(name, _)| name.trim() == kind)
-            .and_then(|(_, count)| count.trim().parse().ok())
+            .and_then(|(_, count)| {
+                count
+                    .trim()
+                    .parse()
+                    .inspect_err(|parse_failure| {
+                        tracing::warn!(
+                            "bcachefs: io_errors {kind} count {count} is malformed: \
+                             {parse_failure}"
+                        );
+                    })
+                    .ok()
+            })
             .unwrap_or(0)
     };
     vec![
@@ -286,7 +315,12 @@ fn parse_human_size(text: &str) -> Option<u64> {
         'P' => (&text[..text.len() - 1], 1 << 50),
         _ => (text, 1),
     };
-    let value: f64 = number.parse().ok()?;
+    let value: f64 = number
+        .parse()
+        .inspect_err(|parse_failure| {
+            tracing::warn!("bcachefs: size {text} is malformed: {parse_failure}");
+        })
+        .ok()?;
     Some((value * multiplier as f64).round() as u64)
 }
 

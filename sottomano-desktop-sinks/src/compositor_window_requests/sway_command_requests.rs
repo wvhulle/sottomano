@@ -1,5 +1,5 @@
 use sottomano_desktop_sources::compositor_window_ipc::sway_ipc_connection::SwayIpcConnection;
-use swayipc_types::{CommandOutcome, CommandType, Workspace};
+use swayipc_types::{CommandOutcome, CommandType, Fallible, Workspace};
 
 use crate::compositor_window_requests::{
     compositor_requests::{CompositorRequest, CompositorRequestFailure},
@@ -78,15 +78,15 @@ fn referenced_workspace(request: &CompositorRequest) -> Option<u64> {
     }
 }
 
-async fn sway_workspace_name(connection: &mut SwayIpcConnection, workspace: u64) -> Option<String> {
-    let workspaces: Vec<Workspace> = connection
-        .request(CommandType::GetWorkspaces, "")
-        .await
-        .ok()?;
-    workspaces
+async fn sway_workspace_name(
+    connection: &mut SwayIpcConnection,
+    workspace: u64,
+) -> Fallible<Option<String>> {
+    let workspaces: Vec<Workspace> = connection.request(CommandType::GetWorkspaces, "").await?;
+    Ok(workspaces
         .into_iter()
         .find(|listed| u64::try_from(listed.id) == Ok(workspace))
-        .map(|listed| listed.name)
+        .map(|listed| listed.name))
 }
 
 pub async fn send_sway_request(
@@ -100,7 +100,9 @@ pub async fn send_sway_request(
         .await
         .map_err(|connect_error| unreachable(connect_error.to_string()))?;
     let workspace_name = match referenced_workspace(request) {
-        Some(workspace) => sway_workspace_name(&mut connection, workspace).await,
+        Some(workspace) => sway_workspace_name(&mut connection, workspace)
+            .await
+            .map_err(|request_error| unreachable(request_error.to_string()))?,
         None => None,
     };
     match sway_command_of(request, |_| workspace_name.clone()) {

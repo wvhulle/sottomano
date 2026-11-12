@@ -29,7 +29,7 @@ use super::notification_data::{
 use crate::{
     desktop_notifications::notification_data::{Residency, SoundHint},
     non_empty_text::non_empty,
-    system_protocol_clients::dbus_desktop_buses::OwnerProcess,
+    system_protocol_clients::dbus_desktop_buses::{OwnerProcess, prop},
 };
 
 const PATH: &str = "/org/freedesktop/Notifications";
@@ -255,10 +255,7 @@ fn parse_actions(actions: &[String]) -> Vec<NotifAction> {
 }
 
 fn parse_urgency(hints: &HashMap<String, OwnedValue>) -> Severity {
-    match hints
-        .get("urgency")
-        .and_then(|v| v.downcast_ref::<u8>().ok())
-    {
+    match prop::<u8>(hints, "urgency") {
         Some(0) => Severity::Low,
         Some(2) => Severity::Critical,
         _ => Severity::Normal,
@@ -266,12 +263,16 @@ fn parse_urgency(hints: &HashMap<String, OwnedValue>) -> Severity {
 }
 
 fn hint_window_id(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<u64> {
-    let value = hints.get(key)?;
-    u64::try_from(value.downcast_ref::<i32>().ok()?).ok()
+    let signed_window_id = prop::<i32>(hints, key)?;
+    u64::try_from(signed_window_id)
+        .inspect_err(|_| {
+            tracing::warn!("notifications: hint {key} has negative window id {signed_window_id}");
+        })
+        .ok()
 }
 
 fn hint_str(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {
-    non_empty(hints.get(key)?.downcast_ref::<&str>().ok()?.to_owned())
+    non_empty(prop::<String>(hints, key)?)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -281,10 +282,7 @@ enum HintFlag {
 }
 
 fn hint_flag(hints: &HashMap<String, OwnedValue>, key: &str) -> HintFlag {
-    let flag_set = hints
-        .get(key)
-        .and_then(|hint_value| hint_value.downcast_ref::<bool>().ok())
-        .unwrap_or_default();
+    let flag_set = prop::<bool>(hints, key).unwrap_or_default();
     if flag_set {
         HintFlag::Set
     } else {
@@ -293,10 +291,7 @@ fn hint_flag(hints: &HashMap<String, OwnedValue>, key: &str) -> HintFlag {
 }
 
 fn hint_progress(hints: &HashMap<String, OwnedValue>) -> Option<Ratio> {
-    hints
-        .get("value")
-        .and_then(|v| v.downcast_ref::<i32>().ok())
-        .map(clamped_progress)
+    prop::<i32>(hints, "value").map(clamped_progress)
 }
 
 fn clamped_progress(percent_value: i32) -> Ratio {
@@ -341,34 +336,78 @@ fn image_data_pixels(value: &Value) -> Option<RgbaImage> {
         i32,
         i32,
         Vec<u8>,
-    ) = value.try_into().ok()?;
-    let width = usize::try_from(width).ok()?;
-    let height = usize::try_from(height).ok()?;
-    let rowstride = usize::try_from(rowstride).ok()?;
-    let channels = usize::try_from(channels).ok()?;
+    ) = value
+        .try_into()
+        .inspect_err(|type_mismatch| {
+            tracing::warn!(
+                "notifications: image data hint has an unexpected type: {type_mismatch}"
+            );
+        })
+        .ok()?;
+    let (Ok(width), Ok(height), Ok(rowstride), Ok(channels)) = (
+        usize::try_from(width),
+        usize::try_from(height),
+        usize::try_from(rowstride),
+        usize::try_from(channels),
+    ) else {
+        tracing::warn!(
+            "notifications: image data hint has negative layout {width}x{height}, rowstride \
+             {rowstride}, {channels} channels"
+        );
+        return None;
+    };
     if width == 0 || height == 0 || channels < 3 {
+        tracing::warn!(
+            "notifications: image data hint has an empty layout {width}x{height} with {channels} \
+             channels"
+        );
         return None;
     }
-    let mut rgba = Vec::with_capacity(width * height * 4);
-    for y in 0..height {
-        let row = y * rowstride;
-        for x in 0..width {
-            let pixel = row + x * channels;
-            rgba.push(*data.get(pixel)?);
-            rgba.push(*data.get(pixel + 1)?);
-            rgba.push(*data.get(pixel + 2)?);
-            rgba.push(if has_alpha && channels >= 4 {
-                *data.get(pixel + 3)?
-            } else {
-                255
-            });
-        }
+    let required_bytes = (height - 1) * rowstride + width * channels;
+    if data.len() < required_bytes {
+        tracing::warn!(
+            "notifications: image data hint holds {} bytes, its {width}x{height} layout needs \
+             {required_bytes}",
+            data.len()
+        );
+        return None;
     }
-    RgbaImage::from_raw(
-        u32::try_from(width).ok()?,
-        u32::try_from(height).ok()?,
-        rgba,
+    let alpha_channel = if has_alpha && channels >= 4 {
+        AlphaChannel::Present
+    } else {
+        AlphaChannel::Absent
+    };
+    let rgba = (0..height)
+        .flat_map(|row_index| {
+            (0..width).map(move |column_index| row_index * rowstride + column_index * channels)
+        })
+        .flat_map(|pixel_start| {
+            let alpha = match alpha_channel {
+                AlphaChannel::Present => data[pixel_start + 3],
+                AlphaChannel::Absent => u8::MAX,
+            };
+            [
+                data[pixel_start],
+                data[pixel_start + 1],
+                data[pixel_start + 2],
+                alpha,
+            ]
+        })
+        .collect();
+    Some(
+        RgbaImage::from_raw(
+            u32::try_from(width).expect("image width came from a non-negative i32"),
+            u32::try_from(height).expect("image height came from a non-negative i32"),
+            rgba,
+        )
+        .expect("the rgba buffer holds four bytes for every pixel of the layout"),
     )
+}
+
+#[derive(Clone, Copy)]
+enum AlphaChannel {
+    Present,
+    Absent,
 }
 
 #[cfg(test)]

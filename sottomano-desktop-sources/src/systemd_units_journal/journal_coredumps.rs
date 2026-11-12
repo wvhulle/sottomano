@@ -177,11 +177,18 @@ impl CoredumpEntry {
             .open()
             .inspect_err(|e| tracing::warn!("coredump of {unit_name}: journal open failed: {e}"))
             .ok()?;
-        MessageId::COREDUMP.add_match(&mut journal).ok()?;
-        journal.match_add(unit_field, unit_name).ok()?;
-        journal.seek_tail().ok()?;
-        let record = journal.previous_entry().ok()??;
-        let at = journal.timestamp().ok()?;
+        let mut latest_entry = || -> io::Result<_> {
+            MessageId::COREDUMP.add_match(&mut journal)?;
+            journal.match_add(unit_field, unit_name)?;
+            journal.seek_tail()?;
+            let Some(record) = journal.previous_entry()? else {
+                return Ok(None);
+            };
+            Ok(Some((record, journal.timestamp()?)))
+        };
+        let (record, at) = latest_entry()
+            .inspect_err(|e| tracing::warn!("coredump of {unit_name}: journal read failed: {e}"))
+            .ok()??;
         let record = decode_record(record)
             .inspect_err(|e| tracing::warn!("coredump of {unit_name}: malformed record: {e}"))
             .ok()?;

@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     env, fs,
+    io::ErrorKind,
     path::{Path, PathBuf},
 };
 
@@ -147,20 +148,35 @@ fn candidate_urls(places: &Connection, title: &str) -> Vec<String> {
             return Vec::new();
         }
     };
-    let Ok(rows) = statement.query_map([title], |row| {
+    let rows = match statement.query_map([title], |row| {
         Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-    }) else {
-        return Vec::new();
+    }) {
+        Ok(rows) => rows,
+        Err(error) => {
+            tracing::debug!("favicons: history query failed: {error}");
+            return Vec::new();
+        }
     };
-    rows.filter_map(Result::ok)
-        .filter(|(_, stored)| strip_unread_badge(stored) == title)
-        .map(|(url, _)| url)
-        .collect()
+    rows.filter_map(|history_row| {
+        history_row
+            .inspect_err(|row_failure| {
+                tracing::warn!("favicons: invalid history row: {row_failure}");
+            })
+            .ok()
+    })
+    .filter(|(_, stored)| strip_unread_badge(stored) == title)
+    .map(|(url, _)| url)
+    .collect()
 }
 
 fn icon_blob(favicons: &Connection, query: &str, parameter: &str) -> Option<Vec<u8>> {
     favicons
         .query_row(query, [parameter], |row| row.get::<_, Vec<u8>>(0))
+        .inspect_err(|query_failure| {
+            if !matches!(query_failure, rusqlite::Error::QueryReturnedNoRows) {
+                tracing::warn!("favicons: icon query for {parameter}: {query_failure}");
+            }
+        })
         .ok()
         .filter(|blob| !blob.is_empty())
 }
@@ -174,12 +190,35 @@ fn origin_of(url: &str) -> Option<&str> {
 fn profile_dir() -> Option<PathBuf> {
     let home = env::var_os("HOME")?;
     let firefox_dir = PathBuf::from(home).join(".mozilla/firefox");
-    fs::read_dir(firefox_dir)
+    fs::read_dir(&firefox_dir)
+        .inspect_err(|listing_failure| {
+            tracing::debug!(
+                "favicons: cannot list {}: {listing_failure}",
+                firefox_dir.display()
+            );
+        })
         .ok()?
-        .filter_map(Result::ok)
+        .filter_map(|profile_entry| {
+            profile_entry
+                .inspect_err(|entry_failure| {
+                    tracing::debug!(
+                        "favicons: profile entry in {}: {entry_failure}",
+                        firefox_dir.display()
+                    );
+                })
+                .ok()
+        })
         .filter_map(|entry| {
             let places = entry.path().join("places.sqlite");
-            let modified = fs::metadata(&places).ok()?.modified().ok()?;
+            let modified = fs::metadata(&places)
+                .and_then(|metadata| metadata.modified())
+                .inspect_err(|metadata_failure| {
+                    tracing::debug!(
+                        "favicons: no history in {}: {metadata_failure}",
+                        places.display()
+                    );
+                })
+                .ok()?;
             Some((modified, entry.path()))
         })
         .max_by_key(|(modified, _)| *modified)
@@ -191,7 +230,14 @@ fn state_dir() -> Option<PathBuf> {
         .map(PathBuf::from)
         .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state")))?;
     let dir = base.join("sottomano/favicons");
-    fs::create_dir_all(&dir).ok()?;
+    fs::create_dir_all(&dir)
+        .inspect_err(|create_failure| {
+            tracing::warn!(
+                "favicons: cannot create {}: {create_failure}",
+                dir.display()
+            );
+        })
+        .ok()?;
     Some(dir)
 }
 
@@ -222,19 +268,45 @@ fn fresh_copy(profile: &Path, cache_dir: &Path, name: &str) -> Option<PathBuf> {
     let database = copy_when_newer(&profile.join(name), &cache_dir.join(name))?;
     let wal_name = format!("{name}{WAL_SUFFIX}");
     if copy_when_newer(&profile.join(&wal_name), &cache_dir.join(&wal_name)).is_none() {
-        let _ = fs::remove_file(cache_dir.join(wal_name));
+        let stale_wal = cache_dir.join(wal_name);
+        if let Err(remove_failure) = fs::remove_file(&stale_wal)
+            && remove_failure.kind() != ErrorKind::NotFound
+        {
+            tracing::warn!(
+                "favicons: cannot remove {}: {remove_failure}",
+                stale_wal.display()
+            );
+        }
     }
     Some(database)
 }
 
 fn copy_when_newer(src: &Path, dst: &Path) -> Option<PathBuf> {
-    let src_time = fs::metadata(src).and_then(|m| m.modified()).ok()?;
-    let stale = fs::metadata(dst)
-        .and_then(|m| m.modified())
-        .ok()
-        .is_none_or(|dst_time| src_time > dst_time);
+    let src_time = fs::metadata(src)
+        .and_then(|metadata| metadata.modified())
+        .inspect_err(|metadata_failure| {
+            tracing::debug!("favicons: no {}: {metadata_failure}", src.display());
+        })
+        .ok()?;
+    let stale = match fs::metadata(dst).and_then(|metadata| metadata.modified()) {
+        Ok(dst_time) => src_time > dst_time,
+        Err(metadata_failure) => {
+            if metadata_failure.kind() != ErrorKind::NotFound {
+                tracing::debug!("favicons: cached {}: {metadata_failure}", dst.display());
+            }
+            true
+        }
+    };
     if stale {
-        fs::copy(src, dst).ok()?;
+        fs::copy(src, dst)
+            .inspect_err(|copy_failure| {
+                tracing::warn!(
+                    "favicons: cannot copy {} to {}: {copy_failure}",
+                    src.display(),
+                    dst.display()
+                );
+            })
+            .ok()?;
     }
     Some(dst.to_path_buf())
 }

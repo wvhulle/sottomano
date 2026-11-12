@@ -96,7 +96,14 @@ async fn identity_changes(
         seat: non_empty(session.seat().await?.0).ok_or(dbus_desktop_buses::Error::Absent)?,
         virtual_terminal: NonZeroU32::new(session.vt_nr().await?),
         login_manager: session.service().await?,
-        desktop: session.desktop().await.ok().and_then(non_empty),
+        desktop: session
+            .desktop()
+            .await
+            .inspect_err(|desktop_failure| {
+                tracing::warn!("logind session desktop: {desktop_failure}");
+            })
+            .ok()
+            .and_then(non_empty),
         session_type: String::new(),
     };
     let changes = change_triggers(
@@ -188,6 +195,21 @@ async fn session_changes(
 }
 
 fn process_name(pid: u32) -> Option<String> {
-    let process = Proc::new(i32::try_from(pid).ok()?).ok()?;
-    non_empty(process.stat().ok()?.comm)
+    let process_id = i32::try_from(pid)
+        .inspect_err(|range_failure| {
+            tracing::warn!("logind session leader pid {pid} out of range: {range_failure}");
+        })
+        .ok()?;
+    let process = Proc::new(process_id)
+        .inspect_err(|proc_failure| {
+            tracing::debug!("logind session leader {pid} unreadable: {proc_failure}");
+        })
+        .ok()?;
+    let process_stat = process
+        .stat()
+        .inspect_err(|stat_failure| {
+            tracing::debug!("logind session leader {pid} stat unreadable: {stat_failure}");
+        })
+        .ok()?;
+    non_empty(process_stat.comm)
 }

@@ -98,10 +98,25 @@ impl Quota {
         let full_share = (self.elapsed / self.used).get::<ratio>();
         let until_full = (self.resets_at - self.starts_at)
             .to_std()
+            .inspect_err(|range_failure| {
+                tracing::warn!(
+                    "usage quota: window resets at {} before it starts at {}: {range_failure}",
+                    self.resets_at,
+                    self.starts_at
+                );
+            })
             .ok()?
             .mul_f64(full_share);
+        let runs_out_after = TimeDelta::from_std(until_full)
+            .inspect_err(|range_failure| {
+                tracing::debug!(
+                    "usage quota: projected run-out lies beyond representable time: \
+                     {range_failure}"
+                );
+            })
+            .ok()?;
         Some(Pace::RunsOut {
-            at: self.starts_at + TimeDelta::from_std(until_full).ok()?,
+            at: self.starts_at + runs_out_after,
         })
     }
 

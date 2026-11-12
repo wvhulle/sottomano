@@ -188,7 +188,16 @@ impl FirmwareUpgrade {
             current_version: prop(device, "Version")?,
             offered_version: prop(release, "Version")?,
             offered_released: prop::<u64>(release, "Created")
-                .and_then(|seconds| i64::try_from(seconds).ok())
+                .and_then(|seconds| {
+                    i64::try_from(seconds)
+                        .inspect_err(|conversion_failure| {
+                            tracing::warn!(
+                                "firmware upgrades: release time {seconds} out of range: \
+                                 {conversion_failure}"
+                            );
+                        })
+                        .ok()
+                })
                 .and_then(|seconds| DateTime::from_timestamp(seconds, 0)),
             urgency: prop::<u32>(release, "Urgency").and_then(Urgency::from_code),
             summary: prop(release, "Summary"),

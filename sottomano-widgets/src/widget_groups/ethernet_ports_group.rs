@@ -216,7 +216,7 @@ impl EthernetPortsGroup {
         same_attachment
             .iter()
             .position(|sibling| sibling.name == port_state.name)
-            .and_then(|position| u8::try_from(position + 1).ok())
+            .map(|position| u8::try_from(position + 1).unwrap_or(u8::MAX))
             .map_or(PortMarking::UniqueAttachment, |ordinal| {
                 PortMarking::SharedAttachment { ordinal }
             })

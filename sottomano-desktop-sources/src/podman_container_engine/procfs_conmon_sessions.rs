@@ -23,7 +23,15 @@ impl ConmonSessions {
     pub(crate) fn read_current(table: &ProcessTable) -> Self {
         Self::from_command_lines(table.pids_named(CONMON_COMMAND_NAME).iter().filter_map(
             |&conmon_pid| {
-                let arguments = Process::new(conmon_pid).ok()?.cmdline().ok()?;
+                let arguments = Process::new(conmon_pid)
+                    .and_then(|conmon_process| conmon_process.cmdline())
+                    .inspect_err(|read_failure| {
+                        tracing::debug!(
+                            "podman: command line of conmon {conmon_pid} unreadable: \
+                             {read_failure}"
+                        );
+                    })
+                    .ok()?;
                 Some((conmon_pid, arguments))
             },
         ))

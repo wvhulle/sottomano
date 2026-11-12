@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     TerminalLabelReading, TerminalWindow, TerminalWindowKey, TitleProbeTarget,
+    pty_shell_sessions::child_pids,
     shell_prompt_title::ShellState,
     terminal_shell_label::{ActiveTerminalShell, TerminalShellLabel, program_name},
 };
@@ -22,15 +23,18 @@ const KITTY_PID_VARIABLE: &str = "KITTY_PID";
 const UNIX_SCHEME: &[u8] = b"unix:";
 
 pub fn socket_of(kitty_pid: i32) -> Option<PathBuf> {
-    let kitty = Proc::new(kitty_pid).ok()?;
-    let children = kitty
-        .tasks()
-        .ok()?
-        .filter_map(Result::ok)
-        .filter_map(|task| task.children().ok())
-        .flatten();
-    children
-        .filter_map(|child| Proc::new(i32::try_from(child).ok()?).ok()?.environ().ok())
+    child_pids(kitty_pid)
+        .into_iter()
+        .filter_map(|child| {
+            Proc::new(child)
+                .and_then(|child_process| child_process.environ())
+                .inspect_err(|environ_failure| {
+                    tracing::debug!(
+                        "kitty {kitty_pid}: environment of child {child}: {environ_failure}"
+                    );
+                })
+                .ok()
+        })
         .find_map(|environment| {
             let spawned_by = environment.get(OsStr::new(KITTY_PID_VARIABLE))?;
             if spawned_by.as_bytes() != kitty_pid.to_string().as_bytes() {

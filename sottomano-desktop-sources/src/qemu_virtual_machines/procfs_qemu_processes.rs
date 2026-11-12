@@ -37,9 +37,13 @@ pub(crate) struct QemuProcessScan {
 }
 
 fn boot_time() -> SystemTime {
-    KernelStats::current().map_or(UNIX_EPOCH, |kernel_stats| {
-        UNIX_EPOCH + Duration::from_secs(kernel_stats.btime)
-    })
+    KernelStats::current().map_or_else(
+        |stats_failure| {
+            tracing::warn!("qemu processes: cannot read boot time: {stats_failure}");
+            UNIX_EPOCH
+        },
+        |kernel_stats| UNIX_EPOCH + Duration::from_secs(kernel_stats.btime),
+    )
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -49,25 +53,57 @@ fn started_after_boot(boot_time: SystemTime, start_ticks: u64) -> SystemTime {
 
 #[must_use]
 pub(crate) fn scanned_qemu_processes() -> QemuProcessScan {
-    let Ok(processes) = all_processes() else {
-        return QemuProcessScan::default();
+    let processes = match all_processes() {
+        Ok(processes) => processes,
+        Err(listing_failure) => {
+            tracing::warn!("qemu processes: cannot list processes: {listing_failure}");
+            return QemuProcessScan::default();
+        }
     };
     let boot_time = boot_time();
     let mut process_samples = Vec::new();
     let mut qemu_processes = Vec::new();
-    for process in processes.filter_map(Result::ok) {
-        let Ok(stat) = process.stat() else {
-            continue;
+    for process_entry in processes {
+        let process = match process_entry {
+            Ok(process) => process,
+            Err(listing_failure) => {
+                tracing::debug!("qemu processes: skipping unlistable process: {listing_failure}");
+                continue;
+            }
+        };
+        let stat = match process.stat() {
+            Ok(stat) => stat,
+            Err(stat_failure) => {
+                tracing::debug!(
+                    "qemu processes: cannot read stat of process {}: {stat_failure}",
+                    process.pid()
+                );
+                continue;
+            }
         };
         process_samples.push(ProcessSample::from(&stat));
-        let Ok(command_line) = process.cmdline() else {
-            continue;
+        let command_line = match process.cmdline() {
+            Ok(command_line) => command_line,
+            Err(cmdline_failure) => {
+                tracing::debug!(
+                    "qemu processes: cannot read command line of process {}: {cmdline_failure}",
+                    stat.pid
+                );
+                continue;
+            }
         };
         if LaunchedProgram::from(command_line.as_slice()) != LaunchedProgram::QemuEmulator {
             continue;
         }
-        let Ok(owner_uid) = process.uid() else {
-            continue;
+        let owner_uid = match process.uid() {
+            Ok(owner_uid) => owner_uid,
+            Err(uid_failure) => {
+                tracing::debug!(
+                    "qemu processes: cannot read owner of process {}: {uid_failure}",
+                    stat.pid
+                );
+                continue;
+            }
         };
         qemu_processes.push(QemuProcess {
             pid: stat.pid,
@@ -92,7 +128,16 @@ fn account_names_in(account_database: &str) -> HashMap<u32, String> {
         .filter_map(|account_line| {
             let mut account_fields = account_line.split(':');
             let account_name = account_fields.next()?;
-            let account_uid = account_fields.nth(1)?.parse().ok()?;
+            let uid_text = account_fields.nth(1)?;
+            let account_uid = uid_text
+                .parse()
+                .inspect_err(|parse_failure| {
+                    tracing::warn!(
+                        "qemu processes: invalid uid {uid_text:?} of {account_name} in \
+                         {ACCOUNT_DATABASE_PATH}: {parse_failure}"
+                    );
+                })
+                .ok()?;
             Some((account_uid, account_name.to_owned()))
         })
         .collect()
@@ -100,9 +145,13 @@ fn account_names_in(account_database: &str) -> HashMap<u32, String> {
 
 #[must_use]
 pub(crate) fn account_names_by_uid() -> HashMap<u32, String> {
-    fs::read_to_string(ACCOUNT_DATABASE_PATH)
-        .map(|account_database| account_names_in(&account_database))
-        .unwrap_or_default()
+    fs::read_to_string(ACCOUNT_DATABASE_PATH).map_or_else(
+        |read_failure| {
+            tracing::warn!("qemu processes: cannot read {ACCOUNT_DATABASE_PATH}: {read_failure}");
+            HashMap::new()
+        },
+        |account_database| account_names_in(&account_database),
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -123,10 +172,22 @@ fn subordinate_ranges_in(subordinate_database: &str) -> Vec<SubordinateUidRange>
         .lines()
         .filter_map(|range_line| {
             let mut range_fields = range_line.split(':');
+            let owner_name = range_fields.next()?.to_owned();
+            let parse_uid_field = |uid_text: &str| {
+                uid_text
+                    .parse()
+                    .inspect_err(|parse_failure| {
+                        tracing::warn!(
+                            "qemu processes: invalid uid field {uid_text:?} of {owner_name} in \
+                             {SUBORDINATE_UID_DATABASE_PATH}: {parse_failure}"
+                        );
+                    })
+                    .ok()
+            };
             Some(SubordinateUidRange {
-                owner_name: range_fields.next()?.to_owned(),
-                first_uid: range_fields.next()?.parse().ok()?,
-                uid_count: range_fields.next()?.parse().ok()?,
+                first_uid: parse_uid_field(range_fields.next()?)?,
+                uid_count: parse_uid_field(range_fields.next()?)?,
+                owner_name,
             })
         })
         .collect()
@@ -134,9 +195,15 @@ fn subordinate_ranges_in(subordinate_database: &str) -> Vec<SubordinateUidRange>
 
 #[must_use]
 pub(crate) fn subordinate_uid_ranges() -> Vec<SubordinateUidRange> {
-    fs::read_to_string(SUBORDINATE_UID_DATABASE_PATH)
-        .map(|subordinate_database| subordinate_ranges_in(&subordinate_database))
-        .unwrap_or_default()
+    fs::read_to_string(SUBORDINATE_UID_DATABASE_PATH).map_or_else(
+        |read_failure| {
+            tracing::debug!(
+                "qemu processes: cannot read {SUBORDINATE_UID_DATABASE_PATH}: {read_failure}"
+            );
+            Vec::new()
+        },
+        |subordinate_database| subordinate_ranges_in(&subordinate_database),
+    )
 }
 
 #[cfg(test)]

@@ -103,6 +103,12 @@ const fn gate_text(verdict: GateVerdict) -> Option<&'static str> {
 
 fn seconds_cell(seconds: f64) -> Option<ValueCell> {
     Duration::try_from_secs_f64(seconds)
+        .inspect_err(|conversion_failure| {
+            tracing::debug!(
+                "voice dictation: stage duration {seconds}s is not representable: \
+                 {conversion_failure}"
+            );
+        })
         .ok()
         .map(ValueCell::duration)
 }

@@ -136,10 +136,14 @@ fn udev_rules(admin_group: &str, skipped: &[SetupStepName]) -> String {
 }
 
 fn login_user() -> Option<String> {
-    env::var("SUDO_USER")
-        .or_else(|_| env::var("USER"))
-        .ok()
-        .filter(|user| user != "root")
+    match env::var("SUDO_USER").or_else(|_| env::var("USER")) {
+        Ok(user) => Some(user).filter(|user| user != "root"),
+        Err(env::VarError::NotPresent) => None,
+        Err(unreadable_variable) => {
+            tracing::warn!("setup: login user variable is unreadable: {unreadable_variable}");
+            None
+        }
+    }
 }
 
 fn setup_steps(distro_setup: &DistroSetup, skipped: &[SetupStepName]) -> Vec<SetupStep> {

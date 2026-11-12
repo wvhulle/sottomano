@@ -33,11 +33,15 @@ async fn read_curve(
         .await?;
     let columns = Columns::of(&bin_rows);
     while let Some(row) = bin_rows.next().await? {
-        let Some(bin) = usize::try_from(columns.integer(&row, "bin")?)
-            .ok()
-            .filter(|bin| *bin < CHARGE_BINS)
-        else {
-            continue;
+        let stored_bin = columns.integer(&row, "bin")?;
+        let bin = match usize::try_from(stored_bin) {
+            Ok(bin) if bin < CHARGE_BINS => bin,
+            _ => {
+                tracing::warn!(
+                    "charge curve: skipping out-of-range bin {stored_bin} for {battery}"
+                );
+                continue;
+            }
         };
         curve.bins[bin] = Some(PowerBin {
             mean_w: columns.real(&row, "mean_w")?,

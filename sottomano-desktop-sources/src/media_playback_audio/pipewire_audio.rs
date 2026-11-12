@@ -205,6 +205,9 @@ impl Commands {
                 kind,
                 reply,
             })
+            .inspect_err(|_| {
+                tracing::warn!("audio: pipewire loop is gone, cannot send {kind:?}");
+            })
             .ok()?;
         outcome
             .recv_timeout(REPLY_TIMEOUT)

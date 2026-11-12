@@ -1,11 +1,10 @@
 use std::{
     collections::HashMap,
-    future::ready,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use bytesize::ByteSize;
-use futures::{Stream, StreamExt, TryStreamExt, future::join_all, try_join};
+use futures::{Stream, TryStreamExt, future::join_all, try_join};
 use serde_json::Value as Json;
 use zbus::{Connection, zvariant::OwnedObjectPath};
 
@@ -397,14 +396,9 @@ impl SnapshotSource for Wireguard {
         let read_connection = buses.system;
         PeriodicPolling::every(STATISTICS_RECHECK).triggered_deliveries(
             subscribed(signal_connection, |signal_connection| async move {
-                Ok(network_manager_proxies::changes(
-                    &signal_connection,
-                    WATCHED_WIREGUARD_PROPERTIES,
-                )
-                .await?
-                .map(Ok::<_, zbus::Error>))
-            })
-            .filter_map(|signal| ready(signal.ok())),
+                network_manager_proxies::changes(&signal_connection, WATCHED_WIREGUARD_PROPERTIES)
+                    .await
+            }),
             move || read_wireguard(read_connection.clone()),
         )
     }
@@ -488,6 +482,9 @@ async fn kernel_wireguard_interfaces() -> Vec<String> {
 
 fn wireguard_interface_names(listing: &str) -> Vec<String> {
     serde_json::from_str::<Json>(listing)
+        .inspect_err(|parse_failure| {
+            tracing::warn!("wireguard: invalid kernel interface listing: {parse_failure}");
+        })
         .ok()
         .and_then(|json| {
             json.as_array().map(|links| {
@@ -533,7 +530,15 @@ fn parse_kernel_dump(dump: &str, now: u64) -> Option<KernelTunnel> {
     let listen_port = interface_line
         .split('\t')
         .nth(2)
-        .and_then(|port| port.parse().ok())
+        .and_then(|port| {
+            port.parse()
+                .inspect_err(|parse_failure| {
+                    tracing::warn!(
+                        "wireguard: invalid listen port {port:?} in dump: {parse_failure}"
+                    );
+                })
+                .ok()
+        })
         .unwrap_or_default();
     Some(KernelTunnel {
         listen_port,
@@ -549,9 +554,9 @@ fn kernel_peer(dump_line: &str, now: u64) -> Option<Peer> {
             .filter(|field| !matches!(**field, "(none)" | ""))
             .map(ToString::to_string)
     };
-    let handshake: u64 = fields.get(4)?.parse().ok()?;
-    let received = ByteSize::b(fields.get(5)?.parse().ok()?);
-    let sent = ByteSize::b(fields.get(6)?.parse().ok()?);
+    let handshake = dump_counter(&fields, 4)?;
+    let received = ByteSize::b(dump_counter(&fields, 5)?);
+    let sent = ByteSize::b(dump_counter(&fields, 6)?);
     Some(Peer {
         public_key: reported(0)?,
         endpoint: PeerEndpoint::from_reported(reported(2)),
@@ -570,11 +575,31 @@ fn kernel_peer(dump_line: &str, now: u64) -> Option<Peer> {
     })
 }
 
-async fn interface_ip(iface: &str) -> Option<String> {
-    shell_command_output::output("ip", &["-j", "-4", "addr", "show", iface])
-        .await
+fn dump_counter(fields: &[&str], position: usize) -> Option<u64> {
+    let field = fields.get(position)?;
+    field
+        .parse()
+        .inspect_err(|parse_failure| {
+            tracing::warn!(
+                "wireguard: invalid peer counter {field:?} in dump column {position}: \
+                 {parse_failure}"
+            );
+        })
         .ok()
-        .and_then(|out| serde_json::from_str::<Json>(&out).ok())
+}
+
+async fn interface_ip(iface: &str) -> Option<String> {
+    let address_listing = shell_command_output::output("ip", &["-j", "-4", "addr", "show", iface])
+        .await
+        .inspect_err(|listing_error| {
+            tracing::debug!("wireguard: cannot list addresses of {iface}: {listing_error}");
+        })
+        .ok()?;
+    serde_json::from_str::<Json>(&address_listing)
+        .inspect_err(|parse_failure| {
+            tracing::warn!("wireguard: invalid address listing for {iface}: {parse_failure}");
+        })
+        .ok()
         .and_then(|json| {
             let entry = json.as_array()?.first()?;
             let addr = entry.get("addr_info")?.as_array()?.first()?;

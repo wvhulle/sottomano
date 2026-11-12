@@ -229,7 +229,7 @@ impl PhysicalDriveGroup {
         self.disks
             .keys()
             .position(|known| known == disk)
-            .and_then(|position| u8::try_from(position + 1).ok())
+            .map(|position| u8::try_from(position + 1).unwrap_or(u8::MAX))
             .map_or(DiskMarking::OnlyDisk, |ordinal| DiskMarking::Numbered {
                 ordinal,
             })

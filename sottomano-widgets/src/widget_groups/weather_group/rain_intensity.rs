@@ -521,7 +521,7 @@ impl RadarRainForecast<'_> {
     }
 
     fn alerting_spell(&self, now: DateTime<Local>) -> Option<RainSpell<'_>> {
-        let lead_time = TimeDelta::from_std(self.alerts.lead_time).ok()?;
+        let lead_time = TimeDelta::from_std(self.alerts.lead_time).unwrap_or(TimeDelta::MAX);
         self.spell_above_minimum(now)
             .filter(|spell| spell.starts_at - now <= lead_time)
     }

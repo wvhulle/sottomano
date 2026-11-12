@@ -7,6 +7,7 @@ use zbus::{
     fdo::{DBusProxy, MonitoringProxy},
     message::Type as MessageType,
     names::BusName,
+    zvariant::DynamicDeserialize,
 };
 
 use crate::{
@@ -56,17 +57,30 @@ async fn inhibitor_changes(
     become_monitor(&monitor, &service_owner).await?;
     let app_names = Arc::new(InhibitorAppNames::load().await);
     let held_changes = messages
-        .filter_map(|message| ready(message.ok().and_then(|received| bus_event(&received))))
+        .filter_map(|message| {
+            ready(match message {
+                Ok(received) => bus_event(&received).map(Ok),
+                Err(monitor_failure) => Some(Err(monitor_failure)),
+            })
+        })
         .scan(InhibitCallLedger::default(), |ledger, event| {
-            ready(Some(
-                (ledger.apply(event) == HeldChange::Changed).then(|| ledger.held.clone()),
-            ))
+            ready(Some(match event {
+                Ok(event) => {
+                    (ledger.apply(event) == HeldChange::Changed).then(|| Ok(ledger.held.clone()))
+                }
+                Err(monitor_failure) => Some(Err(monitor_failure)),
+            }))
         })
         .filter_map(ready);
     let snapshots = held_changes.switch_map(move |held| {
         let bus_driver = bus_driver.clone();
         let app_names = Arc::clone(&app_names);
-        stream::once(async move { Ok(named_inhibitors(&held, &bus_driver, &app_names).await) })
+        stream::once(async move {
+            match held {
+                Ok(held) => Ok(named_inhibitors(&held, &bus_driver, &app_names).await),
+                Err(monitor_failure) => Err(monitor_failure.into()),
+            }
+        })
     });
     Ok(stream::once(ready(Ok(ScreenSaverInhibitors::default()))).chain(snapshots))
 }
@@ -110,8 +124,23 @@ async fn named_inhibitors(
     ScreenSaverInhibitors {
         inhibitors: join_all(held.iter().map(async |inhibit| {
             let caller_pid = match BusName::try_from(inhibit.caller.as_str()) {
-                Ok(caller) => bus_driver.get_connection_unix_process_id(caller).await.ok(),
-                Err(_) => None,
+                Ok(caller) => bus_driver
+                    .get_connection_unix_process_id(caller)
+                    .await
+                    .inspect_err(|lookup_failure| {
+                        tracing::debug!(
+                            "screensaver inhibitors: no process for {}: {lookup_failure}",
+                            inhibit.caller
+                        );
+                    })
+                    .ok(),
+                Err(name_failure) => {
+                    tracing::warn!(
+                        "screensaver inhibitors: invalid caller bus name {}: {name_failure}",
+                        inhibit.caller
+                    );
+                    None
+                }
             };
             IdleInhibitor {
                 holder: caller_pid.map_or_else(
@@ -133,7 +162,7 @@ fn bus_event(message: &Message) -> Option<ScreenSaverBusEvent> {
             match header.member()?.as_str() {
                 "Inhibit" => {
                     let (stated_name, reason): (String, String) =
-                        message.body().deserialize().ok()?;
+                        deserialized_body(message, "Inhibit call")?;
                     Some(ScreenSaverBusEvent::InhibitCalled {
                         caller,
                         serial: message.primary_header().serial_num(),
@@ -143,7 +172,7 @@ fn bus_event(message: &Message) -> Option<ScreenSaverBusEvent> {
                 }
                 "UnInhibit" => Some(ScreenSaverBusEvent::UnInhibitCalled {
                     caller,
-                    cookie: message.body().deserialize().ok()?,
+                    cookie: deserialized_body(message, "UnInhibit call")?,
                 }),
                 _ => None,
             }
@@ -151,17 +180,30 @@ fn bus_event(message: &Message) -> Option<ScreenSaverBusEvent> {
         MessageType::MethodReturn => Some(ScreenSaverBusEvent::CookieReturned {
             caller: header.destination()?.to_string(),
             call_serial: header.reply_serial()?,
-            cookie: message.body().deserialize().ok()?,
+            cookie: deserialized_body(message, "Inhibit reply")?,
         }),
         MessageType::Signal => {
             let (name, _, new_owner): (String, String, String) =
-                message.body().deserialize().ok()?;
+                deserialized_body(message, "NameOwnerChanged signal")?;
             new_owner
                 .is_empty()
                 .then_some(ScreenSaverBusEvent::ConnectionClosed { connection: name })
         }
         MessageType::Error => None,
     }
+}
+
+fn deserialized_body<Body>(message: &Message, message_kind: &str) -> Option<Body>
+where
+    Body: for<'body> DynamicDeserialize<'body>,
+{
+    message
+        .body()
+        .deserialize()
+        .inspect_err(|body_failure| {
+            tracing::warn!("screensaver inhibitors: malformed {message_kind}: {body_failure}");
+        })
+        .ok()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -302,8 +302,12 @@ impl ShowcasedToasts {
                 Column::with_children(self.terminal_scrollback.iter().map(TerminalLine::view));
             let frame = container(scrollback)
                 .padding(TERMINAL_PADDING_PX)
-                .width(Length::Fixed(f32::from(u16::try_from(width).ok()?)))
-                .height(Length::Fixed(f32::from(u16::try_from(height).ok()?)))
+                .width(Length::Fixed(f32::from(
+                    u16::try_from(width).expect("fixture window widths fit in u16"),
+                )))
+                .height(Length::Fixed(f32::from(
+                    u16::try_from(height).expect("fixture window heights fit in u16"),
+                )))
                 .style(move |theme| container::Style {
                     background: Some(background_color(theme).into()),
                     border: border::rounded(WINDOW_CORNER_RADIUS_PX)

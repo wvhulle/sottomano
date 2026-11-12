@@ -60,17 +60,47 @@ impl Focused {
 }
 
 fn probe_project(pid: i32) -> Option<PathBuf> {
-    let leaf = successors(Proc::new(pid).ok(), |process| {
-        Proc::new(only_child(process)?).ok()
+    let leaf = successors(readable_process(pid), |process| {
+        readable_process(only_child(process)?)
     })
     .last()?;
-    repository_root(&leaf.cwd().ok()?)
+    let leaf_directory = leaf
+        .cwd()
+        .inspect_err(|cwd_failure| {
+            tracing::debug!(
+                "focus project: working directory of {} unreadable: {cwd_failure}",
+                leaf.pid
+            );
+        })
+        .ok()?;
+    repository_root(&leaf_directory)
+}
+
+fn readable_process(pid: i32) -> Option<Proc> {
+    Proc::new(pid)
+        .inspect_err(|proc_failure| {
+            tracing::debug!("focus project: process {pid} unreadable: {proc_failure}");
+        })
+        .ok()
 }
 
 fn only_child(process: &Proc) -> Option<i32> {
-    let children = process.task_main_thread().ok()?.children().ok()?;
+    let children = process
+        .task_main_thread()
+        .and_then(|main_thread| main_thread.children())
+        .inspect_err(|children_failure| {
+            tracing::debug!(
+                "focus project: children of {} unreadable: {children_failure}",
+                process.pid
+            );
+        })
+        .ok()?;
     match children.as_slice() {
-        [child] => i32::try_from(*child).ok(),
+        [child] => i32::try_from(*child)
+            .inspect_err(|range_failure| {
+                tracing::warn!("focus project: child pid {child} out of range: {range_failure}");
+            })
+            .ok(),
         _ => None,
     }
 }

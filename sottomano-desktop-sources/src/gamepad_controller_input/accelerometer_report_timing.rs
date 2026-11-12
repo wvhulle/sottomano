@@ -194,6 +194,9 @@ impl ReportWindow {
         };
         let elapsed = now
             .duration_since(window.opened_at)
+            .inspect_err(|clock_skew| {
+                tracing::debug!("gamepad: report window closed before it opened: {clock_skew}");
+            })
             .ok()
             .filter(|elapsed| !elapsed.is_zero())?;
         let sequence: Vec<MotionReport> = match window.carried {
@@ -255,9 +258,22 @@ pub fn report_timings(
             );
         })
         .ok();
+    let accelerometer_path = accelerometer.to_owned();
     stream::iter(opened_events).flat_map(move |events| {
+        let accelerometer_path = accelerometer_path.clone();
         let reports = events
-            .scan((), |(), event| ready(event.ok()))
+            .scan((), move |(), event| {
+                ready(
+                    event
+                        .inspect_err(|read_failure| {
+                            tracing::debug!(
+                                "gamepad: events of {} ended: {read_failure}",
+                                accelerometer_path.display()
+                            );
+                        })
+                        .ok(),
+                )
+            })
             .scan(DeviceStamp::Absent, |pending_stamp, event| {
                 ready(Some(match event.destructure() {
                     EventSummary::Misc(_, MiscCode::MSC_TIMESTAMP, value) => {

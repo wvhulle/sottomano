@@ -107,12 +107,11 @@ pub fn config_file() -> Option<PathBuf> {
     Some(config_home.join("clight.conf"))
 }
 
-#[must_use]
-pub async fn current_calibration() -> Option<BrightnessCalibration> {
-    let session = Connection::session().await.ok()?;
-    let conf_backlight = ConfBacklightProxy::new(&session).await.ok()?;
-    let no_auto_calibration = conf_backlight.no_auto_calib().await.ok()?;
-    Some(if no_auto_calibration {
+pub async fn current_calibration() -> Result<BrightnessCalibration, Error> {
+    let session = Connection::session().await?;
+    let conf_backlight = ConfBacklightProxy::new(&session).await?;
+    let no_auto_calibration = conf_backlight.no_auto_calib().await?;
+    Ok(if no_auto_calibration {
         BrightnessCalibration::Fixed
     } else {
         BrightnessCalibration::FromWebcam

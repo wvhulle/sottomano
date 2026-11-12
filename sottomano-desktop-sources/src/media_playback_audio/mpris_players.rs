@@ -211,7 +211,12 @@ impl Progress {
 
     fn timed(player: &Properties, metadata: &Properties) -> Option<Self> {
         let length = length(metadata).filter(|length| !length.is_zero())?;
-        let position = u64::try_from(prop::<i64>(player, "Position")?).ok()?;
+        let signed_position = prop::<i64>(player, "Position")?;
+        let position = u64::try_from(signed_position)
+            .inspect_err(|_| {
+                tracing::warn!("mpris: player reports negative position {signed_position}");
+            })
+            .ok()?;
         let rate = prop::<f64>(player, "Rate")?;
         Some(Self::Timed {
             position: Duration::from_micros(position),
@@ -333,26 +338,41 @@ impl Media {
 }
 
 fn artists(metadata: &Properties) -> Vec<String> {
-    metadata
-        .get("xesam:artist")
-        .and_then(|v| Vec::<String>::try_from(v.try_clone().ok()?).ok())
+    prop::<Vec<String>>(metadata, "xesam:artist")
         .unwrap_or_default()
         .into_iter()
         .filter(|artist| !artist.trim().is_empty())
         .collect()
 }
 
-fn parsed<T: FromStr>(metadata: &Properties, key: &str) -> Option<T> {
-    text_prop(metadata, key)?.parse().ok()
+fn parsed<Parsed: FromStr>(metadata: &Properties, key: &str) -> Option<Parsed>
+where
+    Parsed::Err: Display,
+{
+    let raw_text = text_prop(metadata, key)?;
+    raw_text
+        .parse()
+        .inspect_err(|parse_failure| {
+            tracing::warn!("mpris: property {key} has invalid value {raw_text:?}: {parse_failure}");
+        })
+        .ok()
 }
 
 fn length(metadata: &Properties) -> Option<Duration> {
     let value = metadata.get("mpris:length")?;
-    let micros = u64::try_from(value).ok().or_else(|| {
-        i64::try_from(value)
-            .ok()
-            .and_then(|v| u64::try_from(v).ok())
-    })?;
+    if let Ok(micros) = u64::try_from(value) {
+        return Some(Duration::from_micros(micros));
+    }
+    let signed_micros = i64::try_from(value)
+        .inspect_err(|type_mismatch| {
+            tracing::warn!("mpris: mpris:length has an unexpected type: {type_mismatch}");
+        })
+        .ok()?;
+    let micros = u64::try_from(signed_micros)
+        .inspect_err(|_| {
+            tracing::warn!("mpris: mpris:length is negative: {signed_micros}");
+        })
+        .ok()?;
     Some(Duration::from_micros(micros))
 }
 
@@ -466,21 +486,29 @@ pub async fn load_art(url: &str) -> Option<RgbaImage> {
     if let Some(path) = url.strip_prefix("file://") {
         let path = path.to_owned();
         return blocking("cover art file", move || {
-            image::open(path).ok().map(DynamicImage::into_rgba8)
+            image::open(&path)
+                .inspect_err(|open_failure| {
+                    tracing::warn!("mpris: cannot open cover art {path}: {open_failure}");
+                })
+                .ok()
+                .map(DynamicImage::into_rgba8)
         })
         .await;
     }
     if url.starts_with("http://") || url.starts_with("https://") {
-        let bytes = reqwest::get(url)
+        let download = async { reqwest::get(url).await?.error_for_status()?.bytes().await };
+        let bytes = download
             .await
-            .ok()?
-            .error_for_status()
-            .ok()?
-            .bytes()
-            .await
+            .inspect_err(|download_failure| {
+                tracing::warn!("mpris: cannot download cover art {url}: {download_failure}");
+            })
             .ok()?;
+        let art_url = url.to_owned();
         return blocking("cover art download", move || {
             image::load_from_memory(&bytes)
+                .inspect_err(|decode_failure| {
+                    tracing::warn!("mpris: cannot decode cover art {art_url}: {decode_failure}");
+                })
                 .ok()
                 .map(DynamicImage::into_rgba8)
         })

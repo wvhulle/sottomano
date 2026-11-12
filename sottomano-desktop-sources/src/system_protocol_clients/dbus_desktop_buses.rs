@@ -179,10 +179,13 @@ async fn owner_changes(
     let changes = dbus
         .receive_name_owner_changed_with_args(&[(0, name)])
         .await?
-        .filter_map(|signal| {
+        .filter_map(move |signal| {
             ready(
                 signal
                     .args()
+                    .inspect_err(|args_failure| {
+                        tracing::warn!("{name}: malformed NameOwnerChanged signal: {args_failure}");
+                    })
                     .ok()
                     .map(|args| match args.new_owner().as_ref() {
                         Some(_) => Availability::Available,

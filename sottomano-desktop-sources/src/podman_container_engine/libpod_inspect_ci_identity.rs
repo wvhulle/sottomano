@@ -66,6 +66,11 @@ pub(super) async fn fetch_woodpecker_step_identity(
     let inspected: InspectedContainer =
         http_json_client::get_json_over_unix_socket(socket_path, &url)
             .await
+            .inspect_err(|inspect_failure| {
+                tracing::debug!(
+                    "podman: inspecting container {container_id} failed: {inspect_failure}"
+                );
+            })
             .ok()?;
     inspected.woodpecker_step_identity()
 }

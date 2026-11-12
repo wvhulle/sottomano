@@ -1,6 +1,7 @@
 use std::{
     env, fs,
     future::ready,
+    io,
     path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
@@ -110,9 +111,18 @@ fn listed_sandboxes_in(instances_directory: &Path, proc_root: &Path) -> FlatpakS
     let mut listings: Vec<FlatpakSandboxListing> = fs::read_dir(instances_directory)
         .into_iter()
         .flatten()
-        .filter_map(Result::ok)
+        .filter_map(|listed_entry| {
+            listed_entry
+                .inspect_err(|list_failure| {
+                    tracing::debug!(
+                        "flatpak sandboxes: listing {} failed: {list_failure}",
+                        instances_directory.display()
+                    );
+                })
+                .ok()
+        })
         .filter_map(|entry| {
-            let info_text = fs::read_to_string(entry.path().join(INFO_FILE_NAME)).ok()?;
+            let info_text = instance_info_text(&entry.path())?;
             let instance_info = parsed_instance_info(&info_text);
             let sandbox_pid = sandbox_pid_in(&entry.path())?;
             let process_directory = proc_root.join(sandbox_pid.to_string());
@@ -206,27 +216,79 @@ struct BubblewrapInfo {
     child_pid: u32,
 }
 
-fn sandbox_pid_in(instance_directory: &Path) -> Option<u32> {
-    fs::read_to_string(instance_directory.join(PID_FILE_NAME))
-        .ok()
-        .and_then(|pid_text| pid_text.trim().parse().ok())
-        .or_else(|| {
-            let bwrap_info_text =
-                fs::read_to_string(instance_directory.join(BWRAP_INFO_FILE_NAME)).ok()?;
-            serde_json::from_str::<BubblewrapInfo>(&bwrap_info_text)
-                .ok()
-                .map(|bwrap_info| bwrap_info.child_pid)
+fn instance_info_text(instance_directory: &Path) -> Option<String> {
+    let info_path = instance_directory.join(INFO_FILE_NAME);
+    fs::read_to_string(&info_path)
+        .inspect_err(|read_failure| {
+            tracing::debug!(
+                "flatpak sandboxes: reading {} failed: {read_failure}",
+                info_path.display()
+            );
         })
+        .ok()
+}
+
+fn sandbox_pid_in(instance_directory: &Path) -> Option<u32> {
+    let pid_path = instance_directory.join(PID_FILE_NAME);
+    let bwrap_info_path = instance_directory.join(BWRAP_INFO_FILE_NAME);
+    let recorded_pid = match fs::read_to_string(&pid_path) {
+        Ok(pid_text) => pid_text
+            .trim()
+            .parse()
+            .inspect_err(|parse_failure| {
+                tracing::warn!(
+                    "flatpak sandboxes: {} holds no pid: {parse_failure}",
+                    pid_path.display()
+                );
+            })
+            .ok(),
+        Err(read_failure) if read_failure.kind() == io::ErrorKind::NotFound => None,
+        Err(read_failure) => {
+            tracing::debug!(
+                "flatpak sandboxes: reading {} failed: {read_failure}",
+                pid_path.display()
+            );
+            None
+        }
+    };
+    recorded_pid.or_else(|| {
+        let bwrap_info_text = fs::read_to_string(&bwrap_info_path)
+            .inspect_err(|read_failure| {
+                tracing::debug!(
+                    "flatpak sandboxes: reading {} failed: {read_failure}",
+                    bwrap_info_path.display()
+                );
+            })
+            .ok()?;
+        serde_json::from_str::<BubblewrapInfo>(&bwrap_info_text)
+            .inspect_err(|parse_failure| {
+                tracing::warn!(
+                    "flatpak sandboxes: {} is malformed: {parse_failure}",
+                    bwrap_info_path.display()
+                );
+            })
+            .ok()
+            .map(|bwrap_info| bwrap_info.child_pid)
+    })
 }
 
 fn running_sandboxes_in(instances_directory: &Path, proc_root: &Path) -> FlatpakSandboxes {
     let mut sandboxes: Vec<FlatpakSandbox> = fs::read_dir(instances_directory)
         .into_iter()
         .flatten()
-        .filter_map(Result::ok)
+        .filter_map(|listed_entry| {
+            listed_entry
+                .inspect_err(|list_failure| {
+                    tracing::debug!(
+                        "flatpak sandboxes: listing {} failed: {list_failure}",
+                        instances_directory.display()
+                    );
+                })
+                .ok()
+        })
         .filter_map(|entry| {
             let sandbox_directory = entry.path();
-            let info_text = fs::read_to_string(sandbox_directory.join(INFO_FILE_NAME)).ok()?;
+            let info_text = instance_info_text(&sandbox_directory)?;
             let instance_info = parsed_instance_info(&info_text);
             let sandbox_pid = sandbox_pid_in(&sandbox_directory)?;
             let process_directory = proc_root.join(sandbox_pid.to_string());
@@ -241,6 +303,12 @@ fn running_sandboxes_in(instances_directory: &Path, proc_root: &Path) -> Flatpak
                 sandbox_pid,
                 started_at: fs::metadata(&sandbox_directory)
                     .and_then(|metadata| metadata.modified())
+                    .inspect_err(|stat_failure| {
+                        tracing::debug!(
+                            "flatpak sandboxes: start time of {} unknown: {stat_failure}",
+                            sandbox_directory.display()
+                        );
+                    })
                     .ok(),
                 memory_in_use: unit_memory_of_process(sandbox_pid),
             })

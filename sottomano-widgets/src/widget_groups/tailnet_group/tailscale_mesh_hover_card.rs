@@ -119,9 +119,7 @@ impl GroupItemReading for Tailscale {
         let Tailscale::Running(tailnet) = self else {
             return None;
         };
-        u32::try_from(tailnet.online.len())
-            .ok()
-            .filter(|count| *count > 0)
+        Some(u32::try_from(tailnet.online.len()).unwrap_or(u32::MAX)).filter(|count| *count > 0)
     }
 
     fn hover_card(&self, clock: Clock) -> HoverCardBody {

@@ -100,9 +100,17 @@ impl LastShutdown {
                     at,
                     job_result,
                 } => {
-                    let stop_duration = stopping_since
-                        .remove(&job)
-                        .and_then(|since| at.duration_since(since).ok());
+                    let stop_duration = stopping_since.remove(&job).and_then(|since| {
+                        at.duration_since(since)
+                            .inspect_err(|clock_failure| {
+                                tracing::warn!(
+                                    "systemd last shutdown: {:?} stopped before it started \
+                                     stopping: {clock_failure}",
+                                    job.unit
+                                );
+                            })
+                            .ok()
+                    });
                     if let Some(duration) = stop_duration {
                         stops.push(UnitStop {
                             unit: job.unit,
@@ -127,7 +135,12 @@ impl LastShutdown {
         stops.sort_by_key(|stop| stop.outcome.rank());
         stops.truncate(SLOWEST_STOP_COUNT);
         Some(Self {
-            duration: ended_at.duration_since(began_at).ok()?,
+            duration: ended_at
+                .duration_since(began_at)
+                .inspect_err(|clock_failure| {
+                    tracing::warn!("systemd last shutdown: ended before it began: {clock_failure}");
+                })
+                .ok()?,
             slowest_stops: stops,
         })
     }

@@ -74,11 +74,25 @@ fn retry_delay_from_headers(resp: &http_json_client::Response) -> Option<Duratio
         seconds_from_header(resp.header("anthropic-ratelimit-unified-reset"))
             .map(|reset| reset - write_rate_limit::now_unix())
     })?;
-    u64::try_from(seconds).ok().map(Duration::from_secs)
+    u64::try_from(seconds)
+        .inspect_err(|_| {
+            tracing::debug!("claude usage: rate limit reset lies {seconds}s in the past");
+        })
+        .ok()
+        .map(Duration::from_secs)
 }
 
 fn seconds_from_header(header: Option<&str>) -> Option<i64> {
-    header?.trim().parse().ok()
+    let header_text = header?;
+    header_text
+        .trim()
+        .parse()
+        .inspect_err(|parse_failure| {
+            tracing::warn!(
+                "claude usage: invalid rate limit header {header_text:?}: {parse_failure}"
+            );
+        })
+        .ok()
 }
 
 fn escalating_delay(attempts: u32) -> Duration {

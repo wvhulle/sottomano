@@ -1,0 +1,9 @@
+id: silent-error-drop
+valid:
+  - "fn width(text: &str) -> Option<u32> { text.parse().inspect_err(|parse_failure| tracing::warn!(\"width {text}: {parse_failure}\")).ok() }"
+  - "fn width(text: &str) -> Result<u32, ParseIntError> { text.parse() }"
+  - "mod tests { fn parsed() -> Option<u32> { \"1\".parse().ok() } }"
+invalid:
+  - "fn width(text: &str) -> Option<u32> { text.parse().ok() }"
+  - "fn widths(texts: Vec<String>) -> Vec<u32> { texts.iter().map(|text| text.parse()).filter_map(Result::ok).collect() }"
+  - "fn width(text: &str) -> Option<u32> { let parsed = text.parse().ok()?; Some(parsed) }"

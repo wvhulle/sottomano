@@ -79,9 +79,23 @@ impl SnapshotSource for MemoryProcesses {
 fn read_memory_processes() -> Result<MemoryProcesses, Error> {
     let mut processes: Vec<MemoryProcess> = all_processes()
         .map_err(|_| Error::Unreadable(PROC.to_owned()))?
-        .filter_map(Result::ok)
+        .filter_map(|process_entry| {
+            process_entry
+                .inspect_err(|listing_failure| {
+                    tracing::debug!("memory usage: skipping unlistable process: {listing_failure}");
+                })
+                .ok()
+        })
         .filter_map(|process| {
-            let stat = process.stat().ok()?;
+            let stat = process
+                .stat()
+                .inspect_err(|stat_failure| {
+                    tracing::debug!(
+                        "memory usage: cannot read stat of process {}: {stat_failure}",
+                        process.pid()
+                    );
+                })
+                .ok()?;
             let resident = ByteSize::b(stat.rss_bytes().get());
             (resident.as_u64() > 0).then(|| MemoryProcess {
                 pid: stat.pid,

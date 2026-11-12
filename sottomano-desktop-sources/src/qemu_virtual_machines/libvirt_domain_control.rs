@@ -43,8 +43,17 @@ pub(crate) fn libvirt_run_states(domain_names: &[String]) -> HashMap<String, Gue
         domain_names
             .iter()
             .filter_map(|domain_name| {
-                let domain = Domain::lookup_by_name(connection, domain_name).ok()?;
-                let (domain_state, _reason) = domain.get_state().ok()?;
+                let domain = Domain::lookup_by_name(connection, domain_name)
+                    .inspect_err(|lookup_failure| {
+                        tracing::debug!("libvirt domain {domain_name}: {lookup_failure}");
+                    })
+                    .ok()?;
+                let (domain_state, _reason) = domain
+                    .get_state()
+                    .inspect_err(|state_failure| {
+                        tracing::debug!("libvirt state of {domain_name}: {state_failure}");
+                    })
+                    .ok()?;
                 Some((domain_name.clone(), run_state_of_domain_state(domain_state)))
             })
             .collect()

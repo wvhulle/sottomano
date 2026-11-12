@@ -102,12 +102,37 @@ fn parsed_size_with_suffix(size_text: &str) -> Option<ByteSize> {
     };
     digits
         .parse::<u64>()
+        .inspect_err(|parse_failure| {
+            tracing::warn!(
+                "microvm command line: invalid memory size {size_text:?}: {parse_failure}"
+            );
+        })
         .ok()
         .map(|amount| ByteSize::b(amount * unit_multiplier))
 }
 
 fn mebibytes(size_text: &str) -> Option<ByteSize> {
-    size_text.trim().parse::<u64>().ok().map(ByteSize::mib)
+    size_text
+        .trim()
+        .parse::<u64>()
+        .inspect_err(|parse_failure| {
+            tracing::warn!(
+                "microvm command line: invalid memory mebibytes {size_text:?}: {parse_failure}"
+            );
+        })
+        .ok()
+        .map(ByteSize::mib)
+}
+
+fn parsed_guest_cores(cores_text: &str) -> Option<u32> {
+    cores_text
+        .parse()
+        .inspect_err(|parse_failure| {
+            tracing::warn!(
+                "microvm command line: invalid core count {cores_text:?}: {parse_failure}"
+            );
+        })
+        .ok()
 }
 
 fn cloud_hypervisor_launch(command_line: &[String]) -> HypervisorLaunch {
@@ -121,7 +146,7 @@ fn cloud_hypervisor_launch(command_line: &[String]) -> HypervisorLaunch {
             .and_then(parsed_size_with_suffix),
         guest_cores: cpus_option
             .and_then(|cpus_option| keyed_field(cpus_option, "boot"))
-            .and_then(|boot_cores| boot_cores.parse().ok()),
+            .and_then(parsed_guest_cores),
         kernel: option_value(command_line, &["--kernel"]).map(PathBuf::from),
         api_socket: api_socket_option.map(|socket_option| {
             PathBuf::from(keyed_field(socket_option, "path").unwrap_or(socket_option))
@@ -184,10 +209,7 @@ fn crosvm_launch(command_line: &[String]) -> HypervisorLaunch {
             mebibytes(keyed_field(memory_option, "size").unwrap_or(memory_option))
         }),
         guest_cores: cpus_option.and_then(|cpus_option| {
-            keyed_field(cpus_option, "num-cores")
-                .unwrap_or(cpus_option)
-                .parse()
-                .ok()
+            parsed_guest_cores(keyed_field(cpus_option, "num-cores").unwrap_or(cpus_option))
         }),
         kernel: command_line
             .last()
@@ -202,8 +224,7 @@ fn kvmtool_launch(command_line: &[String]) -> HypervisorLaunch {
     HypervisorLaunch {
         named_machine: option_value(command_line, &["--name", "-n"]).map(str::to_owned),
         guest_memory: option_value(command_line, &["--mem", "-m"]).and_then(mebibytes),
-        guest_cores: option_value(command_line, &["--cpus", "-c"])
-            .and_then(|cpu_count| cpu_count.parse().ok()),
+        guest_cores: option_value(command_line, &["--cpus", "-c"]).and_then(parsed_guest_cores),
         kernel: option_value(command_line, &["--kernel", "-k"]).map(PathBuf::from),
         ..HypervisorLaunch::default()
     }

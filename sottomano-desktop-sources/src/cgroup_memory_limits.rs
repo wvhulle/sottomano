@@ -48,7 +48,16 @@ fn child_directories(cgroup_directory: &Path) -> Vec<PathBuf> {
     fs::read_dir(cgroup_directory)
         .into_iter()
         .flatten()
-        .filter_map(Result::ok)
+        .filter_map(|listed_entry| {
+            listed_entry
+                .inspect_err(|list_failure| {
+                    tracing::debug!(
+                        "memory limits: listing {} failed: {list_failure}",
+                        cgroup_directory.display()
+                    );
+                })
+                .ok()
+        })
         .filter(|entry| entry.file_type().is_ok_and(|file_type| file_type.is_dir()))
         .map(|entry| entry.path())
         .collect()

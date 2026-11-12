@@ -469,15 +469,38 @@ struct SharedCache {
 impl SharedCache {
     fn read_last_level(cpu_directory: &Path) -> Option<Self> {
         fs::read_dir(cpu_directory.join("cache"))
+            .inspect_err(|listing_failure| {
+                tracing::debug!(
+                    "cpu topology: cannot list caches of {}: {listing_failure}",
+                    cpu_directory.display()
+                );
+            })
             .ok()?
-            .filter_map(Result::ok)
+            .filter_map(|cache_entry| {
+                cache_entry
+                    .inspect_err(|entry_failure| {
+                        tracing::debug!(
+                            "cpu topology: skipping unreadable cache entry of {}: {entry_failure}",
+                            cpu_directory.display()
+                        );
+                    })
+                    .ok()
+            })
             .filter_map(|index| Self::read(&index.path()))
             .max_by_key(|cache| cache.level)
     }
 
     fn read(index_directory: &Path) -> Option<Self> {
         Some(SharedCache {
-            level: read_trimmed(index_directory.join("level"))?.parse().ok()?,
+            level: read_trimmed(index_directory.join("level"))?
+                .parse()
+                .inspect_err(|parse_failure| {
+                    tracing::warn!(
+                        "cpu topology: invalid cache level in {}: {parse_failure}",
+                        index_directory.display()
+                    );
+                })
+                .ok()?,
             size: parse_cache_size(&read_trimmed(index_directory.join("size"))?)?,
             sharing_cpus: cpulist(&read_trimmed(index_directory.join("shared_cpu_list"))?)
                 .collect(),
@@ -486,11 +509,19 @@ impl SharedCache {
 }
 
 fn parse_cache_size(text: &str) -> Option<Information> {
-    if let Some(kibibytes) = text.strip_suffix('K') {
-        return Some(Information::new::<kibibyte>(kibibytes.parse().ok()?));
-    }
-    let mebibytes = text.strip_suffix('M')?;
-    Some(Information::new::<mebibyte>(mebibytes.parse().ok()?))
+    let parsed_size = if let Some(kibibytes) = text.strip_suffix('K') {
+        kibibytes.parse().map(Information::new::<kibibyte>)
+    } else if let Some(mebibytes) = text.strip_suffix('M') {
+        mebibytes.parse().map(Information::new::<mebibyte>)
+    } else {
+        tracing::warn!("cpu topology: cache size {text:?} lacks a K or M unit");
+        return None;
+    };
+    parsed_size
+        .inspect_err(|parse_failure| {
+            tracing::warn!("cpu topology: invalid cache size {text:?}: {parse_failure}");
+        })
+        .ok()
 }
 
 pub(super) fn cpulist(list: &str) -> impl Iterator<Item = u32> + '_ {
@@ -499,10 +530,24 @@ pub(super) fn cpulist(list: &str) -> impl Iterator<Item = u32> + '_ {
 
 fn cpu_range(range: &str) -> Option<RangeInclusive<u32>> {
     let range = range.trim();
-    if let Some((first, last)) = range.split_once('-') {
-        return Some(first.parse().ok()?..=last.parse().ok()?);
+    if range.is_empty() {
+        return None;
     }
-    let core = range.parse().ok()?;
+    let parse_core = |core_text: &str| {
+        core_text
+            .parse::<u32>()
+            .inspect_err(|parse_failure| {
+                tracing::warn!(
+                    "cpu topology: invalid core {core_text:?} in cpu list range {range:?}: \
+                     {parse_failure}"
+                );
+            })
+            .ok()
+    };
+    if let Some((first, last)) = range.split_once('-') {
+        return Some(parse_core(first)?..=parse_core(last)?);
+    }
+    let core = parse_core(range)?;
     Some(core..=core)
 }
 

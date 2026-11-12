@@ -72,10 +72,14 @@ fn read_swap_activity(
     };
     let counters = vmstat().map_err(|_| Error::Unreadable(VMSTAT.to_owned()))?;
     let page_counter = |field: &str| {
-        counters
+        let pages = counters
             .get(field)
-            .and_then(|pages| u64::try_from(*pages).ok())
-            .ok_or_else(|| Error::Unparsable(format!("{VMSTAT} field {field}")))
+            .ok_or_else(|| Error::Unparsable(format!("{VMSTAT} field {field}")))?;
+        u64::try_from(*pages).map_err(|conversion_failure| {
+            Error::Unparsable(format!(
+                "{VMSTAT} field {field} = {pages}: {conversion_failure}"
+            ))
+        })
     };
     let current = SwappedPageCounters {
         sampled_at: now,
@@ -148,9 +152,25 @@ impl SnapshotSource for SwappedProcesses {
 fn read_swapped_processes() -> Result<SwappedProcesses, Error> {
     let mut processes: Vec<SwappedProcess> = all_processes()
         .map_err(|_| Error::Unreadable(PROC.to_owned()))?
-        .filter_map(Result::ok)
+        .filter_map(|process_entry| {
+            process_entry
+                .inspect_err(|listing_failure| {
+                    tracing::debug!(
+                        "swapped processes: skipping unlistable process: {listing_failure}"
+                    );
+                })
+                .ok()
+        })
         .filter_map(|process| {
-            let status = process.status().ok()?;
+            let status = process
+                .status()
+                .inspect_err(|status_failure| {
+                    tracing::debug!(
+                        "swapped processes: cannot read status of process {}: {status_failure}",
+                        process.pid()
+                    );
+                })
+                .ok()?;
             let swapped = ByteSize::kib(status.vmswap.filter(|kibibytes| *kibibytes > 0)?);
             Some(SwappedProcess {
                 pid: status.pid,

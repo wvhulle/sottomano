@@ -49,7 +49,17 @@ pub(super) fn core_freqs() -> Vec<CoreFreq> {
                     .or_else(|| read_kilohertz(dir.join("cpufreq/scaling_cur_freq")))?,
                 band: core_frequency_band(dir)?,
                 preference_rank: read_trimmed(dir.join("cpufreq/amd_pstate_prefcore_ranking"))
-                    .and_then(|rank| rank.parse().ok()),
+                    .and_then(|rank| {
+                        rank.parse()
+                            .inspect_err(|parse_failure| {
+                                tracing::warn!(
+                                    "cpu frequency: invalid preferred core rank {rank:?} for {}: \
+                                     {parse_failure}",
+                                    dir.display()
+                                );
+                            })
+                            .ok()
+                    }),
             })
         })
         .collect();
@@ -68,6 +78,13 @@ fn core_frequency_band(dir: &Path) -> Option<FrequencyBand> {
 pub(super) fn cpu_core_index(name: &str) -> Option<u32> {
     let digits = name.strip_prefix("cpu")?;
     (!digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
-        .then(|| digits.parse().ok())
+        .then(|| {
+            digits
+                .parse()
+                .inspect_err(|parse_failure| {
+                    tracing::warn!("cpu topology: invalid core index in {name:?}: {parse_failure}");
+                })
+                .ok()
+        })
         .flatten()
 }

@@ -287,8 +287,7 @@ impl GroupItemReading for Tunnel {
 
     fn badge(&self) -> Option<u32> {
         matches!(self.role, TunnelRole::Server { .. })
-            .then(|| u32::try_from(self.connected_peers()).ok())
-            .flatten()
+            .then(|| u32::try_from(self.connected_peers()).unwrap_or(u32::MAX))
             .filter(|count| *count > 0)
     }
 

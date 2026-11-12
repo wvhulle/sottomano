@@ -4,7 +4,12 @@ use std::{
 };
 
 use futures::{Stream, StreamExt, stream::select};
-use zbus::{Connection, MatchRule, fdo::DBusProxy, message::Type, zvariant::OwnedValue};
+use zbus::{
+    Connection, MatchRule,
+    fdo::DBusProxy,
+    message::Type,
+    zvariant::{OwnedValue, Value},
+};
 
 use crate::{
     non_empty_text::non_empty,
@@ -61,11 +66,17 @@ impl LauncherEntries {
 #[allow(clippy::cast_precision_loss)]
 fn number(props: &HashMap<String, OwnedValue>, key: &str) -> Option<f64> {
     let value = props.get(key)?;
-    let read = |convert: fn(OwnedValue) -> Option<f64>| value.try_clone().ok().and_then(convert);
-    read(|v| f64::try_from(v).ok())
-        .or_else(|| read(|v| i64::try_from(v).ok().map(|n| n as f64)))
-        .or_else(|| read(|v| i32::try_from(v).ok().map(f64::from)))
-        .or_else(|| read(|v| u32::try_from(v).ok().map(f64::from)))
+    let converted_number = match &**value {
+        Value::F64(float_number) => Some(*float_number),
+        Value::I64(signed_number) => Some(*signed_number as f64),
+        Value::I32(signed_number) => Some(f64::from(*signed_number)),
+        Value::U32(unsigned_number) => Some(f64::from(*unsigned_number)),
+        _ => None,
+    };
+    if converted_number.is_none() {
+        tracing::warn!("launcher entry: {key} is not a number: {value:?}");
+    }
+    converted_number
 }
 
 fn app_key(uri: &str) -> Option<String> {
@@ -160,33 +171,36 @@ async fn connect(
         .build();
     let updates = signal_messages(&connection, update_rule)
         .await?
-        .filter_map(|message| async move { update_signal(&message.ok()?) });
+        .map(|message| message.and_then(|message| update_signal(&message)));
     let owners = dbus
         .receive_name_owner_changed()
         .await?
-        .filter_map(|signal| async move {
-            let args = signal.args().ok()?;
-            args.new_owner()
-                .is_none()
-                .then(|| Signal::OwnerLost(args.name().to_string()))
+        .filter_map(|signal| {
+            ready(
+                signal
+                    .args()
+                    .map(|args| {
+                        args.new_owner()
+                            .is_none()
+                            .then(|| Signal::OwnerLost(args.name().to_string()))
+                    })
+                    .transpose(),
+            )
         });
 
     connection.request_name(LAUNCHER_NAME).await?;
 
     Ok(select(updates, owners)
         .scan(Registry::default(), |registry, signal| {
-            ready(Some(registry.apply(signal)))
+            ready(Some(signal.map(|signal| registry.apply(signal))))
         })
-        .filter_map(ready)
-        .map(Ok))
+        .filter_map(|applied| ready(applied.transpose())))
 }
 
-fn update_signal(message: &zbus::Message) -> Option<Signal> {
+fn update_signal(message: &zbus::Message) -> zbus::Result<Signal> {
     let body = message.body();
-    let (uri, props) = body
-        .deserialize::<(String, HashMap<String, OwnedValue>)>()
-        .ok()?;
-    Some(Signal::Update {
+    let (uri, props) = body.deserialize::<(String, HashMap<String, OwnedValue>)>()?;
+    Ok(Signal::Update {
         sender: message.header().sender().map(ToString::to_string),
         uri,
         entry: LauncherEntry::parse(&props),

@@ -1,5 +1,5 @@
 use std::{
-    fs,
+    fs, io,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -31,7 +31,9 @@ impl From<Panicked> for Error {
 }
 
 pub fn read_field(path: &Path) -> Result<String, Error> {
-    read_trimmed(path).ok_or_else(|| Error::Unreadable(path.display().to_string()))
+    fs::read_to_string(path)
+        .map(|field_text| field_text.trim().to_string())
+        .map_err(|read_failure| Error::Unreadable(format!("{}: {read_failure}", path.display())))
 }
 
 pub fn parse_field<T: FromStr>(path: &Path) -> Result<T, Error> {
@@ -47,21 +49,59 @@ pub fn read_kilohertz(path: impl AsRef<Path>) -> Option<Frequency> {
 
 #[must_use]
 pub fn list_dir(dir: impl AsRef<Path>) -> Vec<PathBuf> {
-    fs::read_dir(dir)
-        .into_iter()
-        .flatten()
-        .filter_map(|e| e.ok().map(|e| e.path()))
+    let directory = dir.as_ref();
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(list_failure) if list_failure.kind() == io::ErrorKind::NotFound => return Vec::new(),
+        Err(list_failure) => {
+            tracing::warn!("sysfs: cannot list {}: {list_failure}", directory.display());
+            return Vec::new();
+        }
+    };
+    entries
+        .filter_map(|entry| {
+            entry
+                .inspect_err(|entry_failure| {
+                    tracing::warn!(
+                        "sysfs: unreadable entry in {}: {entry_failure}",
+                        directory.display()
+                    );
+                })
+                .ok()
+                .map(|entry| entry.path())
+        })
         .collect()
 }
 
 #[must_use]
 pub fn read_trimmed(path: impl AsRef<Path>) -> Option<String> {
-    Some(fs::read_to_string(path).ok()?.trim().to_string())
+    let attribute_path = path.as_ref();
+    match fs::read_to_string(attribute_path) {
+        Ok(attribute_text) => Some(attribute_text.trim().to_string()),
+        Err(read_failure) if read_failure.kind() == io::ErrorKind::NotFound => None,
+        Err(read_failure) => {
+            tracing::debug!(
+                "sysfs: cannot read {}: {read_failure}",
+                attribute_path.display()
+            );
+            None
+        }
+    }
 }
 
 #[must_use]
 pub fn read_i64(path: impl AsRef<Path>) -> Option<i64> {
-    read_trimmed(path)?.parse().ok()
+    let attribute_path = path.as_ref();
+    let attribute_text = read_trimmed(attribute_path)?;
+    attribute_text
+        .parse()
+        .inspect_err(|parse_failure| {
+            tracing::warn!(
+                "sysfs: {} holds {attribute_text:?}, not an integer: {parse_failure}",
+                attribute_path.display()
+            );
+        })
+        .ok()
 }
 
 #[must_use]

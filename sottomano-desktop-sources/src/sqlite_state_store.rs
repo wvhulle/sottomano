@@ -15,6 +15,8 @@ pub enum StoreError {
     Column(#[from] ColumnError),
     #[error("no matching row")]
     NoRow,
+    #[error("stored date or time is malformed: {0}")]
+    MalformedTime(#[from] chrono::ParseError),
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -158,9 +160,17 @@ impl Columns {
 
     #[must_use]
     pub fn optional_text(&self, row: &turso::Row, name: &str) -> Option<String> {
-        match self.value(row, name).ok()? {
-            turso::Value::Text(text) => Some(text),
-            _ => None,
+        match self.value(row, name) {
+            Ok(turso::Value::Text(text)) => Some(text),
+            Ok(turso::Value::Null) => None,
+            Ok(unexpected_value) => {
+                tracing::warn!("state store: column {name} holds {unexpected_value:?}, not text");
+                None
+            }
+            Err(read_failure) => {
+                tracing::warn!("state store: reading column {name} failed: {read_failure}");
+                None
+            }
         }
     }
 
@@ -176,9 +186,19 @@ impl Columns {
 
     #[must_use]
     pub fn optional_integer(&self, row: &turso::Row, name: &str) -> Option<i64> {
-        match self.value(row, name).ok()? {
-            turso::Value::Integer(integer) => Some(integer),
-            _ => None,
+        match self.value(row, name) {
+            Ok(turso::Value::Integer(integer)) => Some(integer),
+            Ok(turso::Value::Null) => None,
+            Ok(unexpected_value) => {
+                tracing::warn!(
+                    "state store: column {name} holds {unexpected_value:?}, not an integer"
+                );
+                None
+            }
+            Err(read_failure) => {
+                tracing::warn!("state store: reading column {name} failed: {read_failure}");
+                None
+            }
         }
     }
 
@@ -195,7 +215,15 @@ impl Columns {
 
     #[must_use]
     pub fn duration(&self, row: &turso::Row, name: &str) -> Option<Duration> {
-        let seconds = u64::try_from(self.optional_integer(row, name)?).ok()?;
-        Some(Duration::from_secs(seconds))
+        let stored_seconds = self.optional_integer(row, name)?;
+        u64::try_from(stored_seconds)
+            .inspect_err(|conversion_failure| {
+                tracing::warn!(
+                    "state store: column {name} holds negative duration {stored_seconds}: \
+                     {conversion_failure}"
+                );
+            })
+            .ok()
+            .map(Duration::from_secs)
     }
 }

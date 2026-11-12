@@ -498,6 +498,9 @@ impl PairingWorker {
             (processes, self)
         })
         .await
+        .inspect_err(|join_failure| {
+            tracing::warn!("window pairing: refresh task failed: {join_failure}");
+        })
         .ok()
     }
 }

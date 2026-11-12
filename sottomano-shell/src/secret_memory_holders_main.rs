@@ -6,8 +6,20 @@ use std::{
 
 fn main() -> io::Result<()> {
     let process_ids: Vec<u32> = fs::read_dir("/proc")?
-        .filter_map(Result::ok)
-        .filter_map(|entry| entry.file_name().to_str()?.parse().ok())
+        .collect::<io::Result<Vec<_>>>()?
+        .into_iter()
+        .filter_map(|entry| {
+            let directory_name = entry.file_name();
+            let directory_text = directory_name.to_str()?;
+            directory_text
+                .bytes()
+                .all(|byte| byte.is_ascii_digit())
+                .then(|| {
+                    directory_text
+                        .parse()
+                        .expect("decimal /proc directory names are process ids")
+                })
+        })
         .collect();
     let mut holder_pids = Vec::new();
     for process_id in process_ids {

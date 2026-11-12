@@ -299,6 +299,19 @@ async fn state_changed_at(
     connection: &zbus::Connection,
     path: OwnedObjectPath,
 ) -> Option<SystemTime> {
-    let unit = unit_proxy(connection, path).await.ok()?;
-    wall_time_of_realtime_usec(unit.state_change_timestamp().await.ok()?)
+    let timestamp_read = async {
+        unit_proxy(connection, path.clone())
+            .await?
+            .state_change_timestamp()
+            .await
+    };
+    let state_change_usec = timestamp_read
+        .await
+        .inspect_err(|timestamp_failure| {
+            tracing::debug!(
+                "systemd unit {path}: state change timestamp unreadable: {timestamp_failure}"
+            );
+        })
+        .ok()?;
+    wall_time_of_realtime_usec(state_change_usec)
 }

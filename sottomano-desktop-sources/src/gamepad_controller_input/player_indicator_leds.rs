@@ -22,7 +22,13 @@ fn player_leds_by_position(hid_device: &Path) -> BTreeMap<u8, bool> {
         .into_iter()
         .filter_map(|led| {
             let name = led.file_name()?.to_str()?.to_owned();
-            let position = name.split_once(PLAYER_LED_MARKER)?.1.parse().ok()?;
+            let position_text = name.split_once(PLAYER_LED_MARKER)?.1;
+            let position = position_text
+                .parse()
+                .inspect_err(|parse_failure| {
+                    tracing::debug!("gamepad: player led {name} has no position: {parse_failure}");
+                })
+                .ok()?;
             let lit = sysfs_attribute_reads::read_i64(led.join("brightness"))? > 0;
             Some((position, lit))
         })
@@ -34,6 +40,12 @@ fn driver_name(hid_device: &Path) -> Option<String> {
         hid_device
             .join("driver")
             .canonicalize()
+            .inspect_err(|resolve_failure| {
+                tracing::debug!(
+                    "gamepad: driver of {} unresolvable: {resolve_failure}",
+                    hid_device.display()
+                );
+            })
             .ok()?
             .file_name()?
             .to_str()?

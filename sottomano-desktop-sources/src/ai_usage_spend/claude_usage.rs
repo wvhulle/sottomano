@@ -108,9 +108,19 @@ fn read_credentials(path: &Path) -> Result<Credentials, Error> {
 }
 
 fn subscription_login(path: &Path) -> Option<Oauth> {
-    read_credentials(path).ok()?.oauth.filter(|oauth| {
-        oauth.access_token.is_some() && oauth.scopes.iter().any(|scope| scope == SUBSCRIPTION_SCOPE)
-    })
+    read_credentials(path)
+        .inspect_err(|credentials_failure| {
+            tracing::debug!(
+                "claude usage: no login from {}: {credentials_failure}",
+                path.display()
+            );
+        })
+        .ok()?
+        .oauth
+        .filter(|oauth| {
+            oauth.access_token.is_some()
+                && oauth.scopes.iter().any(|scope| scope == SUBSCRIPTION_SCOPE)
+        })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

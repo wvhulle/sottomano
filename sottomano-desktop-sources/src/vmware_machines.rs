@@ -182,11 +182,30 @@ fn scanned_machines() -> Result<VmwareMachines, Error> {
                 guest_os: vmx_entries.get("guestos").cloned(),
                 guest_memory: vmx_entries
                     .get("memsize")
-                    .and_then(|memory_mebibytes| memory_mebibytes.parse().ok())
+                    .and_then(|memory_mebibytes| {
+                        memory_mebibytes
+                            .parse()
+                            .inspect_err(|parse_failure| {
+                                tracing::warn!(
+                                    "vmware: memsize {memory_mebibytes} in {} is malformed: \
+                                     {parse_failure}",
+                                    configuration_file.display()
+                                );
+                            })
+                            .ok()
+                    })
                     .map(ByteSize::mib),
-                guest_cores: vmx_entries
-                    .get("numvcpus")
-                    .and_then(|cpu_count| cpu_count.parse().ok()),
+                guest_cores: vmx_entries.get("numvcpus").and_then(|cpu_count| {
+                    cpu_count
+                        .parse()
+                        .inspect_err(|parse_failure| {
+                            tracing::warn!(
+                                "vmware: numvcpus {cpu_count} in {} is malformed: {parse_failure}",
+                                configuration_file.display()
+                            );
+                        })
+                        .ok()
+                }),
                 started_at: scanned.started_at,
                 memory_in_use: ByteSize::b(
                     process_scan

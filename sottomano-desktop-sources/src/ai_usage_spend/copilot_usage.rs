@@ -171,12 +171,26 @@ async fn user_info(key: &Path) -> Result<UserInfo, Error> {
 }
 
 fn quota_reset(info: &UserInfo) -> Option<DateTime<Utc>> {
-    let instant = info
-        .quota_reset_date_utc
-        .as_deref()
-        .and_then(|at| at.parse().ok());
+    let instant = info.quota_reset_date_utc.as_deref().and_then(|reset_text| {
+        reset_text
+            .parse()
+            .inspect_err(|parse_failure| {
+                tracing::warn!(
+                    "copilot usage: invalid quota reset instant {reset_text:?}: {parse_failure}"
+                );
+            })
+            .ok()
+    });
     instant.or_else(|| {
-        let date: NaiveDate = info.quota_reset_date.as_deref()?.parse().ok()?;
+        let reset_text = info.quota_reset_date.as_deref()?;
+        let date: NaiveDate = reset_text
+            .parse()
+            .inspect_err(|parse_failure| {
+                tracing::warn!(
+                    "copilot usage: invalid quota reset date {reset_text:?}: {parse_failure}"
+                );
+            })
+            .ok()?;
         Some(date.and_time(NaiveTime::MIN).and_utc())
     })
 }

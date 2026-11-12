@@ -90,15 +90,20 @@ async fn queried<Reply: DeserializeOwned>(command: &str) -> io::Result<Reply> {
 }
 
 fn window_id_of(address: &str) -> Option<u64> {
-    u64::from_str_radix(address.trim_start_matches("0x"), 16)
+    let hex_digits = address.trim_start_matches("0x");
+    if hex_digits.is_empty() {
+        return None;
+    }
+    u64::from_str_radix(hex_digits, 16)
+        .inspect_err(|parse_failure| {
+            tracing::warn!("hyprland: invalid window address {address:?}: {parse_failure}");
+        })
         .ok()
         .filter(|window_id| *window_id != 0)
 }
 
 fn regular_workspace_id(id: i64) -> Option<u64> {
-    u64::try_from(id)
-        .ok()
-        .filter(|workspace_id| *workspace_id > 0)
+    (id > 0).then_some(id.cast_unsigned())
 }
 
 fn hyprland_state_of(

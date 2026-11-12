@@ -152,7 +152,13 @@ pub fn registrations() -> impl Stream<Item = Vec<RegisteredMenuBar>> + Send {
     subscribed((), |()| async {
         Ok::<_, zbus::Error>(serve().await?.map(Ok::<_, zbus::Error>))
     })
-    .filter_map(|delivery| ready(delivery.ok()))
+    .filter_map(|delivery| {
+        ready(
+            delivery
+                .inspect_err(|serve_failure| tracing::warn!("appmenu registrar: {serve_failure}"))
+                .ok(),
+        )
+    })
 }
 
 async fn serve() -> zbus::Result<impl Stream<Item = Vec<RegisteredMenuBar>> + Send> {
@@ -172,12 +178,18 @@ async fn serve() -> zbus::Result<impl Stream<Item = Vec<RegisteredMenuBar>> + Se
         .receive_name_owner_changed()
         .await?;
     let pruned_on_vanish = vanished_owners.filter_map(move |owner_change| {
-        let vanished_name = owner_change.args().ok().and_then(|change_args| {
-            match (change_args.name(), change_args.new_owner().as_ref()) {
-                (BusName::Unique(unique_name), None) => Some(unique_name.to_owned()),
-                _ => None,
-            }
-        });
+        let vanished_name = owner_change
+            .args()
+            .inspect_err(|args_failure| {
+                tracing::warn!("appmenu registrar: invalid owner change: {args_failure}");
+            })
+            .ok()
+            .and_then(
+                |change_args| match (change_args.name(), change_args.new_owner().as_ref()) {
+                    (BusName::Unique(unique_name), None) => Some(unique_name.to_owned()),
+                    _ => None,
+                },
+            );
         if let Some(vanished_name) = vanished_name {
             registered_menu_bars.send_if_modified(|registered| {
                 let before = registered.len();

@@ -37,18 +37,42 @@ pub fn trim_rgba(image: RgbaImage) -> RgbaImage {
 
 fn trim_svg(path: &Path) -> Option<PathBuf> {
     let mtime = fs::metadata(path)
-        .and_then(|m| m.modified())
+        .and_then(|metadata| metadata.modified())
+        .inspect_err(|metadata_failure| {
+            tracing::debug!(
+                "icon trim: no mtime for {}: {metadata_failure}",
+                path.display()
+            );
+        })
         .ok()
-        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-        .map_or(0, |d| d.as_secs());
+        .and_then(|modified_time| {
+            modified_time
+                .duration_since(UNIX_EPOCH)
+                .inspect_err(|clock_failure| {
+                    tracing::warn!(
+                        "icon trim: mtime of {} before epoch: {clock_failure}",
+                        path.display()
+                    );
+                })
+                .ok()
+        })
+        .map_or(0, |since_epoch| since_epoch.as_secs());
     let key = format!("{CACHE_VERSION}:{}:{mtime}", path.display());
     let cache = cache_dir()?.join(format!("{}.svg", sha256_hex(&key)));
     if cache.exists() {
         return Some(cache);
     }
 
-    let data = fs::read(path).ok()?;
-    let tree = usvg::Tree::from_data(&data, &usvg::Options::default()).ok()?;
+    let data = fs::read(path)
+        .inspect_err(|read_failure| {
+            tracing::warn!("icon trim: cannot read {}: {read_failure}", path.display());
+        })
+        .ok()?;
+    let tree = usvg::Tree::from_data(&data, &usvg::Options::default())
+        .inspect_err(|parse_failure| {
+            tracing::warn!("icon trim: invalid svg {}: {parse_failure}", path.display());
+        })
+        .ok()?;
     let size = tree.size();
 
     let bbox = tree.root().abs_bounding_box();
@@ -68,7 +92,14 @@ fn trim_svg(path: &Path) -> Option<PathBuf> {
     }
 
     let cropped = crop_view_box(&tree, x0, y0, vw, vh)?;
-    fs::write(&cache, cropped).ok()?;
+    fs::write(&cache, cropped)
+        .inspect_err(|write_failure| {
+            tracing::warn!(
+                "icon trim: cannot write {}: {write_failure}",
+                cache.display()
+            );
+        })
+        .ok()?;
     Some(cache)
 }
 
@@ -90,22 +121,52 @@ fn crop_view_box(tree: &usvg::Tree, x: f32, y: f32, w: f32, h: f32) -> Option<St
 
 fn trim_raster(path: &Path) -> Option<PathBuf> {
     let mtime = fs::metadata(path)
-        .and_then(|m| m.modified())
+        .and_then(|metadata| metadata.modified())
+        .inspect_err(|metadata_failure| {
+            tracing::debug!(
+                "icon trim: no mtime for {}: {metadata_failure}",
+                path.display()
+            );
+        })
         .ok()
-        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-        .map_or(0, |d| d.as_secs());
+        .and_then(|modified_time| {
+            modified_time
+                .duration_since(UNIX_EPOCH)
+                .inspect_err(|clock_failure| {
+                    tracing::warn!(
+                        "icon trim: mtime of {} before epoch: {clock_failure}",
+                        path.display()
+                    );
+                })
+                .ok()
+        })
+        .map_or(0, |since_epoch| since_epoch.as_secs());
     let key = format!("{CACHE_VERSION}:raster:{}:{mtime}", path.display());
     let cache = cache_dir()?.join(format!("{}.png", sha256_hex(&key)));
     if cache.exists() {
         return Some(cache);
     }
 
-    let image = image::open(path).ok()?.into_rgba8();
+    let image = image::open(path)
+        .inspect_err(|decode_failure| {
+            tracing::warn!(
+                "icon trim: cannot decode {}: {decode_failure}",
+                path.display()
+            );
+        })
+        .ok()?
+        .into_rgba8();
     let (width, height) = image.dimensions();
     let bounds = significant_ink_bounds(width, height, image.as_raw())?;
     crop_imm(&image, bounds.x, bounds.y, bounds.width, bounds.height)
         .to_image()
         .save(&cache)
+        .inspect_err(|save_failure| {
+            tracing::warn!(
+                "icon trim: cannot write {}: {save_failure}",
+                cache.display()
+            );
+        })
         .ok()?;
     Some(cache)
 }
@@ -155,7 +216,14 @@ fn cache_dir() -> Option<PathBuf> {
         .map(PathBuf::from)
         .or_else(|| env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/state")))?;
     let dir = base.join("sottomano/icon-trim");
-    fs::create_dir_all(&dir).ok()?;
+    fs::create_dir_all(&dir)
+        .inspect_err(|create_failure| {
+            tracing::warn!(
+                "icon trim: cannot create {}: {create_failure}",
+                dir.display()
+            );
+        })
+        .ok()?;
     Some(dir)
 }
 

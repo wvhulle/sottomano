@@ -15,7 +15,16 @@ pub(super) struct ForgejoContainerName {
 
 pub(super) fn parse_forgejo_container_name(container_name: &str) -> Option<ForgejoContainerName> {
     let mut parts = container_name.strip_prefix(TASK_PREFIX)?.split('_');
-    let task_id = parts.next()?.parse().ok()?;
+    let task_id_text = parts.next()?;
+    let task_id = task_id_text
+        .parse()
+        .inspect_err(|parse_failure| {
+            tracing::debug!(
+                "forgejo runner: container {container_name} has no numeric task id: \
+                 {parse_failure}"
+            );
+        })
+        .ok()?;
     let job_name = parts
         .find_map(|part| part.strip_prefix(JOB_PREFIX))
         .map_or(ForgejoJobName::NotInContainerName, |job_name| {

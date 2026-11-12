@@ -11,12 +11,10 @@ pub struct Backoff {
 }
 
 impl Backoff {
+    #[must_use]
     pub fn remaining(&self) -> Option<Duration> {
         let seconds = self.retry_after_unix.checked_sub(now_unix())?;
-        u64::try_from(seconds)
-            .ok()
-            .filter(|s| *s > 0)
-            .map(Duration::from_secs)
+        (seconds > 0).then(|| Duration::from_secs(seconds.unsigned_abs()))
     }
 }
 

@@ -32,7 +32,17 @@ impl VolumeIdentity {
     pub fn of_devices(devices: &[KernelDevice]) -> Self {
         devices
             .iter()
-            .filter_map(|device| fs::read_to_string(device.sysfs_dir().join("dev")).ok())
+            .filter_map(|device| {
+                let device_number_path = device.sysfs_dir().join("dev");
+                fs::read_to_string(&device_number_path)
+                    .inspect_err(|read_failure| {
+                        tracing::debug!(
+                            "volume identity: reading {} failed: {read_failure}",
+                            device_number_path.display()
+                        );
+                    })
+                    .ok()
+            })
             .map(|major_minor| Self::from(&UdevProperties::block_device(major_minor.trim())))
             .find(|identity| !identity.properties.is_empty())
             .unwrap_or_default()

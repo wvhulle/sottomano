@@ -138,6 +138,12 @@ impl LaunchableApp {
                 .unwrap_or(AppCategory::Other),
             launch_command: entry
                 .parse_exec()
+                .inspect_err(|exec_failure| {
+                    tracing::warn!(
+                        "app catalog: invalid Exec in {}: {exec_failure}",
+                        entry.id()
+                    );
+                })
                 .ok()
                 .filter(|command| !command.is_empty())?,
             runs_in_terminal: entry.terminal(),

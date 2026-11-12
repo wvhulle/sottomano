@@ -44,7 +44,16 @@ impl DesktopEntries {
     pub fn load() -> Self {
         let locales: Vec<String> = Vec::new();
         let entries = Iter::new(default_paths())
-            .filter_map(|p| DesktopEntry::from_path(p, Some(&locales)).ok())
+            .filter_map(|entry_path| {
+                DesktopEntry::from_path(&entry_path, Some(&locales))
+                    .inspect_err(|parse_failure| {
+                        tracing::warn!(
+                            "desktop entries: cannot parse {}: {parse_failure}",
+                            entry_path.display()
+                        );
+                    })
+                    .ok()
+            })
             .collect();
         Self {
             entries,

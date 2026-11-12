@@ -58,7 +58,10 @@ impl SnapshotSource for GatewayLatencies {
             network_manager_proxies::GATEWAY_PROPERTIES,
             network_manager_proxies::device_gateways,
         )
-        .map(|gateways| ProbeEvent::GatewaysChanged(gateways.ok().flatten().unwrap_or_default()));
+        .map(|gateway_reading| match gateway_reading {
+            Ok(gateways) => ProbeEvent::GatewaysChanged(gateways.unwrap_or_default()),
+            Err(listing_error) => ProbeEvent::GatewayListingFailed(listing_error),
+        });
         let ticks = PROBE_POLLING.poll_ticks().map(ProbeEvent::Tick);
         let probe_events: Pin<Box<dyn Stream<Item = ProbeEvent> + Send>> =
             Box::pin(select(gateway_changes, ticks));
@@ -68,6 +71,16 @@ impl SnapshotSource for GatewayLatencies {
                 loop {
                     match probe_events.next().await? {
                         ProbeEvent::GatewaysChanged(gateways) => prober.retarget(gateways),
+                        ProbeEvent::GatewayListingFailed(listing_error) => {
+                            prober.retarget(Vec::new());
+                            let delivery = SnapshotDelivery::SnapshotDelivered {
+                                snapshot_fetch: Err(LatencyProbeError::GatewayListing(
+                                    listing_error.to_string(),
+                                )),
+                                delivery_cadence: DeliveryCadence::PeriodicPolling(PROBE_POLLING),
+                            };
+                            return Some((delivery, (probe_events, prober)));
+                        }
                         ProbeEvent::Tick(polling) => {
                             let delivery = prober.probe_round(polling).await;
                             return Some((delivery, (probe_events, prober)));
@@ -82,6 +95,7 @@ impl SnapshotSource for GatewayLatencies {
 
 enum ProbeEvent {
     GatewaysChanged(Vec<DeviceGateway>),
+    GatewayListingFailed(zbus::Error),
     Tick(PeriodicPolling),
 }
 

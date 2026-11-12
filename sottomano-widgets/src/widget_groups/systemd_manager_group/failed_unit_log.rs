@@ -209,9 +209,7 @@ impl GroupItemReading for FailedUnits {
     }
 
     fn badge(&self) -> Option<u32> {
-        u32::try_from(self.units.len())
-            .ok()
-            .filter(|count| *count > 0)
+        Some(u32::try_from(self.units.len()).unwrap_or(u32::MAX)).filter(|count| *count > 0)
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {

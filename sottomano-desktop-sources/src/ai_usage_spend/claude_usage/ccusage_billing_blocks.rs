@@ -91,16 +91,11 @@ impl SnapshotSource for ClaudeCcusageBlock {
                 .paced_rereads(
                     TRANSCRIPT_REREAD_MINIMUM_GAP,
                     Self::read,
-                    |block| {
-                        block
-                            .as_ref()
-                            .ok()
-                            .and_then(|block| block.active.as_ref())
-                            .map_or(RereadSchedule::WaitForTrigger, |active| {
-                                RereadSchedule::RecheckAt(ccusage_cli_reports::instant_of(
-                                    active.ends_at,
-                                ))
-                            })
+                    |block| match block.as_ref().map(|block| block.active.as_ref()) {
+                        Ok(Some(active)) => RereadSchedule::RecheckAt(
+                            ccusage_cli_reports::instant_of(active.ends_at),
+                        ),
+                        Ok(None) | Err(_) => RereadSchedule::WaitForTrigger,
                     },
                 )))
             })

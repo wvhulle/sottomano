@@ -189,13 +189,31 @@ fn linked_menu(menu_item: &HashMap<String, OwnedValue>) -> Option<GtkMenuKey> {
     [SECTION_LINK, SUBMENU_LINK]
         .into_iter()
         .find_map(|link_key| menu_item.get(link_key))
-        .and_then(|link_value| GtkMenuKey::try_from(link_value).ok())
+        .and_then(linked_menu_key)
+}
+
+fn linked_menu_key(link_value: &OwnedValue) -> Option<GtkMenuKey> {
+    GtkMenuKey::try_from(link_value)
+        .inspect_err(|link_failure| {
+            tracing::warn!("gtk menus: invalid menu link {link_value:?}: {link_failure}");
+        })
+        .ok()
 }
 
 fn text_property(menu_item: &HashMap<String, OwnedValue>, property_name: &str) -> Option<String> {
     menu_item
         .get(property_name)
-        .and_then(|property_value| property_value.downcast_ref::<&str>().ok())
+        .and_then(|property_value| {
+            property_value
+                .downcast_ref::<&str>()
+                .inspect_err(|downcast_failure| {
+                    tracing::warn!(
+                        "gtk menus: {property_name} is not text {property_value:?}: \
+                         {downcast_failure}"
+                    );
+                })
+                .ok()
+        })
         .map(str::to_owned)
 }
 
@@ -219,10 +237,7 @@ impl GtkMenuTreeBuilder<'_> {
         };
         let mut menu_nodes = Vec::new();
         for menu_item in items {
-            if let Some(section_key) = menu_item
-                .get(SECTION_LINK)
-                .and_then(|link_value| GtkMenuKey::try_from(link_value).ok())
-            {
+            if let Some(section_key) = menu_item.get(SECTION_LINK).and_then(linked_menu_key) {
                 let section_nodes = self.menu_nodes(section_key, depth_left.saturating_sub(1));
                 if !menu_nodes.is_empty() && !section_nodes.is_empty() {
                     menu_nodes.push(self.separator_node());
@@ -254,10 +269,7 @@ impl GtkMenuTreeBuilder<'_> {
         let label =
             text_property(menu_item, "label").map(|raw_label| label_without_mnemonics(&raw_label));
         let node_id = self.issue_node_id();
-        if let Some(submenu_key) = menu_item
-            .get(SUBMENU_LINK)
-            .and_then(|link_value| GtkMenuKey::try_from(link_value).ok())
-        {
+        if let Some(submenu_key) = menu_item.get(SUBMENU_LINK).and_then(linked_menu_key) {
             let children = if depth_left == 0 {
                 Vec::new()
             } else {
@@ -274,10 +286,23 @@ impl GtkMenuTreeBuilder<'_> {
         }
         let detailed_action = text_property(menu_item, "action")?;
         let ScopedActionName { scope, action_name } =
-            ScopedActionName::try_from(detailed_action.as_str()).ok()?;
+            ScopedActionName::try_from(detailed_action.as_str())
+                .inspect_err(|action_failure| {
+                    tracing::warn!("gtk menus: invalid action {detailed_action}: {action_failure}");
+                })
+                .ok()?;
         let action_target = menu_item
             .get("target")
-            .and_then(|target_value| target_value.try_clone().ok())
+            .and_then(|target_value| {
+                target_value
+                    .try_clone()
+                    .inspect_err(|clone_failure| {
+                        tracing::warn!(
+                            "gtk menus: cannot copy target of {detailed_action}: {clone_failure}"
+                        );
+                    })
+                    .ok()
+            })
             .map_or(GtkActionTarget::Untargeted, |target_value| {
                 GtkActionTarget::Targeted(Arc::new(target_value))
             });
@@ -376,15 +401,26 @@ async fn single_window_action_path(
     application_path: &str,
 ) -> WindowActionPath {
     let windows_path = format!("{application_path}{WINDOW_ACTIONS_SUFFIX}");
-    let Ok(windows_node) = introspected_node(connection, &bus_name.as_ref(), &windows_path).await
-    else {
-        return WindowActionPath::Unresolved;
+    let windows_node = match introspected_node(connection, &bus_name.as_ref(), &windows_path).await
+    {
+        Ok(windows_node) => windows_node,
+        Err(introspect_failure) => {
+            tracing::debug!("gtk menus: no window actions at {windows_path}: {introspect_failure}");
+            return WindowActionPath::Unresolved;
+        }
     };
     match windows_node.nodes() {
         [single_window] => single_window
             .name()
             .and_then(|window_name| {
-                OwnedObjectPath::try_from(format!("{windows_path}/{window_name}")).ok()
+                OwnedObjectPath::try_from(format!("{windows_path}/{window_name}"))
+                    .inspect_err(|path_failure| {
+                        tracing::warn!(
+                            "gtk menus: invalid window {window_name} under {windows_path}: \
+                             {path_failure}"
+                        );
+                    })
+                    .ok()
             })
             .map_or(WindowActionPath::Unresolved, WindowActionPath::Resolved),
         _ => WindowActionPath::Unresolved,

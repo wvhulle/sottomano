@@ -15,8 +15,16 @@ pub(super) struct ThrottleCount {
 impl ThrottleCount {
     fn read(cpu: u32) -> Option<Self> {
         let counter = |name: &str| {
-            read_i64(cpu_dir(cpu).join("thermal_throttle").join(name))
-                .and_then(|count| u64::try_from(count).ok())
+            read_i64(cpu_dir(cpu).join("thermal_throttle").join(name)).and_then(|count| {
+                u64::try_from(count)
+                    .inspect_err(|conversion_failure| {
+                        tracing::warn!(
+                            "thermal throttle: negative {name} {count} on cpu{cpu}: \
+                             {conversion_failure}"
+                        );
+                    })
+                    .ok()
+            })
         };
         Some(ThrottleCount {
             core: counter("core_throttle_count")?,

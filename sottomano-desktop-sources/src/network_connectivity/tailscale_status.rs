@@ -342,8 +342,16 @@ impl Tailscale {
             .peer
             .values()
             .filter(|peer| peer.online)
-            .map(Peer::try_from)
-            .filter_map(Result::ok)
+            .filter_map(|peer| {
+                Peer::try_from(peer)
+                    .inspect_err(|malformed_peer| {
+                        tracing::warn!(
+                            "tailscale: skipping online peer {}: {malformed_peer}",
+                            peer.short_name()
+                        );
+                    })
+                    .ok()
+            })
             .collect();
         online.sort_by(|left, right| left.name.cmp(&right.name));
         Ok(Tailscale::Running(Box::new(Tailnet {

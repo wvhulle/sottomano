@@ -52,15 +52,24 @@ impl GraphicalSession {
             .await
             .ok_or(dbus_desktop_buses::Error::Absent)?;
         Ok(Self {
-            current_desktop: env::var("XDG_CURRENT_DESKTOP").ok().and_then(non_empty),
-            session_desktop: env::var("XDG_SESSION_DESKTOP").ok().and_then(non_empty),
+            current_desktop: session_environment_variable("XDG_CURRENT_DESKTOP"),
+            session_desktop: session_environment_variable("XDG_SESSION_DESKTOP"),
             compositor_version,
-            wayland_display: env::var("WAYLAND_DISPLAY")
-                .ok()
-                .and_then(non_empty)
+            wayland_display: session_environment_variable("WAYLAND_DISPLAY")
                 .ok_or(dbus_desktop_buses::Error::Absent)?,
-            x11_display: env::var("DISPLAY").ok().and_then(non_empty),
+            x11_display: session_environment_variable("DISPLAY"),
         })
+    }
+}
+
+fn session_environment_variable(variable_name: &str) -> Option<String> {
+    match env::var(variable_name) {
+        Ok(value) => non_empty(value),
+        Err(env::VarError::NotPresent) => None,
+        Err(unicode_failure @ env::VarError::NotUnicode(_)) => {
+            tracing::warn!("graphical session: {variable_name}: {unicode_failure}");
+            None
+        }
     }
 }
 

@@ -72,8 +72,10 @@ impl RegionRoles {
                 .copied()
                 .filter(|rect| rect.width > 0.0 && rect.height > 0.0)
                 .chain([Rectangle::default()])
-                .map(Rectangle::to_add)
-                .filter_map(Result::ok)
+                .map(|rect| {
+                    rect.to_add()
+                        .expect("rectangles with non-negative sides convert to region actions")
+                })
                 .collect(),
         )
     }
@@ -98,7 +100,15 @@ pub(crate) fn report_input_across_except(
 ) {
     let surface_without_holes = iter::once(surface.to_add())
         .chain(holes.iter().copied().map(Rectangle::to_subtract))
-        .filter_map(Result::ok)
+        .filter_map(|region_action| {
+            region_action
+                .inspect_err(|cast_failure| {
+                    tracing::debug!(
+                        "input region: skipping rectangle of {surface:?}: {cast_failure}"
+                    );
+                })
+                .ok()
+        })
         .collect();
     operation.custom(
         None,

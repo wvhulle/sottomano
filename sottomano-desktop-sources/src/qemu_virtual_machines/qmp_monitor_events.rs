@@ -40,7 +40,11 @@ fn run_state_of_event(event_name: &str) -> Option<GuestRunState> {
 
 #[must_use]
 pub(crate) fn run_state_of_message(message_line: &str) -> Option<GuestRunState> {
-    let message: Value = serde_json::from_str(message_line).ok()?;
+    let message: Value = serde_json::from_str(message_line)
+        .inspect_err(|json_failure| {
+            tracing::warn!("qmp: invalid json message {message_line:?}: {json_failure}");
+        })
+        .ok()?;
     if let Some(event_name) = message.get("event").and_then(Value::as_str) {
         return run_state_of_event(event_name);
     }

@@ -71,7 +71,7 @@ impl GroupItemReading for Vec<CoredumpEntry> {
     }
 
     fn badge(&self) -> Option<u32> {
-        u32::try_from(self.len()).ok()
+        Some(u32::try_from(self.len()).unwrap_or(u32::MAX))
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {

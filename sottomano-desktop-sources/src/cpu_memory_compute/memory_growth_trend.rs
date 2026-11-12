@@ -125,7 +125,14 @@ fn read_used_and_headroom() -> Result<UsedAndHeadroom, Error> {
 }
 
 fn projected_exhaustion(headroom: ByteSize, bytes_per_second: f64) -> Option<Duration> {
-    Duration::try_from_secs_f64(headroom.as_u64() as f64 / bytes_per_second).ok()
+    Duration::try_from_secs_f64(headroom.as_u64() as f64 / bytes_per_second)
+        .inspect_err(|conversion_failure| {
+            tracing::debug!(
+                "memory growth: no exhaustion projection for {headroom} headroom at \
+                 {bytes_per_second} bytes per second: {conversion_failure}"
+            );
+        })
+        .ok()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -259,6 +266,12 @@ fn fastest_growing_processes(
 
 fn with_binary_name(process: GrowingMemoryProcess) -> GrowingMemoryProcess {
     let name = Process::new(process.pid)
+        .inspect_err(|open_failure| {
+            tracing::debug!(
+                "memory growth: cannot open process {}: {open_failure}",
+                process.pid
+            );
+        })
         .ok()
         .and_then(|handle| binary_name(&handle))
         .unwrap_or(process.name);
@@ -268,9 +281,25 @@ fn with_binary_name(process: GrowingMemoryProcess) -> GrowingMemoryProcess {
 fn resident_by_process() -> Result<Vec<ProcessResident>, Error> {
     Ok(all_processes()
         .map_err(|_| Error::Unreadable(PROC.to_owned()))?
-        .filter_map(Result::ok)
+        .filter_map(|process_entry| {
+            process_entry
+                .inspect_err(|listing_failure| {
+                    tracing::debug!(
+                        "memory growth: skipping unlistable process: {listing_failure}"
+                    );
+                })
+                .ok()
+        })
         .filter_map(|process| {
-            let stat = process.stat().ok()?;
+            let stat = process
+                .stat()
+                .inspect_err(|stat_failure| {
+                    tracing::debug!(
+                        "memory growth: cannot read stat of process {}: {stat_failure}",
+                        process.pid()
+                    );
+                })
+                .ok()?;
             Some(ProcessResident {
                 incarnation: ProcessIncarnation {
                     pid: stat.pid,

@@ -64,7 +64,14 @@ fn shown_panes(panes: Vec<WeztermPane>) -> Vec<ShownWeztermPane> {
 
 fn socket_of(wezterm_pid: i32) -> Option<PathBuf> {
     child_pids(wezterm_pid).into_iter().find_map(|child| {
-        let environment = Proc::new(child).ok()?.environ().ok()?;
+        let environment = Proc::new(child)
+            .and_then(|child_process| child_process.environ())
+            .inspect_err(|environ_failure| {
+                tracing::debug!(
+                    "wezterm {wezterm_pid}: environment of child {child}: {environ_failure}"
+                );
+            })
+            .ok()?;
         let socket = environment.get(OsStr::new(SOCKET_VARIABLE))?;
         Some(PathBuf::from(OsStr::from_bytes(socket.as_bytes())))
     })
