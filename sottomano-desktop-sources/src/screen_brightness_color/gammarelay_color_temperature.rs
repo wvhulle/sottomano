@@ -8,8 +8,10 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::AvailabilityStreams,
     delivery_cadence_drivers::ChangeTriggerStreams,
-    network_connectivity::interface_properties_changed,
-    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error, name_owned},
+    system_protocol_clients::{
+        dbus_change_signals::{change_triggers, properties_changed_rule},
+        dbus_desktop_buses::{DesktopBuses, Error, name_owned},
+    },
 };
 
 const RELAY_SERVICE: &str = "rs.wl-gammarelay";
@@ -61,8 +63,11 @@ async fn relay_changes(
     buses: DesktopBuses,
 ) -> Result<impl Stream<Item = Result<ColorTemperature, Error>> + Send, Error> {
     let relay = GammaRelayProxy::new(&buses.session).await?;
-    let changes =
-        interface_properties_changed(&buses.session, RELAY_SERVICE, RELAY_INTERFACE).await?;
+    let changes = change_triggers(
+        &buses.session,
+        [properties_changed_rule(RELAY_SERVICE, RELAY_INTERFACE)?],
+    )
+    .await?;
     Ok(changes.triggered_rereads(move || {
         let relay = relay.clone();
         async move { ColorTemperature::read(&relay).await }

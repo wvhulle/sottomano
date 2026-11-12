@@ -25,8 +25,8 @@ use crate::{
     blocking_background_work::blocking_poll,
     delivery_cadence_drivers::PeriodicPolling,
     host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
-    network_connectivity::interface_properties_changed,
     system_protocol_clients::{
+        dbus_change_signals::{change_triggers, properties_changed_rule},
         dbus_desktop_buses::DesktopBuses,
         protocol_peer_reconnects::subscribed,
         sysfs_attribute_reads::{Error, list_dir, parse_field, read_field, read_i64, read_trimmed},
@@ -266,11 +266,15 @@ async fn device_changes(
 
 fn supply_state_changes(system: Connection) -> impl Stream<Item = ()> + Send {
     subscribed(system, |system| async move {
-        Ok(
-            interface_properties_changed(&system, UPOWER_SERVICE, UPOWER_DEVICE_INTERFACE)
-                .await?
-                .map(Ok::<_, zbus::Error>),
+        Ok(change_triggers(
+            &system,
+            [properties_changed_rule(
+                UPOWER_SERVICE,
+                UPOWER_DEVICE_INTERFACE,
+            )?],
         )
+        .await?
+        .map(Ok::<_, zbus::Error>))
     })
     .filter_map(|signal| ready(signal.ok()))
 }

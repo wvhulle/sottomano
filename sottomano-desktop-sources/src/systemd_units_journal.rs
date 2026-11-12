@@ -21,13 +21,9 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use futures::{
-    future::join_all,
-    stream::{SelectAll, select_all},
-};
 use serde::Deserialize;
 use zbus::{
-    MatchRule, MessageStream,
+    MatchRule,
     match_rule::Builder,
     message, proxy,
     proxy::CacheProperties,
@@ -282,21 +278,6 @@ fn manager_signal(member: &'static str) -> zbus::Result<MatchRule<'static>> {
         .interface(MANAGER_INTERFACE)?
         .member(member)?
         .build())
-}
-
-async fn signals_matching(
-    connection: &zbus::Connection,
-    rules: impl IntoIterator<Item = MatchRule<'static>>,
-) -> zbus::Result<SelectAll<MessageStream>> {
-    let streams = join_all(
-        rules
-            .into_iter()
-            .map(|rule| MessageStream::for_match_rule(rule, connection, Some(64))),
-    )
-    .await
-    .into_iter()
-    .collect::<zbus::Result<Vec<_>>>()?;
-    Ok(select_all(streams))
 }
 
 fn wall_time_of_realtime_usec(realtime_us: u64) -> Option<SystemTime> {

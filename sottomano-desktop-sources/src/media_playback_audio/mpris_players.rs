@@ -25,6 +25,7 @@ use crate::{
     delivery_cadence_drivers::ChangeTriggerStreams,
     media_playback_audio::lrclib_synced_lyrics::LyricsQuery,
     system_protocol_clients::{
+        dbus_change_signals::signal_messages,
         dbus_desktop_buses::{DbusPropertyLookup, DesktopBuses, OwnerProcess, Properties},
         protocol_peer_reconnects::subscribed,
     },
@@ -542,7 +543,7 @@ async fn signals(
         .interface(interface)?
         .member(member)?
         .build();
-    MessageStream::for_match_rule(rule, connection, Some(16)).await
+    signal_messages(connection, rule).await
 }
 
 #[must_use]

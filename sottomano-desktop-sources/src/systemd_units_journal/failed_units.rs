@@ -6,12 +6,14 @@ use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{
     ManagerProxy, ServiceProxy, SystemdOnBus, SystemdUnitScope, UNIT_INTERFACE, UnitRow,
-    manager_signal, signals_matching, state_changed_at, systemd_signal,
+    manager_signal, state_changed_at, systemd_signal,
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::ChangeTriggerStreams,
-    system_protocol_clients::protocol_peer_reconnects::subscribed,
+    system_protocol_clients::{
+        dbus_change_signals::change_triggers, protocol_peer_reconnects::subscribed,
+    },
     systemd_units_journal::{
         journal_coredumps::CoredumpEntry, journal_record_fields::JournalPriority,
     },
@@ -86,7 +88,7 @@ async fn watch_failed(
         .build()
         .await?;
     manager.ensure_subscribed().await?;
-    let unit_signals = signals_matching(
+    let unit_signals = change_triggers(
         &connection,
         [
             systemd_signal()?

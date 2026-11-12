@@ -13,9 +13,11 @@ use crate::{
         greetd_greeter_program::greeter_program,
         logind_manager::{ManagerProxy, session_id},
     },
-    network_connectivity::interface_properties_changed,
     non_empty_text::non_empty,
-    system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
+    system_protocol_clients::{
+        dbus_change_signals::{change_triggers, properties_changed_rule},
+        dbus_desktop_buses::{self, DesktopBuses},
+    },
 };
 
 const LOGIN_SERVICE: &str = "org.freedesktop.login1";
@@ -97,8 +99,11 @@ async fn identity_changes(
         desktop: session.desktop().await.ok().and_then(non_empty),
         session_type: String::new(),
     };
-    let changes =
-        interface_properties_changed(&buses.system, LOGIN_SERVICE, SESSION_INTERFACE).await?;
+    let changes = change_triggers(
+        &buses.system,
+        [properties_changed_rule(LOGIN_SERVICE, SESSION_INTERFACE)?],
+    )
+    .await?;
     Ok(changes.triggered_rereads(move || {
         let session = session.clone();
         let identity = identity.clone();
@@ -161,8 +166,11 @@ async fn session_changes(
         since: at_micros(session.timestamp().await?).ok_or(dbus_desktop_buses::Error::Absent)?,
         idle_since: None,
     };
-    let changes =
-        interface_properties_changed(&buses.system, LOGIN_SERVICE, SESSION_INTERFACE).await?;
+    let changes = change_triggers(
+        &buses.system,
+        [properties_changed_rule(LOGIN_SERVICE, SESSION_INTERFACE)?],
+    )
+    .await?;
     Ok(changes.triggered_rereads(move || {
         let session = session.clone();
         let info = info.clone();

@@ -5,9 +5,9 @@ use std::{
 };
 
 use futures::{
-    Stream, StreamExt,
+    Stream,
     future::{join_all, try_join_all},
-    stream, try_join,
+    try_join,
 };
 use uom::si::{
     f64::{Frequency, InformationRate},
@@ -15,14 +15,16 @@ use uom::si::{
     information_rate::{kilobit_per_second, megabit_per_second},
 };
 use zbus::{
-    Connection, MatchRule, MessageStream, match_rule,
-    message::Type,
-    proxy,
+    Connection, proxy,
     proxy::{Builder, CacheProperties, Defaults},
     zvariant::{ObjectPath, OwnedObjectPath, OwnedValue},
 };
 
-use crate::{network_connectivity::ReadingError, non_empty_text::non_empty};
+use crate::{
+    network_connectivity::ReadingError,
+    non_empty_text::non_empty,
+    system_protocol_clients::dbus_change_signals::{change_triggers, properties_changed_rule},
+};
 
 pub const SERVICE: &str = "org.freedesktop.NetworkManager";
 
@@ -1179,19 +1181,9 @@ pub async fn changes(
     connection: &Connection,
     watched_properties: &'static [&'static str],
 ) -> zbus::Result<impl Stream<Item = ()> + use<>> {
-    let streams = try_join_all(watched_properties.iter().map(|interface| async move {
-        let rule = properties_changed_rule(interface)?.build();
-        MessageStream::for_match_rule(rule, connection, Some(64)).await
-    }))
-    .await?;
-    Ok(stream::select_all(streams).map(|_| ()))
-}
-
-fn properties_changed_rule(interface: &str) -> zbus::Result<match_rule::Builder<'_>> {
-    MatchRule::builder()
-        .msg_type(Type::Signal)
-        .sender(SERVICE)?
-        .interface("org.freedesktop.DBus.Properties")?
-        .member("PropertiesChanged")?
-        .add_arg(interface)
+    let rules = watched_properties
+        .iter()
+        .map(|interface| properties_changed_rule(SERVICE, interface))
+        .collect::<zbus::Result<Vec<_>>>()?;
+    change_triggers(connection, rules).await
 }

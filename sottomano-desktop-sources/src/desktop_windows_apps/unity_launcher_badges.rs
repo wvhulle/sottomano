@@ -4,13 +4,12 @@ use std::{
 };
 
 use futures::{Stream, StreamExt, stream::select};
-use zbus::{
-    Connection, MatchRule, MessageStream, fdo::DBusProxy, message::Type, zvariant::OwnedValue,
-};
+use zbus::{Connection, MatchRule, fdo::DBusProxy, message::Type, zvariant::OwnedValue};
 
 use crate::{
     non_empty_text::non_empty,
     system_protocol_clients::{
+        dbus_change_signals::signal_messages,
         dbus_desktop_buses::{DbusPropertyLookup, DesktopBuses},
         protocol_peer_reconnects::subscribed,
     },
@@ -159,7 +158,7 @@ async fn connect(
         .interface(INTERFACE)?
         .member(UPDATE)?
         .build();
-    let updates = MessageStream::for_match_rule(update_rule, &connection, Some(16))
+    let updates = signal_messages(&connection, update_rule)
         .await?
         .filter_map(|message| async move { update_signal(&message.ok()?) });
     let owners = dbus

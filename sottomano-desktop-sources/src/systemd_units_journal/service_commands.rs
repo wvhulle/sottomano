@@ -4,10 +4,13 @@ use futures::{Stream, StreamExt, future::join_all};
 use futures_rx::RxExt;
 use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
-use super::{ManagerProxy, ServiceProxy, SystemdOnBus, manager_signal, signals_matching};
+use super::{ManagerProxy, ServiceProxy, SystemdOnBus, manager_signal};
 use crate::{
-    SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::ChangeTriggerStreams,
-    system_protocol_clients::protocol_peer_reconnects::subscribed,
+    SnapshotDelivery, SnapshotSource,
+    delivery_cadence_drivers::ChangeTriggerStreams,
+    system_protocol_clients::{
+        dbus_change_signals::change_triggers, protocol_peer_reconnects::subscribed,
+    },
 };
 
 const SERVICE_SUFFIX: &str = ".service";
@@ -120,7 +123,7 @@ async fn watch_service_commands(
         .build()
         .await?;
     manager.ensure_subscribed().await?;
-    let signals = signals_matching(
+    let signals = change_triggers(
         &connection,
         [
             manager_signal("UnitNew")?,
