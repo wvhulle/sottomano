@@ -1,0 +1,8 @@
+id: sleep-inside-loop
+valid:
+  - "async fn wait_once() { sleep(PAUSE).await; }"
+  - "fn timer() -> Task { Task::future(sleep(SWITCH_INTENT)) }"
+invalid:
+  - "async fn retry() { loop { if connect().await.is_ok() { break; } sleep(GAP).await; } }"
+  - "async fn attempts() { for _ in 0..3 { time::sleep(DELAY).await; } }"
+  - "fn poll() { while running() { thread::sleep(PERIOD); } }"

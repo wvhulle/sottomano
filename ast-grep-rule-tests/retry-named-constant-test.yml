@@ -1,0 +1,8 @@
+id: retry-named-constant
+valid:
+  - "const RECONNECT_HORIZON: TimeDelta = TimeDelta::minutes(10);"
+  - "const SAMPLE_GAP: Duration = Duration::from_millis(250);"
+invalid:
+  - "const RETRY_GAP: Duration = Duration::from_secs(5);"
+  - "const RECONNECT_ATTEMPTS: usize = 3;"
+  - "const LONGEST_BACKOFF: Duration = Duration::from_mins(30);"

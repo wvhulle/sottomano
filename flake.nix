@@ -150,6 +150,7 @@
       formatters = [
         pkgs.treefmt
         pkgs.nixfmt
+        pkgs.ast-grep
         (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml)
       ];
 
