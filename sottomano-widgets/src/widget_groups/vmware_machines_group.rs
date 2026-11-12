@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, convert::identity};
 
 use chrono::Locale;
 use iced::Subscription;
@@ -155,11 +155,6 @@ pub enum VmwareMachinesMessage {
     Probe(SnapshotDelivery<VmwareMachineProbe>),
     Listings(SnapshotDelivery<VmwareMachineListings>),
     Machines(SnapshotDelivery<VmwareMachines>),
-    Interaction(VmwareMachinesInteraction),
-}
-
-#[derive(Debug, Clone)]
-pub enum VmwareMachinesInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -186,13 +181,7 @@ impl VmwareMachinesGroup {
             VmwareMachinesMessage::Probe(delivery) => self.probe.receive(delivery, clock),
             VmwareMachinesMessage::Listings(delivery) => self.listings.receive(delivery, clock),
             VmwareMachinesMessage::Machines(delivery) => self.detail.receive(delivery, clock),
-            VmwareMachinesMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(&mut self, interaction: VmwareMachinesInteraction) {
-        match interaction {
-            VmwareMachinesInteraction::Expansion(expansion_message) => {
+            VmwareMachinesMessage::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
@@ -219,12 +208,12 @@ impl VmwareMachinesGroup {
             .hover_card_with(VmwareMachineListingRow { listing }.hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, VmwareMachinesInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let rows = self.machine_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::VmwareMachines,
             &self.expansion,
-            VmwareMachinesInteraction::Expansion,
+            identity,
             rows,
         )
         .face(WidgetGroupFace::IconColoredBy {
@@ -233,7 +222,7 @@ impl VmwareMachinesGroup {
         })
     }
 
-    fn machine_rows(&self) -> Vec<GroupItem<'_, VmwareMachinesInteraction>> {
+    fn machine_rows(&self) -> Vec<GroupItem<'_, WidgetGroupExpansionMessage>> {
         if let Some(detail) = self.detail.get() {
             return detail
                 .machines

@@ -353,24 +353,20 @@ impl IncusInstancesGroup {
                 tracing::warn!("incus instance state: {refusal}");
                 Task::none()
             }
-            IncusInstancesMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(&mut self, interaction: IncusInstancesInteraction) -> Task<IncusInstancesMessage> {
-        match interaction {
-            IncusInstancesInteraction::ChangeState {
+            IncusInstancesMessage::Interaction(IncusInstancesInteraction::ChangeState {
                 instance_daemon,
                 project_name,
                 instance_name,
                 state_change,
-            } => Task::future(async move {
+            }) => Task::future(async move {
                 change_instance_state(instance_daemon, &project_name, &instance_name, state_change)
                     .await
                     .err()
             })
             .and_then(|refusal| Task::done(IncusInstancesMessage::StateChangeRefused(refusal))),
-            IncusInstancesInteraction::Expansion(expansion_message) => {
+            IncusInstancesMessage::Interaction(IncusInstancesInteraction::Expansion(
+                expansion_message,
+            )) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }

@@ -3,7 +3,7 @@ mod claude_code_period_spend;
 mod claude_enterprise_credit_spend;
 mod claude_usage_window_gauge;
 
-use std::path::PathBuf;
+use std::{convert::identity, path::PathBuf};
 
 use chrono::WeekdaySet;
 use iced::{Subscription, Task};
@@ -76,11 +76,6 @@ pub enum ClaudeUsageMessage {
     CcusagePeriods(SnapshotDelivery<ClaudeCcusagePeriods>),
     CcusageBlock(SnapshotDelivery<ClaudeCcusageBlock>),
     CcusageModels(SnapshotDelivery<ClaudeCcusageModels>),
-    Interaction(ClaudeUsageInteraction),
-}
-
-#[derive(Debug, Clone)]
-pub enum ClaudeUsageInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -244,17 +239,11 @@ impl ClaudeUsageGroup {
             ClaudeUsageMessage::CcusageModels(reading) => {
                 self.ccusage_models.receive(reading, clock);
             }
-            ClaudeUsageMessage::Interaction(interaction) => self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: ClaudeUsageInteraction) {
-        match interaction {
-            ClaudeUsageInteraction::Expansion(expansion_message) => {
+            ClaudeUsageMessage::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
+        Task::none()
     }
 
     #[must_use]
@@ -303,11 +292,11 @@ impl ClaudeUsageGroup {
         )
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, ClaudeUsageInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::ClaudeUsage,
             &self.expansion,
-            ClaudeUsageInteraction::Expansion,
+            identity,
             [
                 self.usage_windows
                     .group_item(ClaudeUsageTarget::UsageWindows)

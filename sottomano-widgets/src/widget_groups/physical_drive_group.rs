@@ -199,22 +199,16 @@ impl PhysicalDriveGroup {
                     readings.drive_health.receive(reading, clock);
                 }
             }
-            DriveMessage::Interaction(interaction) => self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: DriveInteraction) {
-        match interaction {
-            DriveInteraction::DiscoveryExpansion(expansion) => {
+            DriveMessage::Interaction(DriveInteraction::DiscoveryExpansion(expansion)) => {
                 self.discovery_expansion.update(expansion);
             }
-            DriveInteraction::DiskExpansion { disk, expansion } => {
+            DriveMessage::Interaction(DriveInteraction::DiskExpansion { disk, expansion }) => {
                 if let Some(readings) = self.disks.get_mut(&disk) {
                     readings.expansion.update(expansion);
                 }
             }
         }
+        Task::none()
     }
 
     fn occupancy_inputs(&self, disk: &KernelDevice) -> DiskOccupancyInputs {

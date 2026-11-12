@@ -112,19 +112,16 @@ impl JournalEventsGroup {
             JournalEventsMessage::OomKills(delivery) => {
                 self.oom_kills.receive(delivery, clock);
             }
-            JournalEventsMessage::Interaction(interaction) => return self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: JournalEventsInteraction) -> Task<JournalEventsMessage> {
-        match interaction {
-            JournalEventsInteraction::OpenLog(journal) => journal.open(),
-            JournalEventsInteraction::Expansion(expansion_message) => {
+            JournalEventsMessage::Interaction(JournalEventsInteraction::OpenLog(journal)) => {
+                return journal.open();
+            }
+            JournalEventsMessage::Interaction(JournalEventsInteraction::Expansion(
+                expansion_message,
+            )) => {
                 self.expansion.update(expansion_message);
-                Task::none()
             }
         }
+        Task::none()
     }
 
     #[must_use]

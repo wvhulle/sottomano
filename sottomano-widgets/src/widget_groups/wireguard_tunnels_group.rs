@@ -93,24 +93,18 @@ impl WireguardTunnelsGroup {
             WireguardTunnelsMessage::TunnelAddressFetched(delivery) => {
                 self.tunnel_address.receive(delivery, clock);
             }
-            WireguardTunnelsMessage::Interaction(interaction) => return self.interact(interaction),
+            WireguardTunnelsMessage::Interaction(WireguardTunnelsInteraction::Expansion(
+                expansion_message,
+            )) => {
+                self.expansion.update(expansion_message);
+            }
+            WireguardTunnelsMessage::Interaction(WireguardTunnelsInteraction::SwitchTunnel(
+                wireguard_switch,
+            )) => {
+                return Task::future(switch_wireguard(wireguard_switch)).discard();
+            }
         }
         Task::none()
-    }
-
-    fn interact(
-        &mut self,
-        interaction: WireguardTunnelsInteraction,
-    ) -> Task<WireguardTunnelsMessage> {
-        match interaction {
-            WireguardTunnelsInteraction::Expansion(expansion_message) => {
-                self.expansion.update(expansion_message);
-                Task::none()
-            }
-            WireguardTunnelsInteraction::SwitchTunnel(wireguard_switch) => {
-                Task::future(switch_wireguard(wireguard_switch)).discard()
-            }
-        }
     }
 
     pub fn hover(

@@ -163,7 +163,16 @@ impl PowerGroup {
                 .power_profile
                 .update(profile_message, clock)
                 .map(PowerMessage::PowerProfile),
-            PowerMessage::Interaction(interaction) => self.interact(interaction),
+            PowerMessage::Interaction(PowerInteraction::PowerProfile(profile_interaction)) => self
+                .power_profile
+                .update(PowerProfileMessage::Interaction(profile_interaction), clock)
+                .map(PowerMessage::PowerProfile),
+            PowerMessage::Interaction(PowerInteraction::Expansion(expansion_message)) => {
+                if self.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
+                    self.power_profile.close();
+                }
+                Task::none()
+            }
         };
         let battery = self.battery.get();
         self.time = battery.and_then(|battery| {
@@ -171,21 +180,6 @@ impl PowerGroup {
                 .time_for(battery, self.power_profile.active_estimate())
         });
         task
-    }
-
-    fn interact(&mut self, interaction: PowerInteraction) -> Task<PowerMessage> {
-        match interaction {
-            PowerInteraction::PowerProfile(profile_interaction) => self
-                .power_profile
-                .interact(profile_interaction)
-                .map(PowerMessage::PowerProfile),
-            PowerInteraction::Expansion(expansion_message) => {
-                if self.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
-                    self.power_profile.close();
-                }
-                Task::none()
-            }
-        }
     }
 
     fn draw(&self) -> Option<PowerDraw> {

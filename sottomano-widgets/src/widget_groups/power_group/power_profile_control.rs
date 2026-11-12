@@ -169,23 +169,19 @@ impl PowerProfileControl {
                 self.profile_models = Some(models);
                 self.recompute();
             }
-            PowerProfileMessage::Interaction(interaction) => return self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    pub fn interact(&mut self, interaction: PowerProfileInteraction) -> Task<PowerProfileMessage> {
-        match interaction {
-            PowerProfileInteraction::Control(control_message) => {
-                match self.control.update(control_message) {
+            PowerProfileMessage::Interaction(PowerProfileInteraction::Control(control_message)) => {
+                return match self.control.update(control_message) {
                     Action::Commit(value) => commit_profile_switch(Profile::from_position(value)),
                     Action::Opened | Action::None | Action::Right | Action::Adjust(_) => {
                         Task::none()
                     }
-                }
+                };
             }
-            PowerProfileInteraction::SwitchToProfile(profile) => commit_profile_switch(profile),
+            PowerProfileMessage::Interaction(PowerProfileInteraction::SwitchToProfile(profile)) => {
+                return commit_profile_switch(profile);
+            }
         }
+        Task::none()
     }
 
     fn active_profile(&self) -> Option<Profile> {

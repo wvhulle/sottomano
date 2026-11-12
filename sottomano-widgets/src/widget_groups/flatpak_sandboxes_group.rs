@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, convert::identity};
 
 use chrono::Locale;
 use iced::Subscription;
@@ -167,11 +167,6 @@ pub enum FlatpakSandboxesMessage {
     Probe(SnapshotDelivery<FlatpakProbe>),
     Listings(SnapshotDelivery<FlatpakSandboxListings>),
     Sandboxes(SnapshotDelivery<FlatpakSandboxes>),
-    Interaction(FlatpakSandboxesInteraction),
-}
-
-#[derive(Debug, Clone)]
-pub enum FlatpakSandboxesInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -200,13 +195,7 @@ impl FlatpakSandboxesGroup {
             FlatpakSandboxesMessage::Sandboxes(delivery) => {
                 self.detail.receive(delivery, clock);
             }
-            FlatpakSandboxesMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(&mut self, interaction: FlatpakSandboxesInteraction) {
-        match interaction {
-            FlatpakSandboxesInteraction::Expansion(expansion_message) => {
+            FlatpakSandboxesMessage::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
@@ -233,12 +222,12 @@ impl FlatpakSandboxesGroup {
             .hover_card_with(FlatpakSandboxListingRow { listing }.hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, FlatpakSandboxesInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let rows = self.sandbox_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::FlatpakSandboxes,
             &self.expansion,
-            FlatpakSandboxesInteraction::Expansion,
+            identity,
             rows,
         )
         .face(WidgetGroupFace::IconColoredBy {
@@ -247,7 +236,7 @@ impl FlatpakSandboxesGroup {
         })
     }
 
-    fn sandbox_rows(&self) -> Vec<GroupItem<'_, FlatpakSandboxesInteraction>> {
+    fn sandbox_rows(&self) -> Vec<GroupItem<'_, WidgetGroupExpansionMessage>> {
         if let Some(detail) = self.detail.get() {
             return detail
                 .sandboxes

@@ -3,7 +3,7 @@ mod photo_credit;
 mod place_label;
 pub mod wallpaper_lookup;
 
-use std::path::PathBuf;
+use std::{convert::identity, path::PathBuf};
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
@@ -50,11 +50,6 @@ pub struct WallpaperGroup {
 #[derive(Debug)]
 pub enum WallpaperMessage {
     Lookup(Box<SnapshotDelivery<Lookup>>),
-    Interaction(WallpaperInteraction),
-}
-
-#[derive(Debug, Clone)]
-pub enum WallpaperInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -88,17 +83,11 @@ impl WallpaperGroup {
     pub fn update(&mut self, message: WallpaperMessage, clock: Clock) -> Task<WallpaperMessage> {
         match message {
             WallpaperMessage::Lookup(delivery) => self.lookup.receive(*delivery, clock),
-            WallpaperMessage::Interaction(interaction) => self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: WallpaperInteraction) {
-        match interaction {
-            WallpaperInteraction::Expansion(expansion_message) => {
+            WallpaperMessage::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
+        Task::none()
     }
 
     #[must_use]
@@ -117,12 +106,12 @@ impl WallpaperGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WallpaperInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let lookup = self.lookup.get();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Wallpaper,
             &self.expansion,
-            WallpaperInteraction::Expansion,
+            identity,
             [
                 self.lookup.group_item(WallpaperTarget::Lookup),
                 lookup

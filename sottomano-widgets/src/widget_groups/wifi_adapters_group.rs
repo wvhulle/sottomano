@@ -138,28 +138,28 @@ impl WifiAdaptersGroup {
             WifiAdaptersMessage::GatewayLatencies(delivery) => {
                 self.gateway_latencies.receive(delivery, clock);
             }
-            WifiAdaptersMessage::Interaction(interaction) => return self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: WifiAdaptersInteraction) -> Task<WifiAdaptersMessage> {
-        match interaction {
-            WifiAdaptersInteraction::ToggleAdapter(adapter_device) => logged_failure_task(
-                format!("toggle Wi-Fi adapter {adapter_device}"),
-                async move { toggle_wifi_adapter(&adapter_device).await },
-            ),
-            WifiAdaptersInteraction::ToggleAllRadios => {
-                logged_failure_task("toggle all Wi-Fi radios".to_owned(), toggle_wifi_radio())
+            WifiAdaptersMessage::Interaction(WifiAdaptersInteraction::ToggleAdapter(
+                adapter_device,
+            )) => {
+                return logged_failure_task(
+                    format!("toggle Wi-Fi adapter {adapter_device}"),
+                    async move { toggle_wifi_adapter(&adapter_device).await },
+                );
             }
-            WifiAdaptersInteraction::Expansion {
+            WifiAdaptersMessage::Interaction(WifiAdaptersInteraction::ToggleAllRadios) => {
+                return logged_failure_task(
+                    "toggle all Wi-Fi radios".to_owned(),
+                    toggle_wifi_radio(),
+                );
+            }
+            WifiAdaptersMessage::Interaction(WifiAdaptersInteraction::Expansion {
                 adapter_device,
                 expansion,
-            } => {
+            }) => {
                 self.expansions.update(&adapter_device, expansion);
-                Task::none()
             }
         }
+        Task::none()
     }
 
     fn observe_latest_snapshot(&mut self) {

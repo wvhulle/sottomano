@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, convert::identity};
 
 use chrono::Locale;
 use iced::Subscription;
@@ -171,11 +171,6 @@ pub enum LxcContainersMessage {
     Probe(SnapshotDelivery<LxcProbe>),
     Listings(SnapshotDelivery<LxcContainerListings>),
     Containers(SnapshotDelivery<LxcContainers>),
-    Interaction(LxcContainersInteraction),
-}
-
-#[derive(Debug, Clone)]
-pub enum LxcContainersInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -202,13 +197,7 @@ impl LxcContainersGroup {
             LxcContainersMessage::Probe(delivery) => self.probe.receive(delivery, clock),
             LxcContainersMessage::Listings(delivery) => self.listings.receive(delivery, clock),
             LxcContainersMessage::Containers(delivery) => self.detail.receive(delivery, clock),
-            LxcContainersMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(&mut self, interaction: LxcContainersInteraction) {
-        match interaction {
-            LxcContainersInteraction::Expansion(expansion_message) => {
+            LxcContainersMessage::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
@@ -235,12 +224,12 @@ impl LxcContainersGroup {
             .hover_card_with(LxcContainerListingRow { listing }.hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, LxcContainersInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let rows = self.container_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::LxcContainers,
             &self.expansion,
-            LxcContainersInteraction::Expansion,
+            identity,
             rows,
         )
         .face(WidgetGroupFace::IconColoredBy {
@@ -249,7 +238,7 @@ impl LxcContainersGroup {
         })
     }
 
-    fn container_rows(&self) -> Vec<GroupItem<'_, LxcContainersInteraction>> {
+    fn container_rows(&self) -> Vec<GroupItem<'_, WidgetGroupExpansionMessage>> {
         if let Some(detail) = self.detail.get() {
             return detail
                 .containers

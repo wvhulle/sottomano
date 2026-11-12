@@ -187,36 +187,33 @@ impl TailnetGroup {
             TailnetMessage::PolicyFileFetched(delivery) => {
                 self.policy_file_access.receive(delivery, clock);
             }
-            TailnetMessage::Interaction(interaction) => return self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: TailnetInteraction) -> Task<TailnetMessage> {
-        use sottomano_desktop_sources::blocking_background_work::blocking;
-        match interaction {
-            TailnetInteraction::Expansion(expansion_message) => {
+            TailnetMessage::Interaction(TailnetInteraction::Expansion(expansion_message)) => {
                 self.expansion.update(expansion_message);
-                Task::none()
             }
-            TailnetInteraction::SwitchTailscale(tailscale_switch) => {
-                Task::future(switch_tailscale(tailscale_switch)).then(|()| Self::refresh())
+            TailnetMessage::Interaction(TailnetInteraction::SwitchTailscale(tailscale_switch)) => {
+                return Task::future(switch_tailscale(tailscale_switch)).then(|()| Self::refresh());
             }
-            TailnetInteraction::SwitchExitOffer(exit_offer_switch) => {
-                Task::future(switch_exit_offer(exit_offer_switch)).then(|()| Self::refresh())
+            TailnetMessage::Interaction(TailnetInteraction::SwitchExitOffer(exit_offer_switch)) => {
+                return Task::future(switch_exit_offer(exit_offer_switch))
+                    .then(|()| Self::refresh());
             }
-            TailnetInteraction::SwitchExitRouting(exit_routing_switch) => {
-                Task::future(switch_exit_routing(exit_routing_switch)).then(|()| Self::refresh())
+            TailnetMessage::Interaction(TailnetInteraction::SwitchExitRouting(
+                exit_routing_switch,
+            )) => {
+                return Task::future(switch_exit_routing(exit_routing_switch))
+                    .then(|()| Self::refresh());
             }
-            TailnetInteraction::OpenAdminConsole => {
-                Task::future(blocking("tailscale admin", || {
+            TailnetMessage::Interaction(TailnetInteraction::OpenAdminConsole) => {
+                use sottomano_desktop_sources::blocking_background_work::blocking;
+                return Task::future(blocking("tailscale admin", || {
                     if let Err(open_failure) = open_admin() {
                         tracing::warn!("tailscale admin console: {open_failure}");
                     }
                 }))
-                .discard()
+                .discard();
             }
         }
+        Task::none()
     }
 
     pub fn hover(

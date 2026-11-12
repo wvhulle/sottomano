@@ -249,20 +249,13 @@ impl WaydroidContainerGroup {
                 tracing::warn!("{refusal}");
                 Task::none()
             }
-            WaydroidContainerMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(
-        &mut self,
-        interaction: WaydroidContainerInteraction,
-    ) -> Task<WaydroidContainerMessage> {
-        match interaction {
-            WaydroidContainerInteraction::StopContainer => {
+            WaydroidContainerMessage::Interaction(WaydroidContainerInteraction::StopContainer) => {
                 Task::future(async { stop_waydroid_container().await.err() })
                     .and_then(|refusal| Task::done(WaydroidContainerMessage::StopRefused(refusal)))
             }
-            WaydroidContainerInteraction::Expansion(expansion_message) => {
+            WaydroidContainerMessage::Interaction(WaydroidContainerInteraction::Expansion(
+                expansion_message,
+            )) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }

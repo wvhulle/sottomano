@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     collections::BTreeMap,
+    convert::identity,
     path::{Path, PathBuf},
 };
 
@@ -186,11 +187,6 @@ pub enum DockerEnginesMessage {
     Probe(PathBuf, SnapshotDelivery<DockerEngineProbe>),
     Listing(PathBuf, SnapshotDelivery<DockerEngineListing>),
     Engine(PathBuf, SnapshotDelivery<DockerEngineReadout>),
-    Interaction(DockerEnginesInteraction),
-}
-
-#[derive(Debug, Clone)]
-pub enum DockerEnginesInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -260,13 +256,7 @@ impl DockerEnginesGroup {
                     .or_default()
                     .receive(delivery, clock);
             }
-            DockerEnginesMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(&mut self, interaction: DockerEnginesInteraction) {
-        match interaction {
-            DockerEnginesInteraction::Expansion(expansion_message) => {
+            DockerEnginesMessage::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
@@ -317,12 +307,12 @@ impl DockerEnginesGroup {
             .hover_card_with(DockerEngineListingRow { engine, listing }.hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, DockerEnginesInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let rows = self.engine_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::DockerEngines,
             &self.expansion,
-            DockerEnginesInteraction::Expansion,
+            identity,
             rows,
         )
         .face(WidgetGroupFace::IconColoredBy {
@@ -331,7 +321,7 @@ impl DockerEnginesGroup {
         })
     }
 
-    fn engine_rows(&self) -> Vec<GroupItem<'_, DockerEnginesInteraction>> {
+    fn engine_rows(&self) -> Vec<GroupItem<'_, WidgetGroupExpansionMessage>> {
         let mut detailed_engines = 0;
         let mut rows = Vec::new();
         for engine in &self.engines {

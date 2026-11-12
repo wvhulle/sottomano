@@ -229,21 +229,18 @@ impl MicrovmGuestsGroup {
                 tracing::warn!("microvm power button: {refusal}");
                 Task::none()
             }
-            MicrovmGuestsMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(&mut self, interaction: MicrovmGuestsInteraction) -> Task<MicrovmGuestsMessage> {
-        match interaction {
-            MicrovmGuestsInteraction::PressPowerButton(hypervisor, api_socket) => {
-                Task::future(async move {
-                    press_guest_power_button(hypervisor, &api_socket)
-                        .await
-                        .err()
-                })
-                .and_then(|refusal| Task::done(MicrovmGuestsMessage::PowerButtonRefused(refusal)))
-            }
-            MicrovmGuestsInteraction::Expansion(expansion_message) => {
+            MicrovmGuestsMessage::Interaction(MicrovmGuestsInteraction::PressPowerButton(
+                hypervisor,
+                api_socket,
+            )) => Task::future(async move {
+                press_guest_power_button(hypervisor, &api_socket)
+                    .await
+                    .err()
+            })
+            .and_then(|refusal| Task::done(MicrovmGuestsMessage::PowerButtonRefused(refusal))),
+            MicrovmGuestsMessage::Interaction(MicrovmGuestsInteraction::Expansion(
+                expansion_message,
+            )) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }

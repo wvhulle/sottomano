@@ -246,25 +246,19 @@ impl StorageSpaceGroup {
                     filesystem.subvolume_usage.receive(*reading, clock);
                 }
             }
-            StorageMessage::Interaction(interaction) => self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: StorageInteraction) {
-        match interaction {
-            StorageInteraction::DiscoveryExpansion(expansion) => {
+            StorageMessage::Interaction(StorageInteraction::DiscoveryExpansion(expansion)) => {
                 self.discovery_expansion.update(expansion);
             }
-            StorageInteraction::MountExpansion {
+            StorageMessage::Interaction(StorageInteraction::MountExpansion {
                 mount_point,
                 expansion,
-            } => {
+            }) => {
                 if let Some(filesystem) = self.filesystems.get_mut(&mount_point) {
                     filesystem.expansion.update(expansion);
                 }
             }
         }
+        Task::none()
     }
 
     fn mount_group(filesystem: &MountedFilesystem) -> WidgetGroupContent<'_, StorageInteraction> {

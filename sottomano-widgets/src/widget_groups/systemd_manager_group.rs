@@ -204,24 +204,25 @@ impl SystemdManagerGroup {
             SystemdManagerMessage::LastShutdown(delivery) => {
                 self.last_shutdown.receive(delivery, clock);
             }
-            SystemdManagerMessage::Interaction(interaction) => return self.interact(interaction),
+            SystemdManagerMessage::Interaction(SystemdManagerInteraction::OpenLog(journal)) => {
+                return journal.open();
+            }
+            SystemdManagerMessage::Interaction(SystemdManagerInteraction::RestartFailedUnit(
+                restart,
+            )) => return Task::future(restart_failed_unit(restart)).discard(),
+            SystemdManagerMessage::Interaction(SystemdManagerInteraction::InspectCoredump(
+                command,
+            )) => return command.open(),
+            SystemdManagerMessage::Interaction(SystemdManagerInteraction::CopyToClipboard(
+                text,
+            )) => return copy_to_clipboard(text),
+            SystemdManagerMessage::Interaction(SystemdManagerInteraction::Expansion(
+                expansion_message,
+            )) => {
+                self.expansion.update(expansion_message);
+            }
         }
         Task::none()
-    }
-
-    fn interact(&mut self, interaction: SystemdManagerInteraction) -> Task<SystemdManagerMessage> {
-        match interaction {
-            SystemdManagerInteraction::OpenLog(journal) => journal.open(),
-            SystemdManagerInteraction::RestartFailedUnit(restart) => {
-                Task::future(restart_failed_unit(restart)).discard()
-            }
-            SystemdManagerInteraction::InspectCoredump(command) => command.open(),
-            SystemdManagerInteraction::CopyToClipboard(text) => copy_to_clipboard(text),
-            SystemdManagerInteraction::Expansion(expansion_message) => {
-                self.expansion.update(expansion_message);
-                Task::none()
-            }
-        }
     }
 
     #[must_use]

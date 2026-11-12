@@ -219,26 +219,17 @@ impl VirtualBoxMachinesGroup {
                 tracing::warn!("virtualbox power button: {refusal}");
                 Task::none()
             }
-            VirtualBoxMachinesMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(
-        &mut self,
-        interaction: VirtualBoxMachinesInteraction,
-    ) -> Task<VirtualBoxMachinesMessage> {
-        match interaction {
-            VirtualBoxMachinesInteraction::PressPowerButton(machine_reference) => {
-                Task::future(async move {
-                    press_virtualbox_power_button(&machine_reference)
-                        .await
-                        .err()
-                })
-                .and_then(|refusal| {
-                    Task::done(VirtualBoxMachinesMessage::PowerButtonRefused(refusal))
-                })
-            }
-            VirtualBoxMachinesInteraction::Expansion(expansion_message) => {
+            VirtualBoxMachinesMessage::Interaction(
+                VirtualBoxMachinesInteraction::PressPowerButton(machine_reference),
+            ) => Task::future(async move {
+                press_virtualbox_power_button(&machine_reference)
+                    .await
+                    .err()
+            })
+            .and_then(|refusal| Task::done(VirtualBoxMachinesMessage::PowerButtonRefused(refusal))),
+            VirtualBoxMachinesMessage::Interaction(VirtualBoxMachinesInteraction::Expansion(
+                expansion_message,
+            )) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }

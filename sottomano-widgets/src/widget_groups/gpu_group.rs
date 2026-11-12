@@ -283,19 +283,13 @@ impl GpuGroup {
             GpuMessage::ProcessesFetched(fetched) => {
                 self.processes.receive(fetched, clock);
             }
-            GpuMessage::Interaction(interaction) => self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: GpuInteraction) {
-        match interaction {
-            GpuInteraction::Expansion(bus, expansion_message) => {
+            GpuMessage::Interaction(GpuInteraction::Expansion(bus, expansion_message)) => {
                 if let Some(device) = self.devices.get_mut(&bus) {
                     device.expansion.update(expansion_message);
                 }
             }
         }
+        Task::none()
     }
 
     pub fn group_contents(&self) -> impl Iterator<Item = WidgetGroupContent<'_, GpuInteraction>> {

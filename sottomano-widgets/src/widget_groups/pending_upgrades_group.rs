@@ -83,17 +83,12 @@ impl PendingUpgradesGroup {
                 self.firmware.receive(upgrades, clock);
                 Task::none()
             }
-            PendingUpgradesMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(
-        &mut self,
-        interaction: PendingUpgradesInteraction,
-    ) -> Task<PendingUpgradesMessage> {
-        match interaction {
-            PendingUpgradesInteraction::OpenTerminal(terminal) => terminal.open(),
-            PendingUpgradesInteraction::Expansion(expansion_message) => {
+            PendingUpgradesMessage::Interaction(PendingUpgradesInteraction::OpenTerminal(
+                terminal,
+            )) => terminal.open(),
+            PendingUpgradesMessage::Interaction(PendingUpgradesInteraction::Expansion(
+                expansion_message,
+            )) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }

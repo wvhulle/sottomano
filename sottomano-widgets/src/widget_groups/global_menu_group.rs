@@ -416,7 +416,34 @@ impl GlobalMenuGroup {
                 Action::None
             }
             GlobalMenuMessage::SubmenusPrepared => Action::None,
-            GlobalMenuMessage::Interaction(interaction) => self.interact(interaction),
+            GlobalMenuMessage::Interaction(GlobalMenuInteraction::ToggleUse) => {
+                self.global_menu_use = self.global_menu_use.toggled();
+                if self.global_menu_use == GlobalMenuUse::Disabled {
+                    self.registered_menu_bars.clear();
+                    self.focused_menu_bar = FocusedMenuBar::NotExported;
+                    self.expansions.clear();
+                }
+                Action::Run(logged_failure_task(
+                    "singleton flag: save".to_owned(),
+                    sqlite_singleton_flag::save(self.global_menu_use),
+                ))
+            }
+            GlobalMenuMessage::Interaction(GlobalMenuInteraction::Expansion {
+                top_menu_label,
+                expansion_message,
+            }) => {
+                self.expansions.update(&top_menu_label, expansion_message);
+                Action::None
+            }
+            GlobalMenuMessage::Interaction(GlobalMenuInteraction::SwitchExpansion(
+                expansion_message,
+            )) => {
+                self.switch_expansion.update(expansion_message);
+                Action::None
+            }
+            GlobalMenuMessage::Interaction(GlobalMenuInteraction::ItemPressed(item_id)) => {
+                self.item_activation(item_id)
+            }
         }
     }
 
@@ -436,35 +463,6 @@ impl GlobalMenuGroup {
             );
         }
         self.focused_menu_bar = focused_menu_bar;
-    }
-
-    fn interact(&mut self, interaction: GlobalMenuInteraction) -> Action {
-        match interaction {
-            GlobalMenuInteraction::ToggleUse => {
-                self.global_menu_use = self.global_menu_use.toggled();
-                if self.global_menu_use == GlobalMenuUse::Disabled {
-                    self.registered_menu_bars.clear();
-                    self.focused_menu_bar = FocusedMenuBar::NotExported;
-                    self.expansions.clear();
-                }
-                Action::Run(logged_failure_task(
-                    "singleton flag: save".to_owned(),
-                    sqlite_singleton_flag::save(self.global_menu_use),
-                ))
-            }
-            GlobalMenuInteraction::Expansion {
-                top_menu_label,
-                expansion_message,
-            } => {
-                self.expansions.update(&top_menu_label, expansion_message);
-                Action::None
-            }
-            GlobalMenuInteraction::SwitchExpansion(expansion_message) => {
-                self.switch_expansion.update(expansion_message);
-                Action::None
-            }
-            GlobalMenuInteraction::ItemPressed(item_id) => self.item_activation(item_id),
-        }
     }
 
     fn item_activation(&self, item_id: i32) -> Action {

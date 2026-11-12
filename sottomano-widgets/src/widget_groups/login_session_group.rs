@@ -6,6 +6,8 @@ mod login_face;
 mod seat_face;
 mod service_manager_face;
 
+use std::convert::identity;
+
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -78,11 +80,6 @@ pub enum LoginSessionMessage {
     ServiceManagerFetched(SnapshotDelivery<UserServiceManager>),
     GraphicalFetched(SnapshotDelivery<GraphicalSession>),
     GraphicalTargetFetched(SnapshotDelivery<GraphicalSessionTarget>),
-    Interaction(LoginSessionInteraction),
-}
-
-#[derive(Debug, Clone)]
-pub enum LoginSessionInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -175,20 +172,14 @@ impl LoginSessionGroup {
             LoginSessionMessage::GraphicalTargetFetched(delivery) => {
                 self.graphical_target.receive(delivery, clock);
             }
-            LoginSessionMessage::Interaction(interaction) => self.interact(interaction),
+            LoginSessionMessage::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+            }
         }
         Task::none()
     }
 
-    fn interact(&mut self, interaction: LoginSessionInteraction) {
-        match interaction {
-            LoginSessionInteraction::Expansion(expansion) => {
-                self.expansion.update(expansion);
-            }
-        }
-    }
-
-    pub fn group_content(&self) -> WidgetGroupContent<'_, LoginSessionInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let items = self.identity.get().into_iter().flat_map(|identity| {
             [
                 GroupItem::reading(
@@ -212,7 +203,7 @@ impl LoginSessionGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::LoginSession,
             &self.expansion,
-            LoginSessionInteraction::Expansion,
+            identity,
             kernel.into_iter().chain(items),
         )
         .face(WidgetGroupFace::Icon {
