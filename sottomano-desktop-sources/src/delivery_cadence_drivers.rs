@@ -1,5 +1,4 @@
 use std::{
-    convert::identity,
     future::{Future, ready},
     pin::Pin,
     task::{Context, Poll, ready as ready_poll},
@@ -238,16 +237,24 @@ impl PeriodicPolling {
         Source: SnapshotSource + PartialEq,
         PollFuture: Future<Output = Result<Source, Source::Error>> + Send,
     {
-        self.poll_ticks()
-            .then(move |polling| {
-                let poll = poll.clone();
-                async move {
-                    SnapshotDelivery::SnapshotDelivered {
-                        snapshot_fetch: poll().await,
-                        delivery_cadence: DeliveryCadence::PeriodicPolling(polling),
+        stream::pending()
+            .paced_rereads(
+                Duration::ZERO,
+                move || {
+                    let polled = poll();
+                    async move {
+                        SnapshotDelivery::SnapshotDelivered {
+                            snapshot_fetch: polled.await,
+                            delivery_cadence: DeliveryCadence::PeriodicPolling(self),
+                        }
                     }
-                }
-            })
+                },
+                move |_| {
+                    RereadSchedule::RecheckAt(
+                        TokioClockInstant::now().into_std() + self.poll_period,
+                    )
+                },
+            )
             .repeats_as_unchanged()
     }
 
@@ -304,17 +311,14 @@ impl PeriodicPolling {
         self,
         snapshot: impl Fn() -> Source + Send + Clone + 'static,
     ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send {
-        stream::repeat_with(move || {
-            let snapshot = snapshot.clone();
-            async move {
-                sleep(until_next_boundary(Local::now(), self.poll_period)).await;
-                SnapshotDelivery::SnapshotDelivered {
-                    snapshot_fetch: Ok(snapshot()),
-                    delivery_cadence: DeliveryCadence::PeriodicPolling(self),
-                }
-            }
+        stream::unfold(snapshot, move |snapshot| async move {
+            sleep(until_next_boundary(Local::now(), self.poll_period)).await;
+            let delivered = SnapshotDelivery::SnapshotDelivered {
+                snapshot_fetch: Ok(snapshot()),
+                delivery_cadence: DeliveryCadence::PeriodicPolling(self),
+            };
+            Some((delivered, snapshot))
         })
-        .then(identity)
     }
 
     pub fn triggered_deliveries<Source, ReadFuture>(

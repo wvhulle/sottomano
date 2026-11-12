@@ -7,6 +7,7 @@ use std::{
 };
 
 use futures::{Stream, StreamExt, TryStreamExt, future::ready, stream};
+use futures_rx::RxExt;
 use icu_locale_core::Locale;
 use inotify::{Event, EventMask, Inotify, WatchDescriptor, WatchMask, Watches};
 use serde::Deserialize;
@@ -151,14 +152,12 @@ fn watch()
     let changes = inotify
         .into_event_stream([0u8; EVENT_BUFFER_BYTES])?
         .inspect_err(|e| tracing::warn!("wallpaper watch: {e}"))
-        .take_while(|event| ready(event.is_ok()))
-        .filter_map(|event| ready(event.ok()))
+        .scan((), |(), event| ready(event.ok()))
         .map(move |event| layout.change(&event))
-        .take_while(|change| ready(matches!(change, CacheChange::Wallpaper(_))))
-        .filter_map(|change| ready(change.wallpaper()));
+        .scan((), |(), change| ready(change.wallpaper()));
     Ok(stream::iter([WallpaperLookup::QueryDaemon])
         .chain(changes)
-        .then(wallpaper_path))
+        .switch_map(|lookup| stream::once(wallpaper_path(lookup))))
 }
 
 struct CacheLayout {

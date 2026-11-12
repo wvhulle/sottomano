@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use evdev::{AbsoluteAxisCode, BusType, Device, EventSummary, InputEvent, KeyCode};
+use evdev::{AbsoluteAxisCode, BusType, Device, EventStream, EventSummary, InputEvent, KeyCode};
 use futures::{Stream, StreamExt, stream};
 use futures_rx::RxExt;
 use sottomano_toml_config::widget_groups::gamepad_bindings::{GamepadButton, GamepadStick};
@@ -562,24 +562,32 @@ fn discovered_gamepads() -> Vec<DiscoveredGamepad> {
 fn gamepad_events(
     gamepad: &DiscoveredGamepad,
 ) -> impl Stream<Item = RawGamepadEvent> + Send + use<> {
-    let opened = Device::open(gamepad.input_node()).and_then(|device| {
-        let translator = GamepadEventTranslator::of_device(gamepad.slot, &device);
-        Ok((translator, device.into_event_stream()?))
-    });
-    match opened {
-        Ok((translator, events)) => events
-            .take_while(|event| ready(event.is_ok()))
-            .filter_map(|event| ready(event.ok()))
-            .scan(translator, |translator, event| {
+    let opened_device = Device::open(gamepad.input_node())
+        .and_then(|device| {
+            let translator = GamepadEventTranslator::of_device(gamepad.slot, &device);
+            Ok(OpenedGamepad {
+                translator,
+                events: device.into_event_stream()?,
+            })
+        })
+        .inspect_err(|open_failure| {
+            tracing::warn!("gamepad: cannot read {}: {open_failure}", gamepad.name);
+        })
+        .ok();
+    stream::iter(opened_device).flat_map(|opened_gamepad| {
+        opened_gamepad
+            .events
+            .scan((), |(), event| ready(event.ok()))
+            .scan(opened_gamepad.translator, |translator, event| {
                 ready(Some(stream::iter(translator.translate(event))))
             })
             .flatten()
-            .left_stream(),
-        Err(e) => {
-            tracing::warn!("gamepad: cannot read {}: {e}", gamepad.name);
-            stream::empty().right_stream()
-        }
-    }
+    })
+}
+
+struct OpenedGamepad {
+    translator: GamepadEventTranslator,
+    events: EventStream,
 }
 
 fn roster_with_refresh(
@@ -595,7 +603,7 @@ fn roster_with_refresh(
         let gamepads = gamepads.clone();
         PeriodicPolling::every(ROSTER_REFRESH)
             .poll_ticks()
-            .then(move |_| {
+            .map(move |_| {
                 let system_bus = system_bus.clone();
                 let gamepads = gamepads.clone();
                 async move {
@@ -611,6 +619,7 @@ fn roster_with_refresh(
                     )
                 }
             })
+            .buffered(1)
     })
 }
 
