@@ -1,3 +1,5 @@
+use std::convert::identity;
+
 use iced::{Subscription, Task};
 use sottomano_toml_config::Config;
 
@@ -75,11 +77,6 @@ pub enum WeatherMessage {
     PrecipitationModel(SnapshotDelivery<PrecipitationModel>),
     Pollen(SnapshotDelivery<Pollen>),
     Location(SnapshotDelivery<Location>),
-    Interaction(WeatherInteraction),
-}
-
-#[derive(Debug, Clone)]
-pub enum WeatherInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -129,17 +126,11 @@ impl WeatherGroup {
             WeatherMessage::Location(reading) => {
                 self.location.receive(reading, clock);
             }
-            WeatherMessage::Interaction(interaction) => self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: WeatherInteraction) {
-        match interaction {
-            WeatherInteraction::Expansion(expansion_message) => {
+            WeatherMessage::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
+        Task::none()
     }
 
     pub fn refresh(
@@ -238,7 +229,10 @@ impl WeatherGroup {
         }
     }
 
-    fn rain_item<'a>(&'a self, config: &'a Config) -> Option<GroupItem<'a, WeatherInteraction>> {
+    fn rain_item<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> Option<GroupItem<'a, WidgetGroupExpansionMessage>> {
         match self.rain_forecast(config) {
             Some(forecast) => Some(GroupItem::reading(forecast, WeatherTarget::Rain)),
             None => self
@@ -251,7 +245,7 @@ impl WeatherGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> WidgetGroupContent<'a, WeatherInteraction> {
+    ) -> WidgetGroupContent<'a, WidgetGroupExpansionMessage> {
         let airborne_items = self.pollen.get().into_iter().flat_map(|pollen| {
             pollen.airborne().map(|concentration| {
                 GroupItem::reading(
@@ -263,7 +257,7 @@ impl WeatherGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Weather,
             &self.expansion,
-            WeatherInteraction::Expansion,
+            identity,
             [
                 self.temperature.group_item(WeatherTarget::Temperature),
                 self.rain_item(config),

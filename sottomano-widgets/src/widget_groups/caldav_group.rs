@@ -1,7 +1,7 @@
 mod open_tasks_reading;
 mod upcoming_events_reading;
 
-use std::path::PathBuf;
+use std::{convert::identity, path::PathBuf};
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
@@ -57,11 +57,6 @@ pub struct CaldavGroup {
 pub enum CaldavMessage {
     UpcomingEvents(Box<SnapshotDelivery<UpcomingEventList>>),
     OpenTasks(Box<SnapshotDelivery<OpenTaskList>>),
-    Interaction(CaldavInteraction),
-}
-
-#[derive(Debug, Clone)]
-pub enum CaldavInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -120,17 +115,11 @@ impl CaldavGroup {
                 self.upcoming_events.receive(*delivery, clock);
             }
             CaldavMessage::OpenTasks(delivery) => self.open_tasks.receive(*delivery, clock),
-            CaldavMessage::Interaction(interaction) => self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: CaldavInteraction) {
-        match interaction {
-            CaldavInteraction::Expansion(expansion_message) => {
+            CaldavMessage::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
+        Task::none()
     }
 
     #[must_use]
@@ -168,7 +157,7 @@ impl CaldavGroup {
     pub fn group_content(
         &self,
         config: &CaldavAccountConfig,
-    ) -> WidgetGroupContent<'_, CaldavInteraction> {
+    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let upcoming_events_item = if self.account(config).is_some() {
             self.upcoming_events
                 .group_item_while_pending(CaldavTarget::UpcomingEvents)
@@ -179,7 +168,7 @@ impl CaldavGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Caldav,
             &self.expansion,
-            CaldavInteraction::Expansion,
+            identity,
             [
                 upcoming_events_item.map(GroupItem::previewed_on_handle),
                 self.open_tasks.group_item(CaldavTarget::OpenTasks),

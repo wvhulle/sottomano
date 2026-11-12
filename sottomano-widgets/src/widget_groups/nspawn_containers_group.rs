@@ -273,32 +273,22 @@ impl NspawnContainersGroup {
                     None => Task::none(),
                 }
             }
-            NspawnContainersMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(
-        &mut self,
-        interaction: NspawnContainersInteraction,
-    ) -> Task<NspawnContainersMessage> {
-        match interaction {
-            NspawnContainersInteraction::SwitchPressed(machine_name) => {
-                match self.service_switches.get_mut(&machine_name) {
-                    Some(service_switch) => {
-                        service_switch
-                            .unit_switch
-                            .press()
-                            .map(move |switch_message| {
-                                NspawnContainersMessage::Switch(
-                                    machine_name.clone(),
-                                    switch_message,
-                                )
-                            })
-                    }
-                    None => Task::none(),
+            NspawnContainersMessage::Interaction(NspawnContainersInteraction::SwitchPressed(
+                machine_name,
+            )) => match self.service_switches.get_mut(&machine_name) {
+                Some(service_switch) => {
+                    service_switch
+                        .unit_switch
+                        .press()
+                        .map(move |switch_message| {
+                            NspawnContainersMessage::Switch(machine_name.clone(), switch_message)
+                        })
                 }
-            }
-            NspawnContainersInteraction::Expansion(expansion_message) => {
+                None => Task::none(),
+            },
+            NspawnContainersMessage::Interaction(NspawnContainersInteraction::Expansion(
+                expansion_message,
+            )) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }

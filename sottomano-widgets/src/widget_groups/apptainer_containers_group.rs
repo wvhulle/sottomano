@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, convert::identity};
 
 use chrono::Locale;
 use iced::Subscription;
@@ -169,11 +169,6 @@ pub enum ApptainerContainersMessage {
     Probe(SnapshotDelivery<ApptainerProbe>),
     Listings(SnapshotDelivery<ApptainerContainerListings>),
     Containers(SnapshotDelivery<ApptainerContainers>),
-    Interaction(ApptainerContainersInteraction),
-}
-
-#[derive(Debug, Clone)]
-pub enum ApptainerContainersInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -209,13 +204,7 @@ impl ApptainerContainersGroup {
             ApptainerContainersMessage::Containers(delivery) => {
                 self.detail.receive(delivery, clock);
             }
-            ApptainerContainersMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(&mut self, interaction: ApptainerContainersInteraction) {
-        match interaction {
-            ApptainerContainersInteraction::Expansion(expansion_message) => {
+            ApptainerContainersMessage::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
@@ -239,7 +228,7 @@ impl ApptainerContainersGroup {
         &[]
     }
 
-    fn container_rows(&self) -> Vec<GroupItem<'_, ApptainerContainersInteraction>> {
+    fn container_rows(&self) -> Vec<GroupItem<'_, WidgetGroupExpansionMessage>> {
         let detailed = self.listed_containers();
         if !detailed.is_empty() {
             return detailed
@@ -292,12 +281,12 @@ impl ApptainerContainersGroup {
             .hover_card_with(ApptainerContainerListingRow { listing }.hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, ApptainerContainersInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let rows = self.container_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::ApptainerContainers,
             &self.expansion,
-            ApptainerContainersInteraction::Expansion,
+            identity,
             rows,
         )
         .face(WidgetGroupFace::IconColoredBy {

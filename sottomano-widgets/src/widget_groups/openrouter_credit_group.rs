@@ -2,7 +2,7 @@ mod best_models_within_cap;
 mod openrouter_soft_budget;
 mod strict_budget_remaining;
 
-use std::path::PathBuf;
+use std::{convert::identity, path::PathBuf};
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
@@ -63,11 +63,6 @@ pub enum OpenRouterCreditMessage {
     SoftBudget(SnapshotDelivery<OpenRouterSpend>),
     StrictBudget(SnapshotDelivery<OpenRouterStrictBudget>),
     ModelRankings(SnapshotDelivery<OpenRouterModelRankings>),
-    Interaction(OpenRouterCreditInteraction),
-}
-
-#[derive(Debug, Clone)]
-pub enum OpenRouterCreditInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -157,17 +152,11 @@ impl OpenRouterCreditGroup {
             OpenRouterCreditMessage::ModelRankings(reading) => {
                 self.model_rankings.receive(reading, clock);
             }
-            OpenRouterCreditMessage::Interaction(interaction) => self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: OpenRouterCreditInteraction) {
-        match interaction {
-            OpenRouterCreditInteraction::Expansion(expansion_message) => {
+            OpenRouterCreditMessage::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
+        Task::none()
     }
 
     fn model_ranking(&self) -> Option<ModelSpendRanking<'_, 3>> {
@@ -210,11 +199,11 @@ impl OpenRouterCreditGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, OpenRouterCreditInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::OpenRouterCredit,
             &self.expansion,
-            OpenRouterCreditInteraction::Expansion,
+            identity,
             [
                 self.spend
                     .group_item(OpenRouterCreditTarget::SoftBudget)

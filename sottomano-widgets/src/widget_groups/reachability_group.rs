@@ -1,3 +1,5 @@
+use std::convert::identity;
+
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::network_connectivity::network_manager_proxies::Metering;
 
@@ -75,11 +77,6 @@ pub enum ReachabilityMessage {
     Latency(SnapshotDelivery<InternetLatency>),
     Connectivity(SnapshotDelivery<UplinkConnectivity>),
     MeteredTotalsLoaded(Option<MeteredVolumeTotals>),
-    Interaction(ReachabilityInteraction),
-}
-
-#[derive(Debug, Clone)]
-pub enum ReachabilityInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -135,17 +132,11 @@ impl ReachabilityGroup {
                     clock.instant,
                 );
             }
-            ReachabilityMessage::Interaction(interaction) => self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: ReachabilityInteraction) {
-        match interaction {
-            ReachabilityInteraction::Expansion(expansion_message) => {
+            ReachabilityMessage::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
+        Task::none()
     }
 
     fn tally_metered_volume(
@@ -206,12 +197,12 @@ impl ReachabilityGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, ReachabilityInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let throughput = self.throughput.get();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Reachability,
             &self.expansion,
-            ReachabilityInteraction::Expansion,
+            identity,
             self.throughput
                 .group_item(ReachabilityTarget::Throughput)
                 .into_iter()

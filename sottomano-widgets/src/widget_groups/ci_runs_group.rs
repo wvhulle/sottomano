@@ -186,7 +186,12 @@ impl CiRunsGroup {
             CiRunsMessage::ForgejoRunner(runner_label, delivery) => {
                 self.forgejo_watches.receive(runner_label, delivery, clock);
             }
-            CiRunsMessage::Interaction(interaction) => return self.interact(interaction),
+            CiRunsMessage::Interaction(CiRunsInteraction::Expansion(expansion_message)) => {
+                self.expansion.update(expansion_message);
+            }
+            CiRunsMessage::Interaction(CiRunsInteraction::CancelRun(run_label, stop_control)) => {
+                return cancel_run_task(run_label, stop_control);
+            }
             CiRunsMessage::CancelAccepted(run_label) => {
                 tracing::info!("stopped the containers of CI run {run_label}");
             }
@@ -195,18 +200,6 @@ impl CiRunsGroup {
             }
         }
         Task::none()
-    }
-
-    fn interact(&mut self, interaction: CiRunsInteraction) -> Task<CiRunsMessage> {
-        match interaction {
-            CiRunsInteraction::Expansion(expansion_message) => {
-                self.expansion.update(expansion_message);
-                Task::none()
-            }
-            CiRunsInteraction::CancelRun(run_label, stop_control) => {
-                cancel_run_task(run_label, stop_control)
-            }
-        }
     }
 
     fn watched_runners(&self) -> Vec<WatchedCiRunner<'_>> {

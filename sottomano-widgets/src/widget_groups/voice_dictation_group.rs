@@ -244,19 +244,15 @@ impl VoiceDictationGroup {
                 .runtime
                 .update(message, clock)
                 .map(VoiceDictationMessage::Runtime),
-            VoiceDictationMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(&mut self, interaction: VoiceDictationInteraction) -> Task<VoiceDictationMessage> {
-        match interaction {
-            VoiceDictationInteraction::ToggleRecording => {
+            VoiceDictationMessage::Interaction(VoiceDictationInteraction::ToggleRecording) => {
                 Task::future(send_logged_dictation_command(DictationCommand::Toggle)).discard()
             }
-            VoiceDictationInteraction::RuntimePressed => {
+            VoiceDictationMessage::Interaction(VoiceDictationInteraction::RuntimePressed) => {
                 self.runtime.press().map(VoiceDictationMessage::Runtime)
             }
-            VoiceDictationInteraction::Expansion(expansion_message) => {
+            VoiceDictationMessage::Interaction(VoiceDictationInteraction::Expansion(
+                expansion_message,
+            )) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }

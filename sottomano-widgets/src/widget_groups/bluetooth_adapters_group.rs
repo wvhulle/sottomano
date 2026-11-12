@@ -120,24 +120,22 @@ impl BluetoothAdaptersGroup {
                 self.kernel_errors = kernel_errors;
                 Task::none()
             }
-            BluetoothMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(&mut self, interaction: BluetoothInteraction) -> Task<BluetoothMessage> {
-        match interaction {
-            BluetoothInteraction::ToggleAdapterPower(adapter) => logged_failure_task(
-                "toggle Bluetooth adapter".to_owned(),
-                toggle_adapter_power(adapter),
-            ),
-            BluetoothInteraction::Disconnect(device) => logged_failure_task(
-                "disconnect Bluetooth device".to_owned(),
-                disconnect_bluetooth_device(device),
-            ),
-            BluetoothInteraction::Expansion {
+            BluetoothMessage::Interaction(BluetoothInteraction::ToggleAdapterPower(adapter)) => {
+                logged_failure_task(
+                    "toggle Bluetooth adapter".to_owned(),
+                    toggle_adapter_power(adapter),
+                )
+            }
+            BluetoothMessage::Interaction(BluetoothInteraction::Disconnect(device)) => {
+                logged_failure_task(
+                    "disconnect Bluetooth device".to_owned(),
+                    disconnect_bluetooth_device(device),
+                )
+            }
+            BluetoothMessage::Interaction(BluetoothInteraction::Expansion {
                 controller_name,
                 expansion,
-            } => {
+            }) => {
                 self.expansions.update(&controller_name, expansion);
                 Task::none()
             }

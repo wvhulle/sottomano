@@ -356,17 +356,11 @@ impl MediaGroup {
                     session.cover_art = Some(CoverArt { url, handle });
                 }
             }
-            MediaMessage::Interaction(interaction) => return self.interact(interaction, clock),
-        }
-        Action::Run(Task::none())
-    }
-
-    fn interact(&mut self, interaction: MediaInteraction, clock: Clock) -> Action {
-        match interaction {
-            MediaInteraction::Player { bus, interaction } => {
-                self.update_player(&bus, interaction, clock)
+            MediaMessage::Interaction(MediaInteraction::Player { bus, interaction }) => {
+                return self.update_player(&bus, interaction, clock);
             }
         }
+        Action::Run(Task::none())
     }
 
     fn follow_players(&mut self, now: Instant) {

@@ -289,25 +289,21 @@ impl VirtualMachinesGroup {
                 tracing::warn!("virtual machine power off: {failure}");
                 Action::Run(Task::none())
             }
-            VirtualMachinesMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(&mut self, interaction: VirtualMachinesInteraction) -> Action {
-        match interaction {
-            VirtualMachinesInteraction::Expansion(expansion_message) => {
+            VirtualMachinesMessage::Interaction(VirtualMachinesInteraction::Expansion(
+                expansion_message,
+            )) => {
                 self.expansion.update(expansion_message);
                 Action::Run(Task::none())
             }
-            VirtualMachinesInteraction::FocusWindow(pid) => {
+            VirtualMachinesMessage::Interaction(VirtualMachinesInteraction::FocusWindow(pid)) => {
                 Action::FocusAppWindow(AppWindowFocus {
                     owner: WindowOwner::Process(pid.unsigned_abs()),
                     unmatched: VirtualMachinesMessage::WindowNotFound(pid),
                 })
             }
-            VirtualMachinesInteraction::PowerOff(power_control) => {
-                Action::Run(power_off_task(power_control))
-            }
+            VirtualMachinesMessage::Interaction(VirtualMachinesInteraction::PowerOff(
+                power_control,
+            )) => Action::Run(power_off_task(power_control)),
         }
     }
 

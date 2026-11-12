@@ -2,7 +2,7 @@ mod local_date;
 mod local_time;
 mod zone_time;
 
-use std::time::Duration;
+use std::{convert::identity, time::Duration};
 
 use chrono_tz::Tz;
 use iced::{Subscription, Task};
@@ -52,11 +52,6 @@ pub enum ClockMessage {
     Time(SnapshotDelivery<LocalTime>),
     Date(SnapshotDelivery<LocalDate>),
     Zone(Tz, SnapshotDelivery<ZoneTime>),
-    Interaction(ClockInteraction),
-}
-
-#[derive(Debug, Clone)]
-pub enum ClockInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -72,17 +67,11 @@ impl ClockGroup {
             ClockMessage::Zone(zone, reading) => {
                 self.zone_time_mut(zone).receive(reading, clock);
             }
-            ClockMessage::Interaction(interaction) => self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: ClockInteraction) {
-        match interaction {
-            ClockInteraction::Expansion(expansion_message) => {
+            ClockMessage::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
+        Task::none()
     }
 
     pub fn subscription(
@@ -145,11 +134,11 @@ impl ClockGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, ClockInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Clock,
             &self.expansion,
-            ClockInteraction::Expansion,
+            identity,
             [
                 self.time.group_item(ClockTarget::LocalTime),
                 self.date.group_item(ClockTarget::LocalDate),

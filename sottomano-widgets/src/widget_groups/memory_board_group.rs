@@ -5,6 +5,8 @@ mod module_temperature_reading;
 mod stall_pressure_label;
 mod swap_activity_gauge;
 
+use std::convert::identity;
+
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -82,11 +84,6 @@ pub enum MemoryBoardMessage {
     ModuleTemperatures(SnapshotDelivery<MemoryModuleTemperatures>),
     MemoryProcessesFetched(SnapshotDelivery<MemoryProcesses>),
     SwappedProcessesFetched(SnapshotDelivery<SwappedProcesses>),
-    Interaction(MemoryBoardInteraction),
-}
-
-#[derive(Debug, Clone)]
-pub enum MemoryBoardInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -161,20 +158,14 @@ impl MemoryBoardGroup {
             MemoryBoardMessage::SwappedProcessesFetched(fetched) => {
                 self.swapped_processes.receive(fetched, clock);
             }
-            MemoryBoardMessage::Interaction(interaction) => self.interact(interaction),
+            MemoryBoardMessage::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+            }
         }
         Task::none()
     }
 
-    fn interact(&mut self, interaction: MemoryBoardInteraction) {
-        match interaction {
-            MemoryBoardInteraction::Expansion(expansion_message) => {
-                self.expansion.update(expansion_message);
-            }
-        }
-    }
-
-    pub fn group_content(&self) -> WidgetGroupContent<'_, MemoryBoardInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let slot_items = self.hardware.get().into_iter().flat_map(|hardware| {
             let machine = &hardware.machine;
             hardware
@@ -214,7 +205,7 @@ impl MemoryBoardGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MemoryBoard,
             &self.expansion,
-            MemoryBoardInteraction::Expansion,
+            identity,
             [
                 self.memory.group_item(MemoryBoardTarget::Memory),
                 self.memory_growth.group_item(MemoryBoardTarget::Growth),

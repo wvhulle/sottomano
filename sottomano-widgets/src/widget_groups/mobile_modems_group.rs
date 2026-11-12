@@ -101,29 +101,25 @@ impl MobileModemsGroup {
                 self.mobile_modems.receive(delivery, clock);
                 self.observe_latest_snapshot();
             }
-            MobileModemsMessage::Interaction(interaction) => return self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: MobileModemsInteraction) -> Task<MobileModemsMessage> {
-        match interaction {
-            MobileModemsInteraction::ToggleModem(modem_path) => {
-                logged_failure_task(format!("toggle modem {modem_path}"), async move {
+            MobileModemsMessage::Interaction(MobileModemsInteraction::ToggleModem(modem_path)) => {
+                return logged_failure_task(format!("toggle modem {modem_path}"), async move {
                     toggle_mobile_modem(&modem_path).await
-                })
+                });
             }
-            MobileModemsInteraction::ToggleAllRadios => {
-                logged_failure_task("toggle all mobile radios".to_owned(), toggle_mobile_radio())
+            MobileModemsMessage::Interaction(MobileModemsInteraction::ToggleAllRadios) => {
+                return logged_failure_task(
+                    "toggle all mobile radios".to_owned(),
+                    toggle_mobile_radio(),
+                );
             }
-            MobileModemsInteraction::Expansion {
+            MobileModemsMessage::Interaction(MobileModemsInteraction::Expansion {
                 modem_path,
                 expansion,
-            } => {
+            }) => {
                 self.expansions.update(&modem_path, expansion);
-                Task::none()
             }
         }
+        Task::none()
     }
 
     fn observe_latest_snapshot(&mut self) {

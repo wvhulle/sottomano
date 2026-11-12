@@ -2,7 +2,7 @@ mod copilot_cli_monthly_spend;
 mod copilot_free_quota_count;
 mod copilot_quota_gauge;
 
-use std::path::PathBuf;
+use std::{convert::identity, path::PathBuf};
 
 use chrono::WeekdaySet;
 use iced::{Subscription, Task};
@@ -62,11 +62,6 @@ pub enum CopilotUsageMessage {
     Metered(SnapshotDelivery<CopilotMetered>),
     Free(SnapshotDelivery<CopilotFree>),
     Cli(SnapshotDelivery<CopilotCcusage>),
-    Interaction(CopilotUsageInteraction),
-}
-
-#[derive(Debug, Clone)]
-pub enum CopilotUsageInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -144,17 +139,11 @@ impl CopilotUsageGroup {
             CopilotUsageMessage::Metered(reading) => self.metered.receive(reading, clock),
             CopilotUsageMessage::Free(reading) => self.free.receive(reading, clock),
             CopilotUsageMessage::Cli(reading) => self.cli.receive(reading, clock),
-            CopilotUsageMessage::Interaction(interaction) => self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: CopilotUsageInteraction) {
-        match interaction {
-            CopilotUsageInteraction::Expansion(expansion_message) => {
+            CopilotUsageMessage::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
+        Task::none()
     }
 
     #[must_use]
@@ -183,11 +172,11 @@ impl CopilotUsageGroup {
         )
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, CopilotUsageInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::CopilotUsage,
             &self.expansion,
-            CopilotUsageInteraction::Expansion,
+            identity,
             [
                 self.metered
                     .group_item(CopilotUsageTarget::Metered)

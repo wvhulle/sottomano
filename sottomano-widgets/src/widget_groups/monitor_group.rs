@@ -128,25 +128,19 @@ impl MonitorGroup {
                 .clight
                 .update(m, clock)
                 .map(MonitorMessage::AutoBrightness),
-            MonitorMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(&mut self, interaction: MonitorInteraction) -> Task<MonitorMessage> {
-        match interaction {
-            MonitorInteraction::Expansion(WidgetGroupExpansionMessage::HandleScrolled(delta)) => {
-                self.scroll_all_backlights(delta)
-            }
-            MonitorInteraction::Expansion(expansion_message) => {
+            MonitorMessage::Interaction(MonitorInteraction::Expansion(
+                WidgetGroupExpansionMessage::HandleScrolled(delta),
+            )) => self.scroll_all_backlights(delta),
+            MonitorMessage::Interaction(MonitorInteraction::Expansion(expansion_message)) => {
                 if self.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
                     self.close_controls();
                 }
                 Task::none()
             }
-            MonitorInteraction::Backlight(serial, control_message) => {
+            MonitorMessage::Interaction(MonitorInteraction::Backlight(serial, control_message)) => {
                 self.update_backlight(serial, control_message)
             }
-            MonitorInteraction::AutoBrightnessPressed => {
+            MonitorMessage::Interaction(MonitorInteraction::AutoBrightnessPressed) => {
                 self.clight.press().map(MonitorMessage::AutoBrightness)
             }
         }

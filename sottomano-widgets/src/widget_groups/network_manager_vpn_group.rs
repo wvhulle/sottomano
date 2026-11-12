@@ -92,22 +92,15 @@ impl NetworkManagerVpnGroup {
                 self.network_manager_vpns.receive(delivery, clock);
                 Task::none()
             }
-            NetworkManagerVpnMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(
-        &mut self,
-        interaction: NetworkManagerVpnInteraction,
-    ) -> Task<NetworkManagerVpnMessage> {
-        match interaction {
-            NetworkManagerVpnInteraction::Expansion(expansion_message) => {
+            NetworkManagerVpnMessage::Interaction(NetworkManagerVpnInteraction::Expansion(
+                expansion_message,
+            )) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }
-            NetworkManagerVpnInteraction::SwitchVpn(vpn_switch) => {
-                Task::future(switch_vpn(vpn_switch)).discard()
-            }
+            NetworkManagerVpnMessage::Interaction(NetworkManagerVpnInteraction::SwitchVpn(
+                vpn_switch,
+            )) => Task::future(switch_vpn(vpn_switch)).discard(),
         }
     }
 

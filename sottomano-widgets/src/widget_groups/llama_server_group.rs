@@ -204,21 +204,15 @@ impl LlamaServerGroup {
                 self.base_model_card.receive(delivery, clock);
                 Task::none()
             }
-            LlamaServerMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(&mut self, interaction: LlamaServerInteraction) -> Task<LlamaServerMessage> {
-        match interaction {
-            LlamaServerInteraction::User(interaction) => self
+            LlamaServerMessage::Interaction(LlamaServerInteraction::User(interaction)) => self
                 .user
                 .interact(interaction)
                 .map(LlamaServerMessage::User),
-            LlamaServerInteraction::System(interaction) => self
+            LlamaServerMessage::Interaction(LlamaServerInteraction::System(interaction)) => self
                 .system
                 .interact(interaction)
                 .map(LlamaServerMessage::System),
-            LlamaServerInteraction::Expansion(message) => {
+            LlamaServerMessage::Interaction(LlamaServerInteraction::Expansion(message)) => {
                 self.expansion.update(message);
                 Task::none()
             }

@@ -433,20 +433,14 @@ impl GamepadGroup {
                 }
                 Action::Idle
             }
-            GamepadMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(&mut self, interaction: GamepadInteraction) -> Action {
-        match interaction {
-            GamepadInteraction::DisconnectBluetooth { slot } => self
+            GamepadMessage::Interaction(GamepadInteraction::DisconnectBluetooth { slot }) => self
                 .bluetooth_address(slot)
                 .map_or(Action::Idle, |hardware_address| {
                     Action::DisconnectBluetooth {
                         hardware_address: hardware_address.to_owned(),
                     }
                 }),
-            GamepadInteraction::ToggleCompositorDriving { slot } => {
+            GamepadMessage::Interaction(GamepadInteraction::ToggleCompositorDriving { slot }) => {
                 let Some(key) = self.physical_link(slot).map(controller_custody_key) else {
                     return Action::Idle;
                 };
@@ -456,11 +450,13 @@ impl GamepadGroup {
                 }
                 Action::SaveDrivingControllers(self.compositor_driving_controllers.clone())
             }
-            GamepadInteraction::Expansion { slot, expansion } => {
+            GamepadMessage::Interaction(GamepadInteraction::Expansion { slot, expansion }) => {
                 self.expansions.update(&slot, expansion);
                 Action::Idle
             }
-            GamepadInteraction::ControllerDiscoveryExpansion(expansion) => {
+            GamepadMessage::Interaction(GamepadInteraction::ControllerDiscoveryExpansion(
+                expansion,
+            )) => {
                 self.controller_discovery_expansion.update(expansion);
                 Action::Idle
             }

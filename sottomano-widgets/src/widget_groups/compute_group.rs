@@ -216,22 +216,17 @@ impl ComputeGroup {
             ComputeMessage::CpuPowerDraw(reading) => {
                 self.cpu_power_draw.receive(reading, clock);
             }
-            ComputeMessage::Interaction(interaction) => return self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: ComputeInteraction) -> Task<ComputeMessage> {
-        match interaction {
-            ComputeInteraction::X3dCachePreferencePressed => self
-                .x3d_cache_preference
-                .press()
-                .map(ComputeMessage::X3dCachePreference),
-            ComputeInteraction::Expansion(expansion_message) => {
+            ComputeMessage::Interaction(ComputeInteraction::X3dCachePreferencePressed) => {
+                return self
+                    .x3d_cache_preference
+                    .press()
+                    .map(ComputeMessage::X3dCachePreference);
+            }
+            ComputeMessage::Interaction(ComputeInteraction::Expansion(expansion_message)) => {
                 self.expansion.update(expansion_message);
-                Task::none()
             }
         }
+        Task::none()
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, ComputeInteraction> {

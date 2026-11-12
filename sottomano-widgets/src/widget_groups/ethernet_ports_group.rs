@@ -145,26 +145,20 @@ impl EthernetPortsGroup {
             EthernetPortsMessage::GatewayLatencies(delivery) => {
                 self.gateway_latencies.receive(delivery, clock);
             }
-            EthernetPortsMessage::Interaction(interaction) => return self.interact(interaction),
-        }
-        Task::none()
-    }
-
-    fn interact(&mut self, interaction: EthernetPortsInteraction) -> Task<EthernetPortsMessage> {
-        match interaction {
-            EthernetPortsInteraction::TogglePort(port_name) => {
-                logged_failure_task(format!("toggle Ethernet port {port_name}"), async move {
-                    toggle_ethernet_port(&port_name).await
-                })
+            EthernetPortsMessage::Interaction(EthernetPortsInteraction::TogglePort(port_name)) => {
+                return logged_failure_task(
+                    format!("toggle Ethernet port {port_name}"),
+                    async move { toggle_ethernet_port(&port_name).await },
+                );
             }
-            EthernetPortsInteraction::Expansion {
+            EthernetPortsMessage::Interaction(EthernetPortsInteraction::Expansion {
                 port_name,
                 expansion,
-            } => {
+            }) => {
                 self.expansions.update(&port_name, expansion);
-                Task::none()
             }
         }
+        Task::none()
     }
 
     fn observe_latest_snapshot(&mut self) {

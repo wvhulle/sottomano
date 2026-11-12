@@ -120,15 +120,9 @@ impl WindowGroup {
             WindowGroupMessage::WindowList(window_list_message) => {
                 Action::WindowList(self.window_list.update(window_list_message, clock))
             }
-            WindowGroupMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(&mut self, interaction: WindowGroupInteraction) -> Action {
-        match interaction {
-            WindowGroupInteraction::WindowList(window_list_interaction) => {
-                Action::WindowList(self.window_list.interact(window_list_interaction))
-            }
+            WindowGroupMessage::Interaction(WindowGroupInteraction::WindowList(
+                window_list_interaction,
+            )) => Action::WindowList(self.window_list.interact(window_list_interaction)),
         }
     }
 

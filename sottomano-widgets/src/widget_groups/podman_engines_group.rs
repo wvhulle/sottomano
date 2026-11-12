@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::BTreeMap, path::PathBuf};
+use std::{borrow::Cow, collections::BTreeMap, convert::identity, path::PathBuf};
 
 use chrono::Locale;
 use iced::{Subscription, alignment::Horizontal};
@@ -154,11 +154,6 @@ pub struct PodmanEnginesGroup {
 pub enum PodmanEnginesMessage {
     Services(ScopedServiceCommands),
     Engine(PathBuf, SnapshotDelivery<EngineReadout>),
-    Interaction(PodmanEnginesInteraction),
-}
-
-#[derive(Debug, Clone)]
-pub enum PodmanEnginesInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -207,13 +202,7 @@ impl PodmanEnginesGroup {
                     .or_default()
                     .receive(delivery, clock);
             }
-            PodmanEnginesMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(&mut self, interaction: PodmanEnginesInteraction) {
-        match interaction {
-            PodmanEnginesInteraction::Expansion(expansion_message) => {
+            PodmanEnginesMessage::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
@@ -233,7 +222,7 @@ impl PodmanEnginesGroup {
         reading.hover_card_with(row.hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, PodmanEnginesInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let rows = self.engines.iter().filter_map(|engine| {
             let readout = self.readouts.get(&engine.socket_path)?.get()?;
             let socket_missing = matches!(
@@ -250,7 +239,7 @@ impl PodmanEnginesGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PodmanEngines,
             &self.expansion,
-            PodmanEnginesInteraction::Expansion,
+            identity,
             rows,
         )
         .face(WidgetGroupFace::Icon {

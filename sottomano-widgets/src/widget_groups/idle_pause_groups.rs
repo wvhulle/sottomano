@@ -224,20 +224,17 @@ impl IdlePauseGroups {
                 self.refresh_pause_blockers();
                 Task::none()
             }
-            IdlePauseMessage::Interaction(interaction) => self.interact(interaction),
-        }
-    }
-
-    fn interact(&mut self, interaction: IdlePauseInteraction) -> Task<IdlePauseMessage> {
-        match interaction {
-            IdlePauseInteraction::Expansion(kind, expansion_message) => {
+            IdlePauseMessage::Interaction(IdlePauseInteraction::Expansion(
+                kind,
+                expansion_message,
+            )) => {
                 let pause = self.pause_mut(kind);
                 if pause.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
                     pause.timer.close();
                 }
                 Task::none()
             }
-            IdlePauseInteraction::Timer(kind, control_message) => {
+            IdlePauseMessage::Interaction(IdlePauseInteraction::Timer(kind, control_message)) => {
                 match self.pause_mut(kind).timer.update(control_message) {
                     TimerChange::None => Task::none(),
                     TimerChange::Opened => {
