@@ -6,12 +6,14 @@ use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{
     JobRow, ManagerProxy, ServiceProxy, SystemdOnBus, SystemdUnitScope, manager_signal,
-    signals_matching, state_changed_at,
+    state_changed_at,
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::{ChangeTriggerStreams, RereadSchedule},
-    system_protocol_clients::protocol_peer_reconnects::subscribed,
+    system_protocol_clients::{
+        dbus_change_signals::change_triggers, protocol_peer_reconnects::subscribed,
+    },
 };
 
 const RUNNING_JOB_STATE: &str = "running";
@@ -99,7 +101,7 @@ async fn watch_running_jobs(
         .build()
         .await?;
     manager.ensure_subscribed().await?;
-    let job_signals = signals_matching(
+    let job_signals = change_triggers(
         &connection,
         [manager_signal("JobNew")?, manager_signal("JobRemoved")?],
     )

@@ -22,11 +22,10 @@ pub mod wireguard_tunnels;
 
 use std::{collections::HashMap, future::Future, sync::Arc};
 
-use futures::{Stream, StreamExt, stream::select};
+use futures::{Stream, StreamExt};
 use zbus::{
-    Connection, MatchRule, MessageStream,
+    Connection,
     fdo::{ManagedObjects, ObjectManagerProxy},
-    message::Type,
     names::OwnedInterfaceName,
 };
 
@@ -35,6 +34,7 @@ use crate::{
     backing_service_availability::AvailabilityStreams,
     delivery_cadence_drivers::ChangeTriggerStreams,
     system_protocol_clients::{
+        dbus_change_signals::object_manager_changes,
         dbus_desktop_buses::{Properties, name_owned},
         protocol_peer_reconnects::subscribed,
     },
@@ -129,13 +129,7 @@ async fn subscribe_managed_objects<T: Send + 'static>(
     reading: fn(&ManagedObjects) -> Option<T>,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<Option<T>>>> {
     let objects = Arc::new(ObjectManagerProxy::new(&connection, service, path).await?);
-    let signals = select(
-        select(
-            objects.receive_interfaces_added().await?.map(|_| ()),
-            objects.receive_interfaces_removed().await?.map(|_| ()),
-        ),
-        properties_changed(&connection, service).await?.map(|_| ()),
-    );
+    let signals = object_manager_changes(&connection, service, path).await?;
     let readings = signals.triggered_rereads(move || {
         let objects = objects.clone();
         async move {
@@ -147,36 +141,6 @@ async fn subscribe_managed_objects<T: Send + 'static>(
         }
     });
     Ok(device_readings(readings))
-}
-
-pub async fn properties_changed(
-    connection: &Connection,
-    service: &'static str,
-) -> zbus::Result<MessageStream> {
-    let rule = MatchRule::builder()
-        .msg_type(Type::Signal)
-        .sender(service)?
-        .interface("org.freedesktop.DBus.Properties")?
-        .member("PropertiesChanged")?
-        .build();
-    MessageStream::for_match_rule(rule, connection, Some(64)).await
-}
-
-pub async fn interface_properties_changed(
-    connection: &Connection,
-    service: &'static str,
-    interface: &'static str,
-) -> zbus::Result<impl Stream<Item = ()> + Send + use<>> {
-    let rule = MatchRule::builder()
-        .msg_type(Type::Signal)
-        .sender(service)?
-        .interface("org.freedesktop.DBus.Properties")?
-        .member("PropertiesChanged")?
-        .add_arg(interface)?
-        .build();
-    Ok(MessageStream::for_match_rule(rule, connection, Some(64))
-        .await?
-        .map(|_| ()))
 }
 
 #[must_use]

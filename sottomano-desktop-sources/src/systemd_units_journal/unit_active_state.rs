@@ -4,13 +4,15 @@ use futures::{Stream, StreamExt, stream};
 use tokio::select;
 
 use super::{
-    ManagerProxy, SystemdUnitOnBus, UNIT_INTERFACE, UnitProxy, connect_systemd_bus,
-    signals_matching, systemd_signal,
+    ManagerProxy, SystemdUnitOnBus, UNIT_INTERFACE, UnitProxy, connect_systemd_bus, systemd_signal,
 };
 use crate::{
-    SnapshotDelivery, SnapshotSource, backing_service_availability::Availability,
+    SnapshotDelivery, SnapshotSource,
+    backing_service_availability::Availability,
     delivery_cadence_drivers::ChangeTriggerStreams,
-    system_protocol_clients::protocol_peer_reconnects::subscribed,
+    system_protocol_clients::{
+        dbus_change_signals::change_triggers, protocol_peer_reconnects::subscribed,
+    },
     systemd_units_journal::SystemdUnitScope,
 };
 
@@ -117,7 +119,7 @@ async fn activity_changes(
         .path(unit_path.clone())?
         .build()
         .await?;
-    let changes = signals_matching(
+    let changes = change_triggers(
         &connection,
         [systemd_signal()?
             .path(unit_path)?

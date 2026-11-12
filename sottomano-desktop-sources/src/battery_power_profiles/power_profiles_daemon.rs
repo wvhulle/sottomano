@@ -1,6 +1,6 @@
-use std::time::Duration;
+use std::{future::ready, time::Duration};
 
-use futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt};
 use zbus::{Connection, proxy};
 
 use crate::{
@@ -8,10 +8,10 @@ use crate::{
     backing_service_availability::AvailabilityStreams,
     cpu_memory_compute::cpu_core_loads,
     delivery_cadence_drivers::{ChangeTriggerStreams, PeriodicPolling},
-    network_connectivity::interface_properties_changed,
     non_empty_text::non_empty,
     screen_brightness_color::clightd_backlight,
     system_protocol_clients::{
+        dbus_change_signals::{change_triggers, properties_changed_rule},
         dbus_desktop_buses::{
             self, DbusPropertyLookup, DesktopBuses, Properties, name_owned, prop,
         },
@@ -195,16 +195,19 @@ impl SnapshotSource for ProfileStatus {
 }
 
 pub fn active_profile_changes(system: zbus::Connection) -> impl Stream<Item = ()> + Send {
-    stream::once(async move {
-        match interface_properties_changed(&system, DAEMON_SERVICE, DAEMON_SERVICE).await {
-            Ok(changes) => changes.left_stream(),
-            Err(failure) => {
-                tracing::debug!("power profiles: no daemon to follow: {failure}");
-                stream::empty().right_stream()
-            }
-        }
+    subscribed(system, |system| async move {
+        let rules = [properties_changed_rule(DAEMON_SERVICE, DAEMON_SERVICE)?];
+        Ok::<_, zbus::Error>(change_triggers(&system, rules).await?.map(Ok))
     })
-    .flatten()
+    .filter_map(|change| {
+        ready(
+            change
+                .inspect_err(|failure| {
+                    tracing::debug!("power profiles: no daemon to follow: {failure}")
+                })
+                .ok(),
+        )
+    })
 }
 
 async fn status_changes(
@@ -214,7 +217,11 @@ async fn status_changes(
     dbus_desktop_buses::Error,
 > {
     let daemon = PowerProfilesProxy::new(&system).await?;
-    let changes = interface_properties_changed(&system, DAEMON_SERVICE, DAEMON_SERVICE).await?;
+    let changes = change_triggers(
+        &system,
+        [properties_changed_rule(DAEMON_SERVICE, DAEMON_SERVICE)?],
+    )
+    .await?;
     Ok(changes.triggered_rereads(move || {
         let daemon = daemon.clone();
         async move { read_status(&daemon).await }

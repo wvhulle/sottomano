@@ -1,6 +1,6 @@
 use std::{collections::HashMap, future::ready, path::Path, time::Duration};
 
-use futures::{Stream, StreamExt, stream::select};
+use futures::{Stream, StreamExt};
 use zbus::{
     Connection,
     fdo::{ManagedObjects, ObjectManagerProxy},
@@ -18,9 +18,9 @@ use crate::{
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::{
         hid_sysfs_bluetooth_peripherals::hid_peripherals_with_address, interface,
-        properties_changed,
     },
     system_protocol_clients::{
+        dbus_change_signals::object_manager_changes,
         dbus_desktop_buses::{DesktopBuses, Properties, name_owned, prop},
         protocol_peer_reconnects::subscribed,
         sysfs_attribute_reads::read_trimmed,
@@ -285,14 +285,7 @@ pub async fn read_bluetooth(connection: Connection) -> zbus::Result<Bluetooth> {
 }
 
 async fn bluez_object_signals(connection: Connection) -> zbus::Result<impl Stream<Item = ()>> {
-    let objects = ObjectManagerProxy::new(&connection, SERVICE, ROOT).await?;
-    Ok(select(
-        select(
-            objects.receive_interfaces_added().await?.map(drop),
-            objects.receive_interfaces_removed().await?.map(drop),
-        ),
-        properties_changed(&connection, SERVICE).await?.map(drop),
-    ))
+    object_manager_changes(&connection, SERVICE, ROOT).await
 }
 
 impl SnapshotSource for Bluetooth {

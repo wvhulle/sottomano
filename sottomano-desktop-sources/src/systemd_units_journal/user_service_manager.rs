@@ -6,10 +6,11 @@ use crate::{
     SnapshotDelivery, SnapshotSource, SourceCaption,
     delivery_cadence_drivers::ChangeTriggerStreams,
     host_machine_identity::hostname1_os_identity::at_micros,
-    system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
-    systemd_units_journal::{
-        ManagerProxy, UNIT_INTERFACE, manager_signal, signals_matching, systemd_signal,
+    system_protocol_clients::{
+        dbus_change_signals::change_triggers,
+        dbus_desktop_buses::{self, DesktopBuses},
     },
+    systemd_units_journal::{ManagerProxy, UNIT_INTERFACE, manager_signal, systemd_signal},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,7 +50,7 @@ async fn manager_state_changes(
         state: manager.system_state().await?,
         started_at: at_micros(manager.userspace_timestamp().await?),
     };
-    let state_triggers = signals_matching(
+    let state_triggers = change_triggers(
         &buses.session,
         [
             manager_signal("StartupFinished")?,

@@ -12,10 +12,13 @@ use uom::si::{
 };
 use zbus::proxy::CacheProperties;
 
-use super::{ManagerProxy, UnitRow, manager_signal, signals_matching, unit_proxy};
+use super::{ManagerProxy, UnitRow, manager_signal, unit_proxy};
 use crate::{
-    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking,
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    SnapshotDelivery, SnapshotSource,
+    blocking_background_work::blocking,
+    system_protocol_clients::{
+        dbus_change_signals::change_triggers, dbus_desktop_buses::DesktopBuses,
+    },
     systemd_units_journal::journal_startup_history::read_previous_os_startup,
 };
 
@@ -406,7 +409,7 @@ async fn finished_startup(
         .build()
         .await?;
     let mut startup_finished =
-        signals_matching(&connection, [manager_signal("StartupFinished")?]).await?;
+        change_triggers(&connection, [manager_signal("StartupFinished")?]).await?;
     manager.ensure_subscribed().await?;
     let mut timestamps = ManagerTimestamps::read(&manager).await?;
     let finish = loop {
@@ -416,7 +419,7 @@ async fn finished_startup(
         startup_finished
             .next()
             .await
-            .ok_or_else(|| zbus::Error::Failure("startup signal stream ended".to_owned()))??;
+            .ok_or_else(|| zbus::Error::Failure("startup signal stream ended".to_owned()))?;
         timestamps = ManagerTimestamps::read(&manager).await?;
     };
     let slowest_units = slowest_activations(&manager, finish, slow_unit).await?;

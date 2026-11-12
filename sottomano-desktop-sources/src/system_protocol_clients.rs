@@ -1,3 +1,4 @@
+pub mod dbus_change_signals;
 pub mod dbus_desktop_buses;
 pub mod http_json_client;
 pub mod inotify_directory_changes;

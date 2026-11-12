@@ -8,9 +8,11 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::ChangeTriggerStreams,
     host_machine_identity::udev_hardware_identity::host_bridge_subsystem_vendor,
-    network_connectivity::interface_properties_changed,
     non_empty_text::non_empty,
-    system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
+    system_protocol_clients::{
+        dbus_change_signals::{change_triggers, properties_changed_rule},
+        dbus_desktop_buses::{self, DesktopBuses},
+    },
 };
 
 const OS_RELEASE_PATHS: [&str; 2] = ["/etc/os-release", "/usr/lib/os-release"];
@@ -101,8 +103,11 @@ async fn identity_changes(
     let kernel = hostname.kernel_release().await?;
     let operating_system = hostname.operating_system_pretty_name().await?;
     let distribution_ids = current_distribution_ids();
-    let changes =
-        interface_properties_changed(&buses.system, HOSTNAME_SERVICE, HOSTNAME_SERVICE).await?;
+    let changes = change_triggers(
+        &buses.system,
+        [properties_changed_rule(HOSTNAME_SERVICE, HOSTNAME_SERVICE)?],
+    )
+    .await?;
     Ok(changes.triggered_rereads(move || {
         let hostname = hostname.clone();
         let kernel = kernel.clone();

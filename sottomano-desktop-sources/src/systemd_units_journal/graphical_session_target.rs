@@ -9,10 +9,11 @@ use crate::{
     delivery_cadence_drivers::ChangeTriggerStreams,
     host_machine_identity::hostname1_os_identity::at_micros,
     non_empty_text::non_empty,
-    system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
-    systemd_units_journal::{
-        ManagerProxy, UNIT_INTERFACE, UnitProxy, signals_matching, systemd_signal,
+    system_protocol_clients::{
+        dbus_change_signals::change_triggers,
+        dbus_desktop_buses::{self, DesktopBuses},
     },
+    systemd_units_journal::{ManagerProxy, UNIT_INTERFACE, UnitProxy, systemd_signal},
 };
 
 const GRAPHICAL_TARGET: &str = "graphical-session.target";
@@ -89,7 +90,7 @@ async fn target_changes(
         .path(manager.load_unit(GRAPHICAL_TARGET).await?)?
         .build()
         .await?;
-    let changes = signals_matching(
+    let changes = change_triggers(
         &buses.session,
         [systemd_signal()?
             .interface("org.freedesktop.DBus.Properties")?
