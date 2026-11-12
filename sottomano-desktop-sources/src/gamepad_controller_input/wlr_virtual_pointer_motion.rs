@@ -42,7 +42,10 @@ impl VirtualPointer {
     }
 
     pub async fn apply(&mut self, effect: PointerEffect) -> io::Result<()> {
-        let time = self.created.elapsed().as_millis() as u32;
+        let time = Instant::now()
+            .checked_duration_since(self.created)
+            .expect("the virtual pointer exists before it moves")
+            .as_millis() as u32;
         match effect {
             PointerEffect::Move(displacement) => self.pointer.motion(
                 &mut self.conn,

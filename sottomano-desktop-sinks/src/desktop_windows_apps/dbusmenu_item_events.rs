@@ -9,11 +9,14 @@ const CLICKED_EVENT: &str = "clicked";
 const OPENED_EVENT: &str = "opened";
 
 fn event_timestamp() -> u32 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |since_epoch| {
-            u32::try_from(since_epoch.as_secs()).unwrap_or(u32::MAX)
-        })
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(since_epoch) => u32::try_from(since_epoch.as_secs())
+            .expect("dbusmenu event timestamps are u32 seconds, which last until 2106"),
+        Err(before_epoch) => {
+            tracing::warn!("dbusmenu: the wall clock is before 1970: {before_epoch}");
+            0
+        }
+    }
 }
 
 async fn send_menu_event(

@@ -340,7 +340,10 @@ impl GroupMenuState {
         let open_topic = open_menu.as_ref().map(|menu| menu.topic);
         self.recently_open_menus.retain(|recent| {
             Some(recent.menu.topic) != open_topic
-                && now.duration_since(recent.last_open_at) < MENU_SOURCE_LINGER
+                && now
+                    .checked_duration_since(recent.last_open_at)
+                    .expect("a menu was last open at an earlier shell clock reading")
+                    < MENU_SOURCE_LINGER
         });
         if let Some(menu) = open_menu {
             self.recently_open_menus.push(RecentlyOpenMenu {

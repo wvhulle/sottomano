@@ -280,7 +280,9 @@ impl State {
 
     fn placeholder_elapsed(&self) -> Duration {
         match (self.now, self.placeholder_since) {
-            (Some(now), Some(since)) => now.saturating_duration_since(since),
+            (Some(now), Some(since)) => now
+                .checked_duration_since(since)
+                .expect("the placeholder appeared at or before the latest redraw"),
             _ => Duration::ZERO,
         }
     }
@@ -303,7 +305,10 @@ impl<Message> TransitioningText<'_, Message> {
             TransitionKind::Intro => self.style.effects.intro.length(&self.text),
             TransitionKind::Replace { .. } => self.style.effects.replace.length(),
         };
-        let elapsed = state.now?.saturating_duration_since(transition.started);
+        let elapsed = state
+            .now?
+            .checked_duration_since(transition.started)
+            .expect("a transition starts at or before the latest redraw");
         (elapsed < length).then_some(Running {
             kind: &transition.kind,
             elapsed,
@@ -393,6 +398,10 @@ impl<Message> TransitioningText<'_, Message> {
             .collect()
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "hash mixing relies on wrapping arithmetic"
+    )]
     fn frame_seed(&self, elapsed: Duration, glyph_change: Duration) -> u64 {
         let frame = (elapsed.as_millis() / glyph_change.as_millis().max(1)) as u64;
         self.seed() ^ frame.wrapping_mul(0x9E37_79B9)
@@ -579,12 +588,20 @@ fn blend(from: Color, to: Color, fraction: f32) -> Color {
     }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "hash mixing relies on wrapping arithmetic"
+)]
 fn fnv(bytes: &[u8]) -> u64 {
     bytes.iter().fold(0xCBF2_9CE4_8422_2325, |hash, byte| {
         (hash ^ u64::from(*byte)).wrapping_mul(0x0100_0000_01B3)
     })
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "hash mixing relies on wrapping arithmetic"
+)]
 fn mix(value: u64) -> u64 {
     let value = (value ^ (value >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     let value = (value ^ (value >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
@@ -595,6 +612,10 @@ fn unit(value: u64) -> f32 {
     (mix(value) >> 40) as f32 / (1u64 << 24) as f32
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "hash mixing relies on wrapping arithmetic"
+)]
 fn lock_time(settle: Duration, seed: u64, position: usize, length: usize) -> Duration {
     let order = position as f32 / length as f32;
     let chance = unit(seed.wrapping_add(position as u64));

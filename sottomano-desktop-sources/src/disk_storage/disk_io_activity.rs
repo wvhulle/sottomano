@@ -13,7 +13,10 @@ use uom::si::{
 };
 
 use super::{Error, block_filesystem_mounts::KernelDevice};
-use crate::{SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling};
+use crate::{
+    SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
+    restarting_counters::count_since_counter_restart,
+};
 
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(3);
 const SAMPLE_WINDOW: Duration = Duration::from_secs(1);
@@ -110,13 +113,14 @@ impl BlockCounters {
     fn activity_since(&self, earlier: &Self, elapsed: Duration, disk: String) -> DiskActivity {
         let elapsed = Time::new::<second>(elapsed.as_secs_f64());
         let rate = |now: u64, was: u64| -> InformationRate {
-            let sectors = now.saturating_sub(was) as f64;
+            let sectors = count_since_counter_restart("disk sectors", now, was) as f64;
             (Information::new::<byte>(sectors * SECTOR_BYTES) / elapsed).into()
         };
-        let busy = Time::new::<millisecond>(
-            self.busy_milliseconds
-                .saturating_sub(earlier.busy_milliseconds) as f64,
-        );
+        let busy = Time::new::<millisecond>(count_since_counter_restart(
+            "disk busy time",
+            self.busy_milliseconds,
+            earlier.busy_milliseconds,
+        ) as f64);
         let disk_busy = (busy / elapsed).min(Ratio::new::<ratio>(1.0));
         DiskActivity {
             read: DiskTransfer {

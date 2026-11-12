@@ -344,8 +344,16 @@ impl PixelSpan {
 
     fn widened(self, margin: u16, within: Self) -> Self {
         PixelSpan {
-            first: self.first.saturating_sub(margin).max(within.first),
-            last: self.last.saturating_add(margin).min(within.last),
+            first: self
+                .first
+                .checked_sub(margin)
+                .map_or(within.first, |widened_first| {
+                    widened_first.max(within.first)
+                }),
+            last: self
+                .last
+                .checked_add(margin)
+                .map_or(within.last, |widened_last| widened_last.min(within.last)),
         }
     }
 

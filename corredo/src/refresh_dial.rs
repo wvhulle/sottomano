@@ -60,6 +60,11 @@ impl RefreshDial {
         self.diameter * RING_THICKNESS_FRACTION
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the redraw frame instant comes from iced, not from the clock that viewed the \
+                  dial, so a frame may precede the view"
+    )]
     fn elapsed_fraction(&self, frame: Option<Instant>) -> f32 {
         let since_view = frame.map_or(Duration::ZERO, |frame| {
             frame.saturating_duration_since(self.viewed_at)

@@ -46,6 +46,10 @@ impl DiskSpaceOccupancy {
     }
 
     #[must_use]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "filesystem shares are rounded estimates, so their sum can pass the disk capacity"
+    )]
     pub fn free(&self) -> ByteSize {
         ByteSize::b(self.capacity.as_u64().saturating_sub(self.used().as_u64()))
     }
@@ -95,7 +99,7 @@ fn filesystem_share_on_disk(
     let (used_on_disk, bcachefs_members) = match filesystem.fs_type.as_str() {
         "bcachefs" => {
             let members = bcachefs_members_on_disk(filesystem, disk)?;
-            (used_by_members(&members), members)
+            (used_by_members(&members)?, members)
         }
         _ => (proportional_used_on_disk(filesystem, disk)?, Vec::new()),
     };
@@ -125,18 +129,23 @@ fn bcachefs_members_on_disk(
         .collect())
 }
 
-fn used_by_members(members: &[BcachefsDeviceSpace]) -> ByteSize {
-    ByteSize::b(
-        members
-            .iter()
-            .map(|member| {
-                member
-                    .capacity
-                    .as_u64()
-                    .saturating_sub(member.free.as_u64())
-            })
-            .sum(),
-    )
+fn used_by_members(members: &[BcachefsDeviceSpace]) -> Result<ByteSize, Error> {
+    members
+        .iter()
+        .map(|member| {
+            member
+                .capacity
+                .as_u64()
+                .checked_sub(member.free.as_u64())
+                .ok_or_else(|| {
+                    Error::Unparsable(format!(
+                        "bcachefs member {} reports more free space than capacity",
+                        member.partition
+                    ))
+                })
+        })
+        .sum::<Result<u64, Error>>()
+        .map(ByteSize::b)
 }
 
 fn proportional_used_on_disk(
@@ -148,7 +157,11 @@ fn proportional_used_on_disk(
         mount_point: mount_point.display().to_string(),
         errno: errno.raw_os_error(),
     })?;
-    let used = stat.f_blocks.saturating_sub(stat.f_bfree) * stat.f_frsize;
+    let used = stat
+        .f_blocks
+        .checked_sub(stat.f_bfree)
+        .expect("statvfs reports no more free blocks than blocks")
+        * stat.f_frsize;
     let device_sizes = filesystem
         .devices
         .iter()

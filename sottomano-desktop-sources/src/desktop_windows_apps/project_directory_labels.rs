@@ -25,9 +25,11 @@ pub fn project_relative_directory(path: &Path, home: &Path) -> String {
     let Some(name) = root.file_name() else {
         return home_abbreviated_path(path, home);
     };
-    let inside = path.strip_prefix(&root).unwrap_or(Path::new(""));
+    let inside = path
+        .strip_prefix(&root)
+        .expect("the repository root is one of the path's ancestors");
     if inside.as_os_str().is_empty() {
-        name.to_string_lossy().into_owned()
+        Path::new(name).display().to_string()
     } else {
         Path::new(name).join(inside).display().to_string()
     }

@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     future::ready,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, PoisonError},
 };
 
 use futures::{Stream, StreamExt, TryStreamExt, stream};
@@ -144,7 +144,8 @@ fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<RgbaImage> {
     let valid_pixmaps = pixmaps.iter().filter(|pixmap| {
         pixmap.width > 0
             && pixmap.height > 0
-            && i64::try_from(pixmap.pixels.len()).unwrap_or(0) == pixmap_area(pixmap) * 4
+            && i64::try_from(pixmap.pixels.len()).expect("a pixel buffer is shorter than i64::MAX")
+                == pixmap_area(pixmap) * 4
     });
     let best = valid_pixmaps
         .clone()
@@ -173,7 +174,7 @@ pub(crate) fn capped_to_side_limit(image: RgbaImage) -> RgbaImage {
     }
     let scaled_side = |side: u32| {
         u32::try_from(u64::from(side) * u64::from(TRAY_PIXMAP_SIDE_LIMIT) / u64::from(longest_side))
-            .unwrap_or(TRAY_PIXMAP_SIDE_LIMIT)
+            .expect("a side scaled down to the limit fits u32")
             .max(1)
     };
     imageops::resize(
@@ -270,11 +271,13 @@ impl TrayOwnerLookup {
     }
 
     async fn owners_of_listed(&self, client: &Client) -> HashMap<String, OwnerProcess> {
-        let listed_addresses: Vec<String> = client
-            .items()
+        let listed_items = client.items();
+        let listed_addresses: Vec<String> = listed_items
             .lock()
-            .map(|map| map.keys().cloned().collect())
-            .unwrap_or_default();
+            .unwrap_or_else(PoisonError::into_inner)
+            .keys()
+            .cloned()
+            .collect();
         let mut listed_owners = HashMap::new();
         for address in listed_addresses {
             let owner = self.owner_of(&address).await;

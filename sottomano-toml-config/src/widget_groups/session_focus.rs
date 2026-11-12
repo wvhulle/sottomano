@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, time::Duration};
 
+use chrono::TimeDelta;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash, Serialize)]
@@ -7,20 +8,20 @@ use serde::{Deserialize, Serialize};
 pub struct SessionFocusConfig {
     #[serde(with = "humantime_serde")]
     pub idle_detection_delay: Duration,
-    #[serde(with = "humantime_serde")]
-    pub shortest_counted_focus: Duration,
-    #[serde(with = "humantime_serde")]
-    pub idle_after: Duration,
-    #[serde(with = "humantime_serde")]
-    pub session_warning: Duration,
-    #[serde(with = "humantime_serde")]
-    pub session_critical: Duration,
-    #[serde(with = "humantime_serde")]
-    pub warning_snooze: Duration,
+    #[serde(with = "crate::humantime_time_delta")]
+    pub shortest_counted_focus: TimeDelta,
+    #[serde(with = "crate::humantime_time_delta")]
+    pub idle_after: TimeDelta,
+    #[serde(with = "crate::humantime_time_delta")]
+    pub session_warning: TimeDelta,
+    #[serde(with = "crate::humantime_time_delta")]
+    pub session_critical: TimeDelta,
+    #[serde(with = "crate::humantime_time_delta")]
+    pub warning_snooze: TimeDelta,
     pub switches_per_hour_warning: u32,
     pub switches_per_hour_critical: u32,
-    #[serde(with = "humantime_serde")]
-    pub switch_heat_span: Duration,
+    #[serde(with = "crate::humantime_time_delta")]
+    pub switch_heat_span: TimeDelta,
     pub switch_heat_warning: u32,
     pub switch_heat_critical: u32,
     pub screen_daily_budget_minutes: Option<u32>,
@@ -32,14 +33,14 @@ impl Default for SessionFocusConfig {
     fn default() -> Self {
         Self {
             idle_detection_delay: Duration::from_secs(30),
-            shortest_counted_focus: Duration::from_secs(1),
-            idle_after: Duration::from_mins(3),
-            session_warning: Duration::from_mins(45),
-            session_critical: Duration::from_mins(90),
-            warning_snooze: Duration::from_mins(15),
+            shortest_counted_focus: TimeDelta::seconds(1),
+            idle_after: TimeDelta::minutes(3),
+            session_warning: TimeDelta::minutes(45),
+            session_critical: TimeDelta::minutes(90),
+            warning_snooze: TimeDelta::minutes(15),
             switches_per_hour_warning: 100,
             switches_per_hour_critical: 300,
-            switch_heat_span: Duration::from_mins(30),
+            switch_heat_span: TimeDelta::minutes(30),
             switch_heat_warning: 20,
             switch_heat_critical: 32,
             screen_daily_budget_minutes: None,
@@ -65,7 +66,7 @@ mod tests {
             config.project_daily_budget_minutes["/home/me/Code/sottomano"],
             240
         );
-        assert_eq!(config.idle_after, Duration::from_mins(3));
+        assert_eq!(config.idle_after, TimeDelta::minutes(3));
     }
 
     #[test]

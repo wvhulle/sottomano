@@ -82,7 +82,7 @@ pub async fn load(today: NaiveDate, cycle_start_day: u32) -> Option<MeteredVolum
 }
 
 fn stored_bytes(size: ByteSize) -> i64 {
-    i64::try_from(size.as_u64()).unwrap_or(i64::MAX)
+    i64::try_from(size.as_u64()).expect("a metered transfer total is below 8 EiB")
 }
 
 fn loaded_bytes(stored: Option<i64>) -> ByteSize {

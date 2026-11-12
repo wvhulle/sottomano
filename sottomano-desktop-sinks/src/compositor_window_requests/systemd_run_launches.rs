@@ -1,5 +1,6 @@
 use std::env;
 
+use sottomano_desktop_sources::system_protocol_clients::shell_command_output::shown_process_text;
 use tokio::process::Command;
 
 use crate::compositor_window_requests::compositor_requests::CompositorRequestFailure;
@@ -25,6 +26,6 @@ pub async fn launch_in_user_service(command: &[String]) -> Result<(), Compositor
     }
     Err(CompositorRequestFailure::Rejected {
         request,
-        reason: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+        reason: shown_process_text(&output.stderr).trim().to_owned(),
     })
 }

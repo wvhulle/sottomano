@@ -1,0 +1,9 @@
+id: instant-subtraction
+valid:
+  - "fn held(clock: Clock, since: Instant) -> Duration { clock.instant.checked_duration_since(since).expect(\"pressed earlier\") }"
+  - "fn age(now: DateTime<Utc>, since: DateTime<Utc>) -> TimeDelta { now - since }"
+  - "fn left(clock: Clock, deadline: Instant) -> Instant { deadline - Duration::from_secs(1) }"
+invalid:
+  - "fn held(clock: Clock, since: Instant) -> Duration { clock.instant - since }"
+  - "fn remaining(clock: Clock, deadline: Instant) -> Duration { deadline - clock.instant }"
+  - "fn waited(started: Instant) -> Duration { Instant::now() - started }"

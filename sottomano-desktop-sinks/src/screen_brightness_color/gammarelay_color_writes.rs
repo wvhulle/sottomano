@@ -11,7 +11,7 @@ pub enum GammaRelayWriteError {
 }
 
 pub async fn set_brightness(percent: i64) -> Result<(), GammaRelayWriteError> {
-    let frac = f64::from(i32::try_from(percent.clamp(0, 100)).unwrap_or(0)) / 100.0;
+    let frac = percent.clamp(0, 100) as f64 / 100.0;
     let proxy = gammarelay_color_temperature::session_gamma_relay()
         .await
         .map_err(|_| GammaRelayWriteError::RelayUnreachable)?;

@@ -78,7 +78,7 @@ async fn read_screen_off(connection: &turso::Connection) -> Result<Option<Durati
         return Ok(None);
     };
     Ok(Some(Duration::from_secs(
-        u64::try_from(columns.integer(&row, "after_seconds")?).unwrap_or_default(),
+        columns.ranged_integer(&row, "after_seconds")?,
     )))
 }
 
@@ -105,7 +105,8 @@ async fn write_schedule(
         connection
             .execute(
                 "INSERT INTO quiet_hours_screen_off (id, after_seconds) VALUES (0, ?1)",
-                (i64::try_from(timeout.as_secs()).unwrap_or(i64::MAX),),
+                (i64::try_from(timeout.as_secs())
+                    .expect("a screen-off timeout is shorter than i64::MAX seconds"),),
             )
             .await?;
     }

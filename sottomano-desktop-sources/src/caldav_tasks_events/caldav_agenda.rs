@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     mem,
     path::PathBuf,
-    str::FromStr,
+    str::{FromStr, Utf8Error},
     sync::{Arc, atomic::AtomicBool},
     time::Duration,
 };
@@ -46,6 +46,8 @@ pub enum Error {
     WindowBeyondCalendar,
     #[error("calendar home listing unparseable: {0}")]
     ListingUnparseable(#[from] roxmltree::Error),
+    #[error("calendar home listing is not utf-8: {0}")]
+    ListingNotUtf8(#[from] Utf8Error),
     #[error("{0}")]
     Dav(Arc<fast_dav_rs::Error>),
     #[error("nextcloud push: {0}")]

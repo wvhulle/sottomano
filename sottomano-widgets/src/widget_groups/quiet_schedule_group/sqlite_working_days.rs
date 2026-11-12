@@ -39,9 +39,11 @@ async fn read_days(connection: &turso::Connection) -> Result<WeekdaySet, StoreEr
     let mut working_days = WeekdaySet::EMPTY;
     while let Some(row) = rows.next().await? {
         stored_any_day = true;
-        let weekday = WeekdaySet::ALL
-            .iter(Weekday::Mon)
-            .nth(usize::try_from(columns.integer(&row, "days_from_monday")?).unwrap_or(7));
+        let days_from_monday = columns.ranged_integer(&row, "days_from_monday")?;
+        let weekday = WeekdaySet::ALL.iter(Weekday::Mon).nth(days_from_monday);
+        if weekday.is_none() {
+            tracing::warn!("working days: stored day {days_from_monday} is past sunday");
+        }
         if let Some(day) = weekday.filter(|_| {
             columns
                 .integer(&row, "is_working")

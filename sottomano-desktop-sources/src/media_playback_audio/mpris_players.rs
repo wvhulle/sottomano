@@ -242,7 +242,11 @@ impl Progress {
         let Self::Timed { length, .. } = self else {
             return None;
         };
-        Some(length.saturating_sub(self.played(status, now)?))
+        Some(
+            length
+                .checked_sub(self.played(status, now)?)
+                .expect("played time is capped at the track length"),
+        )
     }
 
     #[must_use]
@@ -254,6 +258,11 @@ impl Progress {
     }
 
     #[must_use]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the position is sampled on the source task, which can run after the viewer took \
+                  its clock reading"
+    )]
     pub fn played(self, status: Status, now: Instant) -> Option<Duration> {
         let Self::Timed {
             position,
@@ -578,7 +587,8 @@ async fn signals(
 
 #[must_use]
 pub fn micros(duration: Duration) -> i64 {
-    i64::try_from(duration.as_micros()).unwrap_or(i64::MAX)
+    i64::try_from(duration.as_micros())
+        .expect("track positions are far shorter than i64 microseconds")
 }
 
 #[cfg(test)]

@@ -98,11 +98,14 @@ impl TimedLyricLine {
         };
         let next_word = self.word_starts.get(started_word_count);
         let segment_ends_at = next_word.map_or(self.ends_at, |word_start| word_start.starts_at);
-        let segment_span = segment_ends_at.saturating_sub(current_word.starts_at);
-        let segment_fraction = if segment_span.is_zero() {
-            1.0
-        } else {
-            played.saturating_sub(current_word.starts_at).as_secs_f32() / segment_span.as_secs_f32()
+        let sung_part = played
+            .checked_sub(current_word.starts_at)
+            .expect("the current word started at or before the played time");
+        let segment_fraction = match segment_ends_at.checked_sub(current_word.starts_at) {
+            Some(segment_span) if !segment_span.is_zero() => {
+                sung_part.as_secs_f32() / segment_span.as_secs_f32()
+            }
+            Some(_) | None => 1.0,
         };
         LyricSweep {
             segment_start: current_word.text_offset,
@@ -130,7 +133,9 @@ impl TimedLyricLine {
                 word_starts: estimated_word_starts(
                     &self.text,
                     self.starts_at,
-                    line_window_end.saturating_sub(self.starts_at),
+                    line_window_end
+                        .checked_sub(self.starts_at)
+                        .expect("sorted lines end their window at or after their start"),
                 ),
                 ends_at: line_window_end,
                 ..self
@@ -166,6 +171,11 @@ struct WordTaggedText {
     word_starts: Vec<WordStart>,
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a word tag placed before the leading whitespace starts at the beginning of the \
+              trimmed text"
+)]
 fn strip_word_tags(tagged_text: &str) -> WordTaggedText {
     let mut text = String::new();
     let mut word_starts = Vec::new();
@@ -316,6 +326,11 @@ fn parse_lrc_lines(lrc_text: &str) -> Vec<TimedLyricLine> {
         .collect()
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a word tag timed before its line comes from a malformed lyrics file and starts with \
+              the line"
+)]
 fn timed_lines_of_row(lrc_row: &str) -> Vec<TimedLyricLine> {
     let mut start_times = Vec::new();
     let mut remaining_row = lrc_row.trim();

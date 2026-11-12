@@ -160,13 +160,19 @@ impl IdleTimer {
                 LabeledValue::new("State", "unavailable")
             }
             None => LabeledValue::new("State", "disabled"),
-            Some(timeout) => LabeledValue::new(
-                format!("{} at", self.action.session_action().verb()),
-                ValueCell::Time {
-                    at: clock.utc() + chrono::Duration::from_std(timeout).unwrap_or_default(),
-                    format: LocalizedTimeFormat::TimeOfDay,
-                },
-            ),
+            Some(timeout) => {
+                let label = format!("{} at", self.action.session_action().verb());
+                match chrono::Duration::from_std(timeout) {
+                    Ok(delay) => LabeledValue::new(
+                        label,
+                        ValueCell::Time {
+                            at: clock.utc() + delay,
+                            format: LocalizedTimeFormat::TimeOfDay,
+                        },
+                    ),
+                    Err(_) => LabeledValue::new(label, "beyond the calendar range"),
+                }
+            }
         };
         let overridden = overrider
             .zip(timeout)

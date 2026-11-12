@@ -15,10 +15,12 @@ struct ReconnectBackoff {
 impl ReconnectBackoff {
     fn next_delay(&mut self) -> Duration {
         let doubling_count = self.failures_since_delivery.min(LONGEST_DOUBLING_COUNT);
-        self.failures_since_delivery = self.failures_since_delivery.saturating_add(1);
-        let unjittered_delay = FIRST_RECONNECT_DELAY
-            .saturating_mul(1 << doubling_count)
-            .min(LONGEST_RECONNECT_DELAY);
+        self.failures_since_delivery = self
+            .failures_since_delivery
+            .checked_add(1)
+            .expect("a peer fails fewer than u32::MAX times between deliveries");
+        let unjittered_delay =
+            (FIRST_RECONNECT_DELAY * (1 << doubling_count)).min(LONGEST_RECONNECT_DELAY);
         unjittered_delay
             .mul_f64(0.75 + fastrand::f64() * 0.5)
             .min(LONGEST_RECONNECT_DELAY)

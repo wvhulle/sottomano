@@ -230,7 +230,8 @@ impl RoundedPerimeter {
         let index = self
             .distances
             .partition_point(|walked| *walked <= wrapped)
-            .saturating_sub(1);
+            .checked_sub(1)
+            .expect("perimeter distances start at zero, at or before any wrapped distance");
         let start = self.points[index];
         let end = self.point_after(index);
         let tangent = unit_direction(start, end);

@@ -89,7 +89,7 @@ impl GroupItemReading for BootTimeline {
         let login_gap = self
             .user_startup
             .as_ref()
-            .map(|user| user.started_at.saturating_sub(self.system_startup.finish));
+            .and_then(|user| user.started_at.checked_sub(self.system_startup.finish));
         let session = self.user_startup.as_ref().map(|user| user.duration);
         let stage_records = self.phases.present().into_iter().map(|phase| {
             timeline_record(
@@ -167,19 +167,20 @@ impl GroupItemReading for StartupUnits<'_> {
         Phosphor::Stack(Weight::Regular).into()
     }
 
-    fn badge(&self) -> Option<u32> {
+    fn badge(&self) -> Option<usize> {
         let count = self
             .timeline
             .system_startup
             .slowest_units
             .slow_count()
-            .saturating_add(
+            .checked_add(
                 self.timeline
                     .user_startup
                     .as_ref()
                     .map_or(0, |user| user.slowest_units.slow_count()),
-            );
-        Some(u32::try_from(count).unwrap_or(u32::MAX)).filter(|count| *count > 0)
+            )
+            .expect("fewer than usize::MAX units are slow to start");
+        Some(count).filter(|count| *count > 0)
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {

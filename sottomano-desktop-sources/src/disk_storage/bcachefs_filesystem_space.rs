@@ -176,6 +176,7 @@ impl BcachefsMember {
             .ok_or_else(|| unparsable_disk_file(&bucket_size_path))?;
         let alloc_path = self.dir.join("alloc_debug");
         let buckets = BucketCounts::parse(&read_disk_text(&alloc_path)?)
+            .filter(|bucket_counts| bucket_counts.reusable <= bucket_counts.capacity)
             .ok_or_else(|| unparsable_disk_file(&alloc_path))?;
         let state_path = self.dir.join("state");
         let label = read_disk_value::<String>(&self.dir.join("label"))?;

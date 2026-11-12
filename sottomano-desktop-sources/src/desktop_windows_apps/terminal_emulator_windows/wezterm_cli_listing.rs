@@ -91,7 +91,7 @@ fn list_panes(wezterm_pid: i32) -> io::Result<Vec<WeztermPane>> {
         .output()?;
     if !listing.status.success() {
         return Err(io::Error::other(
-            String::from_utf8_lossy(&listing.stderr).into_owned(),
+            String::from_utf8(listing.stderr).map_err(io::Error::other)?,
         ));
     }
     Ok(serde_json::from_slice(&listing.stdout)?)

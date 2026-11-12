@@ -39,12 +39,13 @@ impl GroupItemReading for Ext4ErrorCountRow {
         .into()
     }
 
-    fn badge(&self) -> Option<u32> {
+    fn badge(&self) -> Option<usize> {
         match self.recorded_errors {
             RecordedErrors::Clean => None,
-            RecordedErrors::Recorded { count, .. } => {
-                Some(u32::try_from(count).unwrap_or(u32::MAX))
-            }
+            RecordedErrors::Recorded { count, .. } => Some(
+                usize::try_from(count)
+                    .expect("usize holds every u64 on the 64-bit targets we build"),
+            ),
         }
     }
 

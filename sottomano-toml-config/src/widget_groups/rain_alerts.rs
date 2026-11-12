@@ -1,12 +1,11 @@
-use std::time::Duration;
-
+use chrono::TimeDelta;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct RainAlertsConfig {
-    #[serde(with = "humantime_serde")]
-    pub lead_time: Duration,
+    #[serde(with = "crate::humantime_time_delta")]
+    pub lead_time: TimeDelta,
     pub minimum_millimeters_per_hour: f64,
     pub heavy_millimeters_per_hour: f64,
 }
@@ -14,7 +13,7 @@ pub struct RainAlertsConfig {
 impl Default for RainAlertsConfig {
     fn default() -> Self {
         Self {
-            lead_time: Duration::from_mins(15),
+            lead_time: TimeDelta::minutes(15),
             minimum_millimeters_per_hour: 0.5,
             heavy_millimeters_per_hour: 4.0,
         }
@@ -28,7 +27,7 @@ mod tests {
     #[test]
     fn a_lone_lead_time_parses() {
         let config: RainAlertsConfig = toml::from_str("lead_time = \"30m\"\n").unwrap();
-        assert_eq!(config.lead_time, Duration::from_mins(30));
+        assert_eq!(config.lead_time, TimeDelta::minutes(30));
     }
 
     #[test]

@@ -149,7 +149,10 @@ fn unescape_mountinfo_octal(escaped: &Path) -> PathBuf {
             let byte = digits
                 .iter()
                 .fold(0u32, |value, digit| value * 8 + u32::from(digit - b'0'));
-            unescaped.push(u8::try_from(byte).unwrap_or(b'?'));
+            unescaped.push(u8::try_from(byte).unwrap_or_else(|oversized_escape| {
+                tracing::warn!("mounts: octal escape {byte:o} is not a byte: {oversized_escape}");
+                b'?'
+            }));
             position += 4;
         } else {
             unescaped.push(escaped[position]);

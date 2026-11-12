@@ -128,9 +128,10 @@ async fn watch_running_jobs(
 
 fn instant_at(time: SystemTime) -> Instant {
     Instant::now()
-        + time
-            .duration_since(SystemTime::now())
-            .unwrap_or(Duration::ZERO)
+        + match time.duration_since(SystemTime::now()) {
+            Ok(ahead) => ahead,
+            Err(_already_passed) => Duration::ZERO,
+        }
 }
 
 fn next_slow_deadline(

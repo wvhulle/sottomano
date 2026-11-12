@@ -474,7 +474,8 @@ fn until_next_boundary(now: DateTime<Local>, period: Duration) -> Duration {
         .cast_unsigned();
     let subsec_ns = u64::from(now.timestamp_subsec_nanos()) % 1_000_000_000;
     Duration::from_secs(period.as_secs() - secs_into)
-        .saturating_sub(Duration::from_nanos(subsec_ns))
+        .checked_sub(Duration::from_nanos(subsec_ns))
+        .expect("at least a whole second remains before the next boundary")
 }
 
 #[cfg(test)]

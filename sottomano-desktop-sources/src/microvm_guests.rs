@@ -183,7 +183,13 @@ impl SnapshotSource for MicrovmGuests {
 fn enclosing_unit_name(pid: i32) -> Option<String> {
     let process_cgroup = cgroup_directory_of_process(pid.unsigned_abs())?;
     let unit_cgroup = unit_cgroup_enclosing(&process_cgroup)?;
-    Some(unit_cgroup.file_name()?.to_string_lossy().into_owned())
+    let unit_directory_name = unit_cgroup.file_name()?;
+    Some(
+        unit_directory_name
+            .to_str()
+            .expect("systemd escapes unit names to ascii")
+            .to_owned(),
+    )
 }
 
 fn microvm_instance_name(unit_name: &str) -> Option<&str> {

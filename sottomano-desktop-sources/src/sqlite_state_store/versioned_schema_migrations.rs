@@ -106,7 +106,7 @@ mod tests {
         let migrations_directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../db-migrations");
         let mut file_names: Vec<String> = fs::read_dir(migrations_directory)
             .unwrap()
-            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
             .collect();
         file_names.sort();
         let registered_names: Vec<&str> = SCHEMA_MIGRATIONS

@@ -43,8 +43,8 @@ impl SessionFace<'_> {
 
     fn severity(&self, now: DateTime<Utc>) -> Severity {
         let config = self.accounting.config;
-        let critical = TimeDelta::from_std(config.session_critical).unwrap_or(TimeDelta::MAX);
-        let warning = TimeDelta::from_std(config.session_warning).unwrap_or(TimeDelta::MAX);
+        let critical = config.session_critical;
+        let warning = config.session_warning;
         match self.run_length(now) {
             _ if self.snoozed_until(now).is_some() => Severity::Normal,
             Some(run) if run >= critical => Severity::Critical,
@@ -199,8 +199,6 @@ impl GroupItemReading for SessionFace<'_> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
         FocusLedger, FocusSignal, Focused,
     };
@@ -230,7 +228,7 @@ mod tests {
 
     fn config() -> SessionFocusConfig {
         SessionFocusConfig {
-            idle_after: Duration::from_mins(3),
+            idle_after: TimeDelta::minutes(3),
             ..SessionFocusConfig::default()
         }
     }
@@ -238,7 +236,7 @@ mod tests {
     #[test]
     fn a_snooze_silences_a_long_session_until_it_ends() {
         let config = SessionFocusConfig {
-            session_warning: Duration::from_mins(45),
+            session_warning: TimeDelta::minutes(45),
             ..config()
         };
         let ledger = ledger_after([(focused(1, "kitty"), 0)]);

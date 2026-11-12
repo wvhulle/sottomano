@@ -5,7 +5,7 @@ mod umbra_dark_mode;
 
 use std::{ops::RangeInclusive, time::Duration};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use iced::{Function, Subscription, Task, task};
 use sottomano_desktop_sinks::screen_brightness_color::umbra_mode_writes::set_mode;
 use sottomano_desktop_sources::{
@@ -178,7 +178,10 @@ impl DarkModeGroup {
             self.armed_switch = None;
             return Task::none();
         };
-        let remaining = (at - clock.utc()).to_std().unwrap_or_default();
+        let remaining = (at - clock.utc())
+            .max(TimeDelta::zero())
+            .to_std()
+            .expect("a non-negative time delta fits a std duration");
         let (timer, handle) = Task::future(sleep(remaining + SWITCH_TIMER_MARGIN))
             .map(|()| DarkModeMessage::SwitchDue)
             .abortable();

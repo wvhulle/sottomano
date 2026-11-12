@@ -151,10 +151,9 @@ fn program_name(command: &[String]) -> String {
     command
         .first()
         .map(|program| {
-            Path::new(program).file_name().map_or_else(
-                || program.clone(),
-                |name| name.to_string_lossy().into_owned(),
-            )
+            Path::new(program)
+                .file_name()
+                .map_or_else(|| program.clone(), |name| name.display().to_string())
         })
         .unwrap_or_default()
 }

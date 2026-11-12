@@ -6,9 +6,12 @@ use std::{
 
 use bytesize::ByteSize;
 use chrono::NaiveDate;
-use sottomano_desktop_sources::network_connectivity::{
-    interface_throughput::{InterfaceByteCounters, InterfaceThroughput},
-    network_manager_proxies::Metering,
+use sottomano_desktop_sources::{
+    network_connectivity::{
+        interface_throughput::{InterfaceByteCounters, InterfaceThroughput},
+        network_manager_proxies::Metering,
+    },
+    restarting_counters::count_since_counter_restart,
 };
 
 use super::sqlite_metered_volume::{MeteredVolumeTotals, TransferTotals};
@@ -50,7 +53,11 @@ impl Default for MeteredVolumeTally {
 }
 
 fn counter_growth(now: ByteSize, was: ByteSize) -> ByteSize {
-    ByteSize::b(now.as_u64().saturating_sub(was.as_u64()))
+    ByteSize::b(count_since_counter_restart(
+        "metered interface bytes",
+        now.as_u64(),
+        was.as_u64(),
+    ))
 }
 
 fn transferred_between(
@@ -87,7 +94,10 @@ impl MeteredVolumeTally {
             StoredTotals::Loaded {
                 totals,
                 last_saved_at,
-            } if now.duration_since(last_saved_at) >= SAVE_INTERVAL
+            } if now
+                .checked_duration_since(last_saved_at)
+                .expect("totals were saved at an earlier shell clock reading")
+                >= SAVE_INTERVAL
                 && self.unsaved != TransferTotals::default() =>
             {
                 let saving = mem::take(&mut self.unsaved);
@@ -205,13 +215,16 @@ mod tests {
     }
 
     #[test]
-    fn counter_reset_adds_nothing() {
+    fn counter_reset_counts_the_bytes_since_the_reset() {
         let started_at = Clock::real().instant;
         let mut tally = loaded_tally(started_at);
         tally.observe(&throughput_at(10, 1, Metering::Metered), started_at);
         assert_eq!(
             tally.displayed_totals().unwrap().today,
-            TransferTotals::default()
+            TransferTotals {
+                received: ByteSize::b(10),
+                sent: ByteSize::b(1),
+            }
         );
     }
 

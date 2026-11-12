@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use chrono::{DateTime, Local, NaiveDate, Utc};
+use chrono::{DateTime, Local, NaiveDate, TimeDelta, Utc};
 use futures::Stream;
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -60,7 +60,11 @@ pub fn next_local_midnight() -> RereadSchedule {
 
 #[must_use]
 pub fn instant_of(moment: DateTime<Utc>) -> Instant {
-    Instant::now() + (moment - Utc::now()).to_std().unwrap_or_default()
+    Instant::now()
+        + (moment - Utc::now())
+            .max(TimeDelta::zero())
+            .to_std()
+            .expect("a non-negative time delta fits a std duration")
 }
 
 #[derive(Debug, Clone, thiserror::Error)]

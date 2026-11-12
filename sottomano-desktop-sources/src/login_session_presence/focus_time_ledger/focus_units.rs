@@ -1,4 +1,9 @@
-use std::{borrow::Cow, fmt, path::PathBuf, str::FromStr};
+use std::{
+    borrow::Cow,
+    fmt,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use chrono::TimeDelta;
 use sottomano_toml_config::widget_groups::session_focus::SessionFocusConfig;
@@ -33,7 +38,10 @@ impl From<&FocusUnit> for StoredFacet {
             },
             FocusUnit::Project(root) => StoredFacet {
                 facet: "project".to_owned(),
-                value: root.to_string_lossy().into_owned(),
+                value: root
+                    .to_str()
+                    .expect("probed project roots are unicode")
+                    .to_owned(),
             },
         }
     }
@@ -56,9 +64,11 @@ impl FocusUnit {
     pub fn label(&self) -> Cow<'_, str> {
         match self {
             FocusUnit::App(app_id) => Cow::Borrowed(app_id),
-            FocusUnit::Project(root) => root
-                .file_name()
-                .map_or_else(|| root.to_string_lossy(), |name| name.to_string_lossy()),
+            FocusUnit::Project(root) => Cow::Owned(
+                root.file_name()
+                    .map_or_else(|| root.display(), |name| Path::new(name).display())
+                    .to_string(),
+            ),
         }
     }
 
@@ -74,9 +84,9 @@ impl FocusUnit {
     pub fn budget(&self, config: &SessionFocusConfig) -> Option<TimeDelta> {
         match self {
             FocusUnit::App(app_id) => config.app_daily_budget_minutes.get(app_id),
-            FocusUnit::Project(root) => config
-                .project_daily_budget_minutes
-                .get(root.to_string_lossy().as_ref()),
+            FocusUnit::Project(root) => root
+                .to_str()
+                .and_then(|root_text| config.project_daily_budget_minutes.get(root_text)),
         }
         .map(|minutes| TimeDelta::minutes(i64::from(*minutes)))
     }

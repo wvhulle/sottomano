@@ -229,7 +229,7 @@ impl PhysicalDriveGroup {
         self.disks
             .keys()
             .position(|known| known == disk)
-            .map(|position| u8::try_from(position + 1).unwrap_or(u8::MAX))
+            .map(|position| u8::try_from(position + 1).expect("fewer than 255 disks are attached"))
             .map_or(DiskMarking::OnlyDisk, |ordinal| DiskMarking::Numbered {
                 ordinal,
             })

@@ -118,9 +118,17 @@ fn read_used_and_headroom() -> Result<UsedAndHeadroom, Error> {
     let available = info
         .mem_available
         .ok_or_else(|| Error::Unparsable(format!("{MEMINFO} field MemAvailable")))?;
+    let used = info
+        .mem_total
+        .checked_sub(available)
+        .ok_or_else(|| Error::Unparsable(format!("{MEMINFO} MemAvailable above MemTotal")))?;
     Ok(UsedAndHeadroom {
-        used: ByteSize::b(info.mem_total.saturating_sub(available)),
-        headroom: ByteSize::b(available.saturating_add(info.swap_free)),
+        used: ByteSize::b(used),
+        headroom: ByteSize::b(
+            available
+                .checked_add(info.swap_free)
+                .expect("available memory and free swap together fit u64 bytes"),
+        ),
     })
 }
 
@@ -174,7 +182,12 @@ impl MemoryTrendWindow {
             .resident_snapshots
             .front()
             .map(|(baseline_at, baseline)| {
-                fastest_growing_processes(&residents, baseline, now.duration_since(*baseline_at))
+                fastest_growing_processes(
+                    &residents,
+                    baseline,
+                    now.checked_duration_since(*baseline_at)
+                        .expect("the resident baseline was sampled before now"),
+                )
             })
             .unwrap_or_default();
         self.resident_snapshots.push_back((
@@ -197,10 +210,11 @@ fn drop_samples_outside_window<Sample>(
     window_length: Duration,
     now: Instant,
 ) {
-    while samples
-        .front()
-        .is_some_and(|(sampled_at, _)| now.saturating_duration_since(*sampled_at) > window_length)
-    {
+    while samples.front().is_some_and(|(sampled_at, _)| {
+        now.checked_duration_since(*sampled_at)
+            .expect("memory samples are taken before now")
+            > window_length
+    }) {
         samples.pop_front();
     }
 }
@@ -211,14 +225,21 @@ fn used_bytes_per_second(
 ) -> Option<f64> {
     let (first_at, _) = *samples.front()?;
     let (last_at, _) = *samples.back()?;
-    if last_at.saturating_duration_since(first_at) < minimum_span {
+    if last_at
+        .checked_duration_since(first_at)
+        .expect("memory samples are queued in sampling order")
+        < minimum_span
+    {
         return None;
     }
     let points: Vec<(f64, f64)> = samples
         .iter()
         .map(|(sampled_at, used)| {
             (
-                sampled_at.saturating_duration_since(first_at).as_secs_f64(),
+                sampled_at
+                    .checked_duration_since(first_at)
+                    .expect("memory samples are queued in sampling order")
+                    .as_secs_f64(),
                 used.as_u64() as f64,
             )
         })
@@ -338,7 +359,9 @@ mod tests {
             .map(|(used, tick)| {
                 window
                     .record_used(
-                        start + GROWTH_POLL_PERIOD * u32::try_from(tick).unwrap_or(0),
+                        start
+                            + GROWTH_POLL_PERIOD
+                                * u32::try_from(tick).expect("test series are short"),
                         ByteSize::mib(*used),
                     )
                     .filter(|bytes_per_second| *bytes_per_second > 0.0)

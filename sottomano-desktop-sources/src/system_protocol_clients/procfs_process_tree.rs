@@ -179,6 +179,10 @@ impl<CheckpointKey> CpuTickCheckpoints<CheckpointKey> {
 }
 
 impl<CheckpointKey: Eq + Hash> CpuTickCheckpoints<CheckpointKey> {
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a process tree's tick total drops when descendants exit, which reads as no load"
+    )]
     pub(crate) fn load_since_previous(
         &mut self,
         checkpoint_key: CheckpointKey,
@@ -188,10 +192,14 @@ impl<CheckpointKey: Eq + Hash> CpuTickCheckpoints<CheckpointKey> {
         let cpu_load = self.checkpoints_by_key.get(&checkpoint_key).map_or(
             ProcessTreeCpuLoad::AwaitingSecondSample,
             |checkpoint| {
-                ProcessTreeCpuLoad::BusyShare(self.capacity.busy_fraction(
-                    spent_ticks.saturating_sub(checkpoint.spent_ticks),
-                    taken_at.duration_since(checkpoint.taken_at),
-                ))
+                ProcessTreeCpuLoad::BusyShare(
+                    self.capacity.busy_fraction(
+                        spent_ticks.saturating_sub(checkpoint.spent_ticks),
+                        taken_at
+                            .checked_duration_since(checkpoint.taken_at)
+                            .expect("checkpoints are taken in order"),
+                    ),
+                )
             },
         );
         self.checkpoints_by_key.insert(

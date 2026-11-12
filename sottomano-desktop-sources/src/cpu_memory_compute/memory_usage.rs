@@ -44,8 +44,12 @@ pub(super) fn read_meminfo() -> Result<Memory, Error> {
     let available = info
         .mem_available
         .ok_or_else(|| Error::Unparsable(format!("{MEMINFO} field MemAvailable")))?;
+    let used = info
+        .mem_total
+        .checked_sub(available)
+        .ok_or_else(|| Error::Unparsable(format!("{MEMINFO} MemAvailable above MemTotal")))?;
     Ok(Memory {
-        used: ByteSize::b(info.mem_total.saturating_sub(available)),
+        used: ByteSize::b(used),
         total: ByteSize::b(info.mem_total),
     })
 }

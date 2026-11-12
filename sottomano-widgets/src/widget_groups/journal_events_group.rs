@@ -197,8 +197,8 @@ impl GroupItemReading for JournalEventsGroup {
         Phosphor::Scroll(Weight::Regular).into()
     }
 
-    fn badge(&self) -> Option<u32> {
-        let total: u32 = self
+    fn badge(&self) -> Option<usize> {
+        let total: usize = self
             .kinds()
             .into_iter()
             .flatten()

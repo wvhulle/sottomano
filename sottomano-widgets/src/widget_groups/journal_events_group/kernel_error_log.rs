@@ -67,12 +67,12 @@ impl GroupItemReading for Vec<KernelOccurrence> {
         Phosphor::LinuxLogo(Weight::Regular).into()
     }
 
-    fn badge(&self) -> Option<u32> {
+    fn badge(&self) -> Option<usize> {
         let distinct = self
             .iter()
             .filter(|occurrence| occurrence.severity >= Severity::Warning)
             .count();
-        Some(u32::try_from(distinct).unwrap_or(u32::MAX)).filter(|count| *count > 0)
+        Some(distinct).filter(|count| *count > 0)
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
@@ -84,24 +84,29 @@ impl GroupItemReading for Vec<KernelOccurrence> {
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        let hidden = self.len().saturating_sub(HOVER_CARD_ROWS);
-        let hidden_notice = (hidden > 0).then(|| {
-            TableRecord::new(
-                "",
-                [
-                    ValueCell::Blank,
-                    format!("{hidden} earlier not shown").into(),
-                ],
-            )
-        });
+        let hidden_notice = self
+            .len()
+            .checked_sub(HOVER_CARD_ROWS)
+            .filter(|hidden| *hidden > 0)
+            .map(|hidden| {
+                TableRecord::new(
+                    "",
+                    [
+                        ValueCell::Blank,
+                        format!("{hidden} earlier not shown").into(),
+                    ],
+                )
+            });
         HoverCardBody::sections([Section::column_table(
             [
                 ColumnHeading::titled("Count"),
                 ColumnHeading::titled("Message").align_x(Horizontal::Left),
             ],
             hidden_notice.into_iter().chain(
-                self[hidden..]
-                    .iter()
+                self.iter()
+                    .rev()
+                    .take(HOVER_CARD_ROWS)
+                    .rev()
                     .map(IntoTableRecord::into_table_record),
             ),
         )

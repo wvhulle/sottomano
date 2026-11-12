@@ -449,7 +449,11 @@ impl Pairing {
                     }
                     self.paired.insert(compositor_window, probe.key);
                 }
-                None if now.duration_since(probe.sent_at) >= PROBE_PATIENCE => {
+                None if now
+                    .checked_duration_since(probe.sent_at)
+                    .expect("a probe is sent at an earlier refresh")
+                    >= PROBE_PATIENCE =>
+                {
                     if let Some(known_title) = probe.target.known_title() {
                         restore_title(access, &probe.target, known_title);
                     }

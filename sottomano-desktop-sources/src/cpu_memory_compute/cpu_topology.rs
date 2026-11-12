@@ -297,11 +297,11 @@ fn roles_by_exposed_design(cpus: &[LogicalCpu]) -> Vec<AssignedCpu<'_>> {
         })
     });
     let arm_tiers = ArmPartTier::ranked_by_capacity(cpus);
-    let slowest_rank = arm_tiers.len().saturating_sub(1);
+    let slowest_rank = arm_tiers.len().checked_sub(1);
     let ranked = arm_tiers.into_iter().enumerate().flat_map(|(rank, tier)| {
         let role = match rank {
             0 => CoreRole::PerformanceCores,
-            rank if rank == slowest_rank => CoreRole::EfficientCores,
+            rank if Some(rank) == slowest_rank => CoreRole::EfficientCores,
             _ => CoreRole::MidCapacityCores,
         };
         tier.members.into_iter().map(move |cpu| AssignedCpu {

@@ -17,6 +17,8 @@ pub enum StoreError {
     NoRow,
     #[error("stored date or time is malformed: {0}")]
     MalformedTime(#[from] chrono::ParseError),
+    #[error("state store path {} is not unicode", .0.display())]
+    NonUnicodePath(PathBuf),
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -29,6 +31,8 @@ pub enum ColumnError {
     NotInteger { name: String },
     #[error("column {name} is not a real")]
     NotReal { name: String },
+    #[error("column {name} holds {stored}, outside the range it is read into")]
+    OutOfRange { name: String, stored: i64 },
 }
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -105,9 +109,10 @@ pub async fn connect_migrated_store() -> Result<TableConnection, StoreError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let database = turso::Builder::new_local(&path.to_string_lossy())
-        .build()
-        .await?;
+    let path_text = path
+        .to_str()
+        .ok_or_else(|| StoreError::NonUnicodePath(path.clone()))?;
+    let database = turso::Builder::new_local(path_text).build().await?;
     let connection = database.connect()?;
     connection.busy_timeout(BUSY_TIMEOUT)?;
     versioned_schema_migrations::apply_pending_migrations(&connection).await?;
@@ -182,6 +187,21 @@ impl Columns {
             }
             .into()),
         }
+    }
+
+    pub fn ranged_integer<Ranged: TryFrom<i64>>(
+        &self,
+        row: &turso::Row,
+        name: &str,
+    ) -> Result<Ranged, StoreError> {
+        let stored = self.integer(row, name)?;
+        Ranged::try_from(stored).map_err(|_| {
+            ColumnError::OutOfRange {
+                name: name.to_owned(),
+                stored,
+            }
+            .into()
+        })
     }
 
     #[must_use]

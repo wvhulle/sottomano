@@ -222,8 +222,8 @@ impl GroupItemReading for NotificationStatus {
         }
     }
 
-    fn badge(&self) -> Option<u32> {
-        Some(u32::try_from(self.live + self.held).unwrap_or(u32::MAX)).filter(|count| *count > 0)
+    fn badge(&self) -> Option<usize> {
+        Some(self.live + self.held).filter(|count| *count > 0)
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {

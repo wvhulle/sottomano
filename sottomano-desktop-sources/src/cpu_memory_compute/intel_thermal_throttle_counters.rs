@@ -4,7 +4,10 @@ use std::{
 };
 
 use super::cpu_dir;
-use crate::system_protocol_clients::sysfs_attribute_reads::read_i64;
+use crate::{
+    restarting_counters::count_since_counter_restart,
+    system_protocol_clients::sysfs_attribute_reads::read_i64,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct ThrottleCount {
@@ -34,8 +37,12 @@ impl ThrottleCount {
 
     fn since(self, earlier: ThrottleCount) -> ThrottleCount {
         ThrottleCount {
-            core: self.core.saturating_sub(earlier.core),
-            package: self.package.saturating_sub(earlier.package),
+            core: count_since_counter_restart("thermal throttle core", self.core, earlier.core),
+            package: count_since_counter_restart(
+                "thermal throttle package",
+                self.package,
+                earlier.package,
+            ),
         }
     }
 }
@@ -78,6 +85,19 @@ mod tests {
     #[test]
     fn first_poll_reports_no_throttle_events() {
         assert!(ThrottleBaseline::default().advance(counts(7, 3)).is_empty());
+    }
+
+    #[test]
+    fn a_restarted_counter_reports_its_count_since_the_restart() {
+        let baseline = ThrottleBaseline::default();
+        baseline.advance(counts(7, 3));
+        assert_eq!(
+            baseline.advance(counts(2, 3)).get(&0),
+            Some(&ThrottleCount {
+                core: 2,
+                package: 0
+            })
+        );
     }
 
     #[test]

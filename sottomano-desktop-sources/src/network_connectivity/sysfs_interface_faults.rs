@@ -16,7 +16,14 @@ impl From<&str> for InterfaceFaultCounters {
             .join(interface)
             .join("statistics");
         let counter_named = |counter_file: &str| {
-            parse_field(&statistics_directory.join(counter_file)).unwrap_or_default()
+            parse_field(&statistics_directory.join(counter_file)).unwrap_or_else(
+                |counter_failure| {
+                    tracing::debug!(
+                        "interface faults: {interface} {counter_file}: {counter_failure}"
+                    );
+                    0
+                },
+            )
         };
         Self {
             receive_errors: counter_named("rx_errors"),

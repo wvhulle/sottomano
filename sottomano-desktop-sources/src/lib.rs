@@ -26,6 +26,7 @@ pub mod non_empty_text;
 pub mod nspawn_containers;
 pub mod podman_container_engine;
 pub mod qemu_virtual_machines;
+pub mod restarting_counters;
 pub mod screen_brightness_color;
 pub mod secret_file_reads;
 pub mod sqlite_state_store;

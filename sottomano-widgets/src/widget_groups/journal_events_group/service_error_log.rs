@@ -47,8 +47,8 @@ impl GroupItemReading for ServiceErrors {
         Phosphor::WarningCircle(Weight::Regular).into()
     }
 
-    fn badge(&self) -> Option<u32> {
-        Some(u32::try_from(self.by_unit_oldest_first.len()).unwrap_or(u32::MAX))
+    fn badge(&self) -> Option<usize> {
+        Some(self.by_unit_oldest_first.len())
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {

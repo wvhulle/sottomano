@@ -38,6 +38,10 @@ pub async fn schedule_retry(resp: &http_json_client::Response, body: Value) -> E
     let attempts = write_rate_limit::load(SOURCE)
         .await
         .map_or(0, |stored| stored.attempts);
+    let next_attempt = attempts.checked_add(1).unwrap_or_else(|| {
+        tracing::warn!("claude usage: stored attempt count {attempts} is corrupt, counting from 1");
+        1
+    });
     let server_delay = retry_delay_from_headers(resp);
     let delay = server_delay
         .unwrap_or_else(|| with_jitter(escalating_delay(attempts)))
@@ -45,15 +49,15 @@ pub async fn schedule_retry(resp: &http_json_client::Response, body: Value) -> E
     tracing::warn!(
         "claude usage: HTTP 429 ({message:?}); retry-after {:?}, attempt {}, waiting {}",
         server_delay,
-        attempts + 1,
+        next_attempt,
         humantime::format_duration(delay)
     );
     write_rate_limit::save(
         SOURCE,
         &Backoff {
             retry_after_unix: write_rate_limit::now_unix()
-                + i64::try_from(delay.as_secs()).unwrap_or(i64::MAX),
-            attempts: attempts.saturating_add(1),
+                + i64::try_from(delay.as_secs()).expect("the delay is clamped to MAX_DELAY"),
+            attempts: next_attempt,
             status: 429,
             message: message.clone(),
         },

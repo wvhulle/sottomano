@@ -115,10 +115,14 @@ pub async fn system_backlight_proxy() -> zbus::Result<ClightdBacklightProxy<'sta
 }
 
 pub async fn poll_all() -> Vec<Backlight> {
-    let Ok(proxy) = system_backlight_proxy().await else {
-        return Vec::new();
+    let listed_backlights = match system_backlight_proxy().await {
+        Ok(proxy) => proxy.get_all("").await.map(backlights),
+        Err(proxy_failure) => Err(proxy_failure),
     };
-    proxy.get_all("").await.map(backlights).unwrap_or_default()
+    listed_backlights.unwrap_or_else(|backlight_failure| {
+        tracing::warn!("backlight: clightd listing failed: {backlight_failure}");
+        Vec::new()
+    })
 }
 
 fn backlights(readings: Vec<BacklightReading>) -> Vec<Backlight> {

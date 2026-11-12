@@ -82,6 +82,11 @@ pub(super) fn lyrics_section(track_lyrics: &TrackLyrics, played: Duration) -> Se
     };
     let current_index = track_lyrics.current_line_index(played);
     let upcoming_start = current_index.map_or(0, |index| index + 1);
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "near the first line fewer than LINES_BEFORE_CURRENT earlier lines exist, so the \
+                  window starts at the first line"
+    )]
     let past_start = current_index
         .unwrap_or_default()
         .saturating_sub(LINES_BEFORE_CURRENT);

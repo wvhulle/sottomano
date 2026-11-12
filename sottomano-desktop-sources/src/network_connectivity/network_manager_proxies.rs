@@ -1064,7 +1064,7 @@ pub async fn access_point(
         ap.rsn_flags()
     )?;
     Ok(ApInfo {
-        ssid: non_empty(String::from_utf8_lossy(&ssid).into_owned()),
+        ssid: non_empty(shown_ssid(ssid)),
         signal: i64::from(strength),
         frequency: Frequency::new::<megahertz>(f64::from(frequency)),
         security: security(flags, wpa, rsn),
@@ -1121,7 +1121,7 @@ async fn wireless_profile(
     let ssid = profile
         .get("802-11-wireless")
         .and_then(|section| prop::<Vec<u8>>(section, "ssid"))
-        .and_then(|ssid_bytes| non_empty(String::from_utf8_lossy(&ssid_bytes).into_owned()));
+        .and_then(|ssid_bytes| non_empty(shown_ssid(ssid_bytes)));
     let Some(ssid) = ssid else {
         return Ok(None);
     };
@@ -1195,4 +1195,9 @@ pub async fn changes(
         .map(|interface| properties_changed_rule(SERVICE, interface))
         .collect::<zbus::Result<Vec<_>>>()?;
     change_triggers(connection, rules).await
+}
+
+fn shown_ssid(ssid_bytes: Vec<u8>) -> String {
+    String::from_utf8(ssid_bytes)
+        .unwrap_or_else(|non_utf8_ssid| non_utf8_ssid.as_bytes().escape_ascii().to_string())
 }

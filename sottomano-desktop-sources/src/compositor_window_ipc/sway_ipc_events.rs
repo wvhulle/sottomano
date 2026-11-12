@@ -172,7 +172,11 @@ fn sway_state_of(workspaces: &[Workspace], tree: &Node) -> CompositorWindowState
             let placed_workspace = placed.get(&workspace.id)?;
             let index = next_index_by_output
                 .entry(workspace.output.as_str())
-                .and_modify(|index| *index = index.saturating_add(1))
+                .and_modify(|index| {
+                    *index = index
+                        .checked_add(1)
+                        .expect("fewer than 255 workspaces share one output");
+                })
                 .or_insert(1);
             Some(CompositorWorkspace {
                 id: sway_id(workspace.id)?,
@@ -292,8 +296,8 @@ fn sway_output_facts(output: Output) -> (String, OutputInfo) {
             })
         }),
         scale: output.scale.unwrap_or(1.0),
-        logical_width: u32::try_from(output.rect.width).unwrap_or(0),
-        logical_height: u32::try_from(output.rect.height).unwrap_or(0),
+        logical_width: output_side(&output.name, output.rect.width),
+        logical_height: output_side(&output.name, output.rect.height),
     };
     (output.name, facts)
 }
@@ -325,6 +329,13 @@ pub async fn sway_window_pids() -> Fallible<Vec<i32>> {
         .values()
         .filter_map(|window| window.pid)
         .collect())
+}
+
+fn output_side(output_name: &str, reported_side: i32) -> u32 {
+    u32::try_from(reported_side).unwrap_or_else(|negative_side| {
+        tracing::warn!("sway: output {output_name} reports side {reported_side}: {negative_side}");
+        0
+    })
 }
 
 #[cfg(test)]

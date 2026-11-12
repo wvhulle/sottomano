@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs,
+    fs::{self, DirEntry},
     future::ready,
     path::{Path, PathBuf},
     time::Duration,
@@ -175,7 +175,7 @@ fn running_payload_cgroups(cgroup_root: &Path) -> BTreeMap<String, PathBuf> {
                 .ok()
         })
         .filter_map(|entry| {
-            let directory_name = entry.file_name().to_string_lossy().into_owned();
+            let directory_name = utf8_directory_name(&entry)?;
             let container_name = directory_name.strip_prefix(PAYLOAD_CGROUP_PREFIX)?;
             Some((container_name.to_owned(), entry.path()))
         })
@@ -194,11 +194,11 @@ fn configured_container_directories(lxc_path: &Path) -> BTreeMap<String, PathBuf
                 .ok()
         })
         .filter(|entry| entry.path().join(CONFIG_FILE_NAME).is_file())
-        .map(|entry| {
-            (
-                entry.file_name().to_string_lossy().into_owned(),
+        .filter_map(|entry| {
+            Some((
+                utf8_directory_name(&entry)?,
                 entry.path().join(CONFIG_FILE_NAME),
-            )
+            ))
         })
         .collect()
 }
@@ -245,6 +245,19 @@ fn listed_containers(lxc_path: &Path, cgroup_root: &Path) -> LxcContainers {
         })
         .collect();
     LxcContainers { containers }
+}
+
+fn utf8_directory_name(entry: &DirEntry) -> Option<String> {
+    entry
+        .file_name()
+        .into_string()
+        .inspect_err(|non_utf8_name| {
+            tracing::warn!(
+                "lxc: skipping directory with a non-utf-8 name {}",
+                non_utf8_name.display()
+            );
+        })
+        .ok()
 }
 
 #[cfg(test)]

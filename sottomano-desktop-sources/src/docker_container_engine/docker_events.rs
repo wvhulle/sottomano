@@ -51,19 +51,23 @@ async fn opened_event_records(
     }
     let event_records = response
         .bytes_stream()
-        .scan(String::new(), |buffer, chunk| {
+        .scan(Vec::new(), |buffer: &mut Vec<u8>, chunk| {
             let decoded: Vec<Result<DockerEventRecord, Error>> = match chunk {
                 Ok(chunk) => {
-                    buffer.push_str(&String::from_utf8_lossy(&chunk));
-                    let complete_length = buffer.rfind('\n').map_or(0, |newline| newline + 1);
-                    let complete_lines: String = buffer.drain(..complete_length).collect();
+                    buffer.extend_from_slice(&chunk);
+                    let complete_length = buffer
+                        .iter()
+                        .rposition(|byte| *byte == b'\n')
+                        .map_or(0, |newline| newline + 1);
+                    let complete_lines: Vec<u8> = buffer.drain(..complete_length).collect();
                     complete_lines
-                        .lines()
-                        .filter(|event_line| !event_line.trim().is_empty())
+                        .split(|byte| *byte == b'\n')
+                        .filter(|event_line| !event_line.trim_ascii().is_empty())
                         .map(|event_line| {
-                            serde_json::from_str(event_line).map_err(|decode_failure| {
+                            serde_json::from_slice(event_line).map_err(|decode_failure| {
                                 Error::Decode(format!(
-                                    "docker event {event_line}: {decode_failure}"
+                                    "docker event {}: {decode_failure}",
+                                    event_line.escape_ascii()
                                 ))
                             })
                         })

@@ -516,7 +516,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ContentSizedTable
 
 #[allow(clippy::cast_precision_loss)]
 fn total_gap(cell_count: usize, gap: f32) -> f32 {
-    gap * cell_count.saturating_sub(1) as f32
+    cell_count
+        .checked_sub(1)
+        .map_or(0.0, |gap_count| gap * gap_count as f32)
 }
 
 fn span(extents: &[f32], gap: f32) -> f32 {

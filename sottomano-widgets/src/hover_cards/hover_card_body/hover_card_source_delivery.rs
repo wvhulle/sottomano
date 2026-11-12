@@ -1,4 +1,4 @@
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant};
 
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::DeliveryCadence,
@@ -92,11 +92,11 @@ pub enum SnapshotFreshness {
 pub enum DeliveryTiming {
     PeriodicPolling {
         poll_period: Duration,
-        delivered_at: SystemTime,
+        delivered_at: Instant,
     },
     LivePushWithRecheck {
         recheck_period: Duration,
-        delivered_at: SystemTime,
+        delivered_at: Instant,
     },
     LivePush,
     SingleRead,
@@ -123,11 +123,11 @@ impl DeliveryTiming {
         match delivery_cadence {
             DeliveryCadence::PeriodicPolling(polling) => DeliveryTiming::PeriodicPolling {
                 poll_period: polling.poll_period(),
-                delivered_at: clock.wall,
+                delivered_at: clock.instant,
             },
             DeliveryCadence::LivePushWithRecheck(recheck) => DeliveryTiming::LivePushWithRecheck {
                 recheck_period: recheck.poll_period(),
-                delivered_at: clock.wall,
+                delivered_at: clock.instant,
             },
             DeliveryCadence::LivePush => DeliveryTiming::LivePush,
             DeliveryCadence::SingleRead => DeliveryTiming::SingleRead,
@@ -140,13 +140,13 @@ impl DeliveryTiming {
             DeliveryTiming::PeriodicPolling { poll_period, .. } => {
                 DeliveryTiming::PeriodicPolling {
                     poll_period,
-                    delivered_at: clock.wall,
+                    delivered_at: clock.instant,
                 }
             }
             DeliveryTiming::LivePushWithRecheck { recheck_period, .. } => {
                 DeliveryTiming::LivePushWithRecheck {
                     recheck_period,
-                    delivered_at: clock.wall,
+                    delivered_at: clock.instant,
                 }
             }
             DeliveryTiming::LivePush | DeliveryTiming::SingleRead => self,
@@ -166,11 +166,12 @@ impl DeliveryTiming {
         else {
             return SnapshotFreshness::Fresh;
         };
-        let elapsed = clock
-            .wall
-            .duration_since(delivered_at)
-            .unwrap_or(Duration::ZERO);
-        if elapsed >= refresh_period {
+        if clock
+            .instant
+            .checked_duration_since(delivered_at)
+            .expect("a delivery is stamped no later than the clock that reads it")
+            >= refresh_period
+        {
             SnapshotFreshness::PastPollPeriod
         } else {
             SnapshotFreshness::Fresh

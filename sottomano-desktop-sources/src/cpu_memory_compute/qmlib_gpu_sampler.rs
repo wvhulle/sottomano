@@ -87,7 +87,9 @@ impl DrmGpuWorker {
                 }
             })
             .map_err(|failure| Error::Qmlib(failure.to_string()))?;
-        opened_receiver.recv().unwrap_or(Err(Error::Panicked))?;
+        opened_receiver
+            .recv()
+            .map_err(|_dropped_sender| Error::Panicked)??;
         Ok(DrmGpuWorker { bus, requests })
     }
 
@@ -99,7 +101,9 @@ impl DrmGpuWorker {
         self.requests
             .send(wrap_reply(reply_sender))
             .map_err(|_| Error::WorkerStopped)?;
-        reply_receiver.await.unwrap_or(Err(Error::WorkerStopped))
+        reply_receiver
+            .await
+            .map_err(|_dropped_reply| Error::WorkerStopped)?
     }
 }
 
@@ -231,10 +235,12 @@ impl GpuSampleWorker {
     }
 
     fn refresh_when_stale(&mut self) -> Result<(), Error> {
-        if self
-            .last_refresh
-            .is_some_and(|refreshed_at| refreshed_at.elapsed() < MINIMUM_REFRESH_GAP)
-        {
+        if self.last_refresh.is_some_and(|refreshed_at| {
+            Instant::now()
+                .checked_duration_since(refreshed_at)
+                .expect("the last gpu refresh happened before now")
+                < MINIMUM_REFRESH_GAP
+        }) {
             return Ok(());
         }
         catch_unwind(AssertUnwindSafe(|| self.devices.refresh()))

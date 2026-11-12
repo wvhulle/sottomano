@@ -119,6 +119,10 @@ impl GatewayProber {
             .collect();
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "icmp echo sequence numbers wrap around by design"
+    )]
     async fn probe_round(
         &mut self,
         polling: PeriodicPolling,

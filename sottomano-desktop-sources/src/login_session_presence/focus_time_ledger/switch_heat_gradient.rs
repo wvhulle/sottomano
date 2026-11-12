@@ -1,4 +1,4 @@
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Utc};
 use color::{AlphaColor, Oklab, Srgb};
 use sottomano_toml_config::theme::palette::Palette;
 
@@ -8,7 +8,7 @@ impl Accounting<'_> {
     #[must_use]
     pub fn recent_switches_to(&self, window: u64, now: DateTime<Utc>) -> usize {
         let recent = TrailingPeriod {
-            length: TimeDelta::from_std(self.config.switch_heat_span).unwrap_or(TimeDelta::MAX),
+            length: self.config.switch_heat_span,
         };
         self.switches_to(window, recent.ending_at(now), now)
     }
@@ -59,8 +59,7 @@ fn blended_in_oklab(
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
+    use chrono::TimeDelta;
     use color::{AlphaColor, Oklab, Srgb};
     use sottomano_toml_config::{
         theme::palette::Palette, widget_groups::session_focus::SessionFocusConfig,
@@ -83,7 +82,7 @@ mod tests {
 
     fn two_hour_span_config() -> SessionFocusConfig {
         SessionFocusConfig {
-            switch_heat_span: Duration::from_hours(2),
+            switch_heat_span: TimeDelta::hours(2),
             ..config()
         }
     }

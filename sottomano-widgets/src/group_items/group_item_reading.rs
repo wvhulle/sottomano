@@ -68,7 +68,7 @@ pub trait GroupItemReading {
         None
     }
 
-    fn badge(&self) -> Option<u32> {
+    fn badge(&self) -> Option<usize> {
         None
     }
 
@@ -133,7 +133,7 @@ impl<ForwardedReading: GroupItemReading + ?Sized> GroupItemReading for &Forwarde
         (**self).gauge()
     }
 
-    fn badge(&self) -> Option<u32> {
+    fn badge(&self) -> Option<usize> {
         (**self).badge()
     }
 

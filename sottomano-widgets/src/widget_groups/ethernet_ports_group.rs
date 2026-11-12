@@ -216,7 +216,9 @@ impl EthernetPortsGroup {
         same_attachment
             .iter()
             .position(|sibling| sibling.name == port_state.name)
-            .map(|position| u8::try_from(position + 1).unwrap_or(u8::MAX))
+            .map(|position| {
+                u8::try_from(position + 1).expect("fewer than 255 ports share an attachment")
+            })
             .map_or(PortMarking::UniqueAttachment, |ordinal| {
                 PortMarking::SharedAttachment { ordinal }
             })

@@ -73,7 +73,15 @@ fn probe_project(pid: i32) -> Option<PathBuf> {
             );
         })
         .ok()?;
-    repository_root(&leaf_directory)
+    let project_root = repository_root(&leaf_directory)?;
+    if project_root.to_str().is_none() {
+        tracing::warn!(
+            "focus project: repository root {} is not unicode, so it cannot be stored",
+            project_root.display()
+        );
+        return None;
+    }
+    Some(project_root)
 }
 
 fn readable_process(pid: i32) -> Option<Proc> {

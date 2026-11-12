@@ -11,6 +11,7 @@ use std::{
 };
 
 use clap::Parser;
+use sottomano_desktop_sources::system_protocol_clients::shell_command_output::shown_process_text;
 use sottomano_toml_config::Config;
 use sottomano_widget_showcase::{
     WORKSPACE_ROOT,
@@ -76,7 +77,7 @@ fn render_in_child_process(executable: &Path, demo: &Demo, output: &Path) -> Res
         Err(format!(
             "{}\n{}",
             child_output.status,
-            String::from_utf8_lossy(&child_output.stderr)
+            shown_process_text(&child_output.stderr)
         ))
     }
 }
@@ -98,7 +99,7 @@ fn render_all_demos(jobs: NonZeroUsize, output: &Path) -> Result<(), Box<dyn Err
                             "[{finished}/{}] {} recorded in {:.1}s",
                             DEMOS.len(),
                             demo.name,
-                            demo_started.elapsed().as_secs_f32()
+                            seconds_since(demo_started)
                         );
                         None
                     }
@@ -129,9 +130,16 @@ fn render_all_demos(jobs: NonZeroUsize, output: &Path) -> Result<(), Box<dyn Err
     eprintln!(
         "recorded {} demos in {:.0}s",
         DEMOS.len(),
-        run_started.elapsed().as_secs_f32()
+        seconds_since(run_started)
     );
     Ok(())
+}
+
+fn seconds_since(started: Instant) -> f32 {
+    Instant::now()
+        .checked_duration_since(started)
+        .expect("the monotonic clock does not run backwards")
+        .as_secs_f32()
 }
 
 fn main() -> Result<(), Box<dyn Error>> {

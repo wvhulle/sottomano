@@ -37,7 +37,9 @@ impl BcachefsMemberRow<'_> {
         if capacity == 0 {
             return 0;
         }
-        let used = capacity.saturating_sub(self.device.free.as_u64());
+        let used = capacity
+            .checked_sub(self.device.free.as_u64())
+            .expect("the source rejects members with more reusable than total buckets");
         (used as f64 * 100.0 / capacity as f64).round() as i64
     }
 }

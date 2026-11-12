@@ -533,10 +533,23 @@ mod tests {
         }
     }
 
-    fn clock_at(seconds_since_epoch: u64) -> Clock {
-        Clock {
-            wall: SystemTime::UNIX_EPOCH + Duration::from_secs(seconds_since_epoch),
-            ..Clock::real()
+    struct TestTimeline {
+        started: Clock,
+    }
+
+    impl TestTimeline {
+        fn starting_now() -> Self {
+            Self {
+                started: Clock::real(),
+            }
+        }
+
+        fn at(&self, seconds_since_epoch: u64) -> Clock {
+            let elapsed = Duration::from_secs(seconds_since_epoch);
+            Clock {
+                instant: self.started.instant + elapsed,
+                wall: SystemTime::UNIX_EPOCH + elapsed,
+            }
         }
     }
 
@@ -558,35 +571,38 @@ mod tests {
 
     #[test]
     fn an_unchanged_snapshot_keeps_its_poll_period_and_moves_its_delivery_time() {
+        let timeline = TestTimeline::starting_now();
         let mut latest: LatestSnapshot<CountedSnapshot> = LatestSnapshot::default();
-        latest.receive(polled_delivery(Ok(CountedSnapshot(1))), clock_at(10));
-        latest.receive(SnapshotDelivery::SnapshotUnchanged, clock_at(13));
+        latest.receive(polled_delivery(Ok(CountedSnapshot(1))), timeline.at(10));
+        latest.receive(SnapshotDelivery::SnapshotUnchanged, timeline.at(13));
         assert_eq!(
             latest.delivery_timing(),
             Some(DeliveryTiming::PeriodicPolling {
                 poll_period: Duration::from_secs(3),
-                delivered_at: SystemTime::UNIX_EPOCH + Duration::from_secs(13),
+                delivered_at: timeline.at(13).instant,
             })
         );
     }
 
     #[test]
     fn a_holder_that_hides_failures_keeps_its_snapshot() {
+        let timeline = TestTimeline::starting_now();
         let mut latest: LatestSnapshot<CountedSnapshot, HidesFetchFailures> =
             LatestSnapshot::default();
-        latest.receive(polled_delivery(Ok(CountedSnapshot(1))), clock_at(10));
-        latest.receive(polled_delivery(Err(CountingFailure)), clock_at(13));
+        latest.receive(polled_delivery(Ok(CountedSnapshot(1))), timeline.at(10));
+        latest.receive(polled_delivery(Err(CountingFailure)), timeline.at(13));
         assert_eq!(latest.get(), Some(&CountedSnapshot(1)));
     }
 
     #[test]
     fn failures_after_a_success_are_hidden_but_failures_before_it_are_shown() {
+        let timeline = TestTimeline::starting_now();
         let mut latest: LatestSnapshot<CountedSnapshot, HidesFailuresAfterSuccess> =
             LatestSnapshot::default();
-        latest.receive(polled_delivery(Err(CountingFailure)), clock_at(10));
+        latest.receive(polled_delivery(Err(CountingFailure)), timeline.at(10));
         assert!(latest.failure().is_some());
-        latest.receive(polled_delivery(Ok(CountedSnapshot(2))), clock_at(13));
-        latest.receive(polled_delivery(Err(CountingFailure)), clock_at(16));
+        latest.receive(polled_delivery(Ok(CountedSnapshot(2))), timeline.at(13));
+        latest.receive(polled_delivery(Err(CountingFailure)), timeline.at(16));
         assert_eq!(latest.get(), Some(&CountedSnapshot(2)));
     }
 
@@ -601,8 +617,9 @@ mod tests {
 
     #[test]
     fn a_refused_command_shows_its_failure_with_the_held_timing() {
+        let timeline = TestTimeline::starting_now();
         let mut latest: LatestSnapshot<CountedSnapshot> = LatestSnapshot::default();
-        latest.receive(polled_delivery(Ok(CountedSnapshot(1))), clock_at(10));
+        latest.receive(polled_delivery(Ok(CountedSnapshot(1))), timeline.at(10));
         latest.apply_command(CommandOutcome::Refused {
             refusal: CountingFailure,
         });
@@ -611,41 +628,43 @@ mod tests {
             latest.delivery_timing(),
             Some(DeliveryTiming::PeriodicPolling {
                 poll_period: Duration::from_secs(3),
-                delivered_at: SystemTime::UNIX_EPOCH + Duration::from_secs(10),
+                delivered_at: timeline.at(10).instant,
             })
         );
     }
 
     #[test]
     fn going_offline_keeps_the_held_snapshot_normal_until_its_poll_period_expires() {
+        let timeline = TestTimeline::starting_now();
         let mut latest: LatestSnapshot<CountedSnapshot> = LatestSnapshot::default();
-        latest.receive(polled_delivery(Ok(CountedSnapshot(1))), clock_at(10));
+        latest.receive(polled_delivery(Ok(CountedSnapshot(1))), timeline.at(10));
         latest.receive(
             SnapshotDelivery::InternetUnreachable(InternetUnreachable::NoConnection),
-            clock_at(11),
+            timeline.at(11),
         );
         assert_eq!(latest.get(), Some(&CountedSnapshot(1)));
         assert_eq!(
-            latest.display().map(|widget| widget.state(clock_at(12))),
+            latest.display().map(|widget| widget.state(timeline.at(12))),
             Some(ReadingDisplayState::Idle)
         );
         assert_eq!(
-            latest.display().map(|widget| widget.state(clock_at(13))),
+            latest.display().map(|widget| widget.state(timeline.at(13))),
             Some(ReadingDisplayState::Offline)
         );
-        latest.receive(polled_delivery(Ok(CountedSnapshot(2))), clock_at(16));
+        latest.receive(polled_delivery(Ok(CountedSnapshot(2))), timeline.at(16));
         assert!(matches!(latest, LatestSnapshot::SnapshotHeld { .. }));
     }
 
     #[test]
     fn going_offline_before_any_snapshot_shows_a_placeholder() {
+        let timeline = TestTimeline::starting_now();
         let mut latest: LatestSnapshot<CountedSnapshot> = LatestSnapshot::default();
         latest.receive(
             SnapshotDelivery::InternetUnreachable(InternetUnreachable::WirelessRadioOff),
-            clock_at(10),
+            timeline.at(10),
         );
         assert!(latest.get().is_none());
         assert!(latest.display().is_some());
-        assert!(latest.hover_card(clock_at(10)).is_some());
+        assert!(latest.hover_card(timeline.at(10)).is_some());
     }
 }

@@ -166,7 +166,17 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             .find(|n| n.data.id == id)?
             .icons
             .previewed_file()
-            .map(|file| file.to_string_lossy().into_owned())
+            .and_then(|file| {
+                let file_text = file.to_str().map(str::to_owned);
+                if file_text.is_none() {
+                    tracing::warn!(
+                        "toast {id}: previewed file {} is not unicode, so it cannot be opened or \
+                         copied",
+                        file.display()
+                    );
+                }
+                file_text
+            })
     }
 
     fn open_previewed_file(&mut self, id: u32, context: &ToastContext) -> Task<Routed> {

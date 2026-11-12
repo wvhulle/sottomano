@@ -299,7 +299,9 @@ impl GamepadMachine {
 
     fn pointer_step(&mut self, now: Instant) -> Option<PointerEffect> {
         let last_step = self.last_pointer_step?;
-        let elapsed = now.duration_since(last_step);
+        let elapsed = now
+            .checked_duration_since(last_step)
+            .expect("the last pointer step happened at an earlier input");
         if elapsed < POINTER_TICK {
             return None;
         }

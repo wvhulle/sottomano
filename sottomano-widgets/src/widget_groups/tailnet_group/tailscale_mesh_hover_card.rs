@@ -115,11 +115,11 @@ impl GroupItemReading for Tailscale {
         }
     }
 
-    fn badge(&self) -> Option<u32> {
+    fn badge(&self) -> Option<usize> {
         let Tailscale::Running(tailnet) = self else {
             return None;
         };
-        Some(u32::try_from(tailnet.online.len()).unwrap_or(u32::MAX)).filter(|count| *count > 0)
+        Some(tailnet.online.len()).filter(|count| *count > 0)
     }
 
     fn hover_card(&self, clock: Clock) -> HoverCardBody {

@@ -140,7 +140,10 @@ fn elapsed_of(task: &CiTask, clock: Clock) -> Duration {
     clock
         .wall
         .duration_since(task.started_at)
-        .unwrap_or_default()
+        .unwrap_or_else(|clock_step| {
+            tracing::debug!("ci runs: task started after the wall clock: {clock_step}");
+            Duration::ZERO
+        })
 }
 
 fn web_log_entry(web_log: &TaskWebLog) -> Option<LabeledValue> {

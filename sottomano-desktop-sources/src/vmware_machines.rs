@@ -156,9 +156,7 @@ fn configuration_file_of(command_line: &[String]) -> Option<PathBuf> {
 fn file_stem_text(configuration_file: &Path) -> String {
     configuration_file
         .file_stem()
-        .map_or_else(String::new, |file_stem| {
-            file_stem.to_string_lossy().into_owned()
-        })
+        .map_or_else(String::new, |file_stem| file_stem.display().to_string())
 }
 
 fn scanned_machines() -> Result<VmwareMachines, Error> {

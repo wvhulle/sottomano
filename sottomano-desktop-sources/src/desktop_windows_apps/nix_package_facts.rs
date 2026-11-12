@@ -193,7 +193,11 @@ impl InstalledPackage {
     async fn read(key: PackageWatch) -> Result<Self, Error> {
         let watched = key.watched;
         let package = blocking_poll(move || hovered_package(&watched)).await?;
-        let root = package.root.to_string_lossy().into_owned();
+        let root = package
+            .root
+            .to_str()
+            .expect("nix store path names are ascii")
+            .to_owned();
         let info = path_info(&root).await?;
         let path_count = shell_command_output::output("nix", &["path-info", "-r", &root])
             .await?

@@ -379,6 +379,7 @@ fn gtk_application_stream(
     connection: zbus::Connection,
     app_id: String,
 ) -> impl Stream<Item = FocusedMenuBar> + Send {
+    let logged_app_id = app_id.clone();
     stream::once(async move {
         gtk_menu_bar_source_of_app(&connection, &app_id)
             .await
@@ -386,14 +387,16 @@ fn gtk_application_stream(
                 gtk_menu_bar_stream(connection, source, MenuBarMatch::OnlyProcessCandidate)
                     .map(Ok::<_, zbus::Error>)
             })
-            .inspect_err(|source_failure| {
-                tracing::debug!(
-                    "global menu: {app_id} is no gtk application name: {source_failure}"
-                );
-            })
     })
     .try_flatten()
-    .map(|menu_bar| menu_bar.unwrap_or(FocusedMenuBar::NotExported))
+    .map(move |menu_bar| {
+        menu_bar.unwrap_or_else(|source_failure| {
+            tracing::debug!(
+                "global menu: {logged_app_id} is no gtk application name: {source_failure}"
+            );
+            FocusedMenuBar::NotExported
+        })
+    })
 }
 
 fn candidate_menu_bars(

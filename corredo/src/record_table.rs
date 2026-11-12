@@ -188,7 +188,9 @@ impl<'label, CellValue, RowLevel> RecordTable<'label, CellValue, RowLevel> {
     #[must_use]
     pub fn truncated_to(self, row_limit: NonZeroUsize) -> Self {
         let record_count = self.records().count();
-        let Some(omitted_count) = NonZeroUsize::new(record_count.saturating_sub(row_limit.get()))
+        let Some(omitted_count) = record_count
+            .checked_sub(row_limit.get())
+            .and_then(NonZeroUsize::new)
         else {
             return self;
         };

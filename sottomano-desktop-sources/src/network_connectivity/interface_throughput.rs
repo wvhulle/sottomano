@@ -248,16 +248,29 @@ fn capture(interfaces: &[String]) -> Sample {
 
 impl Sample {
     fn rates_since(&self, previous: &Self) -> Rates {
-        let elapsed = self.at.duration_since(previous.at);
+        let elapsed = self
+            .at
+            .checked_duration_since(previous.at)
+            .expect("samples are taken in order");
         if elapsed.as_millis() == 0 {
             return Rates::default();
         }
         self.counters
             .iter()
-            .filter_map(|(interface, now)| Some((now, previous.counters.get(interface)?)))
-            .map(|(now, was)| Rates {
-                rx: per_second(now.received, was.received, elapsed),
-                tx: per_second(now.sent, was.sent, elapsed),
+            .filter_map(|(interface, now)| {
+                Some((interface, now, previous.counters.get(interface)?))
+            })
+            .filter_map(|(interface, now, was)| {
+                let interface_rates = per_second(now.received, was.received, elapsed)
+                    .zip(per_second(now.sent, was.sent, elapsed))
+                    .map(|(rx, tx)| Rates { rx, tx });
+                if interface_rates.is_none() {
+                    tracing::debug!(
+                        "interface throughput: {interface} byte counters went back after a reset, \
+                         skipping this sample"
+                    );
+                }
+                interface_rates
             })
             .fold(Rates::default(), Add::add)
     }
@@ -288,9 +301,10 @@ fn readings(
     }
 }
 
-fn per_second(now: ByteSize, was: ByteSize, elapsed: Duration) -> InformationRate {
-    let transferred = Information::new::<byte>(now.as_u64().saturating_sub(was.as_u64()) as f64);
-    (transferred / Time::new::<second>(elapsed.as_secs_f64())).into()
+fn per_second(now: ByteSize, was: ByteSize, elapsed: Duration) -> Option<InformationRate> {
+    let transferred_bytes = now.as_u64().checked_sub(was.as_u64())?;
+    let transferred = Information::new::<byte>(transferred_bytes as f64);
+    Some((transferred / Time::new::<second>(elapsed.as_secs_f64())).into())
 }
 
 fn read_counters(interface: &str) -> InterfaceByteCounters {

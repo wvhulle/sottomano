@@ -546,6 +546,11 @@ fn parse_kernel_dump(dump: &str, now: u64) -> Option<KernelTunnel> {
     })
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the kernel stamps handshakes with its own wall clock reading, which can be a moment \
+              ahead of the dump's"
+)]
 fn kernel_peer(dump_line: &str, now: u64) -> Option<Peer> {
     let fields: Vec<&str> = dump_line.split('\t').collect();
     let reported = |position: usize| {

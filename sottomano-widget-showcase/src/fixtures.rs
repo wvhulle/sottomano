@@ -17,12 +17,13 @@ pub fn sample(clock: Clock) -> u32 {
     let elapsed = clock
         .wall
         .duration_since(showcase_epoch())
-        .unwrap_or(Duration::ZERO);
-    u32::try_from(elapsed.as_millis() / LIVE_INTERVAL.as_millis()).unwrap_or(u32::MAX)
+        .expect("showcase clocks advance from the showcase epoch");
+    u32::try_from(elapsed.as_millis() / LIVE_INTERVAL.as_millis())
+        .expect("a showcase runs for fewer than u32::MAX live intervals")
 }
 
 pub fn cycled<T: Copy>(values: &[T], tick: u32) -> T {
-    values[usize::try_from(tick).unwrap_or_default() % values.len()]
+    values[usize::try_from(tick).expect("usize holds a u32 on supported targets") % values.len()]
 }
 
 pub fn unchanging(_clock: Clock) -> Vec<ShowcaseMessage> {

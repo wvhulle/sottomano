@@ -56,7 +56,8 @@ impl DeviceBattery {
             return DeviceBattery::Unreported;
         };
         DeviceBattery::Reported {
-            level_percent: u8::try_from(capacity.clamp(0, 100)).unwrap_or_default(),
+            level_percent: u8::try_from(capacity.clamp(0, 100))
+                .expect("a percentage clamped to 0..=100 fits a byte"),
             charging: read_trimmed(supply.join("status"))
                 .as_deref()
                 .map_or(ChargingState::Unknown, ChargingState::from),

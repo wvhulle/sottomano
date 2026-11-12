@@ -125,10 +125,12 @@ fn fc_match_stdout(pattern: &str, format: &str) -> io::Result<Option<String>> {
     let output = Command::new("fc-match")
         .args(["-f", format, pattern])
         .output()?;
-    Ok(output
-        .status
-        .success()
-        .then(|| String::from_utf8_lossy(&output.stdout).into_owned()))
+    if !output.status.success() {
+        return Ok(None);
+    }
+    String::from_utf8(output.stdout)
+        .map(Some)
+        .map_err(io::Error::other)
 }
 
 struct FontMatch {
