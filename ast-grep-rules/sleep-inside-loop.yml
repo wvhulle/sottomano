@@ -1,0 +1,22 @@
+id: sleep-inside-loop
+language: rust
+severity: error
+message: A sleep inside a loop is an ad-hoc retry or poll loop.
+note: Reconnects go through protocol_peer_reconnects::subscribed and periodic reads through PeriodicPolling. The memory report thread is exempt because it must run outside the async runtime.
+files:
+  - sottomano-desktop-sources/src/**/*.rs
+  - sottomano-widgets/src/**/*.rs
+  - sottomano-shell/src/**/*.rs
+ignores:
+  - sottomano-desktop-sources/src/system_protocol_clients/protocol_peer_reconnects.rs
+  - sottomano-shell/src/process_memory_report.rs
+rule:
+  any:
+    - pattern: sleep($$$)
+    - pattern: $PATH::sleep($$$)
+  inside:
+    any:
+      - kind: loop_expression
+      - kind: for_expression
+      - kind: while_expression
+    stopBy: end

@@ -6,3 +6,8 @@ repos:
         entry: treefmt --ci --tree-root .
         language: system
         pass_filenames: false
+      - id: ast-grep-rules
+        name: ast-grep design rules
+        entry: sh -c 'ast-grep test --skip-snapshot-tests && ast-grep scan --error sottomano-desktop-sources/src sottomano-widgets/src sottomano-shell/src'
+        language: system
+        pass_filenames: false
