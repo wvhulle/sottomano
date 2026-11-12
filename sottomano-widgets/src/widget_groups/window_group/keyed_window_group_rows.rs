@@ -10,7 +10,7 @@ use sottomano_desktop_sources::desktop_windows_apps::{
 use sottomano_toml_config::Config;
 
 use super::{
-    window_list::WindowListMessage,
+    window_list::WindowListInteraction,
     window_row_presentation::{ArrangedWindowRows, WindowSlotPresentation},
 };
 use crate::{
@@ -93,7 +93,7 @@ fn keyed_group_heading<'a>(
     window_entry: &workspace_window_snapshot::WinEntry,
     icons: WindowAssets<'a>,
     config: &Config,
-) -> Option<Element<'a, WindowListMessage>> {
+) -> Option<Element<'a, WindowListInteraction>> {
     let heading_text = keyed_group_heading_text(window_entry, icons)?;
     let tint = ReadingStateTint {
         state: ReadingDisplayState::Idle,

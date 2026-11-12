@@ -6,7 +6,7 @@ mod scoped_servers;
 mod slot_occupancy_gauge;
 
 use iced::{Subscription, Task};
-use scoped_servers::{ScopedLlamaServers, ScopedServersMessage};
+use scoped_servers::{ScopedLlamaServers, ScopedServersInteraction, ScopedServersMessage};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     ai_usage_spend::{gguf_header_model_card::GgufModelCard, llama_server_slots::LlamaModelProps},
@@ -85,13 +85,20 @@ impl Default for LlamaServerGroup {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum LlamaServerMessage {
     User(ScopedServersMessage),
     System(ScopedServersMessage),
     ModelPropsFetched(SnapshotDelivery<LlamaModelProps>),
     GgufCardRead(SnapshotDelivery<GgufModelCard>),
     BaseModelCardFetched(SnapshotDelivery<HuggingFaceModelCard>),
+    Interaction(LlamaServerInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum LlamaServerInteraction {
+    User(ScopedServersInteraction),
+    System(ScopedServersInteraction),
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -197,7 +204,21 @@ impl LlamaServerGroup {
                 self.base_model_card.receive(delivery, clock);
                 Task::none()
             }
-            LlamaServerMessage::Expansion(message) => {
+            LlamaServerMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(&mut self, interaction: LlamaServerInteraction) -> Task<LlamaServerMessage> {
+        match interaction {
+            LlamaServerInteraction::User(interaction) => self
+                .user
+                .interact(interaction)
+                .map(LlamaServerMessage::User),
+            LlamaServerInteraction::System(interaction) => self
+                .system
+                .interact(interaction)
+                .map(LlamaServerMessage::System),
+            LlamaServerInteraction::Expansion(message) => {
                 self.expansion.update(message);
                 Task::none()
             }
@@ -220,14 +241,14 @@ impl LlamaServerGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, LlamaServerMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, LlamaServerInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::LlamaServer,
             &self.expansion,
-            LlamaServerMessage::Expansion,
+            LlamaServerInteraction::Expansion,
             self.user
-                .items(LlamaServerMessage::User)
-                .chain(self.system.items(LlamaServerMessage::System)),
+                .items(LlamaServerInteraction::User)
+                .chain(self.system.items(LlamaServerInteraction::System)),
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Robot(Weight::Regular).into(),

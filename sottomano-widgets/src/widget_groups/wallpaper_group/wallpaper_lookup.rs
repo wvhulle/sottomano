@@ -17,7 +17,7 @@ use super::{article_label::Article, photo_credit::Photo, place_label::Place};
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{HoverCardBody, Section},
+    hover_cards::hover_card_body::HoverCardBody,
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},

@@ -58,11 +58,16 @@ pub struct ScopedLlamaServers {
     servers: BTreeMap<String, ServerReadings>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ScopedServersMessage {
     Services(SnapshotDelivery<ServiceCommands>),
     Switch(String, UnitSwitchMessage),
     Server(String, SnapshotDelivery<LlamaServer>),
+}
+
+#[derive(Debug, Clone)]
+pub enum ScopedServersInteraction {
+    SwitchPressed(String),
 }
 
 impl ScopedLlamaServers {
@@ -150,6 +155,21 @@ impl ScopedLlamaServers {
         }
     }
 
+    pub fn interact(
+        &mut self,
+        interaction: ScopedServersInteraction,
+    ) -> Task<ScopedServersMessage> {
+        match interaction {
+            ScopedServersInteraction::SwitchPressed(unit) => match self.servers.get_mut(&unit) {
+                Some(readings) => readings
+                    .switch
+                    .press()
+                    .map(move |message| ScopedServersMessage::Switch(unit.clone(), message)),
+                None => Task::none(),
+            },
+        }
+    }
+
     pub fn resident_instance(&self, unit: &str) -> Option<ModelInstance> {
         self.servers
             .get(unit)?
@@ -232,7 +252,7 @@ impl ScopedLlamaServers {
 
     pub fn items<'a, M: 'a>(
         &'a self,
-        lift: fn(ScopedServersMessage) -> M,
+        lift: fn(ScopedServersInteraction) -> M,
     ) -> impl Iterator<Item = GroupItem<'a, M>> + 'a {
         self.servers.values().flat_map(move |readings| {
             let unit = &readings.discovered.unit.unit_name;
@@ -281,10 +301,7 @@ impl ScopedLlamaServers {
                             ServiceReadiness::Serving
                         }),
                     target(LlamaServerReading::Switch),
-                    lift(ScopedServersMessage::Switch(
-                        unit.clone(),
-                        UnitSwitchMessage::Press,
-                    )),
+                    lift(ScopedServersInteraction::SwitchPressed(unit.clone())),
                 ),
             ]
             .into_iter()

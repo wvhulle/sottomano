@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::Arc};
+use std::collections::HashSet;
 
 use iced::{
     Alignment, Element, Task,
@@ -23,7 +23,6 @@ use sottomano_toml_config::{
         tray::{ClickAction, TrayRule},
     },
 };
-use system_tray::error;
 
 use crate::{
     clock::Clock,

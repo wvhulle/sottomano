@@ -18,7 +18,6 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     disk_storage::{
-        self,
         bcachefs_filesystem_space::SnapshotDeletion,
         bcachefs_subvolume_usage::BcachefsSubvolumeUsage,
         block_filesystem_mounts::{BlockFilesystemDiscovery, FilesystemMount},
@@ -118,11 +117,16 @@ pub struct StorageSpaceGroup {
     discovery_expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum StorageMessage {
     Discovered(SnapshotDelivery<BlockFilesystemDiscovery>),
     Usage(PathBuf, Box<SnapshotDelivery<FilesystemUsage>>),
     SubvolumeUsage(PathBuf, Box<SnapshotDelivery<BcachefsSubvolumeUsage>>),
+    Interaction(StorageInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum StorageInteraction {
     DiscoveryExpansion(WidgetGroupExpansionMessage),
     MountExpansion {
         mount_point: PathBuf,
@@ -206,8 +210,8 @@ impl StorageSpaceGroup {
         }
     }
 
-    pub fn update(&mut self, msg: StorageMessage, clock: Clock) -> Task<StorageMessage> {
-        match msg {
+    pub fn update(&mut self, message: StorageMessage, clock: Clock) -> Task<StorageMessage> {
+        match message {
             StorageMessage::Discovered(reading) => {
                 self.discovery.receive(reading, clock);
                 if let Some(discovery) = self.discovery.get() {
@@ -242,10 +246,17 @@ impl StorageSpaceGroup {
                     filesystem.subvolume_usage.receive(*reading, clock);
                 }
             }
-            StorageMessage::DiscoveryExpansion(expansion) => {
+            StorageMessage::Interaction(interaction) => self.interact(interaction),
+        }
+        Task::none()
+    }
+
+    fn interact(&mut self, interaction: StorageInteraction) {
+        match interaction {
+            StorageInteraction::DiscoveryExpansion(expansion) => {
                 self.discovery_expansion.update(expansion);
             }
-            StorageMessage::MountExpansion {
+            StorageInteraction::MountExpansion {
                 mount_point,
                 expansion,
             } => {
@@ -254,10 +265,9 @@ impl StorageSpaceGroup {
                 }
             }
         }
-        Task::none()
     }
 
-    fn mount_group(filesystem: &MountedFilesystem) -> WidgetGroupContent<'_, StorageMessage> {
+    fn mount_group(filesystem: &MountedFilesystem) -> WidgetGroupContent<'_, StorageInteraction> {
         let primary_mount_point = filesystem.mount.primary_mount_point();
         let usage = filesystem.usage.get();
         let property_items = usage.into_iter().flat_map(move |usage| {
@@ -316,7 +326,7 @@ impl StorageSpaceGroup {
             ),
             mount_group_title(primary_mount_point),
             &filesystem.expansion,
-            move |expansion| StorageMessage::MountExpansion {
+            move |expansion| StorageInteraction::MountExpansion {
                 mount_point: owned_mount_point.clone(),
                 expansion,
             },
@@ -332,14 +342,14 @@ impl StorageSpaceGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, StorageMessage>> {
+    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, StorageInteraction>> {
         if !self.filesystems.is_empty() {
             return self.filesystems.values().map(Self::mount_group).collect();
         }
         vec![WidgetGroupContent::expandable(
             WidgetGroupFamily::StorageSpace,
             &self.discovery_expansion,
-            StorageMessage::DiscoveryExpansion,
+            StorageInteraction::DiscoveryExpansion,
             self.discovery.group_item(StorageTarget::MountDiscovery),
         )]
     }

@@ -93,7 +93,7 @@ pub struct VoiceDictationGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum VoiceDictationMessage {
     InterfaceMismatch(SnapshotDelivery<NotulistInterfaceMismatch>),
     Dictation(SnapshotDelivery<NotulistDictation>),
@@ -101,8 +101,14 @@ pub enum VoiceDictationMessage {
     Pipeline(SnapshotDelivery<NotulistPipeline>),
     OutputProblems(SnapshotDelivery<NotulistOutputProblems>),
     ModelCardFetched(SnapshotDelivery<HuggingFaceModelCard>),
-    ToggleRecording,
     Runtime(UnitSwitchMessage),
+    Interaction(VoiceDictationInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum VoiceDictationInteraction {
+    ToggleRecording,
+    RuntimePressed,
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -234,15 +240,24 @@ impl VoiceDictationGroup {
                 self.model_card.receive(delivery, clock);
                 Task::none()
             }
-            VoiceDictationMessage::ToggleRecording => {
-                Task::future(send_logged_dictation_command(DictationCommand::Toggle)).discard()
-            }
             VoiceDictationMessage::Runtime(message) => self
                 .runtime
                 .update(message, clock)
                 .map(VoiceDictationMessage::Runtime),
-            VoiceDictationMessage::Expansion(message) => {
-                self.expansion.update(message);
+            VoiceDictationMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(&mut self, interaction: VoiceDictationInteraction) -> Task<VoiceDictationMessage> {
+        match interaction {
+            VoiceDictationInteraction::ToggleRecording => {
+                Task::future(send_logged_dictation_command(DictationCommand::Toggle)).discard()
+            }
+            VoiceDictationInteraction::RuntimePressed => {
+                self.runtime.press().map(VoiceDictationMessage::Runtime)
+            }
+            VoiceDictationInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
                 Task::none()
             }
         }
@@ -298,7 +313,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, VoiceDictationMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, VoiceDictationInteraction> {
         let dictation = self.dictation.get();
         let engine = self.loaded_engine();
         let runtime_glyph =
@@ -306,7 +321,7 @@ impl VoiceDictationGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::VoiceDictation,
             &self.expansion,
-            VoiceDictationMessage::Expansion,
+            VoiceDictationInteraction::Expansion,
             [
                 self.interface_mismatch
                     .group_item(VoiceDictationTarget::InterfaceMismatch),
@@ -316,7 +331,7 @@ impl VoiceDictationGroup {
                         item.on_switch_press(
                             dictation.map_or(SwitchPosition::Off, SwitchPosition::from),
                             dictation.map_or("start dictating at the cursor", press_does),
-                            VoiceDictationMessage::ToggleRecording,
+                            VoiceDictationInteraction::ToggleRecording,
                         )
                         .previewed_on_handle()
                     }),
@@ -336,7 +351,7 @@ impl VoiceDictationGroup {
                         ServiceReadiness::Serving
                     }),
                     VoiceDictationTarget::Runtime,
-                    VoiceDictationMessage::Runtime(UnitSwitchMessage::Press),
+                    VoiceDictationInteraction::RuntimePressed,
                 ),
                 self.engine.group_item(VoiceDictationTarget::SpeechModel),
                 engine.map(|loaded| {

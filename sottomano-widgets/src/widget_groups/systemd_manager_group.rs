@@ -118,7 +118,7 @@ pub struct SystemdManagerGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum SystemdManagerMessage {
     Boot(SnapshotDelivery<BootTimeline>),
     FailedSystem(SnapshotDelivery<FailedUnits>),
@@ -126,6 +126,11 @@ pub enum SystemdManagerMessage {
     SlowSystemJobs(SnapshotDelivery<SlowJobs>),
     SlowUserJobs(SnapshotDelivery<SlowJobs>),
     LastShutdown(SnapshotDelivery<LastShutdown>),
+    Interaction(SystemdManagerInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum SystemdManagerInteraction {
     OpenLog(TerminalCommand),
     RestartFailedUnit(FailedUnitRestart),
     InspectCoredump(TerminalCommand),
@@ -177,10 +182,10 @@ impl SystemdManagerGroup {
 
     pub fn update(
         &mut self,
-        msg: SystemdManagerMessage,
+        message: SystemdManagerMessage,
         clock: Clock,
     ) -> Task<SystemdManagerMessage> {
-        match msg {
+        match message {
             SystemdManagerMessage::Boot(delivery) => {
                 self.boot.receive(delivery, clock);
             }
@@ -199,17 +204,24 @@ impl SystemdManagerGroup {
             SystemdManagerMessage::LastShutdown(delivery) => {
                 self.last_shutdown.receive(delivery, clock);
             }
-            SystemdManagerMessage::OpenLog(journal) => return journal.open(),
-            SystemdManagerMessage::RestartFailedUnit(restart) => {
-                return Task::future(restart_failed_unit(restart)).discard();
-            }
-            SystemdManagerMessage::InspectCoredump(command) => return command.open(),
-            SystemdManagerMessage::CopyToClipboard(text) => return copy_to_clipboard(text),
-            SystemdManagerMessage::Expansion(msg) => {
-                self.expansion.update(msg);
-            }
+            SystemdManagerMessage::Interaction(interaction) => return self.interact(interaction),
         }
         Task::none()
+    }
+
+    fn interact(&mut self, interaction: SystemdManagerInteraction) -> Task<SystemdManagerMessage> {
+        match interaction {
+            SystemdManagerInteraction::OpenLog(journal) => journal.open(),
+            SystemdManagerInteraction::RestartFailedUnit(restart) => {
+                Task::future(restart_failed_unit(restart)).discard()
+            }
+            SystemdManagerInteraction::InspectCoredump(command) => command.open(),
+            SystemdManagerInteraction::CopyToClipboard(text) => copy_to_clipboard(text),
+            SystemdManagerInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+                Task::none()
+            }
+        }
     }
 
     #[must_use]
@@ -238,12 +250,12 @@ impl SystemdManagerGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> WidgetGroupContent<'a, SystemdManagerMessage> {
+    ) -> WidgetGroupContent<'a, SystemdManagerInteraction> {
         let boot = self.boot.get();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SystemdManager,
             &self.expansion,
-            SystemdManagerMessage::Expansion,
+            SystemdManagerInteraction::Expansion,
             [
                 boot.map(|boot| {
                     GroupItem::reading(boot, SystemdTarget::BootPhases).previewed_on_handle()
@@ -278,7 +290,7 @@ impl SystemdManagerGroup {
                     .map(|last| {
                         GroupItem::reading(last, SystemdTarget::LastShutdown).on_press(
                             TerminalCommand::JOURNAL_PRESS_HINT,
-                            SystemdManagerMessage::OpenLog(TerminalCommand::journal(
+                            SystemdManagerInteraction::OpenLog(TerminalCommand::journal(
                                 config,
                                 last.follow_log_args(),
                             )),
@@ -299,16 +311,16 @@ impl SystemdManagerGroup {
         [
             self.slow_system_jobs
                 .visible_reading()
-                .map(|w| w as &dyn GroupItemReading),
+                .map(|visible_reading| visible_reading as &dyn GroupItemReading),
             self.slow_user_jobs
                 .visible_reading()
-                .map(|w| w as &dyn GroupItemReading),
+                .map(|visible_reading| visible_reading as &dyn GroupItemReading),
             self.failed_system
                 .visible_reading()
-                .map(|w| w as &dyn GroupItemReading),
+                .map(|visible_reading| visible_reading as &dyn GroupItemReading),
             self.failed_user
                 .visible_reading()
-                .map(|w| w as &dyn GroupItemReading),
+                .map(|visible_reading| visible_reading as &dyn GroupItemReading),
         ]
     }
 }

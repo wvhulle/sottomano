@@ -50,10 +50,15 @@ pub struct WireguardTunnelsGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum WireguardTunnelsMessage {
     Wireguard(SnapshotDelivery<Wireguard>),
     TunnelAddressFetched(SnapshotDelivery<TunnelAddress>),
+    Interaction(WireguardTunnelsInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum WireguardTunnelsInteraction {
     Expansion(WidgetGroupExpansionMessage),
     SwitchTunnel(WireguardSwitch),
 }
@@ -88,14 +93,24 @@ impl WireguardTunnelsGroup {
             WireguardTunnelsMessage::TunnelAddressFetched(delivery) => {
                 self.tunnel_address.receive(delivery, clock);
             }
-            WireguardTunnelsMessage::Expansion(expansion_message) => {
-                self.expansion.update(expansion_message);
-            }
-            WireguardTunnelsMessage::SwitchTunnel(wireguard_switch) => {
-                return Task::future(switch_wireguard(wireguard_switch)).discard();
-            }
+            WireguardTunnelsMessage::Interaction(interaction) => return self.interact(interaction),
         }
         Task::none()
+    }
+
+    fn interact(
+        &mut self,
+        interaction: WireguardTunnelsInteraction,
+    ) -> Task<WireguardTunnelsMessage> {
+        match interaction {
+            WireguardTunnelsInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+                Task::none()
+            }
+            WireguardTunnelsInteraction::SwitchTunnel(wireguard_switch) => {
+                Task::future(switch_wireguard(wireguard_switch)).discard()
+            }
+        }
     }
 
     pub fn hover(
@@ -149,19 +164,19 @@ impl WireguardTunnelsGroup {
         )
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WireguardTunnelsMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WireguardTunnelsInteraction> {
         let previewed_tunnel_interface = self.previewed_tunnel_interface();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::WireguardTunnels,
             &self.expansion,
-            WireguardTunnelsMessage::Expansion,
+            WireguardTunnelsInteraction::Expansion,
             self.listed_tunnels().map(move |tunnel| {
                 let tunnel_item = wireguard_tunnel_item(
                     tunnel,
                     WireguardTunnelTarget {
                         interface: Cow::Owned(tunnel.interface.clone()),
                     },
-                    WireguardTunnelsMessage::SwitchTunnel,
+                    WireguardTunnelsInteraction::SwitchTunnel,
                 );
                 if previewed_tunnel_interface == Some(tunnel.interface.as_str()) {
                     tunnel_item.previewed_on_handle()

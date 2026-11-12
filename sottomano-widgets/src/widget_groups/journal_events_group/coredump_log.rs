@@ -11,7 +11,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::{
-        journal_events_group::{JournalEventsGroup, JournalEventsMessage, JournalTarget},
+        journal_events_group::{JournalEventsGroup, JournalEventsInteraction, JournalTarget},
         terminal_command::TerminalCommand,
     },
     widgets::{
@@ -47,12 +47,12 @@ impl JournalEventsGroup {
     pub(super) fn coredump_log_item(
         &self,
         config: &Config,
-    ) -> Option<GroupItem<'_, JournalEventsMessage>> {
+    ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
         let coredumps = self.coredumps.display()?;
         Some(
             GroupItem::reading(coredumps, JournalTarget::Coredumps).on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
-                JournalEventsMessage::OpenLog(TerminalCommand::journal(
+                JournalEventsInteraction::OpenLog(TerminalCommand::journal(
                     config,
                     CoredumpEntry::follow_log_args(),
                 )),

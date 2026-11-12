@@ -23,7 +23,7 @@ use sottomano_desktop_sources::{
         cpu_power_draw::CpuPower,
         cpu_temperature::{CpuCoreTemperatures, Temperature},
     },
-    host_machine_identity::udev_hardware_identity::{HostHardware, HostHardwareError},
+    host_machine_identity::udev_hardware_identity::HostHardware,
 };
 use sottomano_toml_config::{Config, widget_groups::temperature_sensors::SensorConfig};
 use x3d_cache_preference_toggle::ChipletRoles;
@@ -82,7 +82,7 @@ pub struct ComputeGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ComputeMessage {
     HostHardware(Box<SnapshotDelivery<HostHardware>>),
     CpuLoad(SnapshotDelivery<CpuUsage>),
@@ -94,6 +94,12 @@ pub enum ComputeMessage {
     CpuBusyProcessesFetched(SnapshotDelivery<CpuBusyProcesses>),
     CoreTemperaturesFetched(SnapshotDelivery<CpuCoreTemperatures>),
     CacheTrafficFetched(SnapshotDelivery<L3CacheTraffic>),
+    Interaction(ComputeInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum ComputeInteraction {
+    X3dCachePreferencePressed,
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -184,10 +190,10 @@ impl ComputeGroup {
             ComputeMessage::HostHardware(delivery) => {
                 self.host_hardware.receive(*delivery, clock);
             }
-            ComputeMessage::X3dCachePreference(m) => {
+            ComputeMessage::X3dCachePreference(toggle_message) => {
                 return self
                     .x3d_cache_preference
-                    .update(m, clock)
+                    .update(toggle_message, clock)
                     .map(ComputeMessage::X3dCachePreference);
             }
             ComputeMessage::CoreLoadsFetched(fetched) => {
@@ -210,18 +216,29 @@ impl ComputeGroup {
             ComputeMessage::CpuPowerDraw(reading) => {
                 self.cpu_power_draw.receive(reading, clock);
             }
-            ComputeMessage::Expansion(m) => {
-                self.expansion.update(m);
-            }
+            ComputeMessage::Interaction(interaction) => return self.interact(interaction),
         }
         Task::none()
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, ComputeMessage> {
+    fn interact(&mut self, interaction: ComputeInteraction) -> Task<ComputeMessage> {
+        match interaction {
+            ComputeInteraction::X3dCachePreferencePressed => self
+                .x3d_cache_preference
+                .press()
+                .map(ComputeMessage::X3dCachePreference),
+            ComputeInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+                Task::none()
+            }
+        }
+    }
+
+    pub fn group_content(&self) -> WidgetGroupContent<'_, ComputeInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Compute,
             &self.expansion,
-            ComputeMessage::Expansion,
+            ComputeInteraction::Expansion,
             [
                 self.cpu_load.group_item(ComputeTarget::CpuLoad),
                 self.cpu_clock.group_item(ComputeTarget::CpuClock),
@@ -243,7 +260,7 @@ impl ComputeGroup {
                     .map(|model| GroupItem::reading(model, ComputeTarget::CpuModel)),
                 self.x3d_cache_preference.group_item(
                     ComputeTarget::X3dCachePreference,
-                    ComputeMessage::X3dCachePreference,
+                    ComputeInteraction::X3dCachePreferencePressed,
                 ),
             ]
             .into_iter()
@@ -402,7 +419,9 @@ mod tests {
     fn expanding_on_the_panel_runs_every_source_and_collapsing_stops_the_rows() {
         let mut group = ComputeGroup::default();
         let _ = group.update(
-            super::ComputeMessage::Expansion(WidgetGroupExpansionMessage::Toggle),
+            super::ComputeMessage::Interaction(super::ComputeInteraction::Expansion(
+                WidgetGroupExpansionMessage::Toggle,
+            )),
             Clock::real(),
         );
         assert_eq!(

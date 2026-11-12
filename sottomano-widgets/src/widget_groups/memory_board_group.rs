@@ -72,7 +72,7 @@ pub struct MemoryBoardGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum MemoryBoardMessage {
     Hardware(Box<SnapshotDelivery<HostHardware>>),
     Memory(SnapshotDelivery<Memory>),
@@ -82,6 +82,11 @@ pub enum MemoryBoardMessage {
     ModuleTemperatures(SnapshotDelivery<MemoryModuleTemperatures>),
     MemoryProcessesFetched(SnapshotDelivery<MemoryProcesses>),
     SwappedProcessesFetched(SnapshotDelivery<SwappedProcesses>),
+    Interaction(MemoryBoardInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum MemoryBoardInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -132,8 +137,12 @@ impl MemoryBoardGroup {
         ])
     }
 
-    pub fn update(&mut self, msg: MemoryBoardMessage, clock: Clock) -> Task<MemoryBoardMessage> {
-        match msg {
+    pub fn update(
+        &mut self,
+        message: MemoryBoardMessage,
+        clock: Clock,
+    ) -> Task<MemoryBoardMessage> {
+        match message {
             MemoryBoardMessage::Hardware(delivery) => {
                 self.hardware.receive(*delivery, clock);
             }
@@ -152,14 +161,20 @@ impl MemoryBoardGroup {
             MemoryBoardMessage::SwappedProcessesFetched(fetched) => {
                 self.swapped_processes.receive(fetched, clock);
             }
-            MemoryBoardMessage::Expansion(m) => {
-                self.expansion.update(m);
-            }
+            MemoryBoardMessage::Interaction(interaction) => self.interact(interaction),
         }
         Task::none()
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, MemoryBoardMessage> {
+    fn interact(&mut self, interaction: MemoryBoardInteraction) {
+        match interaction {
+            MemoryBoardInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+            }
+        }
+    }
+
+    pub fn group_content(&self) -> WidgetGroupContent<'_, MemoryBoardInteraction> {
         let slot_items = self.hardware.get().into_iter().flat_map(|hardware| {
             let machine = &hardware.machine;
             hardware
@@ -199,7 +214,7 @@ impl MemoryBoardGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MemoryBoard,
             &self.expansion,
-            MemoryBoardMessage::Expansion,
+            MemoryBoardInteraction::Expansion,
             [
                 self.memory.group_item(MemoryBoardTarget::Memory),
                 self.memory_growth.group_item(MemoryBoardTarget::Growth),

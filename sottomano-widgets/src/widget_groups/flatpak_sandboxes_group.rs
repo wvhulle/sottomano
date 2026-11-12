@@ -162,11 +162,16 @@ pub struct FlatpakSandboxesGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum FlatpakSandboxesMessage {
     Probe(SnapshotDelivery<FlatpakProbe>),
     Listings(SnapshotDelivery<FlatpakSandboxListings>),
     Sandboxes(SnapshotDelivery<FlatpakSandboxes>),
+    Interaction(FlatpakSandboxesInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum FlatpakSandboxesInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -195,7 +200,13 @@ impl FlatpakSandboxesGroup {
             FlatpakSandboxesMessage::Sandboxes(delivery) => {
                 self.detail.receive(delivery, clock);
             }
-            FlatpakSandboxesMessage::Expansion(expansion_message) => {
+            FlatpakSandboxesMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(&mut self, interaction: FlatpakSandboxesInteraction) {
+        match interaction {
+            FlatpakSandboxesInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
@@ -222,12 +233,12 @@ impl FlatpakSandboxesGroup {
             .hover_card_with(FlatpakSandboxListingRow { listing }.hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, FlatpakSandboxesMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, FlatpakSandboxesInteraction> {
         let rows = self.sandbox_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::FlatpakSandboxes,
             &self.expansion,
-            FlatpakSandboxesMessage::Expansion,
+            FlatpakSandboxesInteraction::Expansion,
             rows,
         )
         .face(WidgetGroupFace::IconColoredBy {
@@ -236,7 +247,7 @@ impl FlatpakSandboxesGroup {
         })
     }
 
-    fn sandbox_rows(&self) -> Vec<GroupItem<'_, FlatpakSandboxesMessage>> {
+    fn sandbox_rows(&self) -> Vec<GroupItem<'_, FlatpakSandboxesInteraction>> {
         if let Some(detail) = self.detail.get() {
             return detail
                 .sandboxes

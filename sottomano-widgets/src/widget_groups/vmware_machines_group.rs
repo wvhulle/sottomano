@@ -150,11 +150,16 @@ pub struct VmwareMachinesGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum VmwareMachinesMessage {
     Probe(SnapshotDelivery<VmwareMachineProbe>),
     Listings(SnapshotDelivery<VmwareMachineListings>),
     Machines(SnapshotDelivery<VmwareMachines>),
+    Interaction(VmwareMachinesInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum VmwareMachinesInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -181,7 +186,13 @@ impl VmwareMachinesGroup {
             VmwareMachinesMessage::Probe(delivery) => self.probe.receive(delivery, clock),
             VmwareMachinesMessage::Listings(delivery) => self.listings.receive(delivery, clock),
             VmwareMachinesMessage::Machines(delivery) => self.detail.receive(delivery, clock),
-            VmwareMachinesMessage::Expansion(expansion_message) => {
+            VmwareMachinesMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(&mut self, interaction: VmwareMachinesInteraction) {
+        match interaction {
+            VmwareMachinesInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
@@ -208,12 +219,12 @@ impl VmwareMachinesGroup {
             .hover_card_with(VmwareMachineListingRow { listing }.hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, VmwareMachinesMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, VmwareMachinesInteraction> {
         let rows = self.machine_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::VmwareMachines,
             &self.expansion,
-            VmwareMachinesMessage::Expansion,
+            VmwareMachinesInteraction::Expansion,
             rows,
         )
         .face(WidgetGroupFace::IconColoredBy {
@@ -222,7 +233,7 @@ impl VmwareMachinesGroup {
         })
     }
 
-    fn machine_rows(&self) -> Vec<GroupItem<'_, VmwareMachinesMessage>> {
+    fn machine_rows(&self) -> Vec<GroupItem<'_, VmwareMachinesInteraction>> {
         if let Some(detail) = self.detail.get() {
             return detail
                 .machines

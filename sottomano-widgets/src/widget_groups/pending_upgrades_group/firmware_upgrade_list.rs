@@ -15,7 +15,7 @@ use crate::{
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::{
         pending_upgrades_group::{
-            PendingUpgradesGroup, PendingUpgradesMessage, PendingUpgradesTarget,
+            PendingUpgradesGroup, PendingUpgradesInteraction, PendingUpgradesTarget,
         },
         terminal_command::TerminalCommand,
     },
@@ -35,9 +35,9 @@ impl PendingUpgradesGroup {
     pub(super) fn firmware_upgrade_item(
         &self,
         config: &Config,
-    ) -> Option<GroupItem<'_, PendingUpgradesMessage>> {
+    ) -> Option<GroupItem<'_, PendingUpgradesInteraction>> {
         let upgrades = self.firmware.visible_reading()?;
-        let install = PendingUpgradesMessage::OpenTerminal(TerminalCommand::running(
+        let install = PendingUpgradesInteraction::OpenTerminal(TerminalCommand::running(
             config,
             ["fwupdmgr", "update"].map(String::from),
         ));

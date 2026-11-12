@@ -1,9 +1,6 @@
 use iced::{Subscription, Task};
 
-use crate::{
-    hover_cards::hover_card_body::widget_groups::widget_group_identity::WidgetGroupFamily,
-    widgets::phosphor::Weight,
-};
+use crate::{widget_groups::widget_group_identity::WidgetGroupFamily, widgets::phosphor::Weight};
 
 mod coredump_log;
 mod kernel_error_log;
@@ -12,7 +9,6 @@ mod service_error_log;
 
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    system_protocol_clients::journal_follow::JournalFollowError,
     systemd_units_journal::{
         journal_coredumps::CoredumpEntry, journal_kernel_errors::KernelOccurrence,
         journal_oom_kills::OomKillEntry, journal_service_errors::ServiceErrors,
@@ -69,12 +65,17 @@ pub struct JournalEventsGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum JournalEventsMessage {
     Kernel(SnapshotDelivery<Vec<KernelOccurrence>>),
     ServiceErrors(SnapshotDelivery<ServiceErrors>),
     Coredumps(SnapshotDelivery<Vec<CoredumpEntry>>),
     OomKills(SnapshotDelivery<Vec<OomKillEntry>>),
+    Interaction(JournalEventsInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum JournalEventsInteraction {
     OpenLog(TerminalCommand),
     Expansion(WidgetGroupExpansionMessage),
 }
@@ -95,10 +96,10 @@ impl JournalEventsGroup {
 
     pub fn update(
         &mut self,
-        msg: JournalEventsMessage,
+        journal_message: JournalEventsMessage,
         clock: Clock,
     ) -> Task<JournalEventsMessage> {
-        match msg {
+        match journal_message {
             JournalEventsMessage::Kernel(delivery) => {
                 self.kernel.receive(delivery, clock);
             }
@@ -111,12 +112,19 @@ impl JournalEventsGroup {
             JournalEventsMessage::OomKills(delivery) => {
                 self.oom_kills.receive(delivery, clock);
             }
-            JournalEventsMessage::OpenLog(journal) => return journal.open(),
-            JournalEventsMessage::Expansion(msg) => {
-                self.expansion.update(msg);
-            }
+            JournalEventsMessage::Interaction(interaction) => return self.interact(interaction),
         }
         Task::none()
+    }
+
+    fn interact(&mut self, interaction: JournalEventsInteraction) -> Task<JournalEventsMessage> {
+        match interaction {
+            JournalEventsInteraction::OpenLog(journal) => journal.open(),
+            JournalEventsInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+                Task::none()
+            }
+        }
     }
 
     #[must_use]
@@ -138,12 +146,12 @@ impl JournalEventsGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> WidgetGroupContent<'a, JournalEventsMessage> {
+    ) -> WidgetGroupContent<'a, JournalEventsInteraction> {
         let has_kinds = self.kinds().iter().any(Option::is_some);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::JournalEvents,
             &self.expansion,
-            JournalEventsMessage::Expansion,
+            JournalEventsInteraction::Expansion,
             [
                 has_kinds.then(|| {
                     GroupItem::reading(self as &dyn GroupItemReading, JournalTarget::Events)
@@ -154,7 +162,7 @@ impl JournalEventsGroup {
                     .map(|service_errors| {
                         GroupItem::reading(service_errors, JournalTarget::ServiceErrors).on_press(
                             TerminalCommand::JOURNAL_PRESS_HINT,
-                            JournalEventsMessage::OpenLog(TerminalCommand::journal(
+                            JournalEventsInteraction::OpenLog(TerminalCommand::journal(
                                 config,
                                 service_errors.follow_log_args(),
                             )),

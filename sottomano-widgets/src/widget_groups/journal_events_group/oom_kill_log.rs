@@ -13,7 +13,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::{
-        journal_events_group::{JournalEventsGroup, JournalEventsMessage, JournalTarget},
+        journal_events_group::{JournalEventsGroup, JournalEventsInteraction, JournalTarget},
         terminal_command::TerminalCommand,
     },
     widgets::{
@@ -46,11 +46,11 @@ impl JournalEventsGroup {
     pub(super) fn oom_kill_log_item(
         &self,
         config: &Config,
-    ) -> Option<GroupItem<'_, JournalEventsMessage>> {
+    ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
         let kills = self.oom_kills.display()?;
         Some(GroupItem::reading(kills, JournalTarget::OomKills).on_press(
             TerminalCommand::JOURNAL_PRESS_HINT,
-            JournalEventsMessage::OpenLog(TerminalCommand::journal(
+            JournalEventsInteraction::OpenLog(TerminalCommand::journal(
                 config,
                 OomKillEntry::follow_log_args(),
             )),

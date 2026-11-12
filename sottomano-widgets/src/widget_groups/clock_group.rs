@@ -47,11 +47,16 @@ pub struct ClockGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ClockMessage {
     Time(SnapshotDelivery<LocalTime>),
     Date(SnapshotDelivery<LocalDate>),
     Zone(Tz, SnapshotDelivery<ZoneTime>),
+    Interaction(ClockInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum ClockInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -60,18 +65,24 @@ impl ClockGroup {
         self.expansion.collapse();
     }
 
-    pub fn update(&mut self, msg: ClockMessage, clock: Clock) -> Task<ClockMessage> {
-        match msg {
+    pub fn update(&mut self, message: ClockMessage, clock: Clock) -> Task<ClockMessage> {
+        match message {
             ClockMessage::Time(reading) => self.time.receive(reading, clock),
             ClockMessage::Date(reading) => self.date.receive(reading, clock),
             ClockMessage::Zone(zone, reading) => {
                 self.zone_time_mut(zone).receive(reading, clock);
             }
-            ClockMessage::Expansion(m) => {
-                self.expansion.update(m);
-            }
+            ClockMessage::Interaction(interaction) => self.interact(interaction),
         }
         Task::none()
+    }
+
+    fn interact(&mut self, interaction: ClockInteraction) {
+        match interaction {
+            ClockInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+            }
+        }
     }
 
     pub fn subscription(
@@ -134,11 +145,11 @@ impl ClockGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, ClockMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, ClockInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Clock,
             &self.expansion,
-            ClockMessage::Expansion,
+            ClockInteraction::Expansion,
             [
                 self.time.group_item(ClockTarget::LocalTime),
                 self.date.group_item(ClockTarget::LocalDate),

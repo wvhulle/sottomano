@@ -181,11 +181,16 @@ impl Default for DockerEnginesGroup {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum DockerEnginesMessage {
     Probe(PathBuf, SnapshotDelivery<DockerEngineProbe>),
     Listing(PathBuf, SnapshotDelivery<DockerEngineListing>),
     Engine(PathBuf, SnapshotDelivery<DockerEngineReadout>),
+    Interaction(DockerEnginesInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum DockerEnginesInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -255,8 +260,14 @@ impl DockerEnginesGroup {
                     .or_default()
                     .receive(delivery, clock);
             }
-            DockerEnginesMessage::Expansion(message) => {
-                self.expansion.update(message);
+            DockerEnginesMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(&mut self, interaction: DockerEnginesInteraction) {
+        match interaction {
+            DockerEnginesInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
             }
         }
     }
@@ -306,12 +317,12 @@ impl DockerEnginesGroup {
             .hover_card_with(DockerEngineListingRow { engine, listing }.hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, DockerEnginesMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, DockerEnginesInteraction> {
         let rows = self.engine_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::DockerEngines,
             &self.expansion,
-            DockerEnginesMessage::Expansion,
+            DockerEnginesInteraction::Expansion,
             rows,
         )
         .face(WidgetGroupFace::IconColoredBy {
@@ -320,7 +331,7 @@ impl DockerEnginesGroup {
         })
     }
 
-    fn engine_rows(&self) -> Vec<GroupItem<'_, DockerEnginesMessage>> {
+    fn engine_rows(&self) -> Vec<GroupItem<'_, DockerEnginesInteraction>> {
         let mut detailed_engines = 0;
         let mut rows = Vec::new();
         for engine in &self.engines {

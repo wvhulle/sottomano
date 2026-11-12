@@ -1,5 +1,6 @@
 pub mod top_menu_glyphs;
 
+use chrono::Locale;
 use iced::{
     Subscription, Task,
     futures::{Stream, stream},
@@ -18,6 +19,7 @@ use sottomano_desktop_sources::{
             MenuBarMatch, MenuBarQuery, focused_menu_bar_updates,
         },
         gtk_menus_menu_bar::{GtkActionGroups, GtkMenuActivation},
+        x11_window_menu_properties::X11MenuLookupError,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -28,6 +30,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::{ComposedGroupItemFace, GroupItem, GroupItemIcon, GroupItemValue},
+        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
@@ -50,6 +53,7 @@ use crate::{
         },
     },
     widgets::{
+        icon_glyph::IconGlyph,
         icon_handle::PixmapHandles,
         phosphor::{Phosphor, Weight},
     },
@@ -109,12 +113,39 @@ fn global_menu_use_toggle(global_menu_use: GlobalMenuUse) -> IconToggle {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GlobalMenuTarget {
     Use,
+    LookupFailure,
     Entry { app_id: String, label_path: String },
 }
 
 impl From<GlobalMenuTarget> for HoverTarget {
     fn from(target: GlobalMenuTarget) -> Self {
         HoverTarget::GlobalMenu(target)
+    }
+}
+
+struct MenuLookupFailureReading<'failure> {
+    lookup_failure: &'failure X11MenuLookupError,
+}
+
+impl GroupItemReading for MenuLookupFailureReading<'_> {
+    fn name(&self) -> &'static str {
+        "Menu lookup"
+    }
+
+    fn icon(&self) -> IconGlyph {
+        Phosphor::Warning(Weight::Regular).into()
+    }
+
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
+        Some("failed".to_owned())
+    }
+
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::Failed
+    }
+
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::from(Section::error(self.lookup_failure))
     }
 }
 
@@ -182,19 +213,24 @@ impl Default for GlobalMenuGroup {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum GlobalMenuMessage {
     UseLoaded(GlobalMenuUse),
-    ToggleUse,
     RegistrationsChanged(Vec<RegisteredMenuBar>),
     MenuBarChanged(FocusedMenuBar),
+    SubmenusPrepared,
+    Interaction(GlobalMenuInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum GlobalMenuInteraction {
+    ToggleUse,
     ItemPressed(i32),
     Expansion {
         top_menu_label: String,
         expansion_message: WidgetGroupExpansionMessage,
     },
     SwitchExpansion(WidgetGroupExpansionMessage),
-    SubmenusPrepared,
 }
 
 #[derive(Debug, Clone)]
@@ -305,7 +341,18 @@ impl GlobalMenuGroup {
     fn top_menus(&self) -> &[MenuNode] {
         match &self.focused_menu_bar {
             FocusedMenuBar::Shown(shown_menu_bar) => &shown_menu_bar.top_menus,
-            FocusedMenuBar::NotExported | FocusedMenuBar::NoFocusedWindow => &[],
+            FocusedMenuBar::NotExported
+            | FocusedMenuBar::NoFocusedWindow
+            | FocusedMenuBar::LookupFailed(_) => &[],
+        }
+    }
+
+    fn lookup_failure(&self) -> Option<&X11MenuLookupError> {
+        match (&self.global_menu_use, &self.focused_menu_bar) {
+            (GlobalMenuUse::Enabled, FocusedMenuBar::LookupFailed(lookup_failure)) => {
+                Some(lookup_failure)
+            }
+            (GlobalMenuUse::Enabled | GlobalMenuUse::Disabled, _) => None,
         }
     }
 
@@ -342,7 +389,9 @@ impl GlobalMenuGroup {
                 }
                 MenuActivationRoute::GtkActions { .. } => Subscription::none(),
             },
-            FocusedMenuBar::NotExported | FocusedMenuBar::NoFocusedWindow => Subscription::none(),
+            FocusedMenuBar::NotExported
+            | FocusedMenuBar::NoFocusedWindow
+            | FocusedMenuBar::LookupFailed(_) => Subscription::none(),
         };
         Subscription::batch([
             registrar,
@@ -358,7 +407,40 @@ impl GlobalMenuGroup {
                 self.global_menu_use = global_menu_use;
                 Action::None
             }
-            GlobalMenuMessage::ToggleUse => {
+            GlobalMenuMessage::RegistrationsChanged(registered_menu_bars) => {
+                self.registered_menu_bars = registered_menu_bars;
+                Action::None
+            }
+            GlobalMenuMessage::MenuBarChanged(focused_menu_bar) => {
+                self.adopt_menu_bar(focused_menu_bar);
+                Action::None
+            }
+            GlobalMenuMessage::SubmenusPrepared => Action::None,
+            GlobalMenuMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn adopt_menu_bar(&mut self, focused_menu_bar: FocusedMenuBar) {
+        if focused_menu_bar == self.focused_menu_bar {
+            return;
+        }
+        if let FocusedMenuBar::Shown(shown_menu_bar) = &focused_menu_bar {
+            self.pixmap_handles = self
+                .pixmap_handles
+                .refreshed(shown_menu_bar.top_menus.iter().flat_map(MenuNode::pixmaps));
+            self.expansions.track(
+                shown_menu_bar
+                    .top_menus
+                    .iter()
+                    .filter_map(|top_menu| top_menu.label.clone()),
+            );
+        }
+        self.focused_menu_bar = focused_menu_bar;
+    }
+
+    fn interact(&mut self, interaction: GlobalMenuInteraction) -> Action {
+        match interaction {
+            GlobalMenuInteraction::ToggleUse => {
                 self.global_menu_use = self.global_menu_use.toggled();
                 if self.global_menu_use == GlobalMenuUse::Disabled {
                     self.registered_menu_bars.clear();
@@ -370,38 +452,18 @@ impl GlobalMenuGroup {
                     sqlite_singleton_flag::save(self.global_menu_use),
                 ))
             }
-            GlobalMenuMessage::RegistrationsChanged(registered_menu_bars) => {
-                self.registered_menu_bars = registered_menu_bars;
-                Action::None
-            }
-            GlobalMenuMessage::MenuBarChanged(focused_menu_bar) => {
-                if let FocusedMenuBar::Shown(shown_menu_bar) = &focused_menu_bar {
-                    self.pixmap_handles = self
-                        .pixmap_handles
-                        .refreshed(shown_menu_bar.top_menus.iter().flat_map(MenuNode::pixmaps));
-                    self.expansions.track(
-                        shown_menu_bar
-                            .top_menus
-                            .iter()
-                            .filter_map(|top_menu| top_menu.label.clone()),
-                    );
-                }
-                self.focused_menu_bar = focused_menu_bar;
-                Action::None
-            }
-            GlobalMenuMessage::Expansion {
+            GlobalMenuInteraction::Expansion {
                 top_menu_label,
                 expansion_message,
             } => {
                 self.expansions.update(&top_menu_label, expansion_message);
                 Action::None
             }
-            GlobalMenuMessage::SwitchExpansion(expansion_message) => {
+            GlobalMenuInteraction::SwitchExpansion(expansion_message) => {
                 self.switch_expansion.update(expansion_message);
                 Action::None
             }
-            GlobalMenuMessage::SubmenusPrepared => Action::None,
-            GlobalMenuMessage::ItemPressed(item_id) => self.item_activation(item_id),
+            GlobalMenuInteraction::ItemPressed(item_id) => self.item_activation(item_id),
         }
     }
 
@@ -435,6 +497,12 @@ impl GlobalMenuGroup {
             GlobalMenuTarget::Use => {
                 Some(global_menu_use_toggle(self.global_menu_use).switch_hover_card(clock))
             }
+            GlobalMenuTarget::LookupFailure => self.lookup_failure().map(|lookup_failure| {
+                HoverCard::sourced(
+                    MenuLookupFailureReading { lookup_failure }.hover_card(clock),
+                    DeliveryTiming::LivePush,
+                )
+            }),
             GlobalMenuTarget::Entry { label_path, .. } => {
                 let FocusedMenuBar::Shown(shown_menu_bar) = &self.focused_menu_bar else {
                     return None;
@@ -454,23 +522,32 @@ impl GlobalMenuGroup {
         }
     }
 
-    pub fn switch_content(&self) -> WidgetGroupContent<'_, GlobalMenuMessage> {
+    pub fn switch_content(&self) -> WidgetGroupContent<'_, GlobalMenuInteraction> {
+        let lookup_failure_row = self.lookup_failure().map(|lookup_failure| {
+            GroupItem::reading(
+                MenuLookupFailureReading { lookup_failure },
+                GlobalMenuTarget::LookupFailure,
+            )
+        });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::GlobalMenuSwitch,
             &self.switch_expansion,
-            GlobalMenuMessage::SwitchExpansion,
+            GlobalMenuInteraction::SwitchExpansion,
             [GroupItem::toggle(
                 global_menu_use_toggle(self.global_menu_use),
                 GlobalMenuTarget::Use,
-                GlobalMenuMessage::ToggleUse,
-            )],
+                GlobalMenuInteraction::ToggleUse,
+            )]
+            .into_iter()
+            .chain(lookup_failure_row),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::IconColoredBy {
             glyph: Phosphor::AppWindow(Weight::Regular).into(),
+            reading: self,
         })
     }
 
-    fn entry_item(&self, entry: FlattenedEntry<'_>) -> GroupItem<'_, GlobalMenuMessage> {
+    fn entry_item(&self, entry: FlattenedEntry<'_>) -> GroupItem<'_, GlobalMenuInteraction> {
         let node = entry.node;
         let icon = match (node.kind, &node.icon) {
             (MenuKind::Toggle(true), _) => GroupItemIcon::IconGlyph {
@@ -497,14 +574,14 @@ impl GlobalMenuGroup {
             GroupItemValue::Nothing,
         );
         if node.enabled {
-            entry_item.on_press(RUN_ENTRY_HINT, GlobalMenuMessage::ItemPressed(node.id))
+            entry_item.on_press(RUN_ENTRY_HINT, GlobalMenuInteraction::ItemPressed(node.id))
         } else {
             entry_item
         }
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, GlobalMenuMessage>> {
+    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, GlobalMenuInteraction>> {
         if self.global_menu_use == GlobalMenuUse::Disabled {
             return Vec::new();
         }
@@ -529,7 +606,7 @@ impl GlobalMenuGroup {
                         },
                         WidgetGroupTitle::Named(top_menu_label.clone().into()),
                         expansion,
-                        move |expansion_message| GlobalMenuMessage::Expansion {
+                        move |expansion_message| GlobalMenuInteraction::Expansion {
                             top_menu_label: expansion_label.clone(),
                             expansion_message,
                         },
@@ -541,6 +618,27 @@ impl GlobalMenuGroup {
                 )
             })
             .collect()
+    }
+}
+
+impl GroupItemReading for GlobalMenuGroup {
+    fn name(&self) -> &'static str {
+        "Global application menu"
+    }
+
+    fn icon(&self) -> IconGlyph {
+        Phosphor::AppWindow(Weight::Regular).into()
+    }
+
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        match self.lookup_failure() {
+            Some(_) => ReadingDisplayState::Failed,
+            None => ReadingDisplayState::Idle,
+        }
+    }
+
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections(self.lookup_failure().map(Section::error))
     }
 }
 
@@ -675,7 +773,9 @@ mod tests {
     fn switched_off_group_shows_nothing() {
         let mut group =
             enabled_group_showing(MenuActivationRoute::DbusMenu(qt_menu_bar_location()));
-        let _ = group.update(GlobalMenuMessage::ToggleUse);
+        let _ = group.update(GlobalMenuMessage::Interaction(
+            GlobalMenuInteraction::ToggleUse,
+        ));
         assert_eq!(group.global_menu_use(), GlobalMenuUse::Disabled);
         assert!(group.group_contents().is_empty());
         assert!(!group.shows_top_menus());
@@ -694,7 +794,9 @@ mod tests {
         let mut group =
             enabled_group_showing(MenuActivationRoute::DbusMenu(qt_menu_bar_location()));
         assert!(matches!(
-            group.update(GlobalMenuMessage::ItemPressed(QUIT_ITEM_ID)),
+            group.update(GlobalMenuMessage::Interaction(
+                GlobalMenuInteraction::ItemPressed(QUIT_ITEM_ID),
+            )),
             Action::Activate(GlobalMenuRequest::ClickDbusMenuItem {
                 item_id: QUIT_ITEM_ID,
                 ..
@@ -705,8 +807,10 @@ mod tests {
     #[test]
     fn pressing_a_gtk_entry_activates_its_action() {
         let mut group = enabled_group_showing(gtk_quit_route());
-        let Action::Activate(GlobalMenuRequest::ActivateGtkAction { activation, .. }) =
-            group.update(GlobalMenuMessage::ItemPressed(QUIT_ITEM_ID))
+        let Action::Activate(GlobalMenuRequest::ActivateGtkAction { activation, .. }) = group
+            .update(GlobalMenuMessage::Interaction(
+                GlobalMenuInteraction::ItemPressed(QUIT_ITEM_ID),
+            ))
         else {
             panic!("the quit entry activates a gtk action");
         };

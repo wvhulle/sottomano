@@ -1,7 +1,7 @@
 use iced::{Subscription, Task};
 use sottomano_toml_config::Config;
 
-use crate::hover_cards::hover_card_body::widget_groups::widget_group_identity::WidgetGroupFamily;
+use crate::widget_groups::widget_group_identity::WidgetGroupFamily;
 
 mod geolocation_fix;
 mod pollen_count_gauge;
@@ -16,7 +16,6 @@ use sottomano_desktop_sources::{
     network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     weather::{
-        self,
         buienradar_rain::Rain,
         open_meteo_pollen::{Allergen, Pollen},
         open_meteo_precipitation_model::PrecipitationModel,
@@ -31,10 +30,7 @@ use crate::{
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
-    },
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         weather_group::rain_intensity::{RainForecast, RainSources},
         widget_group_content::{
@@ -71,7 +67,7 @@ pub struct WeatherGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum WeatherMessage {
     Temperature(SnapshotDelivery<Temperature>),
     Wind(SnapshotDelivery<Wind>),
@@ -79,6 +75,11 @@ pub enum WeatherMessage {
     PrecipitationModel(SnapshotDelivery<PrecipitationModel>),
     Pollen(SnapshotDelivery<Pollen>),
     Location(SnapshotDelivery<Location>),
+    Interaction(WeatherInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum WeatherInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -128,11 +129,17 @@ impl WeatherGroup {
             WeatherMessage::Location(reading) => {
                 self.location.receive(reading, clock);
             }
-            WeatherMessage::Expansion(m) => {
-                self.expansion.update(m);
-            }
+            WeatherMessage::Interaction(interaction) => self.interact(interaction),
         }
         Task::none()
+    }
+
+    fn interact(&mut self, interaction: WeatherInteraction) {
+        match interaction {
+            WeatherInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+            }
+        }
     }
 
     pub fn refresh(
@@ -231,7 +238,7 @@ impl WeatherGroup {
         }
     }
 
-    fn rain_item<'a>(&'a self, config: &'a Config) -> Option<GroupItem<'a, WeatherMessage>> {
+    fn rain_item<'a>(&'a self, config: &'a Config) -> Option<GroupItem<'a, WeatherInteraction>> {
         match self.rain_forecast(config) {
             Some(forecast) => Some(GroupItem::reading(forecast, WeatherTarget::Rain)),
             None => self
@@ -244,7 +251,7 @@ impl WeatherGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> WidgetGroupContent<'a, WeatherMessage> {
+    ) -> WidgetGroupContent<'a, WeatherInteraction> {
         let airborne_items = self.pollen.get().into_iter().flat_map(|pollen| {
             pollen.airborne().map(|concentration| {
                 GroupItem::reading(
@@ -256,7 +263,7 @@ impl WeatherGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Weather,
             &self.expansion,
-            WeatherMessage::Expansion,
+            WeatherInteraction::Expansion,
             [
                 self.temperature.group_item(WeatherTarget::Temperature),
                 self.rain_item(config),
@@ -285,7 +292,10 @@ mod tests {
 
     use sottomano_desktop_sources::{
         delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
-        weather::buienradar_rain::{Downpour, precipitation::millimeter_per_hour},
+        weather::{
+            self,
+            buienradar_rain::{Downpour, precipitation::millimeter_per_hour},
+        },
     };
     use uom::si::f64::Velocity;
 

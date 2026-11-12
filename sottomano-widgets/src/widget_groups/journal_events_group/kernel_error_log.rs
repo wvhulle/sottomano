@@ -12,7 +12,7 @@ use crate::{
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::{
         journal_events_group::{
-            JournalEventsGroup, JournalEventsMessage, JournalTarget, MESSAGE_CAP,
+            JournalEventsGroup, JournalEventsInteraction, JournalTarget, MESSAGE_CAP,
         },
         terminal_command::TerminalCommand,
     },
@@ -31,11 +31,11 @@ impl JournalEventsGroup {
     pub(super) fn kernel_log_item(
         &self,
         config: &Config,
-    ) -> Option<GroupItem<'_, JournalEventsMessage>> {
+    ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
         let kernel = self.kernel.display()?;
         Some(GroupItem::reading(kernel, JournalTarget::Kernel).on_press(
             TerminalCommand::JOURNAL_PRESS_HINT,
-            JournalEventsMessage::OpenLog(TerminalCommand::journal(
+            JournalEventsInteraction::OpenLog(TerminalCommand::journal(
                 config,
                 KernelOccurrence::follow_log_args(),
             )),

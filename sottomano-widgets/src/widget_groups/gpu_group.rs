@@ -12,7 +12,7 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::pci_gpu_readings::{
-        self, GpuClocks, GpuDiscovery, GpuHandle, GpuMemory, GpuModel, GpuPowerDraw, GpuProcesses,
+        GpuClocks, GpuDiscovery, GpuHandle, GpuMemory, GpuModel, GpuPowerDraw, GpuProcesses,
         GpuRuntimePower, GpuSnapshot, PciBusId,
     },
 };
@@ -132,13 +132,18 @@ pub struct GpuGroup {
     processes: HoverFetchedSnapshot<GpuProcesses>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum GpuMessage {
     Discovered(SnapshotDelivery<GpuDiscovery>),
     RuntimePower(PciBusId, SnapshotDelivery<GpuRuntimePower>),
     Snapshot(PciBusId, SnapshotDelivery<GpuSnapshot>),
     ClocksFetched(SnapshotDelivery<GpuClocks>),
     ProcessesFetched(SnapshotDelivery<GpuProcesses>),
+    Interaction(GpuInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum GpuInteraction {
     Expansion(PciBusId, WidgetGroupExpansionMessage),
 }
 
@@ -278,16 +283,22 @@ impl GpuGroup {
             GpuMessage::ProcessesFetched(fetched) => {
                 self.processes.receive(fetched, clock);
             }
-            GpuMessage::Expansion(bus, m) => {
-                if let Some(device) = self.devices.get_mut(&bus) {
-                    device.expansion.update(m);
-                }
-            }
+            GpuMessage::Interaction(interaction) => self.interact(interaction),
         }
         Task::none()
     }
 
-    pub fn group_contents(&self) -> impl Iterator<Item = WidgetGroupContent<'_, GpuMessage>> {
+    fn interact(&mut self, interaction: GpuInteraction) {
+        match interaction {
+            GpuInteraction::Expansion(bus, expansion_message) => {
+                if let Some(device) = self.devices.get_mut(&bus) {
+                    device.expansion.update(expansion_message);
+                }
+            }
+        }
+    }
+
+    pub fn group_contents(&self) -> impl Iterator<Item = WidgetGroupContent<'_, GpuInteraction>> {
         self.devices
             .iter()
             .zip(WidgetGroupTitle::numbered_namesakes(
@@ -328,7 +339,7 @@ impl GpuGroup {
                     gpu_group_identity(bus),
                     group_title,
                     &device.expansion,
-                    move |expansion| GpuMessage::Expansion(expanded_bus.clone(), expansion),
+                    move |expansion| GpuInteraction::Expansion(expanded_bus.clone(), expansion),
                     items.into_iter().flatten(),
                 )
             })
@@ -393,7 +404,9 @@ impl GpuGroup {
 
 #[cfg(test)]
 mod tests {
-    use super::{PciBusId, WidgetGroupTitle, gpu_group_identity, pci_gpu_readings::GpuNames};
+    use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_readings::GpuNames;
+
+    use super::{PciBusId, WidgetGroupTitle, gpu_group_identity};
 
     fn titles_of(product_names: &[&str]) -> Vec<String> {
         let discovered_names: Vec<GpuNames> = product_names

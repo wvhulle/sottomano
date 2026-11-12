@@ -194,10 +194,16 @@ pub struct NspawnContainersGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum NspawnContainersMessage {
     Containers(SnapshotDelivery<NspawnContainersReadout>),
     Switch(String, UnitSwitchMessage),
+    Interaction(NspawnContainersInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum NspawnContainersInteraction {
+    SwitchPressed(String),
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -267,7 +273,32 @@ impl NspawnContainersGroup {
                     None => Task::none(),
                 }
             }
-            NspawnContainersMessage::Expansion(expansion_message) => {
+            NspawnContainersMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(
+        &mut self,
+        interaction: NspawnContainersInteraction,
+    ) -> Task<NspawnContainersMessage> {
+        match interaction {
+            NspawnContainersInteraction::SwitchPressed(machine_name) => {
+                match self.service_switches.get_mut(&machine_name) {
+                    Some(service_switch) => {
+                        service_switch
+                            .unit_switch
+                            .press()
+                            .map(move |switch_message| {
+                                NspawnContainersMessage::Switch(
+                                    machine_name.clone(),
+                                    switch_message,
+                                )
+                            })
+                    }
+                    None => Task::none(),
+                }
+            }
+            NspawnContainersInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }
@@ -300,7 +331,7 @@ impl NspawnContainersGroup {
             .hover_card_with(self.container_row(container).hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, NspawnContainersMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, NspawnContainersInteraction> {
         let containers = self
             .listing
             .get()
@@ -314,10 +345,7 @@ impl NspawnContainersGroup {
             match self.service_switches.get(&container.machine_name) {
                 Some(service_switch) => service_switch.unit_switch.attach_switch_press(
                     row,
-                    NspawnContainersMessage::Switch(
-                        container.machine_name.clone(),
-                        UnitSwitchMessage::Press,
-                    ),
+                    NspawnContainersInteraction::SwitchPressed(container.machine_name.clone()),
                 ),
                 None => row,
             }
@@ -325,7 +353,7 @@ impl NspawnContainersGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::NspawnContainers,
             &self.expansion,
-            NspawnContainersMessage::Expansion,
+            NspawnContainersInteraction::Expansion,
             rows,
         )
         .face(WidgetGroupFace::Icon {

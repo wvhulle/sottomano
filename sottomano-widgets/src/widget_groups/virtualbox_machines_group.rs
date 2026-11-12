@@ -160,13 +160,18 @@ pub struct VirtualBoxMachinesGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum VirtualBoxMachinesMessage {
     Probe(SnapshotDelivery<VirtualBoxMachineProbe>),
     Listings(SnapshotDelivery<VirtualBoxMachineListings>),
     Machines(SnapshotDelivery<VirtualBoxMachines>),
-    PressPowerButton(String),
     PowerButtonRefused(String),
+    Interaction(VirtualBoxMachinesInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum VirtualBoxMachinesInteraction {
+    PressPowerButton(String),
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -210,7 +215,20 @@ impl VirtualBoxMachinesGroup {
                 self.detail.receive(delivery, clock);
                 Task::none()
             }
-            VirtualBoxMachinesMessage::PressPowerButton(machine_reference) => {
+            VirtualBoxMachinesMessage::PowerButtonRefused(refusal) => {
+                tracing::warn!("virtualbox power button: {refusal}");
+                Task::none()
+            }
+            VirtualBoxMachinesMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(
+        &mut self,
+        interaction: VirtualBoxMachinesInteraction,
+    ) -> Task<VirtualBoxMachinesMessage> {
+        match interaction {
+            VirtualBoxMachinesInteraction::PressPowerButton(machine_reference) => {
                 Task::future(async move {
                     press_virtualbox_power_button(&machine_reference)
                         .await
@@ -220,11 +238,7 @@ impl VirtualBoxMachinesGroup {
                     Task::done(VirtualBoxMachinesMessage::PowerButtonRefused(refusal))
                 })
             }
-            VirtualBoxMachinesMessage::PowerButtonRefused(refusal) => {
-                tracing::warn!("virtualbox power button: {refusal}");
-                Task::none()
-            }
-            VirtualBoxMachinesMessage::Expansion(expansion_message) => {
+            VirtualBoxMachinesInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }
@@ -256,12 +270,12 @@ impl VirtualBoxMachinesGroup {
             .hover_card_with(VirtualBoxMachineListingRow { listing }.hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, VirtualBoxMachinesMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, VirtualBoxMachinesInteraction> {
         let rows = self.machine_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::VirtualBoxMachines,
             &self.expansion,
-            VirtualBoxMachinesMessage::Expansion,
+            VirtualBoxMachinesInteraction::Expansion,
             rows,
         )
         .face(WidgetGroupFace::IconColoredBy {
@@ -270,7 +284,7 @@ impl VirtualBoxMachinesGroup {
         })
     }
 
-    fn machine_rows(&self) -> Vec<GroupItem<'_, VirtualBoxMachinesMessage>> {
+    fn machine_rows(&self) -> Vec<GroupItem<'_, VirtualBoxMachinesInteraction>> {
         if let Some(detail) = self.detail.get() {
             return detail
                 .machines
@@ -282,7 +296,7 @@ impl VirtualBoxMachinesGroup {
                     )
                     .on_right_press(
                         POWER_BUTTON_HINT,
-                        VirtualBoxMachinesMessage::PressPowerButton(
+                        VirtualBoxMachinesInteraction::PressPowerButton(
                             machine.machine_reference.clone(),
                         ),
                     )
@@ -302,7 +316,7 @@ impl VirtualBoxMachinesGroup {
                         )
                         .on_right_press(
                             POWER_BUTTON_HINT,
-                            VirtualBoxMachinesMessage::PressPowerButton(
+                            VirtualBoxMachinesInteraction::PressPowerButton(
                                 listing.machine_reference.clone(),
                             ),
                         )

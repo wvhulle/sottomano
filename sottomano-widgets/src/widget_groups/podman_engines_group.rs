@@ -150,10 +150,15 @@ pub struct PodmanEnginesGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum PodmanEnginesMessage {
     Services(ScopedServiceCommands),
     Engine(PathBuf, SnapshotDelivery<EngineReadout>),
+    Interaction(PodmanEnginesInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum PodmanEnginesInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -202,8 +207,14 @@ impl PodmanEnginesGroup {
                     .or_default()
                     .receive(delivery, clock);
             }
-            PodmanEnginesMessage::Expansion(message) => {
-                self.expansion.update(message);
+            PodmanEnginesMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(&mut self, interaction: PodmanEnginesInteraction) {
+        match interaction {
+            PodmanEnginesInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
             }
         }
     }
@@ -222,7 +233,7 @@ impl PodmanEnginesGroup {
         reading.hover_card_with(row.hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, PodmanEnginesMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, PodmanEnginesInteraction> {
         let rows = self.engines.iter().filter_map(|engine| {
             let readout = self.readouts.get(&engine.socket_path)?.get()?;
             let socket_missing = matches!(
@@ -239,7 +250,7 @@ impl PodmanEnginesGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PodmanEngines,
             &self.expansion,
-            PodmanEnginesMessage::Expansion,
+            PodmanEnginesInteraction::Expansion,
             rows,
         )
         .face(WidgetGroupFace::Icon {

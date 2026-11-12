@@ -190,13 +190,18 @@ pub struct WaydroidContainerGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum WaydroidContainerMessage {
     Probe(SnapshotDelivery<WaydroidProbe>),
     Listing(SnapshotDelivery<WaydroidListing>),
     Readout(SnapshotDelivery<WaydroidReadout>),
-    StopContainer,
     StopRefused(String),
+    Interaction(WaydroidContainerInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum WaydroidContainerInteraction {
+    StopContainer,
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -240,15 +245,24 @@ impl WaydroidContainerGroup {
                 self.detail.receive(delivery, clock);
                 Task::none()
             }
-            WaydroidContainerMessage::StopContainer => {
-                Task::future(async { stop_waydroid_container().await.err() })
-                    .and_then(|refusal| Task::done(WaydroidContainerMessage::StopRefused(refusal)))
-            }
             WaydroidContainerMessage::StopRefused(refusal) => {
                 tracing::warn!("{refusal}");
                 Task::none()
             }
-            WaydroidContainerMessage::Expansion(expansion_message) => {
+            WaydroidContainerMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(
+        &mut self,
+        interaction: WaydroidContainerInteraction,
+    ) -> Task<WaydroidContainerMessage> {
+        match interaction {
+            WaydroidContainerInteraction::StopContainer => {
+                Task::future(async { stop_waydroid_container().await.err() })
+                    .and_then(|refusal| Task::done(WaydroidContainerMessage::StopRefused(refusal)))
+            }
+            WaydroidContainerInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }
@@ -280,12 +294,12 @@ impl WaydroidContainerGroup {
             .hover_card_with(WaydroidListingRow { listing }.hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WaydroidContainerMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WaydroidContainerInteraction> {
         let rows = self.container_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::WaydroidContainer,
             &self.expansion,
-            WaydroidContainerMessage::Expansion,
+            WaydroidContainerInteraction::Expansion,
             rows,
         )
         .face(WidgetGroupFace::IconColoredBy {
@@ -294,11 +308,11 @@ impl WaydroidContainerGroup {
         })
     }
 
-    fn container_rows(&self) -> Vec<GroupItem<'_, WaydroidContainerMessage>> {
+    fn container_rows(&self) -> Vec<GroupItem<'_, WaydroidContainerInteraction>> {
         if let Some(readout) = self.shown_readout() {
             let row = GroupItem::reading(WaydroidContainerRow { readout }, WaydroidContainerTarget);
             let row = if readout.container_running {
-                row.on_right_press(STOP_HINT, WaydroidContainerMessage::StopContainer)
+                row.on_right_press(STOP_HINT, WaydroidContainerInteraction::StopContainer)
             } else {
                 row
             };

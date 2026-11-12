@@ -69,12 +69,17 @@ pub struct ReachabilityGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ReachabilityMessage {
     Throughput(SnapshotDelivery<InterfaceThroughput>),
     Latency(SnapshotDelivery<InternetLatency>),
     Connectivity(SnapshotDelivery<UplinkConnectivity>),
     MeteredTotalsLoaded(Option<MeteredVolumeTotals>),
+    Interaction(ReachabilityInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum ReachabilityInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -110,11 +115,11 @@ impl ReachabilityGroup {
 
     pub fn update(
         &mut self,
-        msg: ReachabilityMessage,
+        message: ReachabilityMessage,
         config: &ReachabilityConfig,
         clock: Clock,
     ) -> Task<ReachabilityMessage> {
-        match msg {
+        match message {
             ReachabilityMessage::Throughput(delivery) => {
                 self.throughput.receive(delivery, clock);
                 return self.tally_metered_volume(config, clock);
@@ -130,11 +135,17 @@ impl ReachabilityGroup {
                     clock.instant,
                 );
             }
-            ReachabilityMessage::Expansion(m) => {
-                self.expansion.update(m);
-            }
+            ReachabilityMessage::Interaction(interaction) => self.interact(interaction),
         }
         Task::none()
+    }
+
+    fn interact(&mut self, interaction: ReachabilityInteraction) {
+        match interaction {
+            ReachabilityInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+            }
+        }
     }
 
     fn tally_metered_volume(
@@ -195,12 +206,12 @@ impl ReachabilityGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, ReachabilityMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, ReachabilityInteraction> {
         let throughput = self.throughput.get();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Reachability,
             &self.expansion,
-            ReachabilityMessage::Expansion,
+            ReachabilityInteraction::Expansion,
             self.throughput
                 .group_item(ReachabilityTarget::Throughput)
                 .into_iter()

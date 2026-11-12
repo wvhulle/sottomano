@@ -1,7 +1,7 @@
 use chrono::Locale;
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::systemd_units_journal::journal_previous_shutdown::{
-    JobResult, LastShutdown, ShutdownReadError, StopOutcome, UnitStop,
+    JobResult, LastShutdown, StopOutcome, UnitStop,
 };
 
 use crate::{

@@ -71,12 +71,17 @@ pub struct PhysicalDriveGroup {
     discovery_expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum DriveMessage {
     Discovered(SnapshotDelivery<BlockFilesystemDiscovery>),
     DiskSpace(KernelDevice, Box<SnapshotDelivery<DiskSpaceOccupancy>>),
     DiskActivity(KernelDevice, SnapshotDelivery<DiskActivity>),
     DriveHealth(KernelDevice, SnapshotDelivery<DriveHealth>),
+    Interaction(DriveInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum DriveInteraction {
     DiscoveryExpansion(WidgetGroupExpansionMessage),
     DiskExpansion {
         disk: KernelDevice,
@@ -194,16 +199,22 @@ impl PhysicalDriveGroup {
                     readings.drive_health.receive(reading, clock);
                 }
             }
-            DriveMessage::DiscoveryExpansion(expansion) => {
+            DriveMessage::Interaction(interaction) => self.interact(interaction),
+        }
+        Task::none()
+    }
+
+    fn interact(&mut self, interaction: DriveInteraction) {
+        match interaction {
+            DriveInteraction::DiscoveryExpansion(expansion) => {
                 self.discovery_expansion.update(expansion);
             }
-            DriveMessage::DiskExpansion { disk, expansion } => {
+            DriveInteraction::DiskExpansion { disk, expansion } => {
                 if let Some(readings) = self.disks.get_mut(&disk) {
                     readings.expansion.update(expansion);
                 }
             }
         }
-        Task::none()
     }
 
     fn occupancy_inputs(&self, disk: &KernelDevice) -> DiskOccupancyInputs {
@@ -234,7 +245,7 @@ impl PhysicalDriveGroup {
         &'a self,
         disk: &'a KernelDevice,
         readings: &'a PhysicalDiskReadings,
-    ) -> WidgetGroupContent<'a, DriveMessage> {
+    ) -> WidgetGroupContent<'a, DriveInteraction> {
         let space_target = DriveTarget::Space(disk.name.clone());
         let space_item = match readings.space.get() {
             Some(occupancy) => Some(GroupItem::reading(
@@ -289,7 +300,7 @@ impl PhysicalDriveGroup {
             WidgetGroupIdentity::durable(WidgetGroupFamily::PhysicalDrive, disk.name.clone()),
             disk_group_title(disk),
             &readings.expansion,
-            move |expansion| DriveMessage::DiskExpansion {
+            move |expansion| DriveInteraction::DiskExpansion {
                 disk: disk.clone(),
                 expansion,
             },
@@ -298,11 +309,11 @@ impl PhysicalDriveGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, DriveMessage>> {
+    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, DriveInteraction>> {
         let discovery_group = WidgetGroupContent::expandable(
             WidgetGroupFamily::PhysicalDrive,
             &self.discovery_expansion,
-            DriveMessage::DiscoveryExpansion,
+            DriveInteraction::DiscoveryExpansion,
             self.discovery.group_item(DriveTarget::MountDiscovery),
         );
         [discovery_group]

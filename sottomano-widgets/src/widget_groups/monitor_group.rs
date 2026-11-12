@@ -66,13 +66,19 @@ pub struct MonitorGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum MonitorMessage {
-    Expansion(WidgetGroupExpansionMessage),
     Backlights(SnapshotDelivery<Vec<Backlight>>),
     BacklightsReread(Vec<Backlight>),
-    Backlight(String, ControlMessage),
     AutoBrightness(ToggleMessage<AutoBrightness>),
+    Interaction(MonitorInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum MonitorInteraction {
+    Expansion(WidgetGroupExpansionMessage),
+    Backlight(String, ControlMessage),
+    AutoBrightnessPressed,
 }
 
 impl MonitorGroup {
@@ -106,15 +112,6 @@ impl MonitorGroup {
 
     pub fn update(&mut self, msg: MonitorMessage, clock: Clock) -> Task<MonitorMessage> {
         match msg {
-            MonitorMessage::Expansion(WidgetGroupExpansionMessage::HandleScrolled(delta)) => {
-                self.scroll_all_backlights(delta)
-            }
-            MonitorMessage::Expansion(m) => {
-                if self.expansion.update(m) == ExpansionChange::JustCollapsed {
-                    self.close_controls();
-                }
-                Task::none()
-            }
             MonitorMessage::Backlights(delivery) => {
                 self.backlights.receive(delivery, clock);
                 self.sync_backlight_sliders();
@@ -127,11 +124,31 @@ impl MonitorGroup {
                 self.sync_backlight_sliders();
                 Task::none()
             }
-            MonitorMessage::Backlight(serial, m) => self.update_backlight(serial, m),
             MonitorMessage::AutoBrightness(m) => self
                 .clight
                 .update(m, clock)
                 .map(MonitorMessage::AutoBrightness),
+            MonitorMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(&mut self, interaction: MonitorInteraction) -> Task<MonitorMessage> {
+        match interaction {
+            MonitorInteraction::Expansion(WidgetGroupExpansionMessage::HandleScrolled(delta)) => {
+                self.scroll_all_backlights(delta)
+            }
+            MonitorInteraction::Expansion(expansion_message) => {
+                if self.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
+                    self.close_controls();
+                }
+                Task::none()
+            }
+            MonitorInteraction::Backlight(serial, control_message) => {
+                self.update_backlight(serial, control_message)
+            }
+            MonitorInteraction::AutoBrightnessPressed => {
+                self.clight.press().map(MonitorMessage::AutoBrightness)
+            }
         }
     }
 
@@ -190,7 +207,12 @@ impl MonitorGroup {
                     value,
                     clightd_backlight_writes::set(set_serial, as_percent(value)),
                 )
-                .map(move |m| MonitorMessage::Backlight(serial.clone(), m))
+                .map(move |control_message| {
+                    MonitorMessage::Interaction(MonitorInteraction::Backlight(
+                        serial.clone(),
+                        control_message,
+                    ))
+                })
             }
             Action::None | Action::Right | Action::Adjust(_) if write_settled => Task::perform(
                 clightd_backlight::poll_all(),
@@ -237,21 +259,24 @@ impl MonitorGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> WidgetGroupContent<'a, MonitorMessage> {
+    ) -> WidgetGroupContent<'a, MonitorInteraction> {
         let backlight_items = self.sliders.iter().map(|(serial, slider)| {
             let serial = serial.clone();
-            GroupItem::slider(slider, config, move |m| {
-                MonitorMessage::Backlight(serial.clone(), m)
+            GroupItem::slider(slider, config, move |control_message| {
+                MonitorInteraction::Backlight(serial.clone(), control_message)
             })
             .previewed_on_handle()
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Monitor,
             &self.expansion,
-            MonitorMessage::Expansion,
+            MonitorInteraction::Expansion,
             backlight_items.chain(
                 self.clight
-                    .group_item(MonitorTarget::ClightAuto, MonitorMessage::AutoBrightness)
+                    .group_item(
+                        MonitorTarget::ClightAuto,
+                        MonitorInteraction::AutoBrightnessPressed,
+                    )
                     .map(GroupItem::previewed_on_handle),
             ),
         )

@@ -7,10 +7,8 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     caldav_tasks_events::{
-        caldav_agenda::{self, CaldavAccount},
-        caldav_open_tasks::OpenTaskList,
-        caldav_server_provider::CaldavProvider,
-        caldav_upcoming_events::UpcomingEventList,
+        caldav_agenda::CaldavAccount, caldav_open_tasks::OpenTaskList,
+        caldav_server_provider::CaldavProvider, caldav_upcoming_events::UpcomingEventList,
     },
     network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -55,10 +53,15 @@ pub struct CaldavGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum CaldavMessage {
     UpcomingEvents(Box<SnapshotDelivery<UpcomingEventList>>),
     OpenTasks(Box<SnapshotDelivery<OpenTaskList>>),
+    Interaction(CaldavInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum CaldavInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -117,11 +120,17 @@ impl CaldavGroup {
                 self.upcoming_events.receive(*delivery, clock);
             }
             CaldavMessage::OpenTasks(delivery) => self.open_tasks.receive(*delivery, clock),
-            CaldavMessage::Expansion(menu) => {
-                self.expansion.update(menu);
-            }
+            CaldavMessage::Interaction(interaction) => self.interact(interaction),
         }
         Task::none()
+    }
+
+    fn interact(&mut self, interaction: CaldavInteraction) {
+        match interaction {
+            CaldavInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+            }
+        }
     }
 
     #[must_use]
@@ -159,7 +168,7 @@ impl CaldavGroup {
     pub fn group_content(
         &self,
         config: &CaldavAccountConfig,
-    ) -> WidgetGroupContent<'_, CaldavMessage> {
+    ) -> WidgetGroupContent<'_, CaldavInteraction> {
         let upcoming_events_item = if self.account(config).is_some() {
             self.upcoming_events
                 .group_item_while_pending(CaldavTarget::UpcomingEvents)
@@ -170,7 +179,7 @@ impl CaldavGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Caldav,
             &self.expansion,
-            CaldavMessage::Expansion,
+            CaldavInteraction::Expansion,
             [
                 upcoming_events_item.map(GroupItem::previewed_on_handle),
                 self.open_tasks.group_item(CaldavTarget::OpenTasks),

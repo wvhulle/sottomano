@@ -7,7 +7,8 @@ use sottomano_toml_config::Config;
 use uom::si::f64::Ratio;
 
 use super::{
-    MediaMessage, MediaTarget, PlayerMessage, PlayerTarget, RAISE_PLAYER_HINT, player_message,
+    MediaInteraction, MediaTarget, PlayerInteraction, PlayerTarget, RAISE_PLAYER_HINT,
+    player_interaction,
 };
 use crate::{
     group_items::{
@@ -38,7 +39,7 @@ pub(super) fn track_item<'a>(
     config: &'a Config,
     media: &'a Media,
     cover_art: Option<&IconHandle>,
-) -> GroupItem<'a, MediaMessage> {
+) -> GroupItem<'a, MediaInteraction> {
     let raisable = media.owner != OwnerProcess::Unidentified || media.capabilities.raise;
     let icon = cover_art.map_or_else(
         || GroupItemIcon::IconGlyph {
@@ -70,7 +71,7 @@ pub(super) fn track_item<'a>(
     if raisable {
         track.on_press(
             RAISE_PLAYER_HINT,
-            player_message(&media.bus, PlayerMessage::Command(Command::Raise)),
+            player_interaction(&media.bus, PlayerInteraction::Command(Command::Raise)),
         )
     } else {
         track
@@ -81,7 +82,7 @@ pub(super) fn player_item<'a>(
     config: &'a Config,
     media: &'a Media,
     gauge_fraction: Option<Ratio>,
-) -> GroupItem<'a, MediaMessage> {
+) -> GroupItem<'a, MediaInteraction> {
     let state = playback_state(media);
     let glyph = SimpleIcon::titled(&media.identity)
         .map_or_else(|| Phosphor::Radio(Weight::Regular).into(), IconGlyph::from);

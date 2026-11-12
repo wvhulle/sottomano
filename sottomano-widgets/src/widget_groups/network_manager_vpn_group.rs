@@ -49,9 +49,14 @@ pub struct NetworkManagerVpnGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum NetworkManagerVpnMessage {
     NetworkManagerVpns(SnapshotDelivery<NetworkManagerVpns>),
+    Interaction(NetworkManagerVpnInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum NetworkManagerVpnInteraction {
     Expansion(WidgetGroupExpansionMessage),
     SwitchVpn(VpnSwitch),
 }
@@ -85,15 +90,25 @@ impl NetworkManagerVpnGroup {
         match message {
             NetworkManagerVpnMessage::NetworkManagerVpns(delivery) => {
                 self.network_manager_vpns.receive(delivery, clock);
+                Task::none()
             }
-            NetworkManagerVpnMessage::Expansion(expansion_message) => {
+            NetworkManagerVpnMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(
+        &mut self,
+        interaction: NetworkManagerVpnInteraction,
+    ) -> Task<NetworkManagerVpnMessage> {
+        match interaction {
+            NetworkManagerVpnInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
+                Task::none()
             }
-            NetworkManagerVpnMessage::SwitchVpn(vpn_switch) => {
-                return Task::future(switch_vpn(vpn_switch)).discard();
+            NetworkManagerVpnInteraction::SwitchVpn(vpn_switch) => {
+                Task::future(switch_vpn(vpn_switch)).discard()
             }
         }
-        Task::none()
     }
 
     fn vpn_connections(&self) -> &[VpnConnection] {
@@ -118,7 +133,7 @@ impl NetworkManagerVpnGroup {
 
     fn vpn_connection_item(
         vpn_connection: &VpnConnection,
-    ) -> GroupItem<'_, NetworkManagerVpnMessage> {
+    ) -> GroupItem<'_, NetworkManagerVpnInteraction> {
         let vpn_switch = vpn_connection.switch();
         GroupItem::reading(
             vpn_connection,
@@ -135,11 +150,11 @@ impl NetworkManagerVpnGroup {
                 VpnSwitch::Connect(_) => "connect the VPN",
                 VpnSwitch::Disconnect(_) => "disconnect the VPN",
             },
-            NetworkManagerVpnMessage::SwitchVpn(vpn_switch),
+            NetworkManagerVpnInteraction::SwitchVpn(vpn_switch),
         )
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, NetworkManagerVpnMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, NetworkManagerVpnInteraction> {
         let previewed_connection_name = self
             .vpn_connections()
             .iter()
@@ -148,7 +163,7 @@ impl NetworkManagerVpnGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::NetworkManagerVpns,
             &self.expansion,
-            NetworkManagerVpnMessage::Expansion,
+            NetworkManagerVpnInteraction::Expansion,
             self.vpn_connections().iter().map(move |vpn_connection| {
                 let vpn_item = Self::vpn_connection_item(vpn_connection);
                 if previewed_connection_name == Some(vpn_connection.name.as_str()) {

@@ -18,7 +18,7 @@ use sottomano_desktop_sources::{
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use sottomano_toml_config::{Config, widget_groups::WindowAgentsConfig};
-use window_list::{WindowList, WindowListMessage};
+use window_list::{WindowList, WindowListInteraction, WindowListMessage};
 
 use crate::{
     clock::Clock,
@@ -36,9 +36,15 @@ pub struct WindowGroup {
     pub window_list: WindowList,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum WindowGroupMessage {
     WindowList(WindowListMessage),
+    Interaction(WindowGroupInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum WindowGroupInteraction {
+    WindowList(WindowListInteraction),
 }
 
 pub enum Action {
@@ -114,6 +120,15 @@ impl WindowGroup {
             WindowGroupMessage::WindowList(window_list_message) => {
                 Action::WindowList(self.window_list.update(window_list_message, clock))
             }
+            WindowGroupMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(&mut self, interaction: WindowGroupInteraction) -> Action {
+        match interaction {
+            WindowGroupInteraction::WindowList(window_list_interaction) => {
+                Action::WindowList(self.window_list.interact(window_list_interaction))
+            }
         }
     }
 
@@ -130,13 +145,17 @@ impl WindowGroup {
         audio: Option<&HashMap<i32, WindowAudio>>,
         output: &str,
         slot_context: PanelSlotContext<'a>,
-    ) -> Option<Element<'a, GroupEvent<WindowGroupMessage>>> {
+    ) -> Option<Element<'a, GroupEvent<WindowGroupInteraction>>> {
         self.window_list
             .view(compositor, icons, audio, output, slot_context)
             .map(|element| {
-                element.map(|message| match message {
-                    WindowListMessage::HoverCard(hover_card) => GroupEvent::HoverCard(hover_card),
-                    message => GroupEvent::Group(WindowGroupMessage::WindowList(message)),
+                element.map(|interaction| match interaction {
+                    WindowListInteraction::HoverCard(hover_card) => {
+                        GroupEvent::HoverCard(hover_card)
+                    }
+                    interaction => {
+                        GroupEvent::Group(WindowGroupInteraction::WindowList(interaction))
+                    }
                 })
             })
     }
