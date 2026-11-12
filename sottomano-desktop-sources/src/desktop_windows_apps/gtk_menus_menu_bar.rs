@@ -463,13 +463,19 @@ pub async fn gtk_menu_bar_updates(
         .cache_properties(CacheProperties::No)
         .build()
         .await?;
-    let mut change_streams = vec![menus_proxy.receive_changed().await?.map(|_| ()).boxed()];
+    let mut change_streams = vec![
+        menus_proxy
+            .receive_changed()
+            .await?
+            .map(|_| Ok::<(), zbus::Error>(()))
+            .boxed(),
+    ];
     for action_path in exported_action_paths(&action_groups) {
         let action_changes = gtk_actions_proxy(&connection, &action_groups.bus_name, &action_path)
             .await?
             .receive_changed()
             .await?;
-        change_streams.push(action_changes.map(|_| ()).boxed());
+        change_streams.push(action_changes.map(|_| Ok(())).boxed());
     }
     Ok(
         stream::select_all(change_streams).triggered_rereads(move || {

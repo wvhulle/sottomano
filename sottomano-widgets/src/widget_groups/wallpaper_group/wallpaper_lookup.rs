@@ -79,20 +79,17 @@ impl SnapshotSource for Lookup {
             source_inputs: unsplash_key,
         }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(wallpaper_place_article::daemon_availability()).while_available(
-            move || {
+        stream::once(wallpaper_place_article::daemon_availability()).while_available(move || {
+            let unsplash_key = unsplash_key.clone();
+            internet_connectivity_gate::while_online(buses.clone(), move || {
                 let unsplash_key = unsplash_key.clone();
-                internet_connectivity_gate::while_online(buses.clone(), move || {
-                    let unsplash_key = unsplash_key.clone();
-                    wallpaper_place_article::displayed()
-                        .distinct_until_changed()
-                        .flat_map(move |displayed| {
-                            displayed_lookups(displayed, unsplash_key.clone())
-                        })
-                })
-            },
-            SnapshotDelivery::SourceUnavailable,
-        )
+                wallpaper_place_article::displayed()
+                    .distinct_until_changed()
+                    .flat_map(move |displayed| {
+                        displayed_lookups(displayed, unsplash_key.clone())
+                    })
+            })
+        }, || SnapshotDelivery::SourceUnavailable)
     }
 }
 

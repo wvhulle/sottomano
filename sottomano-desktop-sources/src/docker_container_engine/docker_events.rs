@@ -24,14 +24,8 @@ struct DockerEventRecord {
 
 pub(crate) fn docker_container_event_triggers(
     socket_path: PathBuf,
-) -> impl Stream<Item = ()> + Send {
-    subscribed(socket_path, opened_event_records).filter_map(|delivered| {
-        if let Err(failure) = delivered {
-            tracing::warn!("docker events: {failure}, resubscribing");
-            return ready(None);
-        }
-        ready(Some(()))
-    })
+) -> impl Stream<Item = Result<(), Error>> + Send {
+    subscribed(socket_path, opened_event_records).map(|delivered| delivered.map(drop))
 }
 
 async fn opened_event_records(

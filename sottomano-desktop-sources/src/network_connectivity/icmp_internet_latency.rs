@@ -4,11 +4,10 @@ use std::{
 };
 
 use futures::{Stream, StreamExt};
-use futures_rx::RxExt;
 
 use crate::{
     SnapshotDelivery, SnapshotSource, SourceCaption,
-    delivery_cadence_drivers::DeliveryCadence,
+    delivery_cadence_drivers::{DeliveryCadence, SnapshotDeliveryStreams},
     network_connectivity::icmp_echo_probes::{
         LatencyProbeError, PROBE_POLLING, ProbeWindow, echo_round_trip,
     },
@@ -58,6 +57,6 @@ impl SnapshotSource for InternetLatency {
                     }))
                 },
             )
-            .distinct_until_changed()
+            .repeats_as_unchanged()
     }
 }

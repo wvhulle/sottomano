@@ -88,7 +88,7 @@ impl SnapshotSource for X3dCachePreference {
         };
         stream::once(exposed).while_available(
             || stream::once(blocking_poll(Self::read)).map(SnapshotDelivery::single_read),
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }

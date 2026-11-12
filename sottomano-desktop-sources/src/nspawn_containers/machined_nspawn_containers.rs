@@ -1,6 +1,5 @@
 use std::{
     collections::BTreeMap,
-    convert::Infallible,
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
     path::PathBuf,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -12,7 +11,8 @@ use futures::Stream;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::{
-        PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams, triggered_deliveries_with_recheck,
+        ChangeWatchFailure, PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams,
+        triggered_deliveries_with_recheck,
     },
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses, sysfs_cgroup_memory::unit_memory_of_process,
@@ -217,7 +217,7 @@ async fn read_container_listing(system_bus: &zbus::Connection) -> NspawnContaine
 }
 
 impl SnapshotSource for NspawnContainersReadout {
-    type Error = Infallible;
+    type Error = ChangeWatchFailure;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Nspawn containers";

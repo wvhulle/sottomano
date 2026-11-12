@@ -63,7 +63,7 @@ where
                 Err(failure) => SnapshotDelivery::live_push(Err(failure)),
             })
         },
-        SnapshotDelivery::SourceUnavailable,
+        || SnapshotDelivery::SourceUnavailable,
     )
 }
 

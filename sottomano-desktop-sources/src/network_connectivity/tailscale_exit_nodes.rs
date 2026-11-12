@@ -126,7 +126,7 @@ impl SnapshotSource for TailscaleExitNodes {
                 PeriodicPolling::every(Duration::from_secs(10))
                     .poll_deliveries(move || Self::poll(()))
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }

@@ -1,3 +1,4 @@
+use crate::delivery_cadence_drivers::ChangeWatchFailure;
 mod ccusage_monthly_usage;
 mod free_quota;
 mod metered_quota;
@@ -31,8 +32,10 @@ pub const USER_ENDPOINT: &str = "/copilot_internal/user";
 const USER_AGENT: &str = "sottomano";
 const USER_POLLING: PeriodicPolling = PeriodicPolling::every(Duration::from_secs(15));
 
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("transcript watch: {0}")]
+    ChangeWatch(#[from] ChangeWatchFailure),
     #[error("GitHub token unreadable")]
     Secret,
     #[error("{0}")]
@@ -139,7 +142,7 @@ where
                 })
             })
         },
-        SnapshotDelivery::SourceUnavailable,
+        || SnapshotDelivery::SourceUnavailable,
     )
 }
 

@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, HashSet},
-    convert::Infallible,
     ops::Range,
     path::PathBuf,
     sync::Arc,
@@ -16,7 +15,8 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking,
     delivery_cadence_drivers::{
-        PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams, triggered_deliveries_with_recheck,
+        ChangeWatchFailure, PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams,
+        triggered_deliveries_with_recheck,
     },
     qemu_virtual_machines::{
         libvirt_domain_control::{LIBVIRT_DOMAIN_CONTROL_BUILT, libvirt_run_states},
@@ -285,7 +285,7 @@ impl VirtualMachineSampler {
 }
 
 impl SnapshotSource for VirtualMachinesReadout {
-    type Error = Infallible;
+    type Error = ChangeWatchFailure;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Virtual machines";

@@ -1,7 +1,6 @@
 use std::time::{Duration, Instant, SystemTime};
 
 use futures::{Stream, StreamExt, future::join_all};
-use futures_rx::RxExt;
 use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{
@@ -10,7 +9,7 @@ use super::{
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::{ChangeTriggerStreams, RereadSchedule},
+    delivery_cadence_drivers::{ChangeTriggerStreams, RereadSchedule, SnapshotDeliveryStreams},
     system_protocol_clients::{
         dbus_change_signals::change_triggers, protocol_peer_reconnects::subscribed,
     },
@@ -66,7 +65,7 @@ impl SnapshotSource for SlowJobs {
         })
         .map(move |listed| listed.map(|jobs| SlowJobs { jobs, scope }))
         .map(SnapshotDelivery::live_push)
-        .distinct_until_changed()
+        .repeats_as_unchanged()
     }
 }
 
@@ -105,8 +104,7 @@ async fn watch_running_jobs(
         &connection,
         [manager_signal("JobNew")?, manager_signal("JobRemoved")?],
     )
-    .await?
-    .map(drop);
+    .await?;
     let listings = job_signals.paced_rereads(
         Duration::ZERO,
         move || {

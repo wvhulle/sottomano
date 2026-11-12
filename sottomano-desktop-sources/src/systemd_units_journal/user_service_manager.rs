@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use futures::{Stream, StreamExt};
+use futures::Stream;
 use zbus::proxy::CacheProperties;
 
 use crate::{
@@ -62,8 +62,7 @@ async fn manager_state_changes(
                 .build(),
         ],
     )
-    .await?
-    .map(drop);
+    .await?;
     Ok(state_triggers.triggered_rereads(move || {
         let manager = manager.clone();
         let launched = launched.clone();

@@ -1,8 +1,8 @@
 use futures::{Stream, StreamExt};
-use futures_rx::RxExt;
 
 use crate::{
     SnapshotDelivery, SnapshotSource, SourceCaption,
+    delivery_cadence_drivers::SnapshotDeliveryStreams,
     network_connectivity::{
         network_manager_proxies::{self, Connectivity},
         nm_readings,
@@ -35,6 +35,6 @@ impl SnapshotSource for UplinkConnectivity {
             Ok(None) => SnapshotDelivery::SourceUnavailable,
             Err(failure) => SnapshotDelivery::live_push(Err(failure)),
         })
-        .distinct_until_changed()
+        .repeats_as_unchanged()
     }
 }

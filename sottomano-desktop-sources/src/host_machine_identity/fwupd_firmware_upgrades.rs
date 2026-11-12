@@ -98,7 +98,7 @@ impl SnapshotSource for Vec<FirmwareUpgrade> {
         let system = buses.system;
         name_owned(system.clone(), FWUPD_SERVICE).while_available(
             move || signalled_upgrades(system.clone()).map(SnapshotDelivery::live_push),
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }
@@ -118,12 +118,15 @@ async fn upgrades_on_daemon_changes(
     let fwupd = FwupdProxy::new(&system).await?;
     let changes = stream::select(
         stream::select(
-            fwupd.receive_changed().await?.map(drop),
-            fwupd.receive_device_added().await?.map(drop),
+            fwupd
+                .receive_changed()
+                .await?
+                .map(|_| Ok::<(), zbus::Error>(())),
+            fwupd.receive_device_added().await?.map(|_| Ok(())),
         ),
         stream::select(
-            fwupd.receive_device_removed().await?.map(drop),
-            fwupd.receive_device_changed().await?.map(drop),
+            fwupd.receive_device_removed().await?.map(|_| Ok(())),
+            fwupd.receive_device_changed().await?.map(|_| Ok(())),
         ),
     );
     Ok(changes.triggered_rereads(move || {

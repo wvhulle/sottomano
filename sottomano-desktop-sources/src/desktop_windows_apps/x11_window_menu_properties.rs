@@ -1,11 +1,10 @@
 use std::{
     collections::HashMap,
-    future::ready,
     io,
     os::fd::{AsRawFd, RawFd},
 };
 
-use futures::{Stream, StreamExt, stream};
+use futures::{Stream, stream};
 use tokio::io::unix::AsyncFd;
 use x11rb::{
     connection::Connection as _,
@@ -61,6 +60,12 @@ pub enum X11MenuLookupError {
     EventWait(#[from] io::Error),
     #[error("x11 request: {0}")]
     RequestOrId(#[from] ReplyOrIdError),
+}
+
+impl PartialEq for X11MenuLookupError {
+    fn eq(&self, other: &Self) -> bool {
+        self.to_string() == other.to_string()
+    }
 }
 
 struct X11EventSocket {
@@ -187,24 +192,9 @@ pub async fn active_x11_window() -> Result<ActiveX11Window, X11MenuLookupError> 
     blocking_poll(read_active_window).await
 }
 
-pub fn active_x11_window_changes() -> impl Stream<Item = ActiveX11Window> + Send {
-    subscribed((), |()| active_window_property_notifications())
-        .filter_map(|notification| {
-            ready(
-                notification
-                    .inspect_err(|watch_failure| {
-                        tracing::debug!("global menu: x11 active window watch: {watch_failure}");
-                    })
-                    .ok(),
-            )
-        })
-        .triggered_rereads(active_x11_window)
-        .map(|active_window| {
-            active_window.unwrap_or_else(|lookup_failure| {
-                tracing::debug!("global menu: active x11 window: {lookup_failure}");
-                ActiveX11Window::NoneActive
-            })
-        })
+pub fn active_x11_window_changes()
+-> impl Stream<Item = Result<ActiveX11Window, X11MenuLookupError>> + Send {
+    subscribed((), |()| active_window_property_notifications()).triggered_rereads(active_x11_window)
 }
 
 async fn active_window_property_notifications()

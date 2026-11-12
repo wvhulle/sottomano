@@ -1,3 +1,4 @@
+use crate::delivery_cadence_drivers::ChangeWatchFailure;
 mod ccusage_billing_blocks;
 mod ccusage_model_ranking;
 mod enterprise_spend;
@@ -33,8 +34,9 @@ use crate::{
 const SUBSCRIPTION_SCOPE: &str = "user:inference";
 const ENTERPRISE_SUBSCRIPTION: &str = "enterprise";
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Error {
+    ChangeWatch(ChangeWatchFailure),
     Credentials,
     NoToken,
     RateLimited(http_json_client::Error),
@@ -50,6 +52,7 @@ pub enum Error {
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
+            Error::ChangeWatch(watch_failure) => write!(f, "transcript watch: {watch_failure}"),
             Error::Credentials => write!(f, "credentials file unreadable"),
             Error::NoToken => write!(f, "no OAuth token in credentials"),
             Error::RateLimited(cause) | Error::Backoff { cause, .. } => {
@@ -59,6 +62,12 @@ impl Display for Error {
             Error::Ccusage(error) => write!(f, "ccusage: {error}"),
             Error::UnknownCurrency(code) => write!(f, "unknown currency {code:?}"),
         }
+    }
+}
+
+impl From<ChangeWatchFailure> for Error {
+    fn from(watch_failure: ChangeWatchFailure) -> Self {
+        Error::ChangeWatch(watch_failure)
     }
 }
 
@@ -168,7 +177,7 @@ where
                     polling.poll_deliveries(move || poll(credentials.clone()))
                 })
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
 }
 
@@ -198,10 +207,10 @@ where
             let readings = readings.clone();
             login_matches.while_available(
                 move || readings(logs.clone()),
-                SnapshotDelivery::SourceUnavailable,
+                || SnapshotDelivery::SourceUnavailable,
             )
         },
-        SnapshotDelivery::SourceUnavailable,
+        || SnapshotDelivery::SourceUnavailable,
     )
 }
 

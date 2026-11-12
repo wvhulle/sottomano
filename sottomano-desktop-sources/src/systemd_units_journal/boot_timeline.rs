@@ -419,7 +419,7 @@ async fn finished_startup(
         startup_finished
             .next()
             .await
-            .ok_or_else(|| zbus::Error::Failure("startup signal stream ended".to_owned()))?;
+            .ok_or_else(|| zbus::Error::Failure("startup signal stream ended".to_owned()))??;
         timestamps = ManagerTimestamps::read(&manager).await?;
     };
     let slowest_units = slowest_activations(&manager, finish, slow_unit).await?;

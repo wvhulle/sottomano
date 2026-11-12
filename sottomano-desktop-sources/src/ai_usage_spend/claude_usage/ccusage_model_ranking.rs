@@ -58,7 +58,7 @@ impl SnapshotSource for ClaudeCcusageModels {
                         )
                     })
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }

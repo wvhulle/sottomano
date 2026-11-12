@@ -1180,7 +1180,7 @@ pub const GATEWAY_PROPERTIES: &[&str] = &[
 pub async fn changes(
     connection: &Connection,
     watched_properties: &'static [&'static str],
-) -> zbus::Result<impl Stream<Item = ()> + use<>> {
+) -> zbus::Result<impl Stream<Item = zbus::Result<()>> + use<>> {
     let rules = watched_properties
         .iter()
         .map(|interface| properties_changed_rule(SERVICE, interface))

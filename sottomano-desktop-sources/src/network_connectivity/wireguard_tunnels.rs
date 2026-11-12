@@ -5,13 +5,13 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use futures::{Stream, StreamExt, future::join_all, stream, try_join};
+use futures::{Stream, StreamExt, TryStreamExt, future::join_all, try_join};
 use serde_json::Value as Json;
 use zbus::{Connection, zvariant::OwnedObjectPath};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::{ChangeTriggerStreams, PeriodicPolling},
+    delivery_cadence_drivers::{ChangeTriggerStreams, ChangeWatchFailure, PeriodicPolling},
     network_connectivity::network_manager_proxies::{
         self, ActivationState, ActiveWireguard, WireguardPeerSettings, WireguardProfile,
     },
@@ -333,8 +333,16 @@ pub struct TunnelOnBus {
     pub tunnel: String,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum TunnelAddressError {
+    #[error("{0}")]
+    Command(#[from] shell_command_output::Error),
+    #[error("{0}")]
+    ChangeWatch(#[from] ChangeWatchFailure),
+}
+
 impl SnapshotSource for TunnelAddress {
-    type Error = shell_command_output::Error;
+    type Error = TunnelAddressError;
     type StreamInputs = TunnelOnBus;
 
     const NAME: &'static str = "Tunnel address";
@@ -346,22 +354,12 @@ impl SnapshotSource for TunnelAddress {
 
 async fn address_changes(
     watched: TunnelOnBus,
-) -> Result<
-    impl Stream<Item = Result<TunnelAddress, shell_command_output::Error>> + Send,
-    shell_command_output::Error,
-> {
-    let addressing = match network_manager_proxies::changes(
-        &watched.buses.system,
-        ADDRESSING_PROPERTIES,
-    )
-    .await
-    {
-        Ok(signals) => signals.left_stream(),
-        Err(e) => {
-            tracing::debug!("wireguard: no NetworkManager to follow: {e}");
-            stream::empty().right_stream()
-        }
-    };
+) -> Result<impl Stream<Item = Result<TunnelAddress, TunnelAddressError>> + Send, TunnelAddressError>
+{
+    let addressing = network_manager_proxies::changes(&watched.buses.system, ADDRESSING_PROPERTIES)
+        .await
+        .map_err(ChangeWatchFailure::from)?
+        .map_err(ChangeWatchFailure::from);
     Ok(addressing.triggered_rereads(move || {
         let tunnel = watched.tunnel.clone();
         async move {

@@ -10,7 +10,6 @@ use std::{
 
 use bytesize::ByteSize;
 use futures::{Stream, StreamExt, stream::select};
-use futures_rx::RxExt;
 use uom::si::{
     f64::{Information, InformationRate, Time},
     information::byte,
@@ -21,7 +20,7 @@ use uom::si::{
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
+    delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling, SnapshotDeliveryStreams},
     network_connectivity::{
         network_manager_proxies, network_manager_proxies::Metering, nm_readings,
     },
@@ -139,7 +138,7 @@ impl SnapshotSource for InterfaceThroughput {
                 ready(Some(delivered))
             })
             .filter_map(ready)
-            .distinct_until_changed()
+            .repeats_as_unchanged()
     }
 }
 

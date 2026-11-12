@@ -50,7 +50,7 @@ impl SnapshotSource for L3CacheTraffic {
                 PeriodicPolling::every(Duration::from_secs(3))
                     .blocking_poll_deliveries(read_l3_cache_traffic)
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }

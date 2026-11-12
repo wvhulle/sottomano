@@ -179,7 +179,7 @@ impl SnapshotSource for CpuClock {
                     read_cpu_clock,
                 )
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }

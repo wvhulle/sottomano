@@ -1,4 +1,4 @@
-use std::{future::ready, time::Duration};
+use std::time::Duration;
 
 use futures::{Stream, StreamExt};
 use zbus::{Connection, proxy};
@@ -147,7 +147,7 @@ impl SnapshotSource for Conditions {
                 PeriodicPolling::every(Duration::from_secs(5))
                     .blocking_poll_deliveries(|| Ok(Conditions::current()))
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }
@@ -189,24 +189,17 @@ impl SnapshotSource for ProfileStatus {
                 let system = system.clone();
                 subscribed(system, status_changes).map(SnapshotDelivery::live_push)
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }
 
-pub fn active_profile_changes(system: zbus::Connection) -> impl Stream<Item = ()> + Send {
+pub fn active_profile_changes(
+    system: zbus::Connection,
+) -> impl Stream<Item = zbus::Result<()>> + Send {
     subscribed(system, |system| async move {
         let rules = [properties_changed_rule(DAEMON_SERVICE, DAEMON_SERVICE)?];
-        Ok::<_, zbus::Error>(change_triggers(&system, rules).await?.map(Ok))
-    })
-    .filter_map(|change| {
-        ready(
-            change
-                .inspect_err(|failure| {
-                    tracing::debug!("power profiles: no daemon to follow: {failure}")
-                })
-                .ok(),
-        )
+        change_triggers(&system, rules).await
     })
 }
 

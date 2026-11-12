@@ -57,7 +57,7 @@ pub enum SourceCaption {
 }
 
 pub trait SnapshotSource: Clone + Debug + Sized + Send + 'static {
-    type Error: Clone + Debug + Display + Send + 'static;
+    type Error: Debug + Display + Send + 'static;
     type StreamInputs: Clone + Hash + Send + Sync + 'static;
 
     const NAME: &'static str;
@@ -68,7 +68,7 @@ pub trait SnapshotSource: Clone + Debug + Sized + Send + 'static {
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum SnapshotDelivery<S: SnapshotSource> {
     SourceUnavailable,
     InternetUnreachable(InternetUnreachable),

@@ -1,5 +1,5 @@
 use std::{
-    future::{Future, ready},
+    future::Future,
     io,
     time::{Duration, SystemTime},
 };
@@ -15,7 +15,7 @@ use crate::{
     },
     podman_container_engine::libpod_running_containers::ENGINE_POLL_PERIOD,
     system_protocol_clients::{
-        journal_follow::{JournalEvent, journal_windows},
+        journal_follow::{JournalEvent, JournalFollowError, journal_windows},
         protocol_peer_reconnects::subscribed,
     },
 };
@@ -62,14 +62,9 @@ impl JournalEvent for RunningSetChange {
     }
 }
 
-pub(crate) fn running_set_triggers() -> impl Stream<Item = ()> + Send {
-    subscribed((), |()| async { Ok(journal_windows::<RunningSetChange>()) }).filter_map(|window| {
-        if let Err(failure) = window {
-            tracing::warn!("podman events: {failure}, reopening the journal");
-            return ready(None);
-        }
-        ready(Some(()))
-    })
+pub(crate) fn running_set_triggers() -> impl Stream<Item = Result<(), JournalFollowError>> + Send {
+    subscribed((), |()| async { Ok(journal_windows::<RunningSetChange>()) })
+        .map(|window| window.map(drop))
 }
 
 pub(crate) fn deliveries_on_running_set_changes<Source, ReadFuture>(
@@ -78,6 +73,7 @@ pub(crate) fn deliveries_on_running_set_changes<Source, ReadFuture>(
 ) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
 where
     Source: SnapshotSource + PartialEq,
+    JournalFollowError: Into<Source::Error>,
     ReadFuture: Future<Output = Result<Source, Source::Error>> + Send + 'static,
 {
     triggered_deliveries_with_recheck(

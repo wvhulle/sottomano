@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, HashSet},
-    convert::Infallible,
     fmt::{Display, Formatter, Result as FmtResult},
     io::ErrorKind,
     path::{Path, PathBuf},
@@ -24,6 +23,7 @@ use crate::{
     },
     system_protocol_clients::{
         http_json_client,
+        journal_follow::JournalFollowError,
         procfs_process_tree::{
             CpuTickCheckpoints, ProcessTable, ProcessTreeCpuLoad, ProcessTreeTotals, total_cpu_load,
         },
@@ -42,6 +42,12 @@ pub enum EngineReadError {
     Fetch(http_json_client::Error),
     ProcessTableUnreadable,
     ReadPanicked,
+}
+
+impl From<http_json_client::Error> for EngineReadError {
+    fn from(fetch_failure: http_json_client::Error) -> Self {
+        EngineReadError::Fetch(fetch_failure)
+    }
 }
 
 impl Display for EngineReadError {
@@ -360,7 +366,7 @@ impl EngineReadout {
 }
 
 impl SnapshotSource for EngineReadout {
-    type Error = Infallible;
+    type Error = JournalFollowError;
     type StreamInputs = PathBuf;
 
     const NAME: &'static str = "Podman containers";

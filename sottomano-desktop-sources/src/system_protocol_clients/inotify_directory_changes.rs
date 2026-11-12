@@ -9,7 +9,10 @@ use std::{
 use futures::{Stream, StreamExt};
 use inotify::{EventMask, Inotify, WatchDescriptor, WatchMask};
 
-use crate::system_protocol_clients::protocol_peer_reconnects::subscribed;
+use crate::{
+    delivery_cadence_drivers::ChangeWatchFailure,
+    system_protocol_clients::protocol_peer_reconnects::subscribed,
+};
 
 const EVENT_BUFFER_BYTES: usize = 4096;
 
@@ -74,11 +77,14 @@ impl WatchTarget {
     }
 }
 
-pub fn changes(targets: Vec<WatchTarget>) -> impl Stream<Item = ()> + Send {
+pub fn changes(
+    targets: Vec<WatchTarget>,
+) -> impl Stream<Item = Result<(), ChangeWatchFailure>> + Send {
     subscribed(targets, |targets| async move {
-        armed_watch(&targets).map(|events| events.map(Ok::<_, io::Error>))
+        armed_watch(&targets)
+            .map(|events| events.map(Ok))
+            .map_err(ChangeWatchFailure::from)
     })
-    .filter_map(|event| ready(event.ok()))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

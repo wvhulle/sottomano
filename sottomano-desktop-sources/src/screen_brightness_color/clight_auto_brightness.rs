@@ -72,7 +72,7 @@ impl SnapshotSource for AutoBrightness {
                 let buses = buses.clone();
                 SnapshotDelivery::live_push_deliveries(buses, calibration_changes)
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }

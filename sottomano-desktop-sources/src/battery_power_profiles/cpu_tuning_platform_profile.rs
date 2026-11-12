@@ -1,13 +1,13 @@
-use std::{future::ready, path::Path};
+use std::path::Path;
 
-use futures::Stream;
+use futures::{Stream, StreamExt, TryStreamExt};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     battery_power_profiles::power_profiles_daemon::active_profile_changes,
     blocking_background_work::blocking_poll,
     cpu_memory_compute::CPU_FREQ,
-    delivery_cadence_drivers::ChangeTriggerStreams,
+    delivery_cadence_drivers::{ChangeTriggerStreams, ChangeWatchFailure, SnapshotDeliveryStreams},
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses,
         sysfs_attribute_reads::{Error, read_field, read_trimmed},
@@ -62,10 +62,10 @@ impl SnapshotSource for CpuTuning {
     const NAME: &'static str = "CPU tuning";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries(buses.system, |system| {
-            ready(Ok(
-                active_profile_changes(system).triggered_rereads(|| blocking_poll(read_cpu_tuning))
-            ))
-        })
+        active_profile_changes(buses.system)
+            .map_err(ChangeWatchFailure::from)
+            .triggered_rereads(|| blocking_poll(read_cpu_tuning))
+            .map(SnapshotDelivery::live_push)
+            .repeats_as_unchanged()
     }
 }

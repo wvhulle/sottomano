@@ -13,8 +13,8 @@ use zbus::{
 };
 
 use crate::{
-    backing_service_availability::Availability, non_empty_text::non_empty,
-    system_protocol_clients::protocol_peer_reconnects::subscribed,
+    backing_service_availability::Availability, delivery_cadence_drivers::ChangeWatchFailure,
+    non_empty_text::non_empty, system_protocol_clients::protocol_peer_reconnects::subscribed,
 };
 
 pub type Properties = HashMap<String, OwnedValue>;
@@ -67,8 +67,10 @@ impl DbusPropertyLookup for Properties {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("change watch: {0}")]
+    ChangeWatch(#[from] ChangeWatchFailure),
     #[error("session bus: {0}")]
     Connect(String),
     #[error("{0}")]

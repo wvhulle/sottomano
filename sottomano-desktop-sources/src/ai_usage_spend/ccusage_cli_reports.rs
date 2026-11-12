@@ -18,7 +18,7 @@ use crate::{
         working_time_forecast::{CalendarSpan, SpendBudget},
     },
     backing_service_availability::Availability,
-    delivery_cadence_drivers::RereadSchedule,
+    delivery_cadence_drivers::{ChangeWatchFailure, RereadSchedule},
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
         shell_command_output::{self, program_availability},
@@ -28,7 +28,9 @@ use crate::{
 const PROGRAM: &str = "ccusage";
 pub const TRANSCRIPT_REREAD_MINIMUM_GAP: Duration = Duration::from_secs(60);
 
-pub fn transcript_changes(agent: Agent) -> impl Stream<Item = ()> + Send {
+pub fn transcript_changes(
+    agent: Agent,
+) -> impl Stream<Item = Result<(), ChangeWatchFailure>> + Send {
     changes(
         agent
             .transcript_roots()

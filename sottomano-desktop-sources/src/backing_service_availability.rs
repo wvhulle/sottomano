@@ -11,18 +11,18 @@ pub trait AvailabilityStreams: Stream<Item = Availability> + Sized {
     fn while_available<InnerStream>(
         self,
         mut start: impl FnMut() -> InnerStream + Send,
-        released: InnerStream::Item,
+        released: impl Fn() -> InnerStream::Item + Send,
     ) -> impl Stream<Item = InnerStream::Item> + Send
     where
         Self: Send,
         InnerStream: Stream + Send,
-        InnerStream::Item: Clone + Send,
+        InnerStream::Item: Send,
     {
         self.distinct_until_changed()
             .switch_map(move |availability| {
                 let (released_items, started_inner) = match availability {
                     Availability::Available => (Vec::new(), vec![start()]),
-                    Availability::Unavailable => (vec![released.clone()], Vec::new()),
+                    Availability::Unavailable => (vec![released()], Vec::new()),
                 };
                 stream::iter(released_items).chain(stream::iter(started_inner).flatten())
             })
@@ -46,7 +46,7 @@ mod tests {
                 started_count += 1;
                 stream::iter([started_count]).chain(stream::pending())
             },
-            0,
+            || 0,
         ));
         availability_sender
             .unbounded_send(Availability::Available)

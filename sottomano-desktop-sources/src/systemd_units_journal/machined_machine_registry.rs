@@ -1,6 +1,8 @@
 use futures::{Stream, StreamExt, stream};
 use zbus::{proxy, zvariant::OwnedObjectPath};
 
+use crate::system_protocol_clients::protocol_peer_reconnects::subscribed;
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, zbus::zvariant::Type)]
 pub(crate) struct RegisteredMachineListing {
     pub(crate) machine_name: String,
@@ -92,23 +94,17 @@ pub(crate) async fn registered_machine_listings(
 
 async fn subscribed_machine_set_changes(
     system_bus: zbus::Connection,
-) -> zbus::Result<impl Stream<Item = ()> + Send> {
+) -> zbus::Result<impl Stream<Item = zbus::Result<()>> + Send> {
     let manager = MachineManagerProxy::new(&system_bus).await?;
-    let registered = manager.receive_machine_new().await?.map(drop);
-    let unregistered = manager.receive_machine_removed().await?.map(drop);
+    let registered = manager.receive_machine_new().await?.map(|_| Ok(()));
+    let unregistered = manager.receive_machine_removed().await?.map(|_| Ok(()));
     Ok(stream::select(registered, unregistered))
 }
 
-pub(crate) fn machine_set_changes(system_bus: zbus::Connection) -> impl Stream<Item = ()> + Send {
-    stream::once(subscribed_machine_set_changes(system_bus))
-        .filter_map(|subscription| async move {
-            subscription
-                .inspect_err(|subscription_error| {
-                    tracing::debug!("machined signals: {subscription_error}");
-                })
-                .ok()
-        })
-        .flatten()
+pub(crate) fn machine_set_changes(
+    system_bus: zbus::Connection,
+) -> impl Stream<Item = zbus::Result<()>> + Send {
+    subscribed(system_bus, subscribed_machine_set_changes)
 }
 
 #[cfg(test)]

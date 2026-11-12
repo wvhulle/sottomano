@@ -198,7 +198,7 @@ async fn watched_internet_access(
         network_manager_proxies::INTERNET_ACCESS_PROPERTIES,
     )
     .await?;
-    let triggers = stream::select(signals, resumes(&buses));
+    let triggers = stream::select(signals, resumes(&buses).map(Ok));
     Ok(triggers.triggered_rereads(move || read_internet_access(buses.system.clone())))
 }
 

@@ -1,11 +1,11 @@
-use std::{env, future::ready, path::PathBuf};
+use std::{env, path::PathBuf};
 
-use futures::{Stream, stream};
+use futures::{Stream, StreamExt, stream};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::AvailabilityStreams,
-    delivery_cadence_drivers::ChangeTriggerStreams,
+    delivery_cadence_drivers::{ChangeTriggerStreams, ChangeWatchFailure, SnapshotDeliveryStreams},
     screen_brightness_color::solar_switch_schedule::ColorMode,
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
@@ -18,8 +18,16 @@ pub struct DarkMode {
     pub color_mode: ColorMode,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum DarkModeReadError {
+    #[error("{0}")]
+    Command(#[from] shell_command_output::Error),
+    #[error("{0}")]
+    ChangeWatch(#[from] ChangeWatchFailure),
+}
+
 impl SnapshotSource for DarkMode {
-    type Error = shell_command_output::Error;
+    type Error = DarkModeReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Dark mode";
@@ -27,20 +35,18 @@ impl SnapshotSource for DarkMode {
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(shell_command_output::program_availability("umbra")).while_available(
             || {
-                SnapshotDelivery::live_push_deliveries((), |()| {
-                    ready(Ok(changes(
-                        mode_file().map(WatchTarget::File).into_iter().collect(),
-                    )
-                    .triggered_rereads(Self::read)))
-                })
+                changes(mode_file().map(WatchTarget::File).into_iter().collect())
+                    .triggered_rereads(Self::read)
+                    .map(SnapshotDelivery::live_push)
+                    .repeats_as_unchanged()
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }
 
 impl DarkMode {
-    async fn read() -> Result<Self, shell_command_output::Error> {
+    async fn read() -> Result<Self, DarkModeReadError> {
         let mode = shell_command_output::output("umbra", &["get"]).await?;
         Ok(DarkMode {
             color_mode: match mode.trim() {

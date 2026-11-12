@@ -176,7 +176,7 @@ impl SnapshotSource for NixPackageFacts {
                     )
                     .map(absent_outside_store)
             },
-            SnapshotDelivery::SourceUnavailable,
+            || SnapshotDelivery::SourceUnavailable,
         )
     }
 }
