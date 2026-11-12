@@ -12,6 +12,7 @@ use zbus::{
 };
 
 use crate::{
+    delivery_cadence_drivers::ChangeTriggerStreams,
     desktop_windows_apps::{
         application_menu_nodes::{MenuNode, visible_menu_node},
         desktop_entry_app_icons::DesktopEntries,
@@ -103,17 +104,17 @@ pub async fn menu_bar_layout_updates(
     location: DbusMenuLocation,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<Vec<MenuNode>>> + Send> {
     let menu_proxy = dbusmenu_proxy(&connection, &location).await?;
-    let initial_top_menus = menu_bar_top_menus(&menu_proxy).await;
-    let layout_changes = menu_proxy.receive_layout_updated().await?.map(|_| ());
+    let layout_changes = menu_proxy.receive_layout_updated().await?.map(drop);
     let property_changes = menu_proxy
         .receive_items_properties_updated()
         .await?
-        .map(|_| ());
-    let refetched = stream::select(layout_changes, property_changes).then(move |()| {
-        let menu_proxy = menu_proxy.clone();
-        async move { menu_bar_top_menus(&menu_proxy).await }
-    });
-    Ok(stream::once(async { initial_top_menus }).chain(refetched))
+        .map(drop);
+    Ok(
+        stream::select(layout_changes, property_changes).triggered_rereads(move || {
+            let menu_proxy = menu_proxy.clone();
+            async move { menu_bar_top_menus(&menu_proxy).await }
+        }),
+    )
 }
 
 pub async fn exported_menu_bars_of_process(

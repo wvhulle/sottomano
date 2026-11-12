@@ -12,6 +12,8 @@ use zbus::{
     zvariant::{self, OwnedObjectPath, OwnedValue, Structure, Type, Value},
 };
 
+use crate::delivery_cadence_drivers::ChangeTriggerStreams;
+
 pub mod gtk_actions_proxy;
 
 use self::gtk_actions_proxy::{GtkActionDescription, gtk_actions_proxy};
@@ -461,7 +463,6 @@ pub async fn gtk_menu_bar_updates(
         .cache_properties(CacheProperties::No)
         .build()
         .await?;
-    let initial_menu_bar = fetched_gtk_menu_bar(&connection, &menus_proxy, &action_groups).await?;
     let mut change_streams = vec![menus_proxy.receive_changed().await?.map(|_| ()).boxed()];
     for action_path in exported_action_paths(&action_groups) {
         let action_changes = gtk_actions_proxy(&connection, &action_groups.bus_name, &action_path)
@@ -470,13 +471,14 @@ pub async fn gtk_menu_bar_updates(
             .await?;
         change_streams.push(action_changes.map(|_| ()).boxed());
     }
-    let refetched = stream::select_all(change_streams).then(move |()| {
-        let connection = connection.clone();
-        let menus_proxy = menus_proxy.clone();
-        let action_groups = action_groups.clone();
-        async move { fetched_gtk_menu_bar(&connection, &menus_proxy, &action_groups).await }
-    });
-    Ok(stream::once(async { Ok(initial_menu_bar) }).chain(refetched))
+    Ok(
+        stream::select_all(change_streams).triggered_rereads(move || {
+            let connection = connection.clone();
+            let menus_proxy = menus_proxy.clone();
+            let action_groups = action_groups.clone();
+            async move { fetched_gtk_menu_bar(&connection, &menus_proxy, &action_groups).await }
+        }),
+    )
 }
 
 #[cfg(test)]

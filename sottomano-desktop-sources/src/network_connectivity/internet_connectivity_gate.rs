@@ -245,10 +245,12 @@ mod tests {
         access_script: Vec<Result<(), InternetUnreachable>>,
     ) -> Vec<GatedOutcome> {
         let mut start_number = 0;
-        let spaced_access_states = stream::iter(access_script).then(|access| async move {
-            sleep(Duration::from_secs(1)).await;
-            access
-        });
+        let spaced_access_states = stream::iter(access_script)
+            .map(|access| async move {
+                sleep(Duration::from_secs(1)).await;
+                access
+            })
+            .buffered(1);
         held_while_reachable(spaced_access_states, move || {
             start_number += 1;
             stream::iter([SnapshotDelivery::single_read(Ok(RemoteReading {

@@ -32,6 +32,8 @@ use crate::{
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 
+const OWNER_LOOKUPS_IN_FLIGHT: usize = 16;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum IconSource {
     Pixmap(Arc<RgbaImage>),
@@ -330,7 +332,7 @@ fn hosted_updates(connected_host: ConnectedTrayHost) -> impl Stream<Item = TrayU
         session_bus: owner_lookup.session_bus(),
     };
     let item_changes = item_events
-        .then(move |received| {
+        .map(move |received| {
             let owner_lookup = owner_lookup.clone();
             async move {
                 let added_owner = match &received {
@@ -340,6 +342,7 @@ fn hosted_updates(connected_host: ConnectedTrayHost) -> impl Stream<Item = TrayU
                 (received, added_owner)
             }
         })
+        .buffered(OWNER_LOOKUPS_IN_FLIGHT)
         .scan(listed.clone(), move |items, (received, added_owner)| {
             match received {
                 Ok(event) => apply(items, event, added_owner, &client, &entries),

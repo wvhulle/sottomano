@@ -33,12 +33,13 @@ impl SnapshotSource for InternetLatency {
         PROBE_POLLING
             .poll_ticks()
             .enumerate()
-            .then(move |(tick_count, polling)| async move {
+            .map(move |(tick_count, polling)| async move {
                 #[allow(clippy::cast_possible_truncation)]
                 let sequence = tick_count as u16;
                 let outcome = echo_round_trip(SocketAddr::new(internet_host, 0), sequence).await;
                 (polling, outcome)
             })
+            .buffered(1)
             .scan(
                 ProbeWindow::empty(internet_host),
                 |window, (polling, outcome)| {

@@ -1,6 +1,7 @@
 use std::{future::ready, num::NonZeroU32, sync::Arc};
 
 use futures::{Stream, StreamExt, future::join_all, stream};
+use futures_rx::RxExt;
 use zbus::{
     Connection, MatchRule, Message, MessageStream,
     fdo::{DBusProxy, MonitoringProxy},
@@ -62,10 +63,10 @@ async fn inhibitor_changes(
             ))
         })
         .filter_map(ready);
-    let snapshots = held_changes.then(move |held| {
+    let snapshots = held_changes.switch_map(move |held| {
         let bus_driver = bus_driver.clone();
         let app_names = Arc::clone(&app_names);
-        async move { Ok(named_inhibitors(&held, &bus_driver, &app_names).await) }
+        stream::once(async move { Ok(named_inhibitors(&held, &bus_driver, &app_names).await) })
     });
     Ok(stream::once(ready(Ok(ScreenSaverInhibitors::default()))).chain(snapshots))
 }

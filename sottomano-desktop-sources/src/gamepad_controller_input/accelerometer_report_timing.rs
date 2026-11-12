@@ -246,11 +246,18 @@ pub fn report_timings(
     slot: usize,
     accelerometer: &Path,
 ) -> impl Stream<Item = RawGamepadEvent> + Send + use<> {
-    let opened = Device::open(accelerometer).and_then(Device::into_event_stream);
-    let reports = match opened {
-        Ok(events) => events
-            .take_while(|event| ready(event.is_ok()))
-            .filter_map(|event| ready(event.ok()))
+    let opened_events = Device::open(accelerometer)
+        .and_then(Device::into_event_stream)
+        .inspect_err(|open_failure| {
+            tracing::warn!(
+                "gamepad: cannot read {}: {open_failure}",
+                accelerometer.display()
+            );
+        })
+        .ok();
+    stream::iter(opened_events).flat_map(move |events| {
+        let reports = events
+            .scan((), |(), event| ready(event.ok()))
             .scan(DeviceStamp::Absent, |pending_stamp, event| {
                 ready(Some(match event.destructure() {
                     EventSummary::Misc(_, MiscCode::MSC_TIMESTAMP, value) => {
@@ -266,29 +273,24 @@ pub fn report_timings(
                     _ => None,
                 }))
             })
-            .filter_map(ready),
-        Err(e) => {
-            tracing::warn!("gamepad: cannot read {}: {e}", accelerometer.display());
-            return stream::empty().right_stream();
-        }
-    };
-    let window_ends = PeriodicPolling::every(REPORT_TIMING_WINDOW)
-        .poll_ticks()
-        .map(|_| MotionSample::WindowEnd);
-    stream::select(reports, window_ends)
-        .scan(ReportWindow::default(), move |window, sample| {
-            ready(Some(match sample {
-                MotionSample::Report(report) => {
-                    window.record_report(report);
-                    None
-                }
-                MotionSample::WindowEnd => window
-                    .closed(SystemTime::now())
-                    .map(|timing| RawGamepadEvent::ReportTiming { slot, timing }),
-            }))
-        })
-        .filter_map(ready)
-        .left_stream()
+            .filter_map(ready);
+        let window_ends = PeriodicPolling::every(REPORT_TIMING_WINDOW)
+            .poll_ticks()
+            .map(|_| MotionSample::WindowEnd);
+        stream::select(reports, window_ends)
+            .scan(ReportWindow::default(), move |window, sample| {
+                ready(Some(match sample {
+                    MotionSample::Report(report) => {
+                        window.record_report(report);
+                        None
+                    }
+                    MotionSample::WindowEnd => window
+                        .closed(SystemTime::now())
+                        .map(|timing| RawGamepadEvent::ReportTiming { slot, timing }),
+                }))
+            })
+            .filter_map(ready)
+    })
 }
 
 #[cfg(test)]
