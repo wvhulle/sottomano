@@ -56,7 +56,7 @@ use sottomano_widgets::{
             cascade_row::{CascadeDirection, CascadeOrientation, growth_away_from},
             notched_panel::PanelGrowth,
         },
-        group_menu_state::{GroupMenuMessage, GroupMenuTopic, OpenGroupMenu},
+        group_menu_state::{GroupMenuMessage, GroupMenuTopic, OpenGroupMenu, PanelPinDuration},
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
     },
     hover_cards::{
@@ -231,11 +231,11 @@ impl DesktopShell {
     fn rescan_group_alerts(&mut self, open_menu: Option<OpenGroupMenu>) -> Task<Message> {
         let GroupAlertScan {
             toast_requests,
-            promoted_groups,
+            panel_raises,
         } = self.scan_group_alerts();
         self.widget_groups.group_menus.track_source_demand(
             open_menu,
-            promoted_groups,
+            panel_raises,
             self.clock.instant,
         );
         self.notifications
@@ -311,13 +311,25 @@ impl DesktopShell {
                 .group_menus
                 .update(msg)
                 .map(Message::GroupMenuState),
-            Message::UnpinFromPanel { menu, entry } => Task::batch([
-                self.dismiss_hover_card(),
-                self.widget_groups
-                    .group_menus
-                    .update(GroupMenuMessage::TogglePin { menu, entry })
-                    .map(Message::GroupMenuState),
-            ]),
+            Message::ReleaseFromPanel {
+                menu,
+                entry,
+                pin_duration,
+            } => {
+                let release = match pin_duration {
+                    PanelPinDuration::Permanent => GroupMenuMessage::TogglePin { menu, entry },
+                    PanelPinDuration::UntilAlertEnds => {
+                        GroupMenuMessage::DismissAlertPin { menu, entry }
+                    }
+                };
+                Task::batch([
+                    self.dismiss_hover_card(),
+                    self.widget_groups
+                        .group_menus
+                        .update(release)
+                        .map(Message::GroupMenuState),
+                ])
+            }
             Message::SoundThemeLoaded(theme) => {
                 self.notifications.adopt_sound_theme(theme);
                 Task::none()

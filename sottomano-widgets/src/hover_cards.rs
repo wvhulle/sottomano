@@ -22,7 +22,7 @@ pub use crate::hover_cards::{
 use crate::{
     group_menus::{
         group_menu_settings::GroupMenuSettingsTarget,
-        group_menu_state::{GroupMenuPin, GroupMenuTopic},
+        group_menu_state::{GroupMenuPin, GroupMenuTopic, PanelPinDuration},
     },
     widget_groups::{
         app_launcher_group::AppLauncherTarget,
@@ -262,6 +262,7 @@ pub enum PanelPinOrigin {
         menu: GroupMenuTopic,
         group: Box<WidgetGroupIdentity>,
         item_key: String,
+        pin_duration: PanelPinDuration,
     },
 }
 
@@ -385,9 +386,10 @@ pub enum PopupMessage {
     FocusWindow(u64),
     RefreshHoveredReading,
     WindowGroup(WindowGroupInteraction),
-    ToggleGroupMenuPin {
+    ReleaseFromPanel {
         menu: GroupMenuTopic,
         entry: GroupMenuPin,
+        pin_duration: PanelPinDuration,
     },
 }
 

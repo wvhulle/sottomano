@@ -22,7 +22,9 @@ use sottomano_toml_config::{Config, LoadError};
 use sottomano_widgets::{
     desktop_index::ResolvedIcons,
     desktop_panels::panel_slot_drag::DragMessage,
-    group_menus::group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuTopic},
+    group_menus::group_menu_state::{
+        GroupMenuMessage, GroupMenuPin, GroupMenuTopic, PanelPinDuration,
+    },
     hover_cards::{HoverCardMessage, PopupMessage},
     layer_surfaces::SurfaceRequest,
     toast_messages::NotificationMessage,
@@ -141,9 +143,10 @@ pub enum Message {
     VoiceDictation(VoiceDictationMessage),
     IdleTimeouts(IdlePauseMessage),
     GroupMenuState(GroupMenuMessage),
-    UnpinFromPanel {
+    ReleaseFromPanel {
         menu: GroupMenuTopic,
         entry: GroupMenuPin,
+        pin_duration: PanelPinDuration,
     },
     Media(MediaMessage),
     Tray(TrayMessage),
@@ -343,9 +346,10 @@ pub enum ShellInteraction {
     LoginSession(WidgetGroupExpansionMessage),
     WindowGroup(WindowGroupInteraction),
     AppLauncher(AppLauncherMessage),
-    UnpinFromPanel {
+    ReleaseFromPanel {
         menu: GroupMenuTopic,
         entry: GroupMenuPin,
+        pin_duration: PanelPinDuration,
     },
     HoverCard(HoverCardMessage),
     Notification(NotificationMessage),
@@ -526,9 +530,15 @@ impl From<ShellInteraction> for Message {
                 Message::WindowGroup(WindowGroupMessage::Interaction(interaction))
             }
             ShellInteraction::AppLauncher(message) => Message::AppLauncher(message),
-            ShellInteraction::UnpinFromPanel { menu, entry } => {
-                Message::UnpinFromPanel { menu, entry }
-            }
+            ShellInteraction::ReleaseFromPanel {
+                menu,
+                entry,
+                pin_duration,
+            } => Message::ReleaseFromPanel {
+                menu,
+                entry,
+                pin_duration,
+            },
             ShellInteraction::HoverCard(message) => Message::HoverCard(message),
             ShellInteraction::Notification(message) => Message::Notification(message),
             ShellInteraction::CopyText(copied) => Message::CopyText(copied),
@@ -596,9 +606,15 @@ impl From<PopupMessage> for ShellInteraction {
             PopupMessage::FocusWindow(window) => ShellInteraction::FocusWindow(window),
             PopupMessage::RefreshHoveredReading => ShellInteraction::RefreshHoveredReading,
             PopupMessage::WindowGroup(window_group) => ShellInteraction::WindowGroup(window_group),
-            PopupMessage::ToggleGroupMenuPin { menu, entry } => {
-                ShellInteraction::UnpinFromPanel { menu, entry }
-            }
+            PopupMessage::ReleaseFromPanel {
+                menu,
+                entry,
+                pin_duration,
+            } => ShellInteraction::ReleaseFromPanel {
+                menu,
+                entry,
+                pin_duration,
+            },
         }
     }
 }

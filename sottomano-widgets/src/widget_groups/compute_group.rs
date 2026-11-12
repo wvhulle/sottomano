@@ -350,7 +350,7 @@ mod tests {
     use crate::{
         clock::Clock,
         group_menus::group_menu_state::{
-            AlertPromotedGroup, GroupMenuState, GroupMenuTopic, OpenGroupMenu,
+            GroupMenuState, GroupMenuTopic, OpenGroupMenu, PanelRaise,
         },
         widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
     };
@@ -398,7 +398,7 @@ mod tests {
         let mut group_menus = GroupMenuState::default();
         group_menus.track_source_demand(
             None,
-            vec![AlertPromotedGroup {
+            vec![PanelRaise::WholeGroup {
                 menu: GroupMenuTopic::Hardware,
                 group: WidgetGroupIdentity::sole(WidgetGroupFamily::Compute),
             }],

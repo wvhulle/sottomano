@@ -156,10 +156,26 @@ impl GroupMenuPin {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PanelPinDuration {
+    Permanent,
+    UntilAlertEnds,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AlertPinState {
+    Raised,
+    Dismissed,
+}
+
 #[derive(Debug, Clone)]
 pub enum GroupMenuMessage {
     PinsLoaded(BTreeSet<StoredGroupMenuPin>),
     TogglePin {
+        menu: GroupMenuTopic,
+        entry: GroupMenuPin,
+    },
+    DismissAlertPin {
         menu: GroupMenuTopic,
         entry: GroupMenuPin,
     },
@@ -200,9 +216,29 @@ pub enum GroupMenuMessage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AlertPromotedGroup {
-    pub menu: GroupMenuTopic,
-    pub group: WidgetGroupIdentity,
+pub enum PanelRaise {
+    WholeGroup {
+        menu: GroupMenuTopic,
+        group: WidgetGroupIdentity,
+    },
+    AlertingItem {
+        menu: GroupMenuTopic,
+        group: WidgetGroupIdentity,
+        item_key: String,
+    },
+}
+
+impl PanelRaise {
+    fn stored(self) -> StoredGroupMenuPin {
+        match self {
+            PanelRaise::WholeGroup { menu, group } => GroupMenuPin::Group(group).stored_in(menu),
+            PanelRaise::AlertingItem {
+                menu,
+                group,
+                item_key,
+            } => GroupMenuPin::Item { group, item_key }.stored_in(menu),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -236,7 +272,8 @@ pub struct GroupMenuState {
     pinned: BTreeSet<StoredGroupMenuPin>,
     inspection: GroupMenuInspection,
     recently_open_menus: Vec<RecentlyOpenMenu>,
-    promoted_groups: Vec<AlertPromotedGroup>,
+    panel_raises: BTreeSet<StoredGroupMenuPin>,
+    dismissed_alert_pins: BTreeSet<StoredGroupMenuPin>,
 }
 
 impl Default for GroupMenuState {
@@ -251,7 +288,8 @@ impl Default for GroupMenuState {
             pinned: BTreeSet::new(),
             inspection: GroupMenuInspection::default(),
             recently_open_menus: Vec::new(),
-            promoted_groups: Vec::new(),
+            panel_raises: BTreeSet::new(),
+            dismissed_alert_pins: BTreeSet::new(),
         }
     }
 }
@@ -277,13 +315,24 @@ impl GroupMenuState {
         }
     }
 
+    #[must_use]
+    pub fn alert_pin_state(&self, menu: GroupMenuTopic, entry: GroupMenuPin) -> AlertPinState {
+        if self.dismissed_alert_pins.contains(&entry.stored_in(menu)) {
+            AlertPinState::Dismissed
+        } else {
+            AlertPinState::Raised
+        }
+    }
+
     pub fn track_source_demand(
         &mut self,
         open_menu: Option<OpenGroupMenu>,
-        promoted_groups: Vec<AlertPromotedGroup>,
+        panel_raises: Vec<PanelRaise>,
         now: Instant,
     ) {
-        self.promoted_groups = promoted_groups;
+        self.panel_raises = panel_raises.into_iter().map(PanelRaise::stored).collect();
+        self.dismissed_alert_pins
+            .retain(|dismissed_pin| self.panel_raises.contains(dismissed_pin));
         self.track_open_menu(open_menu, now);
     }
 
@@ -308,21 +357,18 @@ impl GroupMenuState {
             .recently_open_menus
             .iter()
             .any(|recent| recent.menu.families.contains(&family));
-        let group_pinned = self.pinned.iter().any(|pin| match pin {
+        let mut panel_pins = self.pinned.iter().chain(&self.panel_raises);
+        let group_on_panel = panel_pins.clone().any(|pin| match pin {
             StoredGroupMenuPin::Group { group_family, .. } => group_family == stored_family,
             StoredGroupMenuPin::Item { .. } => false,
         });
-        let group_promoted = self
-            .promoted_groups
-            .iter()
-            .any(|promoted| promoted.group.family == family);
-        let item_pinned = self.pinned.iter().any(|pin| match pin {
+        let item_on_panel = panel_pins.any(|pin| match pin {
             StoredGroupMenuPin::Item { group_family, .. } => group_family == stored_family,
             StoredGroupMenuPin::Group { .. } => false,
         });
-        let surface = if menu_open || item_pinned {
+        let surface = if menu_open || item_on_panel {
             GroupSurface::AllRows
-        } else if group_pinned || group_promoted {
+        } else if group_on_panel {
             GroupSurface::WidgetGroupFace
         } else {
             GroupSurface::Hidden
@@ -432,6 +478,10 @@ impl GroupMenuState {
                     |store_outcome| GroupMenuMessage::PinSaved(store_outcome.map_err(Arc::new)),
                 )
             }
+            GroupMenuMessage::DismissAlertPin { menu, entry } => {
+                self.dismissed_alert_pins.insert(entry.stored_in(menu));
+                Task::none()
+            }
             GroupMenuMessage::PinSaved(store_outcome) => {
                 if let Err(store_error) = store_outcome {
                     tracing::warn!("group menu pins: the pin change was not saved: {store_error}");
@@ -517,9 +567,9 @@ mod tests {
     use std::time::Duration;
 
     use super::{
-        AlertPromotedGroup, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
-        GroupSourceDemand, MENU_SOURCE_LINGER, MenuPinState, OpenGroupMenu, WidgetGroupFamily,
-        WidgetGroupIdentity,
+        AlertPinState, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
+        GroupSourceDemand, MENU_SOURCE_LINGER, MenuPinState, OpenGroupMenu, PanelRaise,
+        WidgetGroupFamily, WidgetGroupIdentity,
     };
     use crate::{
         clock::Clock,
@@ -619,7 +669,7 @@ mod tests {
         let mut group_menus = GroupMenuState::default();
         group_menus.track_source_demand(
             None,
-            vec![AlertPromotedGroup {
+            vec![PanelRaise::WholeGroup {
                 menu: GroupMenuTopic::Hardware,
                 group: GPU_GROUP,
             }],
@@ -628,6 +678,52 @@ mod tests {
         assert_eq!(gpu_demand(&group_menus), collapsed_on_panel());
         group_menus.track_source_demand(None, Vec::new(), Clock::real().instant);
         assert_ne!(gpu_demand(&group_menus), collapsed_on_panel());
+    }
+
+    fn alerting_gpu_item() -> PanelRaise {
+        PanelRaise::AlertingItem {
+            menu: GroupMenuTopic::Hardware,
+            group: GPU_GROUP,
+            item_key: "hot gpu".to_owned(),
+        }
+    }
+
+    fn alerting_gpu_pin() -> GroupMenuPin {
+        GroupMenuPin::Item {
+            group: GPU_GROUP,
+            item_key: "hot gpu".to_owned(),
+        }
+    }
+
+    #[test]
+    fn a_dismissed_alert_pin_stays_dismissed_while_its_item_keeps_alerting() {
+        let mut group_menus = GroupMenuState::default();
+        group_menus.track_source_demand(None, vec![alerting_gpu_item()], Clock::real().instant);
+        let _ = group_menus.update(GroupMenuMessage::DismissAlertPin {
+            menu: GroupMenuTopic::Hardware,
+            entry: alerting_gpu_pin(),
+        });
+        group_menus.track_source_demand(None, vec![alerting_gpu_item()], Clock::real().instant);
+        assert_eq!(
+            group_menus.alert_pin_state(GroupMenuTopic::Hardware, alerting_gpu_pin()),
+            AlertPinState::Dismissed
+        );
+    }
+
+    #[test]
+    fn a_dismissed_alert_pin_rises_again_after_its_alert_ends() {
+        let mut group_menus = GroupMenuState::default();
+        group_menus.track_source_demand(None, vec![alerting_gpu_item()], Clock::real().instant);
+        let _ = group_menus.update(GroupMenuMessage::DismissAlertPin {
+            menu: GroupMenuTopic::Hardware,
+            entry: alerting_gpu_pin(),
+        });
+        group_menus.track_source_demand(None, Vec::new(), Clock::real().instant);
+        group_menus.track_source_demand(None, vec![alerting_gpu_item()], Clock::real().instant);
+        assert_eq!(
+            group_menus.alert_pin_state(GroupMenuTopic::Hardware, alerting_gpu_pin()),
+            AlertPinState::Raised
+        );
     }
 
     #[test]
