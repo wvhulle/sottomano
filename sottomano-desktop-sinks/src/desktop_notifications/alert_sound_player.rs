@@ -58,9 +58,20 @@ impl SoundTheme {
         let configured = Command::new("gsettings")
             .args(["get", "org.gnome.desktop.sound", "theme-name"])
             .output()
+            .inspect_err(|spawn_failure| {
+                tracing::debug!("alert sounds: running gsettings failed: {spawn_failure}");
+            })
             .ok()
             .filter(|output| output.status.success())
-            .and_then(|output| String::from_utf8(output.stdout).ok());
+            .and_then(|output| {
+                String::from_utf8(output.stdout)
+                    .inspect_err(|decode_failure| {
+                        tracing::warn!(
+                            "alert sounds: gsettings sound theme is not utf-8: {decode_failure}"
+                        );
+                    })
+                    .ok()
+            });
         match configured
             .as_deref()
             .map(|value| value.trim().trim_matches('\''))

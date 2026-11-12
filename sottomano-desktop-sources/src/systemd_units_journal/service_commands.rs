@@ -167,17 +167,43 @@ async fn service_command(
 ) -> Option<ServiceCommand> {
     let service = ServiceProxy::builder(manager.inner().connection())
         .path(path)
+        .inspect_err(|path_failure| {
+            tracing::warn!("service command of {unit}: invalid object path: {path_failure}");
+        })
         .ok()?
         .cache_properties(CacheProperties::No)
         .build()
         .await
+        .inspect_err(|proxy_failure| {
+            tracing::warn!("service command of {unit}: service proxy: {proxy_failure}");
+        })
         .ok()?;
-    let (program, argv, ..) = service.exec_start().await.ok()?.into_iter().next()?;
+    let exec_start = service
+        .exec_start()
+        .await
+        .inspect_err(|exec_failure| {
+            tracing::debug!("service command of {unit}: ExecStart unreadable: {exec_failure}");
+        })
+        .ok()?;
+    let (program, argv, ..) = exec_start.into_iter().next()?;
+    let environment = service
+        .environment()
+        .await
+        .unwrap_or_else(|environment_failure| {
+            tracing::debug!(
+                "service command of {unit}: Environment unreadable: {environment_failure}"
+            );
+            Vec::new()
+        });
+    let account = service.user().await.unwrap_or_else(|user_failure| {
+        tracing::debug!("service command of {unit}: User unreadable: {user_failure}");
+        String::new()
+    });
     Some(ServiceCommand {
         unit,
         program: PathBuf::from(program),
         arguments: argv.into_iter().skip(1).collect(),
-        environment: environment_assignments(service.environment().await.unwrap_or_default()),
-        account: ServiceAccount::from(service.user().await.unwrap_or_default()),
+        environment: environment_assignments(environment),
+        account: ServiceAccount::from(account),
     })
 }

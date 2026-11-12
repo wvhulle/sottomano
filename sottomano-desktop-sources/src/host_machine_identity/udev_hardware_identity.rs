@@ -53,7 +53,16 @@ pub fn reported(raw: &str) -> Option<String> {
 }
 
 pub fn sysfs_attribute(path: impl AsRef<Path>) -> Option<String> {
-    reported(&fs::read_to_string(path).ok()?)
+    let path = path.as_ref();
+    let raw = fs::read_to_string(path)
+        .inspect_err(|read_failure| {
+            tracing::debug!(
+                "hardware identity: cannot read {}: {read_failure}",
+                path.display()
+            );
+        })
+        .ok()?;
+    reported(&raw)
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -71,9 +80,15 @@ impl UdevProperties {
     }
 
     fn read(entry: &str) -> Self {
-        fs::read_to_string(Path::new(UDEV_DATA).join(entry))
-            .map(|database_entry| Self::parse(&database_entry))
-            .unwrap_or_default()
+        fs::read_to_string(Path::new(UDEV_DATA).join(entry)).map_or_else(
+            |read_failure| {
+                tracing::debug!(
+                    "udev properties: cannot read {UDEV_DATA} entry {entry}: {read_failure}"
+                );
+                Self::default()
+            },
+            |database_entry| Self::parse(&database_entry),
+        )
     }
 
     #[must_use]
@@ -113,7 +128,15 @@ impl From<&Path> for UdevProperties {
 }
 
 fn link_target_name(link: &Path) -> Option<String> {
-    Some(fs::read_link(link).ok()?.file_name()?.to_str()?.to_owned())
+    let target = fs::read_link(link)
+        .inspect_err(|link_failure| {
+            tracing::debug!(
+                "hardware identity: cannot read link {}: {link_failure}",
+                link.display()
+            );
+        })
+        .ok()?;
+    Some(target.file_name()?.to_str()?.to_owned())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -181,9 +204,23 @@ fn pci_parent_vendor(device: &Path) -> Option<u16> {
 }
 
 fn hex_attribute(path: &Path) -> Option<u16> {
-    let raw = fs::read_to_string(path).ok()?;
+    let raw = fs::read_to_string(path)
+        .inspect_err(|read_failure| {
+            tracing::debug!(
+                "hardware identity: cannot read {}: {read_failure}",
+                path.display()
+            );
+        })
+        .ok()?;
     let digits = raw.trim();
-    u16::from_str_radix(digits.strip_prefix("0x").unwrap_or(digits), 16).ok()
+    u16::from_str_radix(digits.strip_prefix("0x").unwrap_or(digits), 16)
+        .inspect_err(|parse_failure| {
+            tracing::warn!(
+                "hardware identity: invalid hexadecimal id {digits:?} in {}: {parse_failure}",
+                path.display()
+            );
+        })
+        .ok()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -200,7 +237,15 @@ impl Adapter {
     }
 
     pub fn of_device(device: impl AsRef<Path>) -> Option<Self> {
-        let function = fs::canonicalize(device).ok()?;
+        let device = device.as_ref();
+        let function = fs::canonicalize(device)
+            .inspect_err(|resolve_failure| {
+                tracing::debug!(
+                    "hardware identity: cannot resolve device {}: {resolve_failure}",
+                    device.display()
+                );
+            })
+            .ok()?;
         let (bus_device, bus_id) = function
             .ancestors()
             .find_map(|device| Some((device.to_path_buf(), BusId::of_device(device)?)))?;
@@ -343,7 +388,10 @@ pub struct CpuModel {
 impl CpuModel {
     #[must_use]
     pub fn current() -> Self {
-        let cpuinfo = fs::read_to_string(CPU_INFO).unwrap_or_default();
+        let cpuinfo = fs::read_to_string(CPU_INFO).unwrap_or_else(|read_failure| {
+            tracing::warn!("cpu model: cannot read {CPU_INFO}: {read_failure}");
+            String::new()
+        });
         let first_core = cpuinfo.split("\n\n").next().unwrap_or_default();
         CpuModel {
             identity: CpuIdentity::parse(first_core),
@@ -407,7 +455,17 @@ pub struct CpuCoreCounts {
 
 impl CpuCoreCounts {
     fn parse(first_core: &str) -> Self {
-        let count = |name| cpuinfo_field(first_core, name)?.parse().ok();
+        let count = |name| {
+            let count_text = cpuinfo_field(first_core, name)?;
+            count_text
+                .parse()
+                .inspect_err(|parse_failure| {
+                    tracing::warn!(
+                        "cpu model: invalid {name} count {count_text:?}: {parse_failure}"
+                    );
+                })
+                .ok()
+        };
         CpuCoreCounts {
             cores: count("cpu cores"),
             threads: count("siblings"),
@@ -426,8 +484,19 @@ pub struct CpuArchitecture {
 impl CpuArchitecture {
     fn current() -> Self {
         shell_command_output::blocking::output(INXI_PROGRAM, &INXI_CPU_REPORT_ARGS)
+            .inspect_err(|command_failure| {
+                tracing::debug!("cpu architecture: cannot run {INXI_PROGRAM}: {command_failure}");
+            })
             .ok()
-            .and_then(|report| serde_json::from_str(&report).ok())
+            .and_then(|report| {
+                serde_json::from_str(&report)
+                    .inspect_err(|json_failure| {
+                        tracing::warn!(
+                            "cpu architecture: invalid {INXI_PROGRAM} json report: {json_failure}"
+                        );
+                    })
+                    .ok()
+            })
             .map(|report| Self::from_inxi_report(&report))
             .unwrap_or_default()
     }
@@ -508,11 +577,40 @@ struct CacheInstance {
 
 impl CacheInstance {
     fn read(index: &Path) -> Option<Self> {
-        let text = |name| Some(fs::read_to_string(index.join(name)).ok()?.trim().to_owned());
-        let number = |name| text(name)?.parse::<u64>().ok();
+        let text = |name: &str| {
+            let attribute_path = index.join(name);
+            let raw = fs::read_to_string(&attribute_path)
+                .inspect_err(|read_failure| {
+                    tracing::debug!(
+                        "cpu caches: cannot read {}: {read_failure}",
+                        attribute_path.display()
+                    );
+                })
+                .ok()?;
+            Some(raw.trim().to_owned())
+        };
+        let number = |name: &str| {
+            let number_text = text(name)?;
+            number_text
+                .parse::<u64>()
+                .inspect_err(|parse_failure| {
+                    tracing::warn!(
+                        "cpu caches: invalid {name} {number_text:?} in {}: {parse_failure}",
+                        index.display()
+                    );
+                })
+                .ok()
+        };
         Some(CacheInstance {
             position: CachePosition {
-                level: text("level")?.parse().ok()?,
+                level: u8::try_from(number("level")?)
+                    .inspect_err(|conversion_failure| {
+                        tracing::warn!(
+                            "cpu caches: cache level out of range in {}: {conversion_failure}",
+                            index.display()
+                        );
+                    })
+                    .ok()?,
                 kind: CacheKind::from_sysfs(&text("type")?)?,
             },
             size: ByteSize::b(
@@ -555,12 +653,39 @@ impl From<&[CacheInstance]> for CacheLevel {
 
 fn cache_levels() -> Vec<CacheLevel> {
     let instances = fs::read_dir(CPU_DEVICES)
+        .inspect_err(|listing_failure| {
+            tracing::warn!("cpu caches: cannot list {CPU_DEVICES}: {listing_failure}");
+        })
         .into_iter()
         .flatten()
-        .filter_map(Result::ok)
-        .filter_map(|cpu| fs::read_dir(cpu.path().join("cache")).ok())
+        .filter_map(|cpu_entry| {
+            cpu_entry
+                .inspect_err(|entry_failure| {
+                    tracing::debug!(
+                        "cpu caches: skipping unreadable entry of {CPU_DEVICES}: {entry_failure}"
+                    );
+                })
+                .ok()
+        })
+        .filter_map(|cpu| {
+            let cache_directory = cpu.path().join("cache");
+            fs::read_dir(&cache_directory)
+                .inspect_err(|listing_failure| {
+                    tracing::debug!(
+                        "cpu caches: cannot list {}: {listing_failure}",
+                        cache_directory.display()
+                    );
+                })
+                .ok()
+        })
         .flatten()
-        .filter_map(Result::ok)
+        .filter_map(|index_entry| {
+            index_entry
+                .inspect_err(|entry_failure| {
+                    tracing::debug!("cpu caches: skipping unreadable cache entry: {entry_failure}");
+                })
+                .ok()
+        })
         .filter_map(|index| CacheInstance::read(&index.path()));
     cache_levels_of(instances)
 }
@@ -623,7 +748,17 @@ impl MemorySlot {
         let locator = properties.0.get(&key("LOCATOR"))?;
         let Some(size) = properties
             .value(&key("SIZE"))
-            .and_then(|bytes| bytes.parse().ok())
+            .and_then(|bytes| {
+                bytes
+                    .parse()
+                    .inspect_err(|parse_failure| {
+                        tracing::warn!(
+                            "memory modules: invalid size {bytes:?} of slot {slot}: \
+                             {parse_failure}"
+                        );
+                    })
+                    .ok()
+            })
             .map(ByteSize::b)
         else {
             return Some(MemorySlot::Empty);
@@ -637,7 +772,17 @@ impl MemorySlot {
                 speed_mts: properties
                     .value(&key("CONFIGURED_SPEED_MTS"))
                     .or_else(|| properties.value(&key("SPEED_MTS")))
-                    .and_then(|speed| speed.parse().ok()),
+                    .and_then(|speed| {
+                        speed
+                            .parse()
+                            .inspect_err(|parse_failure| {
+                                tracing::warn!(
+                                    "memory modules: invalid speed {speed:?} of slot {slot}: \
+                                     {parse_failure}"
+                                );
+                            })
+                            .ok()
+                    }),
                 size,
             },
         }))

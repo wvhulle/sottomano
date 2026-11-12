@@ -177,10 +177,28 @@ struct MachineSettings {
 fn parsed_machine_settings(settings_text: &str) -> MachineSettings {
     MachineSettings {
         guest_memory: quoted_attribute(settings_text, "<Memory ", "RAMSize")
-            .and_then(|ram_mebibytes| ram_mebibytes.parse().ok())
+            .and_then(|ram_mebibytes| {
+                ram_mebibytes
+                    .parse()
+                    .inspect_err(|parse_failure| {
+                        tracing::warn!(
+                            "virtualbox: RAMSize {ram_mebibytes} is malformed: {parse_failure}"
+                        );
+                    })
+                    .ok()
+            })
             .map(ByteSize::mib),
         guest_cores: quoted_attribute(settings_text, "<CPU", "count")
-            .and_then(|cpu_count| cpu_count.parse().ok())
+            .and_then(|cpu_count| {
+                cpu_count
+                    .parse()
+                    .inspect_err(|parse_failure| {
+                        tracing::warn!(
+                            "virtualbox: CPU count {cpu_count} is malformed: {parse_failure}"
+                        );
+                    })
+                    .ok()
+            })
             .or_else(|| settings_text.contains("<CPU").then_some(1)),
     }
 }

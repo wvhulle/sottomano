@@ -76,21 +76,40 @@ fn pty_number_of(tty_major: i32, tty_minor: i32) -> Option<u32> {
     if !PTY_MAJOR_NUMBERS.contains(&tty_major) {
         return None;
     }
-    u32::try_from((tty_major - PTY_MAJOR_NUMBERS.start()) * PTY_MINOR_COUNT + tty_minor).ok()
+    Some(
+        u32::try_from((tty_major - PTY_MAJOR_NUMBERS.start()) * PTY_MINOR_COUNT + tty_minor)
+            .expect("pty major is in range and tty minor is non-negative"),
+    )
 }
 
 pub fn child_pids(process: i32) -> Vec<i32> {
-    let Ok(parent) = Proc::new(process) else {
-        return Vec::new();
-    };
-    let Ok(tasks) = parent.tasks() else {
-        return Vec::new();
+    let tasks = match Proc::new(process).and_then(|parent| parent.tasks()) {
+        Ok(tasks) => tasks,
+        Err(tasks_failure) => {
+            tracing::debug!("terminal {process}: cannot list threads: {tasks_failure}");
+            return Vec::new();
+        }
     };
     tasks
-        .filter_map(Result::ok)
-        .filter_map(|task| task.children().ok())
+        .filter_map(|task_entry| {
+            task_entry
+                .inspect_err(|task_failure| {
+                    tracing::debug!("terminal {process}: thread vanished: {task_failure}");
+                })
+                .ok()
+        })
+        .filter_map(|task| {
+            task.children()
+                .inspect_err(|children_failure| {
+                    tracing::debug!(
+                        "terminal {process}: children of thread {}: {children_failure}",
+                        task.tid
+                    );
+                })
+                .ok()
+        })
         .flatten()
-        .filter_map(|child| i32::try_from(child).ok())
+        .map(|child| i32::try_from(child).expect("kernel pids fit in i32"))
         .collect()
 }
 
@@ -103,8 +122,13 @@ pub fn shell_sessions(terminal_pid: i32) -> Vec<ShellSession> {
 }
 
 fn read_shell_session(pid: i32, terminal_pid: i32, our_uid: u32) -> Option<ShellSession> {
-    let process = Proc::new(pid).ok()?;
-    let stat = process.stat().ok()?;
+    let process = Proc::new(pid)
+        .inspect_err(|open_failure| tracing::debug!("shell session {pid}: {open_failure}"))
+        .ok()?;
+    let stat = process
+        .stat()
+        .inspect_err(|stat_failure| tracing::debug!("shell session {pid}: stat: {stat_failure}"))
+        .ok()?;
     let session_facts = ProcessSessionFacts {
         pid,
         parent_pid: stat.ppid,
@@ -116,7 +140,15 @@ fn read_shell_session(pid: i32, terminal_pid: i32, our_uid: u32) -> Option<Shell
     let (tty_major, tty_minor) = stat.tty_nr();
     let pty_number = pty_number_of(tty_major, tty_minor)?;
     let pty_path = PathBuf::from(format!("/dev/pts/{pty_number}"));
-    if file_status(&pty_path).ok()?.st_uid != our_uid {
+    let pty_status = file_status(&pty_path)
+        .inspect_err(|status_failure| {
+            tracing::debug!(
+                "shell session {pid}: {}: {status_failure}",
+                pty_path.display()
+            );
+        })
+        .ok()?;
+    if pty_status.st_uid != our_uid {
         return None;
     }
     let foreground = if stat.tpgid <= 0 || stat.tpgid == stat.pgrp {
@@ -124,14 +156,28 @@ fn read_shell_session(pid: i32, terminal_pid: i32, our_uid: u32) -> Option<Shell
     } else {
         Proc::new(stat.tpgid)
             .and_then(|leader| leader.cmdline())
+            .inspect_err(|leader_failure| {
+                tracing::debug!(
+                    "shell session {pid}: foreground {}: {leader_failure}",
+                    stat.tpgid
+                );
+            })
             .map_or(ShellForeground::AtPrompt, ShellForeground::Running)
     };
     Some(ShellSession {
         shell_pid: pid,
         pty_path,
         pty_number,
-        shell_command: process.cmdline().ok()?,
-        cwd: process.cwd().ok()?,
+        shell_command: process
+            .cmdline()
+            .inspect_err(|cmdline_failure| {
+                tracing::debug!("shell session {pid}: cmdline: {cmdline_failure}");
+            })
+            .ok()?,
+        cwd: process
+            .cwd()
+            .inspect_err(|cwd_failure| tracing::debug!("shell session {pid}: cwd: {cwd_failure}"))
+            .ok()?,
         foreground,
     })
 }

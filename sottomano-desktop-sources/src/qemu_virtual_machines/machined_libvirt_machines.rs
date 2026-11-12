@@ -25,8 +25,33 @@ async fn leader_pid_of(
     system_bus: &zbus::Connection,
     machine_path: OwnedObjectPath,
 ) -> Option<i32> {
-    let machine = registered_machine_at(system_bus, machine_path).await.ok()?;
-    i32::try_from(machine.leader().await.ok()?).ok()
+    let machine = registered_machine_at(system_bus, machine_path.clone())
+        .await
+        .inspect_err(|machine_failure| {
+            tracing::debug!(
+                "machined machine {}: {machine_failure}",
+                machine_path.as_str()
+            );
+        })
+        .ok()?;
+    let leader_pid = machine
+        .leader()
+        .await
+        .inspect_err(|leader_failure| {
+            tracing::debug!(
+                "machined leader of {}: {leader_failure}",
+                machine_path.as_str()
+            );
+        })
+        .ok()?;
+    i32::try_from(leader_pid)
+        .inspect_err(|conversion_failure| {
+            tracing::warn!(
+                "machined leader pid {leader_pid} of {} out of range: {conversion_failure}",
+                machine_path.as_str()
+            );
+        })
+        .ok()
 }
 
 pub(crate) async fn libvirt_leader_pids(system_bus: &zbus::Connection) -> HashSet<i32> {

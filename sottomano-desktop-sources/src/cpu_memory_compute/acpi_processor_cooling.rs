@@ -35,10 +35,28 @@ impl ProcessorCoolingDevices {
                 })
                 .filter_map(|device| {
                     let level = |name: &str| {
-                        read_i64(device.join(name)).and_then(|value| u64::try_from(value).ok())
+                        read_i64(device.join(name)).and_then(|value| {
+                            u64::try_from(value)
+                                .inspect_err(|conversion_failure| {
+                                    tracing::warn!(
+                                        "processor cooling: negative {name} {value} in {}: \
+                                         {conversion_failure}",
+                                        device.display()
+                                    );
+                                })
+                                .ok()
+                        })
                     };
                     Some((
-                        fs::canonicalize(device.join("device")).ok()?,
+                        fs::canonicalize(device.join("device"))
+                            .inspect_err(|resolve_failure| {
+                                tracing::debug!(
+                                    "processor cooling: cannot resolve device of {}: \
+                                     {resolve_failure}",
+                                    device.display()
+                                );
+                            })
+                            .ok()?,
                         CoolingLevel {
                             level: level("cur_state")?,
                             deepest: level("max_state")?,
@@ -51,6 +69,12 @@ impl ProcessorCoolingDevices {
 
     pub(super) fn engaged_on(&self, cpu_dir: &Path) -> Option<CoolingLevel> {
         fs::canonicalize(cpu_dir.join("firmware_node"))
+            .inspect_err(|resolve_failure| {
+                tracing::debug!(
+                    "processor cooling: cannot resolve firmware node of {}: {resolve_failure}",
+                    cpu_dir.display()
+                );
+            })
             .ok()
             .and_then(|node| self.by_firmware_node.get(&node).copied())
             .filter(|cooling| cooling.level > 0)

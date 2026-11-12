@@ -49,6 +49,10 @@ pub struct ResolvedFont {
 pub enum FontError {
     RelativeTextSize(Spacing),
     Unmatched(String),
+    MatcherUnavailable {
+        pattern: String,
+        error: io::Error,
+    },
     Unreadable {
         file: String,
         error: io::Error,
@@ -67,6 +71,9 @@ impl fmt::Display for FontError {
                 "font text_size {size} is relative; the base text size must be given in px"
             ),
             Self::Unmatched(pattern) => write!(f, "fc-match found no font file for {pattern:?}"),
+            Self::MatcherUnavailable { pattern, error } => {
+                write!(f, "fc-match cannot run to match {pattern:?}: {error}")
+            }
             Self::Unreadable { file, error } => {
                 write!(f, "font file {file} cannot be read: {error}")
             }
@@ -94,7 +101,7 @@ pub(crate) fn resolve(config: &FontChoice, role: FontRole) -> Result<ResolvedFon
     };
     let pattern = configured.unwrap_or(generic);
     let matched =
-        fc_match_family_file(pattern).ok_or_else(|| FontError::Unmatched(pattern.to_owned()))?;
+        fc_match_family_file(pattern)?.ok_or_else(|| FontError::Unmatched(pattern.to_owned()))?;
     let bytes = fs::read(&matched.file).map_err(|error| FontError::Unreadable {
         file: matched.file.clone(),
         error,
@@ -114,15 +121,14 @@ pub(crate) fn resolve(config: &FontChoice, role: FontRole) -> Result<ResolvedFon
     })
 }
 
-fn fc_match_stdout(pattern: &str, format: &str) -> Option<String> {
+fn fc_match_stdout(pattern: &str, format: &str) -> io::Result<Option<String>> {
     let output = Command::new("fc-match")
         .args(["-f", format, pattern])
-        .output()
-        .ok()?;
-    output
+        .output()?;
+    Ok(output
         .status
         .success()
-        .then(|| String::from_utf8_lossy(&output.stdout).into_owned())
+        .then(|| String::from_utf8_lossy(&output.stdout).into_owned()))
 }
 
 struct FontMatch {
@@ -130,13 +136,20 @@ struct FontMatch {
     file: String,
 }
 
-fn fc_match_family_file(pattern: &str) -> Option<FontMatch> {
-    let stdout = fc_match_stdout(pattern, "%{family}\t%{file}")?;
-    let line = stdout.lines().next()?;
-    let (family, file) = line.split_once('\t')?;
-    let family = family.split(',').next()?.trim();
-    (!family.is_empty() && !file.is_empty()).then(|| FontMatch {
-        family: family.to_owned(),
-        file: file.trim().to_owned(),
-    })
+fn fc_match_family_file(pattern: &str) -> Result<Option<FontMatch>, FontError> {
+    let matcher_stdout = fc_match_stdout(pattern, "%{family}\t%{file}").map_err(|error| {
+        FontError::MatcherUnavailable {
+            pattern: pattern.to_owned(),
+            error,
+        }
+    })?;
+    Ok(matcher_stdout.as_deref().and_then(|stdout| {
+        let line = stdout.lines().next()?;
+        let (family, file) = line.split_once('\t')?;
+        let family = family.split(',').next()?.trim();
+        (!family.is_empty() && !file.is_empty()).then(|| FontMatch {
+            family: family.to_owned(),
+            file: file.trim().to_owned(),
+        })
+    }))
 }

@@ -45,7 +45,11 @@ impl CaldavProvider {
 }
 
 fn hosted_provider(server_url: &str) -> Option<CaldavProvider> {
-    let url = Url::parse(server_url).ok()?;
+    let url = Url::parse(server_url)
+        .inspect_err(|parse_failure| {
+            tracing::warn!("caldav: server url {server_url} is malformed: {parse_failure}");
+        })
+        .ok()?;
     let host = url.host_str()?;
     HOSTED_PROVIDER_DOMAINS
         .into_iter()

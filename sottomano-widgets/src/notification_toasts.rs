@@ -285,6 +285,12 @@ impl<Routed: Clone> NotificationLayer<Routed> {
                 action_messages, ..
             } => action_key
                 .parse::<usize>()
+                .inspect_err(|parse_failure| {
+                    tracing::warn!(
+                        "notification toasts: action key {action_key} of toast {toast_id} is not \
+                         an index: {parse_failure}"
+                    );
+                })
                 .ok()
                 .and_then(|index| action_messages.get(index))
                 .cloned(),

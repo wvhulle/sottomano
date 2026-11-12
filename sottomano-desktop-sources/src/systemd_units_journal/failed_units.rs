@@ -133,6 +133,12 @@ async fn failed_unit(
         let name = row.name.clone();
         spawn_blocking(move || CoredumpEntry::latest_of_unit(unit_scope, &name))
             .await
+            .inspect_err(|join_failure| {
+                tracing::warn!(
+                    "failed unit {}: coredump lookup did not finish: {join_failure}",
+                    row.name
+                );
+            })
             .ok()
             .flatten()
     } else {
@@ -151,14 +157,28 @@ async fn service_outcome(
     path: OwnedObjectPath,
 ) -> Option<ServiceOutcome> {
     let service = ServiceProxy::builder(connection)
-        .path(path)
+        .path(path.clone())
+        .inspect_err(|path_failure| {
+            tracing::warn!("failed unit {path}: invalid object path: {path_failure}");
+        })
         .ok()?
         .cache_properties(CacheProperties::No)
         .build()
         .await
+        .inspect_err(|proxy_failure| {
+            tracing::warn!("failed unit {path}: service proxy: {proxy_failure}");
+        })
         .ok()?;
-    Some(ServiceOutcome {
-        result: service.result().await.ok()?,
-        exit_status: service.exec_main_status().await.ok()?,
-    })
+    let service_read = async {
+        Ok::<_, zbus::Error>(ServiceOutcome {
+            result: service.result().await?,
+            exit_status: service.exec_main_status().await?,
+        })
+    };
+    service_read
+        .await
+        .inspect_err(|property_failure| {
+            tracing::debug!("failed unit {path}: no service outcome: {property_failure}");
+        })
+        .ok()
 }

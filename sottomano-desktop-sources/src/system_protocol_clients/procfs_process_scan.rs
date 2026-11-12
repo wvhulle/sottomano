@@ -26,9 +26,13 @@ pub(crate) struct ProcessScan {
 }
 
 fn boot_time() -> SystemTime {
-    KernelStats::current().map_or(UNIX_EPOCH, |kernel_stats| {
-        UNIX_EPOCH + Duration::from_secs(kernel_stats.btime)
-    })
+    KernelStats::current().map_or_else(
+        |stats_failure| {
+            tracing::warn!("process scan: boot time unreadable: {stats_failure}");
+            UNIX_EPOCH
+        },
+        |kernel_stats| UNIX_EPOCH + Duration::from_secs(kernel_stats.btime),
+    )
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -49,22 +53,52 @@ pub fn program_stem(command_line: &[String]) -> Option<&str> {
 
 #[must_use]
 pub(crate) fn scan_processes(matches: impl Fn(&ScannedProcess) -> bool) -> Option<ProcessScan> {
-    let processes = all_processes().ok()?;
+    let processes = all_processes()
+        .inspect_err(|listing_failure| {
+            tracing::warn!("process scan: cannot list /proc: {listing_failure}");
+        })
+        .ok()?;
     let boot_time = boot_time();
     let mut process_samples = Vec::new();
     let mut matched_processes = Vec::new();
     let mut scanned_processes = Vec::new();
-    for process in processes.filter_map(Result::ok) {
-        let Ok(stat) = process.stat() else {
-            continue;
+    for listed_process in processes {
+        let process = match listed_process {
+            Ok(process) => process,
+            Err(entry_failure) => {
+                tracing::debug!("process scan: unreadable /proc entry: {entry_failure}");
+                continue;
+            }
+        };
+        let stat = match process.stat() {
+            Ok(stat) => stat,
+            Err(stat_failure) => {
+                tracing::debug!(
+                    "process scan: stat of {} unreadable: {stat_failure}",
+                    process.pid
+                );
+                continue;
+            }
         };
         process_samples.push(ProcessSample::from(&stat));
         let scanned = ScannedProcess {
             pid: stat.pid,
             parent_pid: stat.ppid,
-            owner_uid: process.uid().unwrap_or(u32::MAX),
+            owner_uid: process.uid().unwrap_or_else(|uid_failure| {
+                tracing::debug!(
+                    "process scan: owner of {} unreadable: {uid_failure}",
+                    stat.pid
+                );
+                u32::MAX
+            }),
             command_name: stat.comm.clone(),
-            command_line: process.cmdline().unwrap_or_default(),
+            command_line: process.cmdline().unwrap_or_else(|cmdline_failure| {
+                tracing::debug!(
+                    "process scan: command line of {} unreadable: {cmdline_failure}",
+                    stat.pid
+                );
+                Vec::new()
+            }),
             started_at: started_after_boot(boot_time, stat.starttime),
         };
         if matches(&scanned) {
@@ -81,7 +115,11 @@ pub(crate) fn scan_processes(matches: impl Fn(&ScannedProcess) -> bool) -> Optio
 
 #[must_use]
 pub fn readable_text(path: &Path) -> Option<String> {
-    fs::read_to_string(path).ok()
+    fs::read_to_string(path)
+        .inspect_err(|read_failure| {
+            tracing::warn!("cannot read {}: {read_failure}", path.display());
+        })
+        .ok()
 }
 
 #[cfg(test)]

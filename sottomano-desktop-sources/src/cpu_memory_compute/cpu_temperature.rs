@@ -368,7 +368,15 @@ fn core_temperatures(overrides: ThresholdOverrides) -> Vec<CoreTemperature> {
         .iter()
         .filter_map(|dir| {
             let core = cpu_core_index(dir.file_name()?.to_str()?)?;
-            let physical_core: u32 = read_trimmed(dir.join("topology/core_id"))?.parse().ok()?;
+            let physical_core: u32 = read_trimmed(dir.join("topology/core_id"))?
+                .parse()
+                .inspect_err(|parse_failure| {
+                    tracing::warn!(
+                        "cpu temperature: invalid core id of {}: {parse_failure}",
+                        dir.display()
+                    );
+                })
+                .ok()?;
             let reading = by_physical_core.get(&physical_core)?;
             Some(CoreTemperature {
                 core,
@@ -396,7 +404,18 @@ fn physical_core_temperatures() -> HashMap<u32, SensorReading> {
             chip.temperature_sensors()
                 .into_iter()
                 .filter_map(move |sensor| {
-                    let physical_core = sensor.label.strip_prefix("Core ")?.parse().ok()?;
+                    let physical_core = sensor
+                        .label
+                        .strip_prefix("Core ")?
+                        .parse()
+                        .inspect_err(|parse_failure| {
+                            tracing::warn!(
+                                "cpu temperature: invalid core number in sensor label {:?}: \
+                                 {parse_failure}",
+                                sensor.label
+                            );
+                        })
+                        .ok()?;
                     let reading = SensorReading {
                         temperature: chip.temperature(&sensor)?,
                         limit: chip.limit(&sensor, LimitKind::Crit),

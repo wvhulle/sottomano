@@ -1,4 +1,4 @@
-use procfs::process::Process as Proc;
+use procfs::process::{Process as Proc, Stat};
 use tokio::task::spawn_blocking;
 
 use crate::{
@@ -16,17 +16,21 @@ pub struct InhibitorAppNames {
 impl InhibitorAppNames {
     pub async fn load() -> Self {
         Self {
-            desktop_entries: spawn_blocking(DesktopEntries::load)
-                .await
-                .unwrap_or_else(|_| DesktopEntries::empty()),
+            desktop_entries: spawn_blocking(DesktopEntries::load).await.unwrap_or_else(
+                |load_failure| {
+                    tracing::warn!(
+                        "inhibitor app names: desktop entries failed to load: {load_failure}"
+                    );
+                    DesktopEntries::empty()
+                },
+            ),
         }
     }
 
     #[must_use]
     pub fn of_process(&self, pid: u32) -> Option<String> {
-        let process_id = i32::try_from(pid).ok()?;
-        let process = Proc::new(process_id).ok()?;
-        self.scope_app_name(process_id, &process)
+        let process = readable_process(pid)?;
+        self.scope_app_name(process.pid, &process)
             .or_else(|| own_process_name(&process))
     }
 
@@ -42,7 +46,7 @@ impl InhibitorAppNames {
 
     fn scope_app_name(&self, process_id: i32, process: &Proc) -> Option<String> {
         let own_scope = launch(process_id)?.scope?;
-        let parent_id = process.stat().ok()?.ppid;
+        let parent_id = logged_process_stat(process)?.ppid;
         let parent_scope = launch(parent_id).and_then(|parent| parent.scope);
         if parent_scope.as_deref() == Some(own_scope.as_str()) {
             return None;
@@ -62,7 +66,32 @@ impl InhibitorAppNames {
 }
 
 fn own_process_name(process: &Proc) -> Option<String> {
-    binary_name(process).or_else(|| non_empty(process.stat().ok()?.comm))
+    binary_name(process).or_else(|| non_empty(logged_process_stat(process)?.comm))
+}
+
+fn readable_process(pid: u32) -> Option<Proc> {
+    let process_id = i32::try_from(pid)
+        .inspect_err(|range_failure| {
+            tracing::warn!("inhibitor app names: pid {pid} out of range: {range_failure}");
+        })
+        .ok()?;
+    Proc::new(process_id)
+        .inspect_err(|proc_failure| {
+            tracing::debug!("inhibitor app names: process {pid} unreadable: {proc_failure}");
+        })
+        .ok()
+}
+
+fn logged_process_stat(process: &Proc) -> Option<Stat> {
+    process
+        .stat()
+        .inspect_err(|stat_failure| {
+            tracing::debug!(
+                "inhibitor app names: process {} stat unreadable: {stat_failure}",
+                process.pid
+            );
+        })
+        .ok()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,16 +102,13 @@ enum StatedNameKind {
 
 fn stated_name_kind(stated_name: &str, pid: u32) -> StatedNameKind {
     let runtime_only = stated_name.is_empty()
-        || i32::try_from(pid)
-            .ok()
-            .and_then(|id| Proc::new(id).ok())
-            .is_some_and(|process| {
-                let comm = process.stat().ok().map(|stat| stat.comm);
-                [binary_name(&process), comm]
-                    .into_iter()
-                    .flatten()
-                    .any(|process_name| process_name.eq_ignore_ascii_case(stated_name))
-            });
+        || readable_process(pid).is_some_and(|process| {
+            let comm = logged_process_stat(&process).map(|stat| stat.comm);
+            [binary_name(&process), comm]
+                .into_iter()
+                .flatten()
+                .any(|process_name| process_name.eq_ignore_ascii_case(stated_name))
+        });
     if runtime_only {
         StatedNameKind::RuntimeOnly
     } else {

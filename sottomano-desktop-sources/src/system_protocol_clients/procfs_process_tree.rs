@@ -71,9 +71,18 @@ impl ProcessTable {
 
     pub fn read_current() -> Option<Self> {
         let stats: Vec<Stat> = all_processes()
+            .inspect_err(|listing_failure| {
+                tracing::warn!("process tree: cannot list /proc: {listing_failure}");
+            })
             .ok()?
-            .filter_map(Result::ok)
-            .filter_map(|process| process.stat().ok())
+            .filter_map(|listed_process| {
+                listed_process
+                    .and_then(|process| process.stat())
+                    .inspect_err(|stat_failure| {
+                        tracing::debug!("process tree: process vanished: {stat_failure}");
+                    })
+                    .ok()
+            })
             .collect();
         let pids_by_command_name = stats.iter().fold(
             HashMap::<String, Vec<i32>>::new(),

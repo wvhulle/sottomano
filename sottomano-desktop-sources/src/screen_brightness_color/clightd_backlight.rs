@@ -148,8 +148,24 @@ fn internal_names() -> HashSet<String> {
     fs::read_dir("/sys/class/backlight")
         .into_iter()
         .flatten()
-        .filter_map(Result::ok)
-        .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter_map(|listed_entry| {
+            listed_entry
+                .inspect_err(|list_failure| {
+                    tracing::debug!(
+                        "backlight: listing /sys/class/backlight failed: {list_failure}"
+                    );
+                })
+                .ok()
+        })
+        .filter_map(|entry| {
+            entry
+                .file_name()
+                .into_string()
+                .inspect_err(|unicode_failure| {
+                    tracing::warn!("backlight: device name {unicode_failure:?} is not utf-8");
+                })
+                .ok()
+        })
         .collect()
 }
 

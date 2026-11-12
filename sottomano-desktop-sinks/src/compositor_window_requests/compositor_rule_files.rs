@@ -260,8 +260,17 @@ impl CompositorRulesFile {
 #[cfg(feature = "niri")]
 pub async fn imported_legacy_niri_styling(config_home: &Path) -> Option<CompositorStyling> {
     let legacy_rules = config_home.join("sottomano").join("niri.kdl");
-    let text = fs::read_to_string(&legacy_rules).await.ok()?;
-    imported_niri_styling(&text)
+    match fs::read_to_string(&legacy_rules).await {
+        Ok(text) => imported_niri_styling(&text),
+        Err(read_failure) if read_failure.kind() == io::ErrorKind::NotFound => None,
+        Err(read_failure) => {
+            tracing::warn!(
+                "niri rules: reading legacy {} failed: {read_failure}",
+                legacy_rules.display()
+            );
+            None
+        }
+    }
 }
 
 #[cfg(not(feature = "niri"))]

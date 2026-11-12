@@ -164,7 +164,16 @@ fn running_payload_cgroups(cgroup_root: &Path) -> BTreeMap<String, PathBuf> {
     fs::read_dir(cgroup_root)
         .into_iter()
         .flatten()
-        .filter_map(Result::ok)
+        .filter_map(|listed_entry| {
+            listed_entry
+                .inspect_err(|list_failure| {
+                    tracing::debug!(
+                        "lxc: listing {} failed: {list_failure}",
+                        cgroup_root.display()
+                    );
+                })
+                .ok()
+        })
         .filter_map(|entry| {
             let directory_name = entry.file_name().to_string_lossy().into_owned();
             let container_name = directory_name.strip_prefix(PAYLOAD_CGROUP_PREFIX)?;
@@ -177,7 +186,13 @@ fn configured_container_directories(lxc_path: &Path) -> BTreeMap<String, PathBuf
     fs::read_dir(lxc_path)
         .into_iter()
         .flatten()
-        .filter_map(Result::ok)
+        .filter_map(|listed_entry| {
+            listed_entry
+                .inspect_err(|list_failure| {
+                    tracing::debug!("lxc: listing {} failed: {list_failure}", lxc_path.display());
+                })
+                .ok()
+        })
         .filter(|entry| entry.path().join(CONFIG_FILE_NAME).is_file())
         .map(|entry| {
             (
@@ -212,7 +227,16 @@ fn listed_containers(lxc_path: &Path, cgroup_root: &Path) -> LxcContainers {
                     .map(|reading| reading.current),
                 configured_addresses: config_path
                     .as_deref()
-                    .and_then(|config_path| fs::read_to_string(config_path).ok())
+                    .and_then(|config_path| {
+                        fs::read_to_string(config_path)
+                            .inspect_err(|read_failure| {
+                                tracing::debug!(
+                                    "lxc: reading {} failed: {read_failure}",
+                                    config_path.display()
+                                );
+                            })
+                            .ok()
+                    })
                     .map(|config_text| configured_addresses_in(&config_text))
                     .unwrap_or_default(),
                 config_path,

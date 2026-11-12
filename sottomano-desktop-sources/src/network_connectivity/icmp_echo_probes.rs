@@ -37,6 +37,7 @@ pub struct ProbeWindow {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LatencyProbeError {
     IcmpSocketDenied(String),
+    GatewayListing(String),
 }
 
 impl Display for LatencyProbeError {
@@ -47,6 +48,12 @@ impl Display for LatencyProbeError {
                 "cannot open an unprivileged ICMP socket ({detail}); check \
                  net.ipv4.ping_group_range"
             ),
+            LatencyProbeError::GatewayListing(detail) => {
+                write!(
+                    formatter,
+                    "cannot list routers from network manager: {detail}"
+                )
+            }
         }
     }
 }
@@ -114,10 +121,24 @@ pub fn probe_address(host: IpAddr, interface: &str) -> SocketAddr {
 }
 
 fn interface_index(interface: &str) -> u32 {
-    fs::read_to_string(Path::new("/sys/class/net").join(interface).join("ifindex"))
-        .ok()
-        .and_then(|index| index.trim().parse().ok())
-        .unwrap_or_default()
+    let index_path = Path::new("/sys/class/net").join(interface).join("ifindex");
+    let index_text = match fs::read_to_string(&index_path) {
+        Ok(index_text) => index_text,
+        Err(read_failure) => {
+            tracing::debug!(
+                "latency probe: cannot read {}: {read_failure}",
+                index_path.display()
+            );
+            return 0;
+        }
+    };
+    index_text.trim().parse().unwrap_or_else(|parse_failure| {
+        tracing::warn!(
+            "latency probe: invalid interface index {index_text:?} for {interface}: \
+             {parse_failure}"
+        );
+        0
+    })
 }
 
 pub async fn echo_round_trip(

@@ -125,7 +125,15 @@ struct ContainerProcessStart {
 }
 
 fn parsed_start_time(started_at: &str) -> Option<SystemTime> {
+    if started_at.is_empty() {
+        return None;
+    }
     DateTime::parse_from_rfc3339(started_at)
+        .inspect_err(|parse_failure| {
+            tracing::warn!(
+                "docker: container start time {started_at} is malformed: {parse_failure}"
+            );
+        })
         .ok()
         .map(SystemTime::from)
 }

@@ -154,8 +154,8 @@ fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<RgbaImage> {
         .min_by_key(|pixmap| pixmap_area(pixmap))
         .or_else(|| valid_pixmaps.max_by_key(|pixmap| pixmap_area(pixmap)))?;
     let (width, height) = (
-        u32::try_from(best.width).ok()?,
-        u32::try_from(best.height).ok()?,
+        u32::try_from(best.width).expect("pixmap width was checked positive"),
+        u32::try_from(best.height).expect("pixmap height was checked positive"),
     );
     let mut bytes = best.pixels.clone();
     for pixel in bytes.as_chunks_mut::<4>().0 {
@@ -405,6 +405,11 @@ fn menu_from_map(client: &Client, address: &str, entries: &DesktopEntries) -> Ve
     client
         .items()
         .lock()
+        .inspect_err(|lock_failure| {
+            tracing::warn!(
+                "tray: item map lock poisoned reading menu of {address}: {lock_failure}"
+            );
+        })
         .ok()
         .and_then(|map| {
             map.get(address)

@@ -259,11 +259,20 @@ impl HourlyTemperatures {
             .zip(self.temperature_2m)
             .zip(self.weather_code)
             .zip(self.is_day)
-            .map(|(((time, temp), code), daylight)| HourlyTemperature {
-                time,
-                temp,
-                condition: WeatherCondition::try_from(code).ok(),
-                daylight,
+            .map(|(((time, temp), code), daylight)| {
+                let condition = WeatherCondition::try_from(code)
+                    .inspect_err(|unknown_code| {
+                        tracing::warn!(
+                            "weather: hourly weather code {unknown_code} at {time} is unknown"
+                        );
+                    })
+                    .ok();
+                HourlyTemperature {
+                    time,
+                    temp,
+                    condition,
+                    daylight,
+                }
             })
             .partition(|entry| entry.time <= now);
         HourlyForecast { earlier, later }
@@ -328,7 +337,11 @@ impl Temperature {
         );
         let forecast: TemperatureForecast = http_json_client::get_json(&url, &[]).await?;
         Ok(Temperature {
-            condition: WeatherCondition::try_from(forecast.current.weather_code).ok(),
+            condition: WeatherCondition::try_from(forecast.current.weather_code)
+                .inspect_err(|unknown_code| {
+                    tracing::warn!("weather: current weather code {unknown_code} is unknown");
+                })
+                .ok(),
             daylight: forecast.current.is_day,
             temp: forecast.current.temperature_2m,
             feels: forecast.current.apparent_temperature,

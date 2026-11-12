@@ -107,10 +107,18 @@ impl NspawnContainerRow<'_> {
                 .iter()
                 .map(|ip_address| LabeledValue::new("Address", ip_address.to_string())),
         );
-        if let Some(uptime) = registered_machine
-            .started_at
-            .and_then(|started_at| clock.wall.duration_since(started_at).ok())
-        {
+        if let Some(uptime) = registered_machine.started_at.and_then(|started_at| {
+            clock
+                .wall
+                .duration_since(started_at)
+                .inspect_err(|clock_skew| {
+                    tracing::debug!(
+                        "nspawn containers: start time of {} lies ahead: {clock_skew}",
+                        self.container.unit_name
+                    );
+                })
+                .ok()
+        }) {
             detail_entries.push(LabeledValue::new("Uptime", ValueCell::duration(uptime)));
         }
         if let Some(memory_in_use) = registered_machine.memory_in_use {

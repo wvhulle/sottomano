@@ -179,7 +179,7 @@ impl GroupItemReading for StartupUnits<'_> {
                     .as_ref()
                     .map_or(0, |user| user.slowest_units.slow_count()),
             );
-        u32::try_from(count).ok().filter(|count| *count > 0)
+        Some(u32::try_from(count).unwrap_or(u32::MAX)).filter(|count| *count > 0)
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {

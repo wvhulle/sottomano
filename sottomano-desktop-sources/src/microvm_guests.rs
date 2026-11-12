@@ -65,16 +65,41 @@ fn hypervisor_comm_name_matches(comm_name: &str) -> bool {
 
 fn counted_hypervisor_processes(proc_root: &Path) -> usize {
     fs::read_dir(proc_root)
+        .inspect_err(|listing_failure| {
+            tracing::warn!(
+                "microvm guests: cannot list {}: {listing_failure}",
+                proc_root.display()
+            );
+        })
         .into_iter()
         .flatten()
-        .filter_map(Result::ok)
+        .filter_map(|process_entry| {
+            process_entry
+                .inspect_err(|entry_failure| {
+                    tracing::debug!(
+                        "microvm guests: skipping unreadable entry of {}: {entry_failure}",
+                        proc_root.display()
+                    );
+                })
+                .ok()
+        })
         .filter(|entry| {
             entry
                 .file_name()
                 .to_str()
                 .is_some_and(|process_id| process_id.bytes().all(|digit| digit.is_ascii_digit()))
         })
-        .filter_map(|entry| fs::read_to_string(entry.path().join(COMM_FILE_NAME)).ok())
+        .filter_map(|entry| {
+            let comm_path = entry.path().join(COMM_FILE_NAME);
+            fs::read_to_string(&comm_path)
+                .inspect_err(|read_failure| {
+                    tracing::debug!(
+                        "microvm guests: cannot read {}: {read_failure}",
+                        comm_path.display()
+                    );
+                })
+                .ok()
+        })
         .filter(|comm_name| hypervisor_comm_name_matches(comm_name))
         .count()
 }

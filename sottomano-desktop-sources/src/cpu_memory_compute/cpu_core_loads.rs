@@ -72,7 +72,7 @@ fn unreadable() -> Error {
 }
 
 fn read_cpu_usage() -> Result<CpuUsage, Error> {
-    let sample = CpuStatSample::take().ok_or_else(unreadable)?;
+    let sample = CpuStatSample::take()?;
     Ok(CpuUsage {
         busy: sample.busy_fraction().ok_or_else(unreadable)?,
     })
@@ -80,7 +80,7 @@ fn read_cpu_usage() -> Result<CpuUsage, Error> {
 
 fn read_core_loads(topology: CpuTopology) -> Result<CpuCoreLoads, Error> {
     let earlier_idle = IdleSnapshot::read();
-    let sample = CpuStatSample::take().ok_or_else(unreadable)?;
+    let sample = CpuStatSample::take()?;
     let later_idle = IdleSnapshot::read();
     Ok(CpuCoreLoads {
         cores: sample.core_loads(),
@@ -91,7 +91,10 @@ fn read_core_loads(topology: CpuTopology) -> Result<CpuCoreLoads, Error> {
 
 #[must_use]
 pub fn cpu_busy_frac() -> Option<f64> {
-    Some(CpuStatSample::take()?.busy_fraction()?.get::<ratio>())
+    let sample = CpuStatSample::take()
+        .inspect_err(|sample_failure| tracing::warn!("cpu load: {sample_failure}"))
+        .ok()?;
+    Some(sample.busy_fraction()?.get::<ratio>())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -114,7 +117,13 @@ struct Jiffies {
 
 impl Jiffies {
     fn from_counters<'a>(counters: impl Iterator<Item = &'a str>) -> Option<Self> {
-        let counters: Vec<i64> = counters.filter_map(|t| t.parse().ok()).collect();
+        let counters: Vec<i64> = counters
+            .map(str::parse)
+            .collect::<Result<_, _>>()
+            .inspect_err(|parse_failure| {
+                tracing::warn!("cpu load: invalid jiffies counter in {CPU_STAT}: {parse_failure}");
+            })
+            .ok()?;
         let counter = |position: usize| counters.get(position).copied();
         Some(Jiffies {
             user: counter(0)? + counter(1)?,
@@ -194,8 +203,10 @@ struct CpuStat {
 }
 
 impl CpuStat {
-    fn read() -> Option<Self> {
-        Self::parse(&fs::read_to_string(CPU_STAT).ok()?)
+    fn read() -> Result<Self, Error> {
+        let content = fs::read_to_string(CPU_STAT)
+            .map_err(|read_failure| Error::Unreadable(format!("{CPU_STAT}: {read_failure}")))?;
+        Self::parse(&content).ok_or_else(|| Error::Unparsable(CPU_STAT.to_owned()))
     }
 
     fn parse(content: &str) -> Option<Self> {
@@ -214,11 +225,11 @@ struct CpuStatSample {
 }
 
 impl CpuStatSample {
-    fn take() -> Option<Self> {
+    fn take() -> Result<Self, Error> {
         let earlier = CpuStat::read()?;
         thread::sleep(SAMPLE_GAP);
         let later = CpuStat::read()?;
-        Some(CpuStatSample { earlier, later })
+        Ok(CpuStatSample { earlier, later })
     }
 
     fn busy_fraction(&self) -> Option<Ratio> {

@@ -54,9 +54,22 @@ pub(crate) fn context_in_mountinfo(mountinfo_text: &str) -> Option<String> {
 }
 
 fn parent_pid_of(pid: i32) -> Option<i32> {
-    let stat_text = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let stat_text = fs::read_to_string(format!("/proc/{pid}/stat"))
+        .inspect_err(|read_failure| {
+            tracing::debug!("launch context: cannot read stat of process {pid}: {read_failure}");
+        })
+        .ok()?;
     let after_command = &stat_text[stat_text.rfind(')')? + 2..];
-    after_command.split_whitespace().nth(1)?.parse().ok()
+    let parent_text = after_command.split_whitespace().nth(1)?;
+    parent_text
+        .parse()
+        .inspect_err(|parse_failure| {
+            tracing::warn!(
+                "launch context: invalid parent pid {parent_text:?} of process {pid}: \
+                 {parse_failure}"
+            );
+        })
+        .ok()
 }
 
 fn informative_directory_name(working_directory: &Path) -> Option<String> {
@@ -79,7 +92,18 @@ fn program_file_name(command_line: &[String]) -> Option<&str> {
 
 fn daemon_client_pid(command_line: &[String]) -> Option<i32> {
     (program_file_name(command_line)? == NIX_DAEMON_PROGRAM)
-        .then(|| command_line.get(1)?.parse().ok())
+        .then(|| {
+            let client_text = command_line.get(1)?;
+            client_text
+                .parse()
+                .inspect_err(|parse_failure| {
+                    tracing::debug!(
+                        "launch context: nix daemon argument {client_text:?} is no client pid: \
+                         {parse_failure}"
+                    );
+                })
+                .ok()
+        })
         .flatten()
 }
 
@@ -98,15 +122,21 @@ fn installable_attribute(command_line: &[String]) -> Option<String> {
 }
 
 fn command_line_of(pid: i32) -> Vec<String> {
-    fs::read(format!("/proc/{pid}/cmdline"))
-        .map(|command_line_bytes| {
+    fs::read(format!("/proc/{pid}/cmdline")).map_or_else(
+        |read_failure| {
+            tracing::debug!(
+                "launch context: cannot read command line of process {pid}: {read_failure}"
+            );
+            Vec::new()
+        },
+        |command_line_bytes| {
             command_line_bytes
                 .split(|byte| *byte == 0)
                 .filter(|argument| !argument.is_empty())
                 .map(|argument| String::from_utf8_lossy(argument).into_owned())
                 .collect()
-        })
-        .unwrap_or_default()
+        },
+    )
 }
 
 fn ancestor_context(pid: i32) -> Option<String> {
@@ -116,8 +146,14 @@ fn ancestor_context(pid: i32) -> Option<String> {
         if let Some(attribute_name) = installable_attribute(&command_line) {
             return Some(attribute_name);
         }
-        let working_directory: Option<PathBuf> =
-            fs::read_link(format!("/proc/{current_pid}/cwd")).ok();
+        let working_directory: Option<PathBuf> = fs::read_link(format!("/proc/{current_pid}/cwd"))
+            .inspect_err(|link_failure| {
+                tracing::debug!(
+                    "launch context: cannot read working directory of process {current_pid}: \
+                     {link_failure}"
+                );
+            })
+            .ok();
         if let Some(directory_name) = working_directory
             .as_deref()
             .and_then(informative_directory_name)
@@ -134,6 +170,11 @@ fn ancestor_context(pid: i32) -> Option<String> {
 #[must_use]
 pub(crate) fn launch_context_of(pid: i32) -> Option<String> {
     fs::read_to_string(format!("/proc/{pid}/mountinfo"))
+        .inspect_err(|read_failure| {
+            tracing::debug!(
+                "launch context: cannot read mountinfo of process {pid}: {read_failure}"
+            );
+        })
         .ok()
         .and_then(|mountinfo_text| context_in_mountinfo(&mountinfo_text))
         .or_else(|| ancestor_context(pid))

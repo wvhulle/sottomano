@@ -115,7 +115,7 @@ impl GroupItemReading for SlowJobs {
     }
 
     fn badge(&self) -> Option<u32> {
-        u32::try_from(self.jobs.len()).ok()
+        Some(u32::try_from(self.jobs.len()).unwrap_or(u32::MAX))
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {

@@ -295,10 +295,22 @@ fn per_second(now: ByteSize, was: ByteSize, elapsed: Duration) -> InformationRat
 
 fn read_counters(interface: &str) -> InterfaceByteCounters {
     let counter = |file: &str| {
-        fs::read_to_string(format!("/sys/class/net/{interface}/statistics/{file}"))
-            .ok()
-            .and_then(|value| value.trim().parse().ok())
-            .map_or(ByteSize::default(), ByteSize::b)
+        let counter_path = format!("/sys/class/net/{interface}/statistics/{file}");
+        match fs::read_to_string(&counter_path)
+            .map(|counter_text| counter_text.trim().parse::<u64>())
+        {
+            Ok(Ok(byte_count)) => ByteSize::b(byte_count),
+            Ok(Err(parse_failure)) => {
+                tracing::warn!(
+                    "interface throughput: invalid counter in {counter_path}: {parse_failure}"
+                );
+                ByteSize::default()
+            }
+            Err(read_failure) => {
+                tracing::debug!("interface throughput: cannot read {counter_path}: {read_failure}");
+                ByteSize::default()
+            }
+        }
     };
     InterfaceByteCounters {
         received: counter("rx_bytes"),

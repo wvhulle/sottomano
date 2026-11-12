@@ -63,7 +63,10 @@ fn now_playing(clock: Clock) -> Media {
         title: Some("Low Tide".to_owned()),
         artists: vec!["The Harbour Lights".to_owned()],
         album: Some("Saltwater Songs".to_owned()),
-        url: Url::parse("https://music.youtube.com/watch?v=low-tide-saltwater-songs").ok(),
+        url: Some(
+            Url::parse("https://music.youtube.com/watch?v=low-tide-saltwater-songs")
+                .expect("the fixture track url is well formed"),
+        ),
         status: Status::Playing,
         progress: Progress::Timed {
             position: Duration::from_secs(83),

@@ -15,4 +15,5 @@ humantime-serde = "1.1.1"
 rust_decimal.workspace = true
 serde.workspace = true
 toml.workspace = true
+tracing.workspace = true
 ttf-parser = "0.25.1"

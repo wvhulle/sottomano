@@ -86,9 +86,19 @@ struct RegisteredContainerReading {
 fn ip_address_from(address_family: i32, address_bytes: &[u8]) -> Option<IpAddr> {
     match address_family {
         IPV4_ADDRESS_FAMILY => <[u8; 4]>::try_from(address_bytes)
+            .inspect_err(|length_failure| {
+                tracing::warn!(
+                    "machined: ipv4 address {address_bytes:?} has wrong length: {length_failure}"
+                );
+            })
             .ok()
             .map(|octets| IpAddr::V4(Ipv4Addr::from(octets))),
         IPV6_ADDRESS_FAMILY => <[u8; 16]>::try_from(address_bytes)
+            .inspect_err(|length_failure| {
+                tracing::warn!(
+                    "machined: ipv6 address {address_bytes:?} has wrong length: {length_failure}"
+                );
+            })
             .ok()
             .map(|octets| IpAddr::V6(Ipv6Addr::from(octets))),
         _ => None,
@@ -172,6 +182,12 @@ async fn registered_container_reading(
             started_at: machine_proxy
                 .timestamp()
                 .await
+                .inspect_err(|timestamp_error| {
+                    tracing::debug!(
+                        "machined {} timestamp: {timestamp_error}",
+                        listing.machine_name
+                    );
+                })
                 .ok()
                 .and_then(wall_time_from_realtime_micros),
             ip_addresses,

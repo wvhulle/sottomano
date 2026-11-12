@@ -1,0 +1,27 @@
+id: silent-error-drop
+language: rust
+severity: error
+message: Turning a Result into an Option drops its error silently.
+note: Pass the error on with ? or as a Result item; when None is the contract, log the error first with inspect_err, or expect when failure is a programming error.
+files:
+  - sottomano-desktop-sources/src/**/*.rs
+  - sottomano-widgets/src/**/*.rs
+  - sottomano-shell/src/**/*.rs
+  - sottomano-widget-showcase/src/**/*.rs
+  - sottomano-desktop-sinks/src/**/*.rs
+  - sottomano-toml-config/src/**/*.rs
+rule:
+  any:
+    - all:
+        - pattern: $RESULT.ok()
+        - not:
+            pattern: $LOGGED.inspect_err($$$).ok()
+    - kind: scoped_identifier
+      regex: ^Result::ok$
+  not:
+    inside:
+      kind: mod_item
+      has:
+        field: name
+        regex: ^tests$
+      stopBy: end

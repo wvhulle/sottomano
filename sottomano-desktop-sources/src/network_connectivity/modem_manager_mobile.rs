@@ -200,18 +200,11 @@ struct BearerInfo {
 }
 
 fn bearer_address(config: &HashMap<String, OwnedValue>) -> Option<String> {
-    config
-        .get("address")
-        .and_then(|value| value.try_clone().ok())
-        .and_then(|value| String::try_from(value).ok())
+    prop::<String>(config, "address")
 }
 
 fn transferred(stats: &HashMap<String, OwnedValue>, key: &str) -> Option<ByteSize> {
-    stats
-        .get(key)
-        .and_then(|value| value.try_clone().ok())
-        .and_then(|value| u64::try_from(value).ok())
-        .map(ByteSize::b)
+    prop::<u64>(stats, key).map(ByteSize::b)
 }
 
 fn bearer_info(objects: &ManagedObjects, path: &OwnedObjectPath) -> BearerInfo {
@@ -257,7 +250,15 @@ fn modem_reading(
     let modem_3gpp = interface(interfaces, MODEM_3GPP);
 
     let state = prop::<i32>(modem, "State")
-        .and_then(|code| ModemState::try_from(code).ok())
+        .and_then(|code| {
+            ModemState::try_from(code)
+                .inspect_err(|unknown_code| {
+                    tracing::warn!(
+                        "modem manager: modem {modem_path} reports unknown state {unknown_code}"
+                    );
+                })
+                .ok()
+        })
         .map(|state| state.with_failure_reason(prop::<u32>(modem, "StateFailedReason")));
     let bearer = prop::<Vec<OwnedObjectPath>>(modem, "Bearers")
         .unwrap_or_default()

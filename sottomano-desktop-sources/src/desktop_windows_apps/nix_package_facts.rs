@@ -288,8 +288,15 @@ fn origin(info: &PathInfo) -> Origin {
 async fn nixpkgs_entry(package: &StorePackage, root: &str) -> Option<NixpkgsEntry> {
     let raw = shell_command_output::output("nixos-version", &["--json"])
         .await
+        .inspect_err(|command_failure| {
+            tracing::warn!("nix facts: nixos-version: {command_failure}");
+        })
         .ok()?;
-    let system: NixosVersion = serde_json::from_str(&raw).ok()?;
+    let system: NixosVersion = serde_json::from_str(&raw)
+        .inspect_err(|parse_failure| {
+            tracing::warn!("nix facts: nixos-version output: {parse_failure}");
+        })
+        .ok()?;
     let revision = system.nixpkgs_revision;
     let installable = format!("github:NixOS/nixpkgs/{revision}#{}", package.name);
     let raw = shell_command_output::output(
@@ -297,8 +304,15 @@ async fn nixpkgs_entry(package: &StorePackage, root: &str) -> Option<NixpkgsEntr
         &["eval", "--json", &installable, "--apply", NIXPKGS_META],
     )
     .await
+    .inspect_err(|command_failure| {
+        tracing::warn!("nix facts: eval {installable}: {command_failure}");
+    })
     .ok()?;
-    let meta: EvaluatedMeta = serde_json::from_str(&raw).ok()?;
+    let meta: EvaluatedMeta = serde_json::from_str(&raw)
+        .inspect_err(|parse_failure| {
+            tracing::warn!("nix facts: meta of {installable}: {parse_failure}");
+        })
+        .ok()?;
     let generation = if meta.store_path == root {
         Generation::Current
     } else {
@@ -331,8 +345,15 @@ async fn upstream_state(package: &StorePackage, root: &str, branch: &str) -> Opt
         &["eval", "--json", &installable, "--apply", UPSTREAM_VERSION],
     )
     .await
+    .inspect_err(|command_failure| {
+        tracing::warn!("nix facts: eval {installable}: {command_failure}");
+    })
     .ok()?;
-    let evaluated: EvaluatedVersion = serde_json::from_str(&raw).ok()?;
+    let evaluated: EvaluatedVersion = serde_json::from_str(&raw)
+        .inspect_err(|parse_failure| {
+            tracing::warn!("nix facts: version of {installable}: {parse_failure}");
+        })
+        .ok()?;
     let same_build = evaluated.store_path == root;
     let same_version = package.version.as_deref() == Some(evaluated.version.as_str());
     Some(if same_build || same_version {

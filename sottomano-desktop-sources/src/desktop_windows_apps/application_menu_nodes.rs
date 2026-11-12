@@ -42,11 +42,16 @@ pub enum MenuKind {
 }
 
 fn menu_item_icon(menu_item: &MenuItem, entries: &DesktopEntries) -> Option<IconSource> {
-    if let Some(decoded) = menu_item
-        .icon_data
-        .as_deref()
-        .and_then(|icon_bytes| image::load_from_memory(icon_bytes).ok())
-    {
+    if let Some(decoded) = menu_item.icon_data.as_deref().and_then(|icon_bytes| {
+        image::load_from_memory(icon_bytes)
+            .inspect_err(|decode_failure| {
+                tracing::warn!(
+                    "menu item icon: cannot decode icon data of {:?}: {decode_failure}",
+                    menu_item.label
+                );
+            })
+            .ok()
+    }) {
         return Some(IconSource::Pixmap(Arc::new(capped_to_side_limit(
             super::icon_whitespace_trim::trim_rgba(decoded.into_rgba8()),
         ))));

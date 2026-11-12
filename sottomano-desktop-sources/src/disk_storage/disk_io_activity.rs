@@ -96,6 +96,9 @@ impl BlockCounters {
             .split_whitespace()
             .map(str::parse)
             .collect::<Result<_, _>>()
+            .inspect_err(|parse_failure| {
+                tracing::warn!("disk activity: stat line {line} is malformed: {parse_failure}");
+            })
             .ok()?;
         Some(BlockCounters {
             sectors_read: *fields.get(2)?,

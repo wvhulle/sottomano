@@ -94,7 +94,13 @@ async fn menu_bar_top_menus(menu_proxy: &DbusMenuProxy<'_>) -> zbus::Result<Vec<
         .root
         .children
         .iter()
-        .filter_map(|child_value| MenuItem::try_from(child_value).ok())
+        .filter_map(|child_value| {
+            MenuItem::try_from(child_value)
+                .inspect_err(|item_failure| {
+                    tracing::warn!("global menu: dbusmenu invalid top menu item: {item_failure}");
+                })
+                .ok()
+        })
         .filter_map(|menu_item| visible_menu_node(&menu_item, &desktop_entries))
         .collect())
 }
@@ -157,14 +163,18 @@ async fn qt_menu_bars_on(
     connection: &zbus::Connection,
     bus_name: OwnedUniqueName,
 ) -> Vec<DbusMenuLocation> {
-    let Ok(menu_bar_root) = introspected_node(
+    let menu_bar_root = match introspected_node(
         connection,
         &BusName::Unique(bus_name.as_ref()),
         QT_MENU_BAR_ROOT,
     )
     .await
-    else {
-        return Vec::new();
+    {
+        Ok(menu_bar_root) => menu_bar_root,
+        Err(introspect_failure) => {
+            tracing::debug!("global menu: no qt menu bars on {bus_name}: {introspect_failure}");
+            return Vec::new();
+        }
     };
     let mut numbered_menu_bars: Vec<NumberedMenuBar> = menu_bar_root
         .nodes()
@@ -173,6 +183,12 @@ async fn qt_menu_bars_on(
         .filter_map(|child_name| {
             child_name
                 .parse::<u32>()
+                .inspect_err(|number_failure| {
+                    tracing::debug!(
+                        "global menu: unnumbered qt menu bar {child_name} on {bus_name}: \
+                         {number_failure}"
+                    );
+                })
                 .ok()
                 .map(|bar_number| NumberedMenuBar {
                     bar_number,
@@ -183,22 +199,27 @@ async fn qt_menu_bars_on(
     numbered_menu_bars.sort_unstable_by_key(|numbered_menu_bar| numbered_menu_bar.bar_number);
     let mut exported_locations = Vec::new();
     for NumberedMenuBar { object_path, .. } in numbered_menu_bars {
-        let Ok(child_node) = introspected_node(
+        let child_node = match introspected_node(
             connection,
             &BusName::Unique(bus_name.as_ref()),
             &object_path,
         )
         .await
-        else {
-            continue;
+        {
+            Ok(child_node) => child_node,
+            Err(introspect_failure) => {
+                tracing::debug!(
+                    "global menu: qt menu bar {object_path} on {bus_name}: {introspect_failure}"
+                );
+                continue;
+            }
         };
         let exports_dbusmenu = child_node
             .interfaces()
             .iter()
             .any(|interface| interface.name() == DBUSMENU_INTERFACE);
-        let Ok(menu_path) = OwnedObjectPath::try_from(object_path) else {
-            continue;
-        };
+        let menu_path = OwnedObjectPath::try_from(object_path)
+            .expect("qt menu bar path is built from a valid root and a numeric child");
         if exports_dbusmenu {
             exported_locations.push(DbusMenuLocation {
                 bus_name: OwnedBusName::from(BusName::Unique(bus_name.as_ref())),

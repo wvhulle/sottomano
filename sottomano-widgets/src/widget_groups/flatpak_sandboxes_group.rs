@@ -134,10 +134,18 @@ impl GroupItemReading for FlatpakSandboxRow<'_> {
                 approximate_memory_text(memory_in_use),
             ));
         }
-        if let Some(uptime) = sandbox
-            .started_at
-            .and_then(|started_at| clock.wall.duration_since(started_at).ok())
-        {
+        if let Some(uptime) = sandbox.started_at.and_then(|started_at| {
+            clock
+                .wall
+                .duration_since(started_at)
+                .inspect_err(|clock_skew| {
+                    tracing::debug!(
+                        "flatpak sandboxes: start time of {} lies ahead: {clock_skew}",
+                        sandbox.application_id
+                    );
+                })
+                .ok()
+        }) {
             detail_entries.push(LabeledValue::new("Uptime", ValueCell::duration(uptime)));
         }
         if let Some(runtime_reference) = &sandbox.runtime_reference {

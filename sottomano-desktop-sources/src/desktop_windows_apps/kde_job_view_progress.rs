@@ -14,7 +14,7 @@ use zbus::{
     Connection, connection,
     fdo::{self, RequestNameFlags, RequestNameReply},
     object_server::ObjectServer,
-    zvariant::{OwnedObjectPath, OwnedValue},
+    zvariant::{OwnedObjectPath, OwnedValue, Value},
 };
 
 use crate::system_protocol_clients::{
@@ -47,7 +47,8 @@ struct Job {
 impl Job {
     fn apply(&mut self, properties: &HashMap<String, OwnedValue>) {
         if let Some(percent) = number(properties, "percent") {
-            self.percent = u8::try_from(percent.min(100)).ok();
+            self.percent =
+                Some(u8::try_from(percent.min(100)).expect("percent is capped at one hundred"));
         }
         if let Some(total) = number(properties, "totalBytes") {
             self.total = total;
@@ -71,11 +72,19 @@ impl Job {
 
 fn number(properties: &HashMap<String, OwnedValue>, key: &str) -> Option<u64> {
     let value = properties.get(key)?;
-    let read = |convert: fn(OwnedValue) -> Option<u64>| value.try_clone().ok().and_then(convert);
-    read(|v| u64::try_from(v).ok())
-        .or_else(|| read(|v| u32::try_from(v).ok().map(u64::from)))
-        .or_else(|| read(|v| i64::try_from(v).ok().and_then(|n| u64::try_from(n).ok())))
-        .or_else(|| read(|v| i32::try_from(v).ok().and_then(|n| u64::try_from(n).ok())))
+    let converted_number = match &**value {
+        Value::U64(unsigned_number) => Some(*unsigned_number),
+        Value::U32(unsigned_number) => Some(u64::from(*unsigned_number)),
+        Value::I64(signed_number) if *signed_number >= 0 => Some(signed_number.unsigned_abs()),
+        Value::I32(signed_number) if *signed_number >= 0 => {
+            Some(u64::from(signed_number.unsigned_abs()))
+        }
+        _ => None,
+    };
+    if converted_number.is_none() {
+        tracing::warn!("job view: {key} is not a non-negative number: {value:?}");
+    }
+    converted_number
 }
 
 fn mean(percents: &[u8]) -> u8 {
@@ -323,7 +332,13 @@ pub fn job_progress() -> impl Stream<Item = JobProgress> + Send {
     subscribed((), |()| async {
         Ok::<_, zbus::Error>(serve().await?.map(Ok::<_, zbus::Error>))
     })
-    .filter_map(|delivery| ready(delivery.ok()))
+    .filter_map(|delivery| {
+        ready(
+            delivery
+                .inspect_err(|serve_failure| tracing::warn!("job view: {serve_failure}"))
+                .ok(),
+        )
+    })
 }
 
 async fn serve() -> zbus::Result<impl Stream<Item = JobProgress>> {

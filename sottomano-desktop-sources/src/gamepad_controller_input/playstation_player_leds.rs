@@ -8,7 +8,7 @@ pub fn playstation_player_number(lit_leds: &BTreeSet<u8>) -> Option<u8> {
     LIT_LEDS_PER_PLAYER
         .iter()
         .position(|pattern| pattern.iter().copied().eq(lit_leds.iter().copied()))
-        .and_then(|index| u8::try_from(index + 1).ok())
+        .map(|index| u8::try_from(index + 1).expect("five player patterns fit in u8"))
 }
 
 #[cfg(test)]

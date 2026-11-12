@@ -58,7 +58,12 @@ impl Error {
 }
 
 pub fn failure_message(body: Option<Value>) -> Option<String> {
-    decode::<FailureExplanation>(body).ok().map(String::from)
+    decode::<FailureExplanation>(body)
+        .inspect_err(|decode_failure| {
+            tracing::debug!("http failure body carries no explanation: {decode_failure}");
+        })
+        .ok()
+        .map(String::from)
 }
 
 #[derive(Deserialize)]
@@ -125,7 +130,14 @@ pub struct Response {
 impl Response {
     #[must_use]
     pub fn header(&self, name: &str) -> Option<&str> {
-        self.headers.get(name).and_then(|value| value.to_str().ok())
+        self.headers.get(name).and_then(|value| {
+            value
+                .to_str()
+                .inspect_err(|text_failure| {
+                    tracing::warn!("http header {name} is not visible ascii: {text_failure}");
+                })
+                .ok()
+        })
     }
 }
 
@@ -148,7 +160,14 @@ pub async fn get_text(url: &str) -> Result<String, Error> {
     if !(200..300).contains(&fetched.status) {
         return Err(Error::status(
             fetched.status,
-            serde_json::from_str(&body).ok(),
+            serde_json::from_str(&body)
+                .inspect_err(|parse_failure| {
+                    tracing::debug!(
+                        "http {url}: failure body {} is not json: {parse_failure}",
+                        fetched.status
+                    );
+                })
+                .ok(),
         ));
     }
     if body.trim().is_empty() {
@@ -204,7 +223,13 @@ async fn exchanged_over_unix_socket(
             .map_err(|error| Error::Body(innermost_cause(&error)))?;
         Ok(UnixSocketReply {
             status,
-            body: serde_json::from_slice(&body_bytes).ok(),
+            body: serde_json::from_slice(&body_bytes)
+                .inspect_err(|parse_failure| {
+                    tracing::debug!(
+                        "http {url} over {socket_label}: body is not json: {parse_failure}"
+                    );
+                })
+                .ok(),
         })
     };
     timeout(REQUEST_TIMEOUT, answered)
@@ -401,7 +426,11 @@ async fn request(
     Ok(Response {
         status: fetched.status,
         headers: fetched.headers,
-        body: serde_json::from_slice(&fetched.body_bytes).ok(),
+        body: serde_json::from_slice(&fetched.body_bytes)
+            .inspect_err(|parse_failure| {
+                tracing::debug!("http {url}: body is not json: {parse_failure}");
+            })
+            .ok(),
     })
 }
 

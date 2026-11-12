@@ -39,11 +39,31 @@ const NVIDIA_MODULE_VERSION: &str = "/sys/module/nvidia/version";
 pub(super) async fn discover_nvidia_gpus() -> Vec<DiscoveredGpu> {
     spawn_blocking(|| {
         let mut buses: Vec<PciBusId> = fs::read_dir(NVIDIA_PCI_DRIVER)
+            .inspect_err(|listing_failure| {
+                tracing::debug!("nvml: cannot list {NVIDIA_PCI_DRIVER}: {listing_failure}");
+            })
             .into_iter()
             .flatten()
-            .flatten()
+            .filter_map(|driver_entry| {
+                driver_entry
+                    .inspect_err(|entry_failure| {
+                        tracing::debug!(
+                            "nvml: skipping unreadable entry of {NVIDIA_PCI_DRIVER}: \
+                             {entry_failure}"
+                        );
+                    })
+                    .ok()
+            })
             .filter(|entry| entry.path().join("vendor").exists())
-            .filter_map(|entry| entry.file_name().into_string().ok())
+            .filter_map(|entry| {
+                entry
+                    .file_name()
+                    .into_string()
+                    .inspect_err(|non_unicode_name| {
+                        tracing::warn!("nvml: non-unicode pci bus id {non_unicode_name:?}");
+                    })
+                    .ok()
+            })
             .map(PciBusId)
             .collect();
         if buses.is_empty() {
@@ -54,11 +74,15 @@ pub(super) async fn discover_nvidia_gpus() -> Vec<DiscoveredGpu> {
         buses
             .into_iter()
             .map(|bus| DiscoveredGpu {
-                model: nvml
-                    .as_ref()
-                    .ok()
-                    .and_then(|nvml| read_model(nvml, &bus).ok())
-                    .unwrap_or_else(|| unmanaged_model(&bus)),
+                model: nvml.as_ref().map_or_else(
+                    |_init_failure| unmanaged_model(&bus),
+                    |nvml| {
+                        read_model(nvml, &bus).unwrap_or_else(|model_failure| {
+                            tracing::warn!("nvml: cannot read model of {}: {model_failure}", bus.0);
+                            unmanaged_model(&bus)
+                        })
+                    },
+                ),
                 handle: nvml
                     .as_ref()
                     .map(|nvml| GpuHandle::Nvml(NvmlDevice::new(bus.clone(), nvml)))
@@ -68,7 +92,10 @@ pub(super) async fn discover_nvidia_gpus() -> Vec<DiscoveredGpu> {
             .collect()
     })
     .await
-    .unwrap_or_default()
+    .unwrap_or_else(|join_failure| {
+        tracing::warn!("nvml: gpu discovery panicked: {join_failure}");
+        Vec::new()
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -140,17 +167,34 @@ fn read_model(nvml: &Nvml, bus: &PciBusId) -> Result<GpuModel, NvmlError> {
         names: combined_gpu_names(pci_database_names(bus), product),
         driver: nvml.sys_driver_version()?,
         temperature_limits: GpuTemperatureLimits {
-            target_max: device
-                .temperature_threshold(TemperatureThreshold::GpuMax)
-                .ok()
-                .map(celsius),
-            slowdown: device
-                .temperature_threshold(TemperatureThreshold::Slowdown)
-                .ok()
-                .map(celsius),
+            target_max: optional_reading(
+                device.temperature_threshold(TemperatureThreshold::GpuMax),
+                "maximum temperature",
+            )
+            .map(celsius),
+            slowdown: optional_reading(
+                device.temperature_threshold(TemperatureThreshold::Slowdown),
+                "slowdown temperature",
+            )
+            .map(celsius),
         },
-        power_limit: device.enforced_power_limit().ok().map(milliwatts),
+        power_limit: optional_reading(device.enforced_power_limit(), "power limit").map(milliwatts),
     })
+}
+
+fn optional_reading<Reading>(
+    reading: Result<Reading, NvmlError>,
+    quantity: &str,
+) -> Option<Reading> {
+    reading
+        .inspect_err(|nvml_failure| {
+            if let NvmlError::NotSupported = nvml_failure {
+                tracing::debug!("nvml: {quantity} not supported");
+            } else {
+                tracing::warn!("nvml: cannot read {quantity}: {nvml_failure}");
+            }
+        })
+        .ok()
 }
 
 fn megahertz_clock(mhz: u32) -> Frequency {
@@ -199,7 +243,8 @@ pub(super) async fn read_snapshot(device: NvmlDevice) -> Result<GpuSnapshot, Err
         Ok(GpuSnapshot {
             vendor: GpuVendor::Nvidia,
             load: Ratio::new::<percent>(f64::from(device.utilization_rates()?.gpu)),
-            graphics_clock: device.clock_info(Clock::Graphics).ok().map(megahertz_clock),
+            graphics_clock: optional_reading(device.clock_info(Clock::Graphics), "graphics clock")
+                .map(megahertz_clock),
             memory: GpuMemory::Dedicated(VramUsage {
                 used: ByteSize::b(memory.used),
                 total: ByteSize::b(memory.total),
@@ -214,19 +259,17 @@ pub(super) async fn read_snapshot(device: NvmlDevice) -> Result<GpuSnapshot, Err
 pub(super) async fn read_clocks(device: NvmlDevice) -> Result<GpuClocks, Error> {
     read_device(device, |device| {
         Ok(GpuClocks {
-            performance_state: device
-                .performance_state()
-                .ok()
+            performance_state: optional_reading(device.performance_state(), "performance state")
                 .filter(|state| *state != PerformanceState::Unknown)
                 .map(|state| state.as_c()),
-            graphics_clock_ceiling: device
-                .max_clock_info(Clock::Graphics)
-                .ok()
+            graphics_clock_ceiling: optional_reading(
+                device.max_clock_info(Clock::Graphics),
+                "graphics clock ceiling",
+            )
+            .map(megahertz_clock),
+            memory_clock: optional_reading(device.clock_info(Clock::Memory), "memory clock")
                 .map(megahertz_clock),
-            memory_clock: device.clock_info(Clock::Memory).ok().map(megahertz_clock),
-            fan: device
-                .fan_speed(0)
-                .ok()
+            fan: optional_reading(device.fan_speed(0), "fan speed")
                 .map(|speed| Ratio::new::<percent>(f64::from(speed))),
             throttle_reasons: Vec::new(),
         })
@@ -252,8 +295,8 @@ async fn read_device<T: Send + 'static>(
 
 fn gpu_processes(device: &Device) -> Vec<GpuProcess> {
     let mut processes: Vec<GpuProcess> = [
-        device.running_graphics_processes(),
-        device.running_compute_processes(),
+        optional_reading(device.running_graphics_processes(), "graphics processes"),
+        optional_reading(device.running_compute_processes(), "compute processes"),
     ]
     .into_iter()
     .flatten()
@@ -261,8 +304,23 @@ fn gpu_processes(device: &Device) -> Vec<GpuProcess> {
     .map(|info| GpuProcess {
         pid: info.pid,
         name: i32::try_from(info.pid)
+            .inspect_err(|conversion_failure| {
+                tracing::warn!(
+                    "nvml: process id {} out of range: {conversion_failure}",
+                    info.pid
+                );
+            })
             .ok()
-            .and_then(|pid| Process::new(pid).and_then(|process| process.stat()).ok())
+            .and_then(|pid| {
+                Process::new(pid)
+                    .and_then(|process| process.stat())
+                    .inspect_err(|stat_failure| {
+                        tracing::debug!(
+                            "nvml: cannot read stat of gpu process {pid}: {stat_failure}"
+                        );
+                    })
+                    .ok()
+            })
             .map(|stat| stat.comm),
         resident_memory: match info.used_gpu_memory {
             UsedGpuMemory::Used(bytes) => Some(ByteSize::b(bytes)),

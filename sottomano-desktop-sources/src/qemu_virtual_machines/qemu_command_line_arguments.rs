@@ -173,14 +173,25 @@ fn guest_cores_of(command_line: &[String]) -> u32 {
     option_values(command_line, "smp")
         .last()
         .and_then(|smp_value| {
+            let parse_core_count = |count_text: &str| {
+                count_text
+                    .parse::<u32>()
+                    .inspect_err(|parse_failure| {
+                        tracing::warn!(
+                            "qemu command line: invalid count {count_text:?} in -smp \
+                             {smp_value:?}: {parse_failure}"
+                        );
+                    })
+                    .ok()
+            };
             leading_segment(smp_value)
-                .and_then(|count| count.parse().ok())
-                .or_else(|| suboption(smp_value, "cpus").and_then(|count| count.parse().ok()))
+                .and_then(parse_core_count)
+                .or_else(|| suboption(smp_value, "cpus").and_then(parse_core_count))
                 .or_else(|| {
                     let topology_counts: Vec<u32> =
                         ["sockets", "dies", "clusters", "cores", "threads"]
                             .iter()
-                            .filter_map(|key| suboption(smp_value, key)?.parse().ok())
+                            .filter_map(|key| parse_core_count(suboption(smp_value, key)?))
                             .collect();
                     (!topology_counts.is_empty()).then(|| topology_counts.iter().product())
                 })
@@ -192,14 +203,24 @@ fn memory_size_of(size_text: &str) -> Option<ByteSize> {
     let digits_end = size_text
         .find(|character: char| !character.is_ascii_digit())
         .unwrap_or(size_text.len());
-    let amount: u64 = size_text[..digits_end].parse().ok()?;
+    let amount: u64 = size_text[..digits_end]
+        .parse()
+        .inspect_err(|parse_failure| {
+            tracing::warn!("qemu command line: invalid memory size {size_text:?}: {parse_failure}");
+        })
+        .ok()?;
     let multiplier = match size_text[digits_end..].to_ascii_lowercase().as_str() {
         "" | "m" | "mb" | "mib" => 1024 * 1024,
         "k" | "kb" | "kib" => 1024,
         "g" | "gb" | "gib" => 1024 * 1024 * 1024,
         "t" | "tb" | "tib" => 1024 * 1024 * 1024 * 1024,
         "b" => 1,
-        _ => return None,
+        unknown_unit => {
+            tracing::warn!(
+                "qemu command line: unknown memory unit {unknown_unit:?} in {size_text:?}"
+            );
+            return None;
+        }
     };
     Some(ByteSize::b(amount * multiplier))
 }
@@ -225,6 +246,12 @@ fn disk_images_of(command_line: &[String]) -> Vec<PathBuf> {
     let blockdev_files = option_values(command_line, "blockdev").filter_map(|blockdev_value| {
         if blockdev_value.starts_with('{') {
             serde_json::from_str::<BlockdevFileNode>(blockdev_value)
+                .inspect_err(|json_failure| {
+                    tracing::warn!(
+                        "qemu command line: invalid -blockdev json {blockdev_value:?}: \
+                         {json_failure}"
+                    );
+                })
                 .ok()?
                 .innermost_filename()
         } else {
@@ -240,7 +267,16 @@ fn disk_images_of(command_line: &[String]) -> Vec<PathBuf> {
 }
 
 fn port_after_last_colon(address_with_port: &str) -> Option<u16> {
-    address_with_port.rsplit(':').next()?.parse().ok()
+    let port_text = address_with_port.rsplit(':').next()?;
+    port_text
+        .parse()
+        .inspect_err(|parse_failure| {
+            tracing::warn!(
+                "qemu command line: invalid port {port_text:?} in {address_with_port:?}: \
+                 {parse_failure}"
+            );
+        })
+        .ok()
 }
 
 fn forwarded_port_of(hostfwd_rule: &str) -> Option<ForwardedGuestPort> {

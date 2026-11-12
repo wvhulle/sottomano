@@ -230,7 +230,10 @@ pub fn compositor_updates() -> impl Stream<Item = CompositorUpdate> + Send {
     }
 }
 
-#[cfg_attr(not(any(feature = "sway", feature = "hyprland")), allow(dead_code))]
+#[cfg_attr(
+    not(any(feature = "niri", feature = "sway", feature = "hyprland")),
+    allow(dead_code)
+)]
 fn logged_query<Reply, Failure: Display>(
     query: &str,
     reply: Result<Reply, Failure>,
@@ -243,7 +246,12 @@ fn logged_query<Reply, Failure: Display>(
 pub async fn compositor_version() -> Option<String> {
     match CompositorKind::detected()? {
         #[cfg(feature = "niri")]
-        CompositorKind::Niri => spawn_blocking(niri_version).await.ok().flatten(),
+        CompositorKind::Niri => logged_query(
+            "version",
+            spawn_blocking(niri_version)
+                .await
+                .unwrap_or_else(|join_failure| Err(join_failure.into())),
+        ),
         #[cfg(feature = "sway")]
         CompositorKind::Sway => logged_query("version", sway_version().await),
         #[cfg(feature = "hyprland")]
@@ -254,7 +262,12 @@ pub async fn compositor_version() -> Option<String> {
 pub async fn compositor_outputs() -> HashMap<String, OutputInfo> {
     let outputs = match CompositorKind::detected() {
         #[cfg(feature = "niri")]
-        Some(CompositorKind::Niri) => spawn_blocking(niri_outputs).await.ok(),
+        Some(CompositorKind::Niri) => logged_query(
+            "outputs",
+            spawn_blocking(niri_outputs)
+                .await
+                .unwrap_or_else(|join_failure| Err(join_failure.into())),
+        ),
         #[cfg(feature = "sway")]
         Some(CompositorKind::Sway) => logged_query("outputs", sway_outputs().await),
         #[cfg(feature = "hyprland")]
@@ -267,7 +280,12 @@ pub async fn compositor_outputs() -> HashMap<String, OutputInfo> {
 pub async fn compositor_window_pids() -> Option<Vec<i32>> {
     match CompositorKind::detected()? {
         #[cfg(feature = "niri")]
-        CompositorKind::Niri => spawn_blocking(niri_window_pids).await.ok().flatten(),
+        CompositorKind::Niri => logged_query(
+            "windows",
+            spawn_blocking(niri_window_pids)
+                .await
+                .unwrap_or_else(|join_failure| Err(join_failure.into())),
+        ),
         #[cfg(feature = "sway")]
         CompositorKind::Sway => logged_query("windows", sway_window_pids().await),
         #[cfg(feature = "hyprland")]

@@ -45,9 +45,13 @@ pub enum FocusedWindowIdentity {
 
 impl From<&CompositorWindow> for FocusedWindowOwner {
     fn from(compositor_window: &CompositorWindow) -> Self {
-        let process_id = compositor_window
-            .pid
-            .and_then(|window_pid| u32::try_from(window_pid).ok());
+        let process_id = compositor_window.pid.and_then(|window_pid| {
+            u32::try_from(window_pid)
+                .inspect_err(|pid_failure| {
+                    tracing::warn!("global menu: invalid window pid {window_pid}: {pid_failure}");
+                })
+                .ok()
+        });
         match (process_id, compositor_window.app_id.clone()) {
             (Some(process_id), Some(app_id)) => Self::ProcessAndApp { process_id, app_id },
             (Some(process_id), None) => Self::ProcessOnly { process_id },

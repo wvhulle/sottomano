@@ -23,7 +23,10 @@ use zbus::{
 use crate::{
     network_connectivity::ReadingError,
     non_empty_text::non_empty,
-    system_protocol_clients::dbus_change_signals::{change_triggers, properties_changed_rule},
+    system_protocol_clients::{
+        dbus_change_signals::{change_triggers, properties_changed_rule},
+        dbus_desktop_buses::prop,
+    },
 };
 
 pub const SERVICE: &str = "org.freedesktop.NetworkManager";
@@ -540,7 +543,11 @@ pub async fn uplink(connection: Connection) -> Result<Uplink, ReadingError> {
             })
             .map(|interface| interface.name)
             .collect(),
-        connectivity: Connectivity::try_from(connectivity).ok(),
+        connectivity: Connectivity::try_from(connectivity)
+            .inspect_err(|unknown_code| {
+                tracing::warn!("network manager: unknown connectivity state {unknown_code}");
+            })
+            .ok(),
         metering: match metered {
             METERED_YES | METERED_GUESS_YES => Metering::Metered,
             _ => Metering::Unmetered,
@@ -569,7 +576,19 @@ pub async fn device_gateways(connection: Connection) -> Result<Vec<DeviceGateway
                 [addressing.v4, addressing.v6]
                     .into_iter()
                     .flatten()
-                    .filter_map(|block| block.gateway?.parse().ok())
+                    .filter_map(|block| {
+                        let gateway = block.gateway?;
+                        gateway
+                            .parse()
+                            .inspect_err(|parse_failure| {
+                                tracing::warn!(
+                                    "network manager: invalid gateway {gateway:?} on {}: \
+                                     {parse_failure}",
+                                    device.interface
+                                );
+                            })
+                            .ok()
+                    })
                     .map(|gateway| DeviceGateway {
                         interface: device.interface.clone(),
                         gateway,
@@ -633,9 +652,7 @@ pub async fn vpn_profiles(connection: &Connection) -> zbus::Result<Vec<VpnProfil
         .await?;
     let paths = settings.list_connections().await?;
     let profiles = join_all(paths.into_iter().map(|path| vpn_profile(connection, path))).await;
-    Ok(profiles
-        .into_iter()
-        .filter_map(Result::ok)
+    Ok(readable_objects(profiles, "vpn profile")
         .flatten()
         .collect())
 }
@@ -651,17 +668,10 @@ async fn vpn_profile(
     };
     let name = profile
         .get("connection")
-        .and_then(|section| section.get("id"))
-        .and_then(|value| value.downcast_ref::<String>().ok())
+        .and_then(|section| prop::<String>(section, "id"))
         .unwrap_or_default();
-    let service_type = vpn_section
-        .get("service-type")
-        .and_then(|value| value.downcast_ref::<String>().ok())
-        .unwrap_or_default();
-    let vpn_data = vpn_section
-        .get("data")
-        .and_then(|value| HashMap::<String, String>::try_from(value.try_clone().ok()?).ok())
-        .unwrap_or_default();
+    let service_type = prop::<String>(vpn_section, "service-type").unwrap_or_default();
+    let vpn_data = prop::<HashMap<String, String>>(vpn_section, "data").unwrap_or_default();
     Ok(Some(VpnProfile {
         settings_connection: path,
         name,
@@ -676,7 +686,7 @@ pub async fn active_vpns(connection: &Connection) -> zbus::Result<Vec<ActiveVpn>
         .active_connections()
         .await?;
     let vpns = join_all(paths.into_iter().map(|path| active_vpn(connection, path))).await;
-    Ok(vpns.into_iter().filter_map(Result::ok).flatten().collect())
+    Ok(readable_objects(vpns, "active vpn").flatten().collect())
 }
 
 async fn active_vpn(
@@ -753,18 +763,28 @@ pub async fn wireguard_profiles(connection: &Connection) -> zbus::Result<Vec<Wir
             .map(|path| wireguard_profile(connection, path)),
     )
     .await;
-    Ok(profiles
-        .into_iter()
-        .filter_map(Result::ok)
+    Ok(readable_objects(profiles, "wireguard profile")
         .flatten()
         .collect())
 }
 
+fn readable_objects<ObjectReading>(
+    object_reads: Vec<zbus::Result<ObjectReading>>,
+    object_kind: &'static str,
+) -> impl Iterator<Item = ObjectReading> {
+    object_reads.into_iter().filter_map(move |object_read| {
+        object_read
+            .inspect_err(|read_failure| {
+                tracing::debug!(
+                    "network manager: skipping unreadable {object_kind}: {read_failure}"
+                );
+            })
+            .ok()
+    })
+}
+
 fn settings_text(section: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {
-    section
-        .get(key)
-        .and_then(|value| value.downcast_ref::<String>().ok())
-        .and_then(non_empty)
+    prop::<String>(section, key).and_then(non_empty)
 }
 
 async fn wireguard_profile(
@@ -781,24 +801,14 @@ async fn wireguard_profile(
     };
     let name = settings_text(connection_section, "id").unwrap_or_default();
     let interface = settings_text(connection_section, "interface-name").unwrap_or(name.clone());
-    let listen_port = wireguard_section
-        .get("listen-port")
-        .and_then(|value| value.downcast_ref::<u32>().ok())
-        .unwrap_or_default();
-    let peers = wireguard_section
-        .get("peers")
-        .and_then(|value| {
-            Vec::<HashMap<String, OwnedValue>>::try_from(value.try_clone().ok()?).ok()
-        })
+    let listen_port = prop::<u32>(wireguard_section, "listen-port").unwrap_or_default();
+    let peers = prop::<Vec<HashMap<String, OwnedValue>>>(wireguard_section, "peers")
         .unwrap_or_default()
         .iter()
         .map(|peer_section| WireguardPeerSettings {
             public_key: settings_text(peer_section, "public-key").unwrap_or_default(),
             endpoint: settings_text(peer_section, "endpoint"),
-            allowed_ips: peer_section
-                .get("allowed-ips")
-                .and_then(|value| Vec::<String>::try_from(value.try_clone().ok()?).ok())
-                .unwrap_or_default(),
+            allowed_ips: prop::<Vec<String>>(peer_section, "allowed-ips").unwrap_or_default(),
         })
         .collect();
     Ok(Some(WireguardProfile {
@@ -821,9 +831,7 @@ pub async fn active_wireguards(connection: &Connection) -> zbus::Result<Vec<Acti
             .map(|path| active_wireguard(connection, path)),
     )
     .await;
-    Ok(wireguards
-        .into_iter()
-        .filter_map(Result::ok)
+    Ok(readable_objects(wireguards, "active wireguard")
         .flatten()
         .collect())
 }
@@ -924,14 +932,11 @@ pub async fn ip(connection: &Connection, device: &DeviceInfo) -> zbus::Result<Ip
 
 fn first_address(entries: &[HashMap<String, OwnedValue>]) -> Option<(String, u32)> {
     let global = entries.iter().find(|entry| {
-        entry
-            .get("address")
-            .and_then(|value| value.downcast_ref::<String>().ok())
-            .is_some_and(|address| !address.starts_with("fe80"))
+        prop::<String>(entry, "address").is_some_and(|address| !address.starts_with("fe80"))
     });
     let entry = global.or_else(|| entries.first())?;
-    let address = entry.get("address")?.downcast_ref::<String>().ok()?;
-    let prefix = entry.get("prefix")?.downcast_ref::<u32>().ok()?;
+    let address = prop::<String>(entry, "address")?;
+    let prefix = prop::<u32>(entry, "prefix")?;
     Some((address, prefix))
 }
 
@@ -953,7 +958,7 @@ async fn ip4_config(connection: &Connection, path: OwnedObjectPath) -> zbus::Res
         }),
         dns: servers
             .into_iter()
-            .filter_map(|entry| entry.get("address")?.downcast_ref::<String>().ok())
+            .filter_map(|entry| prop::<String>(&entry, "address"))
             .collect(),
     })
 }
@@ -977,8 +982,15 @@ async fn ip6_config(connection: &Connection, path: OwnedObjectPath) -> zbus::Res
         dns: servers
             .into_iter()
             .filter_map(|bytes| {
-                let raw = <[u8; 16]>::try_from(bytes.as_slice()).ok()?;
-                Some(Ipv6Addr::from(raw).to_string())
+                <[u8; 16]>::try_from(bytes.as_slice())
+                    .inspect_err(|_| {
+                        tracing::warn!(
+                            "network manager: ipv6 name server has {} bytes instead of 16",
+                            bytes.len()
+                        );
+                    })
+                    .ok()
+                    .map(|raw_address| Ipv6Addr::from(raw_address).to_string())
             })
             .collect(),
     })
@@ -1067,7 +1079,7 @@ pub async fn visible_access_points(
     let paths = wireless.get_all_access_points().await?;
     let access_points =
         join_all(paths.into_iter().map(|path| access_point(connection, path))).await;
-    Ok(access_points.into_iter().filter_map(Result::ok).collect())
+    Ok(readable_objects(access_points, "access point").collect())
 }
 
 pub async fn request_wireless_scan(
@@ -1095,9 +1107,7 @@ pub async fn available_wireless_profiles(
             .map(|path| wireless_profile(connection, path)),
     )
     .await;
-    Ok(profiles
-        .into_iter()
-        .filter_map(Result::ok)
+    Ok(readable_objects(profiles, "wireless profile")
         .flatten()
         .collect())
 }
@@ -1110,8 +1120,7 @@ async fn wireless_profile(
     let profile = settings.get_settings().await?;
     let ssid = profile
         .get("802-11-wireless")
-        .and_then(|section| section.get("ssid"))
-        .and_then(|value| Vec::<u8>::try_from(value.try_clone().ok()?).ok())
+        .and_then(|section| prop::<Vec<u8>>(section, "ssid"))
         .and_then(|ssid_bytes| non_empty(String::from_utf8_lossy(&ssid_bytes).into_owned()));
     let Some(ssid) = ssid else {
         return Ok(None);

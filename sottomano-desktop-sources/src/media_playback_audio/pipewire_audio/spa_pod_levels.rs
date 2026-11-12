@@ -1,4 +1,4 @@
-use std::io;
+use std::{fmt::Display, io, str::FromStr};
 
 use pipewire::spa::{
     pod::{
@@ -29,7 +29,22 @@ pub(super) fn node_direction(props: &DictRef) -> Option<Direction> {
 }
 
 pub(super) fn stream_pid(props: &DictRef) -> Option<i32> {
-    props.get("application.process.id")?.parse().ok()
+    parsed_prop(props, "application.process.id")
+}
+
+fn parsed_prop<Parsed: FromStr>(props: &DictRef, key: &str) -> Option<Parsed>
+where
+    Parsed::Err: Display,
+{
+    let raw_value = props.get(key)?;
+    raw_value
+        .parse()
+        .inspect_err(|parse_failure| {
+            tracing::warn!(
+                "audio: pipewire property {key} has invalid value {raw_value:?}: {parse_failure}"
+            );
+        })
+        .ok()
 }
 
 pub(super) fn stream_from_props(props: &DictRef) -> AppStream {
@@ -50,12 +65,9 @@ pub(super) fn node_from_props(props: &DictRef, direction: Direction) -> Option<A
             .or_else(|| props.get("node.description"))
             .filter(|description| !description.is_empty())
             .map(str::to_owned),
-        device_id: props.get("device.id").and_then(|id| id.parse().ok()),
+        device_id: parsed_prop(props, "device.id"),
         props_kind: None,
-        serial: props
-            .get("object.serial")
-            .and_then(|serial| serial.parse().ok())
-            .unwrap_or_default(),
+        serial: parsed_prop(props, "object.serial").unwrap_or_default(),
         placement: None,
         levels: Levels::default(),
     })
@@ -63,13 +75,16 @@ pub(super) fn node_from_props(props: &DictRef, direction: Direction) -> Option<A
 
 pub(super) fn route_placement(props: &DictRef) -> Option<RoutePlacement> {
     Some(RoutePlacement {
-        device: props.get("device.id")?.parse().ok()?,
-        route_device: props.get("card.profile.device")?.parse().ok()?,
+        device: parsed_prop(props, "device.id")?,
+        route_device: parsed_prop(props, "card.profile.device")?,
     })
 }
 
 pub(super) fn default_node_name(value: &str) -> Option<String> {
     serde_json::from_str::<serde_json::Value>(value)
+        .inspect_err(|parse_failure| {
+            tracing::warn!("audio: invalid default node metadata {value:?}: {parse_failure}");
+        })
         .ok()?
         .get("name")?
         .as_str()
@@ -85,14 +100,23 @@ pub(super) fn parse_props(pod: &Pod) -> Option<LevelsUpdate> {
 pub(super) fn parse_route(pod: &Pod) -> Option<RouteLevels> {
     let object = parse_object(pod, SPA_TYPE_OBJECT_ParamRoute)?;
     Some(RouteLevels {
-        index: int_of(&object, SPA_PARAM_ROUTE_index)?.try_into().ok()?,
-        route_device: int_of(&object, SPA_PARAM_ROUTE_device)?.try_into().ok()?,
+        index: route_number(&object, SPA_PARAM_ROUTE_index, "index")?,
+        route_device: route_number(&object, SPA_PARAM_ROUTE_device, "device")?,
         port_kind: route_info_value(&object, "port.type").and_then(OutputKind::of_port_type),
         update: nested_props(&object)
             .as_ref()
             .map(levels_update)
             .unwrap_or_default(),
     })
+}
+
+fn route_number(object: &Object, key: u32, field_name: &str) -> Option<u32> {
+    let signed_number = int_of(object, key)?;
+    u32::try_from(signed_number)
+        .inspect_err(|_| {
+            tracing::warn!("audio: route {field_name} is negative: {signed_number}");
+        })
+        .ok()
 }
 
 fn route_info_value<'object>(object: &'object Object, key: &str) -> Option<&'object str> {
@@ -111,7 +135,11 @@ fn route_info_value<'object>(object: &'object Object, key: &str) -> Option<&'obj
 }
 
 fn parse_object(pod: &Pod, type_: u32) -> Option<Object> {
-    let (_, value) = PodDeserializer::deserialize_any_from(pod.as_bytes()).ok()?;
+    let (_, value) = PodDeserializer::deserialize_any_from(pod.as_bytes())
+        .inspect_err(|deserialize_failure| {
+            tracing::warn!("audio: cannot deserialize pipewire pod: {deserialize_failure:?}");
+        })
+        .ok()?;
     match value {
         Value::Object(object) if object.type_ == type_ => Some(object),
         _ => None,
@@ -210,6 +238,10 @@ pub(super) fn route_object(index: u32, route_device: u32, change: &LevelChange) 
 }
 
 pub(super) fn pod_bytes(value: &Value) -> Option<Vec<u8>> {
-    let (cursor, _) = PodSerializer::serialize(io::Cursor::new(Vec::new()), value).ok()?;
+    let (cursor, _) = PodSerializer::serialize(io::Cursor::new(Vec::new()), value)
+        .inspect_err(|serialize_failure| {
+            tracing::warn!("audio: cannot serialize pipewire pod: {serialize_failure:?}");
+        })
+        .ok()?;
     Some(cursor.into_inner())
 }

@@ -1,5 +1,5 @@
 use std::{
-    fs,
+    fs, io,
     path::{Path, PathBuf},
 };
 
@@ -25,11 +25,7 @@ impl MemoryBound {
     fn parsed(bound_text: &str) -> Option<Self> {
         match bound_text.trim() {
             "max" => Some(MemoryBound::Unbounded),
-            byte_count => byte_count
-                .parse()
-                .ok()
-                .map(ByteSize::b)
-                .map(MemoryBound::Bytes),
+            byte_count => parsed_byte_count(byte_count, "memory bound").map(MemoryBound::Bytes),
         }
     }
 }
@@ -48,8 +44,14 @@ impl MemoryEventCounts {
             let Some((event_name, event_count)) = event_line.split_once(' ') else {
                 continue;
             };
-            let Ok(event_count) = event_count.trim().parse() else {
-                continue;
+            let event_count = match event_count.trim().parse() {
+                Ok(event_count) => event_count,
+                Err(parse_failure) => {
+                    tracing::warn!(
+                        "cgroup memory: invalid event line {event_line:?}: {parse_failure}"
+                    );
+                    continue;
+                }
             };
             match event_name {
                 "high" => event_counts.throttled_at_high = event_count,
@@ -93,7 +95,31 @@ impl CgroupMemoryReading {
 }
 
 fn read_text(cgroup_directory: &Path, file_name: &str) -> Option<String> {
-    fs::read_to_string(cgroup_directory.join(file_name)).ok()
+    let file_path = cgroup_directory.join(file_name);
+    match fs::read_to_string(&file_path) {
+        Ok(file_text) => Some(file_text),
+        Err(read_failure) if read_failure.kind() == io::ErrorKind::NotFound => None,
+        Err(read_failure) => {
+            tracing::warn!(
+                "cgroup memory: cannot read {}: {read_failure}",
+                file_path.display()
+            );
+            None
+        }
+    }
+}
+
+fn parsed_byte_count(byte_count_text: &str, file_role: &str) -> Option<ByteSize> {
+    byte_count_text
+        .trim()
+        .parse()
+        .inspect_err(|parse_failure| {
+            tracing::warn!(
+                "cgroup memory: invalid {file_role} {byte_count_text:?}: {parse_failure}"
+            );
+        })
+        .ok()
+        .map(ByteSize::b)
 }
 
 fn read_bound(cgroup_directory: &Path, file_name: &str) -> MemoryBound {
@@ -108,25 +134,31 @@ fn parsed_some_average_ten_seconds(pressure_text: &str) -> Option<f64> {
         .lines()
         .find_map(|pressure_line| pressure_line.strip_prefix("some "))?
         .split_whitespace()
-        .find_map(|pressure_field| pressure_field.strip_prefix("avg10="))?
-        .parse()
-        .ok()
+        .find_map(|pressure_field| pressure_field.strip_prefix("avg10="))
+        .and_then(|average_text| {
+            average_text
+                .parse()
+                .inspect_err(|parse_failure| {
+                    tracing::warn!(
+                        "cgroup memory: invalid pressure average {average_text:?}: {parse_failure}"
+                    );
+                })
+                .ok()
+        })
 }
 
 #[must_use]
 pub fn read_cgroup_memory(cgroup_directory: &Path) -> Option<CgroupMemoryReading> {
-    let current = read_text(cgroup_directory, "memory.current")?
-        .trim()
-        .parse()
-        .ok()
-        .map(ByteSize::b)?;
+    let current = parsed_byte_count(
+        &read_text(cgroup_directory, "memory.current")?,
+        "memory.current",
+    )?;
     Some(CgroupMemoryReading {
         current,
         high: read_bound(cgroup_directory, "memory.high"),
         max: read_bound(cgroup_directory, "memory.max"),
         swap_current: read_text(cgroup_directory, "memory.swap.current")
-            .and_then(|swap_text| swap_text.trim().parse().ok())
-            .map(ByteSize::b),
+            .and_then(|swap_text| parsed_byte_count(&swap_text, "memory.swap.current")),
         swap_max: read_bound(cgroup_directory, "memory.swap.max"),
         stalled_percent_last_ten_seconds: read_text(cgroup_directory, "memory.pressure")
             .as_deref()
@@ -146,7 +178,11 @@ fn unified_cgroup_path(proc_cgroup_text: &str) -> Option<&str> {
 
 #[must_use]
 pub fn cgroup_directory_of_process(pid: u32) -> Option<PathBuf> {
-    let proc_cgroup_text = fs::read_to_string(format!("/proc/{pid}/cgroup")).ok()?;
+    let proc_cgroup_text = fs::read_to_string(format!("/proc/{pid}/cgroup"))
+        .inspect_err(|read_failure| {
+            tracing::debug!("cgroup of process {pid} unreadable: {read_failure}");
+        })
+        .ok()?;
     let cgroup_path = unified_cgroup_path(&proc_cgroup_text)?;
     Some(Path::new(CGROUP_ROOT).join(cgroup_path.trim_start_matches('/')))
 }

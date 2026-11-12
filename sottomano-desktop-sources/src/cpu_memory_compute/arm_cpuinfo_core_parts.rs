@@ -6,7 +6,11 @@ use crate::system_protocol_clients::sysfs_attribute_reads::read_trimmed;
 const CPU_INFO: &str = "/proc/cpuinfo";
 
 pub(super) fn read() -> Option<HashMap<u32, CoreDesign>> {
-    let cpuinfo = fs::read_to_string(CPU_INFO).ok()?;
+    let cpuinfo = fs::read_to_string(CPU_INFO)
+        .inspect_err(|read_failure| {
+            tracing::warn!("arm core parts: cannot read {CPU_INFO}: {read_failure}");
+        })
+        .ok()?;
     Some(
         CorePart::parse_all(&cpuinfo)
             .filter_map(|core_part| Some((core_part.core, core_part.design_with_capacity()?)))
@@ -27,7 +31,14 @@ impl CorePart {
 
     fn parse(block: &str) -> Option<Self> {
         Some(CorePart {
-            core: cpuinfo_field(block, "processor")?.parse().ok()?,
+            core: cpuinfo_field(block, "processor")?
+                .parse()
+                .inspect_err(|parse_failure| {
+                    tracing::warn!(
+                        "arm core parts: invalid processor number in {CPU_INFO}: {parse_failure}"
+                    );
+                })
+                .ok()?,
             part: cpuinfo_field(block, "CPU part")?.to_owned(),
         })
     }
@@ -36,7 +47,15 @@ impl CorePart {
         let capacity = read_trimmed(format!("{CPU_FREQ}/cpu{}/cpu_capacity", self.core))?;
         Some(CoreDesign::ArmCorePart {
             part: self.part.clone(),
-            capacity: capacity.parse().ok()?,
+            capacity: capacity
+                .parse()
+                .inspect_err(|parse_failure| {
+                    tracing::warn!(
+                        "arm core parts: invalid capacity {capacity:?} of cpu{}: {parse_failure}",
+                        self.core
+                    );
+                })
+                .ok()?,
         })
     }
 }

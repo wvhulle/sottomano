@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use futures::{Stream, StreamExt, TryStreamExt, future::ready, stream};
+use futures::{Stream, StreamExt, future::ready, stream};
 use futures_rx::RxExt;
 use icu_locale_core::Locale;
 use inotify::{Event, EventMask, Inotify, WatchDescriptor, WatchMask, Watches};
@@ -117,6 +117,12 @@ struct SearchedPage {
     extract: Option<String>,
 }
 
+#[derive(Clone, Copy)]
+enum WatchHealth {
+    Watching,
+    Failed,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DisplayedWallpaper {
     ImageFile(String),
@@ -151,13 +157,30 @@ fn watch()
     let layout = CacheLayout::watched(&mut inotify.watches(), &base)?;
     let changes = inotify
         .into_event_stream([0u8; EVENT_BUFFER_BYTES])?
-        .inspect_err(|e| tracing::warn!("wallpaper watch: {e}"))
-        .scan((), |(), event| ready(event.ok()))
-        .map(move |event| layout.change(&event))
-        .scan((), |(), change| ready(change.wallpaper()));
-    Ok(stream::iter([WallpaperLookup::QueryDaemon])
+        .map(move |event| event.map(|event| layout.change(&event)))
+        .scan(WatchHealth::Watching, |health, change| {
+            ready(match (*health, change) {
+                (WatchHealth::Failed, _) | (WatchHealth::Watching, Ok(CacheChange::Layout)) => None,
+                (WatchHealth::Watching, Ok(CacheChange::Wallpaper(lookup))) => Some(Ok(lookup)),
+                (WatchHealth::Watching, Err(watch_failure)) => {
+                    *health = WatchHealth::Failed;
+                    Some(Err(watch_failure))
+                }
+            })
+        });
+    Ok(stream::iter([Ok(WallpaperLookup::QueryDaemon)])
         .chain(changes)
-        .switch_map(|lookup| stream::once(wallpaper_path(lookup))))
+        .switch_map(|lookup| {
+            stream::once(async move {
+                match lookup {
+                    Ok(lookup) => wallpaper_path(lookup).await,
+                    Err(watch_failure) => Err(shell_command_output::Error::Spawn {
+                        program: "wallpaper watch".to_owned(),
+                        detail: watch_failure.to_string(),
+                    }),
+                }
+            })
+        }))
 }
 
 struct CacheLayout {
@@ -171,14 +194,7 @@ enum CacheChange {
     Layout,
 }
 
-impl CacheChange {
-    fn wallpaper(self) -> Option<WallpaperLookup> {
-        match self {
-            Self::Wallpaper(lookup) => Some(lookup),
-            Self::Layout => None,
-        }
-    }
-}
+impl CacheChange {}
 
 enum WallpaperLookup {
     Cached(String),
@@ -278,7 +294,16 @@ fn version_directories(root: &Path) -> Vec<PathBuf> {
         return Vec::new();
     };
     entries
-        .filter_map(Result::ok)
+        .filter_map(|listed_entry| {
+            listed_entry
+                .inspect_err(|list_failure| {
+                    tracing::debug!(
+                        "wallpaper watch: listing {} failed: {list_failure}",
+                        root.display()
+                    );
+                })
+                .ok()
+        })
         .map(|entry| entry.path())
         .filter(|path| path.is_dir())
         .collect()
@@ -341,7 +366,15 @@ pub async fn resolve(path: String, id: String, unsplash_key: &Path) -> Result<Wa
 
 fn wikipedia_language() -> String {
     sys_locale::get_locales()
-        .filter_map(|locale| Locale::try_from_str(&locale).ok())
+        .filter_map(|locale| {
+            Locale::try_from_str(&locale)
+                .inspect_err(|parse_failure| {
+                    tracing::debug!(
+                        "wallpaper article: system locale {locale} is unparsable: {parse_failure}"
+                    );
+                })
+                .ok()
+        })
         .map(|locale| locale.id.language)
         .find(|language| !language.is_unknown())
         .map_or_else(

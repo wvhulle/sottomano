@@ -357,9 +357,24 @@ fn timed_lines_of_row(lrc_row: &str) -> Vec<TimedLyricLine> {
 
 fn parse_lrc_timestamp(tag_body: &str) -> Option<Duration> {
     let (minutes_text, seconds_text) = tag_body.split_once(':')?;
-    let minutes: u64 = minutes_text.trim().parse().ok()?;
-    let seconds: f64 = seconds_text.trim().parse().ok()?;
+    let (minutes, seconds) = match (
+        minutes_text.trim().parse::<u64>(),
+        seconds_text.trim().parse::<f64>(),
+    ) {
+        (Ok(minutes), Ok(seconds)) => (minutes, seconds),
+        (Err(parse_failure), _) => {
+            tracing::debug!("lyrics: tag {tag_body:?} has no timestamp minutes: {parse_failure}");
+            return None;
+        }
+        (_, Err(parse_failure)) => {
+            tracing::debug!("lyrics: tag {tag_body:?} has no timestamp seconds: {parse_failure}");
+            return None;
+        }
+    };
     Duration::try_from_secs_f64(seconds)
+        .inspect_err(|range_failure| {
+            tracing::warn!("lyrics: timestamp tag {tag_body:?} is out of range: {range_failure}");
+        })
         .ok()
         .map(|seconds_part| Duration::from_secs(minutes * 60) + seconds_part)
 }

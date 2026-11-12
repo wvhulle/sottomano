@@ -149,7 +149,16 @@ impl ErrorStats {
             .lines()
             .filter_map(|line| {
                 let (name, count) = line.split_once(' ')?;
-                Some((name, count.trim().parse().ok()?))
+                let parsed_count = count
+                    .trim()
+                    .parse()
+                    .inspect_err(|parse_failure| {
+                        tracing::warn!(
+                            "btrfs: error stat {name} count {count} is malformed: {parse_failure}"
+                        );
+                    })
+                    .ok()?;
+                Some((name, parsed_count))
             })
             .fold(ErrorStats::default(), |errors, (name, count)| {
                 errors.counted(name, count)

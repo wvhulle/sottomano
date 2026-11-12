@@ -184,7 +184,16 @@ impl ListedStatus {
     fn instance(&self) -> Option<ModelInstance> {
         Some(ModelInstance {
             host: self.argument("--host")?.to_owned(),
-            port: self.argument("--port")?.parse().ok()?,
+            port: self
+                .argument("--port")?
+                .parse()
+                .inspect_err(|parse_failure| {
+                    tracing::warn!(
+                        "llama server: invalid --port argument in {:?}: {parse_failure}",
+                        self.args
+                    );
+                })
+                .ok()?,
         })
     }
 }

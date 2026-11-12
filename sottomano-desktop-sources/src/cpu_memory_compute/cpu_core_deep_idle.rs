@@ -74,11 +74,15 @@ fn deepest_idle_times() -> Vec<CoreIdleTime> {
 }
 
 fn idle_state_index(state: &Path) -> Option<u32> {
-    state
-        .file_name()?
-        .to_str()?
-        .strip_prefix("state")?
+    let index_digits = state.file_name()?.to_str()?.strip_prefix("state")?;
+    index_digits
         .parse()
+        .inspect_err(|parse_failure| {
+            tracing::warn!(
+                "cpu idle: invalid idle state index in {}: {parse_failure}",
+                state.display()
+            );
+        })
         .ok()
 }
 

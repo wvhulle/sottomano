@@ -72,7 +72,7 @@ impl GroupItemReading for Vec<KernelOccurrence> {
             .iter()
             .filter(|occurrence| occurrence.severity >= Severity::Warning)
             .count();
-        u32::try_from(distinct).ok().filter(|count| *count > 0)
+        Some(u32::try_from(distinct).unwrap_or(u32::MAX)).filter(|count| *count > 0)
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {

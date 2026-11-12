@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeSet, HashMap},
     mem,
+    num::TryFromIntError,
 };
 
 use futures::{Stream, TryStreamExt, stream};
@@ -30,7 +31,9 @@ const FOLLOWED_SWAY_EVENTS: [EventType; 4] = [
 ];
 
 fn sway_id(id: i64) -> Option<u64> {
-    u64::try_from(id).ok()
+    u64::try_from(id)
+        .inspect_err(|range_failure| tracing::warn!("sway: negative node id {id}: {range_failure}"))
+        .ok()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -270,9 +273,21 @@ fn sway_output_facts(output: Output) -> (String, OutputInfo) {
         model: product_field(output.model),
         serial: product_field(output.serial),
         mode: output.current_mode.and_then(|mode| {
+            let log_range_failure = |range_failure: &TryFromIntError| {
+                tracing::warn!(
+                    "sway: output {} mode {}x{} out of range: {range_failure}",
+                    output.name,
+                    mode.width,
+                    mode.height
+                );
+            };
             Some(OutputMode {
-                width: u16::try_from(mode.width).ok()?,
-                height: u16::try_from(mode.height).ok()?,
+                width: u16::try_from(mode.width)
+                    .inspect_err(&log_range_failure)
+                    .ok()?,
+                height: u16::try_from(mode.height)
+                    .inspect_err(&log_range_failure)
+                    .ok()?,
                 refresh_hz: f64::from(mode.refresh) / 1000.0,
             })
         }),

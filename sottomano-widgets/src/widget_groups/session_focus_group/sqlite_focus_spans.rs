@@ -91,7 +91,13 @@ async fn read_spans(
             window: columns.integer(&row, "window_id")?.cast_unsigned(),
             started_at,
             ended_at,
-            unit: stored.and_then(|stored| FocusUnit::try_from(stored).ok()),
+            unit: stored.and_then(|stored| {
+                FocusUnit::try_from(stored)
+                    .inspect_err(|unknown_facet| {
+                        tracing::warn!("focus spans: skipping stored facet: {unknown_facet}");
+                    })
+                    .ok()
+            }),
         });
     }
     let window_focus_spans = facet_rows

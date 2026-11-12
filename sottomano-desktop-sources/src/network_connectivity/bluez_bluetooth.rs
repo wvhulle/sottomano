@@ -1,6 +1,6 @@
-use std::{collections::HashMap, future::ready, path::Path, time::Duration};
+use std::{collections::HashMap, path::Path, time::Duration};
 
-use futures::{Stream, StreamExt};
+use futures::Stream;
 use zbus::{
     Connection,
     fdo::{ManagedObjects, ObjectManagerProxy},
@@ -304,11 +304,8 @@ impl SnapshotSource for Bluetooth {
                 let read_connection = system.clone();
                 PeriodicPolling::every(PERIPHERAL_BATTERY_RECHECK).triggered_deliveries(
                     subscribed(signal_connection, |signal_connection| async move {
-                        Ok(bluez_object_signals(signal_connection)
-                            .await?
-                            .map(Ok::<_, zbus::Error>))
-                    })
-                    .filter_map(|signal| ready(signal.ok())),
+                        bluez_object_signals(signal_connection).await
+                    }),
                     move || read_bluetooth(read_connection.clone()),
                 )
             },

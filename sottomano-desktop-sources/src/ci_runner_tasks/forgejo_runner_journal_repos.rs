@@ -53,7 +53,14 @@ fn parse_task_start_message(message: &str) -> Option<ParsedTaskStart<'_>> {
         },
     );
     Some(ParsedTaskStart {
-        task_id: task_id.parse().ok()?,
+        task_id: task_id
+            .parse()
+            .inspect_err(|parse_failure| {
+                tracing::warn!(
+                    "forgejo runner: task id {task_id} in {message} is malformed: {parse_failure}"
+                );
+            })
+            .ok()?,
         repository,
         actions_page,
     })

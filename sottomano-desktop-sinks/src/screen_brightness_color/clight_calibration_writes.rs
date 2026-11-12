@@ -30,8 +30,14 @@ pub async fn pause_auto_calib() {
 
 pub async fn flip() -> Result<(), Error> {
     let wanted_calibration = match current_calibration().await {
-        Some(BrightnessCalibration::FromWebcam) => BrightnessCalibration::Fixed,
-        Some(BrightnessCalibration::Fixed) | None => BrightnessCalibration::FromWebcam,
+        Ok(BrightnessCalibration::FromWebcam) => BrightnessCalibration::Fixed,
+        Ok(BrightnessCalibration::Fixed) => BrightnessCalibration::FromWebcam,
+        Err(read_failure) => {
+            tracing::warn!(
+                "clight: calibration unknown, enabling webcam calibration: {read_failure}"
+            );
+            BrightnessCalibration::FromWebcam
+        }
     };
     let outcome = set_calibration(wanted_calibration).await;
     match wanted_calibration {

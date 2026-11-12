@@ -91,6 +91,12 @@ impl HwmonChip {
             self.dir
                 .join("device")
                 .canonicalize()
+                .inspect_err(|resolve_failure| {
+                    tracing::debug!(
+                        "hwmon: cannot resolve device of {}: {resolve_failure}",
+                        self.dir.display()
+                    );
+                })
                 .ok()?
                 .file_name()?
                 .to_str()?
@@ -103,12 +109,19 @@ impl HwmonChip {
         let mut sensors: Vec<TemperatureSensor> = list_dir(&self.dir)
             .iter()
             .filter_map(|path| {
-                let index = path
+                let index_digits = path
                     .file_name()?
                     .to_str()?
                     .strip_prefix("temp")?
-                    .strip_suffix("_input")?
+                    .strip_suffix("_input")?;
+                let index = index_digits
                     .parse()
+                    .inspect_err(|parse_failure| {
+                        tracing::warn!(
+                            "hwmon: invalid temperature sensor index in {}: {parse_failure}",
+                            path.display()
+                        );
+                    })
                     .ok()?;
                 Some(TemperatureSensor {
                     index,
@@ -168,7 +181,17 @@ fn numbered_suffix(entry: &Path, prefix: &str) -> Option<u32> {
         .and_then(|name| name.to_str())
         .and_then(|name| name.strip_prefix(prefix))
         .filter(|digits| digits.bytes().all(|digit_byte| digit_byte.is_ascii_digit()))
-        .and_then(|digits| digits.parse().ok())
+        .and_then(|digits| {
+            digits
+                .parse()
+                .inspect_err(|parse_failure| {
+                    tracing::warn!(
+                        "hwmon: invalid {prefix} number in {}: {parse_failure}",
+                        entry.display()
+                    );
+                })
+                .ok()
+        })
 }
 
 #[must_use]

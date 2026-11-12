@@ -479,18 +479,37 @@ impl From<&Device> for InputDeviceKind {
 }
 
 fn input_node_number(path: &Path) -> Option<usize> {
-    path.file_name()?
-        .to_str()?
-        .strip_prefix("event")?
+    let node_number_text = path.file_name()?.to_str()?.strip_prefix("event")?;
+    node_number_text
         .parse()
+        .inspect_err(|parse_failure| {
+            tracing::debug!(
+                "gamepad: input node {} has no number: {parse_failure}",
+                path.display()
+            );
+        })
         .ok()
 }
 
 fn kernel_device_of_input_node(slot: usize) -> Option<String> {
     let parent = Path::new(&format!("/sys/class/input/event{slot}/device/device"))
         .canonicalize()
+        .inspect_err(|resolve_failure| {
+            tracing::debug!(
+                "gamepad: parent device of event{slot} unresolvable: {resolve_failure}"
+            );
+        })
         .ok()?;
-    let subsystem = parent.join("subsystem").canonicalize().ok()?;
+    let subsystem = parent
+        .join("subsystem")
+        .canonicalize()
+        .inspect_err(|resolve_failure| {
+            tracing::debug!(
+                "gamepad: subsystem of {} unresolvable: {resolve_failure}",
+                parent.display()
+            );
+        })
+        .ok()?;
     Some(format!(
         "+{}:{}",
         subsystem.file_name()?.to_str()?,
@@ -575,10 +594,22 @@ fn gamepad_events(
             tracing::warn!("gamepad: cannot read {}: {open_failure}", gamepad.name);
         })
         .ok();
-    stream::iter(opened_device).flat_map(|opened_gamepad| {
+    let gamepad_name = gamepad.name.clone();
+    stream::iter(opened_device).flat_map(move |opened_gamepad| {
+        let gamepad_name = gamepad_name.clone();
         opened_gamepad
             .events
-            .scan((), |(), event| ready(event.ok()))
+            .scan((), move |(), event| {
+                ready(
+                    event
+                        .inspect_err(|read_failure| {
+                            tracing::debug!(
+                                "gamepad: events of {gamepad_name} ended: {read_failure}"
+                            );
+                        })
+                        .ok(),
+                )
+            })
             .scan(opened_gamepad.translator, |translator, event| {
                 ready(Some(stream::iter(translator.translate(event))))
             })

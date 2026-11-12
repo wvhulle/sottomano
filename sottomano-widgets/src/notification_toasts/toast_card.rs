@@ -175,10 +175,16 @@ fn icon_file(name: &str) -> Option<PathBuf> {
     if name.starts_with('/') {
         return Some(PathBuf::from(name));
     }
+    if !name.starts_with("file:") {
+        return None;
+    }
     Url::parse(name)
-        .ok()
-        .filter(|url| url.scheme() == "file")?
+        .inspect_err(|parse_failure| {
+            tracing::debug!("toast card: icon file url {name} is malformed: {parse_failure}");
+        })
+        .ok()?
         .to_file_path()
+        .inspect_err(|()| tracing::debug!("toast card: icon url {name} is not a local file path"))
         .ok()
 }
 

@@ -166,9 +166,20 @@ fn loop_device_backing_files(mountinfo_text: &str) -> impl Iterator<Item = &str>
 }
 
 fn image_file_of(container_pid: i32) -> Option<PathBuf> {
-    let mountinfo_text = fs::read_to_string(format!("/proc/{container_pid}/mountinfo")).ok()?;
+    let mountinfo_text = fs::read_to_string(format!("/proc/{container_pid}/mountinfo"))
+        .inspect_err(|read_failure| {
+            tracing::debug!(
+                "apptainer: reading mounts of pid {container_pid} failed: {read_failure}"
+            );
+        })
+        .ok()?;
     loop_device_backing_files(&mountinfo_text).find_map(|loop_number| {
         fs::read_to_string(format!("/sys/block/loop{loop_number}/loop/backing_file"))
+            .inspect_err(|read_failure| {
+                tracing::debug!(
+                    "apptainer: backing file of loop{loop_number} unreadable: {read_failure}"
+                );
+            })
             .ok()
             .map(|backing_file| PathBuf::from(backing_file.trim()))
     })

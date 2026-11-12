@@ -257,7 +257,11 @@ impl KernelDevice {
         if !mount_source.starts_with("/dev/") {
             return None;
         }
-        let node = fs::canonicalize(mount_source).ok()?;
+        let node = fs::canonicalize(mount_source)
+            .inspect_err(|resolve_failure| {
+                tracing::debug!("mounts: resolving {mount_source} failed: {resolve_failure}");
+            })
+            .ok()?;
         let device = KernelDevice {
             name: file_name(&node)?,
         };
@@ -290,7 +294,14 @@ impl KernelDevice {
         if !dir.join("partition").exists() {
             return None;
         }
-        let resolved = fs::canonicalize(dir).ok()?;
+        let resolved = fs::canonicalize(&dir)
+            .inspect_err(|resolve_failure| {
+                tracing::debug!(
+                    "mounts: resolving {} failed: {resolve_failure}",
+                    dir.display()
+                );
+            })
+            .ok()?;
         Some(KernelDevice {
             name: file_name(resolved.parent()?)?,
         })

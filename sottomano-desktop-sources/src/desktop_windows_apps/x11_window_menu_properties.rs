@@ -142,11 +142,33 @@ fn read_menu_properties(
     Ok(property_values)
 }
 
+fn property_bus_name(
+    property_values: &HashMap<&'static str, String>,
+    property_name: &str,
+) -> Option<OwnedBusName> {
+    let property_text = property_values.get(property_name)?;
+    OwnedBusName::try_from(property_text.as_str())
+        .inspect_err(|name_failure| {
+            tracing::warn!("global menu: x11 {property_name} {property_text:?}: {name_failure}");
+        })
+        .ok()
+}
+
+fn property_object_path(
+    property_values: &HashMap<&'static str, String>,
+    property_name: &str,
+) -> Option<OwnedObjectPath> {
+    let property_text = property_values.get(property_name)?;
+    OwnedObjectPath::try_from(property_text.as_str())
+        .inspect_err(|path_failure| {
+            tracing::warn!("global menu: x11 {property_name} {property_text:?}: {path_failure}");
+        })
+        .ok()
+}
+
 fn kde_dbus_menu(property_values: &HashMap<&'static str, String>) -> Option<DbusMenuLocation> {
-    let bus_name =
-        OwnedBusName::try_from(property_values.get(KDE_SERVICE_PROPERTY)?.as_str()).ok()?;
-    let menu_path =
-        OwnedObjectPath::try_from(property_values.get(KDE_OBJECT_PATH_PROPERTY)?.as_str()).ok()?;
+    let bus_name = property_bus_name(property_values, KDE_SERVICE_PROPERTY)?;
+    let menu_path = property_object_path(property_values, KDE_OBJECT_PATH_PROPERTY)?;
     Some(DbusMenuLocation {
         bus_name,
         menu_path,
@@ -156,20 +178,14 @@ fn kde_dbus_menu(property_values: &HashMap<&'static str, String>) -> Option<Dbus
 fn gtk_menu_bar_source(
     property_values: &HashMap<&'static str, String>,
 ) -> Option<GtkMenuBarSource> {
-    let bus_name =
-        OwnedBusName::try_from(property_values.get(GTK_BUS_NAME_PROPERTY)?.as_str()).ok()?;
-    let menubar_path =
-        OwnedObjectPath::try_from(property_values.get(GTK_MENUBAR_PATH_PROPERTY)?.as_str()).ok()?;
-    let object_path_of = |property_name| {
-        property_values
-            .get(property_name)
-            .and_then(|object_path| OwnedObjectPath::try_from(object_path.as_str()).ok())
-    };
-    let application_actions = object_path_of(GTK_APPLICATION_PATH_PROPERTY).map_or(
-        ApplicationActionPath::Unexported,
-        ApplicationActionPath::Exported,
-    );
-    let window_actions = object_path_of(GTK_WINDOW_PATH_PROPERTY)
+    let bus_name = property_bus_name(property_values, GTK_BUS_NAME_PROPERTY)?;
+    let menubar_path = property_object_path(property_values, GTK_MENUBAR_PATH_PROPERTY)?;
+    let application_actions = property_object_path(property_values, GTK_APPLICATION_PATH_PROPERTY)
+        .map_or(
+            ApplicationActionPath::Unexported,
+            ApplicationActionPath::Exported,
+        );
+    let window_actions = property_object_path(property_values, GTK_WINDOW_PATH_PROPERTY)
         .map_or(WindowActionPath::Unresolved, WindowActionPath::Resolved);
     Some(GtkMenuBarSource {
         menubar_path,

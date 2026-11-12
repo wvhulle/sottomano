@@ -48,7 +48,7 @@ impl GroupItemReading for ServiceErrors {
     }
 
     fn badge(&self) -> Option<u32> {
-        u32::try_from(self.by_unit_oldest_first.len()).ok()
+        Some(u32::try_from(self.by_unit_oldest_first.len()).unwrap_or(u32::MAX))
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {

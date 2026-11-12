@@ -1,4 +1,4 @@
-use std::{convert::Infallible, fs, str::FromStr, thread, time::Duration};
+use std::{convert::Infallible, fs, io, str::FromStr, thread, time::Duration};
 
 const REPORT_INTERVAL: Duration = Duration::from_secs(60);
 
@@ -20,7 +20,22 @@ impl FromStr for ProcessMemoryStatus {
             .lines()
             .filter_map(|line| {
                 let (field_name, field_value) = line.split_once(':')?;
-                let number = field_value.split_whitespace().next()?.parse().ok()?;
+                if !matches!(
+                    field_name,
+                    "VmRSS" | "RssAnon" | "RssFile" | "VmSwap" | "VmHWM" | "Threads"
+                ) {
+                    return None;
+                }
+                let number_text = field_value.split_whitespace().next()?;
+                let number = number_text
+                    .parse()
+                    .inspect_err(|parse_failure| {
+                        tracing::warn!(
+                            "memory reports: {field_name} value {number_text} is not a number: \
+                             {parse_failure}"
+                        );
+                    })
+                    .ok()?;
                 Some((field_name, number))
             })
             .fold(
@@ -57,8 +72,9 @@ impl FromStr for ProcessMemoryStatus {
 }
 
 impl ProcessMemoryStatus {
-    fn read_current() -> Option<Self> {
-        fs::read_to_string("/proc/self/status").ok()?.parse().ok()
+    fn read_current() -> io::Result<Self> {
+        let Ok(status) = fs::read_to_string("/proc/self/status")?.parse();
+        Ok(status)
     }
 
     fn report(&self) {
@@ -79,8 +95,13 @@ pub fn spawn_memory_reports(mut after_each_report: impl FnMut() + Send + 'static
         .name("memory-report".to_string())
         .spawn(move || {
             loop {
-                if let Some(status) = ProcessMemoryStatus::read_current() {
-                    status.report();
+                match ProcessMemoryStatus::read_current() {
+                    Ok(status) => status.report(),
+                    Err(read_failure) => {
+                        tracing::warn!(
+                            "memory reports: reading /proc/self/status failed: {read_failure}"
+                        );
+                    }
                 }
                 after_each_report();
                 thread::sleep(REPORT_INTERVAL);

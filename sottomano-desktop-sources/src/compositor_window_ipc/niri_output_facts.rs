@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io};
 
 use niri_ipc::{Request, Response, socket::Socket};
+use tokio::task::JoinError;
 
 use crate::compositor_window_ipc::compositor_output_facts::{
     OutputInfo, OutputMode, product_field,
@@ -15,24 +16,34 @@ fn current_mode(output: &niri_ipc::Output) -> Option<OutputMode> {
     })
 }
 
-#[must_use]
-pub fn niri_version() -> Option<String> {
-    let reply = Socket::connect()
-        .and_then(|mut socket| socket.send(Request::Version))
-        .ok()?;
-    match reply {
-        Ok(Response::Version(version)) => Some(version),
-        _ => None,
+#[derive(Debug, thiserror::Error)]
+pub enum NiriQueryError {
+    #[error("niri socket: {0}")]
+    Socket(#[from] io::Error),
+    #[error("niri refused the request: {0}")]
+    Refused(String),
+    #[error("niri answered with an unexpected response")]
+    UnexpectedResponse,
+    #[error("niri query did not finish: {0}")]
+    Unfinished(#[from] JoinError),
+}
+
+fn niri_response(request: Request) -> Result<Response, NiriQueryError> {
+    Socket::connect()
+        .and_then(|mut socket| socket.send(request))?
+        .map_err(NiriQueryError::Refused)
+}
+
+pub fn niri_version() -> Result<String, NiriQueryError> {
+    match niri_response(Request::Version)? {
+        Response::Version(version) => Ok(version),
+        _ => Err(NiriQueryError::UnexpectedResponse),
     }
 }
 
-#[must_use]
-pub fn niri_outputs() -> HashMap<String, OutputInfo> {
-    let Ok(reply) = Socket::connect().and_then(|mut socket| socket.send(Request::Outputs)) else {
-        return HashMap::new();
-    };
-    match reply {
-        Ok(Response::Outputs(outputs)) => outputs
+pub fn niri_outputs() -> Result<HashMap<String, OutputInfo>, NiriQueryError> {
+    match niri_response(Request::Outputs)? {
+        Response::Outputs(outputs) => Ok(outputs
             .into_iter()
             .filter_map(|(name, output)| {
                 let logical = output.logical?;
@@ -50,18 +61,14 @@ pub fn niri_outputs() -> HashMap<String, OutputInfo> {
                     },
                 ))
             })
-            .collect(),
-        _ => HashMap::new(),
+            .collect()),
+        _ => Err(NiriQueryError::UnexpectedResponse),
     }
 }
 
-#[must_use]
-pub fn niri_window_pids() -> Option<Vec<i32>> {
-    let reply = Socket::connect()
-        .and_then(|mut socket| socket.send(Request::Windows))
-        .ok()?;
-    let Ok(Response::Windows(windows)) = reply else {
-        return None;
-    };
-    Some(windows.iter().filter_map(|window| window.pid).collect())
+pub fn niri_window_pids() -> Result<Vec<i32>, NiriQueryError> {
+    match niri_response(Request::Windows)? {
+        Response::Windows(windows) => Ok(windows.iter().filter_map(|window| window.pid).collect()),
+        _ => Err(NiriQueryError::UnexpectedResponse),
+    }
 }

@@ -196,7 +196,17 @@ impl<E: JournalEvent> EventWindow<E> {
 
 fn horizon_cutoff_usec() -> Option<u64> {
     let cutoff = SystemTime::now().checked_sub(EVENT_HORIZON)?;
-    u64::try_from(cutoff.duration_since(UNIX_EPOCH).ok()?.as_micros()).ok()
+    let since_epoch = cutoff
+        .duration_since(UNIX_EPOCH)
+        .inspect_err(|clock_failure| {
+            tracing::warn!("journal: horizon before the unix epoch: {clock_failure}");
+        })
+        .ok()?;
+    u64::try_from(since_epoch.as_micros())
+        .inspect_err(|range_failure| {
+            tracing::warn!("journal: horizon {since_epoch:?} out of range: {range_failure}");
+        })
+        .ok()
 }
 
 pub fn decode_record<Record: DeserializeOwned>(

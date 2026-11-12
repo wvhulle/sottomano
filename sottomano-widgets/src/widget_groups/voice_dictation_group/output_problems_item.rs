@@ -37,9 +37,7 @@ impl GroupItemReading for NotulistOutputProblems {
     }
 
     fn badge(&self) -> Option<u32> {
-        u32::try_from(self.problems.len())
-            .ok()
-            .filter(|count| *count > 1)
+        Some(u32::try_from(self.problems.len()).unwrap_or(u32::MAX)).filter(|count| *count > 1)
     }
 
     fn panel_visibility(&self) -> PanelVisibility {

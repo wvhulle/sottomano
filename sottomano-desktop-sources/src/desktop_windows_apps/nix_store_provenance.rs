@@ -1,6 +1,7 @@
 use std::{
     env::var,
     fs::{canonicalize, read_link},
+    io::ErrorKind,
     iter::successors,
     path::{Path, PathBuf},
 };
@@ -134,13 +135,26 @@ fn profile(exe: &Path) -> Option<String> {
     let installed = package(exe)?;
     let name = command_name(exe)?;
     profile_roots()
-        .filter_map(|root| canonicalize(root).ok())
+        .filter_map(|root| {
+            canonicalize(&root)
+                .inspect_err(|resolve_failure| {
+                    tracing::debug!(
+                        "nix provenance: cannot resolve profile {}: {resolve_failure}",
+                        root.display()
+                    );
+                })
+                .ok()
+        })
         .find_map(|root| provider(&root, &name, &installed))
 }
 
 fn profile_roots() -> impl Iterator<Item = PathBuf> {
-    let user = var("USER").ok();
-    let home = var("HOME").ok();
+    let user = var("USER")
+        .inspect_err(|user_failure| tracing::debug!("nix provenance: USER: {user_failure}"))
+        .ok();
+    let home = var("HOME")
+        .inspect_err(|home_failure| tracing::debug!("nix provenance: HOME: {home_failure}"))
+        .ok();
     [
         user.map(|user| PathBuf::from(format!("/etc/profiles/per-user/{user}"))),
         home.map(|home| PathBuf::from(home).join(".nix-profile")),
@@ -170,7 +184,17 @@ fn provider(root: &Path, name: &str, installed: &StorePackage) -> Option<String>
 
 fn hops(start: PathBuf) -> impl Iterator<Item = PathBuf> {
     successors(Some(start), |current| {
-        let target = read_link(current).ok()?;
+        let target = match read_link(current) {
+            Ok(target) => target,
+            Err(link_failure) if link_failure.kind() == ErrorKind::InvalidInput => return None,
+            Err(link_failure) => {
+                tracing::debug!(
+                    "nix provenance: cannot follow {}: {link_failure}",
+                    current.display()
+                );
+                return None;
+            }
+        };
         if target.is_absolute() {
             return Some(target);
         }

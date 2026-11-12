@@ -6912,6 +6912,7 @@ dependencies = [
  "rust_decimal",
  "serde",
  "toml",
+ "tracing",
  "ttf-parser",
 ]
 

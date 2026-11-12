@@ -223,13 +223,28 @@ fn forest(window: &CpuWindow, samples: &mut CpuSamples) -> Forest {
     let Some(booted) = booted() else {
         return Forest::default();
     };
-    let Ok(processes) = all_processes() else {
-        return Forest::default();
+    let processes = match all_processes() {
+        Ok(processes) => processes,
+        Err(listing_failure) => {
+            tracing::warn!("process tree: cannot list /proc: {listing_failure}");
+            return Forest::default();
+        }
     };
     let running: Vec<Process> = processes
-        .filter_map(Result::ok)
+        .filter_map(|process_entry| {
+            process_entry
+                .inspect_err(|entry_failure| {
+                    tracing::debug!("process tree: /proc entry vanished: {entry_failure}");
+                })
+                .ok()
+        })
         .filter_map(|process| {
-            let stat = process.stat().ok()?;
+            let stat = process
+                .stat()
+                .inspect_err(|stat_failure| {
+                    tracing::debug!("process tree: stat of {}: {stat_failure}", process.pid);
+                })
+                .ok()?;
             let incarnation = Incarnation::of(&stat);
             let ticks = stat.utime + stat.stime;
             samples.ticks.insert(incarnation, ticks);
@@ -313,9 +328,16 @@ pub struct Launch {
 
 #[must_use]
 pub fn launch(pid: i32) -> Option<Launch> {
-    let process = Proc::new(pid).ok()?;
+    let process = Proc::new(pid)
+        .inspect_err(|open_failure| tracing::debug!("process launch: open {pid}: {open_failure}"))
+        .ok()?;
     Some(Launch {
-        binary: process.exe().ok(),
+        binary: process
+            .exe()
+            .inspect_err(|exe_failure| {
+                tracing::debug!("process launch: exe of {pid}: {exe_failure}");
+            })
+            .ok(),
         arguments: process.cmdline().unwrap_or_default(),
         scope: scope(&process),
     })
@@ -372,12 +394,22 @@ impl Inspection {
 
 #[must_use]
 pub fn binary_name(process: &Proc) -> Option<String> {
-    let exe = process.exe().ok()?;
+    let exe = process
+        .exe()
+        .inspect_err(|exe_failure| {
+            tracing::debug!("process name: exe of {}: {exe_failure}", process.pid);
+        })
+        .ok()?;
     non_empty(exe.file_name()?.to_str()?.to_owned())
 }
 
 fn booted() -> Option<f64> {
-    Uptime::current().ok().map(|uptime| uptime.uptime)
+    Uptime::current()
+        .inspect_err(|uptime_failure| {
+            tracing::warn!("process tree: cannot read uptime: {uptime_failure}");
+        })
+        .ok()
+        .map(|uptime| uptime.uptime)
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -386,7 +418,15 @@ fn started_seconds(stat: &Stat) -> f64 {
 }
 
 fn scope(process: &Proc) -> Option<String> {
-    let groups = process.cgroups().ok()?;
+    let groups = process
+        .cgroups()
+        .inspect_err(|cgroup_failure| {
+            tracing::debug!(
+                "process launch: cgroups of {}: {cgroup_failure}",
+                process.pid
+            );
+        })
+        .ok()?;
     let unified = groups.0.iter().find(|group| group.hierarchy == 0)?;
     let unit = unified.pathname.rsplit('/').find(|part| !part.is_empty())?;
     Some(unit.to_owned())
@@ -395,8 +435,9 @@ fn scope(process: &Proc) -> Option<String> {
 #[must_use]
 pub fn monotonic() -> Option<Duration> {
     let spec = clock_gettime(ClockId::Monotonic);
-    let secs = u64::try_from(spec.tv_sec).ok()?;
-    let nanos = u32::try_from(spec.tv_nsec).ok()?;
+    let secs = u64::try_from(spec.tv_sec).expect("monotonic clock seconds are never negative");
+    let nanos =
+        u32::try_from(spec.tv_nsec).expect("monotonic clock nanoseconds are below one second");
     Some(Duration::new(secs, nanos))
 }
 

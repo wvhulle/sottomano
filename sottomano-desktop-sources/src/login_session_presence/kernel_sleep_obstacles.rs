@@ -367,7 +367,12 @@ impl WindowOwners {
 }
 
 fn process_scope(pid: u32) -> Option<String> {
-    launch(i32::try_from(pid).ok()?)?.scope
+    let process_id = i32::try_from(pid)
+        .inspect_err(|range_failure| {
+            tracing::warn!("sleep obstacles: pid {pid} out of range: {range_failure}");
+        })
+        .ok()?;
+    launch(process_id)?.scope
 }
 
 async fn open_window_owners() -> CompositorWindows {
@@ -382,7 +387,15 @@ async fn open_window_owners() -> CompositorWindows {
 fn window_owners_of(compositor_pids: Vec<i32>) -> CompositorWindows {
     let window_pids: Vec<u32> = compositor_pids
         .into_iter()
-        .filter_map(|pid| u32::try_from(pid).ok())
+        .filter_map(|pid| {
+            u32::try_from(pid)
+                .inspect_err(|range_failure| {
+                    tracing::warn!(
+                        "sleep obstacles: compositor window pid {pid} is negative: {range_failure}"
+                    );
+                })
+                .ok()
+        })
         .collect();
     let window_scopes = window_pids
         .iter()
@@ -478,7 +491,18 @@ fn active_lockdown_level(lockdown_levels: &str) -> Option<String> {
 fn pids_in_helper_output(helper_output: &str) -> Vec<u32> {
     helper_output
         .lines()
-        .filter_map(|line| line.trim().parse().ok())
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .filter_map(|line| {
+            line.parse()
+                .inspect_err(|parse_failure| {
+                    tracing::warn!(
+                        "sleep obstacles: secret memory helper printed invalid pid {line:?}: \
+                         {parse_failure}"
+                    );
+                })
+                .ok()
+        })
         .collect()
 }
 

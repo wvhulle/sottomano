@@ -180,8 +180,22 @@ impl DurationComparison {
         previous: Duration,
         thresholds: StartupSlowdownThresholds,
     ) -> Option<Self> {
-        let previous_time = Time::try_from(previous).ok()?;
-        let current_time = Time::try_from(current).ok()?;
+        let previous_time = Time::try_from(previous)
+            .inspect_err(|conversion_failure| {
+                tracing::warn!(
+                    "startup slowdown: previous duration {previous:?} not convertible: \
+                     {conversion_failure:?}"
+                );
+            })
+            .ok()?;
+        let current_time = Time::try_from(current)
+            .inspect_err(|conversion_failure| {
+                tracing::warn!(
+                    "startup slowdown: current duration {current:?} not convertible: \
+                     {conversion_failure:?}"
+                );
+            })
+            .ok()?;
         let change: Ratio = current_time / previous_time;
         let change = Some(change - Ratio::new::<ratio>(1.0)).filter(|change| change.is_finite())?;
         Some(Self {
@@ -460,12 +474,23 @@ async fn activation_stamps(
     connection: &zbus::Connection,
     row: UnitRow,
 ) -> Option<ActivationStamps> {
-    let unit = unit_proxy(connection, row.unit_path).await.ok()?;
-    Some(ActivationStamps {
-        inactive_exit: since_boot(unit.inactive_exit_timestamp_monotonic().await.ok()?),
-        active_enter: since_boot(unit.active_enter_timestamp_monotonic().await.ok()?),
-        name: row.name,
-    })
+    let stamps_read = async {
+        let unit = unit_proxy(connection, row.unit_path).await?;
+        Ok::<_, zbus::Error>(ActivationStamps {
+            inactive_exit: since_boot(unit.inactive_exit_timestamp_monotonic().await?),
+            active_enter: since_boot(unit.active_enter_timestamp_monotonic().await?),
+            name: row.name.clone(),
+        })
+    };
+    stamps_read
+        .await
+        .inspect_err(|stamps_failure| {
+            tracing::debug!(
+                "systemd startup: activation stamps of {}: {stamps_failure}",
+                row.name
+            );
+        })
+        .ok()
 }
 
 fn slowest_before_finish(

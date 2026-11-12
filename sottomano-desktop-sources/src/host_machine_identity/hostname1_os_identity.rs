@@ -77,7 +77,13 @@ fn distribution_ids_in(os_release: &str) -> Vec<String> {
 fn current_distribution_ids() -> Vec<String> {
     OS_RELEASE_PATHS
         .into_iter()
-        .find_map(|path| fs::read_to_string(path).ok())
+        .find_map(|path| {
+            fs::read_to_string(path)
+                .inspect_err(|read_failure| {
+                    tracing::debug!("os identity: cannot read {path}: {read_failure}");
+                })
+                .ok()
+        })
         .map(|os_release| distribution_ids_in(&os_release))
         .unwrap_or_default()
 }
@@ -119,7 +125,16 @@ async fn identity_changes(
                 kernel,
                 operating_system,
                 distribution_ids,
-                chassis: hostname.chassis().await?.parse().ok(),
+                chassis: hostname
+                    .chassis()
+                    .await?
+                    .parse()
+                    .inspect_err(|UnknownChassis(chassis_name)| {
+                        if !chassis_name.is_empty() {
+                            tracing::warn!("os identity: unknown chassis {chassis_name:?}");
+                        }
+                    })
+                    .ok(),
             })
         }
     }))
@@ -135,13 +150,31 @@ pub struct MachineInfo {
     pub firmware_date: Option<DateTime<Utc>>,
 }
 
-fn text(reply: zbus::Result<String>) -> Option<String> {
-    reply.ok().and_then(non_empty)
+fn present_property<Value>(reply: zbus::Result<Value>, property_name: &str) -> Option<Value> {
+    reply
+        .inspect_err(|property_failure| {
+            tracing::debug!(
+                "machine info: cannot read hostname1 {property_name}: {property_failure}"
+            );
+        })
+        .ok()
+}
+
+fn text(reply: zbus::Result<String>, property_name: &str) -> Option<String> {
+    present_property(reply, property_name).and_then(non_empty)
 }
 
 pub fn at_micros(usec: u64) -> Option<DateTime<Utc>> {
     (usec > 0 && usec < u64::MAX)
-        .then(|| i64::try_from(usec).ok())
+        .then(|| {
+            i64::try_from(usec)
+                .inspect_err(|conversion_failure| {
+                    tracing::warn!(
+                        "timestamp {usec} microseconds out of range: {conversion_failure}"
+                    );
+                })
+                .ok()
+        })
         .flatten()
         .and_then(DateTime::from_timestamp_micros)
 }
@@ -151,11 +184,12 @@ impl MachineInfo {
         let hostname = HostnameProxy::new(system).await?;
         Ok(Self {
             board_pci_vendor: host_bridge_subsystem_vendor(),
-            hardware_vendor: text(hostname.hardware_vendor().await),
-            hardware_model: text(hostname.hardware_model().await),
-            firmware_vendor: text(hostname.firmware_vendor().await),
-            firmware_version: text(hostname.firmware_version().await),
-            firmware_date: hostname.firmware_date().await.ok().and_then(at_micros),
+            hardware_vendor: text(hostname.hardware_vendor().await, "HardwareVendor"),
+            hardware_model: text(hostname.hardware_model().await, "HardwareModel"),
+            firmware_vendor: text(hostname.firmware_vendor().await, "FirmwareVendor"),
+            firmware_version: text(hostname.firmware_version().await, "FirmwareVersion"),
+            firmware_date: present_property(hostname.firmware_date().await, "FirmwareDate")
+                .and_then(at_micros),
         })
     }
 }

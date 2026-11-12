@@ -128,7 +128,14 @@ impl<Tag: Copy + Send + 'static, Counting: CountedActivity> IdleNotifier<Tag, Co
             .collect();
         let seats: Vec<WlSeat> = seat_globals
             .iter()
-            .filter_map(|g| g.bind(&mut conn, 1..=8).ok())
+            .filter_map(|seat_global| {
+                seat_global
+                    .bind(&mut conn, 1..=8)
+                    .inspect_err(|bind_failure| {
+                        tracing::warn!("wayland idle notify: cannot bind seat: {bind_failure}");
+                    })
+                    .ok()
+            })
             .collect();
         if seats.is_empty() {
             return Err(WaylandError::NoSeat);
@@ -203,7 +210,14 @@ pub fn input_idle_edges(after: Duration) -> impl Stream<Item = InputIdleEdge> + 
     subscribed(after, |after| async move {
         Ok::<_, WaylandError>(connected_input_idle_edges(after).await?.map(Ok))
     })
-    .filter_map(|edge| ready(edge.ok()))
+    .filter_map(|edge| {
+        ready(
+            edge.inspect_err(|connect_failure| {
+                tracing::warn!("input idle edges: {connect_failure}");
+            })
+            .ok(),
+        )
+    })
 }
 
 async fn connected_input_idle_edges(

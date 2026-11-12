@@ -88,7 +88,16 @@ fn stored_bytes(size: ByteSize) -> i64 {
 fn loaded_bytes(stored: Option<i64>) -> ByteSize {
     ByteSize::b(
         stored
-            .and_then(|bytes| u64::try_from(bytes).ok())
+            .and_then(|bytes| {
+                u64::try_from(bytes)
+                    .inspect_err(|conversion_failure| {
+                        tracing::warn!(
+                            "metered volume: stored byte count {bytes} is negative: \
+                             {conversion_failure}"
+                        );
+                    })
+                    .ok()
+            })
             .unwrap_or_default(),
     )
 }
@@ -150,7 +159,8 @@ async fn first_counted_day(
         .next()
         .await?
         .and_then(|first_day_row| columns.optional_text(&first_day_row, "first_day"))
-        .and_then(|first_day| NaiveDate::parse_from_str(&first_day, DAY_FORMAT).ok()))
+        .map(|first_day| NaiveDate::parse_from_str(&first_day, DAY_FORMAT))
+        .transpose()?)
 }
 
 async fn read_totals(
