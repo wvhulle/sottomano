@@ -83,11 +83,16 @@ impl From<EthernetPortTarget> for HoverTarget {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum EthernetPortsMessage {
     Snapshot(SnapshotDelivery<Ethernet>),
     DetailsFetched(SnapshotDelivery<EthernetDetails>),
     GatewayLatencies(SnapshotDelivery<GatewayLatencies>),
+    Interaction(EthernetPortsInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum EthernetPortsInteraction {
     TogglePort(String),
     Expansion {
         port_name: String,
@@ -140,20 +145,26 @@ impl EthernetPortsGroup {
             EthernetPortsMessage::GatewayLatencies(delivery) => {
                 self.gateway_latencies.receive(delivery, clock);
             }
-            EthernetPortsMessage::TogglePort(port_name) => {
-                return logged_failure_task(
-                    format!("toggle Ethernet port {port_name}"),
-                    async move { toggle_ethernet_port(&port_name).await },
-                );
+            EthernetPortsMessage::Interaction(interaction) => return self.interact(interaction),
+        }
+        Task::none()
+    }
+
+    fn interact(&mut self, interaction: EthernetPortsInteraction) -> Task<EthernetPortsMessage> {
+        match interaction {
+            EthernetPortsInteraction::TogglePort(port_name) => {
+                logged_failure_task(format!("toggle Ethernet port {port_name}"), async move {
+                    toggle_ethernet_port(&port_name).await
+                })
             }
-            EthernetPortsMessage::Expansion {
+            EthernetPortsInteraction::Expansion {
                 port_name,
                 expansion,
             } => {
                 self.expansions.update(&port_name, expansion);
+                Task::none()
             }
         }
-        Task::none()
     }
 
     fn observe_latest_snapshot(&mut self) {
@@ -293,7 +304,7 @@ impl EthernetPortsGroup {
         &'a self,
         port_state: &'a PortState,
         group_title: WidgetGroupTitle,
-    ) -> Option<WidgetGroupContent<'a, EthernetPortsMessage>> {
+    ) -> Option<WidgetGroupContent<'a, EthernetPortsInteraction>> {
         let expansion = self.expansions.get(&port_state.name)?;
         let link_item = GroupItem::reading(
             PortLinkReading {
@@ -315,7 +326,7 @@ impl EthernetPortsGroup {
         .on_switch_press(
             port_state.link_state,
             connection_press_does,
-            EthernetPortsMessage::TogglePort(port_state.name.clone()),
+            EthernetPortsInteraction::TogglePort(port_state.name.clone()),
         );
         let address_items = [AddressFamily::Ipv4, AddressFamily::Ipv6]
             .into_iter()
@@ -342,7 +353,7 @@ impl EthernetPortsGroup {
             WidgetGroupIdentity::durable(WidgetGroupFamily::EthernetPorts, port_state.name.clone()),
             group_title,
             expansion,
-            move |expansion| EthernetPortsMessage::Expansion {
+            move |expansion| EthernetPortsInteraction::Expansion {
                 port_name: port_name.clone(),
                 expansion,
             },
@@ -354,7 +365,7 @@ impl EthernetPortsGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, EthernetPortsMessage>> {
+    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, EthernetPortsInteraction>> {
         let port_states = self
             .ethernet
             .get()

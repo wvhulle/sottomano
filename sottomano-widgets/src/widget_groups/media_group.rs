@@ -158,7 +158,7 @@ struct CoverArt {
     handle: IconHandle,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum MediaMessage {
     Reading(SnapshotDelivery<Vec<Media>>),
     LyricsReading {
@@ -171,14 +171,19 @@ pub enum MediaMessage {
         handle: Option<IconHandle>,
     },
     ProgressAdvanced,
+    Interaction(MediaInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum MediaInteraction {
     Player {
         bus: String,
-        message: PlayerMessage,
+        interaction: PlayerInteraction,
     },
 }
 
 #[derive(Debug, Clone)]
-pub enum PlayerMessage {
+pub enum PlayerInteraction {
     Expansion(WidgetGroupExpansionMessage),
     Command(Command),
     Seek(SeekMessage),
@@ -202,18 +207,22 @@ fn player_group_identity(media: &Media, bus: &str) -> WidgetGroupIdentity {
     }
 }
 
-fn player_message(bus: &str, message: PlayerMessage) -> MediaMessage {
-    MediaMessage::Player {
+fn player_interaction(bus: &str, interaction: PlayerInteraction) -> MediaInteraction {
+    MediaInteraction::Player {
         bus: bus.to_owned(),
-        message,
+        interaction,
     }
+}
+
+fn player_message(bus: &str, interaction: PlayerInteraction) -> MediaMessage {
+    MediaMessage::Interaction(player_interaction(bus, interaction))
 }
 
 fn lifted_to_player<'a>(
     bus: &'a str,
-    element: Element<'a, GroupEvent<PlayerMessage>>,
-) -> Element<'a, GroupEvent<MediaMessage>> {
-    element.map(move |event| event.map(|message| player_message(bus, message)))
+    element: Element<'a, GroupEvent<PlayerInteraction>>,
+) -> Element<'a, GroupEvent<MediaInteraction>> {
+    element.map(move |event| event.map(|interaction| player_interaction(bus, interaction)))
 }
 
 impl MediaGroup {
@@ -347,11 +356,17 @@ impl MediaGroup {
                     session.cover_art = Some(CoverArt { url, handle });
                 }
             }
-            MediaMessage::Player { bus, message } => {
-                return self.update_player(&bus, message, clock);
-            }
+            MediaMessage::Interaction(interaction) => return self.interact(interaction, clock),
         }
         Action::Run(Task::none())
+    }
+
+    fn interact(&mut self, interaction: MediaInteraction, clock: Clock) -> Action {
+        match interaction {
+            MediaInteraction::Player { bus, interaction } => {
+                self.update_player(&bus, interaction, clock)
+            }
+        }
     }
 
     fn follow_players(&mut self, now: Instant) {
@@ -375,28 +390,28 @@ impl MediaGroup {
         }
     }
 
-    fn update_player(&mut self, bus: &str, message: PlayerMessage, clock: Clock) -> Action {
+    fn update_player(&mut self, bus: &str, interaction: PlayerInteraction, clock: Clock) -> Action {
         let (Some(media), Some(session)) = (self.player(bus).cloned(), self.sessions.get_mut(bus))
         else {
             return Action::Run(Task::none());
         };
-        let task = match message {
-            PlayerMessage::Expansion(WidgetGroupExpansionMessage::HandleScrolled(delta)) => {
+        let task = match interaction {
+            PlayerInteraction::Expansion(WidgetGroupExpansionMessage::HandleScrolled(delta)) => {
                 seek_by(session, &media, SeekMessage::Scroll(delta), clock.instant)
             }
-            PlayerMessage::Expansion(expansion) => {
+            PlayerInteraction::Expansion(expansion) => {
                 session.expansion.update(expansion);
                 Task::none()
             }
-            PlayerMessage::Command(Command::Raise) => return raise(&media),
-            PlayerMessage::RaiseByMpris => raise_by_mpris(&media),
-            PlayerMessage::Command(command) => send(&media, command),
-            PlayerMessage::Seek(seek) => seek_by(session, &media, seek, clock.instant),
-            PlayerMessage::CancelQuit => {
+            PlayerInteraction::Command(Command::Raise) => return raise(&media),
+            PlayerInteraction::RaiseByMpris => raise_by_mpris(&media),
+            PlayerInteraction::Command(command) => send(&media, command),
+            PlayerInteraction::Seek(seek) => seek_by(session, &media, seek, clock.instant),
+            PlayerInteraction::CancelQuit => {
                 session.quit_button.disarm();
                 Task::none()
             }
-            PlayerMessage::Quit => match session.quit_button.press() {
+            PlayerInteraction::Quit => match session.quit_button.press() {
                 ConfirmPress::Armed => Task::none(),
                 ConfirmPress::Fire => send(&media, Command::Quit),
             },
@@ -476,7 +491,7 @@ impl MediaGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> impl Iterator<Item = WidgetGroupContent<'a, MediaMessage>> {
+    ) -> impl Iterator<Item = WidgetGroupContent<'a, MediaInteraction>> {
         self.titled_players().into_iter().filter_map(move |media| {
             let session = self.sessions.get(&media.bus)?;
             let group_title = self.group_title_of(media);
@@ -496,7 +511,7 @@ fn session_buttons_item<'a>(
     config: &'a Config,
     media: &'a Media,
     session: &'a PlayerSession,
-) -> Option<GroupItem<'a, MediaMessage>> {
+) -> Option<GroupItem<'a, MediaInteraction>> {
     let bus = media.bus.as_str();
     let offers_session_buttons =
         (media.capabilities.stop && media.status != Status::Stopped) || media.capabilities.quit;
@@ -523,7 +538,7 @@ fn player_group<'a>(
     media: &'a Media,
     session: &'a PlayerSession,
     lyrics_snapshot: Option<&'a LatestSnapshot<TrackLyrics>>,
-) -> WidgetGroupContent<'a, MediaMessage> {
+) -> WidgetGroupContent<'a, MediaInteraction> {
     let bus = media.bus.as_str();
     let seek_availability = SeekBar::seek_availability(media, clock.instant);
     let gauge_fraction = media
@@ -551,7 +566,7 @@ fn player_group<'a>(
                     .view(config, media, clock.instant)
                     .map_or_else(
                         || Row::new().into(),
-                        |bar| bar.map(|seek| GroupEvent::Group(PlayerMessage::Seek(seek))),
+                        |bar| bar.map(|seek| GroupEvent::Group(PlayerInteraction::Seek(seek))),
                     );
                 lifted_to_player(
                     bus,
@@ -584,7 +599,7 @@ fn player_group<'a>(
                     config,
                     media,
                     reveal,
-                    |command| GroupEvent::Group(PlayerMessage::Command(command)),
+                    |command| GroupEvent::Group(PlayerInteraction::Command(command)),
                     GroupEvent::HoverCard,
                 )
                 .into(),
@@ -596,7 +611,7 @@ fn player_group<'a>(
         player_group_identity(media, bus),
         group_title,
         &session.expansion,
-        move |expansion| player_message(bus, PlayerMessage::Expansion(expansion)),
+        move |expansion| player_interaction(bus, PlayerInteraction::Expansion(expansion)),
         [
             Some(player_item(config, media, gauge_fraction)),
             Some(track_item(
@@ -624,16 +639,16 @@ fn session_controls<'a>(
     media: &'a Media,
     session: &'a PlayerSession,
     reveal: f32,
-) -> SessionControls<'a, GroupEvent<PlayerMessage>> {
+) -> SessionControls<'a, GroupEvent<PlayerInteraction>> {
     SessionControls::new(
         config,
         media,
         &session.quit_button,
         reveal,
         SessionMessages {
-            command: |command| GroupEvent::Group(PlayerMessage::Command(command)),
-            quit: GroupEvent::Group(PlayerMessage::Quit),
-            cancel_quit: GroupEvent::Group(PlayerMessage::CancelQuit),
+            command: |command| GroupEvent::Group(PlayerInteraction::Command(command)),
+            quit: GroupEvent::Group(PlayerInteraction::Quit),
+            cancel_quit: GroupEvent::Group(PlayerInteraction::CancelQuit),
             hover_card: GroupEvent::HoverCard,
         },
     )
@@ -656,7 +671,7 @@ fn seek_by(
                 tracing::warn!("mpris {bus}: seeking: {bus_failure}");
                 Task::done(player_message(
                     &bus,
-                    PlayerMessage::Seek(SeekMessage::Rejected),
+                    PlayerInteraction::Seek(SeekMessage::Rejected),
                 ))
             }
         }
@@ -669,7 +684,7 @@ fn raise(media: &Media) -> Action {
     };
     Action::FocusAppWindow(AppWindowFocus {
         owner: WindowOwner::Process(pid),
-        unmatched: player_message(&media.bus, PlayerMessage::RaiseByMpris),
+        unmatched: player_message(&media.bus, PlayerInteraction::RaiseByMpris),
     })
 }
 
@@ -742,7 +757,7 @@ mod tests {
         let _ = group.update(
             player_message(
                 "org.mpris.MediaPlayer2.firefox",
-                PlayerMessage::Expansion(WidgetGroupExpansionMessage::Toggle),
+                PlayerInteraction::Expansion(WidgetGroupExpansionMessage::Toggle),
             ),
             clock,
         );

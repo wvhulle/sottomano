@@ -16,7 +16,7 @@ use uom::{
 
 use crate::{
     hover_cards::PopupMessage,
-    widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
+    widget_groups::window_group::{WindowGroupInteraction, window_list::WindowListInteraction},
     widgets::{
         configured_theme::{
             danger_color, secondary_text_color, success_color, success_shades, text_color,
@@ -309,9 +309,9 @@ fn fold_toggle(
     color: impl Fn(&Theme) -> Color + 'static,
 ) -> Element<'static, PopupMessage> {
     mouse_area(IconGlyph::from(icon).view(size, color))
-        .on_press(PopupMessage::WindowGroup(WindowGroupMessage::WindowList(
-            WindowListMessage::ProcessFoldToggled(pid),
-        )))
+        .on_press(PopupMessage::WindowGroup(
+            WindowGroupInteraction::WindowList(WindowListInteraction::ProcessFoldToggled(pid)),
+        ))
         .interaction(Interaction::Pointer)
         .into()
 }

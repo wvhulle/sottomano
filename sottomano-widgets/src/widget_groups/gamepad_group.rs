@@ -11,6 +11,7 @@ use std::{
     iter::once,
 };
 
+use chrono::Locale;
 use iced::{Subscription, Task};
 use notulist_client::DictationCommand;
 use sottomano_desktop_sinks::{
@@ -22,6 +23,7 @@ use sottomano_desktop_sinks::{
 };
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    delivery_cadence_drivers::ChangeWatchFailure,
     gamepad_controller_input::{
         accelerometer_report_timing::ReportTiming,
         evdev_gamepad_devices::{
@@ -55,6 +57,7 @@ use crate::{
     group_items::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        reading_display_state::ReadingDisplayState,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -69,14 +72,19 @@ use crate::{
         gamepad_group::{
             controller_battery_reading::BatteryLevel, controller_link_reading::WifiBand,
         },
-        widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
+        widget_group_content::{
+            KeyedExpansions, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
+        icon_glyph::IconGlyph,
         input_report_sections::MeasuredReportTiming,
         phosphor::{Phosphor, Weight},
     },
 };
+
+const CONTROLLER_DISCOVERY_GROUP: &str = "controller_discovery";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GamepadTarget {
@@ -85,6 +93,7 @@ pub enum GamepadTarget {
     Link { slot: usize },
     UsbCable { slot: usize },
     CompositorDriving { slot: usize },
+    ControllerDiscovery,
 }
 
 impl GamepadTarget {
@@ -96,6 +105,7 @@ impl GamepadTarget {
             GamepadTarget::Link { .. } => "link",
             GamepadTarget::UsbCable { .. } => "usb_cable",
             GamepadTarget::CompositorDriving { .. } => "compositor_driving",
+            GamepadTarget::ControllerDiscovery => "controller_discovery",
         }
     }
 }
@@ -106,13 +116,18 @@ impl From<GamepadTarget> for HoverTarget {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum GamepadMessage {
     Input(GamepadInput),
     DrivingControllersLoaded(BTreeSet<String>),
     KernelErrors(Vec<DeviceKernelError>),
     Wifi(Box<SnapshotDelivery<Wifi>>),
     Ethernet(Box<SnapshotDelivery<Ethernet>>),
+    Interaction(GamepadInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum GamepadInteraction {
     DisconnectBluetooth {
         slot: usize,
     },
@@ -123,6 +138,43 @@ pub enum GamepadMessage {
         slot: usize,
         expansion: WidgetGroupExpansionMessage,
     },
+    ControllerDiscoveryExpansion(WidgetGroupExpansionMessage),
+}
+
+#[derive(Debug, Default)]
+enum ControllerDiscovery {
+    #[default]
+    Watching,
+    Failed(ChangeWatchFailure),
+}
+
+struct ControllerDiscoveryFailureReading<'failure> {
+    discovery_failure: &'failure ChangeWatchFailure,
+}
+
+impl GroupItemReading for ControllerDiscoveryFailureReading<'_> {
+    fn name(&self) -> &'static str {
+        "Controller discovery"
+    }
+
+    fn icon(&self) -> IconGlyph {
+        Phosphor::GameController(Weight::Regular).into()
+    }
+
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
+        Some("failed".to_owned())
+    }
+
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::Failed
+    }
+
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([
+            Section::error(self.discovery_failure),
+            Section::note("New or removed controllers are not noticed until the panel restarts."),
+        ])
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -196,6 +248,8 @@ pub struct GamepadGroup {
     wifi_band_use: WifiBandUse,
     wired_fallback: WiredFallback,
     compositor_driving_controllers: BTreeSet<String>,
+    controller_discovery: ControllerDiscovery,
+    controller_discovery_expansion: WidgetGroupExpansion,
 }
 
 fn controller_custody_key(link: &PhysicalGamepadLink) -> &str {
@@ -237,6 +291,7 @@ fn compositor_driving_toggle(controller_custody: ControllerCustody) -> IconToggl
 impl GamepadGroup {
     pub fn collapse(&mut self) {
         self.expansions.collapse();
+        self.controller_discovery_expansion.collapse();
     }
 
     pub fn load() -> Task<GamepadMessage> {
@@ -306,7 +361,12 @@ impl GamepadGroup {
     pub fn update(&mut self, message: GamepadMessage, bindings: &GamepadBindingsConfig) -> Action {
         match message {
             GamepadMessage::Input(GamepadInput::Roster(controllers)) => {
+                self.controller_discovery = ControllerDiscovery::Watching;
                 self.receive_roster(controllers);
+                Action::Idle
+            }
+            GamepadMessage::Input(GamepadInput::DiscoveryFailed(discovery_failure)) => {
+                self.controller_discovery = ControllerDiscovery::Failed(discovery_failure);
                 Action::Idle
             }
             GamepadMessage::DrivingControllersLoaded(driving_controllers) => {
@@ -373,15 +433,20 @@ impl GamepadGroup {
                 }
                 Action::Idle
             }
-            GamepadMessage::DisconnectBluetooth { slot } => {
-                self.bluetooth_address(slot)
-                    .map_or(Action::Idle, |hardware_address| {
-                        Action::DisconnectBluetooth {
-                            hardware_address: hardware_address.to_owned(),
-                        }
-                    })
-            }
-            GamepadMessage::ToggleCompositorDriving { slot } => {
+            GamepadMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(&mut self, interaction: GamepadInteraction) -> Action {
+        match interaction {
+            GamepadInteraction::DisconnectBluetooth { slot } => self
+                .bluetooth_address(slot)
+                .map_or(Action::Idle, |hardware_address| {
+                    Action::DisconnectBluetooth {
+                        hardware_address: hardware_address.to_owned(),
+                    }
+                }),
+            GamepadInteraction::ToggleCompositorDriving { slot } => {
                 let Some(key) = self.physical_link(slot).map(controller_custody_key) else {
                     return Action::Idle;
                 };
@@ -391,8 +456,12 @@ impl GamepadGroup {
                 }
                 Action::SaveDrivingControllers(self.compositor_driving_controllers.clone())
             }
-            GamepadMessage::Expansion { slot, expansion } => {
+            GamepadInteraction::Expansion { slot, expansion } => {
                 self.expansions.update(&slot, expansion);
+                Action::Idle
+            }
+            GamepadInteraction::ControllerDiscoveryExpansion(expansion) => {
+                self.controller_discovery_expansion.update(expansion);
                 Action::Idle
             }
         }
@@ -573,6 +642,9 @@ impl GamepadGroup {
                 self.physical_link(slot)?;
                 self.compositor_driving_hover_card(slot)
             }
+            GamepadTarget::ControllerDiscovery => self
+                .controller_discovery_failure_reading()?
+                .hover_card(clock),
         })
     }
 
@@ -605,13 +677,38 @@ impl GamepadGroup {
             .map(|body| HoverCard::sourced(body, DeliveryTiming::LivePush))
     }
 
+    fn controller_discovery_failure_reading(
+        &self,
+    ) -> Option<ControllerDiscoveryFailureReading<'_>> {
+        match &self.controller_discovery {
+            ControllerDiscovery::Failed(discovery_failure) => {
+                Some(ControllerDiscoveryFailureReading { discovery_failure })
+            }
+            ControllerDiscovery::Watching => None,
+        }
+    }
+
+    fn controller_discovery_group(&self) -> Option<WidgetGroupContent<'_, GamepadInteraction>> {
+        let failure_reading = self.controller_discovery_failure_reading()?;
+        Some(WidgetGroupContent::expandable_instance(
+            WidgetGroupIdentity::durable(WidgetGroupFamily::Gamepad, CONTROLLER_DISCOVERY_GROUP),
+            WidgetGroupTitle::Named(failure_reading.name().into()),
+            &self.controller_discovery_expansion,
+            GamepadInteraction::ControllerDiscoveryExpansion,
+            [GroupItem::reading(
+                failure_reading,
+                GamepadTarget::ControllerDiscovery,
+            )],
+        ))
+    }
+
     fn controller_group<'a>(
         &'a self,
         gamepad: &'a ConnectedGamepad,
         link: &'a PhysicalGamepadLink,
         group_title: WidgetGroupTitle,
         bindings: &'a GamepadBindingsConfig,
-    ) -> Option<WidgetGroupContent<'a, GamepadMessage>> {
+    ) -> Option<WidgetGroupContent<'a, GamepadInteraction>> {
         let slot = gamepad.slot;
         let expansion = self.expansions.get(&slot)?;
         let battery_reading = ControllerBatteryReading {
@@ -639,7 +736,7 @@ impl GamepadGroup {
         let compositor_driving = GroupItem::toggle(
             compositor_driving_toggle(self.controller_custody(slot)),
             GamepadTarget::CompositorDriving { slot },
-            GamepadMessage::ToggleCompositorDriving { slot },
+            GamepadInteraction::ToggleCompositorDriving { slot },
         );
         let usb_cable = usb_cable_role(link.transport).map(|role| {
             let item =
@@ -647,7 +744,7 @@ impl GamepadGroup {
             match role {
                 UsbCableRole::ChargingOnly => item.on_press(
                     "disconnect Bluetooth so the cable can take over",
-                    GamepadMessage::DisconnectBluetooth { slot },
+                    GamepadInteraction::DisconnectBluetooth { slot },
                 ),
                 UsbCableRole::InputAndCharging => item,
             }
@@ -659,7 +756,7 @@ impl GamepadGroup {
             ),
             group_title,
             expansion,
-            move |expansion| GamepadMessage::Expansion { slot, expansion },
+            move |expansion| GamepadInteraction::Expansion { slot, expansion },
             [
                 Some(face),
                 Some(compositor_driving),
@@ -676,7 +773,7 @@ impl GamepadGroup {
     pub fn group_contents<'a>(
         &'a self,
         bindings: &'a GamepadBindingsConfig,
-    ) -> Vec<WidgetGroupContent<'a, GamepadMessage>> {
+    ) -> Vec<WidgetGroupContent<'a, GamepadInteraction>> {
         let controllers = self.controllers_in_player_order();
         let titles = WidgetGroupTitle::numbered_namesakes(
             controllers.iter().map(|(gamepad, _)| gamepad.name.clone()),
@@ -687,6 +784,7 @@ impl GamepadGroup {
             .filter_map(|((gamepad, link), group_title)| {
                 self.controller_group(gamepad, link, group_title, bindings)
             })
+            .chain(self.controller_discovery_group())
             .collect()
     }
 }
@@ -809,7 +907,7 @@ mod tests {
 
     fn toggle_compositor_driving(group: &mut GamepadGroup, slot: usize) -> Action {
         group.update(
-            GamepadMessage::ToggleCompositorDriving { slot },
+            GamepadMessage::Interaction(GamepadInteraction::ToggleCompositorDriving { slot }),
             &GamepadBindingsConfig::default(),
         )
     }

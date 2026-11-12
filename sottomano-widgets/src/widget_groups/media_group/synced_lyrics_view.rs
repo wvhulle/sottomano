@@ -7,7 +7,7 @@ use sottomano_desktop_sources::media_playback_audio::{
 };
 use sottomano_toml_config::Config;
 
-use super::{MediaMessage, MediaTarget, PlayerTarget};
+use super::{MediaInteraction, MediaTarget, PlayerTarget};
 use crate::{
     clock::Clock,
     group_items::{
@@ -129,7 +129,7 @@ pub(super) fn lyrics_item<'a>(
     media: &'a Media,
     lyrics_snapshot: &'a LatestSnapshot<TrackLyrics>,
     sampled_at: Instant,
-) -> Option<GroupItem<'a, MediaMessage>> {
+) -> Option<GroupItem<'a, MediaInteraction>> {
     let Some(timed_line) = singing_line(lyrics_snapshot, media, sampled_at) else {
         return lyrics_snapshot.group_item(PlayerTarget::of(&media.bus, MediaTarget::Lyrics));
     };
@@ -141,7 +141,7 @@ fn current_lyric_line<'a>(
     media: &'a Media,
     timed_line: &'a TimedLyricLine,
     sampled_at: Instant,
-) -> GroupItem<'a, MediaMessage> {
+) -> GroupItem<'a, MediaInteraction> {
     let identity = ComposedGroupItemFace {
         name: "Lyrics".into(),
         icon: GroupItemIcon::IconGlyph {

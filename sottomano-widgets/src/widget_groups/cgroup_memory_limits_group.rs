@@ -159,9 +159,14 @@ pub struct CgroupMemoryLimitsGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum CgroupMemoryLimitsMessage {
     Cgroups(SnapshotDelivery<LimitedCgroups>),
+    Interaction(CgroupMemoryLimitsInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum CgroupMemoryLimitsInteraction {
     OpenCgroupTop(TerminalCommand),
     Expansion(WidgetGroupExpansionMessage),
 }
@@ -186,8 +191,17 @@ impl CgroupMemoryLimitsGroup {
                 self.remember_first_oom_kill_counts();
                 Task::none()
             }
-            CgroupMemoryLimitsMessage::OpenCgroupTop(cgroup_top) => cgroup_top.open(),
-            CgroupMemoryLimitsMessage::Expansion(expansion_message) => {
+            CgroupMemoryLimitsMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(
+        &mut self,
+        interaction: CgroupMemoryLimitsInteraction,
+    ) -> Task<CgroupMemoryLimitsMessage> {
+        match interaction {
+            CgroupMemoryLimitsInteraction::OpenCgroupTop(cgroup_top) => cgroup_top.open(),
+            CgroupMemoryLimitsInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }
@@ -237,7 +251,7 @@ impl CgroupMemoryLimitsGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> WidgetGroupContent<'a, CgroupMemoryLimitsMessage> {
+    ) -> WidgetGroupContent<'a, CgroupMemoryLimitsInteraction> {
         let rows = self.listed_cgroups().iter().map(|cgroup| {
             GroupItem::reading(
                 self.cgroup_row(cgroup),
@@ -245,7 +259,7 @@ impl CgroupMemoryLimitsGroup {
             )
             .on_press(
                 CGTOP_PRESS_HINT,
-                CgroupMemoryLimitsMessage::OpenCgroupTop(TerminalCommand::running(
+                CgroupMemoryLimitsInteraction::OpenCgroupTop(TerminalCommand::running(
                     config,
                     [
                         "systemd-cgtop".to_owned(),
@@ -258,7 +272,7 @@ impl CgroupMemoryLimitsGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::CgroupMemoryLimits,
             &self.expansion,
-            CgroupMemoryLimitsMessage::Expansion,
+            CgroupMemoryLimitsInteraction::Expansion,
             rows,
         )
         .face(WidgetGroupFace::IconColoredBy {

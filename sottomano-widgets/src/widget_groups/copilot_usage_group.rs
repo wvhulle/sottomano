@@ -9,7 +9,7 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     ai_usage_spend::{
-        copilot_usage::{self, CopilotAccount, CopilotCcusage, CopilotFree, CopilotMetered},
+        copilot_usage::{CopilotAccount, CopilotCcusage, CopilotFree, CopilotMetered},
         working_time_forecast::{SpendBudget, SpendPacing, WorkingTime},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -20,10 +20,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
-    },
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -60,11 +57,16 @@ pub struct CopilotUsageGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum CopilotUsageMessage {
     Metered(SnapshotDelivery<CopilotMetered>),
     Free(SnapshotDelivery<CopilotFree>),
     Cli(SnapshotDelivery<CopilotCcusage>),
+    Interaction(CopilotUsageInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum CopilotUsageInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -142,11 +144,17 @@ impl CopilotUsageGroup {
             CopilotUsageMessage::Metered(reading) => self.metered.receive(reading, clock),
             CopilotUsageMessage::Free(reading) => self.free.receive(reading, clock),
             CopilotUsageMessage::Cli(reading) => self.cli.receive(reading, clock),
-            CopilotUsageMessage::Expansion(menu) => {
-                self.expansion.update(menu);
-            }
+            CopilotUsageMessage::Interaction(interaction) => self.interact(interaction),
         }
         Task::none()
+    }
+
+    fn interact(&mut self, interaction: CopilotUsageInteraction) {
+        match interaction {
+            CopilotUsageInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+            }
+        }
     }
 
     #[must_use]
@@ -175,11 +183,11 @@ impl CopilotUsageGroup {
         )
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, CopilotUsageMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, CopilotUsageInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::CopilotUsage,
             &self.expansion,
-            CopilotUsageMessage::Expansion,
+            CopilotUsageInteraction::Expansion,
             [
                 self.metered
                     .group_item(CopilotUsageTarget::Metered)

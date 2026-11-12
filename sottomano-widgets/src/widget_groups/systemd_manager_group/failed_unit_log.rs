@@ -25,7 +25,7 @@ use crate::{
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::{
         systemd_manager_group::{
-            SystemdManagerGroup, SystemdManagerMessage, SystemdTarget, unit_scope_icon,
+            SystemdManagerGroup, SystemdManagerInteraction, SystemdTarget, unit_scope_icon,
         },
         terminal_command::TerminalCommand,
     },
@@ -47,15 +47,16 @@ pub(super) fn failed_units_item<'a>(
     failed: &'a FailedUnits,
     config: &'a Config,
     clock: Clock,
-) -> GroupItem<'a, SystemdManagerMessage> {
-    let open_log = |args| SystemdManagerMessage::OpenLog(TerminalCommand::journal(config, args));
+) -> GroupItem<'a, SystemdManagerInteraction> {
+    let open_log =
+        |args| SystemdManagerInteraction::OpenLog(TerminalCommand::journal(config, args));
     let failed_unit_toasts = failed.units.iter().map(|unit| {
-        let open_unit_log = SystemdManagerMessage::OpenLog(TerminalCommand::journal(
+        let open_unit_log = SystemdManagerInteraction::OpenLog(TerminalCommand::journal(
             config,
             failed.scope.follow_units_log_args([unit.name.as_str()]),
         ));
         let inspect_coredump = |crash: &CoredumpEntry, inspection| {
-            SystemdManagerMessage::InspectCoredump(TerminalCommand::running(
+            SystemdManagerInteraction::InspectCoredump(TerminalCommand::running(
                 config,
                 crash.coredumpctl_args(inspection),
             ))
@@ -81,7 +82,7 @@ pub(super) fn failed_units_item<'a>(
                     .map(|file| OngoingToastActionButton {
                         button_label: "Copy path".to_owned(),
                         tint: ActionTint::Inspect,
-                        on_button_pressed: SystemdManagerMessage::CopyToClipboard(
+                        on_button_pressed: SystemdManagerInteraction::CopyToClipboard(
                             file.display().to_string(),
                         ),
                     }),
@@ -102,7 +103,7 @@ pub(super) fn failed_units_item<'a>(
                 OngoingToastActionButton {
                     button_label: "Restart".to_owned(),
                     tint: ActionTint::Proceed,
-                    on_button_pressed: SystemdManagerMessage::RestartFailedUnit(
+                    on_button_pressed: SystemdManagerInteraction::RestartFailedUnit(
                         FailedUnitRestart {
                             unit_scope: failed.scope,
                             unit: unit.name.clone(),
@@ -117,7 +118,9 @@ pub(super) fn failed_units_item<'a>(
                 OngoingToastActionButton {
                     button_label: "Copy name".to_owned(),
                     tint: ActionTint::Inspect,
-                    on_button_pressed: SystemdManagerMessage::CopyToClipboard(unit.name.clone()),
+                    on_button_pressed: SystemdManagerInteraction::CopyToClipboard(
+                        unit.name.clone(),
+                    ),
                 },
             ]
             .into_iter()

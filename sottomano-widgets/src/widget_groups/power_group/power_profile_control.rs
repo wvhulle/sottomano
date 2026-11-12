@@ -83,11 +83,16 @@ impl Default for PowerProfileControl {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum PowerProfileMessage {
     Status(SnapshotDelivery<ProfileStatus>),
     Conditions(SnapshotDelivery<Conditions>),
     Loaded(HashMap<Profile, RegressionState>),
+    Interaction(PowerProfileInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum PowerProfileInteraction {
     Control(ControlMessage),
     SwitchToProfile(Profile),
 }
@@ -98,7 +103,9 @@ fn commit_profile_switch(profile: Profile) -> Task<PowerProfileMessage> {
         profile.position(),
         power_profile_selection::set(profile),
     )
-    .map(PowerProfileMessage::Control)
+    .map(|control_message| {
+        PowerProfileMessage::Interaction(PowerProfileInteraction::Control(control_message))
+    })
 }
 
 struct DrainSample {
@@ -126,8 +133,12 @@ impl PowerProfileControl {
         ])
     }
 
-    pub fn update(&mut self, msg: PowerProfileMessage, clock: Clock) -> Task<PowerProfileMessage> {
-        match msg {
+    pub fn update(
+        &mut self,
+        profile_message: PowerProfileMessage,
+        clock: Clock,
+    ) -> Task<PowerProfileMessage> {
+        match profile_message {
             PowerProfileMessage::Status(delivery) => {
                 self.status.receive(delivery, clock);
                 if let Some(profile) = self.active_profile() {
@@ -158,17 +169,23 @@ impl PowerProfileControl {
                 self.profile_models = Some(models);
                 self.recompute();
             }
-            PowerProfileMessage::Control(msg) => {
-                return match self.control.update(msg) {
+            PowerProfileMessage::Interaction(interaction) => return self.interact(interaction),
+        }
+        Task::none()
+    }
+
+    pub fn interact(&mut self, interaction: PowerProfileInteraction) -> Task<PowerProfileMessage> {
+        match interaction {
+            PowerProfileInteraction::Control(control_message) => {
+                match self.control.update(control_message) {
                     Action::Commit(value) => commit_profile_switch(Profile::from_position(value)),
                     Action::Opened | Action::None | Action::Right | Action::Adjust(_) => {
                         Task::none()
                     }
-                };
+                }
             }
-            PowerProfileMessage::SwitchToProfile(profile) => return commit_profile_switch(profile),
+            PowerProfileInteraction::SwitchToProfile(profile) => commit_profile_switch(profile),
         }
-        Task::none()
     }
 
     fn active_profile(&self) -> Option<Profile> {

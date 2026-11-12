@@ -93,15 +93,20 @@ pub struct CiRunsGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum CiRunsMessage {
     Services(ScopedServiceCommands),
     WoodpeckerRunner(String, SnapshotDelivery<WoodpeckerAgentTasks>),
     ForgejoRunner(String, SnapshotDelivery<ForgejoRunnerTasks>),
-    Expansion(WidgetGroupExpansionMessage),
-    CancelRun(String, TaskStopControl),
     CancelAccepted(String),
     CancelRefused(String, String),
+    Interaction(CiRunsInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum CiRunsInteraction {
+    Expansion(WidgetGroupExpansionMessage),
+    CancelRun(String, TaskStopControl),
 }
 
 fn cancel_run_task(run_label: String, stop_control: TaskStopControl) -> Task<CiRunsMessage> {
@@ -181,12 +186,7 @@ impl CiRunsGroup {
             CiRunsMessage::ForgejoRunner(runner_label, delivery) => {
                 self.forgejo_watches.receive(runner_label, delivery, clock);
             }
-            CiRunsMessage::Expansion(message) => {
-                self.expansion.update(message);
-            }
-            CiRunsMessage::CancelRun(run_label, stop_control) => {
-                return cancel_run_task(run_label, stop_control);
-            }
+            CiRunsMessage::Interaction(interaction) => return self.interact(interaction),
             CiRunsMessage::CancelAccepted(run_label) => {
                 tracing::info!("stopped the containers of CI run {run_label}");
             }
@@ -195,6 +195,18 @@ impl CiRunsGroup {
             }
         }
         Task::none()
+    }
+
+    fn interact(&mut self, interaction: CiRunsInteraction) -> Task<CiRunsMessage> {
+        match interaction {
+            CiRunsInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+                Task::none()
+            }
+            CiRunsInteraction::CancelRun(run_label, stop_control) => {
+                cancel_run_task(run_label, stop_control)
+            }
+        }
     }
 
     fn watched_runners(&self) -> Vec<WatchedCiRunner<'_>> {
@@ -241,7 +253,7 @@ impl CiRunsGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, CiRunsMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, CiRunsInteraction> {
         let watched_runners = self.watched_runners();
         let total_runs = watched_runners
             .iter()
@@ -266,7 +278,7 @@ impl CiRunsGroup {
                     TaskStopControl::NoContainerNow => row,
                     stop_control @ TaskStopControl::StopContainers { .. } => row.on_right_press(
                         CANCEL_RUN_HINT,
-                        CiRunsMessage::CancelRun(task.run_label.clone(), stop_control.clone()),
+                        CiRunsInteraction::CancelRun(task.run_label.clone(), stop_control.clone()),
                     ),
                 }
             });
@@ -276,7 +288,7 @@ impl CiRunsGroup {
             WidgetGroupIdentity::sole(WidgetGroupFamily::CiRuns),
             WidgetGroupTitle::Named(ci_runs_title(total_runs).into()),
             &self.expansion,
-            CiRunsMessage::Expansion,
+            CiRunsInteraction::Expansion,
             runner_rows,
         )
         .face(WidgetGroupFace::Icon {

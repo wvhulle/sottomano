@@ -70,7 +70,7 @@ pub struct LoginSessionGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum LoginSessionMessage {
     SystemFetched(SnapshotDelivery<OperatingSystemIdentity>),
     IdentityFetched(SnapshotDelivery<SessionIdentity>),
@@ -78,6 +78,11 @@ pub enum LoginSessionMessage {
     ServiceManagerFetched(SnapshotDelivery<UserServiceManager>),
     GraphicalFetched(SnapshotDelivery<GraphicalSession>),
     GraphicalTargetFetched(SnapshotDelivery<GraphicalSessionTarget>),
+    Interaction(LoginSessionInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum LoginSessionInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -170,14 +175,20 @@ impl LoginSessionGroup {
             LoginSessionMessage::GraphicalTargetFetched(delivery) => {
                 self.graphical_target.receive(delivery, clock);
             }
-            LoginSessionMessage::Expansion(expansion) => {
-                self.expansion.update(expansion);
-            }
+            LoginSessionMessage::Interaction(interaction) => self.interact(interaction),
         }
         Task::none()
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, LoginSessionMessage> {
+    fn interact(&mut self, interaction: LoginSessionInteraction) {
+        match interaction {
+            LoginSessionInteraction::Expansion(expansion) => {
+                self.expansion.update(expansion);
+            }
+        }
+    }
+
+    pub fn group_content(&self) -> WidgetGroupContent<'_, LoginSessionInteraction> {
         let items = self.identity.get().into_iter().flat_map(|identity| {
             [
                 GroupItem::reading(
@@ -201,7 +212,7 @@ impl LoginSessionGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::LoginSession,
             &self.expansion,
-            LoginSessionMessage::Expansion,
+            LoginSessionInteraction::Expansion,
             kernel.into_iter().chain(items),
         )
         .face(WidgetGroupFace::Icon {

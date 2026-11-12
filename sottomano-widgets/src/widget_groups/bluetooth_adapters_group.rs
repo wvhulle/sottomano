@@ -60,10 +60,15 @@ impl From<BluetoothTarget> for HoverTarget {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum BluetoothMessage {
     Snapshot(Box<SnapshotDelivery<Bluetooth>>),
     KernelErrors(Vec<DeviceKernelError>),
+    Interaction(BluetoothInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum BluetoothInteraction {
     ToggleAdapterPower(OwnedObjectPath),
     Disconnect(OwnedObjectPath),
     Expansion {
@@ -115,15 +120,21 @@ impl BluetoothAdaptersGroup {
                 self.kernel_errors = kernel_errors;
                 Task::none()
             }
-            BluetoothMessage::ToggleAdapterPower(adapter) => logged_failure_task(
+            BluetoothMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(&mut self, interaction: BluetoothInteraction) -> Task<BluetoothMessage> {
+        match interaction {
+            BluetoothInteraction::ToggleAdapterPower(adapter) => logged_failure_task(
                 "toggle Bluetooth adapter".to_owned(),
                 toggle_adapter_power(adapter),
             ),
-            BluetoothMessage::Disconnect(device) => logged_failure_task(
+            BluetoothInteraction::Disconnect(device) => logged_failure_task(
                 "disconnect Bluetooth device".to_owned(),
                 disconnect_bluetooth_device(device),
             ),
-            BluetoothMessage::Expansion {
+            BluetoothInteraction::Expansion {
                 controller_name,
                 expansion,
             } => {
@@ -251,7 +262,7 @@ impl BluetoothAdaptersGroup {
         adapter: &'a BluetoothAdapter,
         report_timing_for: &impl Fn(&str) -> Option<ReportTiming>,
         clock: Clock,
-    ) -> Option<WidgetGroupContent<'a, BluetoothMessage>> {
+    ) -> Option<WidgetGroupContent<'a, BluetoothInteraction>> {
         let expansion = self.expansions.get(&adapter.controller_name)?;
         let summary_item = GroupItem::reading(
             self.adapter_reading(adapter),
@@ -270,10 +281,10 @@ impl BluetoothAdaptersGroup {
         .on_switch_press(
             &adapter.power,
             power_press_does,
-            BluetoothMessage::ToggleAdapterPower(adapter.object_path.clone()),
+            BluetoothInteraction::ToggleAdapterPower(adapter.object_path.clone()),
         );
         let siblings = adapter.power.connected_devices();
-        let device_items: Vec<GroupItem<'a, BluetoothMessage>> = siblings
+        let device_items: Vec<GroupItem<'a, BluetoothInteraction>> = siblings
             .iter()
             .map(|device| {
                 let reading = self.device_reading(device, siblings, report_timing_for, clock);
@@ -287,7 +298,7 @@ impl BluetoothAdaptersGroup {
                 )
                 .on_press(
                     ConnectedDeviceReading::PRESS_DOES,
-                    BluetoothMessage::Disconnect(device.object_path.clone()),
+                    BluetoothInteraction::Disconnect(device.object_path.clone()),
                 );
                 match reading_state {
                     ReadingDisplayState::Critical => device_item.previewed_on_handle(),
@@ -303,7 +314,7 @@ impl BluetoothAdaptersGroup {
             ),
             adapter_group_title(self.adapter_naming(adapter)),
             expansion,
-            move |expansion| BluetoothMessage::Expansion {
+            move |expansion| BluetoothInteraction::Expansion {
                 controller_name: controller_name.clone(),
                 expansion,
             },
@@ -316,7 +327,7 @@ impl BluetoothAdaptersGroup {
         &self,
         report_timing_for: &impl Fn(&str) -> Option<ReportTiming>,
         clock: Clock,
-    ) -> Vec<WidgetGroupContent<'_, BluetoothMessage>> {
+    ) -> Vec<WidgetGroupContent<'_, BluetoothInteraction>> {
         self.bluetooth
             .get()
             .map(|bluetooth| bluetooth.adapters.as_slice())

@@ -51,9 +51,14 @@ pub struct PendingUpgradesGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum PendingUpgradesMessage {
     Firmware(SnapshotDelivery<Vec<FirmwareUpgrade>>),
+    Interaction(PendingUpgradesInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum PendingUpgradesInteraction {
     OpenTerminal(TerminalCommand),
     Expansion(WidgetGroupExpansionMessage),
 }
@@ -70,19 +75,29 @@ impl PendingUpgradesGroup {
 
     pub fn update(
         &mut self,
-        msg: PendingUpgradesMessage,
+        upgrades_message: PendingUpgradesMessage,
         clock: Clock,
     ) -> Task<PendingUpgradesMessage> {
-        match msg {
+        match upgrades_message {
             PendingUpgradesMessage::Firmware(upgrades) => {
                 self.firmware.receive(upgrades, clock);
+                Task::none()
             }
-            PendingUpgradesMessage::OpenTerminal(terminal) => return terminal.open(),
-            PendingUpgradesMessage::Expansion(msg) => {
-                self.expansion.update(msg);
+            PendingUpgradesMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(
+        &mut self,
+        interaction: PendingUpgradesInteraction,
+    ) -> Task<PendingUpgradesMessage> {
+        match interaction {
+            PendingUpgradesInteraction::OpenTerminal(terminal) => terminal.open(),
+            PendingUpgradesInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+                Task::none()
             }
         }
-        Task::none()
     }
 
     #[must_use]
@@ -96,12 +111,12 @@ impl PendingUpgradesGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> WidgetGroupContent<'a, PendingUpgradesMessage> {
+    ) -> WidgetGroupContent<'a, PendingUpgradesInteraction> {
         let has_categories = self.categories().iter().any(Option::is_some);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PendingUpgrades,
             &self.expansion,
-            PendingUpgradesMessage::Expansion,
+            PendingUpgradesInteraction::Expansion,
             [
                 has_categories.then(|| {
                     GroupItem::reading(

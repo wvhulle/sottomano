@@ -99,17 +99,21 @@ pub struct WindowList {
     package_facts: HoverFetchedSnapshot<NixPackageFacts>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum WindowListMessage {
-    ToggleAudio(i32),
     LauncherEntriesChanged(LauncherEntries),
     JobsChanged(JobProgress),
-    HoverCard(HoverCardMessage),
     ProcessTreeScanned(SnapshotDelivery<Process>),
     WindowProcessesPaired(WindowProcesses),
-    ProcessFoldToggled(i32),
     ProcessInspected(Box<SnapshotDelivery<Inspection>>),
     PackageFactsRead(Box<SnapshotDelivery<NixPackageFacts>>),
+}
+
+#[derive(Debug, Clone)]
+pub enum WindowListInteraction {
+    ToggleAudio(i32),
+    HoverCard(HoverCardMessage),
+    ProcessFoldToggled(i32),
     Drag(DragMessage),
 }
 
@@ -211,7 +215,6 @@ impl WindowList {
 
     pub fn update(&mut self, msg: WindowListMessage, clock: Clock) -> Action {
         match msg {
-            WindowListMessage::ToggleAudio(pid) => Action::ToggleAudio(pid),
             WindowListMessage::LauncherEntriesChanged(entries) => {
                 self.launcher = entries;
                 Action::None
@@ -220,7 +223,6 @@ impl WindowList {
                 self.jobs = jobs;
                 Action::None
             }
-            WindowListMessage::HoverCard(_) => Action::None,
             WindowListMessage::ProcessTreeScanned(fetched) => {
                 self.process_tree.receive(fetched, clock);
                 Action::None
@@ -228,10 +230,6 @@ impl WindowList {
             WindowListMessage::WindowProcessesPaired(window_processes) => {
                 self.window_processes = window_processes;
                 Action::WindowProcessesPaired
-            }
-            WindowListMessage::ProcessFoldToggled(pid) => {
-                self.folding.toggle(pid);
-                Action::None
             }
             WindowListMessage::ProcessInspected(fetched) => {
                 self.inspection.receive(*fetched, clock);
@@ -241,7 +239,18 @@ impl WindowList {
                 self.package_facts.receive(*fetched, clock);
                 Action::None
             }
-            WindowListMessage::Drag(drag) => Action::Drag(drag),
+        }
+    }
+
+    pub fn interact(&mut self, interaction: WindowListInteraction) -> Action {
+        match interaction {
+            WindowListInteraction::ToggleAudio(pid) => Action::ToggleAudio(pid),
+            WindowListInteraction::HoverCard(_) => Action::None,
+            WindowListInteraction::ProcessFoldToggled(pid) => {
+                self.folding.toggle(pid);
+                Action::None
+            }
+            WindowListInteraction::Drag(drag) => Action::Drag(drag),
         }
     }
 
@@ -252,7 +261,7 @@ impl WindowList {
         audio: Option<&HashMap<i32, WindowAudio>>,
         output: &str,
         slot_context: PanelSlotContext<'_>,
-    ) -> Option<Element<'a, WindowListMessage>> {
+    ) -> Option<Element<'a, WindowListInteraction>> {
         let PanelSlotContext {
             config, edge, drag, ..
         } = slot_context;
@@ -351,7 +360,7 @@ impl WindowList {
         audio: Option<&HashMap<i32, WindowAudio>>,
         window: u64,
         slot_context: PanelSlotContext<'_>,
-    ) -> Option<Element<'a, WindowListMessage>> {
+    ) -> Option<Element<'a, WindowListInteraction>> {
         let PanelSlotContext { config, drag, .. } = slot_context;
         let workspace = window_source_workspace(&drag)?;
         let window_entry = compositor
@@ -419,8 +428,8 @@ fn window_slot_key(
     }
 }
 
-fn dragged(event: SlotDragEvent) -> WindowListMessage {
-    WindowListMessage::Drag(DragMessage::Pointer(event))
+fn dragged(event: SlotDragEvent) -> WindowListInteraction {
+    WindowListInteraction::Drag(DragMessage::Pointer(event))
 }
 
 #[derive(Clone, Copy, Default)]
@@ -535,7 +544,7 @@ impl WindowSlot<'_> {
         }
     }
 
-    fn view<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListMessage> {
+    fn view<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListInteraction> {
         let press = SlotPress {
             item: self.item,
             position: self.position_in_panel,
@@ -560,13 +569,13 @@ impl WindowSlot<'_> {
         );
         match self.audio_pid() {
             Some(pid) => pressable
-                .on_middle_press(WindowListMessage::ToggleAudio(pid))
+                .on_middle_press(WindowListInteraction::ToggleAudio(pid))
                 .into(),
             None => pressable.into(),
         }
     }
 
-    fn panel_slot<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListMessage> {
+    fn panel_slot<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListInteraction> {
         let config = self.slot_context.config;
         let window = self.window_entry.id;
         let press_hints = self.press_hints();
@@ -574,14 +583,14 @@ impl WindowSlot<'_> {
             self.button_content(icons),
             WindowTarget::Pick(window).into(),
             press_hints,
-            WindowListMessage::HoverCard,
+            WindowListInteraction::HoverCard,
         );
         let usage = self.window_entry.is_focused.then(|| {
             hoverable(
                 self.secondary_glyph(Phosphor::UserFocus),
                 WindowTarget::Usage(window).into(),
                 press_hints,
-                WindowListMessage::HoverCard,
+                WindowListInteraction::HoverCard,
             )
         });
         let inspecting = self.window_entry.is_focused.then(|| {
@@ -589,7 +598,7 @@ impl WindowSlot<'_> {
                 self.secondary_glyph(Phosphor::Package),
                 WindowTarget::Inspect(window).into(),
                 press_hints,
-                WindowListMessage::HoverCard,
+                WindowListInteraction::HoverCard,
             )
         });
         let content = Row::new()
@@ -607,7 +616,10 @@ impl WindowSlot<'_> {
         .view(self.slot_context.edge)
     }
 
-    fn secondary_glyph<'a>(&self, icon: fn(Weight) -> Phosphor) -> Element<'a, WindowListMessage> {
+    fn secondary_glyph<'a>(
+        &self,
+        icon: fn(Weight) -> Phosphor,
+    ) -> Element<'a, WindowListInteraction> {
         let tint = ReadingStateTint {
             state: ReadingDisplayState::Off,
             opacity: self.opacity,
@@ -622,7 +634,7 @@ impl WindowSlot<'_> {
         self.presentation.slot_backdrop(self.tile_marking())
     }
 
-    fn button_content<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListMessage> {
+    fn button_content<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListInteraction> {
         let config = self.slot_context.config;
         let title = self.window_entry.label.as_ref().map(|label| {
             self.presentation.styled_title(
@@ -641,7 +653,7 @@ impl WindowSlot<'_> {
             .into()
     }
 
-    fn audio_glyph<'a>(&self) -> Option<Element<'a, WindowListMessage>> {
+    fn audio_glyph<'a>(&self) -> Option<Element<'a, WindowListInteraction>> {
         let (state, icon) = match self.extras.audio? {
             WindowAudio::Silent => return None,
             WindowAudio::Audible => (
@@ -663,7 +675,7 @@ impl WindowSlot<'_> {
         ))
     }
 
-    fn indicator_line<'a>(&self) -> Element<'a, WindowListMessage> {
+    fn indicator_line<'a>(&self) -> Element<'a, WindowListInteraction> {
         let severity = match self.urgency_marking() {
             UrgencyMarking::Line => 1.0,
             UrgencyMarking::Tile | UrgencyMarking::Unmarked => 0.0,
@@ -671,7 +683,7 @@ impl WindowSlot<'_> {
         activity_line(danger_color, severity * self.opacity, ACCENT_STROKE_PX)
     }
 
-    fn progress_ticks<'a>(&self) -> Option<Element<'a, WindowListMessage>> {
+    fn progress_ticks<'a>(&self) -> Option<Element<'a, WindowListInteraction>> {
         let config = self.slot_context.config;
         let fraction = self.extras.progress(config)?;
         let thickness = ACCENT_STROKE_PX;
@@ -688,7 +700,7 @@ impl WindowSlot<'_> {
         )
     }
 
-    fn count_badge<'a>(&self) -> Option<Element<'a, WindowListMessage>> {
+    fn count_badge<'a>(&self) -> Option<Element<'a, WindowListInteraction>> {
         let config = self.slot_context.config;
         let count = self.extras.count(config).filter(|count| *count > 0)?;
         let label = if count > 99 {
@@ -715,7 +727,10 @@ impl WindowSlot<'_> {
         Some(right(badge).into())
     }
 
-    fn badged_icon<'a>(&self, icons: WindowAssets<'a>) -> Option<Element<'a, WindowListMessage>> {
+    fn badged_icon<'a>(
+        &self,
+        icons: WindowAssets<'a>,
+    ) -> Option<Element<'a, WindowListInteraction>> {
         let badge = self.count_badge();
         if self.presentation == WindowSlotPresentation::InKeyedGroup && badge.is_none() {
             return None;
@@ -727,7 +742,10 @@ impl WindowSlot<'_> {
         })
     }
 
-    fn resolved_icon<'a>(&self, icons: WindowAssets<'a>) -> Option<Element<'a, WindowListMessage>> {
+    fn resolved_icon<'a>(
+        &self,
+        icons: WindowAssets<'a>,
+    ) -> Option<Element<'a, WindowListInteraction>> {
         let icon_path = icons.path_for(self.window_entry);
         window_icon(
             icons.favicons,
@@ -756,7 +774,7 @@ mod tests {
     use sottomano_toml_config::{Config, screen_edges::Position};
 
     use super::{
-        WindowList, WindowListMessage, capped_window_title, maximum_window_title_width_px,
+        WindowList, WindowListInteraction, capped_window_title, maximum_window_title_width_px,
     };
     use crate::{
         clock::Clock,
@@ -834,7 +852,9 @@ mod tests {
             sweep_across_panel(pager_element, config.desktop_panels.height)
                 .into_iter()
                 .filter_map(|window_list_message| match window_list_message {
-                    WindowListMessage::Drag(DragMessage::Pointer(drag_event)) => Some(drag_event),
+                    WindowListInteraction::Drag(DragMessage::Pointer(drag_event)) => {
+                        Some(drag_event)
+                    }
                     _ => None,
                 })
                 .collect();

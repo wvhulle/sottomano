@@ -60,9 +60,14 @@ impl From<MobileModemTarget> for HoverTarget {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum MobileModemsMessage {
     Snapshot(SnapshotDelivery<MobileModems>),
+    Interaction(MobileModemsInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum MobileModemsInteraction {
     ToggleModem(String),
     ToggleAllRadios,
     Expansion {
@@ -96,25 +101,29 @@ impl MobileModemsGroup {
                 self.mobile_modems.receive(delivery, clock);
                 self.observe_latest_snapshot();
             }
-            MobileModemsMessage::ToggleModem(modem_path) => {
-                return logged_failure_task(format!("toggle modem {modem_path}"), async move {
+            MobileModemsMessage::Interaction(interaction) => return self.interact(interaction),
+        }
+        Task::none()
+    }
+
+    fn interact(&mut self, interaction: MobileModemsInteraction) -> Task<MobileModemsMessage> {
+        match interaction {
+            MobileModemsInteraction::ToggleModem(modem_path) => {
+                logged_failure_task(format!("toggle modem {modem_path}"), async move {
                     toggle_mobile_modem(&modem_path).await
-                });
+                })
             }
-            MobileModemsMessage::ToggleAllRadios => {
-                return logged_failure_task(
-                    "toggle all mobile radios".to_owned(),
-                    toggle_mobile_radio(),
-                );
+            MobileModemsInteraction::ToggleAllRadios => {
+                logged_failure_task("toggle all mobile radios".to_owned(), toggle_mobile_radio())
             }
-            MobileModemsMessage::Expansion {
+            MobileModemsInteraction::Expansion {
                 modem_path,
                 expansion,
             } => {
                 self.expansions.update(&modem_path, expansion);
+                Task::none()
             }
         }
-        Task::none()
     }
 
     fn observe_latest_snapshot(&mut self) {
@@ -183,7 +192,7 @@ impl MobileModemsGroup {
         &'a self,
         modem: &'a Mobile,
         group_title: WidgetGroupTitle,
-    ) -> Option<WidgetGroupContent<'a, MobileModemsMessage>> {
+    ) -> Option<WidgetGroupContent<'a, MobileModemsInteraction>> {
         let expansion = self.expansions.get(&modem.modem_path)?;
         let modem_path = || modem.modem_path.clone();
         let signal_item = GroupItem::reading(
@@ -204,7 +213,7 @@ impl MobileModemsGroup {
             .on_switch_press(
                 modem.link_state(),
                 connection_press_does,
-                MobileModemsMessage::ToggleModem(modem_path()),
+                MobileModemsInteraction::ToggleModem(modem_path()),
             )
         });
         let address_items = [AddressFamily::Ipv4, AddressFamily::Ipv6]
@@ -239,14 +248,14 @@ impl MobileModemsGroup {
             .on_switch_press(
                 any_radio_power,
                 radios_press_does,
-                MobileModemsMessage::ToggleAllRadios,
+                MobileModemsInteraction::ToggleAllRadios,
             );
         let expanded_modem_path = modem_path();
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::MobileModems, modem_path()),
             group_title,
             expansion,
-            move |expansion| MobileModemsMessage::Expansion {
+            move |expansion| MobileModemsInteraction::Expansion {
                 modem_path: expanded_modem_path.clone(),
                 expansion,
             },
@@ -260,7 +269,7 @@ impl MobileModemsGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, MobileModemsMessage>> {
+    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, MobileModemsInteraction>> {
         self.mobile_modems
             .get()
             .map(|mobile_modems| mobile_modems.modems.as_slice())

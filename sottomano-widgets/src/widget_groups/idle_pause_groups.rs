@@ -79,14 +79,19 @@ pub struct IdlePauseGroups {
     pause_blockers: Vec<PauseBlocker>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum IdlePauseMessage {
     Loaded(Timeouts),
-    Expansion(IdleAction, WidgetGroupExpansionMessage),
-    Timer(IdleAction, ControlMessage),
     ScreenPowerChangedByIdleAction(ScreenEdge),
     SleepObstaclesFetched(Box<SnapshotDelivery<SleepObstacles>>),
     IdleInhibitorsFetched(Box<SnapshotDelivery<ScreenSaverInhibitors>>),
+    Interaction(IdlePauseInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum IdlePauseInteraction {
+    Expansion(IdleAction, WidgetGroupExpansionMessage),
+    Timer(IdleAction, ControlMessage),
 }
 
 impl Default for IdlePauseGroups {
@@ -187,31 +192,6 @@ impl IdlePauseGroups {
                 }
                 self.rearm()
             }
-            IdlePauseMessage::Expansion(kind, message) => {
-                let pause = self.pause_mut(kind);
-                if pause.expansion.update(message) == ExpansionChange::JustCollapsed {
-                    pause.timer.close();
-                }
-                Task::none()
-            }
-            IdlePauseMessage::Timer(kind, msg) => match self.pause_mut(kind).timer.update(msg) {
-                TimerChange::None => Task::none(),
-                TimerChange::Opened => {
-                    self.close_others(kind);
-                    Task::none()
-                }
-                TimerChange::Persist(value) => {
-                    let persist = Task::future(sqlite_idle_timeouts::save(self.timeouts())).map(
-                        move |store_outcome| {
-                            IdlePauseMessage::Timer(
-                                kind,
-                                ControlMessage::persisted(value, store_outcome),
-                            )
-                        },
-                    );
-                    Task::batch([persist, self.rearm()])
-                }
-            },
             IdlePauseMessage::ScreenPowerChangedByIdleAction(_) => Task::none(),
             IdlePauseMessage::SleepObstaclesFetched(delivery) => {
                 self.sleep_obstacles.receive(*delivery, clock);
@@ -243,6 +223,38 @@ impl IdlePauseGroups {
                 self.idle_inhibitors.receive(*delivery, clock);
                 self.refresh_pause_blockers();
                 Task::none()
+            }
+            IdlePauseMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(&mut self, interaction: IdlePauseInteraction) -> Task<IdlePauseMessage> {
+        match interaction {
+            IdlePauseInteraction::Expansion(kind, expansion_message) => {
+                let pause = self.pause_mut(kind);
+                if pause.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
+                    pause.timer.close();
+                }
+                Task::none()
+            }
+            IdlePauseInteraction::Timer(kind, control_message) => {
+                match self.pause_mut(kind).timer.update(control_message) {
+                    TimerChange::None => Task::none(),
+                    TimerChange::Opened => {
+                        self.close_others(kind);
+                        Task::none()
+                    }
+                    TimerChange::Persist(value) => {
+                        let persist = Task::future(sqlite_idle_timeouts::save(self.timeouts()))
+                            .map(move |store_outcome| {
+                                IdlePauseMessage::Interaction(IdlePauseInteraction::Timer(
+                                    kind,
+                                    ControlMessage::persisted(value, store_outcome),
+                                ))
+                            });
+                        Task::batch([persist, self.rearm()])
+                    }
+                }
             }
         }
     }
@@ -358,7 +370,7 @@ impl IdlePauseGroups {
     pub fn pause_groups<'a>(
         &'a self,
         config: &'a Config,
-    ) -> [WidgetGroupContent<'a, IdlePauseMessage>; 5] {
+    ) -> [WidgetGroupContent<'a, IdlePauseInteraction>; 5] {
         IdleAction::ALL.map(|pause| self.pause_group(pause, config))
     }
 
@@ -366,7 +378,7 @@ impl IdlePauseGroups {
         &'a self,
         pause: IdleAction,
         config: &'a Config,
-    ) -> WidgetGroupContent<'a, IdlePauseMessage> {
+    ) -> WidgetGroupContent<'a, IdlePauseInteraction> {
         let first_blocker = self.blockers_of(pause).next();
         let panel_promotion = if self
             .blockers_of(pause)
@@ -378,7 +390,7 @@ impl IdlePauseGroups {
         };
         let timeout_slider =
             GroupItem::slider(self.pause(pause).timer.slider(), config, move |message| {
-                IdlePauseMessage::Timer(pause, message)
+                IdlePauseInteraction::Timer(pause, message)
             });
         let timeout_slider = match first_blocker {
             Some(_) => timeout_slider,
@@ -434,7 +446,7 @@ impl IdlePauseGroups {
             WidgetGroupIdentity::durable(WidgetGroupFamily::IdleTimeouts, pause_stored_name(pause)),
             WidgetGroupTitle::fixed(pause_title(pause)),
             &self.pause(pause).expansion,
-            move |message| IdlePauseMessage::Expansion(pause, message),
+            move |message| IdlePauseInteraction::Expansion(pause, message),
             once(timeout_slider)
                 .chain(blocker_rows)
                 .chain(next_sleep_state)

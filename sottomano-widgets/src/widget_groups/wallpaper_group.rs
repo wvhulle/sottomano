@@ -47,9 +47,14 @@ pub struct WallpaperGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum WallpaperMessage {
     Lookup(Box<SnapshotDelivery<Lookup>>),
+    Interaction(WallpaperInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum WallpaperInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -83,11 +88,17 @@ impl WallpaperGroup {
     pub fn update(&mut self, message: WallpaperMessage, clock: Clock) -> Task<WallpaperMessage> {
         match message {
             WallpaperMessage::Lookup(delivery) => self.lookup.receive(*delivery, clock),
-            WallpaperMessage::Expansion(menu) => {
-                self.expansion.update(menu);
-            }
+            WallpaperMessage::Interaction(interaction) => self.interact(interaction),
         }
         Task::none()
+    }
+
+    fn interact(&mut self, interaction: WallpaperInteraction) {
+        match interaction {
+            WallpaperInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+            }
+        }
     }
 
     #[must_use]
@@ -106,12 +117,12 @@ impl WallpaperGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WallpaperMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WallpaperInteraction> {
         let lookup = self.lookup.get();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Wallpaper,
             &self.expansion,
-            WallpaperMessage::Expansion,
+            WallpaperInteraction::Expansion,
             [
                 self.lookup.group_item(WallpaperTarget::Lookup),
                 lookup

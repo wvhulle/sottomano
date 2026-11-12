@@ -1,4 +1,4 @@
-use super::window_list::WindowListMessage;
+use super::window_list::WindowListInteraction;
 use crate::widgets::{
     configured_theme::background_color,
     pointer_drag::{slot_group::SlotGroup, slot_pager::UngroupedHighlightLook},
@@ -59,7 +59,7 @@ impl WindowSlotPresentation {
 }
 
 pub(super) struct ArrangedWindowRows<'a> {
-    pub(super) groups: Vec<SlotGroup<'a, WindowListMessage>>,
+    pub(super) groups: Vec<SlotGroup<'a, WindowListInteraction>>,
     pub(super) presentations: Vec<WindowSlotPresentation>,
     pub(super) ungrouped_highlight_look: UngroupedHighlightLook,
 }

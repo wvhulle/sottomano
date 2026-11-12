@@ -75,11 +75,16 @@ impl From<WifiAdapterTarget> for HoverTarget {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum WifiAdaptersMessage {
     Snapshot(SnapshotDelivery<Wifi>),
     DetailsFetched(Box<SnapshotDelivery<WifiDetails>>),
     GatewayLatencies(SnapshotDelivery<GatewayLatencies>),
+    Interaction(WifiAdaptersInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum WifiAdaptersInteraction {
     ToggleAdapter(String),
     ToggleAllRadios,
     Expansion {
@@ -133,26 +138,28 @@ impl WifiAdaptersGroup {
             WifiAdaptersMessage::GatewayLatencies(delivery) => {
                 self.gateway_latencies.receive(delivery, clock);
             }
-            WifiAdaptersMessage::ToggleAdapter(adapter_device) => {
-                return logged_failure_task(
-                    format!("toggle Wi-Fi adapter {adapter_device}"),
-                    async move { toggle_wifi_adapter(&adapter_device).await },
-                );
+            WifiAdaptersMessage::Interaction(interaction) => return self.interact(interaction),
+        }
+        Task::none()
+    }
+
+    fn interact(&mut self, interaction: WifiAdaptersInteraction) -> Task<WifiAdaptersMessage> {
+        match interaction {
+            WifiAdaptersInteraction::ToggleAdapter(adapter_device) => logged_failure_task(
+                format!("toggle Wi-Fi adapter {adapter_device}"),
+                async move { toggle_wifi_adapter(&adapter_device).await },
+            ),
+            WifiAdaptersInteraction::ToggleAllRadios => {
+                logged_failure_task("toggle all Wi-Fi radios".to_owned(), toggle_wifi_radio())
             }
-            WifiAdaptersMessage::ToggleAllRadios => {
-                return logged_failure_task(
-                    "toggle all Wi-Fi radios".to_owned(),
-                    toggle_wifi_radio(),
-                );
-            }
-            WifiAdaptersMessage::Expansion {
+            WifiAdaptersInteraction::Expansion {
                 adapter_device,
                 expansion,
             } => {
                 self.expansions.update(&adapter_device, expansion);
+                Task::none()
             }
         }
-        Task::none()
     }
 
     fn observe_latest_snapshot(&mut self) {
@@ -281,7 +288,7 @@ impl WifiAdaptersGroup {
         adapter: &'a WifiAdapter,
         radio_power: RadioPower,
         group_title: WidgetGroupTitle,
-    ) -> Option<WidgetGroupContent<'a, WifiAdaptersMessage>> {
+    ) -> Option<WidgetGroupContent<'a, WifiAdaptersInteraction>> {
         let expansion = self.expansions.get(&adapter.device)?;
         let signal_item = GroupItem::reading(
             AdapterSignalReading {
@@ -304,7 +311,7 @@ impl WifiAdaptersGroup {
             .on_switch_press(
                 adapter.link_state,
                 connection_press_does,
-                WifiAdaptersMessage::ToggleAdapter(adapter.device.clone()),
+                WifiAdaptersInteraction::ToggleAdapter(adapter.device.clone()),
             )
         });
         let address_items = [AddressFamily::Ipv4, AddressFamily::Ipv6]
@@ -333,14 +340,14 @@ impl WifiAdaptersGroup {
             .on_switch_press(
                 radio_power,
                 radios_press_does,
-                WifiAdaptersMessage::ToggleAllRadios,
+                WifiAdaptersInteraction::ToggleAllRadios,
             );
         let adapter_device = adapter.device.clone();
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::WifiAdapters, adapter.device.clone()),
             group_title,
             expansion,
-            move |expansion| WifiAdaptersMessage::Expansion {
+            move |expansion| WifiAdaptersInteraction::Expansion {
                 adapter_device: adapter_device.clone(),
                 expansion,
             },
@@ -354,7 +361,7 @@ impl WifiAdaptersGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, WifiAdaptersMessage>> {
+    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, WifiAdaptersInteraction>> {
         let Some(wifi) = self.wifi.get() else {
             return Vec::new();
         };

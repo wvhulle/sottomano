@@ -11,9 +11,9 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     ai_usage_spend::{
         claude_usage::{
-            self, ClaudeCcusageBlock, ClaudeCcusageModels, ClaudeCcusagePeriods,
-            ClaudeEnterpriseAccount, ClaudeEnterpriseSpend, ClaudeLocalLogs, ClaudeOrganization,
-            ClaudeUsageWindows, SubscriptionCoverage,
+            ClaudeCcusageBlock, ClaudeCcusageModels, ClaudeCcusagePeriods, ClaudeEnterpriseAccount,
+            ClaudeEnterpriseSpend, ClaudeLocalLogs, ClaudeOrganization, ClaudeUsageWindows,
+            SubscriptionCoverage,
         },
         working_time_forecast::{SpendBudget, SpendPacing, WorkingTime},
     },
@@ -26,10 +26,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
-    },
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -41,7 +38,6 @@ use crate::{
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
-        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -72,7 +68,7 @@ pub struct ClaudeUsageGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ClaudeUsageMessage {
     UsageWindows(Box<SnapshotDelivery<ClaudeUsageWindows>>),
     EnterpriseSpend(SnapshotDelivery<ClaudeEnterpriseSpend>),
@@ -80,6 +76,11 @@ pub enum ClaudeUsageMessage {
     CcusagePeriods(SnapshotDelivery<ClaudeCcusagePeriods>),
     CcusageBlock(SnapshotDelivery<ClaudeCcusageBlock>),
     CcusageModels(SnapshotDelivery<ClaudeCcusageModels>),
+    Interaction(ClaudeUsageInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum ClaudeUsageInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -243,11 +244,17 @@ impl ClaudeUsageGroup {
             ClaudeUsageMessage::CcusageModels(reading) => {
                 self.ccusage_models.receive(reading, clock);
             }
-            ClaudeUsageMessage::Expansion(menu) => {
-                self.expansion.update(menu);
-            }
+            ClaudeUsageMessage::Interaction(interaction) => self.interact(interaction),
         }
         Task::none()
+    }
+
+    fn interact(&mut self, interaction: ClaudeUsageInteraction) {
+        match interaction {
+            ClaudeUsageInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+            }
+        }
     }
 
     #[must_use]
@@ -296,11 +303,11 @@ impl ClaudeUsageGroup {
         )
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, ClaudeUsageMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, ClaudeUsageInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::ClaudeUsage,
             &self.expansion,
-            ClaudeUsageMessage::Expansion,
+            ClaudeUsageInteraction::Expansion,
             [
                 self.usage_windows
                     .group_item(ClaudeUsageTarget::UsageWindows)

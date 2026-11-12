@@ -13,10 +13,9 @@ use sottomano_desktop_sources::{
             TailscaleExitNodes,
         },
         tailscale_inbound_access::TailscaleInboundAccess,
-        tailscale_policy_file::{PolicyFileError, TailscalePolicyFile},
+        tailscale_policy_file::TailscalePolicyFile,
         tailscale_status::{
-            self, ExitNodeUse, ExitOfferControl, ExitOfferSwitch, Tailnet, Tailscale,
-            TailscaleSwitch,
+            ExitNodeUse, ExitOfferControl, ExitOfferSwitch, Tailnet, Tailscale, TailscaleSwitch,
         },
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -111,12 +110,17 @@ pub struct TailnetGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum TailnetMessage {
     Tailscale(SnapshotDelivery<Tailscale>),
     ExitNodesDelivered(SnapshotDelivery<TailscaleExitNodes>),
     InboundAccessFetched(SnapshotDelivery<TailscaleInboundAccess>),
     PolicyFileFetched(SnapshotDelivery<TailscalePolicyFile>),
+    Interaction(TailnetInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum TailnetInteraction {
     Expansion(WidgetGroupExpansionMessage),
     SwitchTailscale(TailscaleSwitch),
     SwitchExitOffer(ExitOfferSwitch),
@@ -172,7 +176,6 @@ impl TailnetGroup {
     }
 
     pub fn update(&mut self, message: TailnetMessage, clock: Clock) -> Task<TailnetMessage> {
-        use sottomano_desktop_sources::blocking_background_work::blocking;
         match message {
             TailnetMessage::Tailscale(delivery) => self.tailscale.receive(delivery, clock),
             TailnetMessage::ExitNodesDelivered(delivery) => {
@@ -184,30 +187,36 @@ impl TailnetGroup {
             TailnetMessage::PolicyFileFetched(delivery) => {
                 self.policy_file_access.receive(delivery, clock);
             }
-            TailnetMessage::Expansion(expansion_message) => {
+            TailnetMessage::Interaction(interaction) => return self.interact(interaction),
+        }
+        Task::none()
+    }
+
+    fn interact(&mut self, interaction: TailnetInteraction) -> Task<TailnetMessage> {
+        use sottomano_desktop_sources::blocking_background_work::blocking;
+        match interaction {
+            TailnetInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
+                Task::none()
             }
-            TailnetMessage::SwitchTailscale(tailscale_switch) => {
-                return Task::future(switch_tailscale(tailscale_switch)).then(|()| Self::refresh());
+            TailnetInteraction::SwitchTailscale(tailscale_switch) => {
+                Task::future(switch_tailscale(tailscale_switch)).then(|()| Self::refresh())
             }
-            TailnetMessage::SwitchExitOffer(exit_offer_switch) => {
-                return Task::future(switch_exit_offer(exit_offer_switch))
-                    .then(|()| Self::refresh());
+            TailnetInteraction::SwitchExitOffer(exit_offer_switch) => {
+                Task::future(switch_exit_offer(exit_offer_switch)).then(|()| Self::refresh())
             }
-            TailnetMessage::SwitchExitRouting(exit_routing_switch) => {
-                return Task::future(switch_exit_routing(exit_routing_switch))
-                    .then(|()| Self::refresh());
+            TailnetInteraction::SwitchExitRouting(exit_routing_switch) => {
+                Task::future(switch_exit_routing(exit_routing_switch)).then(|()| Self::refresh())
             }
-            TailnetMessage::OpenAdminConsole => {
-                return Task::future(blocking("tailscale admin", || {
+            TailnetInteraction::OpenAdminConsole => {
+                Task::future(blocking("tailscale admin", || {
                     if let Err(open_failure) = open_admin() {
                         tracing::warn!("tailscale admin console: {open_failure}");
                     }
                 }))
-                .discard();
+                .discard()
             }
         }
-        Task::none()
     }
 
     pub fn hover(
@@ -291,22 +300,22 @@ impl TailnetGroup {
         }
     }
 
-    fn membership_item(&self) -> Option<GroupItem<'_, TailnetMessage>> {
+    fn membership_item(&self) -> Option<GroupItem<'_, TailnetInteraction>> {
         let item = GroupItem::reading(self.tailscale.display()?, TailnetTarget::Membership)
             .on_right_press(
                 "open the Tailscale admin console",
-                TailnetMessage::OpenAdminConsole,
+                TailnetInteraction::OpenAdminConsole,
             );
         Some(match self.tailscale.get().map(Tailscale::switch) {
             Some(TailscaleSwitch::Up) => item.on_switch_press(
                 SwitchPosition::Off,
                 "turn Tailscale on",
-                TailnetMessage::SwitchTailscale(TailscaleSwitch::Up),
+                TailnetInteraction::SwitchTailscale(TailscaleSwitch::Up),
             ),
             Some(TailscaleSwitch::Down) => item.on_switch_press(
                 SwitchPosition::On,
                 "turn Tailscale off",
-                TailnetMessage::SwitchTailscale(TailscaleSwitch::Down),
+                TailnetInteraction::SwitchTailscale(TailscaleSwitch::Down),
             ),
             None => item,
         })
@@ -319,7 +328,7 @@ impl TailnetGroup {
         }
     }
 
-    fn policy_file_item(&self) -> Option<GroupItem<'_, TailnetMessage>> {
+    fn policy_file_item(&self) -> Option<GroupItem<'_, TailnetInteraction>> {
         self.running_tailnet()?;
         match self.policy_file_access {
             PolicyFileAccess::NoApiToken => None,
@@ -329,20 +338,20 @@ impl TailnetGroup {
         }
     }
 
-    fn exit_offer_item(tailnet: &Tailnet) -> GroupItem<'_, TailnetMessage> {
+    fn exit_offer_item(tailnet: &Tailnet) -> GroupItem<'_, TailnetInteraction> {
         let item = GroupItem::reading(ExitOfferRow { tailnet }, TailnetTarget::ExitOffer);
         match tailnet.offer_control() {
             ExitOfferControl::Switchable(exit_offer_switch @ ExitOfferSwitch::StopOffering) => item
                 .on_switch_press(
                     SwitchPosition::On,
                     "stop offering this machine as an exit node",
-                    TailnetMessage::SwitchExitOffer(exit_offer_switch),
+                    TailnetInteraction::SwitchExitOffer(exit_offer_switch),
                 ),
             ExitOfferControl::Switchable(exit_offer_switch @ ExitOfferSwitch::StartOffering) => {
                 item.on_switch_press(
                     SwitchPosition::Off,
                     "offer this machine as an exit node",
-                    TailnetMessage::SwitchExitOffer(exit_offer_switch),
+                    TailnetInteraction::SwitchExitOffer(exit_offer_switch),
                 )
             }
             ExitOfferControl::BlockedByExitNodeInUse => item,
@@ -359,7 +368,7 @@ impl TailnetGroup {
     fn exit_node_choice_item<'a>(
         exit_node_option: &'a ExitNodeOption,
         exit_node_choices: &'a ExitNodeChoices,
-    ) -> GroupItem<'a, TailnetMessage> {
+    ) -> GroupItem<'a, TailnetInteraction> {
         let exit_node_item = GroupItem::reading(
             ExitNodeChoiceRow {
                 exit_node_option,
@@ -380,7 +389,7 @@ impl TailnetGroup {
                     ExitNodeUse::InUse => "stop using the exit node",
                     ExitNodeUse::Unused => "use the exit node",
                 },
-                TailnetMessage::SwitchExitRouting(exit_routing_switch),
+                TailnetInteraction::SwitchExitRouting(exit_routing_switch),
             ),
             ExitNodeControl::BlockedByOffering | ExitNodeControl::Offline => exit_node_item,
         }
@@ -388,7 +397,7 @@ impl TailnetGroup {
 
     fn exit_node_lan_access_item(
         exit_node_choices: &ExitNodeChoices,
-    ) -> GroupItem<'_, TailnetMessage> {
+    ) -> GroupItem<'_, TailnetInteraction> {
         GroupItem::reading(
             ExitNodeLanAccessRow { exit_node_choices },
             TailnetTarget::ExitNodeLanAccess,
@@ -399,11 +408,11 @@ impl TailnetGroup {
                 ExitNodeLanAccess::Allowed => "cut local network access through exit nodes",
                 ExitNodeLanAccess::Blocked => "keep local network access through exit nodes",
             },
-            TailnetMessage::SwitchExitRouting(exit_node_choices.lan_access_switch()),
+            TailnetInteraction::SwitchExitRouting(exit_node_choices.lan_access_switch()),
         )
     }
 
-    fn exit_node_choice_items(&self) -> Vec<GroupItem<'_, TailnetMessage>> {
+    fn exit_node_choice_items(&self) -> Vec<GroupItem<'_, TailnetInteraction>> {
         let Some(exit_node_choices) = self.running_exit_node_choices() else {
             return Vec::new();
         };
@@ -420,7 +429,7 @@ impl TailnetGroup {
             .collect()
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, TailnetMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, TailnetInteraction> {
         let own_node_item = self
             .tailscale
             .get()
@@ -432,7 +441,7 @@ impl TailnetGroup {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Tailnet,
             &self.expansion,
-            TailnetMessage::Expansion,
+            TailnetInteraction::Expansion,
             self.membership_item()
                 .into_iter()
                 .chain(own_node_item)
@@ -520,7 +529,7 @@ mod tests {
         assert!(matches!(
             TailnetGroup::exit_offer_item(&tailnet).gestures().left,
             GroupItemGesture::Performs {
-                message: TailnetMessage::SwitchExitOffer(ExitOfferSwitch::StopOffering),
+                message: TailnetInteraction::SwitchExitOffer(ExitOfferSwitch::StopOffering),
                 ..
             }
         ));

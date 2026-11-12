@@ -84,12 +84,12 @@ fn instance_icon(kind: InstanceKind) -> IconGlyph {
 }
 
 fn instance_start_press<'a>(
-    row: GroupItem<'a, IncusInstancesMessage>,
+    row: GroupItem<'a, IncusInstancesInteraction>,
     instance_daemon: InstanceDaemon,
     project_name: &str,
     instance_name: &str,
     running: bool,
-) -> GroupItem<'a, IncusInstancesMessage> {
+) -> GroupItem<'a, IncusInstancesInteraction> {
     let state_change = if running {
         InstanceStateChange::Stop
     } else {
@@ -98,7 +98,7 @@ fn instance_start_press<'a>(
     if running {
         row.on_right_press(
             STOP_HINT,
-            IncusInstancesMessage::ChangeState {
+            IncusInstancesInteraction::ChangeState {
                 instance_daemon,
                 project_name: project_name.to_owned(),
                 instance_name: instance_name.to_owned(),
@@ -108,7 +108,7 @@ fn instance_start_press<'a>(
     } else {
         row.on_press(
             START_HINT,
-            IncusInstancesMessage::ChangeState {
+            IncusInstancesInteraction::ChangeState {
                 instance_daemon,
                 project_name: project_name.to_owned(),
                 instance_name: instance_name.to_owned(),
@@ -270,18 +270,23 @@ pub struct IncusInstancesGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum IncusInstancesMessage {
     Probe(InstanceDaemon, SnapshotDelivery<Availability>),
     Listings(InstanceDaemon, SnapshotDelivery<DaemonInstanceListings>),
     Instances(InstanceDaemon, SnapshotDelivery<DaemonInstancesReadout>),
+    StateChangeRefused(String),
+    Interaction(IncusInstancesInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum IncusInstancesInteraction {
     ChangeState {
         instance_daemon: InstanceDaemon,
         project_name: String,
         instance_name: String,
         state_change: InstanceStateChange,
     },
-    StateChangeRefused(String),
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -292,9 +297,8 @@ impl IncusInstancesGroup {
 
     pub fn subscription(&self, demand: GroupSourceDemand) -> Subscription<IncusInstancesMessage> {
         let demand = demand.expanded_when(self.expansion.state());
-        let mut subscriptions: Vec<Subscription<IncusInstancesMessage>> = Vec::new();
-        for instance_daemon in WATCHED_DAEMONS {
-            subscriptions.extend([
+        Subscription::batch(WATCHED_DAEMONS.into_iter().flat_map(|instance_daemon| {
+            [
                 snapshot_subscription::<Availability>(instance_daemon)
                     .with(instance_daemon)
                     .map(|(instance_daemon, delivery)| {
@@ -314,9 +318,8 @@ impl IncusInstancesGroup {
                             IncusInstancesMessage::Instances(instance_daemon, delivery)
                         }),
                 ),
-            ]);
-        }
-        Subscription::batch(subscriptions)
+            ]
+        }))
     }
 
     pub fn update(
@@ -346,7 +349,17 @@ impl IncusInstancesGroup {
                     .receive(delivery, clock);
                 Task::none()
             }
-            IncusInstancesMessage::ChangeState {
+            IncusInstancesMessage::StateChangeRefused(refusal) => {
+                tracing::warn!("incus instance state: {refusal}");
+                Task::none()
+            }
+            IncusInstancesMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(&mut self, interaction: IncusInstancesInteraction) -> Task<IncusInstancesMessage> {
+        match interaction {
+            IncusInstancesInteraction::ChangeState {
                 instance_daemon,
                 project_name,
                 instance_name,
@@ -357,11 +370,7 @@ impl IncusInstancesGroup {
                     .err()
             })
             .and_then(|refusal| Task::done(IncusInstancesMessage::StateChangeRefused(refusal))),
-            IncusInstancesMessage::StateChangeRefused(refusal) => {
-                tracing::warn!("incus instance state: {refusal}");
-                Task::none()
-            }
-            IncusInstancesMessage::Expansion(expansion_message) => {
+            IncusInstancesInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }
@@ -429,14 +438,14 @@ impl IncusInstancesGroup {
             .any(|instance_daemon| self.probe_availability(instance_daemon).is_some())
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, IncusInstancesMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, IncusInstancesInteraction> {
         let rows = WATCHED_DAEMONS
             .into_iter()
             .flat_map(|instance_daemon| self.daemon_rows(instance_daemon));
         WidgetGroupContent::expandable(
             WidgetGroupFamily::IncusInstances,
             &self.expansion,
-            IncusInstancesMessage::Expansion,
+            IncusInstancesInteraction::Expansion,
             rows,
         )
         .face(WidgetGroupFace::IconColoredBy {
@@ -448,7 +457,7 @@ impl IncusInstancesGroup {
     fn daemon_rows(
         &self,
         instance_daemon: InstanceDaemon,
-    ) -> Vec<GroupItem<'_, IncusInstancesMessage>> {
+    ) -> Vec<GroupItem<'_, IncusInstancesInteraction>> {
         if let Some(DaemonInstancesReadout::Instances(instances)) = self
             .details
             .get(&instance_daemon)

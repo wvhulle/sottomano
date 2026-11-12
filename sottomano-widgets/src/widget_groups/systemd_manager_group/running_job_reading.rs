@@ -17,7 +17,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::{
-        systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage, SystemdTarget},
+        systemd_manager_group::{SystemdManagerGroup, SystemdManagerInteraction, SystemdTarget},
         terminal_command::TerminalCommand,
     },
     widgets::{
@@ -52,8 +52,9 @@ pub(super) fn slow_jobs_item<'a>(
     jobs: &'a SlowJobs,
     config: &'a Config,
     clock: Clock,
-) -> GroupItem<'a, SystemdManagerMessage> {
-    let open_log = |args| SystemdManagerMessage::OpenLog(TerminalCommand::journal(config, args));
+) -> GroupItem<'a, SystemdManagerInteraction> {
+    let open_log =
+        |args| SystemdManagerInteraction::OpenLog(TerminalCommand::journal(config, args));
     let locale = config.calendar.locale;
     let slow_job_toasts = jobs.jobs.iter().map(|job| {
         let activity = match job.job_type.as_str() {

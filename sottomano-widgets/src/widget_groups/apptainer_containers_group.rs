@@ -164,11 +164,16 @@ pub struct ApptainerContainersGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ApptainerContainersMessage {
     Probe(SnapshotDelivery<ApptainerProbe>),
     Listings(SnapshotDelivery<ApptainerContainerListings>),
     Containers(SnapshotDelivery<ApptainerContainers>),
+    Interaction(ApptainerContainersInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum ApptainerContainersInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -204,7 +209,13 @@ impl ApptainerContainersGroup {
             ApptainerContainersMessage::Containers(delivery) => {
                 self.detail.receive(delivery, clock);
             }
-            ApptainerContainersMessage::Expansion(expansion_message) => {
+            ApptainerContainersMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(&mut self, interaction: ApptainerContainersInteraction) {
+        match interaction {
+            ApptainerContainersInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
         }
@@ -228,7 +239,7 @@ impl ApptainerContainersGroup {
         &[]
     }
 
-    fn container_rows(&self) -> Vec<GroupItem<'_, ApptainerContainersMessage>> {
+    fn container_rows(&self) -> Vec<GroupItem<'_, ApptainerContainersInteraction>> {
         let detailed = self.listed_containers();
         if !detailed.is_empty() {
             return detailed
@@ -281,12 +292,12 @@ impl ApptainerContainersGroup {
             .hover_card_with(ApptainerContainerListingRow { listing }.hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, ApptainerContainersMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, ApptainerContainersInteraction> {
         let rows = self.container_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::ApptainerContainers,
             &self.expansion,
-            ApptainerContainersMessage::Expansion,
+            ApptainerContainersInteraction::Expansion,
             rows,
         )
         .face(WidgetGroupFace::IconColoredBy {

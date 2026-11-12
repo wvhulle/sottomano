@@ -210,15 +210,20 @@ pub struct VirtualMachinesGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum VirtualMachinesMessage {
     Machines(SnapshotDelivery<VirtualMachinesReadout>),
-    Expansion(WidgetGroupExpansionMessage),
-    FocusWindow(i32),
     WindowNotFound(i32),
-    PowerOff(GuestPowerControl),
     PowerOffAccepted(String),
     PowerOffRefused(String),
+    Interaction(VirtualMachinesInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum VirtualMachinesInteraction {
+    Expansion(WidgetGroupExpansionMessage),
+    FocusWindow(i32),
+    PowerOff(GuestPowerControl),
 }
 
 pub enum Action {
@@ -272,20 +277,9 @@ impl VirtualMachinesGroup {
                 self.readout.receive(delivery, clock);
                 Action::Run(Task::none())
             }
-            VirtualMachinesMessage::Expansion(message) => {
-                self.expansion.update(message);
-                Action::Run(Task::none())
-            }
-            VirtualMachinesMessage::FocusWindow(pid) => Action::FocusAppWindow(AppWindowFocus {
-                owner: WindowOwner::Process(pid.unsigned_abs()),
-                unmatched: VirtualMachinesMessage::WindowNotFound(pid),
-            }),
             VirtualMachinesMessage::WindowNotFound(pid) => {
                 tracing::debug!("virtual machine {pid} has no window");
                 Action::Run(Task::none())
-            }
-            VirtualMachinesMessage::PowerOff(power_control) => {
-                Action::Run(power_off_task(power_control))
             }
             VirtualMachinesMessage::PowerOffAccepted(domain_name) => {
                 tracing::info!("libvirt domain {domain_name} is shutting down");
@@ -294,6 +288,25 @@ impl VirtualMachinesGroup {
             VirtualMachinesMessage::PowerOffRefused(failure) => {
                 tracing::warn!("virtual machine power off: {failure}");
                 Action::Run(Task::none())
+            }
+            VirtualMachinesMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(&mut self, interaction: VirtualMachinesInteraction) -> Action {
+        match interaction {
+            VirtualMachinesInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+                Action::Run(Task::none())
+            }
+            VirtualMachinesInteraction::FocusWindow(pid) => {
+                Action::FocusAppWindow(AppWindowFocus {
+                    owner: WindowOwner::Process(pid.unsigned_abs()),
+                    unmatched: VirtualMachinesMessage::WindowNotFound(pid),
+                })
+            }
+            VirtualMachinesInteraction::PowerOff(power_control) => {
+                Action::Run(power_off_task(power_control))
             }
         }
     }
@@ -313,7 +326,7 @@ impl VirtualMachinesGroup {
             .hover_card_with(VirtualMachineRow { machine }.hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, VirtualMachinesMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, VirtualMachinesInteraction> {
         let machines = self
             .readout
             .get()
@@ -327,7 +340,7 @@ impl VirtualMachinesGroup {
             let row = match machine.launch.display {
                 GuestDisplay::Windowed => row.on_press(
                     FOCUS_WINDOW_HINT,
-                    VirtualMachinesMessage::FocusWindow(machine.pid),
+                    VirtualMachinesInteraction::FocusWindow(machine.pid),
                 ),
                 GuestDisplay::Headless => row,
             };
@@ -335,14 +348,14 @@ impl VirtualMachinesGroup {
                 GuestPowerControl::Unavailable => row,
                 power_control => row.on_right_press(
                     POWER_OFF_HINT,
-                    VirtualMachinesMessage::PowerOff(power_control.clone()),
+                    VirtualMachinesInteraction::PowerOff(power_control.clone()),
                 ),
             }
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::VirtualMachines,
             &self.expansion,
-            VirtualMachinesMessage::Expansion,
+            VirtualMachinesInteraction::Expansion,
             rows,
         )
         .face(WidgetGroupFace::Icon {

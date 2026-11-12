@@ -67,13 +67,19 @@ pub struct ColorTemperatureGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ColorTemperatureMessage {
-    Expansion(WidgetGroupExpansionMessage),
     ColorTemperature(SnapshotDelivery<ColorTemperature>),
+    Auto(UnitSwitchMessage),
+    Interaction(ColorTemperatureInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum ColorTemperatureInteraction {
+    Expansion(WidgetGroupExpansionMessage),
     Dim(ControlMessage),
     Warmth(ControlMessage),
-    Auto(UnitSwitchMessage),
+    AutoPressed,
 }
 
 impl ColorTemperatureGroup {
@@ -147,22 +153,10 @@ impl ColorTemperatureGroup {
 
     pub fn update(
         &mut self,
-        msg: ColorTemperatureMessage,
+        message: ColorTemperatureMessage,
         clock: Clock,
     ) -> Task<ColorTemperatureMessage> {
-        match msg {
-            ColorTemperatureMessage::Expansion(WidgetGroupExpansionMessage::HandleScrolled(
-                delta,
-            )) => self.update(
-                ColorTemperatureMessage::Warmth(ControlMessage::Scroll(delta)),
-                clock,
-            ),
-            ColorTemperatureMessage::Expansion(m) => {
-                if self.expansion.update(m) == ExpansionChange::JustCollapsed {
-                    self.close_controls();
-                }
-                Task::none()
-            }
+        match message {
             ColorTemperatureMessage::ColorTemperature(reading) => {
                 self.gamma.receive(reading, clock);
                 if let Some(gamma) = self.gamma.get() {
@@ -174,42 +168,77 @@ impl ColorTemperatureGroup {
                 }
                 Task::none()
             }
-            ColorTemperatureMessage::Dim(m) => match self.dim.update(m) {
-                Action::Opened => {
-                    self.warmth.close();
-                    Task::none()
-                }
-                Action::Commit(value) => ControlMessage::commit(
-                    "gamma dim",
-                    value,
-                    gammarelay_color_writes::set_brightness(as_percent(value)),
-                )
-                .map(ColorTemperatureMessage::Dim),
-                Action::None | Action::Right | Action::Adjust(_) => Task::none(),
-            },
-            ColorTemperatureMessage::Warmth(m) => match self.warmth.update(m) {
-                Action::Opened => {
-                    self.dim.close();
-                    Task::none()
-                }
-                Action::Commit(value) => self
-                    .auto
-                    .request(UnitChange::Stop)
-                    .map(ColorTemperatureMessage::Auto)
-                    .chain(
-                        ControlMessage::commit(
-                            "gamma temperature",
-                            value,
-                            gammarelay_color_writes::set_temperature(as_kelvin(value)),
-                        )
-                        .map(ColorTemperatureMessage::Warmth),
-                    ),
-                Action::None | Action::Right | Action::Adjust(_) => Task::none(),
-            },
-            ColorTemperatureMessage::Auto(m) => self
+            ColorTemperatureMessage::Auto(unit_switch_message) => self
                 .auto
-                .update(m, clock)
+                .update(unit_switch_message, clock)
                 .map(ColorTemperatureMessage::Auto),
+            ColorTemperatureMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(
+        &mut self,
+        interaction: ColorTemperatureInteraction,
+    ) -> Task<ColorTemperatureMessage> {
+        match interaction {
+            ColorTemperatureInteraction::Expansion(
+                WidgetGroupExpansionMessage::HandleScrolled(delta),
+            ) => self.interact(ColorTemperatureInteraction::Warmth(ControlMessage::Scroll(
+                delta,
+            ))),
+            ColorTemperatureInteraction::Expansion(expansion_message) => {
+                if self.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
+                    self.close_controls();
+                }
+                Task::none()
+            }
+            ColorTemperatureInteraction::Dim(control_message) => {
+                match self.dim.update(control_message) {
+                    Action::Opened => {
+                        self.warmth.close();
+                        Task::none()
+                    }
+                    Action::Commit(value) => ControlMessage::commit(
+                        "gamma dim",
+                        value,
+                        gammarelay_color_writes::set_brightness(as_percent(value)),
+                    )
+                    .map(|control_message| {
+                        ColorTemperatureMessage::Interaction(ColorTemperatureInteraction::Dim(
+                            control_message,
+                        ))
+                    }),
+                    Action::None | Action::Right | Action::Adjust(_) => Task::none(),
+                }
+            }
+            ColorTemperatureInteraction::Warmth(control_message) => {
+                match self.warmth.update(control_message) {
+                    Action::Opened => {
+                        self.dim.close();
+                        Task::none()
+                    }
+                    Action::Commit(value) => self
+                        .auto
+                        .request(UnitChange::Stop)
+                        .map(ColorTemperatureMessage::Auto)
+                        .chain(
+                            ControlMessage::commit(
+                                "gamma temperature",
+                                value,
+                                gammarelay_color_writes::set_temperature(as_kelvin(value)),
+                            )
+                            .map(|control_message| {
+                                ColorTemperatureMessage::Interaction(
+                                    ColorTemperatureInteraction::Warmth(control_message),
+                                )
+                            }),
+                        ),
+                    Action::None | Action::Right | Action::Adjust(_) => Task::none(),
+                }
+            }
+            ColorTemperatureInteraction::AutoPressed => {
+                self.auto.press().map(ColorTemperatureMessage::Auto)
+            }
         }
     }
 
@@ -243,23 +272,24 @@ impl ColorTemperatureGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> WidgetGroupContent<'a, ColorTemperatureMessage> {
+    ) -> WidgetGroupContent<'a, ColorTemperatureInteraction> {
         let gamma_available = self.gamma.get().is_some();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::ColorTemperature,
             &self.expansion,
-            ColorTemperatureMessage::Expansion,
+            ColorTemperatureInteraction::Expansion,
             [
                 gamma_available.then(|| {
-                    GroupItem::slider(&self.warmth, config, ColorTemperatureMessage::Warmth)
+                    GroupItem::slider(&self.warmth, config, ColorTemperatureInteraction::Warmth)
                         .previewed_on_handle()
                 }),
-                gamma_available
-                    .then(|| GroupItem::slider(&self.dim, config, ColorTemperatureMessage::Dim)),
+                gamma_available.then(|| {
+                    GroupItem::slider(&self.dim, config, ColorTemperatureInteraction::Dim)
+                }),
                 self.auto.group_item(
                     ServiceReadiness::Serving,
                     ColorTemperatureTarget::Automatic,
-                    ColorTemperatureMessage::Auto(UnitSwitchMessage::Press),
+                    ColorTemperatureInteraction::AutoPressed,
                 ),
             ]
             .into_iter()

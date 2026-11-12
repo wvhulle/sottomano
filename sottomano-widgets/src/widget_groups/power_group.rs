@@ -11,7 +11,7 @@ mod sqlite_power_draw_regression;
 use battery_time_reading::{BatteryTime, BatteryTimeReading, CurveLoaded};
 use iced::{Subscription, Task};
 use power_draw_gauge::PowerDraw;
-use power_profile_control::{PowerProfileControl, PowerProfileMessage};
+use power_profile_control::{PowerProfileControl, PowerProfileInteraction, PowerProfileMessage};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     battery_power_profiles::{
@@ -72,13 +72,19 @@ pub struct PowerGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum PowerMessage {
     Battery(SnapshotDelivery<Battery>),
     ChargerFetched(SnapshotDelivery<ChargerSupply>),
     CpuTuningFetched(SnapshotDelivery<CpuTuning>),
     ChargeCurveLoaded(CurveLoaded),
     PowerProfile(PowerProfileMessage),
+    Interaction(PowerInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum PowerInteraction {
+    PowerProfile(PowerProfileInteraction),
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -135,8 +141,8 @@ impl PowerGroup {
         }
     }
 
-    pub fn update(&mut self, msg: PowerMessage, clock: Clock) -> Task<PowerMessage> {
-        let task = match msg {
+    pub fn update(&mut self, power_message: PowerMessage, clock: Clock) -> Task<PowerMessage> {
+        let task = match power_message {
             PowerMessage::Battery(reading) => {
                 self.battery.receive(reading, clock);
                 self.observe_battery(clock)
@@ -153,16 +159,11 @@ impl PowerGroup {
                 self.time_reading.loaded(curve);
                 Task::none()
             }
-            PowerMessage::PowerProfile(msg) => self
+            PowerMessage::PowerProfile(profile_message) => self
                 .power_profile
-                .update(msg, clock)
+                .update(profile_message, clock)
                 .map(PowerMessage::PowerProfile),
-            PowerMessage::Expansion(msg) => {
-                if self.expansion.update(msg) == ExpansionChange::JustCollapsed {
-                    self.power_profile.close();
-                }
-                Task::none()
-            }
+            PowerMessage::Interaction(interaction) => self.interact(interaction),
         };
         let battery = self.battery.get();
         self.time = battery.and_then(|battery| {
@@ -170,6 +171,21 @@ impl PowerGroup {
                 .time_for(battery, self.power_profile.active_estimate())
         });
         task
+    }
+
+    fn interact(&mut self, interaction: PowerInteraction) -> Task<PowerMessage> {
+        match interaction {
+            PowerInteraction::PowerProfile(profile_interaction) => self
+                .power_profile
+                .interact(profile_interaction)
+                .map(PowerMessage::PowerProfile),
+            PowerInteraction::Expansion(expansion_message) => {
+                if self.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
+                    self.power_profile.close();
+                }
+                Task::none()
+            }
+        }
     }
 
     fn draw(&self) -> Option<PowerDraw> {
@@ -224,21 +240,24 @@ impl PowerGroup {
         }
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a, PowerMessage> {
+    pub fn group_content<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> WidgetGroupContent<'a, PowerInteraction> {
         let switch_to_saving_profiles =
             self.power_profile
                 .profiles_saving_more_power()
                 .map(|profile| OngoingToastActionButton {
                     button_label: profile.title().to_owned(),
                     tint: ActionTint::Proceed,
-                    on_button_pressed: PowerMessage::PowerProfile(
-                        PowerProfileMessage::SwitchToProfile(profile),
+                    on_button_pressed: PowerInteraction::PowerProfile(
+                        PowerProfileInteraction::SwitchToProfile(profile),
                     ),
                 });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Power,
             &self.expansion,
-            PowerMessage::Expansion,
+            PowerInteraction::Expansion,
             [
                 self.battery
                     .group_item(PowerTarget::Battery)
@@ -250,8 +269,10 @@ impl PowerGroup {
                         .ongoing_toast_action_buttons(switch_to_saving_profiles)
                 }),
                 self.power_profile.slider().map(|slider| {
-                    GroupItem::slider(slider, config, |control| {
-                        PowerMessage::PowerProfile(PowerProfileMessage::Control(control))
+                    GroupItem::slider(slider, config, |control_message| {
+                        PowerInteraction::PowerProfile(PowerProfileInteraction::Control(
+                            control_message,
+                        ))
                     })
                 }),
             ]

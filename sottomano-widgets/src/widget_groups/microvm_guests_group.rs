@@ -174,13 +174,18 @@ pub struct MicrovmGuestsGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum MicrovmGuestsMessage {
     Probe(SnapshotDelivery<MicrovmProbe>),
     Listings(SnapshotDelivery<MicrovmGuestListings>),
     Machines(SnapshotDelivery<MicrovmGuests>),
-    PressPowerButton(MicrovmHypervisor, PathBuf),
     PowerButtonRefused(String),
+    Interaction(MicrovmGuestsInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum MicrovmGuestsInteraction {
+    PressPowerButton(MicrovmHypervisor, PathBuf),
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -220,7 +225,17 @@ impl MicrovmGuestsGroup {
                 self.detail.receive(delivery, clock);
                 Task::none()
             }
-            MicrovmGuestsMessage::PressPowerButton(hypervisor, api_socket) => {
+            MicrovmGuestsMessage::PowerButtonRefused(refusal) => {
+                tracing::warn!("microvm power button: {refusal}");
+                Task::none()
+            }
+            MicrovmGuestsMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(&mut self, interaction: MicrovmGuestsInteraction) -> Task<MicrovmGuestsMessage> {
+        match interaction {
+            MicrovmGuestsInteraction::PressPowerButton(hypervisor, api_socket) => {
                 Task::future(async move {
                     press_guest_power_button(hypervisor, &api_socket)
                         .await
@@ -228,11 +243,7 @@ impl MicrovmGuestsGroup {
                 })
                 .and_then(|refusal| Task::done(MicrovmGuestsMessage::PowerButtonRefused(refusal)))
             }
-            MicrovmGuestsMessage::PowerButtonRefused(refusal) => {
-                tracing::warn!("microvm power button: {refusal}");
-                Task::none()
-            }
-            MicrovmGuestsMessage::Expansion(expansion_message) => {
+            MicrovmGuestsInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }
@@ -260,12 +271,12 @@ impl MicrovmGuestsGroup {
             .hover_card_with(MicrovmGuestListingRow { listing }.hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, MicrovmGuestsMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, MicrovmGuestsInteraction> {
         let rows = self.machine_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MicrovmGuests,
             &self.expansion,
-            MicrovmGuestsMessage::Expansion,
+            MicrovmGuestsInteraction::Expansion,
             rows,
         )
         .face(WidgetGroupFace::IconColoredBy {
@@ -274,7 +285,7 @@ impl MicrovmGuestsGroup {
         })
     }
 
-    fn machine_rows(&self) -> Vec<GroupItem<'_, MicrovmGuestsMessage>> {
+    fn machine_rows(&self) -> Vec<GroupItem<'_, MicrovmGuestsInteraction>> {
         if let Some(detail) = self.detail.get() {
             return detail
                 .machines
@@ -287,7 +298,7 @@ impl MicrovmGuestsGroup {
                     match api_socket_of(machine) {
                         Some(api_socket) => row.on_right_press(
                             POWER_BUTTON_HINT,
-                            MicrovmGuestsMessage::PressPowerButton(
+                            MicrovmGuestsInteraction::PressPowerButton(
                                 machine.hypervisor,
                                 api_socket.clone(),
                             ),

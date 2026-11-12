@@ -84,7 +84,7 @@ use crate::{
         widget_group_content::ExpansionState,
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
         wifi_adapters_group::WifiAdapterTarget,
-        window_group::{WindowGroupMessage, WindowTarget},
+        window_group::{WindowGroupInteraction, WindowTarget},
         wireguard_tunnels_group::WireguardTunnelTarget,
     },
     widgets::phosphor::{Phosphor, Weight},
@@ -384,7 +384,7 @@ pub enum PopupMessage {
     OpenUrl(String),
     FocusWindow(u64),
     RefreshHoveredReading,
-    WindowGroup(WindowGroupMessage),
+    WindowGroup(WindowGroupInteraction),
     ToggleGroupMenuPin {
         menu: GroupMenuTopic,
         entry: GroupMenuPin,

@@ -8,7 +8,7 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     ai_usage_spend::{
-        openrouter_credits::{self, OpenRouterAccount, OpenRouterSpend, OpenRouterStrictBudget},
+        openrouter_credits::{OpenRouterAccount, OpenRouterSpend, OpenRouterStrictBudget},
         openrouter_model_rankings::{ModelRankingInputs, OpenRouterModelRankings},
         working_time_forecast::{SpendBudget, SpendPacing},
     },
@@ -21,10 +21,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
-    },
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -61,11 +58,16 @@ pub struct OpenRouterCreditGroup {
     expansion: WidgetGroupExpansion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum OpenRouterCreditMessage {
     SoftBudget(SnapshotDelivery<OpenRouterSpend>),
     StrictBudget(SnapshotDelivery<OpenRouterStrictBudget>),
     ModelRankings(SnapshotDelivery<OpenRouterModelRankings>),
+    Interaction(OpenRouterCreditInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum OpenRouterCreditInteraction {
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -155,11 +157,17 @@ impl OpenRouterCreditGroup {
             OpenRouterCreditMessage::ModelRankings(reading) => {
                 self.model_rankings.receive(reading, clock);
             }
-            OpenRouterCreditMessage::Expansion(menu) => {
-                self.expansion.update(menu);
-            }
+            OpenRouterCreditMessage::Interaction(interaction) => self.interact(interaction),
         }
         Task::none()
+    }
+
+    fn interact(&mut self, interaction: OpenRouterCreditInteraction) {
+        match interaction {
+            OpenRouterCreditInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+            }
+        }
     }
 
     fn model_ranking(&self) -> Option<ModelSpendRanking<'_, 3>> {
@@ -202,11 +210,11 @@ impl OpenRouterCreditGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, OpenRouterCreditMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, OpenRouterCreditInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::OpenRouterCredit,
             &self.expansion,
-            OpenRouterCreditMessage::Expansion,
+            OpenRouterCreditInteraction::Expansion,
             [
                 self.spend
                     .group_item(OpenRouterCreditTarget::SoftBudget)

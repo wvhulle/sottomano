@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, convert::Infallible};
+use std::collections::BTreeMap;
 
 use iced::Subscription;
 use sottomano_desktop_sources::{
