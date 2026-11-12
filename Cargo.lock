@@ -6806,6 +6806,7 @@ dependencies = [
  "color",
  "evdev",
  "fast-dav-rs",
+ "fastrand",
  "form_urlencoded",
  "freedesktop-desktop-entry",
  "freedesktop-icons",

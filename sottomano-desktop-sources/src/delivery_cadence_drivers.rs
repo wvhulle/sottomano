@@ -21,7 +21,7 @@ use tokio_stream::wrappers::IntervalStream;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::{Panicked, blocking_poll},
-    system_protocol_clients::protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+    system_protocol_clients::protocol_peer_reconnects::subscribed,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -399,7 +399,7 @@ impl<Source: SnapshotSource> SnapshotDelivery<Source> {
         ReadStream: Stream<Item = Result<Source, Source::Error>> + Send,
         ConnectFuture: Future<Output = Result<ReadStream, Source::Error>> + Send,
     {
-        resubscribed(PEER_RECONNECT_GAP, connect_inputs, connect)
+        subscribed(connect_inputs, connect)
             .map(SnapshotDelivery::live_push)
             .distinct_until_changed()
     }

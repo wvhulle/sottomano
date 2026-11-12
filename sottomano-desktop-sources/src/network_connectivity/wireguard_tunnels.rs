@@ -17,7 +17,7 @@ use crate::{
     },
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBuses, SERVICE_ABSENT_ERRORS},
-        protocol_peer_reconnects::resubscribed,
+        protocol_peer_reconnects::subscribed,
         shell_command_output,
     },
 };
@@ -398,18 +398,14 @@ impl SnapshotSource for Wireguard {
         let signal_connection = buses.system.clone();
         let read_connection = buses.system;
         PeriodicPolling::every(STATISTICS_RECHECK).triggered_deliveries(
-            resubscribed(
-                Duration::from_secs(1),
-                signal_connection,
-                |signal_connection| async move {
-                    Ok(network_manager_proxies::changes(
-                        &signal_connection,
-                        WATCHED_WIREGUARD_PROPERTIES,
-                    )
-                    .await?
-                    .map(Ok::<_, zbus::Error>))
-                },
-            )
+            subscribed(signal_connection, |signal_connection| async move {
+                Ok(network_manager_proxies::changes(
+                    &signal_connection,
+                    WATCHED_WIREGUARD_PROPERTIES,
+                )
+                .await?
+                .map(Ok::<_, zbus::Error>))
+            })
             .filter_map(|signal| ready(signal.ok())),
             move || read_wireguard(read_connection.clone()),
         )

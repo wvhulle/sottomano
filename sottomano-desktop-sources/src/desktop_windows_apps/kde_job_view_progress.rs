@@ -5,7 +5,6 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
     },
-    time::Duration,
 };
 
 use futures::{Stream, StreamExt};
@@ -19,7 +18,7 @@ use zbus::{
 };
 
 use crate::system_protocol_clients::{
-    dbus_desktop_buses::ServingConnectionStreams, protocol_peer_reconnects::resubscribed,
+    dbus_desktop_buses::ServingConnectionStreams, protocol_peer_reconnects::subscribed,
 };
 
 const PATH: &str = "/JobViewServer";
@@ -321,7 +320,7 @@ impl JobView {
 }
 
 pub fn job_progress() -> impl Stream<Item = JobProgress> + Send {
-    resubscribed(Duration::from_secs(1), (), |()| async {
+    subscribed((), |()| async {
         Ok::<_, zbus::Error>(serve().await?.map(Ok::<_, zbus::Error>))
     })
     .filter_map(|delivery| ready(delivery.ok()))

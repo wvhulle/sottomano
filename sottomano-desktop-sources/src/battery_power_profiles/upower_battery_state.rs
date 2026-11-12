@@ -28,7 +28,7 @@ use crate::{
     network_connectivity::interface_properties_changed,
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses,
-        protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+        protocol_peer_reconnects::subscribed,
         sysfs_attribute_reads::{Error, list_dir, parse_field, read_field, read_i64, read_trimmed},
     },
 };
@@ -236,7 +236,7 @@ trait UPower {
 }
 
 fn present(system: Connection) -> impl Stream<Item = Availability> + Send {
-    resubscribed(PEER_RECONNECT_GAP, system, device_changes).map(|present| {
+    subscribed(system, device_changes).map(|present| {
         present.unwrap_or_else(|e| {
             tracing::warn!("upower device watch: {e}");
             battery_availability()
@@ -265,7 +265,7 @@ async fn device_changes(
 }
 
 fn supply_state_changes(system: Connection) -> impl Stream<Item = ()> + Send {
-    resubscribed(Duration::from_secs(1), system, |system| async move {
+    subscribed(system, |system| async move {
         Ok(
             interface_properties_changed(&system, UPOWER_SERVICE, UPOWER_DEVICE_INTERFACE)
                 .await?

@@ -10,8 +10,7 @@ use zbus::{
 };
 
 use crate::system_protocol_clients::{
-    dbus_desktop_buses::DesktopBuses,
-    protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+    dbus_desktop_buses::DesktopBuses, protocol_peer_reconnects::subscribed,
 };
 
 #[derive(Debug, Deserialize, Type)]
@@ -92,7 +91,7 @@ impl SleepEdge {
 }
 
 pub fn sleep_edges(buses: &DesktopBuses) -> impl Stream<Item = SleepEdge> + Send + use<> {
-    resubscribed(PEER_RECONNECT_GAP, buses.system.clone(), sleep_signals)
+    subscribed(buses.system.clone(), sleep_signals)
         .filter_map(|edge| {
             ready(
                 edge.inspect_err(|sleep_failure| {

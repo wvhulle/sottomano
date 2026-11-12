@@ -1,12 +1,7 @@
-use std::{
-    fmt::{Display, Formatter, Result as FmtResult},
-    future::ready,
-    time::Duration,
-};
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 use futures::{Stream, StreamExt, stream};
 use futures_rx::RxExt;
-use tokio::time::sleep;
 use zbus::Connection;
 
 use crate::{
@@ -17,12 +12,9 @@ use crate::{
         self, ActiveConnectionUplink, ConnectedScope, Connectivity, ManagerState, UplinkIdentity,
     },
     system_protocol_clients::{
-        dbus_desktop_buses::DesktopBuses,
-        protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+        dbus_desktop_buses::DesktopBuses, protocol_peer_reconnects::subscribed,
     },
 };
-
-const RESUBSCRIBE_DELAY: Duration = Duration::from_mins(1);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OnlineSourceInputs<SourceInputs> {
@@ -190,18 +182,12 @@ where
 fn internet_access_states(
     buses: DesktopBuses,
 ) -> impl Stream<Item = Result<(), InternetUnreachable>> + Send {
-    stream::repeat_with(move || {
-        let buses = buses.clone();
-        resubscribed(PEER_RECONNECT_GAP, buses, watched_internet_access)
-            .map(|access| {
-                access.unwrap_or_else(|failure| {
-                    tracing::warn!("network connectivity watch, assuming online: {failure}");
-                    Ok(())
-                })
-            })
-            .chain(stream::once(sleep(RESUBSCRIBE_DELAY)).filter_map(|()| ready(None)))
+    subscribed(buses, watched_internet_access).map(|access| {
+        access.unwrap_or_else(|failure| {
+            tracing::warn!("network connectivity watch, assuming online: {failure}");
+            Ok(())
+        })
     })
-    .flatten()
 }
 
 async fn watched_internet_access(
@@ -218,6 +204,10 @@ async fn watched_internet_access(
 
 #[cfg(test)]
 mod tests {
+    use std::{future::ready, time::Duration};
+
+    use tokio::time::sleep;
+
     use super::*;
 
     #[derive(Debug, Clone, PartialEq)]

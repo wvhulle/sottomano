@@ -31,8 +31,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::{Availability, AvailabilityStreams},
     system_protocol_clients::{
-        inotify_file_presence::path_present,
-        protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+        inotify_file_presence::path_present, protocol_peer_reconnects::subscribed,
     },
 };
 
@@ -248,10 +247,7 @@ impl From<pipewire::Error> for AudioConnectError {
 
 pub fn connection_events()
 -> impl Stream<Item = Option<Result<AudioEvent, AudioConnectError>>> + Send {
-    socket_present().while_available(
-        || resubscribed(PEER_RECONNECT_GAP, (), |()| connect()).map(Some),
-        None,
-    )
+    socket_present().while_available(|| subscribed((), |()| connect()).map(Some), None)
 }
 
 fn socket_present() -> impl Stream<Item = Availability> + Send {
@@ -271,8 +267,7 @@ impl SnapshotSource for AudioState {
     fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         socket_present().while_available(
             || {
-                resubscribed(PEER_RECONNECT_GAP, (), |()| connect()).filter_map(|event| match event
-                {
+                subscribed((), |()| connect()).filter_map(|event| match event {
                     Ok(AudioEvent::State(state)) => Some(SnapshotDelivery::live_push(Ok(state))),
                     Ok(AudioEvent::Connected(_) | AudioEvent::Peaks(_)) => None,
                     Err(e) => Some(SnapshotDelivery::live_push(Err(e))),

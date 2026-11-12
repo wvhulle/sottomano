@@ -26,7 +26,7 @@ use crate::{
     media_playback_audio::lrclib_synced_lyrics::LyricsQuery,
     system_protocol_clients::{
         dbus_desktop_buses::{DbusPropertyLookup, DesktopBuses, OwnerProcess, Properties},
-        protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+        protocol_peer_reconnects::subscribed,
     },
 };
 
@@ -493,7 +493,7 @@ impl SnapshotSource for Vec<Media> {
     const NAME: &'static str = "Media players";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        resubscribed(PEER_RECONNECT_GAP, buses.session, connect).map(SnapshotDelivery::live_push)
+        subscribed(buses.session, connect).map(SnapshotDelivery::live_push)
     }
 }
 

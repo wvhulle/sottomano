@@ -4,7 +4,6 @@ use std::{
     ffi::OsString,
     fs, io,
     path::{Path, PathBuf},
-    time::Duration,
 };
 
 use futures::{Stream, StreamExt, TryStreamExt, future::ready, stream};
@@ -17,7 +16,7 @@ use crate::{
     backing_service_availability::Availability,
     secret_file_reads::read_secret,
     system_protocol_clients::{
-        http_json_client, protocol_peer_reconnects::resubscribed, shell_command_output,
+        http_json_client, protocol_peer_reconnects::subscribed, shell_command_output,
     },
 };
 
@@ -125,7 +124,7 @@ pub enum DisplayedWallpaper {
 
 pub fn displayed()
 -> impl Stream<Item = Result<DisplayedWallpaper, shell_command_output::Error>> + Send {
-    resubscribed(Duration::from_secs(1), (), |()| {
+    subscribed((), |()| {
         let watched = watch();
         async move {
             match watched {
