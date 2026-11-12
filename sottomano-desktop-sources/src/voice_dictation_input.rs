@@ -6,11 +6,12 @@ pub mod notulist_dbus_output_problems;
 pub mod notulist_dbus_pipeline_activity;
 
 use futures::{Stream, StreamExt, stream};
+use futures_rx::RxExt;
 use notulist_client::{DICTATION_BUS_NAME, DICTATION_INTERFACE, DICTATION_OBJECT_PATH};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    stream_operators::{Availability, StreamOperators},
+    backing_service_availability::{Availability, AvailabilityStreams},
     system_protocol_clients::dbus_desktop_buses::{
         DesktopBuses, Error, InterfaceOffer, introspected_interface_offer, name_owned,
     },
@@ -40,13 +41,14 @@ fn notulist_interface_offers(
 
 fn notulist_followed_deliveries<S, Value, Followed, FollowedValues>(
     buses: DesktopBuses,
-    follow: impl Fn(zbus::Connection) -> Followed + Send + 'static,
+    follow: impl Fn(zbus::Connection) -> Followed + Clone + Send + 'static,
     snapshot_of: fn(Value) -> S,
 ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
 where
     S: SnapshotSource<Error = Error> + PartialEq,
     Followed: Future<Output = zbus::Result<FollowedValues>> + Send,
     FollowedValues: Stream<Item = zbus::Result<Value>> + Send,
+    Value: 'static,
 {
     let session = buses.session;
     notulist_interface_offers(session.clone())
@@ -56,10 +58,14 @@ where
                 Availability::Unavailable
             }
         })
-        .available_while(move || {
-            let followed = follow(session.clone());
-            SnapshotDelivery::live_push_deliveries(async move {
-                Ok(followed.await?.map(move |value| Ok(snapshot_of(value?))))
-            })
-        })
+        .while_available(
+            move || {
+                let follow = follow.clone();
+                SnapshotDelivery::live_push_deliveries(session.clone(), move |session| {
+                    let followed = follow(session);
+                    async move { Ok(followed.await?.map(move |value| Ok(snapshot_of(value?)))) }
+                })
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
 }

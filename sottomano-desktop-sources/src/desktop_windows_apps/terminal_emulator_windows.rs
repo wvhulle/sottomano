@@ -13,17 +13,15 @@ use std::{
 };
 
 use futures::{Stream, StreamExt, future::ready, stream};
+use futures_rx::RxExt;
 use pty_shell_sessions::ShellSession;
 use sottomano_toml_config::widget_groups::{TerminalAgentUse, WindowAgentsConfig};
 use terminal_shell_label::TerminalShellLabel;
 use tokio::task::spawn_blocking;
 
-use crate::{
-    compositor_window_ipc::{
-        compositor_connection::compositor_updates,
-        compositor_window_state::{CompositorChange, CompositorWindow, CompositorWindowState},
-    },
-    stream_operators::StreamOperators,
+use crate::compositor_window_ipc::{
+    compositor_connection::compositor_updates,
+    compositor_window_state::{CompositorChange, CompositorWindow, CompositorWindowState},
 };
 
 const KITTY_APP_ID: &str = "kitty";

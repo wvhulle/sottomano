@@ -12,9 +12,9 @@ use super::{
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    backing_service_availability::{Availability, AvailabilityStreams},
     blocking_background_work::blocking_poll,
     delivery_cadence_drivers::PeriodicPolling,
-    stream_operators::{Availability, StreamOperators},
     system_protocol_clients::sysfs_attribute_reads::Error,
 };
 
@@ -167,17 +167,20 @@ impl SnapshotSource for CpuClock {
                 Ok(_) | Err(_) => Availability::Unavailable,
             }
         };
-        stream::once(exposed).available_while(move || {
-            PeriodicPolling::every(Duration::from_secs(3)).blocking_poll_deliveries_after_setup(
-                blocking_poll(|| {
-                    Ok(ClockProbe {
-                        topology: CpuTopology::detect(),
-                        throttle_baseline: ThrottleBaseline::default(),
-                    })
-                }),
-                read_cpu_clock,
-            )
-        })
+        stream::once(exposed).while_available(
+            move || {
+                PeriodicPolling::every(Duration::from_secs(3)).blocking_poll_deliveries_after_setup(
+                    blocking_poll(|| {
+                        Ok(ClockProbe {
+                            topology: CpuTopology::detect(),
+                            throttle_baseline: ThrottleBaseline::default(),
+                        })
+                    }),
+                    read_cpu_clock,
+                )
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 

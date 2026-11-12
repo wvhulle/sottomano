@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant, SystemTime};
 
 use futures::{Stream, StreamExt, future::join_all};
+use futures_rx::RxExt;
 use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{
@@ -9,9 +10,8 @@ use super::{
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    stream_operators::{
-        RereadSchedule, StreamOperators, connected_until_failure, reread_on_trigger_or_deadline,
-    },
+    delivery_cadence_drivers::{ChangeTriggerStreams, RereadSchedule},
+    system_protocol_clients::protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
 };
 
 const RUNNING_JOB_STATE: &str = "running";
@@ -58,10 +58,12 @@ impl SnapshotSource for SlowJobs {
 
     fn delivery_stream(watch: SlowJobsWatch) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let scope = watch.systemd.scope;
-        connected_until_failure(watch_running_jobs(
+        let slow_after = watch.slow_after;
+        resubscribed(
+            PEER_RECONNECT_GAP,
             watch.systemd.connection(),
-            watch.slow_after,
-        ))
+            move |connection| watch_running_jobs(connection, slow_after),
+        )
         .map(move |listed| listed.map(|jobs| SlowJobs { jobs, scope }))
         .map(SnapshotDelivery::live_push)
         .distinct_until_changed()
@@ -105,8 +107,8 @@ async fn watch_running_jobs(
     )
     .await?
     .map(drop);
-    let listings = reread_on_trigger_or_deadline(
-        job_signals,
+    let listings = job_signals.paced_rereads(
+        Duration::ZERO,
         move || {
             let manager = manager.clone();
             async move { running_jobs(&manager).await }

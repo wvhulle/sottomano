@@ -1,12 +1,14 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use futures::{Stream, StreamExt, future::join_all};
+use futures_rx::RxExt;
 use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{ManagerProxy, ServiceProxy, SystemdOnBus, manager_signal, signals_matching};
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    stream_operators::{StreamOperators, connected_until_failure, read_once_then_per_burst},
+    delivery_cadence_drivers::ChangeTriggerStreams,
+    system_protocol_clients::protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
 };
 
 const SERVICE_SUFFIX: &str = ".service";
@@ -105,9 +107,13 @@ impl SnapshotSource for ServiceCommands {
     const NAME: &'static str = "Systemd service commands";
 
     fn delivery_stream(systemd: SystemdOnBus) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        connected_until_failure(watch_service_commands(systemd.connection()))
-            .map(|listed| listed.map(|services| Self { services }))
-            .map(SnapshotDelivery::live_push)
+        resubscribed(
+            PEER_RECONNECT_GAP,
+            systemd.connection(),
+            watch_service_commands,
+        )
+        .map(|listed| listed.map(|services| Self { services }))
+        .map(SnapshotDelivery::live_push)
     }
 }
 
@@ -129,15 +135,16 @@ async fn watch_service_commands(
     )
     .await?
     .map(drop);
-    Ok(read_once_then_per_burst(signals, move || {
-        let manager = manager.clone();
-        async move {
-            all_service_commands(&manager)
-                .await
-                .map(|services| services.into_values().collect())
-        }
-    })
-    .distinct_until_changed())
+    Ok(signals
+        .triggered_rereads(move || {
+            let manager = manager.clone();
+            async move {
+                all_service_commands(&manager)
+                    .await
+                    .map(|services| services.into_values().collect())
+            }
+        })
+        .distinct_until_changed())
 }
 
 async fn all_service_commands(

@@ -11,8 +11,9 @@ use futures::Stream;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, triggered_deliveries_with_recheck},
-    stream_operators::StreamOperators,
+    delivery_cadence_drivers::{
+        PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams, triggered_deliveries_with_recheck,
+    },
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses, sysfs_cgroup_memory::unit_memory_of_process,
     },

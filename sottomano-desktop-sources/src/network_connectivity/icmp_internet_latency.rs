@@ -4,6 +4,7 @@ use std::{
 };
 
 use futures::{Stream, StreamExt};
+use futures_rx::RxExt;
 
 use crate::{
     SnapshotDelivery, SnapshotSource, SourceCaption,
@@ -11,7 +12,6 @@ use crate::{
     network_connectivity::icmp_echo_probes::{
         LatencyProbeError, PROBE_POLLING, ProbeWindow, echo_round_trip,
     },
-    stream_operators::StreamOperators,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

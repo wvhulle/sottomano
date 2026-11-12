@@ -9,8 +9,8 @@ use uom::si::{f64::Frequency, frequency::hertz};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    backing_service_availability::AvailabilityStreams,
     delivery_cadence_drivers::PeriodicPolling,
-    stream_operators::StreamOperators,
     system_protocol_clients::{dbus_desktop_buses::DesktopBuses, http_json_client},
     systemd_units_journal::{
         ScopedSystemdUnit, SystemdUnitOnBus, SystemdUnitScope, service_commands::ServiceCommand,
@@ -284,40 +284,43 @@ impl SnapshotSource for LlamaServer {
             buses,
             unit: server.unit.clone(),
         });
-        running.available_while(move || {
-            let endpoint = server.endpoint.clone();
-            let mut previous = None;
-            PeriodicPolling::every(POLL_INTERVAL)
-                .poll_deliveries(move || {
-                    let endpoint = endpoint.clone();
-                    async move { fetch_server(&endpoint).await }
-                })
-                .map(move |delivery| match delivery {
-                    SnapshotDelivery::SnapshotDelivered {
-                        snapshot_fetch: Ok(server),
-                        delivery_cadence,
-                    } => {
-                        let rated_server = server.rated_since(previous.as_ref());
-                        previous = Some(rated_server.clone());
+        running.while_available(
+            move || {
+                let endpoint = server.endpoint.clone();
+                let mut previous = None;
+                PeriodicPolling::every(POLL_INTERVAL)
+                    .poll_deliveries(move || {
+                        let endpoint = endpoint.clone();
+                        async move { fetch_server(&endpoint).await }
+                    })
+                    .map(move |delivery| match delivery {
                         SnapshotDelivery::SnapshotDelivered {
-                            snapshot_fetch: Ok(rated_server),
+                            snapshot_fetch: Ok(server),
                             delivery_cadence,
+                        } => {
+                            let rated_server = server.rated_since(previous.as_ref());
+                            previous = Some(rated_server.clone());
+                            SnapshotDelivery::SnapshotDelivered {
+                                snapshot_fetch: Ok(rated_server),
+                                delivery_cadence,
+                            }
                         }
-                    }
-                    SnapshotDelivery::SnapshotDelivered {
-                        snapshot_fetch: Err(failure),
-                        delivery_cadence,
-                    } => SnapshotDelivery::SnapshotDelivered {
-                        snapshot_fetch: Err(failure),
-                        delivery_cadence,
-                    },
-                    SnapshotDelivery::SourceUnavailable => SnapshotDelivery::SourceUnavailable,
-                    SnapshotDelivery::InternetUnreachable(reason) => {
-                        SnapshotDelivery::InternetUnreachable(reason)
-                    }
-                    SnapshotDelivery::SnapshotUnchanged => SnapshotDelivery::SnapshotUnchanged,
-                })
-        })
+                        SnapshotDelivery::SnapshotDelivered {
+                            snapshot_fetch: Err(failure),
+                            delivery_cadence,
+                        } => SnapshotDelivery::SnapshotDelivered {
+                            snapshot_fetch: Err(failure),
+                            delivery_cadence,
+                        },
+                        SnapshotDelivery::SourceUnavailable => SnapshotDelivery::SourceUnavailable,
+                        SnapshotDelivery::InternetUnreachable(reason) => {
+                            SnapshotDelivery::InternetUnreachable(reason)
+                        }
+                        SnapshotDelivery::SnapshotUnchanged => SnapshotDelivery::SnapshotUnchanged,
+                    })
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 

@@ -17,10 +17,10 @@ pub use self::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     ai_usage_spend::ccusage_cli_reports,
+    backing_service_availability::AvailabilityStreams,
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::internet_connectivity_gate,
     secret_file_reads::read_secret,
-    stream_operators::StreamOperators,
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses, http_json_client, inotify_file_presence::path_present,
     },
@@ -114,28 +114,33 @@ where
     S: SnapshotSource<StreamInputs = CopilotAccount, Error = Error> + PartialEq,
     F: Future<Output = Result<S, Error>> + Send + 'static,
 {
-    path_present(account.gh_auth_token.clone()).available_while(move || {
-        let account = account.clone();
-        let poll = poll.clone();
-        internet_connectivity_gate::while_online(account.buses.clone(), move || {
-            let checked = account.gh_auth_token.clone();
-            let polled = account.clone();
+    path_present(account.gh_auth_token.clone()).while_available(
+        move || {
+            let account = account.clone();
             let poll = poll.clone();
-            stream::once(async move { user_info(&checked).await }).flat_map(
-                move |info| match info {
-                    Ok(info) if info.plan_kind() == wanted_plan => {
-                        let polled = polled.clone();
-                        let poll = poll.clone();
-                        USER_POLLING
-                            .poll_deliveries(move || poll(polled.clone()))
-                            .left_stream()
+            internet_connectivity_gate::while_online(account.buses.clone(), move || {
+                let checked = account.gh_auth_token.clone();
+                let polled = account.clone();
+                let poll = poll.clone();
+                stream::once(async move { user_info(&checked).await }).flat_map(move |info| {
+                    match info {
+                        Ok(info) if info.plan_kind() == wanted_plan => {
+                            let polled = polled.clone();
+                            let poll = poll.clone();
+                            USER_POLLING
+                                .poll_deliveries(move || poll(polled.clone()))
+                                .left_stream()
+                        }
+                        Ok(_) => stream::iter([SnapshotDelivery::SourceUnavailable]).right_stream(),
+                        Err(e) => {
+                            stream::iter([SnapshotDelivery::single_read(Err(e))]).right_stream()
+                        }
                     }
-                    Ok(_) => stream::iter([SnapshotDelivery::SourceUnavailable]).right_stream(),
-                    Err(e) => stream::iter([SnapshotDelivery::single_read(Err(e))]).right_stream(),
-                },
-            )
-        })
-    })
+                })
+            })
+        },
+        SnapshotDelivery::SourceUnavailable,
+    )
 }
 
 async fn user_info(key: &Path) -> Result<UserInfo, Error> {

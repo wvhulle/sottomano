@@ -5,16 +5,17 @@ use zbus::{Connection, proxy};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    backing_service_availability::AvailabilityStreams,
     cpu_memory_compute::cpu_core_loads,
-    delivery_cadence_drivers::PeriodicPolling,
+    delivery_cadence_drivers::{ChangeTriggerStreams, PeriodicPolling},
     network_connectivity::interface_properties_changed,
     non_empty_text::non_empty,
     screen_brightness_color::clightd_backlight,
-    stream_operators::{StreamOperators, connected_until_failure, read_once_then_per_burst},
     system_protocol_clients::{
         dbus_desktop_buses::{
             self, DbusPropertyLookup, DesktopBuses, Properties, name_owned, prop,
         },
+        protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
         sysfs_attribute_reads,
     },
 };
@@ -140,11 +141,14 @@ impl SnapshotSource for Conditions {
     const NAME: &'static str = "Power conditions";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        name_owned(buses.system.clone(), DAEMON_SERVICE).available_while(move || {
-            let _buses = buses.clone();
-            PeriodicPolling::every(Duration::from_secs(5))
-                .blocking_poll_deliveries(|| Ok(Conditions::current()))
-        })
+        name_owned(buses.system.clone(), DAEMON_SERVICE).while_available(
+            move || {
+                let _buses = buses.clone();
+                PeriodicPolling::every(Duration::from_secs(5))
+                    .blocking_poll_deliveries(|| Ok(Conditions::current()))
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 
@@ -180,9 +184,14 @@ impl SnapshotSource for ProfileStatus {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
-        name_owned(system.clone(), DAEMON_SERVICE).available_while(move || {
-            connected_until_failure(status_changes(system.clone())).map(SnapshotDelivery::live_push)
-        })
+        name_owned(system.clone(), DAEMON_SERVICE).while_available(
+            move || {
+                let system = system.clone();
+                resubscribed(PEER_RECONNECT_GAP, system, status_changes)
+                    .map(SnapshotDelivery::live_push)
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 
@@ -207,7 +216,7 @@ async fn status_changes(
 > {
     let daemon = PowerProfilesProxy::new(&system).await?;
     let changes = interface_properties_changed(&system, DAEMON_SERVICE, DAEMON_SERVICE).await?;
-    Ok(read_once_then_per_burst(changes, move || {
+    Ok(changes.triggered_rereads(move || {
         let daemon = daemon.clone();
         async move { read_status(&daemon).await }
     }))

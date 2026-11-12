@@ -6,8 +6,8 @@ use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 
 use crate::{
-    SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
-    stream_operators::StreamOperators, system_protocol_clients::shell_command_output,
+    SnapshotDelivery, SnapshotSource, backing_service_availability::AvailabilityStreams,
+    delivery_cadence_drivers::PeriodicPolling, system_protocol_clients::shell_command_output,
 };
 
 const RUNNING_BACKEND_STATE: &str = "Running";
@@ -292,11 +292,12 @@ impl SnapshotSource for Tailscale {
     const NAME: &'static str = "Tailscale";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(shell_command_output::program_availability("tailscale")).available_while(
+        stream::once(shell_command_output::program_availability("tailscale")).while_available(
             move || {
                 PeriodicPolling::every(Duration::from_secs(10))
                     .poll_deliveries(move || Self::poll(()))
             },
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

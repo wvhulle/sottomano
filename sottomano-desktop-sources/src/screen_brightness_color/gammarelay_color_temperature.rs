@@ -6,8 +6,9 @@ use zbus::{Connection, proxy};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    backing_service_availability::AvailabilityStreams,
+    delivery_cadence_drivers::ChangeTriggerStreams,
     network_connectivity::interface_properties_changed,
-    stream_operators::{StreamOperators, read_once_then_per_burst},
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error, name_owned},
 };
 
@@ -46,9 +47,13 @@ impl SnapshotSource for ColorTemperature {
     const NAME: &'static str = "Color temperature";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        name_owned(buses.session.clone(), RELAY_SERVICE).available_while(move || {
-            SnapshotDelivery::live_push_deliveries(relay_changes(buses.clone()))
-        })
+        name_owned(buses.session.clone(), RELAY_SERVICE).while_available(
+            move || {
+                let buses = buses.clone();
+                SnapshotDelivery::live_push_deliveries(buses, relay_changes)
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 
@@ -58,7 +63,7 @@ async fn relay_changes(
     let relay = GammaRelayProxy::new(&buses.session).await?;
     let changes =
         interface_properties_changed(&buses.session, RELAY_SERVICE, RELAY_INTERFACE).await?;
-    Ok(read_once_then_per_burst(changes, move || {
+    Ok(changes.triggered_rereads(move || {
         let relay = relay.clone();
         async move { ColorTemperature::read(&relay).await }
     }))

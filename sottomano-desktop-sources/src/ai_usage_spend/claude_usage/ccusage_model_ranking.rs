@@ -1,6 +1,7 @@
 use std::{future::ready, path::PathBuf};
 
 use futures::{Stream, StreamExt, stream};
+use futures_rx::RxExt;
 
 use super::{Error, logins};
 use crate::{
@@ -10,7 +11,8 @@ use crate::{
         claude_usage::SubscriptionCoverage,
         model_spend_ranking::ModelRanking,
     },
-    stream_operators::{StreamOperators, reread_on_spaced_trigger_or_deadline},
+    backing_service_availability::AvailabilityStreams,
+    delivery_cadence_drivers::ChangeTriggerStreams,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -30,26 +32,34 @@ impl SnapshotSource for ClaudeCcusageModels {
     fn delivery_stream(
         credentials: Option<PathBuf>,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(ccusage_cli_reports::ccusage_availability()).available_while(move || {
-            let subscription_logins = match credentials.clone() {
-                Some(credentials) => logins(credentials)
-                    .map(SubscriptionCoverage::from)
-                    .left_stream(),
-                None => stream::iter([SubscriptionCoverage::Uncovered]).right_stream(),
-            };
-            subscription_logins
-                .distinct_until_changed()
-                .switch_map(|subscription_coverage| {
-                    SnapshotDelivery::live_push_deliveries(ready(Ok(
-                        reread_on_spaced_trigger_or_deadline(
-                            ccusage_cli_reports::transcript_changes(Agent::ClaudeCode),
-                            TRANSCRIPT_REREAD_MINIMUM_GAP,
-                            move || Self::read(subscription_coverage),
-                            |_| ccusage_cli_reports::next_local_midnight(),
-                        ),
-                    )))
-                })
-        })
+        stream::once(ccusage_cli_reports::ccusage_availability()).while_available(
+            move || {
+                let subscription_logins = match credentials.clone() {
+                    Some(credentials) => logins(credentials)
+                        .map(SubscriptionCoverage::from)
+                        .left_stream(),
+                    None => stream::iter([SubscriptionCoverage::Uncovered]).right_stream(),
+                };
+                subscription_logins
+                    .distinct_until_changed()
+                    .switch_map(|subscription_coverage| {
+                        SnapshotDelivery::live_push_deliveries(
+                            subscription_coverage,
+                            |subscription_coverage| {
+                                ready(Ok(ccusage_cli_reports::transcript_changes(
+                                    Agent::ClaudeCode,
+                                )
+                                .paced_rereads(
+                                    TRANSCRIPT_REREAD_MINIMUM_GAP,
+                                    move || Self::read(subscription_coverage),
+                                    |_| ccusage_cli_reports::next_local_midnight(),
+                                )))
+                            },
+                        )
+                    })
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 

@@ -1,15 +1,17 @@
 use std::env;
 
-use futures::{Stream, StreamExt, future::ready};
+use futures::{Stream, StreamExt, future::ready, stream};
+use futures_rx::RxExt;
 use serde::Deserialize;
 use zbus::{
     proxy,
+    proxy::CacheProperties,
     zvariant::{OwnedObjectPath, Type},
 };
 
-use crate::{
-    stream_operators::connected_until_failure,
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+use crate::system_protocol_clients::{
+    dbus_desktop_buses::DesktopBuses,
+    protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
 };
 
 #[derive(Debug, Deserialize, Type)]
@@ -62,6 +64,8 @@ pub trait Manager {
     fn idle_action(&self) -> zbus::Result<String>;
     #[zbus(property)]
     fn sleep_operation(&self) -> zbus::Result<Vec<String>>;
+    #[zbus(property)]
+    fn preparing_for_sleep(&self) -> zbus::Result<bool>;
     #[zbus(signal)]
     fn prepare_for_sleep(&self, start: bool) -> zbus::Result<()>;
 }
@@ -77,13 +81,27 @@ pub enum SleepEdge {
     Resumed,
 }
 
+impl SleepEdge {
+    fn while_preparing_for_sleep(preparing_for_sleep: bool) -> Self {
+        if preparing_for_sleep {
+            SleepEdge::Suspending
+        } else {
+            SleepEdge::Resumed
+        }
+    }
+}
+
 pub fn sleep_edges(buses: &DesktopBuses) -> impl Stream<Item = SleepEdge> + Send + use<> {
-    connected_until_failure(sleep_signals(buses.system.clone())).filter_map(|edge| {
-        ready(
-            edge.inspect_err(|e| tracing::warn!("logind sleep signal: {e}"))
+    resubscribed(PEER_RECONNECT_GAP, buses.system.clone(), sleep_signals)
+        .filter_map(|edge| {
+            ready(
+                edge.inspect_err(|sleep_failure| {
+                    tracing::warn!("logind sleep signal: {sleep_failure}");
+                })
                 .ok(),
-        )
-    })
+            )
+        })
+        .distinct_until_changed()
 }
 
 pub fn resumes(buses: &DesktopBuses) -> impl Stream<Item = ()> + Send + use<> {
@@ -93,14 +111,16 @@ pub fn resumes(buses: &DesktopBuses) -> impl Stream<Item = ()> + Send + use<> {
 async fn sleep_signals(
     system: zbus::Connection,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<SleepEdge>> + Send> {
-    let manager = ManagerProxy::new(&system).await?;
-    let edges = manager.receive_prepare_for_sleep().await?.map(|signal| {
-        let args = signal.args()?;
-        Ok(if *args.start() {
-            SleepEdge::Suspending
-        } else {
-            SleepEdge::Resumed
-        })
+    let manager = ManagerProxy::builder(&system)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
+    let signalled_edges = manager.receive_prepare_for_sleep().await?.map(|signal| {
+        Ok(SleepEdge::while_preparing_for_sleep(
+            *signal.args()?.start(),
+        ))
     });
-    Ok(edges)
+    let edge_at_subscribe =
+        SleepEdge::while_preparing_for_sleep(manager.preparing_for_sleep().await?);
+    Ok(stream::iter([Ok(edge_at_subscribe)]).chain(signalled_edges))
 }

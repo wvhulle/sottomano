@@ -1,4 +1,5 @@
 use futures::{Stream, StreamExt};
+use futures_rx::RxExt;
 
 use crate::{
     SnapshotDelivery, SnapshotSource, SourceCaption,
@@ -6,7 +7,6 @@ use crate::{
         network_manager_proxies::{self, Connectivity},
         nm_readings,
     },
-    stream_operators::StreamOperators,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 

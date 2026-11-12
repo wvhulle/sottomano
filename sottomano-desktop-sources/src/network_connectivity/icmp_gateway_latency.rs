@@ -5,6 +5,7 @@ use futures::{
     future::join_all,
     stream::{self, select},
 };
+use futures_rx::RxExt;
 
 use crate::{
     SnapshotDelivery, SnapshotSource, SourceCaption,
@@ -17,7 +18,6 @@ use crate::{
         network_manager_proxies::{self, DeviceGateway},
         nm_readings,
     },
-    stream_operators::StreamOperators,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 

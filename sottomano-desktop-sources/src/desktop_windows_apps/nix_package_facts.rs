@@ -10,13 +10,13 @@ use serde::Deserialize;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    backing_service_availability::AvailabilityStreams,
     blocking_background_work::{Panicked, blocking_poll},
     delivery_cadence_drivers::PeriodicPolling,
     desktop_windows_apps::{
         nix_store_provenance::{Provenance, StorePackage, below_derivation},
         process_tree_inspection::{Watched, launch},
     },
-    stream_operators::StreamOperators,
     system_protocol_clients::shell_command_output,
 };
 
@@ -167,14 +167,17 @@ impl SnapshotSource for NixPackageFacts {
     const NAME: &'static str = "Nix";
 
     fn delivery_stream(inputs: PackageWatch) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(shell_command_output::program_availability("nix")).available_while(move || {
-            PeriodicPolling::every(Duration::from_secs(600))
-                .poll_deliveries_after_setup(
-                    InstalledPackage::read(inputs.clone()),
-                    Self::poll_upstream,
-                )
-                .map(absent_outside_store)
-        })
+        stream::once(shell_command_output::program_availability("nix")).while_available(
+            move || {
+                PeriodicPolling::every(Duration::from_secs(600))
+                    .poll_deliveries_after_setup(
+                        InstalledPackage::read(inputs.clone()),
+                        Self::poll_upstream,
+                    )
+                    .map(absent_outside_store)
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 

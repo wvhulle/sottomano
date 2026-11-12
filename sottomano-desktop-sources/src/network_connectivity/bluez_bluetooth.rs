@@ -14,14 +14,15 @@ pub use crate::network_connectivity::hid_sysfs_bluetooth_peripherals::{
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    backing_service_availability::AvailabilityStreams,
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::{
         hid_sysfs_bluetooth_peripherals::hid_peripherals_with_address, interface,
         properties_changed,
     },
-    stream_operators::{StreamOperators, resubscribed},
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBuses, Properties, name_owned, prop},
+        protocol_peer_reconnects::resubscribed,
         sysfs_attribute_reads::read_trimmed,
     },
 };
@@ -302,21 +303,25 @@ impl SnapshotSource for Bluetooth {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
-        name_owned(system.clone(), SERVICE).available_while(move || {
-            let signal_connection = system.clone();
-            let read_connection = system.clone();
-            PeriodicPolling::every(PERIPHERAL_BATTERY_RECHECK).triggered_deliveries(
-                resubscribed(Duration::from_secs(1), move || {
-                    let signal_connection = signal_connection.clone();
-                    async move {
-                        Ok(bluez_object_signals(signal_connection)
-                            .await?
-                            .map(Ok::<_, zbus::Error>))
-                    }
-                })
-                .filter_map(|signal| ready(signal.ok())),
-                move || read_bluetooth(read_connection.clone()),
-            )
-        })
+        name_owned(system.clone(), SERVICE).while_available(
+            move || {
+                let signal_connection = system.clone();
+                let read_connection = system.clone();
+                PeriodicPolling::every(PERIPHERAL_BATTERY_RECHECK).triggered_deliveries(
+                    resubscribed(
+                        Duration::from_secs(1),
+                        signal_connection,
+                        |signal_connection| async move {
+                            Ok(bluez_object_signals(signal_connection)
+                                .await?
+                                .map(Ok::<_, zbus::Error>))
+                        },
+                    )
+                    .filter_map(|signal| ready(signal.ok())),
+                    move || read_bluetooth(read_connection.clone()),
+                )
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }

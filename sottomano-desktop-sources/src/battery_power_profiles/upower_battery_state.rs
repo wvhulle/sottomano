@@ -21,13 +21,14 @@ use zbus::{Connection, proxy, zvariant::OwnedObjectPath};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    backing_service_availability::{Availability, AvailabilityStreams},
     blocking_background_work::blocking_poll,
     delivery_cadence_drivers::PeriodicPolling,
     host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
     network_connectivity::interface_properties_changed,
-    stream_operators::{Availability, StreamOperators, connected_until_failure, resubscribed},
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses,
+        protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
         sysfs_attribute_reads::{Error, list_dir, parse_field, read_field, read_i64, read_trimmed},
     },
 };
@@ -205,12 +206,15 @@ impl SnapshotSource for Battery {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
-        present(system.clone()).available_while(move || {
-            PeriodicPolling::every(BATTERY_POLL_INTERVAL)
-                .triggered_deliveries(supply_state_changes(system.clone()), || {
-                    blocking_poll(read_battery)
-                })
-        })
+        present(system.clone()).while_available(
+            move || {
+                PeriodicPolling::every(BATTERY_POLL_INTERVAL)
+                    .triggered_deliveries(supply_state_changes(system.clone()), || {
+                        blocking_poll(read_battery)
+                    })
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 
@@ -232,7 +236,7 @@ trait UPower {
 }
 
 fn present(system: Connection) -> impl Stream<Item = Availability> + Send {
-    connected_until_failure(device_changes(system)).map(|present| {
+    resubscribed(PEER_RECONNECT_GAP, system, device_changes).map(|present| {
         present.unwrap_or_else(|e| {
             tracing::warn!("upower device watch: {e}");
             battery_availability()
@@ -261,15 +265,12 @@ async fn device_changes(
 }
 
 fn supply_state_changes(system: Connection) -> impl Stream<Item = ()> + Send {
-    resubscribed(Duration::from_secs(1), move || {
-        let system = system.clone();
-        async move {
-            Ok(
-                interface_properties_changed(&system, UPOWER_SERVICE, UPOWER_DEVICE_INTERFACE)
-                    .await?
-                    .map(Ok::<_, zbus::Error>),
-            )
-        }
+    resubscribed(Duration::from_secs(1), system, |system| async move {
+        Ok(
+            interface_properties_changed(&system, UPOWER_SERVICE, UPOWER_DEVICE_INTERFACE)
+                .await?
+                .map(Ok::<_, zbus::Error>),
+        )
     })
     .filter_map(|signal| ready(signal.ok()))
 }

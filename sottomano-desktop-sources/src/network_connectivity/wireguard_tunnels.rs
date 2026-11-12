@@ -11,13 +11,13 @@ use zbus::{Connection, zvariant::OwnedObjectPath};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::PeriodicPolling,
+    delivery_cadence_drivers::{ChangeTriggerStreams, PeriodicPolling},
     network_connectivity::network_manager_proxies::{
         self, ActivationState, ActiveWireguard, WireguardPeerSettings, WireguardProfile,
     },
-    stream_operators::{read_once_then_per_burst, resubscribed},
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBuses, SERVICE_ABSENT_ERRORS},
+        protocol_peer_reconnects::resubscribed,
         shell_command_output,
     },
 };
@@ -340,7 +340,7 @@ impl SnapshotSource for TunnelAddress {
     const NAME: &'static str = "Tunnel address";
 
     fn delivery_stream(watched: TunnelOnBus) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries(address_changes(watched))
+        SnapshotDelivery::live_push_deliveries(watched, address_changes)
     }
 }
 
@@ -362,7 +362,7 @@ async fn address_changes(
             stream::empty().right_stream()
         }
     };
-    Ok(read_once_then_per_burst(addressing, move || {
+    Ok(addressing.triggered_rereads(move || {
         let tunnel = watched.tunnel.clone();
         async move {
             Ok(TunnelAddress {
@@ -398,17 +398,18 @@ impl SnapshotSource for Wireguard {
         let signal_connection = buses.system.clone();
         let read_connection = buses.system;
         PeriodicPolling::every(STATISTICS_RECHECK).triggered_deliveries(
-            resubscribed(Duration::from_secs(1), move || {
-                let signal_connection = signal_connection.clone();
-                async move {
+            resubscribed(
+                Duration::from_secs(1),
+                signal_connection,
+                |signal_connection| async move {
                     Ok(network_manager_proxies::changes(
                         &signal_connection,
                         WATCHED_WIREGUARD_PROPERTIES,
                     )
                     .await?
                     .map(Ok::<_, zbus::Error>))
-                }
-            })
+                },
+            )
             .filter_map(|signal| ready(signal.ok())),
             move || read_wireguard(read_connection.clone()),
         )

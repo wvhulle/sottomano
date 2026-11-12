@@ -1,22 +1,190 @@
 use std::{
     convert::identity,
     future::{Future, ready},
-    time::Duration,
+    pin::Pin,
+    task::{Context, Poll, ready as ready_poll},
+    time::{Duration, Instant},
 };
 
 use chrono::{DateTime, Local};
-use futures::{Stream, StreamExt, stream};
-use tokio::time::{Instant as TokioClockInstant, MissedTickBehavior, interval, sleep};
+use futures::{
+    Stream, StreamExt,
+    stream::{self, Fuse, FusedStream},
+};
+use futures_rx::RxExt;
+use pin_project_lite::pin_project;
+use tokio::time::{
+    Instant as TokioClockInstant, MissedTickBehavior, Sleep, interval, sleep, sleep_until,
+};
 use tokio_stream::wrappers::IntervalStream;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::{Panicked, blocking_poll},
-    stream_operators::{
-        RereadSchedule, StreamOperators, connected_until_failure,
-        reread_on_spaced_trigger_or_deadline,
-    },
+    system_protocol_clients::protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RereadSchedule {
+    WaitForTrigger,
+    RecheckAt(Instant),
+}
+
+pub trait ChangeTriggerStreams: Stream<Item = ()> + Sized + Send + 'static {
+    fn triggered_rereads<Produced, ReadFuture>(
+        self,
+        read: impl FnMut() -> ReadFuture + Send + 'static,
+    ) -> impl Stream<Item = Produced> + Send
+    where
+        Produced: Send + 'static,
+        ReadFuture: Future<Output = Produced> + Send,
+    {
+        self.paced_rereads(Duration::ZERO, read, |_| RereadSchedule::WaitForTrigger)
+    }
+
+    fn paced_rereads<Produced, ReadFuture>(
+        self,
+        minimum_trigger_gap: Duration,
+        read: impl FnMut() -> ReadFuture + Send + 'static,
+        recheck_after: impl Fn(&Produced) -> RereadSchedule + Send + 'static,
+    ) -> impl Stream<Item = Produced> + Send
+    where
+        Produced: Send + 'static,
+        ReadFuture: Future<Output = Produced> + Send,
+    {
+        RereadOnTrigger {
+            triggers: self.fuse(),
+            minimum_trigger_gap,
+            recheck_after,
+            read,
+            reading: None,
+            cooldown: None,
+            deadline: None,
+            triggered: true,
+        }
+    }
+}
+
+impl<TriggerStream: Stream<Item = ()> + Send + 'static> ChangeTriggerStreams for TriggerStream {}
+
+pin_project! {
+    struct RereadOnTrigger<TriggerStream, RecheckFn, ReadFn, ReadFuture> {
+        #[pin]
+        triggers: Fuse<TriggerStream>,
+        minimum_trigger_gap: Duration,
+        recheck_after: RecheckFn,
+        read: ReadFn,
+        #[pin]
+        reading: Option<ReadFuture>,
+        #[pin]
+        cooldown: Option<Sleep>,
+        #[pin]
+        deadline: Option<Sleep>,
+        triggered: bool,
+    }
+}
+
+impl<TriggerStream, RecheckFn, ReadFn, ReadFuture> Stream
+    for RereadOnTrigger<TriggerStream, RecheckFn, ReadFn, ReadFuture>
+where
+    TriggerStream: Stream<Item = ()>,
+    RecheckFn: Fn(&ReadFuture::Output) -> RereadSchedule,
+    ReadFn: FnMut() -> ReadFuture,
+    ReadFuture: Future,
+{
+    type Item = ReadFuture::Output;
+
+    fn poll_next(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+    ) -> Poll<Option<ReadFuture::Output>> {
+        let mut projected = self.project();
+        while let Poll::Ready(Some(())) = projected.triggers.as_mut().poll_next(context) {
+            *projected.triggered = true;
+        }
+        if let Some(cooldown) = projected.cooldown.as_mut().as_pin_mut()
+            && cooldown.poll(context).is_ready()
+        {
+            projected.cooldown.set(None);
+        }
+        if let Some(deadline) = projected.deadline.as_mut().as_pin_mut()
+            && deadline.poll(context).is_ready()
+        {
+            *projected.triggered = true;
+            projected.deadline.set(None);
+            projected.cooldown.set(None);
+        }
+        if projected.reading.is_none() {
+            if !*projected.triggered {
+                return if projected.triggers.is_terminated() && projected.deadline.is_none() {
+                    Poll::Ready(None)
+                } else {
+                    Poll::Pending
+                };
+            }
+            if projected.cooldown.is_some() {
+                return Poll::Pending;
+            }
+            *projected.triggered = false;
+            if !projected.minimum_trigger_gap.is_zero() {
+                projected
+                    .cooldown
+                    .set(Some(sleep(*projected.minimum_trigger_gap)));
+                if let Some(cooldown) = projected.cooldown.as_mut().as_pin_mut()
+                    && cooldown.poll(context).is_ready()
+                {
+                    projected.cooldown.set(None);
+                }
+            }
+            projected.reading.set(Some((projected.read)()));
+        }
+        let Some(reading) = projected.reading.as_mut().as_pin_mut() else {
+            return Poll::Pending;
+        };
+        let produced = ready_poll!(reading.poll(context));
+        projected.reading.set(None);
+        let next_deadline = match (projected.recheck_after)(&produced) {
+            RereadSchedule::WaitForTrigger => None,
+            RereadSchedule::RecheckAt(recheck_instant) => Some(sleep_until(recheck_instant.into())),
+        };
+        projected.deadline.set(next_deadline);
+        Poll::Ready(Some(produced))
+    }
+}
+
+pub trait SnapshotDeliveryStreams<Source: SnapshotSource>:
+    Stream<Item = SnapshotDelivery<Source>> + Sized
+{
+    fn repeats_as_unchanged(self) -> impl Stream<Item = SnapshotDelivery<Source>> + Send
+    where
+        Self: Send,
+        Source: PartialEq,
+    {
+        self.scan(
+            None,
+            |previous: &mut Option<SnapshotDelivery<Source>>, delivery| {
+                let repeated_snapshot = matches!(
+                    delivery,
+                    SnapshotDelivery::SnapshotDelivered {
+                        snapshot_fetch: Ok(_),
+                        ..
+                    }
+                ) && previous.as_ref() == Some(&delivery);
+                *previous = Some(delivery.clone());
+                ready(Some(if repeated_snapshot {
+                    SnapshotDelivery::SnapshotUnchanged
+                } else {
+                    delivery
+                }))
+            },
+        )
+    }
+}
+
+impl<Source: SnapshotSource, DeliveryStream: Stream<Item = SnapshotDelivery<Source>>>
+    SnapshotDeliveryStreams<Source> for DeliveryStream
+{
+}
 
 const SHORTEST_POLL_PERIOD: Duration = Duration::from_secs(1);
 
@@ -175,8 +343,7 @@ where
     Source: SnapshotSource,
     ReadFuture: Future<Output = Result<Source, Source::Error>> + Send + 'static,
 {
-    reread_on_spaced_trigger_or_deadline(
-        triggers,
+    triggers.paced_rereads(
         minimum_trigger_gap,
         move || {
             let fetching = read();
@@ -192,7 +359,7 @@ where
                 }
             }
         },
-        move |delivery| match delivery {
+        |delivery| match delivery {
             SnapshotDelivery::SnapshotDelivered {
                 delivery_cadence: DeliveryCadence::LivePushWithRecheck(polling),
                 ..
@@ -222,14 +389,17 @@ impl<Source: SnapshotSource> SnapshotDelivery<Source> {
         }
     }
 
-    pub fn live_push_deliveries<ReadStream>(
-        connect: impl Future<Output = Result<ReadStream, Source::Error>> + Send,
+    pub fn live_push_deliveries<ConnectInputs, ReadStream, ConnectFuture>(
+        connect_inputs: ConnectInputs,
+        connect: impl FnMut(ConnectInputs) -> ConnectFuture + Send,
     ) -> impl Stream<Item = Self> + Send
     where
+        ConnectInputs: Clone + Send,
         Source: PartialEq,
         ReadStream: Stream<Item = Result<Source, Source::Error>> + Send,
+        ConnectFuture: Future<Output = Result<ReadStream, Source::Error>> + Send,
     {
-        connected_until_failure(connect)
+        resubscribed(PEER_RECONNECT_GAP, connect_inputs, connect)
             .map(SnapshotDelivery::live_push)
             .distinct_until_changed()
     }
@@ -344,6 +514,51 @@ mod tests {
             deliveries
                 .iter()
                 .all(|delivery| matches!(delivery, SnapshotDelivery::SourceUnavailable))
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn spaced_rereads_drain_burst_triggers_and_wait_the_gap() {
+        let minimum_trigger_gap = Duration::from_mins(1);
+        let started = TokioClockInstant::now();
+        let (trigger_sender, trigger_receiver) = futures::channel::mpsc::unbounded();
+        let mut read_count = 0_u32;
+        let mut rereads = Box::pin(trigger_receiver.paced_rereads(
+            minimum_trigger_gap,
+            move || {
+                read_count += 1;
+                ready(read_count)
+            },
+            |_| RereadSchedule::WaitForTrigger,
+        ));
+        assert_eq!(rereads.next().await, Some(1));
+        assert_eq!(started.elapsed(), Duration::ZERO);
+        trigger_sender.unbounded_send(()).unwrap();
+        trigger_sender.unbounded_send(()).unwrap();
+        assert_eq!(rereads.next().await, Some(2));
+        assert_eq!(started.elapsed(), minimum_trigger_gap);
+        assert!(
+            tokio::time::timeout(minimum_trigger_gap * 10, rereads.next())
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn triggers_drain_while_a_read_is_pending() {
+        let (trigger_sender, trigger_receiver) = futures::channel::mpsc::channel::<()>(4);
+        let mut rereads =
+            Box::pin(trigger_receiver.triggered_rereads(futures::future::pending::<()>));
+        let pending_read = tokio::spawn(async move { rereads.next().await });
+        let sent_triggers = tokio::time::timeout(
+            Duration::from_secs(1),
+            stream::repeat(()).take(200).map(Ok).forward(trigger_sender),
+        )
+        .await;
+        pending_read.abort();
+        assert!(
+            matches!(sent_triggers, Ok(Ok(()))),
+            "triggers backed up while a read was pending"
         );
     }
 

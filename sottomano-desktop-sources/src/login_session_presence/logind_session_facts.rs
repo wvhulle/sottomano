@@ -7,6 +7,7 @@ use zbus::{proxy, zvariant::OwnedObjectPath};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    delivery_cadence_drivers::ChangeTriggerStreams,
     host_machine_identity::hostname1_os_identity::at_micros,
     login_session_presence::{
         greetd_greeter_program::greeter_program,
@@ -14,7 +15,6 @@ use crate::{
     },
     network_connectivity::interface_properties_changed,
     non_empty_text::non_empty,
-    stream_operators::read_once_then_per_burst,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
 };
 
@@ -77,7 +77,7 @@ impl SnapshotSource for SessionIdentity {
     const NAME: &'static str = "Session identity";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries(identity_changes(buses))
+        SnapshotDelivery::live_push_deliveries(buses, identity_changes)
     }
 }
 
@@ -99,7 +99,7 @@ async fn identity_changes(
     };
     let changes =
         interface_properties_changed(&buses.system, LOGIN_SERVICE, SESSION_INTERFACE).await?;
-    Ok(read_once_then_per_burst(changes, move || {
+    Ok(changes.triggered_rereads(move || {
         let session = session.clone();
         let identity = identity.clone();
         async move {
@@ -139,7 +139,7 @@ impl SnapshotSource for SessionInfo {
     const NAME: &'static str = "Login session";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries(session_changes(buses))
+        SnapshotDelivery::live_push_deliveries(buses, session_changes)
     }
 }
 
@@ -163,7 +163,7 @@ async fn session_changes(
     };
     let changes =
         interface_properties_changed(&buses.system, LOGIN_SERVICE, SESSION_INTERFACE).await?;
-    Ok(read_once_then_per_burst(changes, move || {
+    Ok(changes.triggered_rereads(move || {
         let session = session.clone();
         let info = info.clone();
         async move {

@@ -4,8 +4,8 @@ use futures::{Stream, StreamExt, stream};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    backing_service_availability::{Availability, AvailabilityStreams},
     blocking_background_work::blocking_poll,
-    stream_operators::{Availability, StreamOperators},
     system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_trimmed},
 };
 
@@ -86,8 +86,9 @@ impl SnapshotSource for X3dCachePreference {
                 None => Availability::Unavailable,
             }
         };
-        stream::once(exposed).available_while(|| {
-            stream::once(blocking_poll(Self::read)).map(SnapshotDelivery::single_read)
-        })
+        stream::once(exposed).while_available(
+            || stream::once(blocking_poll(Self::read)).map(SnapshotDelivery::single_read),
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }

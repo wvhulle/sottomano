@@ -5,17 +5,21 @@ use std::{
 };
 
 use futures::{Stream, StreamExt, stream};
+use futures_rx::RxExt;
 use tokio::time::sleep;
 use zbus::Connection;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    delivery_cadence_drivers::ChangeTriggerStreams,
     login_session_presence::logind_manager::resumes,
     network_connectivity::network_manager_proxies::{
         self, ActiveConnectionUplink, ConnectedScope, Connectivity, ManagerState, UplinkIdentity,
     },
-    stream_operators::{StreamOperators, connected_until_failure, read_once_then_per_burst},
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::{
+        dbus_desktop_buses::DesktopBuses,
+        protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+    },
 };
 
 const RESUBSCRIBE_DELAY: Duration = Duration::from_mins(1);
@@ -187,7 +191,8 @@ fn internet_access_states(
     buses: DesktopBuses,
 ) -> impl Stream<Item = Result<(), InternetUnreachable>> + Send {
     stream::repeat_with(move || {
-        connected_until_failure(watched_internet_access(buses.clone()))
+        let buses = buses.clone();
+        resubscribed(PEER_RECONNECT_GAP, buses, watched_internet_access)
             .map(|access| {
                 access.unwrap_or_else(|failure| {
                     tracing::warn!("network connectivity watch, assuming online: {failure}");
@@ -208,9 +213,7 @@ async fn watched_internet_access(
     )
     .await?;
     let triggers = stream::select(signals, resumes(&buses));
-    Ok(read_once_then_per_burst(triggers, move || {
-        read_internet_access(buses.system.clone())
-    }))
+    Ok(triggers.triggered_rereads(move || read_internet_access(buses.system.clone())))
 }
 
 #[cfg(test)]

@@ -15,7 +15,9 @@ use tokio::sync::Mutex as AsyncMutex;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking,
-    delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, triggered_deliveries_with_recheck},
+    delivery_cadence_drivers::{
+        PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams, triggered_deliveries_with_recheck,
+    },
     qemu_virtual_machines::{
         libvirt_domain_control::{LIBVIRT_DOMAIN_CONTROL_BUILT, libvirt_run_states},
         machined_libvirt_machines::libvirt_leader_pids,
@@ -27,7 +29,6 @@ use crate::{
         qemu_command_line_arguments::{QemuLaunchArguments, QmpSocketAccess},
         qmp_monitor_events::{GuestRunState, query_qmp_run_state},
     },
-    stream_operators::StreamOperators,
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses,
         procfs_process_tree::{CpuTickCheckpoints, ProcessTreeCpuLoad},

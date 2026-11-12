@@ -32,8 +32,12 @@ use zbus::{
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    stream_operators::{StreamOperators, connected_until_failure, read_once_then_per_burst},
-    system_protocol_clients::dbus_desktop_buses::{Properties, name_owned},
+    backing_service_availability::AvailabilityStreams,
+    delivery_cadence_drivers::ChangeTriggerStreams,
+    system_protocol_clients::{
+        dbus_desktop_buses::{Properties, name_owned},
+        protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+    },
 };
 
 #[derive(Debug)]
@@ -51,13 +55,16 @@ where
     S: SnapshotSource<Error = zbus::Error>,
     R: Stream<Item = zbus::Result<Option<S>>> + Send,
 {
-    name_owned(system, service).available_while(move || {
-        readings().map(|device| match device {
-            Ok(Some(device)) => SnapshotDelivery::live_push(Ok(device)),
-            Ok(None) => SnapshotDelivery::SourceUnavailable,
-            Err(failure) => SnapshotDelivery::live_push(Err(failure)),
-        })
-    })
+    name_owned(system, service).while_available(
+        move || {
+            readings().map(|device| match device {
+                Ok(Some(device)) => SnapshotDelivery::live_push(Ok(device)),
+                Ok(None) => SnapshotDelivery::SourceUnavailable,
+                Err(failure) => SnapshotDelivery::live_push(Err(failure)),
+            })
+        },
+        SnapshotDelivery::SourceUnavailable,
+    )
 }
 
 impl From<zbus::Error> for ReadingError {
@@ -85,7 +92,9 @@ where
     T: Send + 'static,
     F: Future<Output = Result<T, ReadingError>> + Send + 'static,
 {
-    connected_until_failure(subscribe_nm(system, watched_properties, read))
+    resubscribed(PEER_RECONNECT_GAP, system, move |system| {
+        subscribe_nm(system, watched_properties, read)
+    })
 }
 
 async fn subscribe_nm<T, F>(
@@ -98,7 +107,7 @@ where
     F: Future<Output = Result<T, ReadingError>> + Send + 'static,
 {
     let signals = network_manager_proxies::changes(&connection, watched_properties).await?;
-    let readings = read_once_then_per_burst(signals, move || read(connection.clone()));
+    let readings = signals.triggered_rereads(move || read(connection.clone()));
     Ok(device_readings(readings))
 }
 
@@ -108,7 +117,9 @@ pub fn managed_objects_readings<T: Send + 'static>(
     path: &'static str,
     reading: fn(&ManagedObjects) -> Option<T>,
 ) -> impl Stream<Item = zbus::Result<Option<T>>> {
-    connected_until_failure(subscribe_managed_objects(system, service, path, reading))
+    resubscribed(PEER_RECONNECT_GAP, system, move |system| {
+        subscribe_managed_objects(system, service, path, reading)
+    })
 }
 
 async fn subscribe_managed_objects<T: Send + 'static>(
@@ -125,7 +136,7 @@ async fn subscribe_managed_objects<T: Send + 'static>(
         ),
         properties_changed(&connection, service).await?.map(|_| ()),
     );
-    let readings = read_once_then_per_burst(signals, move || {
+    let readings = signals.triggered_rereads(move || {
         let objects = objects.clone();
         async move {
             let managed = objects

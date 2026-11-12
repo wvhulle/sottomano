@@ -4,8 +4,8 @@ use zbus::proxy::CacheProperties;
 
 use crate::{
     SnapshotDelivery, SnapshotSource, SourceCaption,
+    delivery_cadence_drivers::ChangeTriggerStreams,
     host_machine_identity::hostname1_os_identity::at_micros,
-    stream_operators::read_once_then_per_burst,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
     systemd_units_journal::{
         ManagerProxy, UNIT_INTERFACE, manager_signal, signals_matching, systemd_signal,
@@ -29,7 +29,7 @@ impl SnapshotSource for UserServiceManager {
     );
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries(manager_state_changes(buses))
+        SnapshotDelivery::live_push_deliveries(buses, manager_state_changes)
     }
 }
 
@@ -63,7 +63,7 @@ async fn manager_state_changes(
     )
     .await?
     .map(drop);
-    Ok(read_once_then_per_burst(state_triggers, move || {
+    Ok(state_triggers.triggered_rereads(move || {
         let manager = manager.clone();
         let launched = launched.clone();
         async move {

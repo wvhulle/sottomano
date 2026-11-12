@@ -16,17 +16,18 @@ use tokio::sync::Mutex;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    backing_service_availability::{Availability, AvailabilityStreams},
     blocking_background_work::blocking_poll,
-    delivery_cadence_drivers::{PeriodicPolling, SamplingNeed, triggered_deliveries_with_recheck},
+    delivery_cadence_drivers::{
+        ChangeTriggerStreams, PeriodicPolling, RereadSchedule, SamplingNeed,
+        SnapshotDeliveryStreams, triggered_deliveries_with_recheck,
+    },
     podman_container_engine::{
         libpod_running_containers::{
             ContainerCiIdentity, EngineContainers, EngineReadError, EngineReadout,
             RunningContainer, classified_engine_failure,
         },
         systemd_service_engine_discovery::EngineOwner,
-    },
-    stream_operators::{
-        Availability, RereadSchedule, StreamOperators, reread_on_spaced_trigger_or_deadline,
     },
     system_protocol_clients::{
         http_json_client,
@@ -256,9 +257,11 @@ impl SnapshotSource for DockerEngineProbe {
     const NAME: &'static str = "Docker engine presence";
 
     fn delivery_stream(socket_path: PathBuf) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries(ready(Ok(
-            path_present(socket_path).map(|presence| Ok(DockerEngineProbe(presence)))
-        )))
+        SnapshotDelivery::live_push_deliveries(socket_path, |socket_path| {
+            ready(Ok(
+                path_present(socket_path).map(|presence| Ok(DockerEngineProbe(presence)))
+            ))
+        })
     }
 }
 
@@ -291,18 +294,25 @@ impl SnapshotSource for DockerEngineListing {
 
     fn delivery_stream(socket_path: PathBuf) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let listed_socket = socket_path.clone();
-        path_present(socket_path).available_while(move || {
-            let listed_socket = listed_socket.clone();
-            SnapshotDelivery::live_push_deliveries(ready(Ok(reread_on_spaced_trigger_or_deadline(
-                docker_events::docker_container_event_triggers(listed_socket.clone()),
-                docker_events::TRIGGER_BURST_GAP,
-                move || {
-                    let listed_socket = listed_socket.clone();
-                    async move { listed_docker_names(&listed_socket).await }
-                },
-                |_: &Result<Self, EngineReadError>| RereadSchedule::WaitForTrigger,
-            ))))
-        })
+        path_present(socket_path).while_available(
+            move || {
+                let listed_socket = listed_socket.clone();
+                SnapshotDelivery::live_push_deliveries(listed_socket.clone(), |listed_socket| {
+                    ready(Ok(docker_events::docker_container_event_triggers(
+                        listed_socket.clone(),
+                    )
+                    .paced_rereads(
+                        docker_events::TRIGGER_BURST_GAP,
+                        move || {
+                            let listed_socket = listed_socket.clone();
+                            async move { listed_docker_names(&listed_socket).await }
+                        },
+                        |_: &Result<Self, EngineReadError>| RereadSchedule::WaitForTrigger,
+                    )))
+                })
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 
@@ -337,30 +347,34 @@ impl SnapshotSource for DockerEngineReadout {
 
     fn delivery_stream(socket_path: PathBuf) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let sampled_socket = socket_path.clone();
-        path_present(socket_path).available_while(move || {
-            let sampled_socket = sampled_socket.clone();
-            let sampler = Arc::new(Mutex::new(DockerEngineSampler::new(sampled_socket.clone())));
-            triggered_deliveries_with_recheck(
-                docker_events::docker_container_event_triggers(sampled_socket),
-                docker_events::TRIGGER_BURST_GAP,
-                PeriodicPolling::every(DOCKER_POLL_PERIOD),
-                move || {
-                    let sampler = sampler.clone();
-                    async move {
-                        let engine_read = sampler.lock().await.sample().await;
-                        Ok(DockerEngineReadout(engine_read.into()))
-                    }
-                },
-                |delivered: &Result<Self, Infallible>| {
-                    delivered
-                        .as_ref()
-                        .map_or(SamplingNeed::KeepSampling, |readout| {
-                            readout.0.sampling_need()
-                        })
-                },
-            )
-            .repeats_as_unchanged()
-        })
+        path_present(socket_path).while_available(
+            move || {
+                let sampled_socket = sampled_socket.clone();
+                let sampler =
+                    Arc::new(Mutex::new(DockerEngineSampler::new(sampled_socket.clone())));
+                triggered_deliveries_with_recheck(
+                    docker_events::docker_container_event_triggers(sampled_socket),
+                    docker_events::TRIGGER_BURST_GAP,
+                    PeriodicPolling::every(DOCKER_POLL_PERIOD),
+                    move || {
+                        let sampler = sampler.clone();
+                        async move {
+                            let engine_read = sampler.lock().await.sample().await;
+                            Ok(DockerEngineReadout(engine_read.into()))
+                        }
+                    },
+                    |delivered: &Result<Self, Infallible>| {
+                        delivered
+                            .as_ref()
+                            .map_or(SamplingNeed::KeepSampling, |readout| {
+                                readout.0.sampling_need()
+                            })
+                    },
+                )
+                .repeats_as_unchanged()
+            },
+            SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 

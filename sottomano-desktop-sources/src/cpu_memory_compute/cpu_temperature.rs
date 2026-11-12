@@ -24,10 +24,10 @@ use super::{
 };
 use crate::{
     SnapshotDelivery, SnapshotSource, SourceCaption,
+    backing_service_availability::{Availability, AvailabilityStreams},
     blocking_background_work::blocking_poll,
     cpu_memory_compute::temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
     delivery_cadence_drivers::PeriodicPolling,
-    stream_operators::{Availability, StreamOperators},
     system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_trimmed},
 };
 
@@ -183,18 +183,21 @@ impl SnapshotSource for Temperature {
                 Ok(_) | Err(_) => Availability::Unavailable,
             }
         };
-        holding_earliest_critical(stream::once(exposed).available_while(move || {
-            let config = config.clone();
-            TEMPERATURE_POLLING.blocking_poll_deliveries_after_setup(
-                blocking_poll(move || {
-                    Ok(TemperatureProbe {
-                        sensors: cpu_sensors(&config.sensor),
-                        config,
-                    })
-                }),
-                |probe| read_temperature(&probe),
-            )
-        }))
+        holding_earliest_critical(stream::once(exposed).while_available(
+            move || {
+                let config = config.clone();
+                TEMPERATURE_POLLING.blocking_poll_deliveries_after_setup(
+                    blocking_poll(move || {
+                        Ok(TemperatureProbe {
+                            sensors: cpu_sensors(&config.sensor),
+                            config,
+                        })
+                    }),
+                    |probe| read_temperature(&probe),
+                )
+            },
+            SnapshotDelivery::SourceUnavailable,
+        ))
     }
 }
 
