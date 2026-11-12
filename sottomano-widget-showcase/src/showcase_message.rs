@@ -259,7 +259,7 @@ impl From<PopupMessage> for ShowcaseInteraction {
             | PopupMessage::OpenUrl(_)
             | PopupMessage::FocusWindow(_)
             | PopupMessage::RefreshHoveredReading
-            | PopupMessage::ToggleGroupMenuPin { .. } => ShowcaseInteraction::OutsideShowcase,
+            | PopupMessage::ReleaseFromPanel { .. } => ShowcaseInteraction::OutsideShowcase,
         }
     }
 }

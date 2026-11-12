@@ -18,7 +18,7 @@ use sottomano_toml_config::{Config, severity::Severity};
 use crate::{
     clock::Clock,
     group_items::reading_display_state::ReadingDisplayState,
-    group_menus::group_menu_state::GroupMenuPin,
+    group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic, PanelPinDuration},
     hover_cards::{
         HoverOrigin, MouseGesture, PanelPinOrigin, PopupMessage, PressHints,
         core_grid::CoreCellGrid,
@@ -185,22 +185,25 @@ impl<'a> HoverCardContent<'a> {
                 let unpin = match panel_pin {
                     PanelPinOrigin::Unpinned => None,
                     PanelPinOrigin::GroupPinnedFrom { menu, group } => {
-                        Some(self.unpin_action_row(PopupMessage::ToggleGroupMenuPin {
-                            menu: *menu,
-                            entry: GroupMenuPin::Group((**group).clone()),
-                        }))
+                        Some(self.release_action_row(
+                            *menu,
+                            GroupMenuPin::Group((**group).clone()),
+                            PanelPinDuration::Permanent,
+                        ))
                     }
                     PanelPinOrigin::ItemPinnedFrom {
                         menu,
                         group,
                         item_key,
-                    } => Some(self.unpin_action_row(PopupMessage::ToggleGroupMenuPin {
-                        menu: *menu,
-                        entry: GroupMenuPin::Item {
+                        pin_duration,
+                    } => Some(self.release_action_row(
+                        *menu,
+                        GroupMenuPin::Item {
                             group: (**group).clone(),
                             item_key: item_key.clone(),
                         },
-                    })),
+                        *pin_duration,
+                    )),
                 };
                 Some(
                     Column::with_children(once(title).chain(unpin))
@@ -212,11 +215,25 @@ impl<'a> HoverCardContent<'a> {
         }
     }
 
-    fn unpin_action_row(&self, unpin: PopupMessage) -> Element<'static, PopupMessage> {
+    fn release_action_row(
+        &self,
+        menu: GroupMenuTopic,
+        entry: GroupMenuPin,
+        pin_duration: PanelPinDuration,
+    ) -> Element<'static, PopupMessage> {
         let font = &self.config.theme.font;
+        let (release_glyph, release_text) = match pin_duration {
+            PanelPinDuration::Permanent => {
+                (Phosphor::PushPin(Weight::Fill), "unpin from the panel")
+            }
+            PanelPinDuration::UntilAlertEnds => (
+                Phosphor::PushPinSlash(Weight::Regular),
+                "temporarily pinned while alerting: dismiss until it alerts again",
+            ),
+        };
         let label = row([
-            IconGlyph::from(Phosphor::PushPin(Weight::Fill)).view(font.icon_size_px, text_color),
-            panel_text(font, "unpin from the panel").into(),
+            IconGlyph::from(release_glyph).view(font.icon_size_px, text_color),
+            panel_text(font, release_text).into(),
         ])
         .spacing(self.config.theme.spacing.item_gap)
         .align_y(Vertical::Center);
@@ -232,7 +249,11 @@ impl<'a> HoverCardContent<'a> {
                 text_color: text_color(theme),
                 ..button::Style::default()
             })
-            .on_press(unpin)
+            .on_press(PopupMessage::ReleaseFromPanel {
+                menu,
+                entry,
+                pin_duration,
+            })
             .into()
     }
 

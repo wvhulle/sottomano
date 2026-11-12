@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use iced::{Task, window::Id};
 use sottomano_widgets::{
-    group_menus::group_menu_state::{AlertPromotedGroup, GroupMenuMessage},
+    group_menus::group_menu_state::{GroupMenuMessage, PanelRaise},
     notification_toasts::ToastContext,
     toast_messages::NotificationMessage,
     widget_groups::{
@@ -54,7 +54,7 @@ pub(super) fn alert_rescan_need(message: &Message) -> AlertRescanNeed {
 
 pub(super) struct GroupAlertScan {
     pub toast_requests: GroupToastRequests<ShellInteraction>,
-    pub promoted_groups: Vec<AlertPromotedGroup>,
+    pub panel_raises: Vec<PanelRaise>,
 }
 
 impl DesktopShell {
@@ -75,13 +75,13 @@ impl DesktopShell {
             )
             .collect();
         let promotion_severity = self.config.group_menus.alert_promotion_severity;
-        let promoted_groups = group_menus
+        let panel_raises = group_menus
             .iter()
-            .flat_map(|group_menu| group_menu.promoted_groups(promotion_severity, self.clock))
+            .flat_map(|group_menu| group_menu.panel_raises(promotion_severity, self.clock))
             .collect();
         GroupAlertScan {
             toast_requests,
-            promoted_groups,
+            panel_raises,
         }
     }
 

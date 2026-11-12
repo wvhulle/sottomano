@@ -511,6 +511,11 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             .max()
     }
 
+    pub(crate) fn alerts_from(&self, promotion_severity: Severity, clock: Clock) -> bool {
+        self.ongoing_alert_severity(clock)
+            .is_some_and(|alert_severity| alert_severity >= promotion_severity)
+    }
+
     pub(crate) fn view(
         &self,
         config: &Config,
@@ -746,6 +751,7 @@ mod tests {
     use super::*;
     use crate::{
         group_items::{group_item_reading::NamedTestReading, toggle_control::SwitchPresses},
+        group_menus::group_menu_state::PanelPinDuration,
         hover_cards::{HoverCardMessage, PanelPinOrigin},
         widget_groups::{
             dark_mode_group::DarkModeTarget,
@@ -910,6 +916,7 @@ mod tests {
             menu: GroupMenuTopic::Media,
             group: Box::new(WidgetGroupIdentity::sole(WidgetGroupFamily::Media)),
             item_key: "pinned slider".into(),
+            pin_duration: PanelPinDuration::Permanent,
         })
         .origin
     }

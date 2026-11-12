@@ -28,7 +28,10 @@ use crate::{
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         source_reading::reading_value,
     },
-    group_menus::group_menu_state::{GroupMenuState, GroupMenuTopic},
+    group_menus::group_menu_state::{
+        AlertPinState, GroupMenuPin, GroupMenuState, GroupMenuTopic, MenuPinState,
+        PanelPinDuration, PanelRaise,
+    },
     hover_cards::{
         HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator, PanelPinOrigin,
         PointerPresence, PressHints, announcing_hoverable,
@@ -344,8 +347,8 @@ pub enum PanelPromotion {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AlertPromotion {
-    OntoPanel,
-    OntoPanelNow,
+    AlertingItemsOntoPanel,
+    WholeGroupOntoPanel,
     StaysInMenu,
 }
 
@@ -387,7 +390,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         Self {
             group_identity,
             group_title,
-            alert_promotion: AlertPromotion::OntoPanel,
+            alert_promotion: AlertPromotion::AlertingItemsOntoPanel,
             expansion,
             on_expansion: Rc::new(on_expansion),
             face: WidgetGroupFace::FirstItem,
@@ -409,26 +412,45 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     pub fn with_panel_promotion(self, panel_promotion: PanelPromotion) -> Self {
         match panel_promotion {
             PanelPromotion::RisesToPanel => Self {
-                alert_promotion: AlertPromotion::OntoPanelNow,
+                alert_promotion: AlertPromotion::WholeGroupOntoPanel,
                 ..self
             },
             PanelPromotion::StaysInMenu => self,
         }
     }
 
-    pub(crate) fn alert_panel_promotion(
+    pub(crate) fn whole_group_promotion(&self) -> PanelPromotion {
+        match self.alert_promotion {
+            AlertPromotion::WholeGroupOntoPanel => PanelPromotion::RisesToPanel,
+            AlertPromotion::AlertingItemsOntoPanel | AlertPromotion::StaysInMenu => {
+                PanelPromotion::StaysInMenu
+            }
+        }
+    }
+
+    pub(crate) fn panel_raises(
         &self,
+        menu: GroupMenuTopic,
         promotion_severity: Severity,
         clock: Clock,
-    ) -> PanelPromotion {
+    ) -> Vec<PanelRaise> {
         match self.alert_promotion {
-            AlertPromotion::OntoPanel
-                if self.highest_alert_severity(clock) >= promotion_severity =>
-            {
-                PanelPromotion::RisesToPanel
-            }
-            AlertPromotion::OntoPanelNow => PanelPromotion::RisesToPanel,
-            AlertPromotion::OntoPanel | AlertPromotion::StaysInMenu => PanelPromotion::StaysInMenu,
+            AlertPromotion::WholeGroupOntoPanel => vec![PanelRaise::WholeGroup {
+                menu,
+                group: self.group_identity.clone(),
+            }],
+            AlertPromotion::AlertingItemsOntoPanel => self
+                .items
+                .iter()
+                .filter(|item| item.alerts_from(promotion_severity, clock))
+                .filter_map(GroupItem::pinnable_key)
+                .map(|item_key| PanelRaise::AlertingItem {
+                    menu,
+                    group: self.group_identity.clone(),
+                    item_key,
+                })
+                .collect(),
+            AlertPromotion::StaysInMenu => Vec::new(),
         }
     }
 
@@ -545,7 +567,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         self.group_title.clone()
     }
 
-    pub(crate) fn pinned_item_views(
+    pub(crate) fn panel_item_views(
         self,
         group_menus: &GroupMenuState,
         menu: GroupMenuTopic,
@@ -559,13 +581,31 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         let WidgetGroupContent {
             group_identity,
             group_title,
+            alert_promotion,
             items,
             ..
         } = self;
+        let promotion_severity = config.group_menus.alert_promotion_severity;
         items
             .into_iter()
             .filter_map(|item| {
-                let item_key = item.pinned_item_key(&group_identity, group_menus, menu)?;
+                let item_key = item.pinnable_key()?;
+                let entry = GroupMenuPin::Item {
+                    group: group_identity.clone(),
+                    item_key: item_key.clone(),
+                };
+                let pin_duration = match group_menus.pin_state(menu, entry.clone()) {
+                    MenuPinState::Pinned => PanelPinDuration::Permanent,
+                    MenuPinState::Unpinned
+                        if alert_promotion == AlertPromotion::AlertingItemsOntoPanel
+                            && item.alerts_from(promotion_severity, clock)
+                            && group_menus.alert_pin_state(menu, entry)
+                                == AlertPinState::Raised =>
+                    {
+                        PanelPinDuration::UntilAlertEnds
+                    }
+                    MenuPinState::Unpinned => return None,
+                };
                 let pinned_announcement = HoverAnnouncement::from_group_handle(
                     group_title.clone(),
                     PressHints::default(),
@@ -574,6 +614,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                     menu,
                     group: Box::new(group_identity.clone()),
                     item_key,
+                    pin_duration,
                 });
                 let item = item.acting_as_handle(pinned_announcement);
                 Some(
@@ -891,9 +932,11 @@ mod tests {
             group_item_reading::{GroupItemReading, OngoingToastThreshold},
             reading_display_state::ReadingDisplayState,
         },
+        group_menus::group_menu_state::{GroupMenuTopic, PanelRaise},
         hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
         widget_groups::{
-            widget_group_content::PanelPromotion, widget_group_identity::WidgetGroupFamily,
+            widget_group_content::PanelPromotion,
+            widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         },
         widgets::{
             icon_glyph::IconGlyph,
@@ -945,11 +988,17 @@ mod tests {
     }
 
     #[test]
-    fn an_alert_promotes_a_group_onto_the_panel_by_default() {
+    fn an_alert_raises_only_its_item_onto_the_panel_by_default() {
         let expansion = WidgetGroupExpansion::default();
+        let group = alerting_group(&expansion);
+        assert_eq!(group.whole_group_promotion(), PanelPromotion::StaysInMenu);
         assert_eq!(
-            alerting_group(&expansion).alert_panel_promotion(Severity::Warning, Clock::real()),
-            PanelPromotion::RisesToPanel
+            group.panel_raises(GroupMenuTopic::Media, Severity::Warning, Clock::real()),
+            vec![PanelRaise::AlertingItem {
+                menu: GroupMenuTopic::Media,
+                group: WidgetGroupIdentity::sole(WidgetGroupFamily::Weather),
+                item_key: HoverTarget::Workspace(7).stable_item_key(),
+            }]
         );
     }
 
@@ -958,8 +1007,8 @@ mod tests {
         let expansion = WidgetGroupExpansion::default();
         let group = alerting_group(&expansion).staying_in_menu_during_alerts();
         assert_eq!(
-            group.alert_panel_promotion(Severity::Warning, Clock::real()),
-            PanelPromotion::StaysInMenu
+            group.panel_raises(GroupMenuTopic::Media, Severity::Warning, Clock::real()),
+            Vec::new()
         );
         assert_eq!(
             group.highest_alert_severity(Clock::real()),

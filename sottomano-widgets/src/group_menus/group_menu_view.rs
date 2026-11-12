@@ -15,8 +15,8 @@ use crate::{
         },
         group_menu_presentation::{GroupMenuLayout, GroupMenuOpenTrigger},
         group_menu_state::{
-            AlertPromotedGroup, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
-            MenuPinState, OpenGroupMenu,
+            GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic, MenuPinState,
+            OpenGroupMenu, PanelRaise,
         },
         menu_rows::{
             group_menu_group_rows::{GroupMenuGroupRow, GroupMenuRowContext, one_row_per_identity},
@@ -227,22 +227,15 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             .collect()
     }
 
-    pub fn promoted_groups(
+    pub fn panel_raises(
         &self,
         promotion_severity: Severity,
         clock: Clock,
-    ) -> impl Iterator<Item = AlertPromotedGroup> {
+    ) -> impl Iterator<Item = PanelRaise> {
         let menu = self.messenger.topic;
         self.groups
             .iter()
-            .filter(move |member| {
-                member.alert_panel_promotion(promotion_severity, clock)
-                    == PanelPromotion::RisesToPanel
-            })
-            .map(move |member| AlertPromotedGroup {
-                menu,
-                group: member.group_identity().clone(),
-            })
+            .flat_map(move |member| member.panel_raises(menu, promotion_severity, clock))
     }
 
     fn handle_view(
@@ -293,7 +286,6 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         M: From<GroupEvent<M>>,
     {
         let handle_slot = self.handle_view(config, panel_position, handle_indicator, clock);
-        let promotion_severity = config.group_menus.alert_promotion_severity;
         let topic = self.messenger.topic;
         let group_menus = self.group_menus;
         once(handle_slot).chain(self.groups.into_iter().flat_map(move |member| {
@@ -305,15 +297,13 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
                     .into_iter()
                     .collect();
             }
-            if member.alert_panel_promotion(promotion_severity, clock)
-                == PanelPromotion::RisesToPanel
-            {
+            if member.whole_group_promotion() == PanelPromotion::RisesToPanel {
                 return member
                     .view(config, panel_position, clock)
                     .into_iter()
                     .collect();
             }
-            member.pinned_item_views(group_menus, topic, config, panel_position, clock)
+            member.panel_item_views(group_menus, topic, config, panel_position, clock)
         }))
     }
 
