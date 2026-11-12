@@ -162,7 +162,7 @@ fn upstream_entry(upstream: &Upstream) -> Option<LabeledValue> {
 }
 
 fn focus_age(window: &CompositorWindow) -> Option<Duration> {
-    process_tree_inspection::monotonic()?.checked_sub(window.focused_at_monotonic?)
+    process_tree_inspection::monotonic().checked_sub(window.focused_at_monotonic?)
 }
 
 fn versioned(key: &'static str, package: &StorePackage) -> LabeledValue {

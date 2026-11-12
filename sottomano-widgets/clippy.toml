@@ -5,4 +5,6 @@ disallowed-methods = [
   { path = "std::time::SystemTime::now", reason = "widgets receive the time as a Clock argument from the program that renders them; only Clock::real reads it" },
   { path = "chrono::offset::Utc::now", reason = "widgets receive the time as a Clock argument from the program that renders them; use Clock::utc" },
   { path = "chrono::offset::Local::now", reason = "widgets receive the time as a Clock argument from the program that renders them; use Clock::local" },
+  { path = "core::result::Result::unwrap_or_default", reason = "this drops the error silently; pass it on, or log it before falling back" },
+  { path = "core::result::Result::unwrap_or", reason = "this drops the error silently; pass it on, or log it in unwrap_or_else before falling back" },
 ]

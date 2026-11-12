@@ -433,12 +433,12 @@ fn scope(process: &Proc) -> Option<String> {
 }
 
 #[must_use]
-pub fn monotonic() -> Option<Duration> {
+pub fn monotonic() -> Duration {
     let spec = clock_gettime(ClockId::Monotonic);
     let secs = u64::try_from(spec.tv_sec).expect("monotonic clock seconds are never negative");
     let nanos =
         u32::try_from(spec.tv_nsec).expect("monotonic clock nanoseconds are below one second");
-    Some(Duration::new(secs, nanos))
+    Duration::new(secs, nanos)
 }
 
 #[cfg(test)]

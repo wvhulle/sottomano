@@ -68,14 +68,14 @@ impl CompositorWindowState {
     pub fn with_focus_times_from(
         mut self,
         previous: &CompositorWindowState,
-        now: Option<Duration>,
+        now: Duration,
     ) -> Self {
         for window in self.windows.values_mut() {
             let earlier = previous.windows.get(&window.id);
             let newly_focused =
                 window.is_focused && !earlier.is_some_and(|earlier| earlier.is_focused);
             window.focused_at_monotonic = if newly_focused {
-                now
+                Some(now)
             } else {
                 earlier.and_then(|earlier| earlier.focused_at_monotonic)
             };
@@ -139,15 +139,12 @@ mod tests {
             [],
             [window_focused(1, true), window_focused(2, false)],
         )
-        .with_focus_times_from(
-            &CompositorWindowState::default(),
-            Some(Duration::from_secs(10)),
-        );
+        .with_focus_times_from(&CompositorWindowState::default(), Duration::from_secs(10));
         let second = CompositorWindowState::from_lists(
             [],
             [window_focused(1, false), window_focused(2, true)],
         )
-        .with_focus_times_from(&first, Some(Duration::from_secs(20)));
+        .with_focus_times_from(&first, Duration::from_secs(20));
 
         assert_eq!(
             second.windows[&1].focused_at_monotonic,
@@ -162,12 +159,9 @@ mod tests {
     #[test]
     fn a_window_that_stays_focused_keeps_its_first_stamp() {
         let first = CompositorWindowState::from_lists([], [window_focused(1, true)])
-            .with_focus_times_from(
-                &CompositorWindowState::default(),
-                Some(Duration::from_secs(10)),
-            );
+            .with_focus_times_from(&CompositorWindowState::default(), Duration::from_secs(10));
         let second = CompositorWindowState::from_lists([], [window_focused(1, true)])
-            .with_focus_times_from(&first, Some(Duration::from_secs(20)));
+            .with_focus_times_from(&first, Duration::from_secs(20));
 
         assert_eq!(
             second.windows[&1].focused_at_monotonic,
