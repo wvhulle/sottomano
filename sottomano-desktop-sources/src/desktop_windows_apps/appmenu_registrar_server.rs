@@ -1,4 +1,4 @@
-use std::{future::ready, time::Duration};
+use std::future::ready;
 
 use futures::{Stream, StreamExt, stream};
 use serde::Serialize;
@@ -17,7 +17,7 @@ use crate::{
     desktop_windows_apps::dbusmenu_menu_bar_layout::DbusMenuLocation,
     system_protocol_clients::{
         dbus_desktop_buses::{OwnerProcess, ServingConnectionStreams},
-        protocol_peer_reconnects::resubscribed,
+        protocol_peer_reconnects::subscribed,
     },
 };
 
@@ -149,7 +149,7 @@ impl AppMenuRegistrar {
 
 pub fn registrations() -> impl Stream<Item = Vec<RegisteredMenuBar>> + Send {
     use futures::StreamExt;
-    resubscribed(Duration::from_secs(1), (), |()| async {
+    subscribed((), |()| async {
         Ok::<_, zbus::Error>(serve().await?.map(Ok::<_, zbus::Error>))
     })
     .filter_map(|delivery| ready(delivery.ok()))

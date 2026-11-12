@@ -6,9 +6,8 @@ use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{ManagerProxy, ServiceProxy, SystemdOnBus, manager_signal, signals_matching};
 use crate::{
-    SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::ChangeTriggerStreams,
-    system_protocol_clients::protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+    SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::ChangeTriggerStreams,
+    system_protocol_clients::protocol_peer_reconnects::subscribed,
 };
 
 const SERVICE_SUFFIX: &str = ".service";
@@ -107,13 +106,9 @@ impl SnapshotSource for ServiceCommands {
     const NAME: &'static str = "Systemd service commands";
 
     fn delivery_stream(systemd: SystemdOnBus) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        resubscribed(
-            PEER_RECONNECT_GAP,
-            systemd.connection(),
-            watch_service_commands,
-        )
-        .map(|listed| listed.map(|services| Self { services }))
-        .map(SnapshotDelivery::live_push)
+        subscribed(systemd.connection(), watch_service_commands)
+            .map(|listed| listed.map(|services| Self { services }))
+            .map(SnapshotDelivery::live_push)
     }
 }
 

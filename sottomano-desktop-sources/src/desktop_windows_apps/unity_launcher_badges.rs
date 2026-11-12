@@ -12,7 +12,7 @@ use crate::{
     non_empty_text::non_empty,
     system_protocol_clients::{
         dbus_desktop_buses::{DbusPropertyLookup, DesktopBuses},
-        protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+        protocol_peer_reconnects::subscribed,
     },
 };
 
@@ -140,7 +140,7 @@ enum Signal {
 
 pub fn entry_updates(buses: &DesktopBuses) -> impl Stream<Item = LauncherEntries> + Send + use<> {
     let session = buses.session.clone();
-    resubscribed(PEER_RECONNECT_GAP, session, connect).filter_map(|entries| {
+    subscribed(session, connect).filter_map(|entries| {
         ready(
             entries
                 .inspect_err(|e| tracing::warn!("launcher entry: {e}"))

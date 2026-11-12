@@ -16,7 +16,7 @@ use crate::{
     podman_container_engine::libpod_running_containers::ENGINE_POLL_PERIOD,
     system_protocol_clients::{
         journal_follow::{JournalEvent, journal_windows},
-        protocol_peer_reconnects::resubscribed,
+        protocol_peer_reconnects::subscribed,
     },
 };
 
@@ -24,7 +24,6 @@ const PODMAN_TYPE_FIELD: &str = "PODMAN_TYPE";
 const CONTAINER_PODMAN_TYPE: &str = "container";
 const RUNNING_SET_EVENTS: [&str; 3] = ["start", "died", "remove"];
 const TRIGGER_BURST_GAP: Duration = Duration::from_secs(1);
-const JOURNAL_REOPEN_GAP: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct PodmanEventRecord {
@@ -64,10 +63,7 @@ impl JournalEvent for RunningSetChange {
 }
 
 pub(crate) fn running_set_triggers() -> impl Stream<Item = ()> + Send {
-    resubscribed(JOURNAL_REOPEN_GAP, (), |()| async {
-        Ok(journal_windows::<RunningSetChange>())
-    })
-    .filter_map(|window| {
+    subscribed((), |()| async { Ok(journal_windows::<RunningSetChange>()) }).filter_map(|window| {
         if let Err(failure) = window {
             tracing::warn!("podman events: {failure}, reopening the journal");
             return ready(None);

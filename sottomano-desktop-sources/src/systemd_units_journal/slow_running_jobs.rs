@@ -11,7 +11,7 @@ use super::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::{ChangeTriggerStreams, RereadSchedule},
-    system_protocol_clients::protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+    system_protocol_clients::protocol_peer_reconnects::subscribed,
 };
 
 const RUNNING_JOB_STATE: &str = "running";
@@ -59,11 +59,9 @@ impl SnapshotSource for SlowJobs {
     fn delivery_stream(watch: SlowJobsWatch) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let scope = watch.systemd.scope;
         let slow_after = watch.slow_after;
-        resubscribed(
-            PEER_RECONNECT_GAP,
-            watch.systemd.connection(),
-            move |connection| watch_running_jobs(connection, slow_after),
-        )
+        subscribed(watch.systemd.connection(), move |connection| {
+            watch_running_jobs(connection, slow_after)
+        })
         .map(move |listed| listed.map(|jobs| SlowJobs { jobs, scope }))
         .map(SnapshotDelivery::live_push)
         .distinct_until_changed()

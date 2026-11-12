@@ -36,7 +36,7 @@ use crate::{
     delivery_cadence_drivers::ChangeTriggerStreams,
     system_protocol_clients::{
         dbus_desktop_buses::{Properties, name_owned},
-        protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+        protocol_peer_reconnects::subscribed,
     },
 };
 
@@ -92,7 +92,7 @@ where
     T: Send + 'static,
     F: Future<Output = Result<T, ReadingError>> + Send + 'static,
 {
-    resubscribed(PEER_RECONNECT_GAP, system, move |system| {
+    subscribed(system, move |system| {
         subscribe_nm(system, watched_properties, read)
     })
 }
@@ -117,7 +117,7 @@ pub fn managed_objects_readings<T: Send + 'static>(
     path: &'static str,
     reading: fn(&ManagedObjects) -> Option<T>,
 ) -> impl Stream<Item = zbus::Result<Option<T>>> {
-    resubscribed(PEER_RECONNECT_GAP, system, move |system| {
+    subscribed(system, move |system| {
         subscribe_managed_objects(system, service, path, reading)
     })
 }

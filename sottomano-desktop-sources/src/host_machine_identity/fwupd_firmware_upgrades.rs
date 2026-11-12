@@ -11,7 +11,7 @@ use crate::{
         dbus_desktop_buses::{
             self, DesktopBuses, Properties, SERVICE_ABSENT_ERRORS, name_owned, prop,
         },
-        protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+        protocol_peer_reconnects::subscribed,
     },
 };
 
@@ -106,7 +106,7 @@ impl SnapshotSource for Vec<FirmwareUpgrade> {
 fn signalled_upgrades(
     system: zbus::Connection,
 ) -> impl Stream<Item = Result<Vec<FirmwareUpgrade>, dbus_desktop_buses::Error>> + Send {
-    resubscribed(PEER_RECONNECT_GAP, system, upgrades_on_daemon_changes)
+    subscribed(system, upgrades_on_daemon_changes)
 }
 
 async fn upgrades_on_daemon_changes(

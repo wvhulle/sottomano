@@ -4,13 +4,12 @@ use std::{
     future::ready,
     io,
     path::{Path, PathBuf},
-    time::Duration,
 };
 
 use futures::{Stream, StreamExt};
 use inotify::{EventMask, Inotify, WatchDescriptor, WatchMask};
 
-use crate::system_protocol_clients::protocol_peer_reconnects::resubscribed;
+use crate::system_protocol_clients::protocol_peer_reconnects::subscribed;
 
 const EVENT_BUFFER_BYTES: usize = 4096;
 
@@ -76,7 +75,7 @@ impl WatchTarget {
 }
 
 pub fn changes(targets: Vec<WatchTarget>) -> impl Stream<Item = ()> + Send {
-    resubscribed(Duration::from_secs(1), targets, |targets| async move {
+    subscribed(targets, |targets| async move {
         armed_watch(&targets).map(|events| events.map(Ok::<_, io::Error>))
     })
     .filter_map(|event| ready(event.ok()))

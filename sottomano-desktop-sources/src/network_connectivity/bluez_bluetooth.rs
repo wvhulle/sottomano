@@ -22,7 +22,7 @@ use crate::{
     },
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBuses, Properties, name_owned, prop},
-        protocol_peer_reconnects::resubscribed,
+        protocol_peer_reconnects::subscribed,
         sysfs_attribute_reads::read_trimmed,
     },
 };
@@ -308,15 +308,11 @@ impl SnapshotSource for Bluetooth {
                 let signal_connection = system.clone();
                 let read_connection = system.clone();
                 PeriodicPolling::every(PERIPHERAL_BATTERY_RECHECK).triggered_deliveries(
-                    resubscribed(
-                        Duration::from_secs(1),
-                        signal_connection,
-                        |signal_connection| async move {
-                            Ok(bluez_object_signals(signal_connection)
-                                .await?
-                                .map(Ok::<_, zbus::Error>))
-                        },
-                    )
+                    subscribed(signal_connection, |signal_connection| async move {
+                        Ok(bluez_object_signals(signal_connection)
+                            .await?
+                            .map(Ok::<_, zbus::Error>))
+                    })
                     .filter_map(|signal| ready(signal.ok())),
                     move || read_bluetooth(read_connection.clone()),
                 )

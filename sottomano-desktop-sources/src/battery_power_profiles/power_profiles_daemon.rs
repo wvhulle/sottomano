@@ -15,7 +15,7 @@ use crate::{
         dbus_desktop_buses::{
             self, DbusPropertyLookup, DesktopBuses, Properties, name_owned, prop,
         },
-        protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+        protocol_peer_reconnects::subscribed,
         sysfs_attribute_reads,
     },
 };
@@ -187,8 +187,7 @@ impl SnapshotSource for ProfileStatus {
         name_owned(system.clone(), DAEMON_SERVICE).while_available(
             move || {
                 let system = system.clone();
-                resubscribed(PEER_RECONNECT_GAP, system, status_changes)
-                    .map(SnapshotDelivery::live_push)
+                subscribed(system, status_changes).map(SnapshotDelivery::live_push)
             },
             SnapshotDelivery::SourceUnavailable,
         )

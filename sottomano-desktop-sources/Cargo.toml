@@ -23,6 +23,7 @@ freedesktop-desktop-entry = "0.8.3"
 freedesktop-icons = "0.4.0"
 futures.workspace = true
 futures-rx.workspace = true
+fastrand = "2.5.0"
 humantime.workspace = true
 iana-time-zone = "0.1.65"
 icalendar = { version = "0.17.15", features = ["parser", "chrono-tz"] }

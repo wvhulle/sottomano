@@ -7,11 +7,10 @@ use serde::Deserialize;
 use super::DOCKER_API_ROOT;
 use crate::system_protocol_clients::{
     http_json_client::{CONNECT_TIMEOUT, Error},
-    protocol_peer_reconnects::resubscribed,
+    protocol_peer_reconnects::subscribed,
 };
 
 pub(crate) const TRIGGER_BURST_GAP: Duration = Duration::from_secs(1);
-const RETRY_GAP: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Deserialize)]
 struct DockerEventRecord {
@@ -26,7 +25,7 @@ struct DockerEventRecord {
 pub(crate) fn docker_container_event_triggers(
     socket_path: PathBuf,
 ) -> impl Stream<Item = ()> + Send {
-    resubscribed(RETRY_GAP, socket_path, opened_event_records).filter_map(|delivered| {
+    subscribed(socket_path, opened_event_records).filter_map(|delivered| {
         if let Err(failure) = delivered {
             tracing::warn!("docker events: {failure}, resubscribing");
             return ready(None);

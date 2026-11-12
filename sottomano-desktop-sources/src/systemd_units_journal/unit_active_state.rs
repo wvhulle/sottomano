@@ -8,10 +8,9 @@ use super::{
     signals_matching, systemd_signal,
 };
 use crate::{
-    SnapshotDelivery, SnapshotSource,
-    backing_service_availability::Availability,
+    SnapshotDelivery, SnapshotSource, backing_service_availability::Availability,
     delivery_cadence_drivers::ChangeTriggerStreams,
-    system_protocol_clients::protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+    system_protocol_clients::protocol_peer_reconnects::subscribed,
     systemd_units_journal::SystemdUnitScope,
 };
 
@@ -102,7 +101,7 @@ pub fn unit_running(unit: SystemdUnitOnBus) -> impl Stream<Item = Availability> 
 }
 
 fn unit_activity(unit: SystemdUnitOnBus) -> impl Stream<Item = zbus::Result<UnitActivity>> + Send {
-    resubscribed(PEER_RECONNECT_GAP, unit, |unit| {
+    subscribed(unit, |unit| {
         activity_changes(unit.connection(), unit.unit.unit_name)
     })
 }

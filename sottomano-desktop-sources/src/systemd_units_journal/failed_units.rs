@@ -11,7 +11,7 @@ use super::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::ChangeTriggerStreams,
-    system_protocol_clients::protocol_peer_reconnects::{PEER_RECONNECT_GAP, resubscribed},
+    system_protocol_clients::protocol_peer_reconnects::subscribed,
     systemd_units_journal::{
         journal_coredumps::CoredumpEntry, journal_record_fields::JournalPriority,
     },
@@ -69,11 +69,9 @@ impl SnapshotSource for FailedUnits {
 
     fn delivery_stream(systemd: SystemdOnBus) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let scope = systemd.scope;
-        resubscribed(
-            PEER_RECONNECT_GAP,
-            systemd.connection(),
-            move |connection| watch_failed(connection, scope),
-        )
+        subscribed(systemd.connection(), move |connection| {
+            watch_failed(connection, scope)
+        })
         .map(move |listed| listed.map(|units| FailedUnits { units, scope }))
         .map(SnapshotDelivery::live_push)
     }
