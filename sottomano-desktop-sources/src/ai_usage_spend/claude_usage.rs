@@ -55,9 +55,12 @@ impl Display for Error {
             Error::ChangeWatch(watch_failure) => write!(f, "transcript watch: {watch_failure}"),
             Error::Credentials => write!(f, "credentials file unreadable"),
             Error::NoToken => write!(f, "no OAuth token in credentials"),
-            Error::RateLimited(cause) | Error::Backoff { cause, .. } => {
-                write!(f, "rate limited: {cause}")
-            }
+            Error::RateLimited(cause) => write!(f, "rate limited: {cause}"),
+            Error::Backoff { remaining, cause } => write!(
+                f,
+                "rate limited: {cause}, retrying in {} s",
+                remaining.as_secs()
+            ),
             Error::Fetch(error) => write!(f, "{error}"),
             Error::Ccusage(error) => write!(f, "ccusage: {error}"),
             Error::UnknownCurrency(code) => write!(f, "unknown currency {code:?}"),

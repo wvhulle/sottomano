@@ -240,9 +240,7 @@ where
         &self,
         describe: impl Fn(&S) -> Vec<Section>,
     ) -> Option<SourcedSections>
-    where
-        S::Error: Into<Section>,
-    {
+where {
         let HoverFetch::Fetching {
             inputs, progress, ..
         } = &self.hover_fetch
@@ -288,7 +286,7 @@ where
             } => Some(SourcedSections::source_delivered::<S>(
                 HoverCardBody::sections(match snapshot_fetch {
                     Ok(delivered_snapshot) => describe(delivered_snapshot),
-                    Err(failure) => vec![failure.clone().into()],
+                    Err(failure) => vec![Section::error(failure)],
                 }),
                 *delivery_timing,
             )),
@@ -296,7 +294,7 @@ where
     }
 }
 
-impl<S: SnapshotSource<Error: Into<Section>> + ReadingSections> HoverFetchedSnapshot<S>
+impl<S: SnapshotSource + ReadingSections> HoverFetchedSnapshot<S>
 where
     S::StreamInputs: Eq,
 {
@@ -329,12 +327,6 @@ mod tests {
     impl Display for CountingFailure {
         fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
             write!(formatter, "counting failed")
-        }
-    }
-
-    impl From<CountingFailure> for Section {
-        fn from(failure: CountingFailure) -> Self {
-            Section::error(failure)
         }
     }
 

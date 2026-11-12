@@ -7,7 +7,7 @@ use sottomano_toml_config::severity::Severity;
 use uom::si::ratio::percent;
 
 use crate::{
-    hover_cards::hover_card_body::{Section, ShownAsErrorSection},
+    hover_cards::hover_card_body::Section,
     widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
@@ -15,8 +15,6 @@ const WARNING_ROUND_TRIP: Duration = Duration::from_millis(100);
 const CRITICAL_ROUND_TRIP: Duration = Duration::from_millis(300);
 const WARNING_LOSS_PERCENT: f64 = 5.0;
 const CRITICAL_LOSS_PERCENT: f64 = 20.0;
-
-impl ShownAsErrorSection for LatencyProbeError {}
 
 #[must_use]
 pub fn probe_window_severity(window: &ProbeWindow) -> Severity {

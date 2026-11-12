@@ -35,9 +35,7 @@ use crate::{
     },
     hover_cards::{
         HoverTarget, PressHints,
-        hover_card_body::{
-            HoverCardBody, Section, ShownAsErrorSection, hover_card_source_delivery::HoverCard,
-        },
+        hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
         hoverable,
     },
     layer_surfaces::ActivationTokenOutcome,
@@ -61,8 +59,6 @@ use crate::{
         shared_metrics::ACCENT_STROKE_PX,
     },
 };
-
-impl ShownAsErrorSection for Arc<error::Error> {}
 
 #[derive(Default)]
 pub struct TrayGroup {

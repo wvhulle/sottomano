@@ -58,15 +58,6 @@ impl Display for Failure {
     }
 }
 
-impl From<Failure> for Section {
-    fn from(failure: Failure) -> Self {
-        match failure {
-            Failure::Resolve(wallpaper_place_article::Error::Fetch(fetch)) => fetch.into(),
-            other => Section::error(other),
-        }
-    }
-}
-
 impl SnapshotSource for Lookup {
     type Error = Failure;
     type StreamInputs = OnlineSourceInputs<PathBuf>;
@@ -79,17 +70,20 @@ impl SnapshotSource for Lookup {
             source_inputs: unsplash_key,
         }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(wallpaper_place_article::daemon_availability()).while_available(move || {
-            let unsplash_key = unsplash_key.clone();
-            internet_connectivity_gate::while_online(buses.clone(), move || {
+        stream::once(wallpaper_place_article::daemon_availability()).while_available(
+            move || {
                 let unsplash_key = unsplash_key.clone();
-                wallpaper_place_article::displayed()
-                    .distinct_until_changed()
-                    .flat_map(move |displayed| {
-                        displayed_lookups(displayed, unsplash_key.clone())
-                    })
-            })
-        }, || SnapshotDelivery::SourceUnavailable)
+                internet_connectivity_gate::while_online(buses.clone(), move || {
+                    let unsplash_key = unsplash_key.clone();
+                    wallpaper_place_article::displayed()
+                        .distinct_until_changed()
+                        .flat_map(move |displayed| {
+                            displayed_lookups(displayed, unsplash_key.clone())
+                        })
+                })
+            },
+            || SnapshotDelivery::SourceUnavailable,
+        )
     }
 }
 

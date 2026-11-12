@@ -46,15 +46,6 @@ pub enum CopilotUsageTarget {
     MostUsedModelSpend,
 }
 
-impl From<copilot_usage::Error> for Section {
-    fn from(error: copilot_usage::Error) -> Self {
-        match error {
-            copilot_usage::Error::Fetch(fetch) => fetch.into(),
-            other => Section::error(other),
-        }
-    }
-}
-
 impl From<CopilotUsageTarget> for HoverTarget {
     fn from(target: CopilotUsageTarget) -> Self {
         HoverTarget::CopilotUsage(target)

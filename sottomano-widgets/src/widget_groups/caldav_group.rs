@@ -21,10 +21,7 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::group_item::GroupItem,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{ShownAsErrorSection, hover_card_source_delivery::HoverCard},
-    },
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -50,8 +47,6 @@ impl From<CaldavTarget> for HoverTarget {
         HoverTarget::Caldav(target)
     }
 }
-
-impl ShownAsErrorSection for caldav_agenda::Error {}
 
 pub struct CaldavGroup {
     upcoming_events: LatestSnapshot<UpcomingEventList>,

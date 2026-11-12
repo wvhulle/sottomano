@@ -80,12 +80,18 @@ struct ArmedSwitch {
     _timer: task::Handle,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum DarkModeMessage {
     ScheduleLoaded(DarkModeSchedule),
     LocationFix(SnapshotDelivery<Location>),
     SwitchDue,
     ModeToggle(ToggleMessage<DarkMode>),
+    Interaction(DarkModeInteraction),
+}
+
+#[derive(Debug, Clone)]
+pub enum DarkModeInteraction {
+    ModeTogglePressed,
     ToggleAutoSwitch,
     OffsetSlider(ColorMode, ControlMessage),
     Expansion(WidgetGroupExpansionMessage),
@@ -226,20 +232,29 @@ impl DarkModeGroup {
                 .mode_toggle
                 .update(m, clock)
                 .map(DarkModeMessage::ModeToggle),
-            DarkModeMessage::ToggleAutoSwitch => {
+            DarkModeMessage::Interaction(interaction) => self.interact(interaction),
+        }
+    }
+
+    fn interact(&mut self, interaction: DarkModeInteraction) -> Task<DarkModeMessage> {
+        match interaction {
+            DarkModeInteraction::ModeTogglePressed => {
+                self.mode_toggle.press().map(DarkModeMessage::ModeToggle)
+            }
+            DarkModeInteraction::ToggleAutoSwitch => {
                 self.auto_switch_toggle.toggle_auto_switch();
                 self.persist_saved_schedule()
             }
-            DarkModeMessage::OffsetSlider(edge, control_message) => {
+            DarkModeInteraction::OffsetSlider(edge, control_message) => {
                 self.update_offset_slider(edge, control_message)
             }
-            DarkModeMessage::Expansion(m) => {
+            DarkModeInteraction::Expansion(m) => {
                 if self.expansion.update(m) == ExpansionChange::JustCollapsed {
                     self.close_controls();
                 }
                 Task::none()
             }
-            DarkModeMessage::SwitchScheme(mode) => self.apply_color_mode(mode),
+            DarkModeInteraction::SwitchScheme(mode) => self.apply_color_mode(mode),
         }
     }
 
@@ -264,10 +279,10 @@ impl DarkModeGroup {
                     self.auto_switch_toggle.saved_schedule,
                 ))
                 .map(move |store_outcome| {
-                    DarkModeMessage::OffsetSlider(
+                    DarkModeMessage::Interaction(DarkModeInteraction::OffsetSlider(
                         edge,
                         ControlMessage::persisted(value, store_outcome),
-                    )
+                    ))
                 })
             }
             Action::None | Action::Right | Action::Adjust(_) => Task::none(),
@@ -334,22 +349,22 @@ impl DarkModeGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> WidgetGroupContent<'a, DarkModeMessage> {
+    ) -> WidgetGroupContent<'a, DarkModeInteraction> {
         let mode_known = self.mode_toggle.reading().is_some();
         let offset_slider = |edge| {
             GroupItem::slider(
                 self.offset_slider_for(edge),
                 config,
-                DarkModeMessage::OffsetSlider.with(edge),
+                DarkModeInteraction::OffsetSlider.with(edge),
             )
         };
         WidgetGroupContent::expandable(
             WidgetGroupFamily::DarkMode,
             &self.expansion,
-            DarkModeMessage::Expansion,
+            DarkModeInteraction::Expansion,
             [
                 self.mode_toggle
-                    .group_item(DarkModeTarget::Mode, DarkModeMessage::ModeToggle)
+                    .group_item(DarkModeTarget::Mode, DarkModeInteraction::ModeTogglePressed)
                     .map(GroupItem::previewed_on_handle),
                 mode_known.then(|| {
                     GroupItem::reading(
@@ -359,7 +374,7 @@ impl DarkModeGroup {
                     .on_switch_press(
                         self.auto_switch_toggle.saved_schedule.auto_switch_arming,
                         self.auto_switch_toggle.press_does(),
-                        DarkModeMessage::ToggleAutoSwitch,
+                        DarkModeInteraction::ToggleAutoSwitch,
                     )
                 }),
                 mode_known.then(|| offset_slider(ColorMode::Light)),
