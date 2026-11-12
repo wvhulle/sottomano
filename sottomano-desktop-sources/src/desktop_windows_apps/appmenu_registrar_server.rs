@@ -16,7 +16,7 @@ use zbus::{
 use crate::{
     desktop_windows_apps::dbusmenu_menu_bar_layout::DbusMenuLocation,
     system_protocol_clients::{
-        dbus_desktop_buses::{OwnerProcess, ServingConnectionStreams},
+        dbus_desktop_buses::{OwnerProcess, served_while_connected},
         protocol_peer_reconnects::subscribed,
     },
 };
@@ -187,10 +187,10 @@ async fn serve() -> zbus::Result<impl Stream<Item = Vec<RegisteredMenuBar>> + Se
         }
         ready(None)
     });
-    Ok(
-        stream::select(WatchStream::new(registration_changes), pruned_on_vanish)
-            .while_serving(connection),
-    )
+    Ok(served_while_connected(
+        stream::select(WatchStream::new(registration_changes), pruned_on_vanish),
+        connection,
+    ))
 }
 
 async fn claim_registrar_name(connection: &Connection) -> zbus::Result<()> {

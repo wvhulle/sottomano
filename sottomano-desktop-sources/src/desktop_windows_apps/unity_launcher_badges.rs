@@ -10,7 +10,7 @@ use crate::{
     non_empty_text::non_empty,
     system_protocol_clients::{
         dbus_change_signals::signal_messages,
-        dbus_desktop_buses::{DbusPropertyLookup, DesktopBuses},
+        dbus_desktop_buses::{DesktopBuses, prop},
         protocol_peer_reconnects::subscribed,
     },
 };
@@ -31,17 +31,17 @@ pub struct LauncherEntry {
 impl LauncherEntry {
     fn parse(props: &HashMap<String, OwnedValue>) -> Self {
         Self {
-            progress: props
-                .flag("progress-visible")
+            progress: prop(props, "progress-visible")
+                .unwrap_or(false)
                 .then(|| number(props, "progress"))
                 .flatten()
                 .map(|value| (value as f32).clamp(0.0, 1.0)),
-            count: props
-                .flag("count-visible")
+            count: prop(props, "count-visible")
+                .unwrap_or(false)
                 .then(|| number(props, "count"))
                 .flatten()
                 .map(|value| value as i64),
-            urgent: props.flag("urgent"),
+            urgent: prop(props, "urgent").unwrap_or(false),
         }
     }
 }

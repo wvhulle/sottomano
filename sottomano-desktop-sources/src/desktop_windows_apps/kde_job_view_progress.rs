@@ -18,7 +18,7 @@ use zbus::{
 };
 
 use crate::system_protocol_clients::{
-    dbus_desktop_buses::ServingConnectionStreams, protocol_peer_reconnects::subscribed,
+    dbus_desktop_buses::served_while_connected, protocol_peer_reconnects::subscribed,
 };
 
 const PATH: &str = "/JobViewServer";
@@ -352,7 +352,10 @@ async fn serve() -> zbus::Result<impl Stream<Item = JobProgress>> {
     claim(&connection, SERVER_NAME).await?;
     claim(&connection, KUISERVER_NAME).await?;
 
-    Ok(WatchStream::from_changes(updates).while_serving(connection))
+    Ok(served_while_connected(
+        WatchStream::from_changes(updates),
+        connection,
+    ))
 }
 
 async fn claim(connection: &Connection, name: &str) -> zbus::Result<()> {

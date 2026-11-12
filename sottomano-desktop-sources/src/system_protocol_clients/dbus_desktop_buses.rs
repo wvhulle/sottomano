@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt::Display,
     future::ready,
     hash::{Hash, Hasher},
     pin::pin,
@@ -9,7 +10,7 @@ use futures::{Stream, StreamExt, future::select, stream};
 use zbus::{
     fdo::{DBusProxy, IntrospectableProxy},
     names::BusName,
-    zvariant::{OwnedObjectPath, OwnedValue},
+    zvariant::OwnedValue,
 };
 
 use crate::{
@@ -20,51 +21,26 @@ use crate::{
 pub type Properties = HashMap<String, OwnedValue>;
 
 #[must_use]
-pub fn prop<T: TryFrom<OwnedValue>>(properties: &Properties, key: &str) -> Option<T> {
-    properties
-        .get(key)
-        .and_then(|value| value.try_clone().ok())
-        .and_then(|value| T::try_from(value).ok())
+pub fn prop<T: TryFrom<OwnedValue>>(properties: &Properties, key: &str) -> Option<T>
+where
+    T::Error: Display,
+{
+    match properties.get(key)?.try_clone().map(T::try_from) {
+        Ok(Ok(converted)) => Some(converted),
+        Ok(Err(type_mismatch)) => {
+            tracing::warn!("d-bus property {key} has an unexpected type: {type_mismatch}");
+            None
+        }
+        Err(clone_failure) => {
+            tracing::warn!("d-bus property {key} could not be copied: {clone_failure}");
+            None
+        }
+    }
 }
 
-pub trait DbusPropertyLookup {
-    fn flag(&self, key: &str) -> bool;
-    fn boolean(&self, key: &str) -> Option<bool>;
-    fn text(&self, key: &str) -> Option<String>;
-    fn integer(&self, key: &str) -> Option<i64>;
-    fn float(&self, key: &str) -> Option<f64>;
-    fn dictionary(&self, key: &str) -> Option<Properties>;
-    fn object_path(&self, key: &str) -> Option<OwnedObjectPath>;
-}
-
-impl DbusPropertyLookup for Properties {
-    fn flag(&self, key: &str) -> bool {
-        self.boolean(key).unwrap_or(false)
-    }
-
-    fn boolean(&self, key: &str) -> Option<bool> {
-        bool::try_from(self.get(key)?).ok()
-    }
-
-    fn text(&self, key: &str) -> Option<String> {
-        non_empty(prop(self, key)?)
-    }
-
-    fn integer(&self, key: &str) -> Option<i64> {
-        i64::try_from(self.get(key)?).ok()
-    }
-
-    fn float(&self, key: &str) -> Option<f64> {
-        f64::try_from(self.get(key)?).ok()
-    }
-
-    fn dictionary(&self, key: &str) -> Option<Properties> {
-        prop(self, key)
-    }
-
-    fn object_path(&self, key: &str) -> Option<OwnedObjectPath> {
-        prop(self, key)
-    }
+#[must_use]
+pub fn text_prop(properties: &Properties, key: &str) -> Option<String> {
+    non_empty(prop(properties, key)?)
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -303,22 +279,15 @@ impl From<zbus::Error> for Error {
     }
 }
 
-pub trait ServingConnectionStreams: Stream + Sized {
-    fn while_serving(
-        self,
-        serving_connection: zbus::Connection,
-    ) -> impl Stream<Item = Self::Item> + Send
-    where
-        Self: Send,
-    {
-        self.map(move |served_item| {
-            let _ = &serving_connection;
-            served_item
-        })
-    }
+pub fn served_while_connected<ServedStream: Stream + Send>(
+    served: ServedStream,
+    serving_connection: zbus::Connection,
+) -> impl Stream<Item = ServedStream::Item> + Send {
+    served.map(move |served_item| {
+        let _ = &serving_connection;
+        served_item
+    })
 }
-
-impl<ServedStream: Stream> ServingConnectionStreams for ServedStream {}
 
 #[cfg(test)]
 mod tests {
