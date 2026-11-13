@@ -42,7 +42,7 @@ pkgs.stdenvNoCC.mkDerivation {
     runHook preInstall
     mv site $out
     rm $out/theme/favicon.svg
-    ln -s ${readmeRecordings}/recordings $out/recordings
+    cp -r ${readmeRecordings}/recordings $out/recordings
     cp logo.svg $out/logo.svg
     runHook postInstall
   '';
@@ -55,6 +55,11 @@ pkgs.stdenvNoCC.mkDerivation {
     runHook preInstallCheck
     if grep -rl --include='*.html' 'raw/branch/' $out; then
       echo "hotlinks to the Codeberg raw branches remain in the pages above"
+      exit 1
+    fi
+    if [ -n "$(find $out -type l)" ]; then
+      find $out -type l
+      echo "static-web-server rejects symlinks that resolve outside the site root"
       exit 1
     fi
     lychee --no-progress --offline --include-fragments --root-dir $out "$out/**/*.html"
