@@ -28,26 +28,26 @@ Previous work:
 
 Hovering the info icon of the temperature opens the forecast for the coming hours.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_conditions.webp" width="905" alt="Hovering the temperature in the weather group">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_conditions.webp" width="861" alt="Hovering the temperature in the weather group">
 
 ### Tailscale: Exit node
 
 The tailnet: how each peer is reached, when the key expires, and which exit
 node carries the traffic, next to the switch that offers this machine as one.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/tailnet_exit_node.webp" width="925" alt="Opening the Tailscale group from the Network menu and hovering an exit node">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/tailnet_exit_node.webp" width="883" alt="Opening the Tailscale group from the Network menu and hovering an exit node">
 
 ### Dictation: Speech model
 
 The speech model the dictation daemon loaded.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/voice_dictation_model.webp" width="1207" alt="Opening the dictation group from the Media menu and hovering the speech model">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/voice_dictation_model.webp" width="1163" alt="Opening the dictation group from the Media menu and hovering the speech model">
 
 ### Toast: Next to its window
 
 When the sending window is visible, the toast sits in its top corner.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/toast_window_anchored.webp" width="688" alt="A build toast placed in the corner of the terminal that sent it">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/toast_window_anchored.webp" width="689" alt="A build toast placed in the corner of the terminal that sent it">
 
 The other groups, each in its menu next to pinned in the bar, are in the
 [guide](https://sottomano.work/guide/). The recordings use fixtures, so the numbers are

@@ -12,4 +12,4 @@ Hover cards stay blurred in every look. The recordings are rendered offscreen, w
 
 Pressing a look applies it at once; its icon lights up while it is in use.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/appearance_looks.webp" width="764" alt="Opening the Behaviour menu and switching from clear dark to frosted dark">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/appearance_looks.webp" width="720" alt="Opening the Behaviour menu and switching from clear dark to frosted dark">

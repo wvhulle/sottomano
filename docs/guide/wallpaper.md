@@ -6,7 +6,7 @@ The place in the current wallpaper and what Wikipedia says about it.
 
 The Wikipedia summary for that place.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/wallpaper_article.webp" width="1280" alt="Hovering the Wikipedia article in the wallpaper group">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/wallpaper_article.webp" width="1236" alt="Hovering the Wikipedia article in the wallpaper group">
 
 ## Wallpaper: Other readings
 
