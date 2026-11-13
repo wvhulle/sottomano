@@ -24,12 +24,13 @@ macro_rules! schema_migration {
     };
 }
 
-pub const SCHEMA_MIGRATIONS: [SchemaMigration; 5] = [
+pub const SCHEMA_MIGRATIONS: [SchemaMigration; 6] = [
     schema_migration!(1, "0001_baseline_tables.sql"),
     schema_migration!(2, "0002_guest_pins_to_virtualization_menu.sql"),
     schema_migration!(3, "0003_default_idle_timeouts.sql"),
     schema_migration!(4, "0004_focus_facet_values_as_bytes.sql"),
     schema_migration!(5, "0005_submenu_connector_choice.sql"),
+    schema_migration!(6, "0006_leftover_focus_facet_text_to_bytes.sql"),
 ];
 
 pub async fn apply_pending_migrations(
@@ -220,6 +221,43 @@ mod tests {
         assert_eq!(
             row.get_value(0).unwrap(),
             turso::Value::Blob(b"/code/sottomano".to_vec())
+        );
+    }
+
+    #[tokio::test]
+    async fn leftover_focus_facet_text_values_become_bytes() {
+        let connection = empty_connection().await;
+        for migration in SCHEMA_MIGRATIONS
+            .iter()
+            .filter(|migration| migration.version < 6)
+        {
+            apply_migration_once(&connection, migration).await.unwrap();
+        }
+        connection
+            .execute(
+                "INSERT INTO window_focus_spans (started_at, window_id, ended_at) VALUES \
+                 ('2026-11-13T10:19:26Z', 7, '2026-11-13T10:20:00Z')",
+                (),
+            )
+            .await
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO window_focus_span_facets (span_started_at, facet, value) VALUES \
+                 ('2026-11-13T10:19:26Z', 'app', 'kitty')",
+                (),
+            )
+            .await
+            .unwrap();
+        apply_pending_migrations(&connection).await.unwrap();
+        let mut rows = connection
+            .query("SELECT value FROM window_focus_span_facets", ())
+            .await
+            .unwrap();
+        let row = rows.next().await.unwrap().unwrap();
+        assert_eq!(
+            row.get_value(0).unwrap(),
+            turso::Value::Blob(b"kitty".to_vec())
         );
     }
 }
