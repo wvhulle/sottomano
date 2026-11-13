@@ -1,13 +1,14 @@
 use core::{mem::take, slice};
 
 use iced::{
-    Border, Element, Event, Length, Point, Rectangle, Size, Theme, Vector,
+    Border, Element, Event, Length, Padding, Point, Rectangle, Size, Theme, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
         overlay, renderer,
         widget::{Operation, Tree, tree},
     },
+    border::Radius,
     mouse::{Cursor, Interaction},
 };
 
@@ -42,6 +43,7 @@ pub(crate) enum RowHoverReaction<Message> {
 pub(crate) struct PointerTrackedRow<'a, Message> {
     body: Element<'a, Message>,
     look: MenuRowLook,
+    highlight_inset: f32,
     hover_reaction: RowHoverReaction<Message>,
 }
 
@@ -49,12 +51,34 @@ impl<'a, Message: 'a> PointerTrackedRow<'a, Message> {
     pub(crate) fn new(
         body: impl Into<Element<'a, Message>>,
         look: MenuRowLook,
+        highlight_inset: f32,
         hover_reaction: RowHoverReaction<Message>,
     ) -> Self {
         Self {
             body: body.into(),
             look,
+            highlight_inset,
             hover_reaction,
+        }
+    }
+
+    fn highlight_bounds(&self, row_bounds: Rectangle) -> Rectangle {
+        row_bounds.shrink(Padding {
+            top: self.highlight_inset / 2.0,
+            bottom: self.highlight_inset / 2.0,
+            left: self.highlight_inset,
+            right: self.highlight_inset,
+        })
+    }
+
+    fn highlight_corners(&self) -> Radius {
+        let frame = self.look.frame_corners;
+        let concentric = |frame_corner: f32| (frame_corner - self.highlight_inset).max(0.0);
+        Radius {
+            top_left: concentric(frame.top_left),
+            top_right: concentric(frame.top_right),
+            bottom_right: concentric(frame.bottom_right),
+            bottom_left: concentric(frame.bottom_left),
         }
     }
 }
@@ -225,9 +249,9 @@ impl<Message: Clone> Widget<Message, Theme, iced::Renderer> for PointerTrackedRo
         {
             renderer.fill_quad(
                 renderer::Quad {
-                    bounds: layout.bounds(),
+                    bounds: self.highlight_bounds(layout.bounds()),
                     border: Border {
-                        radius: self.look.corners,
+                        radius: self.highlight_corners(),
                         ..Border::default()
                     },
                     ..renderer::Quad::default()

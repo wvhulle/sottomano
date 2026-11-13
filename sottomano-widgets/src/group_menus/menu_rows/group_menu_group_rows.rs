@@ -31,7 +31,6 @@ use crate::{
         configured_theme::{secondary_text_color, text_color},
         glyph_button,
         icon_glyph::IconGlyph,
-        list_end_corners::ListEndCorners,
         phosphor::{Phosphor, Weight},
         uniform_width_column::uniform_width_column,
     },
@@ -166,14 +165,12 @@ pub(crate) fn item_menu<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     inspected_target: Option<&HoverTarget>,
     panel_corners: Radius,
 ) -> Element<'a, M> {
-    let end_corners = ListEndCorners::new(items.len(), panel_corners);
     let rows: Vec<Element<'a, M>> = items
         .into_iter()
-        .enumerate()
-        .map(|(position, item)| {
+        .map(|item| {
             let look = MenuRowLook {
                 emphasis: MenuRowEmphasis::from(item.inspection(inspected_target)),
-                corners: end_corners.radius_at(position),
+                frame_corners: panel_corners,
             };
             item_row(layout, group, item, look).map(M::from)
         })

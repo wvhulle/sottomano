@@ -21,6 +21,22 @@ pub enum OpenGroupLimit {
     Several,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SubmenuConnector {
+    #[default]
+    Hidden,
+    Shown,
+}
+
+impl From<SubmenuConnector> for SwitchPosition {
+    fn from(submenu_connector: SubmenuConnector) -> Self {
+        match submenu_connector {
+            SubmenuConnector::Shown => SwitchPosition::On,
+            SubmenuConnector::Hidden => SwitchPosition::Off,
+        }
+    }
+}
+
 impl From<GroupMenuLayout> for SwitchPosition {
     fn from(layout: GroupMenuLayout) -> Self {
         match layout {
@@ -53,6 +69,7 @@ pub struct GroupMenuPresentation {
     pub layout: GroupMenuLayout,
     pub open_trigger: GroupMenuOpenTrigger,
     pub accordion_open_limit: OpenGroupLimit,
+    pub submenu_connector: SubmenuConnector,
 }
 
 impl GroupMenuPresentation {
@@ -81,6 +98,17 @@ impl GroupMenuPresentation {
             open_trigger: match self.open_trigger {
                 GroupMenuOpenTrigger::Hover => GroupMenuOpenTrigger::Press,
                 GroupMenuOpenTrigger::Press => GroupMenuOpenTrigger::Hover,
+            },
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub const fn with_submenu_connector_toggled(self) -> Self {
+        Self {
+            submenu_connector: match self.submenu_connector {
+                SubmenuConnector::Hidden => SubmenuConnector::Shown,
+                SubmenuConnector::Shown => SubmenuConnector::Hidden,
             },
             ..self
         }

@@ -18,7 +18,6 @@ use crate::{
         widget_group_identity::WidgetGroupIdentity,
     },
     widgets::{
-        list_end_corners::ListEndCorners,
         selection_scroller::{ScrollAxis, selection_scroller},
         uniform_width_column::uniform_width_column,
     },
@@ -53,8 +52,7 @@ pub(crate) fn cascading_columns<'a, M: Clone + From<GroupEvent<M>> + From<PopupM
             items: take(&mut entries[position].items),
         });
     let open_position = open_group.as_ref().map(|open| open.position);
-    let group_corners =
-        ListEndCorners::new(entries.len(), layout.cascade_satellite_panels.frame_corners);
+    let frame_corners = layout.cascade_satellite_panels.frame_corners;
     let group_rows = entries.into_iter().enumerate().map(|(position, entry)| {
         let look = MenuRowLook {
             emphasis: if open_position == Some(position) {
@@ -62,7 +60,7 @@ pub(crate) fn cascading_columns<'a, M: Clone + From<GroupEvent<M>> + From<PopupM
             } else {
                 MenuRowEmphasis::Plain
             },
-            corners: group_corners.radius_at(position),
+            frame_corners,
         };
         group_row(layout, entry, look)
     });

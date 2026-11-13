@@ -44,7 +44,7 @@ impl From<RowInspection> for MenuRowEmphasis {
 #[derive(Clone, Copy)]
 pub(crate) struct MenuRowLook {
     pub emphasis: MenuRowEmphasis,
-    pub corners: Radius,
+    pub frame_corners: Radius,
 }
 
 pub(crate) fn menu_row_height(config: &Config) -> f32 {
@@ -78,7 +78,7 @@ pub(crate) fn menu_row<'a, Message: Clone + 'a>(
             .on_press(press_event)
             .into(),
     };
-    PointerTrackedRow::new(body, look, hover_reaction).into()
+    PointerTrackedRow::new(body, look, config.theme.spacing.item_gap, hover_reaction).into()
 }
 
 fn menu_line<'a, M: 'a>(

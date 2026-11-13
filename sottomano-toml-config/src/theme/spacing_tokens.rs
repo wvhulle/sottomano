@@ -17,7 +17,7 @@ pub struct SpacingTokens<L = f32> {
 impl<L: From<f32>> Default for SpacingTokens<L> {
     fn default() -> Self {
         Self {
-            item_gap: L::from(4.0),
+            item_gap: L::from(6.0),
             surface_inset: L::from(10.0),
             group_gap: L::from(14.0),
         }

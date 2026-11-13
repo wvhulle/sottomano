@@ -8,6 +8,7 @@ use sottomano_widgets::{
     group_menus::{
         group_menu_presentation::{
             GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
+            SubmenuConnector,
         },
         group_menu_state::{GroupMenuPin, GroupMenuTopic},
     },
@@ -589,6 +590,7 @@ pub const DEMOS: &[Demo] = &[
                 layout: GroupMenuLayout::Accordion,
                 open_trigger: GroupMenuOpenTrigger::Press,
                 accordion_open_limit: OpenGroupLimit::Several,
+                submenu_connector: SubmenuConnector::Hidden,
             },
         },
         script: &[

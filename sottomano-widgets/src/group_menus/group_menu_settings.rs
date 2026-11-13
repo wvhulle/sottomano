@@ -26,6 +26,7 @@ pub enum GroupMenuSettingsTarget {
     AccordionLayout,
     ClickToOpenMenus,
     KeepOneGroupOpen,
+    SubmenuConnector,
     Appearance(AppearanceTarget),
 }
 
@@ -71,6 +72,18 @@ fn keep_one_group_open_toggle(presentation: GroupMenuPresentation) -> IconToggle
     )
 }
 
+fn submenu_connector_toggle(presentation: GroupMenuPresentation) -> IconToggle {
+    IconToggle::new(
+        "Submenu connector",
+        Phosphor::ChatTeardrop(Weight::Regular),
+        presentation.submenu_connector,
+        SwitchPresses {
+            turning_on: "join a panel beside a row to that row with a pointed connector",
+            turning_off: "set a panel beside a row apart, without a connector",
+        },
+    )
+}
+
 impl GroupMenuState {
     #[must_use]
     pub fn settings_content<'a>(
@@ -100,6 +113,13 @@ impl GroupMenuState {
                     GroupMenuSettingsTarget::ClickToOpenMenus,
                     GroupMenuMessage::SwitchPresentation(presentation.with_open_trigger_toggled()),
                 ),
+                GroupItem::toggle(
+                    submenu_connector_toggle(presentation),
+                    GroupMenuSettingsTarget::SubmenuConnector,
+                    GroupMenuMessage::SwitchPresentation(
+                        presentation.with_submenu_connector_toggled(),
+                    ),
+                ),
             ]
             .into_iter()
             .chain(accordion_only_item)
@@ -122,6 +142,9 @@ impl GroupMenuState {
             }
             GroupMenuSettingsTarget::KeepOneGroupOpen => {
                 keep_one_group_open_toggle(presentation).switch_hover_card(clock)
+            }
+            GroupMenuSettingsTarget::SubmenuConnector => {
+                submenu_connector_toggle(presentation).switch_hover_card(clock)
             }
             GroupMenuSettingsTarget::Appearance(target) => self.layer.hover_card_for(target, clock),
         }

@@ -3,8 +3,15 @@ use sottomano_desktop_sources::sqlite_state_store::{
 };
 
 use crate::group_menus::group_menu_presentation::{
-    GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
+    GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit, SubmenuConnector,
 };
+
+const fn submenu_connector_name(submenu_connector: SubmenuConnector) -> &'static str {
+    match submenu_connector {
+        SubmenuConnector::Hidden => "hidden",
+        SubmenuConnector::Shown => "shown",
+    }
+}
 
 const fn layout_name(layout: GroupMenuLayout) -> &'static str {
     match layout {
@@ -42,7 +49,7 @@ async fn read_presentation(
 ) -> Result<GroupMenuPresentation, StoreError> {
     let mut rows = connection
         .query(
-            "SELECT layout, cascading_reveal_trigger, accordion_open_limit
+            "SELECT layout, cascading_reveal_trigger, accordion_open_limit, submenu_connector
              FROM group_menu_opening_choices WHERE id = 0",
             (),
         )
@@ -64,6 +71,10 @@ async fn read_presentation(
             "one" => OpenGroupLimit::One,
             _ => OpenGroupLimit::Several,
         },
+        submenu_connector: match columns.text(&row, "submenu_connector")?.as_str() {
+            "shown" => SubmenuConnector::Shown,
+            _ => SubmenuConnector::Hidden,
+        },
     })
 }
 
@@ -74,14 +85,15 @@ async fn write_presentation(
     connection
         .execute(
             "INSERT INTO group_menu_opening_choices
-                 (id, layout, cascading_reveal_trigger, accordion_open_limit)
-             VALUES (0, ?1, ?2, ?3)
+                 (id, layout, cascading_reveal_trigger, accordion_open_limit, submenu_connector)
+             VALUES (0, ?1, ?2, ?3, ?4)
              ON CONFLICT(id) DO UPDATE SET layout = ?1, cascading_reveal_trigger = ?2,
-                 accordion_open_limit = ?3",
+                 accordion_open_limit = ?3, submenu_connector = ?4",
             (
                 layout_name(presentation.layout),
                 open_trigger_name(presentation.open_trigger),
                 open_limit_name(presentation.accordion_open_limit),
+                submenu_connector_name(presentation.submenu_connector),
             ),
         )
         .await?;
@@ -95,6 +107,7 @@ mod tests {
     use super::{read_presentation, write_presentation};
     use crate::group_menus::group_menu_presentation::{
         GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
+        SubmenuConnector,
     };
 
     #[tokio::test]
@@ -113,6 +126,7 @@ mod tests {
             layout: GroupMenuLayout::Accordion,
             open_trigger: GroupMenuOpenTrigger::Press,
             accordion_open_limit: OpenGroupLimit::One,
+            submenu_connector: SubmenuConnector::Shown,
         };
         write_presentation(&connection, chosen).await.unwrap();
         assert_eq!(read_presentation(&connection).await.unwrap(), chosen);

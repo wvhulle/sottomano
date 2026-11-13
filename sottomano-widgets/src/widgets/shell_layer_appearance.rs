@@ -27,7 +27,7 @@ impl ShellLayer {
                 shadow: ShadowStyle {
                     casting: ShadowCasting::Cast,
                     softness_px: 16.0,
-                    opacity: 0.18,
+                    opacity: 0.35,
                 },
                 outline: OutlineStyle {
                     tracing: OutlineTracing::Drawn,

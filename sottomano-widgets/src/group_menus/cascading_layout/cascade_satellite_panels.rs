@@ -11,6 +11,7 @@ use crate::{
                 notched_panel,
             },
         },
+        group_menu_presentation::SubmenuConnector,
         menu_rows::menu_row::menu_row_height,
     },
     widgets::{edge_alpha_fade::ScrollEdgeFade, shell_layer_appearance::LayerAppearance},
@@ -31,7 +32,8 @@ pub(crate) struct CascadeSatellitePanels {
     card_backdrop_blur: BackdropBlur,
     morph: Duration,
     pub frame_corners: Radius,
-    notch_depth: f32,
+    gap_to_parent: f32,
+    submenu_connector: SubmenuConnector,
 }
 
 impl CascadeSatellitePanels {
@@ -40,6 +42,7 @@ impl CascadeSatellitePanels {
         card_appearance: &LayerAppearance,
         config: &Config,
         orientation: CascadeOrientation,
+        submenu_connector: SubmenuConnector,
     ) -> Self {
         Self {
             growth: orientation.growth,
@@ -53,7 +56,8 @@ impl CascadeSatellitePanels {
             card_backdrop_blur: card_appearance.backdrop_blur,
             morph: config.overlay_surfaces.surface_morph_duration,
             frame_corners: Radius::from(menu_appearance.corner_radius_px),
-            notch_depth: config.theme.spacing.group_gap,
+            gap_to_parent: config.theme.spacing.item_gap,
+            submenu_connector,
         }
     }
 
@@ -138,7 +142,8 @@ impl CascadeSatellitePanels {
                 row,
                 panel_top,
                 row_height: menu_row_height(config),
-                notch_depth: self.notch_depth,
+                gap_to_parent: self.gap_to_parent,
+                submenu_connector: self.submenu_connector,
             },
             self.morph,
         )
