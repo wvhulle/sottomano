@@ -24,6 +24,8 @@ use tokio::time::sleep_until;
 
 use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
+const HOVER_LOG_TARGET: &str = "sottomano_shell::hover_cards";
+
 fn hide_hover_card_at(due: Instant) -> Task<Message> {
     Task::future(async move {
         sleep_until(due.into()).await;
@@ -53,6 +55,7 @@ impl DesktopShell {
                 announcement,
             } => {
                 if self.hover_card.shown_retention() == CardRetention::UntilDismissed {
+                    tracing::trace!(target: HOVER_LOG_TARGET, ?target, ?position, "ignored: a card is held open");
                     return Task::none();
                 }
                 let Some(parent) =
@@ -64,8 +67,10 @@ impl DesktopShell {
                     self.hover_card
                         .defer_switch(&parent, &target, announcement.clone())
                 {
+                    tracing::trace!(target: HOVER_LOG_TARGET, ?target, ?position, "deferred switch");
                     return intent_elapsed.map(Message::HoverCard);
                 }
+                tracing::trace!(target: HOVER_LOG_TARGET, ?target, ?position, "opened");
                 self.hover_card.open(&parent, target, announcement);
                 Task::none()
             }
@@ -100,10 +105,23 @@ impl DesktopShell {
                 }
             }
             HoverCardMessage::SwitchIntentElapsed => {
-                if let Some(pending) = self.hover_card.take_pending_switch() {
-                    self.hover_card
-                        .open(&pending.parent, pending.target, pending.announcement);
+                match self.hover_card.take_pending_switch() {
+                    Some(pending) => {
+                        tracing::trace!(target: HOVER_LOG_TARGET, target = ?pending.target, "opened deferred switch");
+                        self.hover_card
+                            .open(&pending.parent, pending.target, pending.announcement);
+                    }
+                    None => {
+                        tracing::trace!(target: HOVER_LOG_TARGET, "dropped deferred switch: no pending switch or its widget is gone");
+                    }
                 }
+                Task::none()
+            }
+            unanchored @ (HoverCardMessage::EnterAnchor { .. }
+            | HoverCardMessage::AnchorLaidOut(..)
+            | HoverCardMessage::MenuHandlePointedAnchor { .. }
+            | HoverCardMessage::MenuHandlePressedAnchor { .. }) => {
+                tracing::trace!(target: HOVER_LOG_TARGET, message = ?unanchored, "dropped: reached the shell without its surface and screen edge");
                 Task::none()
             }
             other => self
@@ -166,13 +184,20 @@ impl DesktopShell {
         announcement: &HoverAnnouncement,
     ) -> Option<PanelEdge> {
         if matches!(self.pointer_drag, PointerDrag::Dragging(_)) {
+            tracing::trace!(target: HOVER_LOG_TARGET, ?target, "dropped: a slot is being dragged");
             return None;
         }
-        let host = self.surfaces.get(&surface).filter(|_| {
-            self.hover_content(target).is_some_and(|content| {
-                content.card_substance(announcement) == CardSubstance::HasContent
-            })
-        })?;
+        let Some(host) = self.surfaces.get(&surface) else {
+            tracing::trace!(target: HOVER_LOG_TARGET, ?target, ?surface, "dropped: unknown surface");
+            return None;
+        };
+        let substance = self
+            .hover_content(target)
+            .map(|content| content.card_substance(announcement));
+        if substance != Some(CardSubstance::HasContent) {
+            tracing::trace!(target: HOVER_LOG_TARGET, ?target, ?substance, "dropped: no card content");
+            return None;
+        }
         Some(PanelEdge {
             output: host.output.clone(),
             position,
