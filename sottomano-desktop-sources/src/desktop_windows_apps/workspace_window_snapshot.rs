@@ -265,6 +265,11 @@ impl WinEntry {
     }
 
     #[must_use]
+    pub fn program_name(&self) -> Option<&str> {
+        self.label.as_ref()?.program_name()
+    }
+
+    #[must_use]
     pub fn group_key(&self) -> Option<WindowGroupKey<'_>> {
         self.label
             .as_ref()

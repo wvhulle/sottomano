@@ -499,8 +499,7 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
             .children()
             .skip(group.positions.start)
             .take(group.positions.len())
-            .map(|slot| slot.bounds())
-            .reduce(|covered, slot| covered.union(&slot))?;
+            .map(|slot| slot.bounds());
         Some(SlotGroupFrame::around_slots(
             self.pager_axis(),
             heading.bounds(),
@@ -510,6 +509,35 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
                 enclosure_radius: group.enclosure_radius,
             },
         ))
+    }
+
+    fn trailing_extent(&self, slot_position: usize) -> f32 {
+        match self
+            .group_index_at(slot_position)
+            .and_then(|group_index| self.groups.get(group_index))
+        {
+            Some(group) if group.positions.end == slot_position + 1 => {
+                group.enclosure_thickness + self.group_gap
+            }
+            Some(group) => group.enclosure_thickness,
+            None => 0.0,
+        }
+    }
+
+    fn tile_inset_at(&self, slot_position: usize) -> Option<SlotTileInset> {
+        match self.group_index_at(slot_position) {
+            Some(group_index) => {
+                let group = self.groups.get(group_index)?;
+                Some(SlotTileInset {
+                    thickness: group.enclosure_thickness,
+                    enclosure_radius: group.enclosure_radius,
+                })
+            }
+            None => match self.ungrouped_highlight_look {
+                UngroupedHighlightLook::EdgeBand => None,
+                UngroupedHighlightLook::AccentTile(tile_inset) => Some(tile_inset),
+            },
+        }
     }
 
     fn group_index_at(&self, slot_position: usize) -> Option<usize> {
@@ -541,7 +569,8 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
     fn tile_neighbours(&self, position: usize) -> TileNeighbours {
         let joins_tile = |neighbour_position: usize| {
             self.slot_tile(neighbour_position) == SlotTile::Drawn
-                && self.group_index_at(neighbour_position) == self.group_index_at(position)
+                && self.group_index_at(neighbour_position).is_none()
+                && self.group_index_at(position).is_none()
         };
         TileNeighbours {
             leading: position.checked_sub(1).is_some_and(joins_tile),
@@ -558,19 +587,12 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
 
     fn alarm_tile(&self, alarm: &SlotAlarm<'_>, layout: Layout<'_>) -> Option<renderer::Quad> {
         let slot = layout.children().nth(alarm.position)?.bounds();
-        let tile_neighbours = self.tile_neighbours(alarm.position);
-        match self.group_index_at(alarm.position) {
-            Some(group_index) => Some(
-                self.group_frame(group_index, layout)?
-                    .highlight_inside(slot, tile_neighbours),
-            ),
-            None => match self.ungrouped_highlight_look {
-                UngroupedHighlightLook::EdgeBand => None,
-                UngroupedHighlightLook::AccentTile(tile_inset) => {
-                    Some(tile_inset.tile_on_slot(self.pager_axis(), slot, tile_neighbours))
-                }
-            },
-        }
+        let tile_inset = self.tile_inset_at(alarm.position)?;
+        Some(tile_inset.tile_on_slot(
+            self.pager_axis(),
+            slot,
+            self.tile_neighbours(alarm.position),
+        ))
     }
 
     fn ungrouped_highlight(&self, slots_bounds: Rectangle, slot: Rectangle) -> renderer::Quad {
@@ -678,12 +700,7 @@ impl<Message: Clone, SlotKey: Copy + Eq + Hash + 'static> Widget<Message, Theme,
             let start = self.sliding_start(state, key, target);
             heading_starts.extend(leading_extent.map(|leading_extent| start - leading_extent));
             placed.push(self.placed_at(node, start));
-            let trailing_extent = self
-                .groups
-                .iter()
-                .find(|group| group.positions.end == position + 1)
-                .map_or(0.0, |group| group.enclosure_thickness + self.group_gap);
-            target += extent + self.spacing + trailing_extent;
+            target += extent + self.spacing + self.trailing_extent(position);
         }
         placed.extend(
             heading_nodes
@@ -776,37 +793,29 @@ impl<Message: Clone, SlotKey: Copy + Eq + Hash + 'static> Widget<Message, Theme,
             .zip(self.travelled_highlight(tree, layout));
         let highlighted_group_index = self.highlighted_group_index();
         if let Some((highlight, slot)) = highlighted {
-            let enclosing_group = highlighted_group_index.and_then(|group_index| {
-                self.group_frame(group_index, layout)
-                    .zip(self.groups.get(group_index))
-            });
             let resting_slot = self.highlighted_slot(layout).unwrap_or(slot);
-            let tile_neighbours = self.highlighted_tile_neighbours();
-            match enclosing_group {
-                Some((frame, group)) => {
-                    renderer.fill_quad(
-                        frame.highlight_inside(resting_slot, tile_neighbours),
-                        (group.highlight_color)(theme),
-                    );
-                }
-                None => match self.ungrouped_highlight_look {
-                    UngroupedHighlightLook::EdgeBand => {
-                        renderer.fill_quad(
-                            self.ungrouped_highlight(slots_bounds, slot),
-                            (highlight.color)(theme).scale_alpha(BACKDROP_TINT_ALPHA),
-                        );
-                    }
-                    UngroupedHighlightLook::AccentTile(tile_inset) => {
-                        renderer.fill_quad(
-                            tile_inset.tile_on_slot(
-                                self.pager_axis(),
-                                resting_slot,
-                                tile_neighbours,
-                            ),
-                            (highlight.color)(theme),
-                        );
-                    }
-                },
+            let highlight_color = match highlighted_group_index
+                .and_then(|group_index| self.groups.get(group_index))
+            {
+                Some(group) => (group.highlight_color)(theme),
+                None => (highlight.color)(theme),
+            };
+            match self
+                .highlighted_position()
+                .and_then(|highlighted_position| self.tile_inset_at(highlighted_position))
+            {
+                Some(tile_inset) => renderer.fill_quad(
+                    tile_inset.tile_on_slot(
+                        self.pager_axis(),
+                        resting_slot,
+                        self.highlighted_tile_neighbours(),
+                    ),
+                    highlight_color,
+                ),
+                None => renderer.fill_quad(
+                    self.ungrouped_highlight(slots_bounds, slot),
+                    highlight_color.scale_alpha(BACKDROP_TINT_ALPHA),
+                ),
             }
         }
         for alarm in &self.alarms {
@@ -975,25 +984,26 @@ mod tests {
     }
 
     #[test]
-    fn highlight_and_alarm_in_one_group_join_on_their_facing_sides_only() {
+    fn highlight_and_alarm_in_one_group_keep_their_own_cells() {
         let pager = pager_with_slots(4)
             .highlight(Some(1), plain_color)
             .alarms(vec![alarm_at(2)])
             .groups(vec![group_over(0..4)]);
-        assert_eq!(
-            pager.tile_neighbours(1),
-            TileNeighbours {
-                leading: false,
-                trailing: true,
-            }
-        );
-        assert_eq!(
-            pager.tile_neighbours(2),
-            TileNeighbours {
-                leading: true,
-                trailing: false,
-            }
-        );
+        assert_eq!(pager.tile_neighbours(1), UNJOINED);
+        assert_eq!(pager.tile_neighbours(2), UNJOINED);
+    }
+
+    #[test]
+    fn slots_inside_a_group_are_one_enclosure_stroke_apart() {
+        let pager = pager_with_slots(4)
+            .group_gap(4.0)
+            .groups(vec![group_over(0..2)]);
+        let between_grouped_slots = pager.trailing_extent(0);
+        let after_the_group = pager.trailing_extent(1);
+        let between_ungrouped_slots = pager.trailing_extent(2);
+        assert!((between_grouped_slots - 3.0).abs() < f32::EPSILON);
+        assert!((after_the_group - 7.0).abs() < f32::EPSILON);
+        assert!(between_ungrouped_slots.abs() < f32::EPSILON);
     }
 
     #[test]

@@ -86,14 +86,17 @@ impl WindowLabel {
 
     #[must_use]
     pub fn theme_icon(&self) -> Option<String> {
+        command_icon(self.program_name()?)
+    }
+
+    #[must_use]
+    pub fn program_name(&self) -> Option<&str> {
         let WindowLabel::TerminalShell(label) = self else {
             return None;
         };
         match &label.working_location {
-            WorkingLocation::RemoteHost(_) => command_icon(SSH_COMMAND),
-            WorkingLocation::LocalDirectory(_) => {
-                command_icon(label.foreground_activity.command_name()?)
-            }
+            WorkingLocation::RemoteHost(_) => Some(SSH_COMMAND),
+            WorkingLocation::LocalDirectory(_) => label.foreground_activity.program_name(),
         }
     }
 

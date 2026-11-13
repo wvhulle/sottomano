@@ -79,7 +79,7 @@ mod tests {
             },
         },
         widget_groups::{
-            window_group::WindowRowLayout,
+            window_group::{WindowRowLayout, WindowTitleLength},
             workspaces_group::{EmptyWorkspaceFolding, EmptyWorkspaces, WorkspacesMessage},
         },
         widgets::{
@@ -102,6 +102,7 @@ mod tests {
             panel_corner_radius_px: 0.0,
             panel_frame_style: ShellLayer::Panels.default_appearance().frame_style(),
             window_row_layout: WindowRowLayout::default(),
+            window_title_length: WindowTitleLength::default(),
         };
         let pager_element = inline_view(
             &window_snapshot,

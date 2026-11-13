@@ -19,7 +19,7 @@ use crate::{
             WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
-        window_group::WindowRowLayout,
+        window_group::{WindowRowLayout, WindowTitleLength},
     },
     widgets::{
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
@@ -93,6 +93,21 @@ impl From<WindowRowLayout> for SwitchPosition {
     }
 }
 
+impl SingletonFlagState for WindowTitleLength {
+    const STORED_FLAG: SingletonFlag = SingletonFlag::WindowTitlesCapped;
+    const STORED_AS_SET: Self = WindowTitleLength::Capped;
+    const STORED_AS_CLEARED: Self = WindowTitleLength::Full;
+}
+
+impl From<WindowTitleLength> for SwitchPosition {
+    fn from(window_title_length: WindowTitleLength) -> Self {
+        match window_title_length {
+            WindowTitleLength::Capped => SwitchPosition::On,
+            WindowTitleLength::Full => SwitchPosition::Off,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PanelLayout {
     pub group_framing: PanelGroupFraming,
@@ -151,11 +166,24 @@ fn window_row_layout_toggle(window_row_layout: WindowRowLayout) -> IconToggle {
     )
 }
 
+fn window_title_length_toggle(window_title_length: WindowTitleLength) -> IconToggle {
+    IconToggle::new(
+        "Cap window titles",
+        Phosphor::Scissors(Weight::Regular),
+        window_title_length,
+        SwitchPresses {
+            turning_on: "cut long window titles off at the configured width",
+            turning_off: "show every window title in full",
+        },
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PanelSettingsTarget {
     DisconnectedGroups,
     AutoCollapseGroups,
     WindowRowLayout,
+    WindowTitleLength,
     FloatOffset,
     Appearance(AppearanceTarget),
 }
@@ -172,10 +200,12 @@ pub enum PanelSettingsMessage {
     ToggleDisconnectedGroups,
     ToggleAutoCollapseGroups,
     ToggleWindowRowLayout,
+    ToggleWindowTitleLength,
     FloatOffset(ControlMessage),
     Appearance(AppearanceMessage),
     LayoutLoaded(PanelLayout),
     WindowRowLayoutLoaded(WindowRowLayout),
+    WindowTitleLengthLoaded(WindowTitleLength),
 }
 
 pub struct PanelSettingsGroup {
@@ -183,6 +213,7 @@ pub struct PanelSettingsGroup {
     group_framing: PanelGroupFraming,
     group_collapsing: GroupCollapsing,
     window_row_layout: WindowRowLayout,
+    window_title_length: WindowTitleLength,
     float_offset: SliderControl,
     pub layer: LayerAppearanceControls,
 }
@@ -195,6 +226,7 @@ impl Default for PanelSettingsGroup {
             group_framing: defaults.group_framing,
             group_collapsing: defaults.group_collapsing,
             window_row_layout: WindowRowLayout::default(),
+            window_title_length: WindowTitleLength::default(),
             float_offset: SliderControl::new(
                 "Float offset",
                 0.0..=24.0,
@@ -223,6 +255,10 @@ impl PanelSettingsGroup {
                 sqlite_singleton_flag::load(WindowRowLayout::GroupedByLocation),
                 PanelSettingsMessage::WindowRowLayoutLoaded,
             ),
+            Task::perform(
+                sqlite_singleton_flag::load(WindowTitleLength::Capped),
+                PanelSettingsMessage::WindowTitleLengthLoaded,
+            ),
             LayerAppearanceControls::load(ShellLayer::Panels).map(PanelSettingsMessage::Appearance),
         ])
     }
@@ -243,6 +279,11 @@ impl PanelSettingsGroup {
     }
 
     #[must_use]
+    pub fn window_title_length(&self) -> WindowTitleLength {
+        self.window_title_length
+    }
+
+    #[must_use]
     pub fn float_offset_px(&self) -> f32 {
         self.float_offset.device_setting.reported_value()
     }
@@ -258,6 +299,9 @@ impl PanelSettingsGroup {
             }
             PanelSettingsTarget::WindowRowLayout => {
                 window_row_layout_toggle(self.window_row_layout).switch_hover_card(clock)
+            }
+            PanelSettingsTarget::WindowTitleLength => {
+                window_title_length_toggle(self.window_title_length).switch_hover_card(clock)
             }
             PanelSettingsTarget::FloatOffset => self.float_offset.readout_hover_card("Offset"),
             PanelSettingsTarget::Appearance(target) => self.layer.hover_card_for(target, clock),
@@ -326,6 +370,20 @@ impl PanelSettingsGroup {
                 self.window_row_layout = window_row_layout;
                 Action::Run(Task::none())
             }
+            PanelSettingsMessage::ToggleWindowTitleLength => {
+                self.window_title_length = match self.window_title_length {
+                    WindowTitleLength::Capped => WindowTitleLength::Full,
+                    WindowTitleLength::Full => WindowTitleLength::Capped,
+                };
+                Action::Run(logged_failure_task(
+                    "singleton flag: save".to_owned(),
+                    sqlite_singleton_flag::save(self.window_title_length),
+                ))
+            }
+            PanelSettingsMessage::WindowTitleLengthLoaded(window_title_length) => {
+                self.window_title_length = window_title_length;
+                Action::Run(Task::none())
+            }
             PanelSettingsMessage::FloatOffset(control) => self.update_float_offset(control),
             PanelSettingsMessage::Appearance(msg) => {
                 Action::Run(self.layer.update(msg).map(PanelSettingsMessage::Appearance))
@@ -383,6 +441,11 @@ impl PanelSettingsGroup {
                     window_row_layout_toggle(self.window_row_layout),
                     PanelSettingsTarget::WindowRowLayout,
                     PanelSettingsMessage::ToggleWindowRowLayout,
+                ),
+                GroupItem::toggle(
+                    window_title_length_toggle(self.window_title_length),
+                    PanelSettingsTarget::WindowTitleLength,
+                    PanelSettingsMessage::ToggleWindowTitleLength,
                 ),
                 GroupItem::slider(
                     &self.float_offset,

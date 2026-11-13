@@ -12,6 +12,7 @@ pub enum SingletonFlag {
     WindowsGroupedByLocation,
     FrequentAppsHideOpen,
     CategoryAppsSortedByUsage,
+    WindowTitlesCapped,
 }
 
 impl SingletonFlag {
@@ -25,6 +26,7 @@ impl SingletonFlag {
             Self::WindowsGroupedByLocation => "windows_grouped_by_location",
             Self::FrequentAppsHideOpen => "frequent_apps_hide_open",
             Self::CategoryAppsSortedByUsage => "category_apps_sorted_by_usage",
+            Self::WindowTitlesCapped => "window_titles_capped",
         }
     }
 }
@@ -95,7 +97,7 @@ mod tests {
 
     use super::{SingletonFlag, SingletonFlagState, read_flag, write_flag};
 
-    const ALL_FLAGS: [SingletonFlag; 8] = [
+    const ALL_FLAGS: [SingletonFlag; 9] = [
         SingletonFlag::NotificationSound,
         SingletonFlag::GlobalApplicationMenu,
         SingletonFlag::ToastSpatialLayout,
@@ -104,6 +106,7 @@ mod tests {
         SingletonFlag::WindowsGroupedByLocation,
         SingletonFlag::FrequentAppsHideOpen,
         SingletonFlag::CategoryAppsSortedByUsage,
+        SingletonFlag::WindowTitlesCapped,
     ];
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]

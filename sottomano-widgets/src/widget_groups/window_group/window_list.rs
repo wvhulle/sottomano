@@ -39,9 +39,9 @@ use crate::{
         hoverable,
     },
     widget_groups::window_group::{
-        WindowRowLayout, WindowTarget,
+        WindowRowLayout, WindowTarget, WindowTitleLength,
         flat_window_rows::arranged_flat_rows,
-        keyed_window_group_rows::arranged_keyed_groups,
+        keyed_window_group_rows::{GroupIconPlacement, arranged_keyed_groups},
         process_tree::Folding,
         window_row_presentation::{
             ArrangedWindowRows, SlotBackdrop, WindowSlotPresentation, WindowTileMarking,
@@ -62,8 +62,10 @@ use crate::{
             draggable_slot::{HoverReorder, draggable_slot},
             slot_pager::{SlotAlarm, slot_pager},
         },
+        program_brand_icons::program_brand_icon,
         selection_scroller::{ScrollAxis, ScrollPacing, selection_scroller},
         shared_metrics::{ACCENT_STROKE_PX, pill_corners},
+        simple_icons::view_simple_icon,
         text::font_faces_of,
         window_icon::{WindowAssets, window_icon},
         window_title::WindowTitle,
@@ -80,11 +82,15 @@ fn maximum_window_title_width_px(config: &Config) -> f32 {
 fn capped_window_title<'a, Message: 'a>(
     title: impl Into<Element<'a, Message>>,
     config: &Config,
+    window_title_length: WindowTitleLength,
 ) -> Element<'a, Message> {
-    container(title)
-        .max_width(maximum_window_title_width_px(config))
-        .clip(true)
-        .into()
+    match window_title_length {
+        WindowTitleLength::Capped => container(title)
+            .max_width(maximum_window_title_width_px(config))
+            .clip(true)
+            .into(),
+        WindowTitleLength::Full => title.into(),
+    }
 }
 
 #[derive(Default)]
@@ -383,7 +389,7 @@ impl WindowList {
                 .with_corner_radius(config.theme.font.icon_size_px / 2.0 + inset);
             return Some(
                 panel_frame(
-                    container(window_slot.resolved_icon(icons)?).padding(inset),
+                    container(window_slot.slot_icon(icons)?).padding(inset),
                     circle,
                 )
                 .into(),
@@ -646,7 +652,9 @@ impl WindowSlot<'_> {
         });
         Row::new()
             .extend(self.badged_icon(icons))
-            .extend(title.map(|title| capped_window_title(title, config)))
+            .extend(title.map(|title| {
+                capped_window_title(title, config, self.slot_context.window_title_length)
+            }))
             .extend(self.audio_glyph())
             .spacing(config.theme.spacing.item_gap)
             .align_y(Alignment::Center)
@@ -732,14 +740,42 @@ impl WindowSlot<'_> {
         icons: WindowAssets<'a>,
     ) -> Option<Element<'a, WindowListInteraction>> {
         let badge = self.count_badge();
-        if self.presentation == WindowSlotPresentation::InKeyedGroup && badge.is_none() {
+        if self.group_icon_placement() == Some(GroupIconPlacement::OnHeading) && badge.is_none() {
             return None;
         }
-        let icon = self.resolved_icon(icons)?;
+        let icon = self.slot_icon(icons)?;
         Some(match badge {
             Some(badge) => stack([icon, badge]).into(),
             None => icon,
         })
+    }
+
+    fn group_icon_placement(&self) -> Option<GroupIconPlacement> {
+        match self.presentation {
+            WindowSlotPresentation::InKeyedGroup => {
+                self.window_entry.group_key().map(GroupIconPlacement::from)
+            }
+            WindowSlotPresentation::Flat | WindowSlotPresentation::OutsideKeyedGroups => None,
+        }
+    }
+
+    fn slot_icon<'a>(&self, icons: WindowAssets<'a>) -> Option<Element<'a, WindowListInteraction>> {
+        let Some(brand_icon) = self
+            .window_entry
+            .program_name()
+            .and_then(program_brand_icon)
+        else {
+            return self.resolved_icon(icons);
+        };
+        let tint = ReadingStateTint {
+            state: ReadingDisplayState::Idle,
+            opacity: self.opacity,
+        };
+        Some(view_simple_icon(
+            brand_icon,
+            self.slot_context.config.theme.font.icon_size_px,
+            glyph_color(tint, self.slot_backdrop()),
+        ))
     }
 
     fn resolved_icon<'a>(
@@ -785,7 +821,7 @@ mod tests {
                 dragging_from_start, sweep_across_panel, three_workspaces_three_windows,
             },
         },
-        widget_groups::window_group::WindowRowLayout,
+        widget_groups::window_group::{WindowRowLayout, WindowTitleLength},
         widgets::{
             favicon::Favicons,
             pointer_drag::{DragEvent, DraggedPanelSlot, PanelSlotList},
@@ -800,7 +836,7 @@ mod tests {
         let long_title = "a very long window title ".repeat(12);
         let title_element: Element<'_, ()> =
             text(long_title.clone()).wrapping(Wrapping::None).into();
-        let capped = capped_window_title(title_element, &config);
+        let capped = capped_window_title(title_element, &config, WindowTitleLength::Capped);
         let mut simulated_panel =
             Simulator::with_size(Settings::default(), Size::new(1600.0, 40.0), capped);
         let title_target = simulated_panel
@@ -809,6 +845,25 @@ mod tests {
         assert!(title_target.visible_bounds().is_some_and(|bounds| {
             bounds.width <= maximum_window_title_width_px(&config) + f32::EPSILON
         }));
+    }
+
+    #[test]
+    fn a_full_length_title_grows_past_the_configured_maximum() {
+        let config = Config::default();
+        let long_title = "a very long window title ".repeat(12);
+        let title_element: Element<'_, ()> =
+            text(long_title.clone()).wrapping(Wrapping::None).into();
+        let uncapped = capped_window_title(title_element, &config, WindowTitleLength::Full);
+        let mut simulated_panel =
+            Simulator::with_size(Settings::default(), Size::new(4000.0, 40.0), uncapped);
+        let title_target = simulated_panel
+            .find(long_title.as_str())
+            .expect("the full title is laid out");
+        assert!(
+            title_target
+                .visible_bounds()
+                .is_some_and(|bounds| bounds.width > maximum_window_title_width_px(&config))
+        );
     }
 
     #[test]
@@ -837,6 +892,7 @@ mod tests {
             panel_corner_radius_px: 0.0,
             panel_frame_style: ShellLayer::Panels.default_appearance().frame_style(),
             window_row_layout: WindowRowLayout::default(),
+            window_title_length: WindowTitleLength::default(),
         };
         let pager_element = window_list
             .view(

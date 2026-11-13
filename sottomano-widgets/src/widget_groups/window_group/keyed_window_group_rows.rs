@@ -29,6 +29,26 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum GroupIconPlacement {
+    OnHeading,
+    OnEachWindow,
+}
+
+impl From<WindowGroupKey<'_>> for GroupIconPlacement {
+    fn from(group_key: WindowGroupKey<'_>) -> Self {
+        match group_key {
+            WindowGroupKey::WorkingDirectory(_) | WindowGroupKey::RemoteHost(_) => {
+                GroupIconPlacement::OnEachWindow
+            }
+            WindowGroupKey::WebSite(_)
+            | WindowGroupKey::EditorProject(_)
+            | WindowGroupKey::MailAccount(_)
+            | WindowGroupKey::Application(_) => GroupIconPlacement::OnHeading,
+        }
+    }
+}
+
 struct WindowGroupIdentity<'a> {
     group_key: Option<WindowGroupKey<'a>>,
     icon: Option<&'a IconHandle>,
@@ -38,10 +58,18 @@ struct WindowGroupIdentity<'a> {
 fn keyed_group_positions(identities: &[WindowGroupIdentity<'_>]) -> Vec<Range<usize>> {
     identities
         .chunk_by(|previous, current| {
-            current.group_key.is_some()
-                && current.group_key == previous.group_key
-                && current.icon == previous.icon
-                && current.favicon_key == previous.favicon_key
+            let Some(shared_group_key) = current
+                .group_key
+                .filter(|_| current.group_key == previous.group_key)
+            else {
+                return false;
+            };
+            match GroupIconPlacement::from(shared_group_key) {
+                GroupIconPlacement::OnEachWindow => true,
+                GroupIconPlacement::OnHeading => {
+                    current.icon == previous.icon && current.favicon_key == previous.favicon_key
+                }
+            }
         })
         .scan(0, |next_start, run| {
             let start = *next_start;
@@ -100,13 +128,18 @@ fn keyed_group_heading<'a>(
         state: ReadingDisplayState::Idle,
         opacity: 1.0,
     };
-    let icon = window_icon(
-        icons.favicons,
-        window_entry.favicon_key(),
-        icons.icon_for(window_entry),
-        config.theme.font.icon_size_px,
-        1.0,
-    );
+    let icon = window_entry
+        .group_key()
+        .filter(|group_key| GroupIconPlacement::from(*group_key) == GroupIconPlacement::OnHeading)
+        .and_then(|_| {
+            window_icon(
+                icons.favicons,
+                window_entry.favicon_key(),
+                icons.icon_for(window_entry),
+                config.theme.font.icon_size_px,
+                1.0,
+            )
+        });
     Some(
         Row::new()
             .extend(icon)
@@ -194,7 +227,7 @@ mod tests {
     }
 
     #[test]
-    fn neighbouring_windows_with_one_group_key_and_icon_form_one_group() {
+    fn neighbouring_terminals_in_one_directory_form_one_group() {
         let sottomano = Some(WindowGroupKey::WorkingDirectory("sottomano"));
         let (claude_icon, terminal_icon) = (named_icon("claude"), named_icon("terminal"));
         let (files_icon, unknown_icon) = (named_icon("files"), named_icon("unknown"));
@@ -210,7 +243,26 @@ mod tests {
             ),
             identity(None, &unknown_icon),
         ];
-        assert_eq!(keyed_group_positions(&identities), [0..2, 2..4, 5..6]);
+        assert_eq!(keyed_group_positions(&identities), [0..4, 5..6]);
+    }
+
+    #[test]
+    fn neighbouring_sites_with_different_favicons_stay_apart() {
+        let shared_icon = named_icon("firefox");
+        let github = Some(WindowGroupKey::WebSite("github.com"));
+        let identities = [
+            WindowGroupIdentity {
+                group_key: github,
+                icon: Some(&shared_icon),
+                favicon_key: Some("first"),
+            },
+            WindowGroupIdentity {
+                group_key: github,
+                icon: Some(&shared_icon),
+                favicon_key: Some("second"),
+            },
+        ];
+        assert_eq!(keyed_group_positions(&identities), [0..1, 1..2]);
     }
 
     #[test]

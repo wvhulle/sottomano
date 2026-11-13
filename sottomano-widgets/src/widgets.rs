@@ -36,6 +36,7 @@ pub mod most_used_model;
 pub mod ongoing_toast;
 pub mod phosphor;
 pub mod pointer_drag;
+pub mod program_brand_icons;
 pub mod shared_metrics;
 pub mod shell_layer_appearance;
 pub mod simple_icons;
