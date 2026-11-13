@@ -5,7 +5,10 @@ mod window_hover_card;
 pub mod window_list;
 mod window_row_presentation;
 
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
 use iced::{Element, Subscription, Task};
 use sottomano_desktop_sources::{
@@ -28,7 +31,7 @@ use crate::{
         hover_card_body::hover_card_source_delivery::{DeliveryTiming, HoverCard},
     },
     widget_groups::widget_group_content::GroupEvent,
-    widgets::window_icon::WindowAssets,
+    widgets::{motion_state::MotionState, window_icon::WindowAssets},
 };
 
 #[derive(Default)]
@@ -135,6 +138,25 @@ impl WindowGroup {
     #[must_use]
     pub fn window_processes(&self) -> &WindowProcesses {
         self.window_list.window_processes()
+    }
+
+    pub fn observe_active_workspaces(
+        &mut self,
+        compositor: &workspace_window_snapshot::Snapshot,
+        clock: Clock,
+        slide_duration: Duration,
+    ) {
+        self.window_list
+            .observe_active_workspaces(compositor, clock, slide_duration);
+    }
+
+    #[must_use]
+    pub fn workspace_slide_motion(&self, now: Instant) -> MotionState {
+        self.window_list.workspace_slide_motion(now)
+    }
+
+    pub fn settle_workspace_slides(&mut self, now: Instant) {
+        self.window_list.settle_workspace_slides(now);
     }
 
     #[must_use]

@@ -3,7 +3,7 @@ pub use corredo::{
     primitives::{
         child_view, edge_alpha_fade, ellipsis_rule, fair_widths, list_end_corners, motion_state,
         rectangle_morph, reveal_clip, rounded_quads, steady_label_width, svg_icon,
-        uniform_width_column,
+        uniform_width_column, workspace_swap,
     },
     refresh_dial, selection_scroller, transitioning_text, widest_readout_text,
 };

@@ -100,6 +100,7 @@ progress = "shown"
 count_badge = "shown"
 nixpkgs_branch = "nixpkgs-unstable"
 maximum_window_title_width = "200px"
+workspace_slide_duration = "250ms"
 
 [widget_groups.window.agents]
 kitty = "enabled"

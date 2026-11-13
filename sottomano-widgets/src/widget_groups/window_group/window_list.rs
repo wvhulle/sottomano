@@ -1,7 +1,11 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
 use iced::{
-    Alignment, Element, Subscription, Task,
+    Alignment, Animation, Element, Subscription, Task,
+    animation::Easing,
     widget::{Row, container, progress_bar, right, stack, text, text::Wrapping},
 };
 use sottomano_desktop_sources::{
@@ -19,6 +23,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::{
     Config,
+    screen_edges::Position,
     widget_groups::{ElementVisibility, TerminalAgentUse, WindowAgentsConfig},
 };
 
@@ -56,9 +61,10 @@ use crate::{
         edge_alpha_fade::ScrollEdgeFade,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         icon_glyph::IconGlyph,
+        motion_state::MotionState,
         phosphor::{Phosphor, Weight},
         pointer_drag::{
-            DraggedPanelSlot, ListDeparture, PanelSlotList,
+            DragView, DraggedPanelSlot, ListDeparture, PanelSlotList,
             draggable_slot::{HoverReorder, draggable_slot},
             slot_pager::{SlotAlarm, slot_pager},
         },
@@ -69,6 +75,7 @@ use crate::{
         text::font_faces_of,
         window_icon::{WindowAssets, window_icon},
         window_title::WindowTitle,
+        workspace_swap::{DepartingPane, SlideBand, SwapPane, workspace_swap},
     },
 };
 
@@ -103,6 +110,90 @@ pub struct WindowList {
     process_tree: HoverFetchedSnapshot<Process>,
     inspection: HoverFetchedSnapshot<Inspection>,
     package_facts: HoverFetchedSnapshot<NixPackageFacts>,
+    output_workspaces: HashMap<String, OutputWorkspaces>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ShownWorkspace {
+    workspace_id: u64,
+    workspace_index: u8,
+}
+
+#[derive(Debug, Clone)]
+struct DepartureSlide {
+    departed: ShownWorkspace,
+    animation: Animation<bool>,
+}
+
+#[derive(Debug, Clone)]
+enum WorkspaceSlide {
+    Settled,
+    Sliding(DepartureSlide),
+}
+
+#[derive(Debug, Clone)]
+struct OutputWorkspaces {
+    shown: ShownWorkspace,
+    workspace_slide: WorkspaceSlide,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum DepartingWorkspace {
+    Absent,
+    SlidingAway {
+        departed: ShownWorkspace,
+        slide_progress: f32,
+    },
+}
+
+fn started_slide(now: Instant, slide_duration: Duration) -> Animation<bool> {
+    Animation::new(false)
+        .easing(Easing::EaseOutCubic)
+        .duration(slide_duration)
+        .go(true, now)
+}
+
+fn shown_workspace(
+    compositor: &workspace_window_snapshot::Snapshot,
+    output: &str,
+    drag: &DragView,
+) -> Option<u64> {
+    window_source_workspace(drag)
+        .filter(|source| {
+            compositor
+                .workspaces_for_output(output)
+                .iter()
+                .any(|indicator| indicator.id == *source)
+        })
+        .or_else(|| compositor.active_workspace_id(output))
+}
+
+fn panel_slide_band(slot_context: PanelSlotContext<'_>) -> SlideBand {
+    let frame_depth_px = slot_context.config.desktop_panels.height;
+    let float_offset_px = slot_context.panel_float_offset_px;
+    match slot_context.edge {
+        Position::Top => SlideBand::AlongTopEdge {
+            frame_depth_px,
+            float_offset_px,
+        },
+        Position::Bottom => SlideBand::AlongBottomEdge {
+            frame_depth_px,
+            float_offset_px,
+        },
+        Position::Left => SlideBand::OwnBounds,
+    }
+}
+
+fn workspace_index(
+    compositor: &workspace_window_snapshot::Snapshot,
+    output: &str,
+    workspace: u64,
+) -> u8 {
+    compositor
+        .workspaces_for_output(output)
+        .iter()
+        .find(|indicator| indicator.id == workspace)
+        .map_or(0, |indicator| indicator.idx)
 }
 
 #[derive(Debug)]
@@ -260,6 +351,7 @@ impl WindowList {
         }
     }
 
+    #[must_use]
     pub fn view<'a>(
         &'a self,
         compositor: &workspace_window_snapshot::Snapshot,
@@ -268,20 +360,161 @@ impl WindowList {
         output: &str,
         slot_context: PanelSlotContext<'_>,
     ) -> Option<Element<'a, WindowListInteraction>> {
+        let workspace = shown_workspace(compositor, output, &slot_context.drag)?;
+        let arriving = SwapPane {
+            identity: workspace,
+            workspace_order: workspace_index(compositor, output, workspace),
+            content: self.workspace_row(compositor, icons, audio, workspace, slot_context),
+        };
+        let departing =
+            match self.departing_workspace(output, workspace, slot_context.clock.instant) {
+                DepartingWorkspace::SlidingAway {
+                    departed,
+                    slide_progress,
+                } if window_source_workspace(&slot_context.drag).is_none() => {
+                    DepartingPane::Departing {
+                        pane: SwapPane {
+                            identity: departed.workspace_id,
+                            workspace_order: departed.workspace_index,
+                            content: self.workspace_row(
+                                compositor,
+                                icons,
+                                audio,
+                                departed.workspace_id,
+                                slot_context,
+                            ),
+                        },
+                        slide_progress,
+                    }
+                }
+                DepartingWorkspace::SlidingAway { .. } | DepartingWorkspace::Absent => {
+                    DepartingPane::Absent
+                }
+            };
+        if compositor.windows_on_workspace(workspace).is_empty()
+            && matches!(departing, DepartingPane::Absent)
+        {
+            return None;
+        }
+        Some(
+            workspace_swap(arriving, departing)
+                .faded_into(slot_context.panel_frame_style)
+                .sliding_within(panel_slide_band(slot_context))
+                .into(),
+        )
+    }
+
+    pub fn observe_active_workspaces(
+        &mut self,
+        compositor: &workspace_window_snapshot::Snapshot,
+        clock: Clock,
+        slide_duration: Duration,
+    ) {
+        compositor
+            .active_workspace_ids_by_output()
+            .for_each(|(output, workspace_id)| {
+                let arrived = ShownWorkspace {
+                    workspace_id,
+                    workspace_index: workspace_index(compositor, output, workspace_id),
+                };
+                self.observe_output(output, arrived, clock.instant, slide_duration);
+            });
+    }
+
+    fn observe_output(
+        &mut self,
+        output: &str,
+        arrived: ShownWorkspace,
+        now: Instant,
+        slide_duration: Duration,
+    ) {
+        match self.output_workspaces.get_mut(output) {
+            Some(observed) if observed.shown.workspace_id != arrived.workspace_id => {
+                observed.workspace_slide = if slide_duration.is_zero() {
+                    WorkspaceSlide::Settled
+                } else {
+                    WorkspaceSlide::Sliding(DepartureSlide {
+                        departed: observed.shown,
+                        animation: started_slide(now, slide_duration),
+                    })
+                };
+                observed.shown = arrived;
+            }
+            Some(observed) => observed.shown = arrived,
+            None => {
+                self.output_workspaces.insert(
+                    output.to_owned(),
+                    OutputWorkspaces {
+                        shown: arrived,
+                        workspace_slide: WorkspaceSlide::Settled,
+                    },
+                );
+            }
+        }
+    }
+
+    #[must_use]
+    pub fn workspace_slide_motion(&self, now: Instant) -> MotionState {
+        let any_sliding = self.output_workspaces.values().any(|observed| {
+            matches!(
+                &observed.workspace_slide,
+                WorkspaceSlide::Sliding(departure_slide)
+                    if departure_slide.animation.is_animating(now)
+            )
+        });
+        if any_sliding {
+            MotionState::Moving
+        } else {
+            MotionState::Settled
+        }
+    }
+
+    pub fn settle_workspace_slides(&mut self, now: Instant) {
+        self.output_workspaces.values_mut().for_each(|observed| {
+            if let WorkspaceSlide::Sliding(departure_slide) = &observed.workspace_slide
+                && !departure_slide.animation.is_animating(now)
+            {
+                observed.workspace_slide = WorkspaceSlide::Settled;
+            }
+        });
+    }
+
+    fn departing_workspace(
+        &self,
+        output: &str,
+        arriving_workspace: u64,
+        now: Instant,
+    ) -> DepartingWorkspace {
+        match self.output_workspaces.get(output) {
+            Some(OutputWorkspaces {
+                workspace_slide: WorkspaceSlide::Sliding(departure_slide),
+                ..
+            }) if departure_slide.departed.workspace_id != arriving_workspace
+                && departure_slide.animation.is_animating(now) =>
+            {
+                DepartingWorkspace::SlidingAway {
+                    departed: departure_slide.departed,
+                    slide_progress: departure_slide.animation.interpolate(0.0, 1.0, now),
+                }
+            }
+            Some(_) | None => DepartingWorkspace::Absent,
+        }
+    }
+
+    fn workspace_row<'a>(
+        &'a self,
+        compositor: &workspace_window_snapshot::Snapshot,
+        icons: WindowAssets<'a>,
+        audio: Option<&HashMap<i32, WindowAudio>>,
+        workspace: u64,
+        slot_context: PanelSlotContext<'_>,
+    ) -> Element<'a, WindowListInteraction> {
         let PanelSlotContext {
             config, edge, drag, ..
         } = slot_context;
-        let workspace = window_source_workspace(&drag)
-            .filter(|source| {
-                compositor
-                    .workspaces_for_output(output)
-                    .iter()
-                    .any(|indicator| indicator.id == *source)
-            })
-            .or_else(|| compositor.active_workspace_id(output))?;
         let windows = compositor.windows_on_workspace(workspace);
         if windows.is_empty() {
-            return None;
+            return Row::new().into();
         }
         let order = drag.previewed(windows, |window_entry| {
             window_slot_key(window_entry, workspace)
@@ -343,19 +576,17 @@ impl WindowList {
             .alarms(alarms)
             .groups(groups)
             .draggable(PanelSlotList::Windows, &drag, dragged);
-        Some(
-            selection_scroller(pager, ScrollAxis::Horizontal)
-                .edge_fade(ScrollEdgeFade::away_from_frame(
-                    slot_context.panel_frame_style,
-                    maximum_window_title_width_px(config),
-                ))
-                .paced(ScrollPacing::Eased(
-                    config.desktop_panels.slot_drag.focus_indicator_duration,
-                ))
-                .selected(focused_position)
-                .showing(workspace)
-                .into(),
-        )
+        selection_scroller(pager, ScrollAxis::Horizontal)
+            .edge_fade(ScrollEdgeFade::away_from_frame(
+                slot_context.panel_frame_style,
+                maximum_window_title_width_px(config),
+            ))
+            .paced(ScrollPacing::Eased(
+                config.desktop_panels.slot_drag.focus_indicator_duration,
+            ))
+            .selected(focused_position)
+            .showing(workspace)
+            .into()
     }
 
     #[must_use]
@@ -794,6 +1025,8 @@ enum TilePress {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use iced::{
         Element, Settings, Size,
         widget::{text, text::Wrapping},
@@ -803,7 +1036,8 @@ mod tests {
     use sottomano_toml_config::{Config, screen_edges::Position};
 
     use super::{
-        WindowList, WindowListInteraction, capped_window_title, maximum_window_title_width_px,
+        DepartingWorkspace, MotionState, ShownWorkspace, WindowList, WindowListInteraction,
+        capped_window_title, maximum_window_title_width_px,
     };
     use crate::{
         clock::Clock,
@@ -813,6 +1047,7 @@ mod tests {
             pager_drag_simulation::{
                 SIMULATED_OUTPUT, SIMULATED_WINDOW_IDS, SIMULATED_WORKSPACE_IDS,
                 dragging_from_start, sweep_across_panel, three_workspaces_three_windows,
+                three_workspaces_three_windows_on,
             },
         },
         widget_groups::window_group::{WindowRowLayout, WindowTitleLength},
@@ -823,6 +1058,72 @@ mod tests {
             window_icon::WindowAssets,
         },
     };
+
+    #[test]
+    fn a_departed_workspace_slides_for_the_configured_duration() {
+        let slide_duration = Duration::from_millis(250);
+        let clock = Clock::real();
+        let mut window_list = WindowList::default();
+        window_list.observe_active_workspaces(
+            &three_workspaces_three_windows(),
+            clock,
+            slide_duration,
+        );
+        let arriving_workspace = SIMULATED_WORKSPACE_IDS[1];
+        assert_eq!(
+            window_list.workspace_slide_motion(clock.instant),
+            MotionState::Settled
+        );
+        window_list.observe_active_workspaces(
+            &three_workspaces_three_windows_on(arriving_workspace),
+            clock,
+            slide_duration,
+        );
+        assert_eq!(
+            window_list.workspace_slide_motion(clock.instant),
+            MotionState::Moving
+        );
+        assert_eq!(
+            window_list.departing_workspace(SIMULATED_OUTPUT, arriving_workspace, clock.instant),
+            DepartingWorkspace::SlidingAway {
+                departed: ShownWorkspace {
+                    workspace_id: SIMULATED_WORKSPACE_IDS[0],
+                    workspace_index: 1,
+                },
+                slide_progress: 0.0,
+            }
+        );
+        let after_slide = clock.advanced(slide_duration).instant;
+        window_list.settle_workspace_slides(after_slide);
+        assert_eq!(
+            window_list.workspace_slide_motion(after_slide),
+            MotionState::Settled
+        );
+        assert_eq!(
+            window_list.departing_workspace(SIMULATED_OUTPUT, arriving_workspace, after_slide),
+            DepartingWorkspace::Absent
+        );
+    }
+
+    #[test]
+    fn a_zero_slide_duration_switches_instantly() {
+        let clock = Clock::real();
+        let mut window_list = WindowList::default();
+        window_list.observe_active_workspaces(
+            &three_workspaces_three_windows(),
+            clock,
+            Duration::ZERO,
+        );
+        window_list.observe_active_workspaces(
+            &three_workspaces_three_windows_on(SIMULATED_WORKSPACE_IDS[1]),
+            clock,
+            Duration::ZERO,
+        );
+        assert_eq!(
+            window_list.workspace_slide_motion(clock.instant),
+            MotionState::Settled
+        );
+    }
 
     #[test]
     fn a_very_long_title_is_no_wider_than_the_configured_maximum() {
@@ -884,6 +1185,7 @@ mod tests {
             drag: drag_view,
             clock: Clock::real(),
             panel_corner_radius_px: 0.0,
+            panel_float_offset_px: 0.0,
             panel_frame_style: ShellLayer::Panels.default_appearance().frame_style(),
             window_row_layout: WindowRowLayout::default(),
             window_title_length: WindowTitleLength::default(),

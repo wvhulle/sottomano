@@ -77,6 +77,11 @@ impl DesktopShell {
             tasks.push(self.read_niri_workspace_order());
         }
         self.derive_window_snapshot();
+        self.widget_groups.window_group.observe_active_workspaces(
+            &self.window_snapshot,
+            self.clock,
+            self.config.widget_groups.window.workspace_slide_duration,
+        );
         tasks.push(self.refocus_session());
         if focus_changed {
             self.widget_groups.collapse_when_auto_collapsing();
