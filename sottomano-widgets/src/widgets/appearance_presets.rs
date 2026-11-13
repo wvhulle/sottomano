@@ -167,7 +167,6 @@ impl AppearancePreset {
                         opacity: 0.75,
                         ..current.menus
                     },
-                    ..current
                 }
             }
             Self::BrightOffice => {

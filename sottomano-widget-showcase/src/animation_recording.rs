@@ -40,8 +40,8 @@ use crate::{
 };
 
 pub(crate) const CANVAS: Size = Size::new(1280.0, 1080.0);
+pub(crate) const PHOTO_CANVAS: Size = Size::new(1000.0, 320.0);
 const SCALE_FACTOR: f32 = 2.0;
-const REST_POINTER: Point = Point::new(CANVAS.width - 1.0, CANVAS.height / 2.0);
 const REST_HOLD: Duration = Duration::from_millis(500);
 const HOVER_HOLD: Duration = Duration::from_millis(2000);
 const PRESS_LEAD: Duration = Duration::from_millis(300);
@@ -59,6 +59,10 @@ struct CapturedFrame {
     captured_at: Instant,
 }
 
+fn rest_pointer(canvas: Size) -> Point {
+    Point::new(canvas.width - 1.0, canvas.height / 2.0)
+}
+
 struct DemoRecorder<'session> {
     demo: &'static Demo,
     config: &'session Config,
@@ -69,6 +73,7 @@ struct DemoRecorder<'session> {
     pointer: Point,
     background: [u8; 4],
     clock: Clock,
+    canvas: Size,
 }
 
 impl<'session> DemoRecorder<'session> {
@@ -78,13 +83,14 @@ impl<'session> DemoRecorder<'session> {
         clock: Clock,
         layout_renderer: &'session mut iced::Renderer,
     ) -> Self {
+        let canvas = demo.backdrop.canvas();
         let program = ShowcaseProgram::scripted(config, clock);
         let (sender, events) = mpsc::channel(EMULATOR_EVENT_CAPACITY);
         let emulator = Emulator::with_preset(
             sender,
             &program,
             Mode::Zen,
-            CANVAS,
+            canvas,
             Some(program.preset(demo)),
         );
         let mut recorder = DemoRecorder {
@@ -94,9 +100,10 @@ impl<'session> DemoRecorder<'session> {
             emulator,
             events,
             layout_renderer,
-            pointer: REST_POINTER,
+            pointer: rest_pointer(canvas),
             background: [0; 4],
             clock,
+            canvas,
         };
         recorder.settle();
         recorder.deliver_layout_reports();
@@ -105,7 +112,7 @@ impl<'session> DemoRecorder<'session> {
     }
 
     fn top_right_pixel(&mut self) -> [u8; 4] {
-        let top_right = (usize::from(FrameSize::of_canvas().width) - 1) * 4;
+        let top_right = (usize::from(FrameSize::of_canvas(self.canvas).width) - 1) * 4;
         self.screenshot()[top_right..top_right + 4]
             .try_into()
             .expect("a pixel has four channels")
@@ -157,7 +164,7 @@ impl<'session> DemoRecorder<'session> {
     fn locate(&mut self, selector: impl Selector<Output = Rectangle> + Send + 'static) -> Point {
         let mut interface = UserInterface::build(
             self.emulator.view(&self.program),
-            CANVAS,
+            self.canvas,
             Cache::default(),
             self.layout_renderer,
         );
@@ -191,12 +198,12 @@ impl<'session> DemoRecorder<'session> {
     }
 
     fn rest(&mut self) -> Vec<CapturedFrame> {
-        self.point_at(REST_POINTER);
+        self.point_at(rest_pointer(self.canvas));
         self.capture_during(REST_HOLD)
     }
 
     fn press_away(&mut self) -> Vec<CapturedFrame> {
-        self.point_at(REST_POINTER);
+        self.point_at(rest_pointer(self.canvas));
         self.click();
         self.capture_during(REST_HOLD)
     }
@@ -235,7 +242,7 @@ impl<'session> DemoRecorder<'session> {
                     .collect()
             }
             Step::RestFor(hold) => {
-                self.point_at(REST_POINTER);
+                self.point_at(rest_pointer(self.canvas));
                 self.capture_during(*hold)
             }
             Step::Drag { target, by } => {
@@ -308,7 +315,11 @@ impl<'session> DemoRecorder<'session> {
         self.deliver_layout_reports();
         let rgba = self.screenshot();
         CapturedFrame {
-            content: ContentRows::differing_from(self.background, &rgba, FrameSize::of_canvas()),
+            content: ContentRows::differing_from(
+                self.background,
+                &rgba,
+                FrameSize::of_canvas(self.canvas),
+            ),
             captured_at: self.clock.instant,
         }
     }
@@ -434,14 +445,14 @@ struct FrameSize {
 }
 
 impl FrameSize {
-    fn of_canvas() -> Self {
+    fn of_canvas(canvas: Size) -> Self {
         let physical = |logical: f32| {
             let pixels = (logical * SCALE_FACTOR).round();
             u16::try_from(pixels as u32).expect("canvas fits a GIF")
         };
         FrameSize {
-            width: physical(CANVAS.width),
-            height: physical(CANVAS.height),
+            width: physical(canvas.width),
+            height: physical(canvas.height),
         }
     }
 }
@@ -589,7 +600,7 @@ impl RecordingSession {
             opening.into_iter().chain(scripted).chain(closing).collect();
         let crop = ContentCrop::around_content(
             &frames,
-            FrameSize::of_canvas(),
+            FrameSize::of_canvas(demo.backdrop.canvas()),
             recorder.background,
             margin_pixels,
         );
