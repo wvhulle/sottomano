@@ -279,14 +279,7 @@ impl<'s> WorkspaceSlot<'s> {
         hoverable(
             pressable.into(),
             HoverTarget::Workspace(self.workspace.id),
-            PressHints {
-                left: Some(if self.workspace.is_active {
-                    "toggle the overview"
-                } else {
-                    "switch to this workspace"
-                }),
-                ..PressHints::default()
-            },
+            PressHints::default(),
             WorkspacesMessage::HoverCard,
         )
     }

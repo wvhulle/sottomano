@@ -10,6 +10,7 @@ use crate::{clock::Clock, hover_cards::HoverAnnouncement};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SectionsDeliveryState {
     Delivered { delivery_timing: DeliveryTiming },
+    LiveUnlabelled,
     AwaitingDelivery,
 }
 
@@ -32,6 +33,15 @@ impl SourcedSections {
         Self {
             heading: GroupHeading::Unheaded,
             delivery_state: SectionsDeliveryState::Delivered { delivery_timing },
+            sections: body.sections,
+        }
+    }
+
+    #[must_use]
+    pub fn live_unlabelled(body: HoverCardBody) -> Self {
+        Self {
+            heading: GroupHeading::Unheaded,
+            delivery_state: SectionsDeliveryState::LiveUnlabelled,
             sections: body.sections,
         }
     }
@@ -201,6 +211,11 @@ impl HoverCard {
     #[must_use]
     pub fn sourced(body: HoverCardBody, delivery_timing: DeliveryTiming) -> Self {
         Self::grouped([SourcedSections::delivered(body, delivery_timing)])
+    }
+
+    #[must_use]
+    pub fn live_unlabelled(body: HoverCardBody) -> Self {
+        Self::grouped([SourcedSections::live_unlabelled(body)])
     }
 
     #[must_use]

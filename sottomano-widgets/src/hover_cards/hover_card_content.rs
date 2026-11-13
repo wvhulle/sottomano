@@ -86,7 +86,9 @@ impl<'a> HoverCardContent<'a> {
 
     fn in_delivery_state(self, delivery_state: SectionsDeliveryState) -> Self {
         let presence = match delivery_state {
-            SectionsDeliveryState::Delivered { .. } => TextPresence::Shown,
+            SectionsDeliveryState::Delivered { .. } | SectionsDeliveryState::LiveUnlabelled => {
+                TextPresence::Shown
+            }
             SectionsDeliveryState::AwaitingDelivery => TextPresence::Placeholder,
         };
         Self { presence, ..self }
@@ -127,17 +129,16 @@ impl<'a> HoverCardContent<'a> {
             let content = uniform_width_column(
                 enclosed_panel
                     .into_iter()
-                    .chain(once(lift(self.closing_row(None)))),
+                    .chain(self.closing_row(None).map(lift)),
             )
             .into();
             return self.shell_below_title(group_title, content);
         };
         let leading = leading_groups.iter().map(|group| {
             lift(
-                uniform_width_column([
-                    self.group_sections(group),
-                    self.footer_row(None, Some(self.delivery_state_view(group.delivery_state()))),
-                ])
+                uniform_width_column(once(self.group_sections(group)).chain(
+                    self.footer_row(None, self.delivery_state_view(group.delivery_state())),
+                ))
                 .spacing(self.config.theme.spacing.item_gap)
                 .into(),
             )
@@ -145,9 +146,10 @@ impl<'a> HoverCardContent<'a> {
         let closing: Element<'panel, Message> = uniform_width_column(
             once(lift(self.group_sections(closing_group)))
                 .chain(enclosed_panel)
-                .chain(once(lift(
-                    self.closing_row(Some(closing_group.delivery_state())),
-                ))),
+                .chain(
+                    self.closing_row(Some(closing_group.delivery_state()))
+                        .map(lift),
+                ),
         )
         .spacing(self.config.theme.spacing.item_gap)
         .into();
@@ -281,23 +283,25 @@ impl<'a> HoverCardContent<'a> {
     fn closing_row(
         &self,
         closing_delivery_state: Option<SectionsDeliveryState>,
-    ) -> Element<'static, PopupMessage> {
+    ) -> Option<Element<'static, PopupMessage>> {
         let press_hints = self.hover_card.announcement.press_hints;
         let hints = (press_hints != PressHints::default()).then(|| self.gesture_hints(press_hints));
         self.footer_row(
             hints,
-            closing_delivery_state.map(|delivery_state| self.delivery_state_view(delivery_state)),
+            closing_delivery_state
+                .and_then(|delivery_state| self.delivery_state_view(delivery_state)),
         )
     }
 
     fn delivery_state_view(
         &self,
         delivery_state: SectionsDeliveryState,
-    ) -> Element<'static, PopupMessage> {
-        match delivery_state {
+    ) -> Option<Element<'static, PopupMessage>> {
+        Some(match delivery_state {
             SectionsDeliveryState::Delivered { delivery_timing } => {
                 self.delivery_timing(delivery_timing)
             }
+            SectionsDeliveryState::LiveUnlabelled => return None,
             SectionsDeliveryState::AwaitingDelivery => row([
                 self.small_dim_text("loading".to_owned()).into(),
                 IconGlyph::from(Phosphor::HourglassMedium(Weight::Regular)).view(
@@ -308,27 +312,32 @@ impl<'a> HoverCardContent<'a> {
             .spacing(self.config.theme.spacing.item_gap)
             .align_y(Vertical::Center)
             .into(),
-        }
+        })
     }
 
     fn footer_row(
         &self,
         hints: Option<Element<'static, PopupMessage>>,
         delivery_timing: Option<Element<'static, PopupMessage>>,
-    ) -> Element<'static, PopupMessage> {
-        container(
+    ) -> Option<Element<'static, PopupMessage>> {
+        if hints.is_none() && delivery_timing.is_none() {
+            return None;
+        }
+        Some(
             container(
-                row(hints
-                    .into_iter()
-                    .chain(once(Space::new().width(Length::Fill).into()))
-                    .chain(delivery_timing))
-                .spacing(self.config.theme.spacing.group_gap)
-                .align_y(Vertical::Center),
+                container(
+                    row(hints
+                        .into_iter()
+                        .chain(once(Space::new().width(Length::Fill).into()))
+                        .chain(delivery_timing))
+                    .spacing(self.config.theme.spacing.group_gap)
+                    .align_y(Vertical::Center),
+                )
+                .padding(self.title_padding()),
             )
-            .padding(self.title_padding()),
+            .padding(self.edge_row_padding())
+            .into(),
         )
-        .padding(self.edge_row_padding())
-        .into()
     }
 
     fn content_inset(&self) -> Padding {
