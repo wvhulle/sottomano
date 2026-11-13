@@ -177,12 +177,20 @@ fn bus_event(message: &Message) -> Option<ScreenSaverBusEvent> {
                 _ => None,
             }
         }
-        MessageType::MethodReturn => Some(ScreenSaverBusEvent::CookieReturned {
-            caller: header.destination()?.to_string(),
-            call_serial: header.reply_serial()?,
-            cookie: deserialized_body(message, "Inhibit reply")?,
-        }),
+        MessageType::MethodReturn => {
+            if message.body().signature() != "u" {
+                return None;
+            }
+            Some(ScreenSaverBusEvent::CookieReturned {
+                caller: header.destination()?.to_string(),
+                call_serial: header.reply_serial()?,
+                cookie: deserialized_body(message, "Inhibit reply")?,
+            })
+        }
         MessageType::Signal => {
+            if header.member()?.as_str() != "NameOwnerChanged" {
+                return None;
+            }
             let (name, _, new_owner): (String, String, String) =
                 deserialized_body(message, "NameOwnerChanged signal")?;
             new_owner
@@ -312,7 +320,9 @@ enum HeldChange {
 mod tests {
     use std::num::NonZeroU32;
 
-    use super::{HeldChange, InhibitCallLedger, ScreenSaverBusEvent};
+    use zbus::Message;
+
+    use super::{HeldChange, InhibitCallLedger, ScreenSaverBusEvent, bus_event};
 
     const CALL_SERIAL: NonZeroU32 = NonZeroU32::MIN;
 
@@ -388,5 +398,70 @@ mod tests {
         );
         assert!(ledger.held.is_empty());
         assert!(ledger.awaiting_cookies.is_empty());
+    }
+
+    fn inhibit_call_from(caller: &str) -> Message {
+        Message::method_call("/org/freedesktop/ScreenSaver", "Inhibit")
+            .unwrap()
+            .interface("org.freedesktop.ScreenSaver")
+            .unwrap()
+            .sender(caller)
+            .unwrap()
+            .build(&("firefox", "video"))
+            .unwrap()
+    }
+
+    #[test]
+    fn a_cookie_reply_becomes_a_returned_cookie() {
+        let call = inhibit_call_from(":1.42");
+        let reply = Message::method_return(&call.header())
+            .unwrap()
+            .build(&7_u32)
+            .unwrap();
+        assert!(matches!(
+            bus_event(&reply),
+            Some(ScreenSaverBusEvent::CookieReturned { cookie: 7, .. })
+        ));
+    }
+
+    #[test]
+    fn an_empty_uninhibit_reply_is_ignored() {
+        let call = inhibit_call_from(":1.42");
+        let reply = Message::method_return(&call.header())
+            .unwrap()
+            .build(&())
+            .unwrap();
+        assert_eq!(bus_event(&reply), None);
+    }
+
+    #[test]
+    fn a_closed_connection_signal_is_recognised() {
+        let signal = Message::signal(
+            "/org/freedesktop/DBus",
+            "org.freedesktop.DBus",
+            "NameOwnerChanged",
+        )
+        .unwrap()
+        .sender("org.freedesktop.DBus")
+        .unwrap()
+        .build(&(":1.42", ":1.42", ""))
+        .unwrap();
+        assert_eq!(
+            bus_event(&signal),
+            Some(ScreenSaverBusEvent::ConnectionClosed {
+                connection: ":1.42".to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn the_name_lost_signal_of_becoming_a_monitor_is_ignored() {
+        let signal = Message::signal("/org/freedesktop/DBus", "org.freedesktop.DBus", "NameLost")
+            .unwrap()
+            .sender("org.freedesktop.DBus")
+            .unwrap()
+            .build(&(":1.99",))
+            .unwrap();
+        assert_eq!(bus_event(&signal), None);
     }
 }
