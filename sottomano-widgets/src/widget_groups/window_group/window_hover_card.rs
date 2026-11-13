@@ -20,7 +20,7 @@ use crate::{
     },
 };
 
-pub fn pick_body(
+pub fn window_identity_body(
     compositor: &CompositorWindowState,
     window: u64,
     now: SystemTime,

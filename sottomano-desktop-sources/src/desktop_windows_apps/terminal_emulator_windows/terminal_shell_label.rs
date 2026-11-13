@@ -62,7 +62,9 @@ impl ForegroundActivity {
             ForegroundActivity::ShellCommand {
                 command_line,
                 program_name,
-            } => Some(program_name.as_deref().unwrap_or(command_line)),
+            } => program_name
+                .as_deref()
+                .or_else(|| command_line.split_whitespace().next()),
             ForegroundActivity::ProgramTitle { program_name, .. } => program_name.as_deref(),
         }
     }
@@ -112,7 +114,14 @@ impl ActiveTerminalShell<'_> {
 #[must_use]
 pub fn program_name(cmdline: &[String]) -> Option<String> {
     let program = cmdline.first()?;
-    Some(Path::new(program).file_name()?.to_str()?.to_owned())
+    let file_name = Path::new(program).file_name()?.to_str()?;
+    let undotted = file_name.strip_prefix('.').unwrap_or(file_name);
+    Some(
+        undotted
+            .strip_suffix("-wrapped")
+            .unwrap_or(undotted)
+            .to_owned(),
+    )
 }
 
 fn ssh_destination_arguments(cmdline: &[String]) -> Option<&[String]> {
@@ -171,6 +180,21 @@ mod tests {
 
     fn local_directory(path: &str) -> WorkingLocation {
         WorkingLocation::LocalDirectory(path.to_owned())
+    }
+
+    #[test]
+    fn a_nix_wrapped_program_is_named_without_its_wrapper_decoration() {
+        let wrapped_claude = cmdline(&["/nix/store/x-claude-code/bin/.claude-wrapped", "--resume"]);
+        assert_eq!(program_name(&wrapped_claude).as_deref(), Some("claude"));
+    }
+
+    #[test]
+    fn a_shell_command_without_a_program_is_named_by_its_first_word() {
+        let running_command = ForegroundActivity::ShellCommand {
+            command_line: "cargo test -p corredo".to_owned(),
+            program_name: None,
+        };
+        assert_eq!(running_command.program_name(), Some("cargo"));
     }
 
     #[test]

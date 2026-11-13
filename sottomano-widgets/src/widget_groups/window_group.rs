@@ -67,7 +67,6 @@ pub enum WindowTitleLength {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowTarget {
-    Pick(u64),
     Usage(u64),
     Inspect(u64),
 }
@@ -106,13 +105,13 @@ impl WindowGroup {
     }
 
     #[must_use]
-    pub fn pick_hover_card(
+    pub fn window_identity_hover_card(
         compositor: &CompositorWindowState,
         window: u64,
         clock: Clock,
     ) -> Option<HoverCard> {
         Some(HoverCard::sourced(
-            window_hover_card::pick_body(compositor, window, clock.wall)?,
+            window_hover_card::window_identity_body(compositor, window, clock.wall)?,
             DeliveryTiming::LivePush,
         ))
     }

@@ -536,7 +536,7 @@ pub const DEMOS: &[Demo] = &[
         group: desktop_session::terminals_grouped_by_directory,
         live: unchanging,
         shown: GroupShown::OnPanel,
-        script: &[Step::Hover(HoverTarget::Window(WindowTarget::Pick(2)))],
+        script: &[Step::Hover(HoverTarget::Window(WindowTarget::Usage(2)))],
     },
     Demo {
         name: "bottom_process_inspector",
