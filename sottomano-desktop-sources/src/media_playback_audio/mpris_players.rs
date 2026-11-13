@@ -16,7 +16,7 @@ use zbus::{
     names::{BusName, InterfaceName},
     proxy,
     proxy::CacheProperties,
-    zvariant::{ObjectPath, OwnedObjectPath},
+    zvariant::{ObjectPath, OwnedObjectPath, Value},
 };
 
 use crate::{
@@ -138,13 +138,34 @@ pub enum SeekMode {
 
 impl SeekMode {
     fn declared(metadata: &Properties) -> Self {
-        let Some(track) = prop::<OwnedObjectPath>(metadata, "mpris:trackid") else {
+        let Some(track) = declared_track_path(metadata) else {
             return Self::Relative;
         };
         if track.as_str() == NO_TRACK {
             return Self::Relative;
         }
         Self::Absolute(track)
+    }
+}
+
+fn declared_track_path(metadata: &Properties) -> Option<OwnedObjectPath> {
+    match &**metadata.get("mpris:trackid")? {
+        Value::ObjectPath(track_path) => Some(track_path.clone().into()),
+        Value::Str(track_text) => ObjectPath::try_from(track_text.as_str())
+            .map(OwnedObjectPath::from)
+            .inspect_err(|path_failure| {
+                tracing::warn!(
+                    "mpris: mpris:trackid {track_text} is not an object path: {path_failure}"
+                );
+            })
+            .ok(),
+        other_value => {
+            tracing::warn!(
+                "mpris: mpris:trackid has an unexpected type {}",
+                other_value.value_signature()
+            );
+            None
+        }
     }
 }
 
@@ -687,6 +708,13 @@ mod tests {
         assert_eq!(
             SeekMode::declared(&declared),
             SeekMode::Absolute(track.into())
+        );
+        let spotify_track = "/com/spotify/track/4Rrhbvf23LWmr4IxwOBGrH";
+        let declared_as_text =
+            Properties::from([("mpris:trackid".to_owned(), owned(spotify_track))]);
+        assert_eq!(
+            SeekMode::declared(&declared_as_text),
+            SeekMode::Absolute(ObjectPath::try_from(spotify_track).unwrap().into())
         );
     }
 
