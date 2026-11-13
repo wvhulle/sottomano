@@ -1,4 +1,12 @@
-use crate::sqlite_state_store::{ColumnError, StoreError};
+#[derive(Debug, thiserror::Error)]
+pub enum MigrationError {
+    #[error("database error: {0}")]
+    Database(#[from] turso::Error),
+    #[error("PRAGMA user_version returned no row")]
+    MissingSchemaVersion,
+    #[error("PRAGMA user_version is not an integer")]
+    NonIntegerSchemaVersion,
+}
 
 pub struct SchemaMigration {
     pub version: i64,
@@ -11,7 +19,7 @@ macro_rules! schema_migration {
         SchemaMigration {
             version: $version,
             file_name: $file_name,
-            statements: include_str!(concat!("../../../db-migrations/", $file_name)),
+            statements: include_str!(concat!("../sql/", $file_name)),
         }
     };
 }
@@ -22,7 +30,9 @@ pub const SCHEMA_MIGRATIONS: [SchemaMigration; 3] = [
     schema_migration!(3, "0003_default_idle_timeouts.sql"),
 ];
 
-pub async fn apply_pending_migrations(connection: &turso::Connection) -> Result<(), StoreError> {
+pub async fn apply_pending_migrations(
+    connection: &turso::Connection,
+) -> Result<(), MigrationError> {
     if applied_schema_version(connection).await? >= latest_known_version() {
         return Ok(());
     }
@@ -40,22 +50,22 @@ fn latest_known_version() -> i64 {
         .unwrap_or_default()
 }
 
-pub async fn applied_schema_version(connection: &turso::Connection) -> Result<i64, StoreError> {
+pub async fn applied_schema_version(connection: &turso::Connection) -> Result<i64, MigrationError> {
     let mut rows = connection.query("PRAGMA user_version", ()).await?;
-    let row = rows.next().await?.ok_or(StoreError::NoRow)?;
+    let row = rows
+        .next()
+        .await?
+        .ok_or(MigrationError::MissingSchemaVersion)?;
     match row.get_value(0)? {
         turso::Value::Integer(schema_version) => Ok(schema_version),
-        _ => Err(ColumnError::NotInteger {
-            name: "user_version".to_owned(),
-        }
-        .into()),
+        _ => Err(MigrationError::NonIntegerSchemaVersion),
     }
 }
 
 async fn apply_migration_once(
     connection: &turso::Connection,
     migration: &SchemaMigration,
-) -> Result<(), StoreError> {
+) -> Result<(), MigrationError> {
     connection.execute("BEGIN IMMEDIATE", ()).await?;
     let migration_outcome = run_inside_transaction(connection, migration).await;
     match migration_outcome {
@@ -78,7 +88,7 @@ async fn apply_migration_once(
 async fn run_inside_transaction(
     connection: &turso::Connection,
     migration: &SchemaMigration,
-) -> Result<(), StoreError> {
+) -> Result<(), MigrationError> {
     if applied_schema_version(connection).await? >= migration.version {
         return Ok(());
     }
@@ -94,7 +104,6 @@ mod tests {
     use std::{fs, path::Path};
 
     use super::{SCHEMA_MIGRATIONS, applied_schema_version, apply_pending_migrations};
-    use crate::sqlite_state_store::Columns;
 
     async fn empty_connection() -> turso::Connection {
         let database = turso::Builder::new_local(":memory:").build().await.unwrap();
@@ -103,7 +112,7 @@ mod tests {
 
     #[test]
     fn every_migration_file_is_registered_in_version_order() {
-        let migrations_directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../db-migrations");
+        let migrations_directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("sql");
         let mut file_names: Vec<String> = fs::read_dir(migrations_directory)
             .unwrap()
             .map(|entry| entry.unwrap().file_name().into_string().unwrap())
@@ -166,8 +175,10 @@ mod tests {
             .query("SELECT menu_topic FROM pinned_widget_groups", ())
             .await
             .unwrap();
-        let columns = Columns::of(&rows);
         let row = rows.next().await.unwrap().unwrap();
-        assert_eq!(columns.text(&row, "menu_topic").unwrap(), "virtualization");
+        assert_eq!(
+            row.get_value(0).unwrap(),
+            turso::Value::Text("virtualization".to_owned())
+        );
     }
 }

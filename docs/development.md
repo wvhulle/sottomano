@@ -22,10 +22,10 @@ Version control is jj, not the `git` CLI.
 ## State database schema
 
 Every table in `~/.local/state/sottomano/state.db` is defined in
-`db-migrations/`. A schema or data change is a new file named
-`NNNN_what_changes.sql` with the next number, registered in
-`sottomano-desktop-sources/src/sqlite_state_store/versioned_schema_migrations.rs`;
-a test fails when a file is missing there or out of order. Never edit a file
+the `sottomano-db-migrations` crate. A schema or data change is a new file
+named `NNNN_what_changes.sql` with the next number in `db-migrations/sql/`,
+registered in `db-migrations/src/lib.rs`; a test fails when a file is missing
+there or out of order. Never edit a file
 that has shipped: the database records the last applied number in
 `PRAGMA user_version` and runs each newer file once, inside a transaction.
 

@@ -6771,6 +6771,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sottomano-db-migrations"
+version = "0.0.1"
+dependencies = [
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "turso",
+]
+
+[[package]]
 name = "sottomano-desktop-sinks"
 version = "0.0.1"
 dependencies = [
@@ -6841,6 +6851,7 @@ dependencies = [
  "sha2 0.11.1",
  "situo-client",
  "socket2",
+ "sottomano-db-migrations",
  "sottomano-toml-config",
  "sunrise",
  "swayipc-types",

@@ -8,6 +8,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+sottomano-db-migrations = { path = "../db-migrations" }
 sottomano-toml-config = { path = "../sottomano-toml-config" }
 adskalman = "0.18.0"
 base64 = "0.22.1"
