@@ -9,7 +9,7 @@ use crate::{
     hover_cards::hover_card_body::{
         HoverCardBody, Section,
         hover_card_figure_payloads::{PreviewTile, WorkspacePreview},
-        hover_card_source_delivery::{DeliveryTiming, HoverCard},
+        hover_card_source_delivery::HoverCard,
     },
     widgets::window_icon::resolved_window_icon,
 };
@@ -26,8 +26,8 @@ pub fn hover_card(
         return None;
     }
     let tile = |window| preview_tile(icons, window);
-    Some(HoverCard::sourced(
-        HoverCardBody::from(Section::workspace(WorkspacePreview {
+    Some(HoverCard::live_unlabelled(HoverCardBody::from(
+        Section::workspace(WorkspacePreview {
             columns: scrolling_columns(windows)
                 .into_iter()
                 .map(|column| column.into_iter().map(&tile).collect())
@@ -38,9 +38,8 @@ pub fn hover_card(
                 .map(&tile)
                 .collect(),
             app_window_layout,
-        })),
-        DeliveryTiming::LivePush,
-    ))
+        }),
+    )))
 }
 
 fn scrolling_columns(
