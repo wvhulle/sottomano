@@ -1,5 +1,3 @@
-use std::path::{Path, PathBuf};
-
 use iced::Element;
 use iced_controller_diagram::ControllerArtwork;
 use sottomano_desktop_sources::desktop_windows_apps::{
@@ -18,15 +16,13 @@ pub struct WindowAssets<'a> {
     pub controller_artwork: &'a ControllerArtwork,
 }
 
-impl WindowAssets<'_> {
-    pub fn path_for(&self, win: &workspace_window_snapshot::WinEntry) -> Option<PathBuf> {
-        win.icon_candidates()
-            .into_iter()
-            .find_map(|candidate| match candidate {
-                IconCandidate::Theme(name) => self.entries.theme_icon_path(&name),
-                IconCandidate::AppId(app_id) => self.entries.app_icon(&app_id),
-            })
-            .map(Path::to_path_buf)
+impl<'a> WindowAssets<'a> {
+    #[must_use]
+    pub fn icon_for(
+        &self,
+        window_entry: &workspace_window_snapshot::WinEntry,
+    ) -> Option<&'a IconHandle> {
+        resolved_window_icon(self.entries, window_entry)
     }
 }
 
@@ -34,12 +30,26 @@ impl WindowAssets<'_> {
 pub fn window_icon<'a, Message: 'a>(
     favicons: &Favicons,
     favicon_key: Option<&str>,
-    icon: Option<&Path>,
+    icon: Option<&IconHandle>,
     side: f32,
     opacity: f32,
 ) -> Option<Element<'a, Message>> {
     if let Some(favicon) = favicon_key.and_then(|key| favicons.get(key)) {
         return Some(favicon.view(side, opacity));
     }
-    Some(IconHandle::at(icon?).view(side, opacity))
+    Some(icon?.view(side, opacity))
+}
+
+#[must_use]
+pub fn resolved_window_icon<'a>(
+    icons: &'a DesktopIndex,
+    window_entry: &workspace_window_snapshot::WinEntry,
+) -> Option<&'a IconHandle> {
+    window_entry
+        .icon_candidates()
+        .into_iter()
+        .find_map(|candidate| match candidate {
+            IconCandidate::Theme(name) => icons.theme_icon(&name),
+            IconCandidate::AppId(app_id) => icons.app_icon(&app_id),
+        })
 }

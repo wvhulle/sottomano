@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use iced::Size;
 use iced_controller_diagram::{ControllerModel, DiagramAnchor};
 use sottomano_desktop_sources::{
@@ -10,7 +8,7 @@ use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 
 use super::{Section, SectionBody};
-use crate::widgets::value_cells::LabeledValue;
+use crate::widgets::{icon_handle::IconHandle, value_cells::LabeledValue};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ControllerCallouts {
@@ -48,7 +46,7 @@ pub struct PreviewTile {
     pub window: u64,
     pub label: Option<WindowLabel>,
     pub favicon_key: Option<String>,
-    pub icon: Option<PathBuf>,
+    pub icon: Option<IconHandle>,
     pub tile_size: Size,
     pub is_focused: bool,
     pub is_urgent: bool,

@@ -36,7 +36,7 @@ use sottomano_widgets::{
         WindowGroup, WindowGroupMessage, WindowRowLayout, WindowTarget,
         window_list::WindowListMessage,
     },
-    widgets::favicon::Favicons,
+    widgets::{favicon::Favicons, icon_handle::IconHandle},
 };
 use uom::si::{f64::Ratio, ratio::percent};
 
@@ -359,7 +359,7 @@ fn bundled_app_icons(shown_windows: &[&PlacedWindow]) -> DesktopIndex {
     DesktopIndex::with_app_icons(shown_windows.iter().map(|placed| {
         (
             placed.app_id.to_owned(),
-            Path::new(SHOWCASE_APP_ICONS).join(format!("{}.svg", placed.app_id)),
+            IconHandle::at(&Path::new(SHOWCASE_APP_ICONS).join(format!("{}.svg", placed.app_id))),
         )
     }))
 }

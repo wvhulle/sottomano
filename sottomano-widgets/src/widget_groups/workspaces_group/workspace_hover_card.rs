@@ -1,9 +1,7 @@
-use std::path::{Path, PathBuf};
-
 use iced::Size;
 use sottomano_desktop_sources::{
     compositor_window_ipc::compositor_styling_model::AppWindowLayout,
-    desktop_windows_apps::{window_title_labels::IconCandidate, workspace_window_snapshot},
+    desktop_windows_apps::workspace_window_snapshot,
 };
 
 use crate::{
@@ -13,6 +11,7 @@ use crate::{
         hover_card_figure_payloads::{PreviewTile, WorkspacePreview},
         hover_card_source_delivery::{DeliveryTiming, HoverCard},
     },
+    widgets::window_icon::resolved_window_icon,
 };
 
 #[must_use]
@@ -62,7 +61,7 @@ fn preview_tile(icons: &DesktopIndex, window: &workspace_window_snapshot::WinEnt
         window: window.id,
         label: window.label.clone(),
         favicon_key: window.favicon_key().map(str::to_owned),
-        icon: icon_path(icons, window),
+        icon: resolved_window_icon(icons, window).cloned(),
         tile_size: Size::new(
             window.layout.tile_size.0 as f32,
             window.layout.tile_size.1 as f32,
@@ -71,20 +70,6 @@ fn preview_tile(icons: &DesktopIndex, window: &workspace_window_snapshot::WinEnt
         is_urgent: window.is_urgent,
         is_floating: window.layout.is_floating,
     }
-}
-
-fn icon_path(
-    icons: &DesktopIndex,
-    window: &workspace_window_snapshot::WinEntry,
-) -> Option<PathBuf> {
-    window
-        .icon_candidates()
-        .into_iter()
-        .find_map(|candidate| match candidate {
-            IconCandidate::Theme(name) => icons.theme_icon_path(&name),
-            IconCandidate::AppId(app_id) => icons.app_icon(&app_id),
-        })
-        .map(Path::to_path_buf)
 }
 
 #[cfg(test)]

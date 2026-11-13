@@ -1,4 +1,4 @@
-use std::{ops::Range, path::PathBuf};
+use std::ops::Range;
 
 use iced::{
     Alignment, Element,
@@ -18,6 +18,7 @@ use crate::{
     group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
     widgets::{
         configured_theme::{background_color, background_weak_color, primary_color},
+        icon_handle::IconHandle,
         pointer_drag::{
             slot_group::{SlotGroup, SlotTileInset},
             slot_pager::UngroupedHighlightLook,
@@ -30,7 +31,7 @@ use crate::{
 
 struct WindowGroupIdentity<'a> {
     group_key: Option<WindowGroupKey<'a>>,
-    icon_path: Option<PathBuf>,
+    icon: Option<&'a IconHandle>,
     favicon_key: Option<&'a str>,
 }
 
@@ -39,7 +40,7 @@ fn keyed_group_positions(identities: &[WindowGroupIdentity<'_>]) -> Vec<Range<us
         .chunk_by(|previous, current| {
             current.group_key.is_some()
                 && current.group_key == previous.group_key
-                && current.icon_path == previous.icon_path
+                && current.icon == previous.icon
                 && current.favicon_key == previous.favicon_key
         })
         .scan(0, |next_start, run| {
@@ -99,11 +100,10 @@ fn keyed_group_heading<'a>(
         state: ReadingDisplayState::Idle,
         opacity: 1.0,
     };
-    let icon_path = icons.path_for(window_entry);
     let icon = window_icon(
         icons.favicons,
         window_entry.favicon_key(),
-        icon_path.as_deref(),
+        icons.icon_for(window_entry),
         config.theme.font.icon_size_px,
         1.0,
     );
@@ -133,7 +133,7 @@ pub(super) fn arranged_keyed_groups<'a>(
         .iter()
         .map(|window_entry| WindowGroupIdentity {
             group_key: window_entry.group_key(),
-            icon_path: icons.path_for(window_entry),
+            icon: icons.icon_for(window_entry),
             favicon_key: window_entry.favicon_key(),
         })
         .collect();
@@ -169,18 +169,26 @@ pub(super) fn arranged_keyed_groups<'a>(
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Range;
+    use std::{ops::Range, path::Path};
 
     use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowGroupKey;
 
     use super::{
         WindowGroupIdentity, WindowSlotPresentation, keyed_group_positions, slot_presentations,
     };
+    use crate::widgets::icon_handle::IconHandle;
 
-    fn identity<'a>(group_key: Option<WindowGroupKey<'a>>, icon: &str) -> WindowGroupIdentity<'a> {
+    fn named_icon(icon_name: &str) -> IconHandle {
+        IconHandle::at(Path::new(&format!("{icon_name}.svg")))
+    }
+
+    fn identity<'a>(
+        group_key: Option<WindowGroupKey<'a>>,
+        icon: &'a IconHandle,
+    ) -> WindowGroupIdentity<'a> {
         WindowGroupIdentity {
             group_key,
-            icon_path: Some(icon.into()),
+            icon: Some(icon),
             favicon_key: None,
         }
     }
@@ -188,23 +196,32 @@ mod tests {
     #[test]
     fn neighbouring_windows_with_one_group_key_and_icon_form_one_group() {
         let sottomano = Some(WindowGroupKey::WorkingDirectory("sottomano"));
+        let (claude_icon, terminal_icon) = (named_icon("claude"), named_icon("terminal"));
+        let (files_icon, unknown_icon) = (named_icon("files"), named_icon("unknown"));
         let identities = [
-            identity(sottomano, "claude"),
-            identity(sottomano, "claude"),
-            identity(sottomano, "terminal"),
-            identity(sottomano, "terminal"),
-            identity(None, "files"),
-            identity(Some(WindowGroupKey::WorkingDirectory("nix")), "terminal"),
-            identity(None, "unknown"),
+            identity(sottomano, &claude_icon),
+            identity(sottomano, &claude_icon),
+            identity(sottomano, &terminal_icon),
+            identity(sottomano, &terminal_icon),
+            identity(None, &files_icon),
+            identity(
+                Some(WindowGroupKey::WorkingDirectory("nix")),
+                &terminal_icon,
+            ),
+            identity(None, &unknown_icon),
         ];
         assert_eq!(keyed_group_positions(&identities), [0..2, 2..4, 5..6]);
     }
 
     #[test]
     fn a_directory_and_a_site_with_one_name_stay_apart() {
+        let shared_icon = named_icon("icon");
         let identities = [
-            identity(Some(WindowGroupKey::WorkingDirectory("github.com")), "icon"),
-            identity(Some(WindowGroupKey::WebSite("github.com")), "icon"),
+            identity(
+                Some(WindowGroupKey::WorkingDirectory("github.com")),
+                &shared_icon,
+            ),
+            identity(Some(WindowGroupKey::WebSite("github.com")), &shared_icon),
         ];
         assert_eq!(keyed_group_positions(&identities), [0..1, 1..2]);
     }
@@ -212,10 +229,11 @@ mod tests {
     #[test]
     fn windows_grouped_only_by_their_app_need_a_neighbour() {
         let dolphin = Some(WindowGroupKey::Application("org.kde.dolphin"));
+        let (dolphin_icon, spotify_icon) = (named_icon("dolphin"), named_icon("spotify"));
         let identities = [
-            identity(dolphin, "dolphin"),
-            identity(dolphin, "dolphin"),
-            identity(Some(WindowGroupKey::Application("spotify")), "spotify"),
+            identity(dolphin, &dolphin_icon),
+            identity(dolphin, &dolphin_icon),
+            identity(Some(WindowGroupKey::Application("spotify")), &spotify_icon),
         ];
         assert_eq!(
             keyed_group_positions(&identities),

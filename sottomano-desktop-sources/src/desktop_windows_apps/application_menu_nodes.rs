@@ -63,7 +63,7 @@ fn menu_item_icon(menu_item: &MenuItem, entries: &DesktopEntries) -> Option<Icon
     symbolic_first_icon_names(icon_name)
         .into_iter()
         .find_map(|candidate_name| entries.theme_icon(&candidate_name))
-        .map(|icon_path| IconSource::from_theme_file(&icon_path))
+        .and_then(|icon_path| IconSource::from_theme_file(&icon_path))
 }
 
 pub(crate) fn symbolic_first_icon_names(icon_name: &str) -> Vec<String> {

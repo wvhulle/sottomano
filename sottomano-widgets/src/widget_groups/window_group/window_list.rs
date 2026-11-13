@@ -746,11 +746,10 @@ impl WindowSlot<'_> {
         &self,
         icons: WindowAssets<'a>,
     ) -> Option<Element<'a, WindowListInteraction>> {
-        let icon_path = icons.path_for(self.window_entry);
         window_icon(
             icons.favicons,
             self.window_entry.favicon_key(),
-            icon_path.as_deref(),
+            icons.icon_for(self.window_entry),
             self.slot_context.config.theme.font.icon_size_px,
             self.opacity,
         )

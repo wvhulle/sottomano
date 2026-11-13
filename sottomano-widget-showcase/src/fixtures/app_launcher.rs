@@ -11,6 +11,7 @@ use sottomano_widgets::{
         AppLaunchUsage, AppLauncherGroup, FrequentApp, FrequentAppScope, OutputFrequentApps,
         WorkspaceWindowPresence,
     },
+    widgets::icon_handle::IconHandle,
 };
 
 use crate::{
@@ -329,7 +330,9 @@ pub fn group(_clock: Clock) -> ShowcasedGroup {
                 .map(|app_id| {
                     (
                         app_id.to_owned(),
-                        Path::new(SHOWCASE_APP_ICONS).join(format!("{app_id}.svg")),
+                        IconHandle::at(
+                            &Path::new(SHOWCASE_APP_ICONS).join(format!("{app_id}.svg")),
+                        ),
                     )
                 }),
         ),
