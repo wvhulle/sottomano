@@ -338,8 +338,13 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             })
             .fold(MenuSections::empty(), MenuSections::with_member);
         let table = quantity_table(table_columns, config).map(|table| table.map(M::from));
-        let cascade_satellite_panels =
-            CascadeSatellitePanels::new(appearance, &card.card_appearance, config, orientation);
+        let cascade_satellite_panels = CascadeSatellitePanels::new(
+            appearance,
+            &card.card_appearance,
+            config,
+            orientation,
+            group_menus.presentation().submenu_connector,
+        );
         let table_edge_fade = cascade_satellite_panels.rows_edge_fade(config);
         let row_context = GroupMenuRowContext {
             config,
@@ -407,6 +412,7 @@ mod tests {
             },
             group_menu_presentation::{
                 GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
+                SubmenuConnector,
             },
             group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
             menu_rows::menu_row::menu_row_height,
@@ -505,17 +511,21 @@ mod tests {
         let layouts = [GroupMenuLayout::Cascading, GroupMenuLayout::Accordion];
         let triggers = [GroupMenuOpenTrigger::Hover, GroupMenuOpenTrigger::Press];
         let limits = [OpenGroupLimit::One, OpenGroupLimit::Several];
+        let connectors = [SubmenuConnector::Hidden, SubmenuConnector::Shown];
         layouts
             .into_iter()
             .flat_map(|layout| {
                 triggers.into_iter().flat_map(move |open_trigger| {
-                    limits
-                        .into_iter()
-                        .map(move |accordion_open_limit| GroupMenuPresentation {
-                            layout,
-                            open_trigger,
-                            accordion_open_limit,
-                        })
+                    limits.into_iter().flat_map(move |accordion_open_limit| {
+                        connectors
+                            .into_iter()
+                            .map(move |submenu_connector| GroupMenuPresentation {
+                                layout,
+                                open_trigger,
+                                accordion_open_limit,
+                                submenu_connector,
+                            })
+                    })
                 })
             })
             .collect()

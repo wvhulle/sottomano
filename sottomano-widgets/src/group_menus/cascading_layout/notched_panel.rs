@@ -1,6 +1,7 @@
 use std::{cell::Cell, rc::Rc, slice};
 
 pub use corredo::primitives::popup_cascade::PanelGrowth;
+use corredo::primitives::popup_connector::{ConnectorSide, ConnectorTriangle, FramedSurface};
 use iced::{
     Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{
@@ -12,6 +13,7 @@ use iced::{
     border::Radius,
     mouse::Cursor,
     time::Duration,
+    widget::container,
     window,
 };
 
@@ -20,7 +22,7 @@ use crate::{
         panel_frame::FrameStyle,
         region_reporter::{BackdropBlur, PointerInput, RegionRoles},
     },
-    hover_cards::popup_connector::{ConnectorSide, ConnectorTriangle, FramedSurface},
+    group_menus::group_menu_presentation::SubmenuConnector,
     widgets::{motion_state::MotionState, rectangle_morph::RectangleMorph},
 };
 
@@ -90,7 +92,8 @@ pub struct NotchPlacement {
     pub row: NotchRowAnchor,
     pub panel_top: ResolvedPanelTop,
     pub row_height: f32,
-    pub notch_depth: f32,
+    pub gap_to_parent: f32,
+    pub submenu_connector: SubmenuConnector,
 }
 
 pub struct NotchedPanel<'a, Message> {
@@ -137,7 +140,7 @@ impl<Message> NotchedPanel<'_, Message> {
 
     fn panel_target(&self, content_size: Size, screen_room: ScreenRoom) -> Rectangle {
         let panel_x = match self.placement.side {
-            NotchSide::Left => self.placement.notch_depth,
+            NotchSide::Left => self.placement.gap_to_parent,
             NotchSide::Right => 0.0,
         };
         let wanted_top = match self.placement.growth {
@@ -174,12 +177,12 @@ impl<Message> NotchedPanel<'_, Message> {
 
     fn panel_with_gap(&self, panel: Rectangle) -> Rectangle {
         let gap_left_x = match self.placement.side {
-            NotchSide::Left => panel.x - self.placement.notch_depth,
+            NotchSide::Left => panel.x - self.placement.gap_to_parent,
             NotchSide::Right => panel.x,
         };
         Rectangle::new(
             Point::new(gap_left_x, panel.y),
-            Size::new(panel.width + self.placement.notch_depth, panel.height),
+            Size::new(panel.width + self.placement.gap_to_parent, panel.height),
         )
     }
 
@@ -190,8 +193,8 @@ impl<Message> NotchedPanel<'_, Message> {
     fn connector(&self, panel: Rectangle, origin: Vector) -> ConnectorTriangle {
         let notch_y = origin.y + self.row_center();
         let apex_x = match self.placement.side {
-            NotchSide::Left => panel.x - self.placement.notch_depth,
-            NotchSide::Right => panel.x + panel.width + self.placement.notch_depth,
+            NotchSide::Left => panel.x - self.placement.gap_to_parent,
+            NotchSide::Right => panel.x + panel.width + self.placement.gap_to_parent,
         };
         let side = match self.placement.side {
             NotchSide::Left => ConnectorSide::Left,
@@ -204,6 +207,15 @@ impl<Message> NotchedPanel<'_, Message> {
             side,
             0.0,
         )
+    }
+
+    fn drawn_surface_rows(&self, panel: Rectangle, origin: Vector) -> Vec<Rectangle> {
+        match self.placement.submenu_connector {
+            SubmenuConnector::Shown => self
+                .connector(panel, origin)
+                .surface_rows(panel, self.panel_corners()),
+            SubmenuConnector::Hidden => vec![panel],
+        }
     }
 }
 
@@ -235,7 +247,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
         let content_limits = Limits::new(
             Size::ZERO,
             Size::new(
-                (room.width - self.placement.notch_depth).max(0.0),
+                (room.width - self.placement.gap_to_parent).max(0.0),
                 room.height.max(self.placement.row_height),
             ),
         );
@@ -246,7 +258,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
         let target = self.panel_target(content.size(), screen_room);
         self.placement.panel_top.0.set(target.y);
         let node_size = Size::new(
-            target.width + self.placement.notch_depth,
+            target.width + self.placement.gap_to_parent,
             target.y + target.height,
         );
         let from_notch_edge = self.node_origin_from_notch_edge(node_size.width);
@@ -274,17 +286,23 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
         if panel.width <= 0.0 || panel.height <= 0.0 {
             return;
         }
-        let frame_style = self.frame.container_style(theme);
-        self.connector(panel, origin).draw_framed_surface(
-            renderer,
-            theme,
-            FramedSurface {
-                frame: self.frame,
-                bounds: panel,
-                corners: self.panel_corners(),
-                shadow: frame_style.shadow,
-            },
-        );
+        let frame_style = container::Style {
+            shadow: self.frame.lifted_drop_shadow(),
+            ..self.frame.container_style(theme)
+        };
+        match self.placement.submenu_connector {
+            SubmenuConnector::Shown => self.connector(panel, origin).draw_framed_surface(
+                renderer,
+                theme,
+                FramedSurface {
+                    frame: self.frame,
+                    bounds: panel,
+                    corners: self.panel_corners(),
+                    shadow: frame_style.shadow,
+                },
+            ),
+            SubmenuConnector::Hidden => container::draw_background(renderer, &frame_style, panel),
+        }
         let Some(content_clip) = panel.intersection(viewport) else {
             return;
         };
@@ -315,15 +333,20 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
         let panel_morph: &PanelMorph = tree.state.downcast_ref();
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
         let panel = self.drawn_panel(panel_morph, layout.bounds());
-        let drawn_surface = self
-            .connector(panel, origin)
-            .surface_rows(panel, self.panel_corners());
+        let blur_corners = match self.placement.submenu_connector {
+            SubmenuConnector::Shown => Radius::default(),
+            SubmenuConnector::Hidden => self.panel_corners(),
+        };
         RegionRoles {
             pointer_input: PointerInput::PassedThrough,
             backdrop_blur: self.backdrop_blur,
-            corner_radius: Radius::default(),
+            corner_radius: blur_corners,
         }
-        .report(&drawn_surface, layout.bounds(), operation);
+        .report(
+            &self.drawn_surface_rows(panel, origin),
+            layout.bounds(),
+            operation,
+        );
         RegionRoles {
             pointer_input: PointerInput::Accepted,
             backdrop_blur: BackdropBlur::Clear,

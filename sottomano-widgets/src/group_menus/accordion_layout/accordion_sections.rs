@@ -17,7 +17,6 @@ use crate::{
         ExpansionState, GroupEvent, GroupMenuItemRow, RowInspection,
     },
     widgets::{
-        list_end_corners::ListEndCorners,
         selection_scroller::{ScrollAxis, selection_scroller},
         uniform_width_column::uniform_width_column,
     },
@@ -35,21 +34,6 @@ impl AccordionSectionRows {
             ExpansionState::Expanded => self.item_count + 1,
             ExpansionState::Collapsed => 1,
         }
-    }
-}
-
-fn rows_above_header(
-    sections: &[AccordionSectionRows],
-    section: usize,
-    growth: PanelGrowth,
-) -> usize {
-    let earlier: usize = sections[..section]
-        .iter()
-        .map(|earlier_section| earlier_section.shown_rows())
-        .sum();
-    match growth {
-        PanelGrowth::Downward => earlier,
-        PanelGrowth::Upward => earlier + sections[section].shown_rows() - 1,
     }
 }
 
@@ -96,8 +80,7 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
             },
         })
         .collect();
-    let total_rows = sections.iter().map(|section| section.shown_rows()).sum();
-    let corners = ListEndCorners::new(total_rows, layout.cascade_satellite_panels.frame_corners);
+    let frame_corners = layout.cascade_satellite_panels.frame_corners;
     let inspected_target = layout.group_menus.inspected_target(topic);
     let scrolled_px = layout.group_menus.scrolled_px(topic);
     let mut beside_card = None;
@@ -116,7 +99,7 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
                     ExpansionState::Expanded => MenuRowEmphasis::Selected,
                     ExpansionState::Collapsed => MenuRowEmphasis::Plain,
                 },
-                corners: corners.radius_at(rows_above_header(&sections, section, growth)),
+                frame_corners,
             };
             let header: Element<'a, M> = group_row(layout, entry, header_look).map(M::from);
             let item_views = items.into_iter().enumerate().map(|(item, row)| {
@@ -124,7 +107,7 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
                 let row_inspection = row.inspection(inspected_target);
                 let look = MenuRowLook {
                     emphasis: MenuRowEmphasis::from(row_inspection),
-                    corners: corners.radius_at(rows_above),
+                    frame_corners,
                 };
                 let row_view: Element<'a, M> = item_row(layout, &group, row, look).map(M::from);
                 let card_view = (row_inspection == RowInspection::Inspected)
@@ -177,9 +160,7 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        AccordionSectionRows, ExpansionState, PanelGrowth, rows_above_header, rows_above_item,
-    };
+    use super::{AccordionSectionRows, ExpansionState, PanelGrowth, rows_above_item};
 
     const OPEN_THREE: AccordionSectionRows = AccordionSectionRows {
         item_count: 3,
@@ -199,7 +180,6 @@ mod tests {
     #[test]
     fn items_follow_their_header_when_growing_downward() {
         let sections = [CLOSED_FOUR, OPEN_THREE];
-        assert_eq!(rows_above_header(&sections, 1, PanelGrowth::Downward), 1);
         assert_eq!(rows_above_item(&sections, 1, 0, PanelGrowth::Downward), 2);
         assert_eq!(rows_above_item(&sections, 1, 2, PanelGrowth::Downward), 4);
     }
@@ -209,6 +189,5 @@ mod tests {
         let sections = [CLOSED_FOUR, OPEN_THREE];
         assert_eq!(rows_above_item(&sections, 1, 0, PanelGrowth::Upward), 1);
         assert_eq!(rows_above_item(&sections, 1, 2, PanelGrowth::Upward), 3);
-        assert_eq!(rows_above_header(&sections, 1, PanelGrowth::Upward), 4);
     }
 }

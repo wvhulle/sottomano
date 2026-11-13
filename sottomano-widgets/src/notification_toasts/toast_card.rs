@@ -286,7 +286,7 @@ impl<Routed> ToastCard<'_, Routed> {
             PointerPresence::PointedAt => (family.strong, 1.0),
             PointerPresence::NotPointedAt => (family.base, self.overlay_appearance.opacity),
         };
-        let shadow = self.overlay_appearance.frame_style().drop_shadow();
+        let shadow = self.overlay_appearance.frame_style().lifted_drop_shadow();
         container::Style::default()
             .background(urgency.color.scale_alpha(opacity * self.reveal))
             .border(

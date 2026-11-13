@@ -13,8 +13,8 @@ use iced::{
 
 use crate::frame_style::FrameStyle;
 
-const BASE_HALF_WIDTH_PX: f32 = 4.0;
-const SHOULDER_PX: f32 = BASE_HALF_WIDTH_PX;
+const BASE_HALF_WIDTH_PX: f32 = 3.0;
+const SHOULDER_PX: f32 = BASE_HALF_WIDTH_PX / 2.0;
 const HALF_SPAN_PX: f32 = BASE_HALF_WIDTH_PX + SHOULDER_PX;
 const ARC_SAMPLE_STEP_PX: f32 = 0.5;
 const STRAIGHT_SAMPLE_STEP_PX: f32 = 4.0;
