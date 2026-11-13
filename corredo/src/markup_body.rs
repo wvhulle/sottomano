@@ -1,17 +1,19 @@
 use iced::{
-    Element, Font, Length,
+    Color, Element, Font, Length,
     alignment::{Horizontal, Vertical},
     border,
     font::{Style as FontStyle, Weight},
+    theme::palette::readable,
     widget::{
         Column, container, rich_text, span,
-        text::{Span, Wrapping},
+        text::{self, Span, Wrapping},
     },
 };
 use quick_xml::{Reader, escape::resolve_xml_entity, events::Event, name::LocalName};
 
 use crate::{
     content_sized_table::content_sized_grid, font_faces::TextFace, shared_metrics::LINE_HEIGHT,
+    theme_colors::secondary_text_color,
 };
 
 pub struct MarkupBody<'a> {
@@ -22,13 +24,15 @@ pub struct MarkupBody<'a> {
     block_spacing: f32,
     column_gap: f32,
     corner_radius: f32,
+    backdrop: Color,
 }
 
 impl<'a> MarkupBody<'a> {
     #[must_use]
-    pub fn new(markup: &'a str, face: TextFace) -> Self {
+    pub fn new(markup: &'a str, face: TextFace, backdrop: Color) -> Self {
         Self {
             markup,
+            backdrop,
             upright: face.font,
             size: face.size_px,
             monospace: Font::MONOSPACE,
@@ -105,22 +109,23 @@ impl<'a> MarkupBody<'a> {
 
     fn rows_table<Message: 'static>(&self, rows: Vec<Row<'static>>) -> Element<'static, Message> {
         let upright_face = self.upright;
+        let backdrop = self.backdrop;
         content_sized_grid(
             vec![Horizontal::Right, Horizontal::Left],
             rows.into_iter().map(|row| {
-                let italic_key: Vec<_> = row
+                let muted_key: Vec<_> = row
                     .key
                     .into_iter()
                     .map(|styled| {
                         let face = styled.font.unwrap_or(upright_face);
-                        styled.font(Font {
-                            style: FontStyle::Italic,
-                            ..face
-                        })
+                        styled.font(face)
                     })
                     .collect();
                 vec![
-                    rich_text(italic_key)
+                    rich_text(muted_key)
+                        .style(move |theme| text::Style {
+                            color: Some(readable(backdrop, secondary_text_color(theme))),
+                        })
                         .line_height(LINE_HEIGHT)
                         .wrapping(Wrapping::None)
                         .into(),

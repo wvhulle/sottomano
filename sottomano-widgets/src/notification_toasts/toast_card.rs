@@ -280,11 +280,19 @@ impl<Routed> ToastCard<'_, Routed> {
         family_shades(self.theme.extended_palette(), self.notif.data.severity)
     }
 
-    fn style(&self) -> container::Style {
+    fn urgency_pair(&self) -> Pair {
         let family = self.urgency_family();
-        let (urgency, opacity) = match self.pointer_presence {
-            PointerPresence::PointedAt => (family.strong, 1.0),
-            PointerPresence::NotPointedAt => (family.base, self.overlay_appearance.opacity),
+        match self.pointer_presence {
+            PointerPresence::PointedAt => family.strong,
+            PointerPresence::NotPointedAt => family.base,
+        }
+    }
+
+    fn style(&self) -> container::Style {
+        let urgency = self.urgency_pair();
+        let opacity = match self.pointer_presence {
+            PointerPresence::PointedAt => 1.0,
+            PointerPresence::NotPointedAt => self.overlay_appearance.opacity,
         };
         let shadow = self.overlay_appearance.frame_style().lifted_drop_shadow();
         container::Style::default()
@@ -305,7 +313,7 @@ impl<Routed> ToastCard<'_, Routed> {
 impl<Routed> ToastCard<'_, Routed> {
     fn body(&self, body: &str) -> Element<'static, NotificationMessage> {
         let font = &self.config.theme.font;
-        MarkupBody::new(body, text_face_of(font))
+        MarkupBody::new(body, text_face_of(font), self.urgency_pair().color)
             .size(font.small_text_size_px)
             .block_spacing(self.config.theme.spacing.item_gap)
             .column_gap(self.config.theme.spacing.group_gap)

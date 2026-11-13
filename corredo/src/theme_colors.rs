@@ -38,6 +38,11 @@ pub fn primary_weak_color(theme: &Theme) -> Color {
 }
 
 #[must_use]
+pub fn primary_weak_text_color(theme: &Theme) -> Color {
+    theme.extended_palette().primary.weak.text
+}
+
+#[must_use]
 pub fn success_color(theme: &Theme) -> Color {
     theme.palette().success
 }
