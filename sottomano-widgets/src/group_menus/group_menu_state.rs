@@ -99,7 +99,7 @@ impl GroupMenuTopic {
             GroupMenuTopic::Session => Phosphor::UserCircle(Weight::Regular),
             GroupMenuTopic::Appearance => Phosphor::SlidersHorizontal(Weight::Regular),
             GroupMenuTopic::Behaviour => Phosphor::ToggleRight(Weight::Regular),
-            GroupMenuTopic::Applications => Phosphor::Rocket(Weight::Regular),
+            GroupMenuTopic::Applications => Phosphor::SquaresFour(Weight::Regular),
             GroupMenuTopic::ApplicationMenu => Phosphor::AppWindow(Weight::Regular),
         }
     }

@@ -84,11 +84,12 @@ pub(in crate::desktop_shell) const TOP_PANEL: PanelBarComposition = PanelBarComp
 pub(in crate::desktop_shell) const BOTTOM_PANEL: PanelBarComposition = PanelBarComposition {
     position: Position::Bottom,
     start: &[
+        Menu(GroupMenuTopic::Applications),
         Menu(GroupMenuTopic::Appearance),
         Menu(GroupMenuTopic::Behaviour),
         InlineWorkspaces,
     ],
-    center: &[Menu(GroupMenuTopic::Applications), OutputWindows],
+    center: &[OutputWindows],
     end: &[
         Menu(GroupMenuTopic::Virtualization),
         Menu(GroupMenuTopic::Services),
@@ -159,6 +160,10 @@ mod tests {
         assert_eq!(
             BOTTOM_PANEL.entries_in(PanelZone::End).last(),
             Some(&Standalone(Tray))
+        );
+        assert_eq!(
+            BOTTOM_PANEL.entries_in(PanelZone::Start).first(),
+            Some(&Menu(GroupMenuTopic::Applications))
         );
     }
 }
