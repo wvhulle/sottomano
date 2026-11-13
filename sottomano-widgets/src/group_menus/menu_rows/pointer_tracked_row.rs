@@ -14,10 +14,9 @@ use iced::{
 use crate::{
     group_menus::{
         cascading_layout::cascade_row::CascadeDirection,
-        menu_rows::menu_row::{MenuRowEmphasis, MenuRowLook, menu_row_background},
+        menu_rows::menu_row::{MenuRowLook, menu_row_background, row_text_color},
     },
     hover_cards::PointerPresence,
-    widgets::configured_theme::{primary_weak_text_color, text_color},
 };
 
 const TRAIL_STEP_PX: f32 = 4.0;
@@ -240,10 +239,7 @@ impl<Message: Clone> Widget<Message, Theme, iced::Renderer> for PointerTrackedRo
             renderer,
             theme,
             &renderer::Style {
-                text_color: match self.look.emphasis {
-                    MenuRowEmphasis::Plain => text_color(theme),
-                    MenuRowEmphasis::Selected => primary_weak_text_color(theme),
-                },
+                text_color: row_text_color(self.look.emphasis)(theme),
             },
             layout.children().next().unwrap(),
             cursor,
