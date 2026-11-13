@@ -4,7 +4,8 @@ use std::{
 };
 
 use iced::{
-    Color, Element, Length, Padding, Settings, Subscription, Task, Theme,
+    Color, Element, Length, Padding, Rectangle, Settings, Subscription, Task, Theme,
+    advanced::widget::operate,
     alignment::Vertical,
     executor,
     theme::Style,
@@ -13,6 +14,7 @@ use iced::{
     window,
 };
 use iced_controller_diagram::ControllerArtwork;
+use iced_exwlshell::SurfaceRegionsCollector;
 use iced_test::program::{Preset, Program};
 use sottomano_desktop_sources::{
     compositor_window_ipc::compositor_window_state::CompositorWindowState,
@@ -57,8 +59,10 @@ use sottomano_widgets::{
 
 use crate::{
     animation_recording::{CANVAS, FRAME_INTERVAL},
-    demo_script::{DEMOS, Demo, GroupShown},
+    backdrop_photo::BackdropPhotos,
+    demo_script::{DEMOS, Demo, DemoBackdrop, GroupShown},
     fixtures::{sample, showcase_epoch},
+    frosted_backdrop::{FrostedBackdrop, frosted_rows_of},
     scripted_frames::scripted_frames,
     showcase_message::{ShowcaseInteraction, ShowcaseMessage},
     showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup, recorded_look},
@@ -86,6 +90,7 @@ pub struct ShowcaseProgram {
     presets: Vec<Preset<ShowcaseState, ShowcaseMessage>>,
     pacing: Pacing,
     start: Clock,
+    backdrop_photos: BackdropPhotos,
 }
 
 impl ShowcaseProgram {
@@ -100,11 +105,15 @@ impl ShowcaseProgram {
     }
 
     fn with_pacing(config: &Config, pacing: Pacing, start: Clock) -> Self {
+        let backdrop_photos = BackdropPhotos::decoded();
         let presets = DEMOS
             .iter()
             .map(|demo| {
                 let config = config.clone();
-                Preset::new(demo.name, move || ShowcaseState::boot(demo, &config, start))
+                let backdrop_photos = backdrop_photos.clone();
+                Preset::new(demo.name, move || {
+                    ShowcaseState::boot(demo, &config, &backdrop_photos, start)
+                })
             })
             .collect();
         ShowcaseProgram {
@@ -112,6 +121,7 @@ impl ShowcaseProgram {
             presets,
             pacing,
             start,
+            backdrop_photos,
         }
     }
 
@@ -140,6 +150,8 @@ pub struct ShowcaseState {
     booted_at: Clock,
     delivered_sample: u32,
     pending_hover_replies: Vec<PendingHoverReply>,
+    backdrop_photos: BackdropPhotos,
+    frosted_rows: Vec<Rectangle>,
 }
 
 struct PendingHoverReply {
@@ -148,7 +160,12 @@ struct PendingHoverReply {
 }
 
 impl ShowcaseState {
-    fn boot(demo: &'static Demo, config: &Config, clock: Clock) -> (Self, Task<ShowcaseMessage>) {
+    fn boot(
+        demo: &'static Demo,
+        config: &Config,
+        backdrop_photos: &BackdropPhotos,
+        clock: Clock,
+    ) -> (Self, Task<ShowcaseMessage>) {
         let appearance = recorded_look();
         point_generic_font_families_at(&config.theme);
         let hover_card = HoverCardHost::default();
@@ -190,6 +207,8 @@ impl ShowcaseState {
             booted_at: clock,
             delivered_sample: sample(clock),
             pending_hover_replies: Vec::new(),
+            backdrop_photos: backdrop_photos.clone(),
+            frosted_rows: Vec::new(),
         };
         (state, opening_toasts)
     }
@@ -385,7 +404,7 @@ impl ShowcaseState {
         let orientation = CascadeOrientation::toward_room(
             anchor,
             growth_away_from(self.group.position()),
-            CANVAS.width,
+            self.demo.backdrop.canvas().width,
         );
         let surfaces = group_menu.surfaces(
             &self.config,
@@ -525,6 +544,7 @@ impl ShowcaseState {
             };
             panel_frame(content, frame_style)
                 .outlined_sides(outlined_sides)
+                .backdrop_blur(layer.backdrop_blur)
                 .into()
         });
         match position {
@@ -591,7 +611,7 @@ impl Program for ShowcaseProgram {
     }
 
     fn boot(&self) -> (ShowcaseState, Task<ShowcaseMessage>) {
-        ShowcaseState::boot(&DEMOS[0], &self.config, self.start)
+        ShowcaseState::boot(&DEMOS[0], &self.config, &self.backdrop_photos, self.start)
     }
 
     fn presets(&self) -> &[Preset<ShowcaseState, ShowcaseMessage>] {
@@ -599,9 +619,20 @@ impl Program for ShowcaseProgram {
     }
 
     fn update(&self, state: &mut ShowcaseState, message: ShowcaseMessage) -> Task<ShowcaseMessage> {
-        match message {
+        let message_task = match message {
+            ShowcaseMessage::SurfaceRegionsCollected(surface_regions) => {
+                state.frosted_rows = frosted_rows_of(&surface_regions);
+                return Task::none();
+            }
             ShowcaseMessage::Frame(clock) => state.advance_frame(clock),
             routed => state.route_message(routed),
+        };
+        match state.demo.backdrop {
+            DemoBackdrop::FrostablePhoto => message_task.chain(
+                operate(SurfaceRegionsCollector::default())
+                    .map(ShowcaseMessage::SurfaceRegionsCollected),
+            ),
+            DemoBackdrop::Transparent => message_task,
         }
     }
 
@@ -621,11 +652,12 @@ impl Program for ShowcaseProgram {
             .height(Length::Fill)
             .align_y(panel_side)
             .into();
+        let photo_backdrop = (state.demo.backdrop == DemoBackdrop::FrostablePhoto)
+            .then(|| FrostedBackdrop::new(&state.backdrop_photos, &state.frosted_rows).into());
         let layers = stack(
-            state
-                .group
-                .backdrop()
+            photo_backdrop
                 .into_iter()
+                .chain(state.group.backdrop())
                 .chain([strip, state.toast_layer()])
                 .chain([state.hover_card_layer()]),
         )

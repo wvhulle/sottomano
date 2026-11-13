@@ -6,10 +6,12 @@ The Looks group in the Behaviour menu holds ready-made combinations of colour sc
 - **Clear dark**: dark colours, see-through panels without outline, blur or shadow, and a lightly tinted, frosted and outlined sidebar.
 - **Bright office**: light colours and nearly opaque panels without blur.
 
-Hover cards stay blurred in every look. The recordings are rendered offscreen, where there is nothing to blur, so blur does not show in them.
+Hover cards stay blurred in every look.
 
 ## Looks: Switching
 
 Pressing a look applies it at once; its icon lights up while it is in use.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/appearance_looks.webp" width="720" alt="Opening the Behaviour menu and switching from clear dark to frosted dark">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/appearance_looks.webp" width="1000" alt="Opening the Behaviour menu over a photo, switching from clear dark to frosted dark and hovering clear dark">
+
+This recording is drawn over a photo by Anastase Maragos on Unsplash. The recordings are rendered offscreen, without a compositor, so the showcase blurs the photo itself in the regions that the panels, menus and hover cards ask the compositor to blur.

@@ -1,3 +1,4 @@
+use iced_exwlshell::SurfaceRegionsCollector;
 use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::CompositorRequestFailure;
 use sottomano_widgets::{
     clock::Clock,
@@ -78,6 +79,7 @@ pub enum ShowcaseMessage {
     HoverCard(HoverCardMessage),
     HoverCardHideElapsed,
     Notification(NotificationMessage),
+    SurfaceRegionsCollected(SurfaceRegionsCollector),
     OutsideShowcase,
 }
 

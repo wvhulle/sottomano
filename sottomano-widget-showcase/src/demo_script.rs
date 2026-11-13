@@ -1,5 +1,6 @@
 use std::{borrow::Cow, time::Duration};
 
+use iced::Size;
 use sottomano_desktop_sources::{
     incus_instances::InstanceDaemon, login_session_presence::idle_session_actions::IdleAction,
 };
@@ -48,6 +49,7 @@ use sottomano_widgets::{
 };
 
 use crate::{
+    animation_recording::{CANVAS, PHOTO_CANVAS},
     fixtures::{
         app_launcher, appearance_presets, apptainer_containers, audio, caldav,
         cgroup_memory_limits, ci_runner_tasks, claude_usage, compute, desktop_session,
@@ -81,6 +83,23 @@ pub struct Demo {
     pub live: fn(Clock) -> Vec<ShowcaseMessage>,
     pub shown: GroupShown,
     pub script: &'static [Step],
+    pub backdrop: DemoBackdrop,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DemoBackdrop {
+    Transparent,
+    FrostablePhoto,
+}
+
+impl DemoBackdrop {
+    #[must_use]
+    pub fn canvas(self) -> Size {
+        match self {
+            DemoBackdrop::Transparent => CANVAS,
+            DemoBackdrop::FrostablePhoto => PHOTO_CANVAS,
+        }
+    }
 }
 
 pub enum Step {
@@ -99,6 +118,7 @@ pub const DEMOS: &[Demo] = &[
         name: "app_launcher_frequent",
         group: app_launcher::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Applications),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Applications)),
@@ -110,6 +130,7 @@ pub const DEMOS: &[Demo] = &[
         name: "app_launcher_overflow",
         group: app_launcher::group,
         live: app_launcher::scrolled_item_list,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Applications),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Applications)),
@@ -121,6 +142,7 @@ pub const DEMOS: &[Demo] = &[
         name: "compute_cpu",
         group: compute::group,
         live: compute::live,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
@@ -132,6 +154,7 @@ pub const DEMOS: &[Demo] = &[
         name: "compute_model",
         group: compute::group,
         live: compute::live,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
@@ -143,6 +166,7 @@ pub const DEMOS: &[Demo] = &[
         name: "memory_board_memory",
         group: memory_board::group,
         live: memory_board::live,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
@@ -154,6 +178,7 @@ pub const DEMOS: &[Demo] = &[
         name: "tailnet_exit_node",
         group: tailnet::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Network),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
@@ -167,6 +192,7 @@ pub const DEMOS: &[Demo] = &[
         name: "wireguard_tunnels",
         group: wireguard_tunnels::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Network),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
@@ -180,6 +206,7 @@ pub const DEMOS: &[Demo] = &[
         name: "tailnet_access",
         group: tailnet::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Network),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
@@ -191,6 +218,7 @@ pub const DEMOS: &[Demo] = &[
         name: "weather_conditions",
         group: weather::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Agenda),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
@@ -202,6 +230,7 @@ pub const DEMOS: &[Demo] = &[
         name: "weather_precipitation",
         group: weather::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Agenda),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
@@ -213,6 +242,7 @@ pub const DEMOS: &[Demo] = &[
         name: "podman_engines",
         group: podman_engines::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
@@ -223,6 +253,7 @@ pub const DEMOS: &[Demo] = &[
         name: "virtual_machines",
         group: virtual_machines::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
@@ -236,6 +267,7 @@ pub const DEMOS: &[Demo] = &[
         name: "microvm_guests_cloud_hypervisor",
         group: microvm_guests::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
@@ -249,6 +281,7 @@ pub const DEMOS: &[Demo] = &[
         name: "nspawn_containers",
         group: nspawn_containers::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
@@ -264,6 +297,7 @@ pub const DEMOS: &[Demo] = &[
         name: "incus_instances_container",
         group: incus_instances::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
@@ -280,6 +314,7 @@ pub const DEMOS: &[Demo] = &[
         name: "lxc_containers_running",
         group: lxc_containers::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
@@ -293,6 +328,7 @@ pub const DEMOS: &[Demo] = &[
         name: "flatpak_sandboxes_app",
         group: flatpak_sandboxes::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
@@ -308,6 +344,7 @@ pub const DEMOS: &[Demo] = &[
         name: "waydroid_container_session",
         group: waydroid_container::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
@@ -319,6 +356,7 @@ pub const DEMOS: &[Demo] = &[
         name: "virtualbox_machines_headless",
         group: virtualbox_machines::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
@@ -332,6 +370,7 @@ pub const DEMOS: &[Demo] = &[
         name: "vmware_machines_workstation",
         group: vmware_machines::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
@@ -345,6 +384,7 @@ pub const DEMOS: &[Demo] = &[
         name: "apptainer_containers_image",
         group: apptainer_containers::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
@@ -358,6 +398,7 @@ pub const DEMOS: &[Demo] = &[
         name: "docker_engines_rootful",
         group: docker_engines::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
@@ -371,6 +412,7 @@ pub const DEMOS: &[Demo] = &[
         name: "cgroup_memory_limits_ci_runners",
         group: cgroup_memory_limits::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
@@ -386,6 +428,7 @@ pub const DEMOS: &[Demo] = &[
         name: "ci_runner_tasks",
         group: ci_runner_tasks::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Services),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
@@ -401,6 +444,7 @@ pub const DEMOS: &[Demo] = &[
         name: "caldav_agenda",
         group: caldav::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Agenda),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
@@ -413,6 +457,7 @@ pub const DEMOS: &[Demo] = &[
         name: "ai_usage_windows",
         group: claude_usage::group,
         live: claude_usage::live,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Services),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
@@ -424,6 +469,7 @@ pub const DEMOS: &[Demo] = &[
         name: "media_track",
         group: media::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Media),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
@@ -438,6 +484,7 @@ pub const DEMOS: &[Demo] = &[
         name: "idle_screen_off",
         group: idle_lock::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Session),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Session)),
@@ -449,6 +496,7 @@ pub const DEMOS: &[Demo] = &[
         name: "appearance_looks",
         group: appearance_presets::group,
         live: unchanging,
+        backdrop: DemoBackdrop::FrostablePhoto,
         shown: GroupShown::InMenu(GroupMenuTopic::Behaviour),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Behaviour)),
@@ -457,6 +505,9 @@ pub const DEMOS: &[Demo] = &[
                 AppearancePresetsTarget::Preset(AppearancePreset::FrostedDark),
             )),
             Step::PressText("Frosted dark"),
+            Step::Hover(HoverTarget::AppearancePresets(
+                AppearancePresetsTarget::Preset(AppearancePreset::ClearDark),
+            )),
             Step::RestFor(Duration::from_millis(1200)),
         ],
     },
@@ -464,6 +515,7 @@ pub const DEMOS: &[Demo] = &[
         name: "gamepad_controller",
         group: gamepad::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Media),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
@@ -477,6 +529,7 @@ pub const DEMOS: &[Demo] = &[
         name: "audio_volume",
         group: audio::group,
         live: audio::live,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::OnPanel,
         script: &[
             Step::Press(HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink))),
@@ -491,6 +544,7 @@ pub const DEMOS: &[Demo] = &[
         name: "voice_dictation_model",
         group: voice_dictation::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Media),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
@@ -504,6 +558,7 @@ pub const DEMOS: &[Demo] = &[
         name: "login_session_kernel",
         group: login_session::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Session),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Session)),
@@ -516,6 +571,7 @@ pub const DEMOS: &[Demo] = &[
         name: "wallpaper_article",
         group: wallpaper::group,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Display),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Display)),
@@ -528,6 +584,7 @@ pub const DEMOS: &[Demo] = &[
         name: "bottom_workspaces",
         group: desktop_session::bottom_bar,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::OnPanel,
         script: &[Step::Hover(HoverTarget::Workspace(2))],
     },
@@ -535,6 +592,7 @@ pub const DEMOS: &[Demo] = &[
         name: "bottom_window_directory_groups",
         group: desktop_session::terminals_grouped_by_directory,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::OnPanel,
         script: &[Step::Hover(HoverTarget::Window(WindowTarget::Usage(2)))],
     },
@@ -542,6 +600,7 @@ pub const DEMOS: &[Demo] = &[
         name: "bottom_process_inspector",
         group: desktop_session::bottom_bar,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::OnPanel,
         script: &[Step::Hover(HoverTarget::Window(WindowTarget::Inspect(2)))],
     },
@@ -549,6 +608,7 @@ pub const DEMOS: &[Demo] = &[
         name: "toast_arrival",
         group: notification_toasts::arrival,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::OnPanel,
         script: &[
             Step::HoverText(notification_toasts::ARRIVAL_SUMMARY),
@@ -559,6 +619,7 @@ pub const DEMOS: &[Demo] = &[
         name: "toast_progress",
         group: notification_toasts::progress,
         live: notification_toasts::downloading,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::OnPanel,
         script: &[Step::RestFor(Duration::from_secs(5))],
     },
@@ -566,6 +627,7 @@ pub const DEMOS: &[Demo] = &[
         name: "toast_actions",
         group: notification_toasts::actions,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::OnPanel,
         script: &[
             Step::HoverText("Later"),
@@ -577,6 +639,7 @@ pub const DEMOS: &[Demo] = &[
         name: "toast_window_anchored",
         group: notification_toasts::next_to_window,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::OnPanel,
         script: &[Step::HoverText(notification_toasts::WINDOW_SUMMARY)],
     },
@@ -584,6 +647,7 @@ pub const DEMOS: &[Demo] = &[
         name: "group_menu_accordion_several",
         group: group_menu_members::hardware_group_menu,
         live: group_menu_members::hardware_menu_live,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenuPresented {
             menu: GroupMenuTopic::Hardware,
             presentation: GroupMenuPresentation {
@@ -603,6 +667,7 @@ pub const DEMOS: &[Demo] = &[
         name: "group_menu_media",
         group: group_menu_members::media_group_menu,
         live: audio::live,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Media),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
@@ -617,6 +682,7 @@ pub const DEMOS: &[Demo] = &[
         name: "group_menu_pin",
         group: group_menu_members::hardware_group_menu,
         live: group_menu_members::hardware_menu_live,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
@@ -630,6 +696,7 @@ pub const DEMOS: &[Demo] = &[
         name: "group_menu_appearance",
         group: shell_settings::sharing_a_unit,
         live: unchanging,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenu(GroupMenuTopic::Appearance),
         script: &[Step::Press(HoverTarget::GroupMenu(
             GroupMenuTopic::Appearance,
@@ -639,6 +706,7 @@ pub const DEMOS: &[Demo] = &[
         name: "compute_cpu_pinned",
         group: compute::group,
         live: compute::live,
+        backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::PinnedFrom {
             menu: GroupMenuTopic::Hardware,
             group: WidgetGroupIdentity::sole(WidgetGroupFamily::Compute),
