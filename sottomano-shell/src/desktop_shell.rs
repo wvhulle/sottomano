@@ -425,6 +425,9 @@ impl DesktopShell {
             Message::OutputsResolved(outputs) => self.adopt_outputs(outputs),
             Message::Redraw => {
                 self.notifications.prune(self.clock.instant);
+                self.widget_groups
+                    .window_group
+                    .settle_workspace_slides(self.clock.instant);
                 Task::none()
             }
             group_message @ (Message::Weather(_)

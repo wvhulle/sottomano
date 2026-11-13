@@ -16,72 +16,7 @@ const OVERFLOW_TOLERANCE_PX: f32 = 0.5;
 const RADIUS_FRACTION_SCALE: f32 = 65535.0;
 const EDGE_INDEX_BITS: u32 = 2;
 
-const EDGE_ALPHA_FADE_SHADER: &str = r"
-struct FadeVertex {
-    @builtin(position) clip_position: vec4<f32>,
-    @location(0) centered_unit: vec2<f32>,
-    @location(1) @interpolate(flat) outward: vec2<f32>,
-    @location(2) @interpolate(flat) radius_fraction: f32,
-};
-
-fn outward_of_edge(edge_index: u32) -> vec2<f32> {
-    switch edge_index {
-        case 0u: { return vec2<f32>(-1.0, 0.0); }
-        case 1u: { return vec2<f32>(1.0, 0.0); }
-        case 2u: { return vec2<f32>(0.0, -1.0); }
-        default: { return vec2<f32>(0.0, 1.0); }
-    }
-}
-
-@vertex
-fn covering_triangle(
-    @builtin(vertex_index) vertex_index: u32,
-    @builtin(instance_index) packed_band_shape: u32,
-) -> FadeVertex {
-    let corner = vec2<f32>(
-        f32((vertex_index << 1u) & 2u) * 2.0 - 1.0,
-        f32(vertex_index & 2u) * 2.0 - 1.0,
-    );
-    return FadeVertex(
-        vec4<f32>(corner, 0.0, 1.0),
-        vec2<f32>(corner.x, -corner.y),
-        outward_of_edge(packed_band_shape & 3u),
-        f32(packed_band_shape >> 2u) / 65535.0,
-    );
-}
-
-fn distance_outside_rounded_edge(along_px: f32, across_px: f32, half_along_px: f32, half_across_px: f32, radius_px: f32) -> f32 {
-    let past_corner_center = vec2<f32>(
-        across_px - (half_across_px - radius_px),
-        along_px - (half_along_px - radius_px),
-    );
-    return length(max(past_corner_center, vec2<f32>(0.0)))
-        + min(max(past_corner_center.x, past_corner_center.y), 0.0)
-        - radius_px;
-}
-
-@fragment
-fn fade_strength(
-    @location(0) centered_unit: vec2<f32>,
-    @location(1) @interpolate(flat) outward: vec2<f32>,
-    @location(2) @interpolate(flat) radius_fraction: f32,
-) -> @location(0) vec4<f32> {
-    let along_unit = dot(centered_unit, outward);
-    let across_unit = dot(centered_unit, outward.yx);
-    let half_along_px = 1.0 / fwidth(along_unit);
-    let half_across_px = 1.0 / fwidth(across_unit);
-    let outside = distance_outside_rounded_edge(
-        along_unit * half_along_px,
-        abs(across_unit) * half_across_px,
-        half_along_px,
-        half_across_px,
-        radius_fraction * 2.0 * half_along_px,
-    );
-    let coverage = clamp(0.5 - outside, 0.0, 1.0);
-    let progress_to_edge = along_unit / 2.0 + 0.5;
-    return vec4<f32>(smoothstep(0.0, 1.0, progress_to_edge) * coverage);
-}
-";
+const EDGE_ALPHA_FADE_SHADER: &str = include_str!("edge_alpha_fade.wgsl");
 
 const REPLACE_PIXELS_WITH_BLEND_CONSTANT: wgpu::BlendComponent = wgpu::BlendComponent {
     src_factor: wgpu::BlendFactor::Constant,
@@ -327,7 +262,7 @@ impl Primitive for EdgeAlphaFade {
     }
 }
 
-fn premultiplied_blend_constant(fill: Color) -> wgpu::Color {
+pub(crate) fn premultiplied_blend_constant(fill: Color) -> wgpu::Color {
     let [red, green, blue, alpha] = color::pack(fill).components();
     wgpu::Color {
         r: f64::from(red * alpha),
@@ -341,41 +276,58 @@ struct EdgeAlphaFadePipeline {
     fade_pipeline: wgpu::RenderPipeline,
 }
 
+pub(crate) fn replacing_fade_pipeline(
+    device: &wgpu::Device,
+    format: wgpu::TextureFormat,
+    shader_label: &str,
+    shader_source: &str,
+    fragment_entry: &str,
+) -> wgpu::RenderPipeline {
+    let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some(shader_label),
+        source: wgpu::ShaderSource::Wgsl(shader_source.into()),
+    });
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some(shader_label),
+        layout: None,
+        vertex: wgpu::VertexState {
+            module: &shader_module,
+            entry_point: Some("covering_triangle"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            buffers: &[],
+        },
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        fragment: Some(wgpu::FragmentState {
+            module: &shader_module,
+            entry_point: Some(fragment_entry),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            targets: &[Some(wgpu::ColorTargetState {
+                format,
+                blend: Some(wgpu::BlendState {
+                    color: REPLACE_PIXELS_WITH_BLEND_CONSTANT,
+                    alpha: REPLACE_PIXELS_WITH_BLEND_CONSTANT,
+                }),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        multiview: None,
+        cache: None,
+    })
+}
+
 impl Pipeline for EdgeAlphaFadePipeline {
     fn new(device: &wgpu::Device, _queue: &wgpu::Queue, format: wgpu::TextureFormat) -> Self {
-        let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("edge alpha fade"),
-            source: wgpu::ShaderSource::Wgsl(EDGE_ALPHA_FADE_SHADER.into()),
-        });
-        let fade_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("edge alpha fade"),
-            layout: None,
-            vertex: wgpu::VertexState {
-                module: &shader_module,
-                entry_point: Some("covering_triangle"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                buffers: &[],
-            },
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &shader_module,
-                entry_point: Some("fade_strength"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState {
-                        color: REPLACE_PIXELS_WITH_BLEND_CONSTANT,
-                        alpha: REPLACE_PIXELS_WITH_BLEND_CONSTANT,
-                    }),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            multiview: None,
-            cache: None,
-        });
-        Self { fade_pipeline }
+        Self {
+            fade_pipeline: replacing_fade_pipeline(
+                device,
+                format,
+                "edge alpha fade",
+                EDGE_ALPHA_FADE_SHADER,
+                "fade_strength",
+            ),
+        }
     }
 }
 

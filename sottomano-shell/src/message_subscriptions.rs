@@ -51,6 +51,11 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .typing_under_cards
             .background_motion(state.clock.instant)
             == MotionState::Moving
+        || state
+            .widget_groups
+            .window_group
+            .workspace_slide_motion(state.clock.instant)
+            == MotionState::Moving
     {
         frames().map(|_| Message::Redraw)
     } else {

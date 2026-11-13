@@ -23,12 +23,12 @@ pub(crate) const SIMULATED_WINDOW_IDS: [u64; 3] = [10, 20, 30];
 const SWEEP_STEP_PX: f32 = 2.0;
 const SIMULATED_BAR_WIDTH_PX: f32 = 1024.0;
 
-fn simulated_workspace(workspace_id: u64) -> CompositorWorkspace {
+fn simulated_workspace(workspace_id: u64, active_workspace_id: u64) -> CompositorWorkspace {
     CompositorWorkspace {
         index: u8::try_from(workspace_id).expect("few simulated workspaces"),
         output: Some(SIMULATED_OUTPUT.to_owned()),
-        is_active: workspace_id == SIMULATED_WORKSPACE_IDS[0],
-        is_focused: workspace_id == SIMULATED_WORKSPACE_IDS[0],
+        is_active: workspace_id == active_workspace_id,
+        is_focused: workspace_id == active_workspace_id,
         ..unnamed_compositor_workspace(workspace_id)
     }
 }
@@ -50,8 +50,13 @@ fn simulated_tiled_window(column: usize, window_id: u64) -> CompositorWindow {
 }
 
 pub(crate) fn three_workspaces_three_windows() -> Snapshot {
+    three_workspaces_three_windows_on(SIMULATED_WORKSPACE_IDS[0])
+}
+
+pub(crate) fn three_workspaces_three_windows_on(active_workspace_id: u64) -> Snapshot {
     let compositor = CompositorWindowState::from_lists(
-        SIMULATED_WORKSPACE_IDS.map(simulated_workspace),
+        SIMULATED_WORKSPACE_IDS
+            .map(|workspace_id| simulated_workspace(workspace_id, active_workspace_id)),
         SIMULATED_WINDOW_IDS
             .into_iter()
             .enumerate()

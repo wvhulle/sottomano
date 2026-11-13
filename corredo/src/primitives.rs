@@ -16,4 +16,6 @@ pub mod scroll_steps;
 pub(crate) mod shared_metrics;
 pub mod steady_label_width;
 pub mod svg_icon;
+pub mod uniform_alpha_fade;
 pub mod uniform_width_column;
+pub mod workspace_swap;
