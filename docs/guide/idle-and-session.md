@@ -6,7 +6,7 @@ When the screen turns off and locks, and what the session runs on.
 
 Dragging a timeout changes it; the card says when it fires and through which mechanism.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/idle_screen_off.webp" width="960" alt="Opening the idle timeouts from the Session menu and hovering the screen-off timer">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/idle_screen_off.webp" width="922" alt="Opening the idle timeouts from the Session menu and hovering the screen-off timer">
 
 ## Idle timeouts: Other timers
 
@@ -20,4 +20,4 @@ This timer works like the screen-off timer above.
 
 The kernel and the compositor, each with a logo and a wiki link.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/login_session_kernel.webp" width="1167" alt="Opening the login session group from the Session menu and hovering the kernel and compositor">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/login_session_kernel.webp" width="1122" alt="Opening the login session group from the Session menu and hovering the kernel and compositor">
