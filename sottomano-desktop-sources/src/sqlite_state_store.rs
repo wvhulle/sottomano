@@ -180,6 +180,22 @@ impl Columns {
         }
     }
 
+    #[must_use]
+    pub fn optional_blob(&self, row: &turso::Row, name: &str) -> Option<Vec<u8>> {
+        match self.value(row, name) {
+            Ok(turso::Value::Blob(bytes)) => Some(bytes),
+            Ok(turso::Value::Null) => None,
+            Ok(unexpected_value) => {
+                tracing::warn!("state store: column {name} holds {unexpected_value:?}, not a blob");
+                None
+            }
+            Err(read_failure) => {
+                tracing::warn!("state store: reading column {name} failed: {read_failure}");
+                None
+            }
+        }
+    }
+
     pub fn integer(&self, row: &turso::Row, name: &str) -> Result<i64, StoreError> {
         match self.value(row, name)? {
             turso::Value::Integer(integer) => Ok(integer),
