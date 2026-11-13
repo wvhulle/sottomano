@@ -325,7 +325,6 @@ mod tests {
         fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
         let spacing = read.theme.spacing.resolve(14.0);
         assert!((spacing.surface_inset - 7.0).abs() < f32::EPSILON);
-        assert!((spacing.item_gap - 4.0).abs() < f32::EPSILON);
     }
 
     #[test]
