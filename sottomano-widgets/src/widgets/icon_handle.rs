@@ -6,7 +6,8 @@ use iced::{
     widget::{image, svg},
 };
 use sottomano_desktop_sources::desktop_windows_apps::{
-    firefox_favicon_lookup::FaviconKind, status_notifier_tray::IconSource,
+    firefox_favicon_lookup::FaviconKind, icon_whitespace_trim::TrimmedIcon,
+    status_notifier_tray::IconSource,
 };
 
 use crate::widgets::configured_theme::text_color;
@@ -105,6 +106,15 @@ impl From<&RgbaImage> for IconHandle {
     }
 }
 
+impl From<&TrimmedIcon> for IconHandle {
+    fn from(trimmed_icon: &TrimmedIcon) -> Self {
+        match trimmed_icon {
+            TrimmedIcon::Svg(svg_bytes) => Self::Svg(svg::Handle::from_memory(svg_bytes.to_vec())),
+            TrimmedIcon::Raster(pixels) => Self::from(pixels.as_ref()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 struct ConvertedPixmap {
     pixels: Arc<RgbaImage>,
@@ -149,10 +159,12 @@ impl PixmapHandles {
     #[must_use]
     pub fn icon_handle(&self, source: &IconSource) -> IconHandle {
         match source {
-            IconSource::Pixmap(pixels) => self.pixmap_handle(pixels),
-            IconSource::Themed(path) => IconHandle::at(path),
-            IconSource::ThemedSymbolic(path) => {
-                IconHandle::SymbolicSvg(svg::Handle::from_path(path))
+            IconSource::Pixmap(pixels) | IconSource::Themed(TrimmedIcon::Raster(pixels)) => {
+                self.pixmap_handle(pixels)
+            }
+            IconSource::Themed(svg_icon @ TrimmedIcon::Svg(_)) => IconHandle::from(svg_icon),
+            IconSource::ThemedSymbolic(svg_bytes) => {
+                IconHandle::SymbolicSvg(svg::Handle::from_memory(svg_bytes.to_vec()))
             }
         }
     }

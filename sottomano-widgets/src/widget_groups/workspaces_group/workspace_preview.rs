@@ -90,7 +90,7 @@ impl<'a> WorkspaceSchematic<'a> {
         let icon = window_icon(
             self.favicons,
             tile.favicon_key.as_deref(),
-            tile.icon.as_deref(),
+            tile.icon.as_ref(),
             side,
             1.0,
         );

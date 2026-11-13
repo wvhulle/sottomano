@@ -8,7 +8,9 @@ use freedesktop_icons::lookup;
 
 use super::workspace_window_snapshot;
 use crate::desktop_windows_apps::{
-    desktop_entry_app_catalog::LaunchableApp, window_title_labels::IconCandidate,
+    desktop_entry_app_catalog::LaunchableApp,
+    icon_whitespace_trim::{TrimmedIcon, trim_icon_file},
+    window_title_labels::IconCandidate,
 };
 
 #[derive(Debug)]
@@ -179,27 +181,35 @@ fn icon_keys(
 }
 
 #[must_use]
-pub fn resolve_app_icons(entries: &DesktopEntries, ids: Vec<String>) -> HashMap<String, PathBuf> {
-    ids.into_iter()
-        .filter_map(|id| {
-            entries
-                .icon_for(&id)
-                .map(|path| (id, super::icon_whitespace_trim::trimmed(&path)))
-        })
-        .collect()
+pub fn resolve_app_icons(
+    entries: &DesktopEntries,
+    app_ids: Vec<String>,
+) -> HashMap<String, TrimmedIcon> {
+    trimmed_icons_by_key(app_ids, |app_id| entries.icon_for(app_id))
 }
 
 #[must_use]
 pub fn resolve_theme_icons(
     entries: &DesktopEntries,
-    names: Vec<String>,
-) -> HashMap<String, PathBuf> {
-    names
+    icon_names: Vec<String>,
+) -> HashMap<String, TrimmedIcon> {
+    trimmed_icons_by_key(icon_names, |icon_name| entries.theme_icon(icon_name))
+}
+
+fn trimmed_icons_by_key(
+    icon_keys: Vec<String>,
+    icon_path_for_key: impl Fn(&str) -> Option<PathBuf>,
+) -> HashMap<String, TrimmedIcon> {
+    icon_keys
         .into_iter()
-        .filter_map(|name| {
-            entries
-                .theme_icon(&name)
-                .map(|path| (name, super::icon_whitespace_trim::trimmed(&path)))
+        .filter_map(|icon_key| {
+            let icon_path = icon_path_for_key(&icon_key)?;
+            trim_icon_file(&icon_path)
+                .inspect_err(|trim_failure| {
+                    tracing::warn!("icon for {icon_key}: {trim_failure}");
+                })
+                .ok()
+                .map(|trimmed_icon| (icon_key, trimmed_icon))
         })
         .collect()
 }

@@ -27,6 +27,7 @@ use crate::{
             MenuNode, SYMBOLIC_ICON_SUFFIX, symbolic_first_icon_names, tray_menu_nodes,
         },
         desktop_entry_app_icons::DesktopEntries,
+        icon_whitespace_trim::{TrimmedIcon, trim_icon_file},
     },
     non_empty_text::non_empty,
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
@@ -37,32 +38,35 @@ const OWNER_LOOKUPS_IN_FLIGHT: usize = 16;
 #[derive(Debug, Clone, PartialEq)]
 pub enum IconSource {
     Pixmap(Arc<RgbaImage>),
-    Themed(PathBuf),
-    ThemedSymbolic(PathBuf),
+    Themed(TrimmedIcon),
+    ThemedSymbolic(Arc<[u8]>),
 }
 
 impl IconSource {
     pub(crate) fn pixmap(&self) -> Option<&Arc<RgbaImage>> {
         match self {
-            Self::Pixmap(pixmap) => Some(pixmap),
-            Self::Themed(_) | Self::ThemedSymbolic(_) => None,
+            Self::Pixmap(pixmap) | Self::Themed(TrimmedIcon::Raster(pixmap)) => Some(pixmap),
+            Self::Themed(TrimmedIcon::Svg(_)) | Self::ThemedSymbolic(_) => None,
         }
     }
 
-    pub(crate) fn from_theme_file(theme_file: &Path) -> Self {
-        let trimmed_file = super::icon_whitespace_trim::trimmed(theme_file);
-        let is_svg = theme_file
-            .extension()
-            .is_some_and(|extension| extension.eq_ignore_ascii_case("svg"));
-        if is_svg
-            && theme_file
-                .file_stem()
-                .and_then(|file_stem| file_stem.to_str())
-                .is_some_and(|file_stem| file_stem.ends_with(SYMBOLIC_ICON_SUFFIX))
-        {
-            Self::ThemedSymbolic(trimmed_file)
-        } else {
-            Self::Themed(trimmed_file)
+    pub(crate) fn from_theme_file(theme_file: &Path) -> Option<Self> {
+        let trimmed_icon = trim_icon_file(theme_file)
+            .inspect_err(|trim_failure| {
+                tracing::warn!("tray icon: {trim_failure}");
+            })
+            .ok()?;
+        Some(Self::of_trimmed_theme_file(theme_file, trimmed_icon))
+    }
+
+    fn of_trimmed_theme_file(theme_file: &Path, trimmed_icon: TrimmedIcon) -> Self {
+        let is_symbolic_file_name = theme_file
+            .file_stem()
+            .and_then(|file_stem| file_stem.to_str())
+            .is_some_and(|file_stem| file_stem.ends_with(SYMBOLIC_ICON_SUFFIX));
+        match trimmed_icon {
+            TrimmedIcon::Svg(svg_bytes) if is_symbolic_file_name => Self::ThemedSymbolic(svg_bytes),
+            full_colour_icon => Self::Themed(full_colour_icon),
         }
     }
 }
@@ -215,7 +219,7 @@ fn resolve_visual(
                 })
         })
         .or_else(|| entries.theme_icon(UNIDENTIFIED_APP_ICON))
-        .map(|path| IconSource::from_theme_file(&path))
+        .and_then(|path| IconSource::from_theme_file(&path))
 }
 
 fn adapt_tooltip(item: &StatusNotifierItem) -> Option<Tip> {
@@ -502,12 +506,19 @@ mod tests {
         assert_eq!(chosen.dimensions(), (48, 48));
     }
 
+    fn placeholder_svg_bytes() -> Arc<[u8]> {
+        Arc::from(&b"<svg/>"[..])
+    }
+
     #[test]
     fn symbolic_svg_is_tinted_by_the_panel() {
         let theme_file = Path::new("/absent/icons/page.codeberg.wvhulle.Bindrune-symbolic.svg");
         assert_eq!(
-            IconSource::from_theme_file(theme_file),
-            IconSource::ThemedSymbolic(theme_file.to_path_buf())
+            IconSource::of_trimmed_theme_file(
+                theme_file,
+                TrimmedIcon::Svg(placeholder_svg_bytes())
+            ),
+            IconSource::ThemedSymbolic(placeholder_svg_bytes())
         );
     }
 
@@ -515,17 +526,24 @@ mod tests {
     fn full_colour_svg_keeps_its_colours() {
         let theme_file = Path::new("/absent/icons/page.codeberg.wvhulle.Bindrune.svg");
         assert_eq!(
-            IconSource::from_theme_file(theme_file),
-            IconSource::Themed(theme_file.to_path_buf())
+            IconSource::of_trimmed_theme_file(
+                theme_file,
+                TrimmedIcon::Svg(placeholder_svg_bytes())
+            ),
+            IconSource::Themed(TrimmedIcon::Svg(placeholder_svg_bytes()))
         );
     }
 
     #[test]
     fn symbolic_png_is_not_loaded_as_svg() {
         let theme_file = Path::new("/absent/icons/network-wireless-symbolic.png");
+        let decoded_pixels = Arc::new(RgbaImage::new(4, 4));
         assert_eq!(
-            IconSource::from_theme_file(theme_file),
-            IconSource::Themed(theme_file.to_path_buf())
+            IconSource::of_trimmed_theme_file(
+                theme_file,
+                TrimmedIcon::Raster(decoded_pixels.clone())
+            ),
+            IconSource::Themed(TrimmedIcon::Raster(decoded_pixels))
         );
     }
 }

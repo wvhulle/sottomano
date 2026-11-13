@@ -39,7 +39,6 @@ use crate::{
         configured_theme::primary_color,
         glyph_button,
         icon_glyph::IconGlyph,
-        icon_handle::IconHandle,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -466,8 +465,8 @@ impl AppLauncherGroup {
             name: app.name.clone().into(),
             icon: index
                 .app_icon(&app.app_id)
-                .map_or(GroupItemIcon::Absent, |icon_path| {
-                    GroupItemIcon::Image(IconHandle::at(icon_path))
+                .map_or(GroupItemIcon::Absent, |icon_handle| {
+                    GroupItemIcon::Image(icon_handle.clone())
                 }),
         }
     }
