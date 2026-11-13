@@ -24,10 +24,11 @@ macro_rules! schema_migration {
     };
 }
 
-pub const SCHEMA_MIGRATIONS: [SchemaMigration; 3] = [
+pub const SCHEMA_MIGRATIONS: [SchemaMigration; 4] = [
     schema_migration!(1, "0001_baseline_tables.sql"),
     schema_migration!(2, "0002_guest_pins_to_virtualization_menu.sql"),
     schema_migration!(3, "0003_default_idle_timeouts.sql"),
+    schema_migration!(4, "0004_focus_facet_values_as_bytes.sql"),
 ];
 
 pub async fn apply_pending_migrations(
@@ -103,7 +104,9 @@ async fn run_inside_transaction(
 mod tests {
     use std::{fs, path::Path};
 
-    use super::{SCHEMA_MIGRATIONS, applied_schema_version, apply_pending_migrations};
+    use super::{
+        SCHEMA_MIGRATIONS, applied_schema_version, apply_migration_once, apply_pending_migrations,
+    };
 
     async fn empty_connection() -> turso::Connection {
         let database = turso::Builder::new_local(":memory:").build().await.unwrap();
@@ -179,6 +182,43 @@ mod tests {
         assert_eq!(
             row.get_value(0).unwrap(),
             turso::Value::Text("virtualization".to_owned())
+        );
+    }
+
+    #[tokio::test]
+    async fn focus_facet_text_values_become_bytes() {
+        let connection = empty_connection().await;
+        for migration in SCHEMA_MIGRATIONS
+            .iter()
+            .filter(|migration| migration.version < 4)
+        {
+            apply_migration_once(&connection, migration).await.unwrap();
+        }
+        connection
+            .execute(
+                "INSERT INTO window_focus_spans (started_at, window_id, ended_at) VALUES \
+                 ('2026-11-13T09:00:00Z', 7, '2026-11-13T09:05:00Z')",
+                (),
+            )
+            .await
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO window_focus_span_facets (span_started_at, facet, value) VALUES \
+                 ('2026-11-13T09:00:00Z', 'project', '/code/sottomano')",
+                (),
+            )
+            .await
+            .unwrap();
+        apply_pending_migrations(&connection).await.unwrap();
+        let mut rows = connection
+            .query("SELECT value FROM window_focus_span_facets", ())
+            .await
+            .unwrap();
+        let row = rows.next().await.unwrap().unwrap();
+        assert_eq!(
+            row.get_value(0).unwrap(),
+            turso::Value::Blob(b"/code/sottomano".to_vec())
         );
     }
 }

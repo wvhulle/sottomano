@@ -79,7 +79,7 @@ async fn read_spans(
     while let Some(row) = rows.next().await? {
         let stored = columns
             .optional_text(&row, "facet")
-            .zip(columns.optional_text(&row, "value"))
+            .zip(columns.optional_blob(&row, "value"))
             .map(|(facet, value)| StoredFacet { facet, value });
         let (Ok(started_at), Ok(ended_at)) = (
             columns.text(&row, "started_at")?.parse(),
@@ -93,8 +93,8 @@ async fn read_spans(
             ended_at,
             unit: stored.and_then(|stored| {
                 FocusUnit::try_from(stored)
-                    .inspect_err(|unknown_facet| {
-                        tracing::warn!("focus spans: skipping stored facet: {unknown_facet}");
+                    .inspect_err(|facet_failure| {
+                        tracing::warn!("focus spans: skipping stored facet: {facet_failure}");
                     })
                     .ok()
             }),

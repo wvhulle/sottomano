@@ -1,8 +1,11 @@
 use std::{
     borrow::Cow,
+    ffi::OsString,
     fmt,
+    os::unix::ffi::{OsStrExt, OsStringExt},
     path::{Path, PathBuf},
     str::FromStr,
+    string::FromUtf8Error,
 };
 
 use chrono::TimeDelta;
@@ -17,16 +20,15 @@ pub enum FocusUnit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoredFacet {
     pub facet: String,
-    pub value: String,
+    pub value: Vec<u8>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnknownFacet(pub String);
-
-impl fmt::Display for UnknownFacet {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "unknown focus facet {}", self.0)
-    }
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum StoredFacetError {
+    #[error("unknown focus facet {0}")]
+    UnknownFacet(String),
+    #[error("stored app id is not unicode: {0}")]
+    NonUnicodeAppId(#[from] FromUtf8Error),
 }
 
 impl From<&FocusUnit> for StoredFacet {
@@ -34,27 +36,26 @@ impl From<&FocusUnit> for StoredFacet {
         match unit {
             FocusUnit::App(app_id) => StoredFacet {
                 facet: "app".to_owned(),
-                value: app_id.clone(),
+                value: app_id.as_bytes().to_vec(),
             },
             FocusUnit::Project(root) => StoredFacet {
                 facet: "project".to_owned(),
-                value: root
-                    .to_str()
-                    .expect("probed project roots are unicode")
-                    .to_owned(),
+                value: root.as_os_str().as_bytes().to_vec(),
             },
         }
     }
 }
 
 impl TryFrom<StoredFacet> for FocusUnit {
-    type Error = UnknownFacet;
+    type Error = StoredFacetError;
 
-    fn try_from(stored: StoredFacet) -> Result<Self, UnknownFacet> {
+    fn try_from(stored: StoredFacet) -> Result<Self, StoredFacetError> {
         match stored.facet.as_str() {
-            "app" => Ok(FocusUnit::App(stored.value)),
-            "project" => Ok(FocusUnit::Project(PathBuf::from(stored.value))),
-            _ => Err(UnknownFacet(stored.facet)),
+            "app" => Ok(FocusUnit::App(String::from_utf8(stored.value)?)),
+            "project" => Ok(FocusUnit::Project(PathBuf::from(OsString::from_vec(
+                stored.value,
+            )))),
+            _ => Err(StoredFacetError::UnknownFacet(stored.facet)),
         }
     }
 }
@@ -146,10 +147,27 @@ mod tests {
         assert!(
             FocusUnit::try_from(StoredFacet {
                 facet: "branch".to_owned(),
-                value: "main".to_owned()
+                value: b"main".to_vec()
             })
             .is_err()
         );
         assert_eq!("asleep".parse(), Ok(Presence::Asleep));
+    }
+
+    #[test]
+    fn non_unicode_project_roots_round_trip() {
+        let unit = FocusUnit::Project(PathBuf::from(OsString::from_vec(b"/code/caf\xe9".to_vec())));
+        assert_eq!(FocusUnit::try_from(StoredFacet::from(&unit)), Ok(unit));
+    }
+
+    #[test]
+    fn non_unicode_app_ids_are_rejected() {
+        assert!(matches!(
+            FocusUnit::try_from(StoredFacet {
+                facet: "app".to_owned(),
+                value: b"firefox\xff".to_vec()
+            }),
+            Err(StoredFacetError::NonUnicodeAppId(_))
+        ));
     }
 }
