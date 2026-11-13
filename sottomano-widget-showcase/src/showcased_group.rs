@@ -59,7 +59,7 @@ use sottomano_widgets::{
         waydroid_container_group::WaydroidContainerGroup,
         weather_group::WeatherGroup,
         widget_group_content::WidgetGroupContent,
-        window_group::{WindowGroup, WindowRowLayout, WindowTarget},
+        window_group::{WindowGroup, WindowRowLayout, WindowTarget, WindowTitleLength},
         wireguard_tunnels_group::WireguardTunnelsGroup,
         workspaces_group::{
             EmptyWorkspaceFolding, EmptyWorkspaces, inline_strip, sidebar_column,
@@ -120,6 +120,7 @@ fn undragged_slot_context(
         panel_corner_radius_px: panel_appearance.corner_radius_px,
         panel_frame_style: panel_appearance.frame_style(),
         window_row_layout,
+        window_title_length: WindowTitleLength::default(),
     }
 }
 

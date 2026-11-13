@@ -58,6 +58,13 @@ pub enum WindowRowLayout {
     GroupedByLocation,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum WindowTitleLength {
+    #[default]
+    Capped,
+    Full,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowTarget {
     Pick(u64),

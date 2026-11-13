@@ -100,7 +100,7 @@ impl SlotTileInset {
 pub(super) struct SlotGroupFrame {
     pager_axis: PagerAxis,
     heading: Rectangle,
-    inner_surface: Rectangle,
+    slot_cells: Vec<Rectangle>,
     tile_inset: SlotTileInset,
 }
 
@@ -108,33 +108,41 @@ impl SlotGroupFrame {
     pub(super) fn around_slots(
         pager_axis: PagerAxis,
         heading: Rectangle,
-        slots: Rectangle,
+        slots: impl IntoIterator<Item = Rectangle>,
         tile_inset: SlotTileInset,
     ) -> Self {
         Self {
             pager_axis,
             heading,
-            inner_surface: tile_inset.inner_surface(pager_axis, slots),
+            slot_cells: slots
+                .into_iter()
+                .map(|slot| tile_inset.inner_surface(pager_axis, slot))
+                .collect(),
             tile_inset,
         }
     }
 
-    fn enclosure(&self) -> Rectangle {
-        let around_inner_surface = self.inner_surface.expand(self.tile_inset.thickness);
+    fn enclosure(&self) -> Option<Rectangle> {
+        let around_slot_cells = self
+            .slot_cells
+            .iter()
+            .copied()
+            .reduce(|covered, slot_cell| covered.union(&slot_cell))?
+            .expand(self.tile_inset.thickness);
         let heading_along_panel = if self.pager_axis == PagerAxis::Vertical {
             Rectangle {
                 y: self.heading.y,
                 height: self.heading.height,
-                ..around_inner_surface
+                ..around_slot_cells
             }
         } else {
             Rectangle {
                 x: self.heading.x,
                 width: self.heading.width,
-                ..around_inner_surface
+                ..around_slot_cells
             }
         };
-        around_inner_surface.union(&heading_along_panel)
+        Some(around_slot_cells.union(&heading_along_panel))
     }
 
     pub(super) fn draw(
@@ -143,35 +151,24 @@ impl SlotGroupFrame {
         enclosure_color: Color,
         inner_color: Color,
     ) {
+        let Some(enclosure) = self.enclosure() else {
+            return;
+        };
         renderer.fill_quad(
             renderer::Quad {
-                bounds: self.enclosure(),
+                bounds: enclosure,
                 border: border::rounded(self.tile_inset.enclosure_radius),
                 snap: true,
                 ..renderer::Quad::default()
             },
             enclosure_color,
         );
-        renderer.fill_quad(
-            tile_quad(self.inner_surface, self.tile_inset.inner_radius().into()),
-            inner_color,
-        );
-    }
-
-    pub(super) fn highlight_inside(
-        &self,
-        slot: Rectangle,
-        tile_neighbours: TileNeighbours,
-    ) -> renderer::Quad {
-        let bounds = self
-            .inner_surface
-            .intersection(&slot)
-            .unwrap_or(self.inner_surface);
-        tile_quad(
-            bounds,
-            self.tile_inset
-                .joined_tile_corners(self.pager_axis, tile_neighbours),
-        )
+        for slot_cell in &self.slot_cells {
+            renderer.fill_quad(
+                tile_quad(*slot_cell, self.tile_inset.inner_radius().into()),
+                inner_color,
+            );
+        }
     }
 }
 
@@ -192,25 +189,32 @@ mod tests {
         height: 30.0,
     };
 
-    fn assert_tiles_match_across_grouping(pager_axis: PagerAxis) {
-        let frame =
-            SlotGroupFrame::around_slots(pager_axis, Rectangle::default(), WINDOW_SLOT, TILE_INSET);
-        let grouped_tile = frame.highlight_inside(WINDOW_SLOT, TileNeighbours::default());
-        let ungrouped_tile =
-            TILE_INSET.tile_on_slot(pager_axis, WINDOW_SLOT, TileNeighbours::default());
-        assert_eq!(ungrouped_tile.bounds, grouped_tile.bounds);
-        assert_eq!(ungrouped_tile.border, grouped_tile.border);
-        assert_eq!(ungrouped_tile.snap, grouped_tile.snap);
-    }
-
     #[test]
-    fn ungrouped_tile_matches_grouped_tile_on_horizontal_panels() {
-        assert_tiles_match_across_grouping(PagerAxis::Horizontal);
-    }
-
-    #[test]
-    fn ungrouped_tile_matches_grouped_tile_on_vertical_panels() {
-        assert_tiles_match_across_grouping(PagerAxis::Vertical);
+    fn each_grouped_slot_gets_its_own_cell_inside_the_enclosure() {
+        let next_slot = Rectangle {
+            x: WINDOW_SLOT.x + WINDOW_SLOT.width + TILE_INSET.thickness,
+            ..WINDOW_SLOT
+        };
+        let frame = SlotGroupFrame::around_slots(
+            PagerAxis::Horizontal,
+            Rectangle::default(),
+            [WINDOW_SLOT, next_slot],
+            TILE_INSET,
+        );
+        assert_eq!(
+            frame.slot_cells,
+            [
+                TILE_INSET.inner_surface(PagerAxis::Horizontal, WINDOW_SLOT),
+                TILE_INSET.inner_surface(PagerAxis::Horizontal, next_slot),
+            ]
+        );
+        let enclosure = frame.enclosure().expect("two slots enclose a group");
+        assert!(
+            frame
+                .slot_cells
+                .iter()
+                .all(|slot_cell| enclosure.contains(slot_cell.center()))
+        );
     }
 
     #[test]

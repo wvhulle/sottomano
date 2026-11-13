@@ -56,9 +56,9 @@ impl ForegroundActivity {
     }
 
     #[must_use]
-    pub fn command_name(&self) -> Option<&str> {
+    pub fn program_name(&self) -> Option<&str> {
         match self {
-            ForegroundActivity::ShellPrompt { .. } => None,
+            ForegroundActivity::ShellPrompt { shell_name } => Some(shell_name),
             ForegroundActivity::ShellCommand {
                 command_line,
                 program_name,
@@ -171,6 +171,12 @@ mod tests {
 
     fn local_directory(path: &str) -> WorkingLocation {
         WorkingLocation::LocalDirectory(path.to_owned())
+    }
+
+    #[test]
+    fn a_bare_prompt_names_its_shell_as_the_program() {
+        let prompt_label = window_label("~/project", "/home/user/project", None);
+        assert_eq!(prompt_label.foreground_activity.program_name(), Some("nu"));
     }
 
     #[test]
