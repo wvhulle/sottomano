@@ -152,7 +152,7 @@ impl AppearancePreset {
                         ..panels
                     },
                     sidebar: LayerAppearance {
-                        opacity: 0.4,
+                        opacity: 0.55,
                         outline: OutlineStyle {
                             tracing: OutlineTracing::Drawn,
                             ..sidebar.outline
@@ -160,8 +160,12 @@ impl AppearancePreset {
                         ..sidebar
                     },
                     overlays: LayerAppearance {
-                        opacity: 0.9,
+                        opacity: 0.75,
                         ..current.overlays
+                    },
+                    menus: LayerAppearance {
+                        opacity: 0.75,
+                        ..current.menus
                     },
                     ..current
                 }
@@ -189,9 +193,9 @@ impl AppearancePreset {
                 ShellAppearance {
                     scheme: ColorMode::Dark,
                     panels: frosted(current.panels, 0.8),
-                    sidebar: frosted(current.sidebar, 0.8),
-                    overlays: frosted(current.overlays, 0.85),
-                    menus: frosted(current.menus, 0.85),
+                    sidebar: frosted(current.sidebar, 0.9),
+                    overlays: frosted(current.overlays, 0.7),
+                    menus: frosted(current.menus, 0.7),
                 }
             }
         }

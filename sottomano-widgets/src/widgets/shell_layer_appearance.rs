@@ -20,7 +20,11 @@ impl ShellLayer {
     #[must_use]
     pub fn default_appearance(self) -> LayerAppearance {
         match self {
-            Self::Panels | Self::Sidebar => LayerAppearance::default(),
+            Self::Panels => LayerAppearance::default(),
+            Self::Sidebar => LayerAppearance {
+                opacity: 0.9,
+                ..LayerAppearance::default()
+            },
             Self::Overlays => LayerAppearance {
                 opacity: 0.85,
                 corner_radius_px: 12.0,
