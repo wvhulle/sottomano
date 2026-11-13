@@ -13,7 +13,9 @@ use crate::{
     hover_cards::PointerPresence,
     widget_groups::widget_group_content::{GroupEvent, RowInspection},
     widgets::{
-        configured_theme::{background_strong_color, primary_weak_color, text_color},
+        configured_theme::{
+            background_strong_color, primary_weak_color, primary_weak_text_color, text_color,
+        },
         flat_button,
         text::panel_text,
     },
@@ -47,6 +49,13 @@ pub(crate) struct MenuRowLook {
     pub frame_corners: Radius,
 }
 
+pub(crate) fn row_text_color(emphasis: MenuRowEmphasis) -> fn(&Theme) -> Color {
+    match emphasis {
+        MenuRowEmphasis::Plain => text_color,
+        MenuRowEmphasis::Selected => primary_weak_text_color,
+    }
+}
+
 pub(crate) fn menu_row_height(config: &Config) -> f32 {
     config.desktop_panels.height + config.theme.spacing.item_gap
 }
@@ -74,7 +83,7 @@ pub(crate) fn menu_row<'a, Message: Clone + 'a>(
             .width(Length::Fill)
             .height(menu_row_height(config))
             .padding(menu_row_padding(config))
-            .style(flat_button(text_color))
+            .style(flat_button(row_text_color(look.emphasis)))
             .on_press(press_event)
             .into(),
     };
