@@ -561,7 +561,10 @@ impl From<ShellInteraction> for Message {
 
 impl From<WorkspacesMessage> for ShellInteraction {
     fn from(workspaces_message: WorkspacesMessage) -> Self {
-        ShellInteraction::Workspaces(workspaces_message)
+        match workspaces_message {
+            WorkspacesMessage::HoverCard(hover_card) => ShellInteraction::HoverCard(hover_card),
+            other_message => ShellInteraction::Workspaces(other_message),
+        }
     }
 }
 
