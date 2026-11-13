@@ -1,7 +1,8 @@
-pub mod versioned_schema_migrations;
 pub mod write_rate_limit;
 
 use std::{collections::HashMap, env, fs, io, ops::Deref, path::PathBuf, time::Duration};
+
+use sottomano_db_migrations::{MigrationError, apply_pending_migrations};
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
@@ -11,6 +12,8 @@ pub enum StoreError {
     CreateDirectory(#[from] io::Error),
     #[error("database error: {0}")]
     Database(#[from] turso::Error),
+    #[error("schema migration failed: {0}")]
+    Migration(#[from] MigrationError),
     #[error("{0}")]
     Column(#[from] ColumnError),
     #[error("no matching row")]
@@ -54,9 +57,7 @@ impl Deref for TableConnection {
 pub async fn migrated_in_memory_store() -> turso::Connection {
     let database = turso::Builder::new_local(":memory:").build().await.unwrap();
     let connection = database.connect().unwrap();
-    versioned_schema_migrations::apply_pending_migrations(&connection)
-        .await
-        .unwrap();
+    apply_pending_migrations(&connection).await.unwrap();
     connection
 }
 
@@ -115,7 +116,7 @@ pub async fn connect_migrated_store() -> Result<TableConnection, StoreError> {
     let database = turso::Builder::new_local(path_text).build().await?;
     let connection = database.connect()?;
     connection.busy_timeout(BUSY_TIMEOUT)?;
-    versioned_schema_migrations::apply_pending_migrations(&connection).await?;
+    apply_pending_migrations(&connection).await?;
     Ok(TableConnection {
         connection,
         _database: database,
