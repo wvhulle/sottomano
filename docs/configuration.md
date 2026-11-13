@@ -49,7 +49,7 @@ secondary = "#bfbdb6"
 text_size = "14px"
 
 [theme.spacing]
-item_gap = "4px"
+item_gap = "6px"
 surface_inset = "10px"
 group_gap = "14px"
 
