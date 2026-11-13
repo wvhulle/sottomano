@@ -400,8 +400,8 @@ impl ShowcasedDesktopSession {
 
     fn hover_card_for(&self, target: &HoverTarget, clock: Clock) -> Option<HoverCard> {
         match target {
-            HoverTarget::Window(WindowTarget::Pick(window)) => {
-                WindowGroup::pick_hover_card(&self.compositor, *window, clock)
+            HoverTarget::Window(WindowTarget::Usage(window)) => {
+                WindowGroup::window_identity_hover_card(&self.compositor, *window, clock)
             }
             HoverTarget::Window(WindowTarget::Inspect(_)) => {
                 Some(self.window_group.inspect_hover_card(clock))

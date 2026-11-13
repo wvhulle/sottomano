@@ -282,19 +282,27 @@ impl DesktopShell {
                 .widget_groups
                 .global_menu_group
                 .hover_card_for(target, self.clock),
-            HoverTarget::Window(WindowTarget::Pick(window)) => {
-                WindowGroup::pick_hover_card(&self.compositor, *window, self.clock)
-            }
             HoverTarget::Window(WindowTarget::Inspect(_)) => Some(
                 self.widget_groups
                     .window_group
                     .inspect_hover_card(self.clock),
             ),
-            HoverTarget::Window(WindowTarget::Usage(window)) => Some(
-                self.widget_groups
+            HoverTarget::Window(WindowTarget::Usage(window)) => {
+                let window_usage = self
+                    .widget_groups
                     .session_focus_group
-                    .window_usage_hover_card(*window, &self.config, self.clock),
-            ),
+                    .window_usage_hover_card(*window, &self.config, self.clock);
+                Some(
+                    match WindowGroup::window_identity_hover_card(
+                        &self.compositor,
+                        *window,
+                        self.clock,
+                    ) {
+                        Some(window_identity) => window_identity.with_groups(window_usage.groups),
+                        None => window_usage,
+                    },
+                )
+            }
             HoverTarget::Workspace(workspace) => workspace_hover_card::hover_card(
                 &self.window_snapshot,
                 &self.desktop_entries,

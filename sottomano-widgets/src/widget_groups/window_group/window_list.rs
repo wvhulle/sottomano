@@ -585,12 +585,6 @@ impl WindowSlot<'_> {
         let config = self.slot_context.config;
         let window = self.window_entry.id;
         let press_hints = self.press_hints();
-        let picking = hoverable(
-            self.button_content(icons),
-            WindowTarget::Pick(window).into(),
-            press_hints,
-            WindowListInteraction::HoverCard,
-        );
         let usage = self.window_entry.is_focused.then(|| {
             hoverable(
                 self.secondary_glyph(Phosphor::UserFocus),
@@ -608,7 +602,7 @@ impl WindowSlot<'_> {
             )
         });
         let content = Row::new()
-            .push(picking)
+            .push(self.button_content(icons))
             .extend(usage)
             .extend(inspecting)
             .spacing(config.theme.spacing.item_gap)

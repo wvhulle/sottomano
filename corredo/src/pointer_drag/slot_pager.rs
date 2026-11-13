@@ -1,32 +1,34 @@
-use std::{collections::HashMap, convert::identity, hash::Hash, mem};
+use std::hash::Hash;
 
-use iced::{
-    Alignment, Animation, Color, Element, Event, Length, Rectangle, Size, Theme, Vector,
-    advanced::{
-        Clipboard, Layout, Renderer as _, Shell, Widget,
-        layout::{Limits, Node},
-        mouse, overlay, renderer,
-        widget::{Operation, Tree, tree},
-    },
-    animation::Easing,
-    border::{Border, Radius},
-    mouse::Cursor,
-    time::{Duration, Instant},
-    window,
-};
+use iced::{Color, Element, Theme, border::Radius, time::Duration, widget::mouse_area};
+
+mod alarm_tiles;
+mod edge_band_geometry;
+mod group_enclosures;
+mod row_arrangement;
+mod sliding_row;
+mod slot_underlay;
+mod tile_joins;
+mod travelling_highlight;
+
+use alarm_tiles::{AlarmTile, AlarmTiles};
+use group_enclosures::{EnclosedGroup, GroupEnclosures};
+use row_arrangement::RowArrangement;
+use sliding_row::SlidingRow;
+use slot_underlay::SlotUnderlay;
+use tile_joins::{GroupedSlots, SlotMarking};
+use travelling_highlight::{HighlightMark, HighlightedSlot, TravellingHighlight};
 
 use crate::{
     list_end_corners::ListEndCorners,
     pointer_drag::{
         DragEvent, DragView,
-        slot_group::{PagerAxis, SlotGroup, SlotGroupFrame, SlotTileInset, TileNeighbours},
+        slot_group::{PagerAxis, SlotGroup, SlotTileInset},
     },
-    primitives::motion_state::MotionState,
-    shared_metrics::{ACCENT_STROKE_PX, pill_corners},
+    shared_metrics::ACCENT_STROKE_PX,
     theme_colors::ThemedColor,
 };
 
-const BACKDROP_TINT_ALPHA: f32 = 0.3;
 const DEFAULT_INDICATOR_MOTION: Duration = Duration::from_millis(160);
 const DEFAULT_GROUP_GAP_PX: f32 = 4.0;
 
@@ -36,12 +38,6 @@ pub enum PagerEdge {
     Bottom,
     Left,
     Right,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SlotTile {
-    Drawn,
-    Absent,
 }
 
 impl From<PagerEdge> for PagerAxis {
@@ -173,889 +169,179 @@ impl<'a, Message, SlotKey> SlotPager<'a, Message, SlotKey> {
     }
 }
 
-struct State<SlotKey> {
-    keys: Vec<SlotKey>,
-    slot_starts: HashMap<SlotKey, Animation<f32>>,
-    highlight_travel: Option<HighlightTravel>,
-    cursor_over_list: bool,
-    frame: Option<Instant>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum RowKey<SlotKey> {
+    Slot(SlotKey),
+    GroupHeading(SlotKey),
 }
 
-impl<SlotKey: Copy + Eq + Hash> State<SlotKey> {
-    fn slide_state(&self, now: Instant) -> MotionState {
-        if self
-            .slot_starts
-            .values()
-            .any(|start| start.is_animating(now))
-        {
-            MotionState::Moving
-        } else {
-            MotionState::Settled
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-struct TravelledSpan {
-    start: f32,
-    extent: f32,
-}
-
-struct HighlightTravel {
-    start: Animation<f32>,
-    extent: Animation<f32>,
-}
-
-fn eased_motion(value: f32, duration: Duration) -> Animation<f32> {
-    Animation::new(value)
-        .easing(Easing::EaseOutCubic)
-        .duration(duration)
-}
-
-impl HighlightTravel {
-    fn resting_at(span: TravelledSpan, duration: Duration) -> Self {
-        Self {
-            start: eased_motion(span.start, duration),
-            extent: eased_motion(span.extent, duration),
-        }
-    }
-
-    fn aim(&mut self, span: TravelledSpan, now: Instant) {
-        self.start.go_mut(span.start, now);
-        self.extent.go_mut(span.extent, now);
-    }
-
-    fn motion_state(&self, now: Instant) -> MotionState {
-        if self.start.is_animating(now) || self.extent.is_animating(now) {
-            MotionState::Moving
-        } else {
-            MotionState::Settled
-        }
-    }
-
-    fn travelled(&self, now: Instant) -> TravelledSpan {
-        TravelledSpan {
-            start: self.start.interpolate_with(identity, now),
-            extent: self.extent.interpolate_with(identity, now),
-        }
-    }
-}
-
-fn edge_band(edge: PagerEdge, slots: Rectangle, slot: Rectangle, thickness: f32) -> Rectangle {
-    match edge {
-        PagerEdge::Bottom => Rectangle {
-            height: thickness,
-            ..slot
-        },
-        PagerEdge::Top => Rectangle {
-            y: slot.y + slot.height - thickness,
-            height: thickness,
-            ..slot
-        },
-        PagerEdge::Left => Rectangle {
-            x: slots.x + slots.width - thickness,
-            width: thickness,
-            ..slot
-        },
-        PagerEdge::Right => Rectangle {
-            x: slots.x,
-            width: thickness,
-            ..slot
-        },
-    }
-}
-
-fn band_clear_of_corners(edge: PagerEdge, band: Rectangle, corners: Radius) -> Rectangle {
-    match edge {
-        PagerEdge::Left => Rectangle {
-            y: band.y + corners.top_right,
-            height: (band.height - corners.top_right - corners.bottom_right).max(0.0),
-            ..band
-        },
-        PagerEdge::Right => Rectangle {
-            y: band.y + corners.top_left,
-            height: (band.height - corners.top_left - corners.bottom_left).max(0.0),
-            ..band
-        },
-        PagerEdge::Bottom => Rectangle {
-            x: band.x + corners.top_left,
-            width: (band.width - corners.top_left - corners.top_right).max(0.0),
-            ..band
-        },
-        PagerEdge::Top => Rectangle {
-            x: band.x + corners.bottom_left,
-            width: (band.width - corners.bottom_left - corners.bottom_right).max(0.0),
-            ..band
-        },
-    }
-}
-
-fn edge_backdrop(edge: PagerEdge, slots: Rectangle, slot: Rectangle) -> Rectangle {
-    match edge {
-        PagerEdge::Left | PagerEdge::Right => Rectangle {
-            x: slots.x,
-            width: slots.width,
-            ..slot
-        },
-        PagerEdge::Top | PagerEdge::Bottom => Rectangle {
-            y: slots.y,
-            height: slots.height,
-            ..slot
-        },
-    }
-}
-
-impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKey> {
-    fn pager_axis(&self) -> PagerAxis {
-        PagerAxis::from(self.edge)
-    }
-
-    fn sliding_start(&self, state: &mut State<SlotKey>, key: SlotKey, target: f32) -> f32 {
-        let Some(now) = state.frame else {
-            return target;
-        };
-        let start = state
-            .slot_starts
-            .entry(key)
-            .or_insert_with(|| eased_motion(target, self.motion));
-        if (start.value() - target).abs() > f32::EPSILON {
-            start.go_mut(target, now);
-        }
-        start.interpolate_with(identity, now)
-    }
-
-    fn laid_out_slots(
-        &mut self,
-        trees: &mut [Tree],
-        renderer: &iced::Renderer,
-        limits: &Limits,
-    ) -> Vec<Node> {
-        if self.pager_axis() == PagerAxis::Vertical {
-            let intrinsic = Limits::with_compression(
-                Size::ZERO,
-                limits.max(),
-                Size::new(true, limits.compression().height),
-            );
-            let width = self
-                .slots
-                .iter_mut()
-                .zip(trees.iter_mut())
-                .map(|(slot, tree)| {
-                    slot.as_widget_mut()
-                        .layout(tree, renderer, &intrinsic)
-                        .size()
-                        .width
-                })
-                .fold(limits.min().width, f32::max);
-            let stretched =
-                Limits::new(Size::new(width, 0.0), Size::new(width, limits.max().height));
-            self.slots
-                .iter_mut()
-                .zip(trees)
-                .map(|(slot, tree)| slot.as_widget_mut().layout(tree, renderer, &stretched))
-                .collect()
-        } else {
-            let height = limits.max().height;
-            let along_panel = Limits::new(Size::ZERO, Size::new(f32::INFINITY, height));
-            self.slots
-                .iter_mut()
-                .zip(trees)
-                .map(|(slot, tree)| {
-                    let mut node = slot.as_widget_mut().layout(tree, renderer, &along_panel);
-                    node.align_mut(Alignment::Start, Alignment::Center, Size::new(0.0, height));
-                    node
-                })
-                .collect()
-        }
-    }
-
-    fn extent(&self, node: &Node) -> f32 {
-        if self.pager_axis() == PagerAxis::Vertical {
-            node.size().height
-        } else {
-            node.size().width
-        }
-    }
-
-    fn placed_at(&self, node: Node, start: f32) -> Node {
-        if self.pager_axis() == PagerAxis::Vertical {
-            node.move_to((0.0, start))
-        } else {
-            let across = node.bounds().y;
-            node.move_to((start, across))
-        }
-    }
-
-    fn highlighted_position(&self) -> Option<usize> {
-        let highlight = self.highlight.as_ref()?;
-        self.keys.iter().position(|key| *key == highlight.key)
-    }
-
-    fn highlighted_slot(&self, layout: Layout<'_>) -> Option<Rectangle> {
-        Some(
-            layout
-                .children()
-                .nth(self.highlighted_position()?)?
-                .bounds(),
-        )
-    }
-
-    fn highlighted_corners(&self) -> Radius {
-        self.highlighted_position()
-            .map_or_else(Radius::default, |highlighted_position| {
-                ListEndCorners::new(self.keys.len(), self.frame_corners)
-                    .radius_at(highlighted_position)
-            })
-    }
-
-    fn span(&self, slot: Rectangle) -> TravelledSpan {
-        if self.pager_axis() == PagerAxis::Vertical {
-            TravelledSpan {
-                start: slot.y,
-                extent: slot.height,
-            }
-        } else {
-            TravelledSpan {
-                start: slot.x,
-                extent: slot.width,
-            }
-        }
-    }
-
-    fn travelled_slot(&self, slot: Rectangle, travelled: TravelledSpan) -> Rectangle {
-        if self.pager_axis() == PagerAxis::Vertical {
-            Rectangle {
-                y: travelled.start,
-                height: travelled.extent,
-                ..slot
-            }
-        } else {
-            Rectangle {
-                x: travelled.start,
-                width: travelled.extent,
-                ..slot
-            }
-        }
-    }
-
-    fn travelled_highlight(&self, tree: &Tree, layout: Layout<'_>) -> Option<Rectangle> {
-        let slot = self.highlighted_slot(layout)?;
-        let state = tree.state.downcast_ref::<State<SlotKey>>();
-        let travelled = state.highlight_travel.as_ref()?.travelled(state.frame?);
-        Some(self.travelled_slot(slot, travelled))
-    }
-
-    fn aim_highlight(
-        &self,
-        state: &mut State<SlotKey>,
-        layout: Layout<'_>,
-        now: Instant,
-    ) -> MotionState {
-        let Some(slot) = self.highlighted_slot(layout) else {
-            return MotionState::Settled;
-        };
-        let span = self.span(slot);
-        let travel = state
-            .highlight_travel
-            .get_or_insert_with(|| HighlightTravel::resting_at(span, self.motion));
-        travel.aim(span, now);
-        travel.motion_state(now)
-    }
-
-    fn laid_out_headings(
-        &mut self,
-        trees: &mut [Tree],
-        renderer: &iced::Renderer,
-        limits: &Limits,
-    ) -> Vec<Node> {
-        let pager_axis = self.pager_axis();
-        let height = limits.max().height;
-        let heading_limits = if pager_axis == PagerAxis::Vertical {
-            Limits::new(Size::ZERO, limits.max())
-        } else {
-            Limits::new(Size::ZERO, Size::new(f32::INFINITY, height))
-        };
-        self.groups
-            .iter_mut()
-            .zip(trees)
-            .map(|(group, tree)| {
-                let mut node =
-                    group
-                        .heading
-                        .as_widget_mut()
-                        .layout(tree, renderer, &heading_limits);
-                if pager_axis == PagerAxis::Horizontal {
-                    node.align_mut(Alignment::Start, Alignment::Center, Size::new(0.0, height));
-                }
-                node
-            })
-            .collect()
-    }
-
-    fn group_frame(&self, group_index: usize, layout: Layout<'_>) -> Option<SlotGroupFrame> {
-        let group = self.groups.get(group_index)?;
-        let heading = layout.children().nth(self.slots.len() + group_index)?;
-        let slots = layout
-            .children()
-            .skip(group.positions.start)
-            .take(group.positions.len())
-            .map(|slot| slot.bounds());
-        Some(SlotGroupFrame::around_slots(
-            self.pager_axis(),
-            heading.bounds(),
+impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'a, Message, SlotKey> {
+    fn composed(self) -> Element<'a, Message> {
+        let SlotPager {
+            keys,
             slots,
-            SlotTileInset {
+            edge,
+            spacing,
+            motion,
+            indicator_thickness,
+            highlight,
+            ungrouped_highlight_look,
+            alarms,
+            groups,
+            group_gap,
+            frame_corners,
+            left_list_message,
+        } = self;
+        let pager_axis = PagerAxis::from(edge);
+        let slot_count = keys.len();
+        let groups: Vec<_> = groups
+            .into_iter()
+            .filter(|group| !group.positions.is_empty() && group.positions.end <= slot_count)
+            .collect();
+        let grouped_slots = grouped_slots_of(&groups);
+        let highlighted_position = highlight
+            .as_ref()
+            .and_then(|slot_highlight| keys.iter().position(|key| *key == slot_highlight.key));
+        let slot_marking = SlotMarking {
+            grouped_slots: &grouped_slots,
+            ungrouped_look: ungrouped_highlight_look,
+            marked_positions: highlighted_position
+                .into_iter()
+                .chain(alarms.iter().map(|alarm| alarm.position))
+                .collect(),
+        };
+        let row_arrangement = RowArrangement::of(slot_count, &grouped_slots, spacing, group_gap);
+        let mut highlighted_slot =
+            highlight
+                .zip(highlighted_position)
+                .map(|(slot_highlight, slot_position)| HighlightedSlot {
+                    slot_position,
+                    mark: highlight_mark(
+                        &slot_marking,
+                        slot_position,
+                        HighlightMark::EdgeBand {
+                            edge,
+                            corners: ListEndCorners::new(slot_count, frame_corners)
+                                .radius_at(slot_position),
+                            thickness: indicator_thickness,
+                        },
+                    ),
+                    color: slot_highlight.color,
+                });
+        let alarm_tiles = alarm_tiles_of(alarms, &slot_marking);
+        let mut row_children: Vec<(RowKey<SlotKey>, Element<'a, Message>)> =
+            keys.iter().copied().map(RowKey::Slot).zip(slots).collect();
+        let mut enclosed_groups = Vec::with_capacity(groups.len());
+        for (group_index, (group, grouped)) in groups.into_iter().zip(&grouped_slots).enumerate() {
+            if let Some(highlighted) = highlighted_slot
+                .as_mut()
+                .filter(|highlighted| group.positions.contains(&highlighted.slot_position))
+            {
+                highlighted.color = group.highlight_color;
+            }
+            row_children.push((
+                RowKey::GroupHeading(keys[group.positions.start]),
+                group.heading,
+            ));
+            enclosed_groups.push(EnclosedGroup {
+                heading_index: RowArrangement::heading_index(slot_count, group_index),
+                slot_positions: group.positions,
+                tile_inset: grouped.tile_inset,
+                enclosure_color: group.enclosure_color,
+                inner_color: group.inner_color,
+            });
+        }
+        let sliding_row = SlidingRow::new(row_children, pager_axis, motion)
+            .placed_in_order(row_arrangement.placement_order)
+            .gaps_after(row_arrangement.gaps_after);
+        let painted_row = RowPainters {
+            alarm_tiles: AlarmTiles {
+                pager_axis,
+                alarm_tiles,
+            },
+            travelling_highlight: TravellingHighlight {
+                pager_axis,
+                travel_duration: motion,
+                highlighted_slot,
+            },
+            group_enclosures: GroupEnclosures {
+                pager_axis,
+                enclosed_groups,
+            },
+        }
+        .painted_under(sliding_row);
+        match left_list_message {
+            Some(left_list_message) => mouse_area(painted_row).on_exit(left_list_message).into(),
+            None => painted_row,
+        }
+    }
+}
+
+struct RowPainters<'a> {
+    alarm_tiles: AlarmTiles<'a>,
+    travelling_highlight: TravellingHighlight<'a>,
+    group_enclosures: GroupEnclosures<'a>,
+}
+
+impl<'a> RowPainters<'a> {
+    fn painted_under<Message: 'a>(
+        self,
+        sliding_row: impl Into<Element<'a, Message>>,
+    ) -> Element<'a, Message> {
+        let alarmed_row = SlotUnderlay::new(self.alarm_tiles, sliding_row);
+        let highlighted_row = SlotUnderlay::new(self.travelling_highlight, alarmed_row);
+        SlotUnderlay::new(self.group_enclosures, highlighted_row).into()
+    }
+}
+
+fn grouped_slots_of<Message>(groups: &[SlotGroup<'_, Message>]) -> Vec<GroupedSlots> {
+    groups
+        .iter()
+        .map(|group| GroupedSlots {
+            positions: group.positions.clone(),
+            tile_inset: SlotTileInset {
                 thickness: group.enclosure_thickness,
                 enclosure_radius: group.enclosure_radius,
             },
-        ))
-    }
+        })
+        .collect()
+}
 
-    fn trailing_extent(&self, slot_position: usize) -> f32 {
-        match self
-            .group_index_at(slot_position)
-            .and_then(|group_index| self.groups.get(group_index))
-        {
-            Some(group) if group.positions.end == slot_position + 1 => {
-                group.enclosure_thickness + self.group_gap
-            }
-            Some(group) => group.enclosure_thickness,
-            None => 0.0,
-        }
-    }
-
-    fn tile_inset_at(&self, slot_position: usize) -> Option<SlotTileInset> {
-        match self.group_index_at(slot_position) {
-            Some(group_index) => {
-                let group = self.groups.get(group_index)?;
-                Some(SlotTileInset {
-                    thickness: group.enclosure_thickness,
-                    enclosure_radius: group.enclosure_radius,
-                })
-            }
-            None => match self.ungrouped_highlight_look {
-                UngroupedHighlightLook::EdgeBand => None,
-                UngroupedHighlightLook::AccentTile(tile_inset) => Some(tile_inset),
-            },
-        }
-    }
-
-    fn group_index_at(&self, slot_position: usize) -> Option<usize> {
-        self.groups
-            .iter()
-            .position(|group| group.positions.contains(&slot_position))
-    }
-
-    fn highlighted_group_index(&self) -> Option<usize> {
-        self.group_index_at(self.highlighted_position()?)
-    }
-
-    fn slot_tile(&self, position: usize) -> SlotTile {
-        let marked = self.highlighted_position() == Some(position)
-            || self.alarms.iter().any(|alarm| alarm.position == position);
-        if marked
-            && (self.group_index_at(position).is_some()
-                || matches!(
-                    self.ungrouped_highlight_look,
-                    UngroupedHighlightLook::AccentTile(_)
-                ))
-        {
-            SlotTile::Drawn
-        } else {
-            SlotTile::Absent
-        }
-    }
-
-    fn tile_neighbours(&self, position: usize) -> TileNeighbours {
-        let joins_tile = |neighbour_position: usize| {
-            self.slot_tile(neighbour_position) == SlotTile::Drawn
-                && self.group_index_at(neighbour_position).is_none()
-                && self.group_index_at(position).is_none()
-        };
-        TileNeighbours {
-            leading: position.checked_sub(1).is_some_and(joins_tile),
-            trailing: joins_tile(position + 1),
-        }
-    }
-
-    fn highlighted_tile_neighbours(&self) -> TileNeighbours {
-        self.highlighted_position()
-            .map_or_else(TileNeighbours::default, |highlighted_position| {
-                self.tile_neighbours(highlighted_position)
-            })
-    }
-
-    fn alarm_tile(&self, alarm: &SlotAlarm<'_>, layout: Layout<'_>) -> Option<renderer::Quad> {
-        let slot = layout.children().nth(alarm.position)?.bounds();
-        let tile_inset = self.tile_inset_at(alarm.position)?;
-        Some(tile_inset.tile_on_slot(
-            self.pager_axis(),
-            slot,
-            self.tile_neighbours(alarm.position),
-        ))
-    }
-
-    fn ungrouped_highlight(&self, slots_bounds: Rectangle, slot: Rectangle) -> renderer::Quad {
-        renderer::Quad {
-            bounds: edge_backdrop(self.edge, slots_bounds, slot),
-            border: Border {
-                radius: self.highlighted_corners(),
-                ..Border::default()
-            },
-            snap: false,
-            ..renderer::Quad::default()
-        }
+fn highlight_mark(
+    slot_marking: &SlotMarking<'_>,
+    slot_position: usize,
+    edge_band_mark: HighlightMark,
+) -> HighlightMark {
+    match slot_marking.tile_inset_at(slot_position) {
+        Some(tile_inset) => HighlightMark::Tile {
+            tile_inset,
+            tile_neighbours: slot_marking.tile_neighbours(slot_position),
+        },
+        None => edge_band_mark,
     }
 }
 
-impl<Message: Clone, SlotKey: Copy + Eq + Hash + 'static> Widget<Message, Theme, iced::Renderer>
-    for SlotPager<'_, Message, SlotKey>
-{
-    fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<State<SlotKey>>()
-    }
-
-    fn state(&self) -> tree::State {
-        tree::State::new(State {
-            keys: self.keys.clone(),
-            slot_starts: HashMap::new(),
-            highlight_travel: None,
-            cursor_over_list: false,
-            frame: None,
+fn alarm_tiles_of<'a>(
+    alarms: Vec<SlotAlarm<'a>>,
+    slot_marking: &SlotMarking<'_>,
+) -> Vec<AlarmTile<'a>> {
+    alarms
+        .into_iter()
+        .filter_map(|alarm| {
+            Some(AlarmTile {
+                slot_position: alarm.position,
+                tile_inset: slot_marking.tile_inset_at(alarm.position)?,
+                tile_neighbours: slot_marking.tile_neighbours(alarm.position),
+                color: alarm.color,
+            })
         })
-    }
-
-    fn children(&self) -> Vec<Tree> {
-        self.slots
-            .iter()
-            .chain(self.groups.iter().map(|group| &group.heading))
-            .map(Tree::new)
-            .collect()
-    }
-
-    fn diff(&self, tree: &mut Tree) {
-        let Tree {
-            state, children, ..
-        } = tree;
-        let state = state.downcast_mut::<State<SlotKey>>();
-        let mut previous_headings = children
-            .split_off(state.keys.len().min(children.len()))
-            .into_iter();
-        let mut previous: HashMap<SlotKey, Tree> = mem::take(&mut state.keys)
-            .into_iter()
-            .zip(mem::take(children))
-            .collect();
-        *children = self
-            .keys
-            .iter()
-            .zip(&self.slots)
-            .map(|(key, slot)| match previous.remove(key) {
-                Some(mut kept) => {
-                    kept.diff(slot.as_widget());
-                    kept
-                }
-                None => Tree::new(slot),
-            })
-            .collect();
-        children.extend(
-            self.groups
-                .iter()
-                .map(|group| match previous_headings.next() {
-                    Some(mut kept) => {
-                        kept.diff(group.heading.as_widget());
-                        kept
-                    }
-                    None => Tree::new(&group.heading),
-                }),
-        );
-        state.keys.clone_from(&self.keys);
-        state.slot_starts.retain(|key, _| self.keys.contains(key));
-    }
-
-    fn size(&self) -> Size<Length> {
-        if self.pager_axis() == PagerAxis::Vertical {
-            Size::new(Length::Shrink, Length::Shrink)
-        } else {
-            Size::new(Length::Shrink, Length::Fill)
-        }
-    }
-
-    fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
-        let (slot_trees, heading_trees) = tree.children.split_at_mut(self.slots.len());
-        let nodes = self.laid_out_slots(slot_trees, renderer, limits);
-        let heading_nodes = self.laid_out_headings(heading_trees, renderer, limits);
-        let state = tree.state.downcast_mut::<State<SlotKey>>();
-        let mut placed = Vec::with_capacity(nodes.len() + heading_nodes.len());
-        let mut heading_starts = Vec::with_capacity(heading_nodes.len());
-        let mut target = 0.0;
-        for (position, (key, node)) in self.keys.clone().into_iter().zip(nodes).enumerate() {
-            let leading_extent = self
-                .groups
-                .iter()
-                .zip(&heading_nodes)
-                .find(|(group, _)| group.positions.start == position)
-                .map(|(group, heading)| self.extent(heading) + group.enclosure_thickness);
-            target += leading_extent.unwrap_or(0.0);
-            let extent = self.extent(&node);
-            let start = self.sliding_start(state, key, target);
-            heading_starts.extend(leading_extent.map(|leading_extent| start - leading_extent));
-            placed.push(self.placed_at(node, start));
-            target += extent + self.spacing + self.trailing_extent(position);
-        }
-        placed.extend(
-            heading_nodes
-                .into_iter()
-                .zip(heading_starts)
-                .map(|(heading, start)| self.placed_at(heading, start)),
-        );
-        let along = (target - self.spacing).max(0.0);
-        let size = if self.pager_axis() == PagerAxis::Vertical {
-            let widest = placed
-                .iter()
-                .map(|node| node.size().width)
-                .fold(0.0, f32::max);
-            Size::new(widest, along)
-        } else {
-            Size::new(along, limits.max().height)
-        };
-        Node::with_children(size, placed)
-    }
-
-    fn update(
-        &mut self,
-        tree: &mut Tree,
-        event: &Event,
-        layout: Layout<'_>,
-        cursor: Cursor,
-        renderer: &iced::Renderer,
-        clipboard: &mut dyn Clipboard,
-        shell: &mut Shell<'_, Message>,
-        viewport: &Rectangle,
-    ) {
-        if let Event::Window(window::Event::RedrawRequested(now)) = event {
-            let state = tree.state.downcast_mut::<State<SlotKey>>();
-            state.frame = Some(*now);
-            if state.slide_state(*now) == MotionState::Moving {
-                shell.invalidate_layout();
-                shell.request_redraw();
-            }
-            if self.aim_highlight(state, layout, *now) == MotionState::Moving {
-                shell.request_redraw();
-            }
-        }
-        for ((slot, tree), layout) in self
-            .slots
-            .iter_mut()
-            .zip(&mut tree.children)
-            .zip(layout.children())
-        {
-            slot.as_widget_mut().update(
-                tree, event, layout, cursor, renderer, clipboard, shell, viewport,
-            );
-        }
-        if shell.is_event_captured() {
-            return;
-        }
-        let state = tree.state.downcast_mut::<State<SlotKey>>();
-        let was_over_list =
-            mem::replace(&mut state.cursor_over_list, cursor.is_over(layout.bounds()));
-        if was_over_list
-            && !state.cursor_over_list
-            && let Some(left_list_message) = &self.left_list_message
-        {
-            shell.publish(left_list_message.clone());
-        }
-    }
-
-    fn draw(
-        &self,
-        tree: &Tree,
-        renderer: &mut iced::Renderer,
-        theme: &Theme,
-        style: &renderer::Style,
-        layout: Layout<'_>,
-        cursor: Cursor,
-        viewport: &Rectangle,
-    ) {
-        let slots_bounds = layout.bounds();
-        for (group_index, group) in self.groups.iter().enumerate() {
-            if let Some(frame) = self.group_frame(group_index, layout) {
-                frame.draw(
-                    renderer,
-                    (group.enclosure_color)(theme),
-                    (group.inner_color)(theme),
-                );
-            }
-        }
-        let highlighted = self
-            .highlight
-            .as_ref()
-            .zip(self.travelled_highlight(tree, layout));
-        let highlighted_group_index = self.highlighted_group_index();
-        if let Some((highlight, slot)) = highlighted {
-            let resting_slot = self.highlighted_slot(layout).unwrap_or(slot);
-            let highlight_color = match highlighted_group_index
-                .and_then(|group_index| self.groups.get(group_index))
-            {
-                Some(group) => (group.highlight_color)(theme),
-                None => (highlight.color)(theme),
-            };
-            match self
-                .highlighted_position()
-                .and_then(|highlighted_position| self.tile_inset_at(highlighted_position))
-            {
-                Some(tile_inset) => renderer.fill_quad(
-                    tile_inset.tile_on_slot(
-                        self.pager_axis(),
-                        resting_slot,
-                        self.highlighted_tile_neighbours(),
-                    ),
-                    highlight_color,
-                ),
-                None => renderer.fill_quad(
-                    self.ungrouped_highlight(slots_bounds, slot),
-                    highlight_color.scale_alpha(BACKDROP_TINT_ALPHA),
-                ),
-            }
-        }
-        for alarm in &self.alarms {
-            if let Some(alarm_tile) = self.alarm_tile(alarm, layout) {
-                renderer.fill_quad(alarm_tile, (alarm.color)(theme));
-            }
-        }
-        for ((slot, tree), layout) in self.slots.iter().zip(&tree.children).zip(layout.children()) {
-            slot.as_widget()
-                .draw(tree, renderer, theme, style, layout, cursor, viewport);
-        }
-        let heading_layouts = layout.children().skip(self.slots.len());
-        let heading_trees = tree.children.iter().skip(self.slots.len());
-        for ((group, heading_tree), heading_layout) in
-            self.groups.iter().zip(heading_trees).zip(heading_layouts)
-        {
-            group.heading.as_widget().draw(
-                heading_tree,
-                renderer,
-                theme,
-                style,
-                heading_layout,
-                cursor,
-                viewport,
-            );
-        }
-        let Some((highlight, slot)) = highlighted else {
-            return;
-        };
-        if highlighted_group_index.is_some()
-            || self.ungrouped_highlight_look != UngroupedHighlightLook::EdgeBand
-        {
-            return;
-        }
-        renderer.fill_quad(
-            renderer::Quad {
-                bounds: band_clear_of_corners(
-                    self.edge,
-                    edge_band(self.edge, slots_bounds, slot, self.indicator_thickness),
-                    self.highlighted_corners(),
-                ),
-                border: pill_corners(self.indicator_thickness),
-                snap: false,
-                ..renderer::Quad::default()
-            },
-            (highlight.color)(theme),
-        );
-    }
-
-    fn mouse_interaction(
-        &self,
-        tree: &Tree,
-        layout: Layout<'_>,
-        cursor: Cursor,
-        viewport: &Rectangle,
-        renderer: &iced::Renderer,
-    ) -> mouse::Interaction {
-        self.slots
-            .iter()
-            .zip(&tree.children)
-            .zip(layout.children())
-            .map(|((slot, tree), layout)| {
-                slot.as_widget()
-                    .mouse_interaction(tree, layout, cursor, viewport, renderer)
-            })
-            .max()
-            .unwrap_or_default()
-    }
-
-    fn operate(
-        &mut self,
-        tree: &mut Tree,
-        layout: Layout<'_>,
-        renderer: &iced::Renderer,
-        operation: &mut dyn Operation,
-    ) {
-        operation.container(None, layout.bounds());
-        operation.traverse(&mut |operation| {
-            for ((slot, tree), layout) in self
-                .slots
-                .iter_mut()
-                .zip(&mut tree.children)
-                .zip(layout.children())
-            {
-                slot.as_widget_mut()
-                    .operate(tree, layout, renderer, operation);
-            }
-        });
-    }
-
-    fn overlay<'b>(
-        &'b mut self,
-        tree: &'b mut Tree,
-        layout: Layout<'b>,
-        renderer: &iced::Renderer,
-        viewport: &Rectangle,
-        translation: Vector,
-    ) -> Option<overlay::Element<'b, Message, Theme, iced::Renderer>> {
-        overlay::from_children(
-            &mut self.slots,
-            tree,
-            layout,
-            renderer,
-            viewport,
-            translation,
-        )
-    }
+        .collect()
 }
 
 impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
     From<SlotPager<'a, Message, SlotKey>> for Element<'a, Message>
 {
-    fn from(pager: SlotPager<'a, Message, SlotKey>) -> Self {
-        Element::new(pager)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::ops::Range;
-
-    use iced::{Color, Element, Theme, widget::text};
-
-    use super::{PagerEdge, SlotAlarm, SlotPager, UngroupedHighlightLook, slot_pager};
-    use crate::pointer_drag::slot_group::{SlotGroup, SlotTileInset, TileNeighbours};
-
-    const ACCENT_TILE_LOOK: UngroupedHighlightLook =
-        UngroupedHighlightLook::AccentTile(SlotTileInset {
-            thickness: 3.0,
-            enclosure_radius: 8.0,
-        });
-    const UNJOINED: TileNeighbours = TileNeighbours {
-        leading: false,
-        trailing: false,
-    };
-
-    fn plain_color(_theme: &Theme) -> Color {
-        Color::BLACK
-    }
-
-    fn pager_with_slots(slot_count: usize) -> SlotPager<'static, (), usize> {
-        let slots = (0..slot_count).map(|slot_key| {
-            let slot_element: Element<'static, ()> = text("slot").into();
-            (slot_key, slot_element)
-        });
-        slot_pager(slots, PagerEdge::Top)
-    }
-
-    fn alarm_at(position: usize) -> SlotAlarm<'static> {
-        SlotAlarm {
-            position,
-            color: Box::new(plain_color),
-        }
-    }
-
-    fn group_over(positions: Range<usize>) -> SlotGroup<'static, ()> {
-        SlotGroup {
-            positions,
-            heading: text("heading").into(),
-            enclosure_color: Box::new(plain_color),
-            inner_color: Box::new(plain_color),
-            highlight_color: Box::new(plain_color),
-            enclosure_thickness: 3.0,
-            enclosure_radius: 8.0,
-        }
-    }
-
-    #[test]
-    fn highlight_and_alarm_in_one_group_keep_their_own_cells() {
-        let pager = pager_with_slots(4)
-            .highlight(Some(1), plain_color)
-            .alarms(vec![alarm_at(2)])
-            .groups(vec![group_over(0..4)]);
-        assert_eq!(pager.tile_neighbours(1), UNJOINED);
-        assert_eq!(pager.tile_neighbours(2), UNJOINED);
-    }
-
-    #[test]
-    fn slots_inside_a_group_are_one_enclosure_stroke_apart() {
-        let pager = pager_with_slots(4)
-            .group_gap(4.0)
-            .groups(vec![group_over(0..2)]);
-        let between_grouped_slots = pager.trailing_extent(0);
-        let after_the_group = pager.trailing_extent(1);
-        let between_ungrouped_slots = pager.trailing_extent(2);
-        assert!((between_grouped_slots - 3.0).abs() < f32::EPSILON);
-        assert!((after_the_group - 7.0).abs() < f32::EPSILON);
-        assert!(between_ungrouped_slots.abs() < f32::EPSILON);
-    }
-
-    #[test]
-    fn lone_highlight_has_no_joined_sides() {
-        let pager = pager_with_slots(3)
-            .highlight(Some(1), plain_color)
-            .groups(vec![group_over(0..3)]);
-        assert_eq!(pager.tile_neighbours(1), UNJOINED);
-    }
-
-    #[test]
-    fn neighbouring_ungrouped_accent_tiles_join() {
-        let pager = pager_with_slots(2)
-            .highlight(Some(0), plain_color)
-            .alarms(vec![alarm_at(1)])
-            .ungrouped_highlight_look(ACCENT_TILE_LOOK);
-        assert_eq!(
-            pager.tile_neighbours(0),
-            TileNeighbours {
-                leading: false,
-                trailing: true,
-            }
-        );
-    }
-
-    #[test]
-    fn tiles_in_neighbouring_groups_stay_apart() {
-        let pager = pager_with_slots(4)
-            .highlight(Some(1), plain_color)
-            .alarms(vec![alarm_at(2)])
-            .groups(vec![group_over(0..2), group_over(2..4)]);
-        assert_eq!(pager.tile_neighbours(1), UNJOINED);
-        assert_eq!(pager.tile_neighbours(2), UNJOINED);
-    }
-
-    #[test]
-    fn grouped_tile_stays_apart_from_ungrouped_tile() {
-        let pager = pager_with_slots(3)
-            .highlight(Some(1), plain_color)
-            .alarms(vec![alarm_at(2)])
-            .groups(vec![group_over(0..2)])
-            .ungrouped_highlight_look(ACCENT_TILE_LOOK);
-        assert_eq!(pager.tile_neighbours(1), UNJOINED);
-        assert_eq!(pager.tile_neighbours(2), UNJOINED);
-    }
-
-    #[test]
-    fn edge_band_look_never_joins() {
-        let pager = pager_with_slots(2)
-            .highlight(Some(0), plain_color)
-            .alarms(vec![alarm_at(1)]);
-        assert_eq!(pager.tile_neighbours(0), UNJOINED);
-        assert_eq!(pager.tile_neighbours(1), UNJOINED);
+    fn from(slot_pager: SlotPager<'a, Message, SlotKey>) -> Self {
+        slot_pager.composed()
     }
 }
