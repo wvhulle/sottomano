@@ -208,7 +208,7 @@ impl<Message: 'static> ValueCellView<Message> {
         Self {
             figure_font: self.prose_font.clone(),
             wrapping: Wrapping::Word,
-            font_style: FontStyle::Italic,
+            font_style: FontStyle::Normal,
             transition: TransitionStyle {
                 presence: TextPresence::Shown,
                 ..self.transition

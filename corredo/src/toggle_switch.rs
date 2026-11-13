@@ -3,7 +3,7 @@ use iced::{
     widget::{toggler, toggler::Status},
 };
 
-use crate::theme_colors::{background_color, primary_color, secondary_text_color};
+use crate::theme_colors::{background_strong_color, primary_color, text_color};
 
 const DEFAULT_SWITCH_SIZE_PX: f32 = 16.0;
 
@@ -60,7 +60,7 @@ fn switch_style(theme: &Theme, toggle_position: TogglePosition, opacity: f32) ->
         background: track_color(theme, toggle_position)
             .scale_alpha(opacity)
             .into(),
-        foreground: background_color(theme).scale_alpha(opacity).into(),
+        foreground: text_color(theme).scale_alpha(opacity).into(),
         ..toggler::default(
             theme,
             Status::Active {
@@ -73,7 +73,7 @@ fn switch_style(theme: &Theme, toggle_position: TogglePosition, opacity: f32) ->
 fn track_color(theme: &Theme, toggle_position: TogglePosition) -> Color {
     match toggle_position {
         TogglePosition::On => primary_color(theme),
-        TogglePosition::Off => secondary_text_color(theme),
+        TogglePosition::Off => background_strong_color(theme),
     }
 }
 

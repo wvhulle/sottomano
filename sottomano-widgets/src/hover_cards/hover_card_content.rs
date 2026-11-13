@@ -571,7 +571,9 @@ impl<'a> HoverCardContent<'a> {
         let cell_view = self.value_cell_view();
         let heading_font = self.config.theme.font.clone();
         RecordTableStyle {
-            key_cell: Rc::new(move |record| key_view.key(record.key().clone(), text_color)),
+            key_cell: Rc::new(move |record| {
+                key_view.key(record.key().clone(), secondary_text_color)
+            }),
             value_cell: Rc::new(move |record, position| {
                 let state = ReadingDisplayState::from(*record.level());
                 cell_view.value(

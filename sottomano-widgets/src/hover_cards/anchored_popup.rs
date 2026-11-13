@@ -115,7 +115,6 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
     AnchoredPopup::with_renderings(renderings, anchor)
         .side(popup_side_of(position))
         .gap(config.theme.spacing.item_gap)
-        .docked_at_inset(config.desktop_panels.height)
         .leading_alignment(
             config.theme.spacing.surface_inset + config.theme.font.icon_size_px / 2.0,
         )

@@ -32,7 +32,7 @@ pub fn row_key_label<'a>(
     font: &ResolvedFont,
     title: impl IntoFragment<'a>,
 ) -> Text<'a, iced::Theme, iced::Renderer> {
-    panel_text(font, title).font(font_faces_of(font).italic)
+    panel_text(font, title).style(text::secondary)
 }
 
 pub fn panel_text<'a>(

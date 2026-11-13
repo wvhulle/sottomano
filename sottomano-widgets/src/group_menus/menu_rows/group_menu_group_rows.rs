@@ -1,5 +1,3 @@
-use std::iter::once;
-
 use iced::{
     Element,
     border::Radius,
@@ -28,7 +26,7 @@ use crate::{
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
-        configured_theme::{secondary_text_color, text_color},
+        configured_theme::{primary_weak_text_color, secondary_text_color, text_color},
         glyph_button,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -76,6 +74,20 @@ const fn accordion_caret(emphasis: MenuRowEmphasis, growth: PanelGrowth) -> Phos
     }
 }
 
+fn trailing_glyph_color(emphasis: MenuRowEmphasis) -> fn(&iced::Theme) -> iced::Color {
+    match emphasis {
+        MenuRowEmphasis::Plain => secondary_text_color,
+        MenuRowEmphasis::Selected => primary_weak_text_color,
+    }
+}
+
+fn pinned_glyph_color(emphasis: MenuRowEmphasis) -> fn(&iced::Theme) -> iced::Color {
+    match emphasis {
+        MenuRowEmphasis::Plain => text_color,
+        MenuRowEmphasis::Selected => primary_weak_text_color,
+    }
+}
+
 pub(crate) fn group_row<'a, M: Clone + 'a>(
     layout: &GroupMenuRowContext<'_, 'a, M>,
     entry: GroupMenuGroupRow<'a, M>,
@@ -88,15 +100,12 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
         glyph_button(
             Phosphor::PushPin(Weight::Regular),
             icon_size,
-            secondary_text_color,
+            trailing_glyph_color(look.emphasis),
             layout.menu.toggle_pin(pinned_entry.clone()),
         ),
         pinned_entry,
     );
-    let caret_color = match look.emphasis {
-        MenuRowEmphasis::Plain => secondary_text_color,
-        MenuRowEmphasis::Selected => text_color,
-    };
+    let caret_color = trailing_glyph_color(look.emphasis);
     let (leading, trailing) = match (layout.presentation.layout, layout.direction) {
         (GroupMenuLayout::Accordion, _) => (
             Vec::new(),
@@ -178,20 +187,6 @@ pub(crate) fn item_menu<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     uniform_width_column(rows).into()
 }
 
-fn card_info_icon<'a, M: Clone + 'a>(
-    layout: &GroupMenuRowContext<'_, 'a, M>,
-    target: HoverTarget,
-) -> Element<'a, GroupEvent<M>> {
-    let inspect = layout.menu.inspect_row(target.clone());
-    let icon = glyph_button(
-        Phosphor::Info(Weight::Regular),
-        layout.config.theme.font.icon_size_px,
-        secondary_text_color,
-        inspect.clone(),
-    );
-    marked_by_hover_target(mouse_area(icon).on_enter(inspect).into(), target)
-}
-
 pub(crate) fn item_row<'a, M: Clone + 'a>(
     layout: &GroupMenuRowContext<'_, 'a, M>,
     group: &WidgetGroupIdentity,
@@ -211,12 +206,18 @@ pub(crate) fn item_row<'a, M: Clone + 'a>(
     };
     let item_pin = match item.pin {
         GroupItemPin::Unpinnable => None,
-        GroupItemPin::Unpinned(item_key) => {
-            Some(pin_button(Weight::Regular, secondary_text_color, item_key))
-        }
-        GroupItemPin::Pinned(item_key) => Some(pin_button(Weight::Fill, text_color, item_key)),
+        GroupItemPin::Unpinned(item_key) => Some(pin_button(
+            Weight::Regular,
+            trailing_glyph_color(look.emphasis),
+            item_key,
+        )),
+        GroupItemPin::Pinned(item_key) => Some(pin_button(
+            Weight::Fill,
+            pinned_glyph_color(look.emphasis),
+            item_key,
+        )),
     };
-    let info_icon = card_info_icon(layout, item.inspected_target);
+    let inspected_target = item.inspected_target;
     let (leading, trailing) = match (layout.presentation.layout, layout.direction) {
         (GroupMenuLayout::Accordion, _) => (
             vec![
@@ -224,15 +225,9 @@ pub(crate) fn item_row<'a, M: Clone + 'a>(
                     .width(layout.config.theme.font.icon_size_px)
                     .into(),
             ],
-            item_pin.into_iter().chain(once(info_icon)).collect(),
+            item_pin.into_iter().collect(),
         ),
-        (GroupMenuLayout::Cascading, CascadeDirection::Rightward) => (
-            Vec::new(),
-            item_pin.into_iter().chain(once(info_icon)).collect(),
-        ),
-        (GroupMenuLayout::Cascading, CascadeDirection::Leftward) => {
-            (vec![info_icon], item_pin.into_iter().collect())
-        }
+        (GroupMenuLayout::Cascading, _) => (Vec::new(), item_pin.into_iter().collect()),
     };
     let content = MenuRowContent {
         leading,
@@ -253,12 +248,15 @@ pub(crate) fn item_row<'a, M: Clone + 'a>(
         press,
         RowHoverReaction::Highlights,
     );
-    match item.gestures.right {
-        GroupItemGesture::Performs { message, .. } => mouse_area(row)
+    let inspect = layout.menu.inspect_row(inspected_target.clone());
+    let inspected_on_enter = mouse_area(row).on_enter(inspect);
+    let gestured_row = match item.gestures.right {
+        GroupItemGesture::Performs { message, .. } => inspected_on_enter
             .on_right_press(GroupEvent::Group(message))
             .into(),
-        GroupItemGesture::Inert => row,
-    }
+        GroupItemGesture::Inert => inspected_on_enter.into(),
+    };
+    marked_by_hover_target(gestured_row, inspected_target)
 }
 
 #[cfg(test)]

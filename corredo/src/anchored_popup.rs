@@ -136,7 +136,6 @@ pub struct AnchoredPopup<'a, Message, ShownIdentity = ()> {
     renderings: Vec<PopupRendering<'a, Message>>,
     anchor: Rectangle,
     side: PopupSide,
-    docked_inset_px: Option<f32>,
     gap_px: f32,
     leading_alignment_px: f32,
     morph_duration: Duration,
@@ -172,7 +171,6 @@ impl<'a, Message: 'a> AnchoredPopup<'a, Message> {
             renderings,
             anchor,
             side: PopupSide::Below,
-            docked_inset_px: None,
             gap_px: DEFAULT_GAP_PX,
             leading_alignment_px: 0.0,
             morph_duration: DEFAULT_MORPH_DURATION,
@@ -247,14 +245,6 @@ impl<'a, Message: 'a, ShownIdentity> AnchoredPopup<'a, Message, ShownIdentity> {
     }
 
     #[must_use]
-    pub fn docked_at_inset(self, docked_inset_px: f32) -> Self {
-        Self {
-            docked_inset_px: Some(docked_inset_px),
-            ..self
-        }
-    }
-
-    #[must_use]
     pub fn leading_alignment(self, leading_alignment_px: f32) -> Self {
         Self {
             leading_alignment_px,
@@ -282,7 +272,6 @@ impl<'a, Message: 'a, ShownIdentity> AnchoredPopup<'a, Message, ShownIdentity> {
             renderings: self.renderings,
             anchor: self.anchor,
             side: self.side,
-            docked_inset_px: self.docked_inset_px,
             gap_px: self.gap_px,
             leading_alignment_px: self.leading_alignment_px,
             morph_duration: self.morph_duration,
@@ -308,14 +297,12 @@ impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdenti
         self.anchor.x + self.anchor.width
     }
 
-    fn dock_line(&self, surface: Size) -> f32 {
-        match (self.side, self.docked_inset_px) {
-            (PopupSide::Below, Some(inset)) => inset,
-            (PopupSide::Below, None) => self.anchor.y + self.anchor.height,
-            (PopupSide::Above, Some(inset)) => surface.height - inset,
-            (PopupSide::Above, None) => self.anchor.y,
-            (PopupSide::Right, _) => self.anchor_edge_x(),
-            (PopupSide::Left, _) => self.anchor.x,
+    fn dock_line(&self) -> f32 {
+        match self.side {
+            PopupSide::Below => self.anchor.y + self.anchor.height,
+            PopupSide::Above => self.anchor.y,
+            PopupSide::Right => self.anchor_edge_x(),
+            PopupSide::Left => self.anchor.x,
         }
     }
 
@@ -341,7 +328,7 @@ impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdenti
                 centered_on_anchor(self.anchor.center_x(), extent, room)
             }
         };
-        let dock_line = self.dock_line(surface);
+        let dock_line = self.dock_line();
         let top_left = match self.side {
             PopupSide::Below => Point::new(
                 horizontal(size.width, surface.width),
@@ -609,7 +596,7 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
         let popup = state.morph.follow(target);
         state.connector = ConnectorTriangle::between(
             self.anchor,
-            self.dock_line(surface),
+            self.dock_line(),
             popup,
             self.side.connector_side(),
             self.corner_radius_px,

@@ -384,15 +384,11 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
 #[cfg(test)]
 mod tests {
     use iced::{
-        Element, Event, Point, Rectangle, Settings, Size, mouse,
+        Element, Event, Point, Settings, Size, mouse,
         widget::{Row, text},
     };
     use iced_controller_diagram::ControllerArtwork;
-    use iced_test::{
-        Simulator,
-        selector::{Candidate, Selector},
-        simulator::click,
-    };
+    use iced_test::{Simulator, simulator::click};
     use sottomano_toml_config::{Config, screen_edges::Position};
 
     use super::{GroupEvent, GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard};
@@ -738,23 +734,6 @@ mod tests {
         }
     }
 
-    struct InfoIconMark(HoverTarget);
-
-    impl Selector for InfoIconMark {
-        type Output = Rectangle;
-
-        fn select(&mut self, candidate: Candidate<'_>) -> Option<Rectangle> {
-            let Candidate::Custom { bounds, state, .. } = candidate else {
-                return None;
-            };
-            (state.downcast_ref::<HoverTarget>() == Some(&self.0)).then_some(bounds)
-        }
-
-        fn description(&self) -> String {
-            format!("the info icon of {:?}", self.0)
-        }
-    }
-
     const POINTED_ROW: HoverTarget = HoverTarget::Workspace(7);
 
     #[derive(Clone, Copy)]
@@ -823,13 +802,6 @@ mod tests {
             let _statuses = simulator.simulate(click());
         }
         simulator.into_messages().collect()
-    }
-
-    fn info_icon_center(simulator: &mut Simulator<'_, RowPointerMessage>) -> Point {
-        simulator
-            .find(InfoIconMark(POINTED_ROW))
-            .expect("every item row has an info icon")
-            .center()
     }
 
     fn row_name_center(simulator: &mut Simulator<'_, RowPointerMessage>) -> Point {
@@ -962,26 +934,10 @@ mod tests {
     }
 
     #[test]
-    fn hovering_the_info_icon_inspects_the_row() {
+    fn hovering_the_row_name_inspects_the_row() {
         assert!(
-            messages_after_pointing(info_icon_center, false)
+            messages_after_pointing(row_name_center, false)
                 .contains(&RowPointerMessage::RowInspected(POINTED_ROW))
-        );
-    }
-
-    #[test]
-    fn hovering_the_row_name_inspects_nothing() {
-        assert!(
-            !messages_after_pointing(row_name_center, false)
-                .contains(&RowPointerMessage::RowInspected(POINTED_ROW))
-        );
-    }
-
-    #[test]
-    fn pressing_the_info_icon_skips_the_row_action() {
-        assert!(
-            !messages_after_pointing(info_icon_center, true)
-                .contains(&RowPointerMessage::RowAction)
         );
     }
 
@@ -997,57 +953,14 @@ mod tests {
         let messages =
             messages_after_pointing_at_row(PointedRowPress::ReadOnly, row_name_center, true);
         assert!(!messages.contains(&RowPointerMessage::RowAction));
-        assert!(!messages.contains(&RowPointerMessage::RowInspected(POINTED_ROW)));
     }
 
     #[test]
-    fn hovering_the_info_icon_of_a_read_only_row_inspects_it() {
+    fn hovering_a_read_only_row_inspects_it() {
         assert!(
-            messages_after_pointing_at_row(PointedRowPress::ReadOnly, info_icon_center, false)
+            messages_after_pointing_at_row(PointedRowPress::ReadOnly, row_name_center, false)
                 .contains(&RowPointerMessage::RowInspected(POINTED_ROW))
         );
-    }
-
-    fn info_icon_offset_from_row_name(direction: CascadeDirection) -> f32 {
-        let bench = MenuTestBench::default();
-        let expansion = WidgetGroupExpansion::default();
-        let group_menus = opened_menu_state(GroupMenuPresentation::default());
-        let group = WidgetGroupContent::expandable(
-            WidgetGroupFamily::Gpu,
-            &expansion,
-            |_| RowPointerMessage::Unrelated,
-            [GroupItem::reading(
-                NamedTestReading("Smoke item"),
-                POINTED_ROW,
-            )],
-        );
-        let surfaces = GroupMenuView::new(
-            GroupMenuTopic::Hardware,
-            &group_menus,
-            |_| RowPointerMessage::Unrelated,
-            [group],
-        )
-        .bench_surfaces(
-            &bench,
-            CascadeOrientation {
-                direction,
-                growth: PanelGrowth::Downward,
-            },
-        );
-        let item_list = surfaces.first_item_list();
-        let mut simulator =
-            Simulator::with_size(Settings::default(), Size::new(1200.0, 800.0), item_list);
-        info_icon_center(&mut simulator).x - row_name_center(&mut simulator).x
-    }
-
-    #[test]
-    fn a_rightward_cascade_shows_the_info_icon_after_the_row_name() {
-        assert!(info_icon_offset_from_row_name(CascadeDirection::Rightward) > 0.0);
-    }
-
-    #[test]
-    fn a_leftward_cascade_shows_the_info_icon_before_the_row_name() {
-        assert!(info_icon_offset_from_row_name(CascadeDirection::Leftward) < 0.0);
     }
 
     #[test]
