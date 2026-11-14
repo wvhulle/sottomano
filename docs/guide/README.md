@@ -12,7 +12,7 @@ Most groups live in menus behind a single icon on a panel. Pressing the icon ope
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_appearance.webp" width="892" alt="Opening the Appearance menu with its settings lined up in a table">
 
-The pin on a row puts that group back on the panel, next to its menu icon; a pin on one of the group's items puts only that item there. The unpin button in its card returns it to the menu. Pins are remembered across restarts. A group whose alert reaches `group_menus.alert_promotion_severity` also shows on the panel until the alert clears.
+The pin on a row puts that group back on the panel, next to its menu icon; a pin on one of the group's items puts only that item there. The unpin button in its card returns it to the menu. Pins are remembered across restarts. An item shown in red (its severity reaches `group_menus.alert_promotion_severity`, `critical` by default) also shows on the panel until it clears; dismiss it from its card to hide it until the next alert.
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_pin.webp" width="564" alt="Pinning the memory group from the Hardware menu, which moves it onto the panel">
 

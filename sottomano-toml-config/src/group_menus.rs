@@ -12,7 +12,7 @@ pub struct GroupMenusConfig {
 impl Default for GroupMenusConfig {
     fn default() -> Self {
         Self {
-            alert_promotion_severity: Severity::Warning,
+            alert_promotion_severity: Severity::Critical,
             scroll_fade_rows: 1.5,
         }
     }

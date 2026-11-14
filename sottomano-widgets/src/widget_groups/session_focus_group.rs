@@ -296,7 +296,6 @@ impl SessionFocusGroup {
             SessionFocusMessage::Expansion,
             [session, breaks, focus_run, totals, switches],
         )
-        .staying_in_menu_during_alerts()
     }
 
     #[must_use]

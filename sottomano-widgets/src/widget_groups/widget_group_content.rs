@@ -340,23 +340,9 @@ impl<M> GroupMenuItemRow<'_, M> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PanelPromotion {
-    RisesToPanel,
-    StaysInMenu,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AlertPromotion {
-    AlertingItemsOntoPanel,
-    WholeGroupOntoPanel,
-    StaysInMenu,
-}
-
 pub struct WidgetGroupContent<'a, M> {
     group_identity: WidgetGroupIdentity,
     group_title: WidgetGroupTitle,
-    alert_promotion: AlertPromotion,
     expansion: &'a WidgetGroupExpansion,
     on_expansion: Rc<dyn Fn(WidgetGroupExpansionMessage) -> M + 'a>,
     face: WidgetGroupFace<'a>,
@@ -391,7 +377,6 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         Self {
             group_identity,
             group_title,
-            alert_promotion: AlertPromotion::AlertingItemsOntoPanel,
             expansion,
             on_expansion: Rc::new(on_expansion),
             face: WidgetGroupFace::FirstItem,
@@ -401,58 +386,22 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         }
     }
 
-    #[must_use]
-    pub fn staying_in_menu_during_alerts(self) -> Self {
-        Self {
-            alert_promotion: AlertPromotion::StaysInMenu,
-            ..self
-        }
-    }
-
-    #[must_use]
-    pub fn with_panel_promotion(self, panel_promotion: PanelPromotion) -> Self {
-        match panel_promotion {
-            PanelPromotion::RisesToPanel => Self {
-                alert_promotion: AlertPromotion::WholeGroupOntoPanel,
-                ..self
-            },
-            PanelPromotion::StaysInMenu => self,
-        }
-    }
-
-    pub(crate) fn whole_group_promotion(&self) -> PanelPromotion {
-        match self.alert_promotion {
-            AlertPromotion::WholeGroupOntoPanel => PanelPromotion::RisesToPanel,
-            AlertPromotion::AlertingItemsOntoPanel | AlertPromotion::StaysInMenu => {
-                PanelPromotion::StaysInMenu
-            }
-        }
-    }
-
     pub(crate) fn panel_raises(
         &self,
         menu: GroupMenuTopic,
         promotion_severity: Severity,
         clock: Clock,
     ) -> Vec<PanelRaise> {
-        match self.alert_promotion {
-            AlertPromotion::WholeGroupOntoPanel => vec![PanelRaise::WholeGroup {
+        self.items
+            .iter()
+            .filter(|item| item.shown_from(promotion_severity, clock))
+            .filter_map(GroupItem::pinnable_key)
+            .map(|item_key| PanelRaise {
                 menu,
                 group: self.group_identity.clone(),
-            }],
-            AlertPromotion::AlertingItemsOntoPanel => self
-                .items
-                .iter()
-                .filter(|item| item.alerts_from(promotion_severity, clock))
-                .filter_map(GroupItem::pinnable_key)
-                .map(|item_key| PanelRaise::AlertingItem {
-                    menu,
-                    group: self.group_identity.clone(),
-                    item_key,
-                })
-                .collect(),
-            AlertPromotion::StaysInMenu => Vec::new(),
-        }
+                item_key,
+            })
+            .collect()
     }
 
     #[must_use]
@@ -498,7 +447,6 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         WidgetGroupContent {
             group_identity: self.group_identity,
             group_title: self.group_title,
-            alert_promotion: self.alert_promotion,
             expansion: self.expansion,
             on_expansion: {
                 let on_expansion = self.on_expansion;
@@ -542,7 +490,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     pub(crate) fn highest_alert_severity(&self, clock: Clock) -> Severity {
         self.items
             .iter()
-            .filter_map(|item| item.ongoing_alert_severity(clock))
+            .filter_map(|item| item.shown_alert_severity(clock))
             .max()
             .unwrap_or_default()
     }
@@ -582,7 +530,6 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         let WidgetGroupContent {
             group_identity,
             group_title,
-            alert_promotion,
             items,
             ..
         } = self;
@@ -598,8 +545,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 let pin_duration = match group_menus.pin_state(menu, entry.clone()) {
                     MenuPinState::Pinned => PanelPinDuration::Permanent,
                     MenuPinState::Unpinned
-                        if alert_promotion == AlertPromotion::AlertingItemsOntoPanel
-                            && item.alerts_from(promotion_severity, clock)
+                        if item.shown_from(promotion_severity, clock)
                             && group_menus.alert_pin_state(menu, entry)
                                 == AlertPinState::Raised =>
                     {
@@ -621,7 +567,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 Some(
                     fixed_view(
                         slice::from_ref(&item),
-                        item.ongoing_alert_severity(clock).unwrap_or_default(),
+                        item.shown_alert_severity(clock).unwrap_or_default(),
                         MenuHandleIndicator::default(),
                         config,
                         panel_position,
@@ -939,34 +885,29 @@ fn revealed_content<'a, Message: 'a>(
 
 #[cfg(test)]
 mod tests {
-    use chrono::Locale;
     use sottomano_toml_config::severity::Severity;
 
     use super::{WidgetGroupContent, WidgetGroupExpansion};
     use crate::{
         clock::Clock,
         group_items::{
-            group_item::GroupItem,
-            group_item_reading::{GroupItemReading, OngoingToastThreshold},
+            group_item::GroupItem, group_item_reading::GroupItemReading,
             reading_display_state::ReadingDisplayState,
         },
         group_menus::group_menu_state::{GroupMenuTopic, PanelRaise},
         hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
-        widget_groups::{
-            widget_group_content::PanelPromotion,
-            widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
-        },
+        widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         widgets::{
             icon_glyph::IconGlyph,
             phosphor::{Phosphor, Weight},
         },
     };
 
-    struct AlertingReading;
+    struct ShownStateReading(ReadingDisplayState);
 
-    impl GroupItemReading for AlertingReading {
+    impl GroupItemReading for ShownStateReading {
         fn name(&self) -> &'static str {
-            "Alerting reading"
+            "Shown state reading"
         }
 
         fn icon(&self) -> IconGlyph {
@@ -974,18 +915,7 @@ mod tests {
         }
 
         fn state(&self, _clock: Clock) -> ReadingDisplayState {
-            ReadingDisplayState::Warning
-        }
-
-        fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
-            OngoingToastThreshold::NotifyFromSeverity {
-                minimum_severity: Severity::Warning,
-                summary_text: "Alerting",
-            }
-        }
-
-        fn ongoing_toast_body(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-            None
+            self.0
         }
 
         fn hover_card(&self, _clock: Clock) -> HoverCardBody {
@@ -993,26 +923,28 @@ mod tests {
         }
     }
 
-    fn alerting_group(expansion: &WidgetGroupExpansion) -> WidgetGroupContent<'_, ()> {
+    fn group_showing(
+        expansion: &WidgetGroupExpansion,
+        shown_state: ReadingDisplayState,
+    ) -> WidgetGroupContent<'_, ()> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Weather,
             expansion,
             |_| (),
             [GroupItem::reading(
-                AlertingReading,
+                ShownStateReading(shown_state),
                 HoverTarget::Workspace(7),
             )],
         )
     }
 
     #[test]
-    fn an_alert_raises_only_its_item_onto_the_panel_by_default() {
+    fn a_critical_item_rises_onto_the_panel_without_a_toast() {
         let expansion = WidgetGroupExpansion::default();
-        let group = alerting_group(&expansion);
-        assert_eq!(group.whole_group_promotion(), PanelPromotion::StaysInMenu);
+        let group = group_showing(&expansion, ReadingDisplayState::Critical);
         assert_eq!(
-            group.panel_raises(GroupMenuTopic::Media, Severity::Warning, Clock::real()),
-            vec![PanelRaise::AlertingItem {
+            group.panel_raises(GroupMenuTopic::Media, Severity::Critical, Clock::real()),
+            vec![PanelRaise {
                 menu: GroupMenuTopic::Media,
                 group: WidgetGroupIdentity::sole(WidgetGroupFamily::Weather),
                 item_key: HoverTarget::Workspace(7).stable_item_key(),
@@ -1021,11 +953,11 @@ mod tests {
     }
 
     #[test]
-    fn a_group_staying_in_its_menu_is_not_promoted_by_its_alert() {
+    fn a_warning_item_stays_in_its_menu_below_a_critical_threshold() {
         let expansion = WidgetGroupExpansion::default();
-        let group = alerting_group(&expansion).staying_in_menu_during_alerts();
+        let group = group_showing(&expansion, ReadingDisplayState::Warning);
         assert_eq!(
-            group.panel_raises(GroupMenuTopic::Media, Severity::Warning, Clock::real()),
+            group.panel_raises(GroupMenuTopic::Media, Severity::Critical, Clock::real()),
             Vec::new()
         );
         assert_eq!(
@@ -1042,10 +974,11 @@ mod tests {
                 WidgetGroupFamily::NetworkManagerVpns,
                 &expansion,
                 |_| (),
-                [
-                    GroupItem::reading(AlertingReading, HoverTarget::Workspace(7))
-                        .on_press(description, ()),
-                ],
+                [GroupItem::reading(
+                    ShownStateReading(ReadingDisplayState::Idle),
+                    HoverTarget::Workspace(7),
+                )
+                .on_press(description, ())],
             )
         };
         let left_hint = |description| {

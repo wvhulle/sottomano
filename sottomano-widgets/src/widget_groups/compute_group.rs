@@ -350,7 +350,7 @@ mod tests {
     use crate::{
         clock::Clock,
         group_menus::group_menu_state::{
-            GroupMenuState, GroupMenuTopic, OpenGroupMenu, PanelRaise,
+            GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic, OpenGroupMenu,
         },
         widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
     };
@@ -396,14 +396,10 @@ mod tests {
     #[test]
     fn collapsed_group_on_the_panel_keeps_its_load_gauge_updating() {
         let mut group_menus = GroupMenuState::default();
-        group_menus.track_source_demand(
-            None,
-            vec![PanelRaise::WholeGroup {
-                menu: GroupMenuTopic::Hardware,
-                group: WidgetGroupIdentity::sole(WidgetGroupFamily::Compute),
-            }],
-            Clock::real().instant,
-        );
+        let _ = group_menus.update(GroupMenuMessage::TogglePin {
+            menu: GroupMenuTopic::Hardware,
+            entry: GroupMenuPin::Group(WidgetGroupIdentity::sole(WidgetGroupFamily::Compute)),
+        });
         assert_eq!(
             running_sources(&ComputeGroup::default(), demand_in(&group_menus)),
             WITH_LOAD_GAUGE

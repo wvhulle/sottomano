@@ -216,28 +216,20 @@ pub enum GroupMenuMessage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PanelRaise {
-    WholeGroup {
-        menu: GroupMenuTopic,
-        group: WidgetGroupIdentity,
-    },
-    AlertingItem {
-        menu: GroupMenuTopic,
-        group: WidgetGroupIdentity,
-        item_key: String,
-    },
+pub struct PanelRaise {
+    pub menu: GroupMenuTopic,
+    pub group: WidgetGroupIdentity,
+    pub item_key: String,
 }
 
 impl PanelRaise {
     fn stored(self) -> StoredGroupMenuPin {
-        match self {
-            PanelRaise::WholeGroup { menu, group } => GroupMenuPin::Group(group).stored_in(menu),
-            PanelRaise::AlertingItem {
-                menu,
-                group,
-                item_key,
-            } => GroupMenuPin::Item { group, item_key }.stored_in(menu),
-        }
+        let PanelRaise {
+            menu,
+            group,
+            item_key,
+        } = self;
+        GroupMenuPin::Item { group, item_key }.stored_in(menu)
     }
 }
 
@@ -664,24 +656,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn promoted_and_pinned_groups_have_the_same_demand() {
-        let mut group_menus = GroupMenuState::default();
-        group_menus.track_source_demand(
-            None,
-            vec![PanelRaise::WholeGroup {
-                menu: GroupMenuTopic::Hardware,
-                group: GPU_GROUP,
-            }],
-            Clock::real().instant,
-        );
-        assert_eq!(gpu_demand(&group_menus), collapsed_on_panel());
-        group_menus.track_source_demand(None, Vec::new(), Clock::real().instant);
-        assert_ne!(gpu_demand(&group_menus), collapsed_on_panel());
-    }
-
     fn alerting_gpu_item() -> PanelRaise {
-        PanelRaise::AlertingItem {
+        PanelRaise {
             menu: GroupMenuTopic::Hardware,
             group: GPU_GROUP,
             item_key: "hot gpu".to_owned(),
