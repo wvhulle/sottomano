@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use corredo::{gauges::activity_line, theming::primary_color};
+use corredo::{gauges::activity_line, orientation::Axis, theming::primary_color};
 use iced::{
     Alignment, Element, Task,
     border::Radius,
@@ -368,9 +368,14 @@ fn item_view<'a>(
     let marked: Element<'a, GroupEvent<TrayMessage>> = if item.status == Status::NeedsAttention {
         Column::with_children([
             glyph,
-            container(activity_line(primary_color, reveal, ACCENT_STROKE_PX))
-                .width(side)
-                .into(),
+            container(activity_line(
+                Axis::Horizontal,
+                primary_color,
+                reveal,
+                ACCENT_STROKE_PX,
+            ))
+            .width(side)
+            .into(),
         ])
         .align_x(Alignment::Center)
         .into()
@@ -415,7 +420,7 @@ fn item_view<'a>(
 
 #[cfg(test)]
 mod tests {
-    use corredo::transitions::horizontal_reveal;
+    use corredo::{orientation::Axis, transitions::reveal};
     use iced::{
         Settings, Size,
         widget::{row, text},
@@ -458,7 +463,7 @@ mod tests {
         let config = Config::default();
         let pixmap_handles = PixmapHandles::default();
         let item = item_needing_attention();
-        let revealed = horizontal_reveal(
+        let revealed = reveal(
             item_view(
                 &config,
                 &pixmap_handles,
@@ -467,6 +472,7 @@ mod tests {
                 1.0,
             ),
             1.0,
+            Axis::Horizontal,
         );
         let mut simulator = Simulator::with_size(
             Settings::default(),

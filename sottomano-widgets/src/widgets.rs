@@ -1,4 +1,3 @@
-pub mod activity_line;
 pub mod amount_text;
 pub mod announced_level;
 pub mod app_window_focus;
@@ -27,6 +26,7 @@ pub mod ongoing_toast;
 pub mod phosphor;
 pub mod pointer_drag;
 pub mod program_brand_icons;
+pub mod screen_edge;
 pub mod shared_metrics;
 pub mod shell_layer_appearance;
 pub mod simple_icons;

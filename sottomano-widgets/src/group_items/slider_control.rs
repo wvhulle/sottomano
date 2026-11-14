@@ -8,10 +8,11 @@ use std::{
 use chrono::Locale;
 use corredo::{
     changing_text::{ReadoutLabels, steady_width_readout},
+    orientation::Axis,
     press_actions::flat_button,
     selection_scroll::wheel_step_direction,
     theming::text_color,
-    transitions::{ExpansionState, expand_transition, horizontal_reveal},
+    transitions::{ExpansionState, expand_transition, reveal},
 };
 use iced::{
     Alignment, Element, Length, Padding, Task,
@@ -513,7 +514,12 @@ impl SliderControl {
         .align_y(Alignment::Center);
         let opened = Row::with_children([
             closing_button(self.state_glyph(config, clock)),
-            horizontal_reveal(container(revealed).padding(Padding::ZERO.left(gap)), expand),
+            reveal(
+                container(revealed).padding(Padding::ZERO.left(gap)),
+                expand,
+                Axis::Horizontal,
+            )
+            .into(),
         ])
         .align_y(Alignment::Center);
         let press_hints = PressHints {

@@ -9,7 +9,10 @@ pub mod window_anchored_toasts;
 
 use std::cmp::Reverse;
 
-use corredo::transitions::{MotionState, vertical_reveal};
+use corredo::{
+    orientation::Axis,
+    transitions::{MotionState, reveal},
+};
 use iced::{
     Padding, Subscription, Theme,
     futures::{StreamExt, stream},
@@ -199,7 +202,7 @@ impl<Routed: Clone> NotificationLayer<Routed> {
             .map(|notif| AnchoredToast {
                 id: notif.data.id,
                 anchor: notif.place.anchor,
-                card: vertical_reveal(
+                card: reveal(
                     ToastCard::new(notif, config, theme, overlay_appearance, clock.wall)
                         .pointer_presence(if self.hovered == Some(notif.data.id) {
                             PointerPresence::PointedAt
@@ -209,8 +212,10 @@ impl<Routed: Clone> NotificationLayer<Routed> {
                         .background_fade(background_fade)
                         .reveal(notif.opacity(now)),
                     notif.slot.interpolate(0.0, 1.0, now),
-                    notif.scale(now),
-                ),
+                    Axis::Vertical,
+                )
+                .scale(notif.scale(now))
+                .into(),
                 motion: notif.motion(now),
             })
             .collect();
