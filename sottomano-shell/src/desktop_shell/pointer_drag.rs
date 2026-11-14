@@ -1,5 +1,6 @@
 use std::mem;
 
+use corredo::{drag_reorder::MoveTracking, selection_scroll::wheel_step_direction};
 use iced::{Subscription, Task, mouse::ScrollDelta, window::frames};
 use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::CompositorRequest;
 use sottomano_desktop_sources::{
@@ -10,7 +11,6 @@ use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     background_work::compositor_request,
     desktop_panels::panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick},
-    group_items::slider_control::scroll_direction,
     widget_groups::{
         sidebar_settings_group::WorkspacesPlacement,
         workspaces_group::{WheelDirection, scrolled_workspace_id, shown_workspaces},
@@ -18,8 +18,7 @@ use sottomano_widgets::{
     widgets::{
         pointer_drag,
         pointer_drag::{
-            ActiveDrag, DragOutcome, DragTransition, DragView, DraggedPanelSlot, MoveTracking,
-            PointerDrag,
+            ActiveDrag, DragOutcome, DragTransition, DragView, DraggedPanelSlot, PointerDrag,
         },
     },
 };
@@ -200,7 +199,8 @@ impl DesktopShell {
     }
 
     pub fn scroll_workspaces(&mut self, output: &str, delta: ScrollDelta) -> Task<Message> {
-        let Some(wheel_step) = scroll_direction(&mut self.workspace_scroll_accumulated_px, delta)
+        let Some(wheel_step) =
+            wheel_step_direction(&mut self.workspace_scroll_accumulated_px, delta)
         else {
             return Task::none();
         };

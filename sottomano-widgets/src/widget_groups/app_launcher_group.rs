@@ -1,5 +1,6 @@
 use std::{cmp::Reverse, collections::HashMap};
 
+use corredo::theming::primary_color;
 use iced::{Element, Task};
 use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::{
     CompositorRequest, send_compositor_request_or_warn,
@@ -36,7 +37,6 @@ use crate::{
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
-        configured_theme::primary_color,
         glyph_button,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},

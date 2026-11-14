@@ -1,3 +1,4 @@
+use corredo::theming::LINE_HEIGHT;
 use iced::widget::{rich_text, span, text::Span};
 use sottomano_desktop_sources::{
     media_playback_audio::mpris_players::{Command, Media, Status},
@@ -23,7 +24,7 @@ use crate::{
         icon_handle::IconHandle,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        text::{LINE_HEIGHT, font_faces_of},
+        text::font_faces_of,
     },
 };
 

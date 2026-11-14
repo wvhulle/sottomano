@@ -1,11 +1,8 @@
-pub mod slot_pager;
+pub mod reorderable_list;
 
 use std::{fmt::Debug, hash::Hash};
 
-use corredo::pointer_drag as generic_drag;
-pub use corredo::pointer_drag::{
-    ListDeparture, MoveTracking, drag_ghost, draggable_slot, slot_group,
-};
+use corredo::{drag_reorder as generic_drag, drag_reorder::MoveTracking};
 use iced::{Subscription, time::Instant};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -44,18 +41,18 @@ pub fn advance<Click: Copy>(
     event: DragEvent<Click>,
     now: Instant,
 ) -> DragTransition<Click> {
-    generic_drag::advance(drag, event, now, DraggedPanelSlot::list)
+    generic_drag::advance_drag(drag, event, now, DraggedPanelSlot::list)
 }
 
 pub fn pointer_events<Click: Copy + Send + 'static>(
     move_tracking: MoveTracking,
 ) -> Subscription<DragEvent<Click>> {
-    generic_drag::pointer_events(move_tracking)
+    generic_drag::drag_pointer_events(move_tracking)
 }
 
 #[cfg(test)]
 mod tests {
-    use corredo::pointer_drag::DRAG_START_DISTANCE_PX;
+    use corredo::drag_reorder::DRAG_START_DISTANCE_PX;
     use iced::{Point, window};
 
     use super::*;

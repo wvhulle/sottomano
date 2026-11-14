@@ -1,6 +1,5 @@
 use chrono::{Weekday, WeekdaySet};
-pub use corredo::weekday_picker::weekday_name;
-use corredo::weekday_picker::{DaySelection, weekday_picker as themed_weekday_picker};
+use corredo::value_controls::{DaySelection, weekday_picker as themed_weekday_picker};
 use iced::Element;
 use sottomano_toml_config::Config;
 

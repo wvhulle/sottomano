@@ -1,6 +1,9 @@
 use std::iter::once;
 
-pub use corredo::primitives::popup_cascade::{CascadeDirection, CascadeOrientation};
+use corredo::{
+    popovers::{CascadeDirection, CascadeOrientation, PopupGrowth},
+    width_layout::fair_column_widths,
+};
 use iced::{
     Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{
@@ -13,16 +16,13 @@ use iced::{
 };
 use sottomano_toml_config::screen_edges::Position;
 
-use crate::{
-    group_menus::cascading_layout::notched_panel::{PanelGrowth, ScreenRoom},
-    widgets::fair_widths::fair_widths,
-};
+use crate::group_menus::cascading_layout::notched_panel::ScreenRoom;
 
 #[must_use]
-pub fn growth_away_from(bar: Position) -> PanelGrowth {
+pub fn growth_away_from(bar: Position) -> PopupGrowth {
     match bar {
-        Position::Bottom => PanelGrowth::Upward,
-        Position::Top | Position::Left => PanelGrowth::Downward,
+        Position::Bottom => PopupGrowth::Upward,
+        Position::Top | Position::Left => PopupGrowth::Downward,
     }
 }
 
@@ -73,11 +73,11 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for CascadeRow<'_, Me
                 .layout(&mut primary_tree[0], renderer, limits);
         let room_width = available.width - primary.size().width;
         let screen_room = match self.orientation.growth {
-            PanelGrowth::Downward => ScreenRoom {
+            PopupGrowth::Downward => ScreenRoom {
                 above_primary_top: 0.0,
                 below_primary_top: available.height,
             },
-            PanelGrowth::Upward => ScreenRoom {
+            PopupGrowth::Upward => ScreenRoom {
                 above_primary_top: available.height - primary.size().height,
                 below_primary_top: primary.size().height,
             },
@@ -97,7 +97,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for CascadeRow<'_, Me
         let satellites: Vec<Node> = satellite_slots
             .iter_mut()
             .zip(satellite_trees.iter_mut())
-            .zip(fair_widths(&natural_widths, room_width))
+            .zip(fair_column_widths(&natural_widths, room_width))
             .map(|((satellite, satellite_tree), allotted_width)| {
                 satellite
                     .as_widget_mut()

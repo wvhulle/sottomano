@@ -6,6 +6,7 @@ mod drive_health_indicator;
 use std::collections::BTreeMap;
 
 use bcachefs_member_row::BcachefsMemberRow;
+use corredo::transitions::ExpansionState;
 use disk_space_gauge::{DiskMarking, MarkedDiskSpace};
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
@@ -27,7 +28,7 @@ use crate::{
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         widget_group_content::{
-            ExpansionState, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },

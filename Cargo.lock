@@ -6874,6 +6874,7 @@ version = "0.0.1"
 dependencies = [
  "chrono",
  "clap",
+ "corredo",
  "iced",
  "iced_controller_diagram",
  "iced_exwlshell",
@@ -6927,6 +6928,7 @@ dependencies = [
  "bytesize",
  "chrono",
  "clap",
+ "corredo",
  "iced",
  "iced_controller_diagram",
  "iced_exwlshell",

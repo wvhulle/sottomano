@@ -1,3 +1,4 @@
+use corredo::theming::tinted_svg_icon;
 use iced::{Color, Element, Theme};
 use sottomano_desktop_sources::weather::open_meteo_temperature::{
     Daylight::{self, Day, Night},
@@ -10,7 +11,7 @@ use sottomano_desktop_sources::weather::open_meteo_temperature::{
 };
 use sottomano_weather_icons::WeatherSvg;
 
-use crate::widgets::{icon_glyph::IconGlyph, svg_icon};
+use crate::widgets::icon_glyph::IconGlyph;
 
 const INK_FRACTION: f32 = 22.0 / 30.0;
 
@@ -48,7 +49,7 @@ impl WeatherIcon {
         ink_size: f32,
         color: impl Fn(&Theme) -> Color + 'a,
     ) -> Element<'a, Message> {
-        svg_icon::view(self.svg_data(), ink_size / INK_FRACTION, color)
+        tinted_svg_icon(self.svg_data(), ink_size / INK_FRACTION, color)
     }
 }
 

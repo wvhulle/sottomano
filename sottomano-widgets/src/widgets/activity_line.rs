@@ -1,5 +1,4 @@
-pub use corredo::primitives::activity_line::activity_line;
-use corredo::primitives::activity_line::vertical_activity_line;
+use corredo::gauges::{activity_line, vertical_activity_line};
 use iced::{Color, Element, Theme};
 use sottomano_toml_config::screen_edges::Position;
 

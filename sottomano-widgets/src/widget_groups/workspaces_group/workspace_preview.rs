@@ -1,3 +1,7 @@
+use corredo::theming::{
+    background_color, background_strong_color, background_weak_color, danger_color, primary_color,
+    secondary_text_color, text_color,
+};
 use iced::{
     Border, Color, Element, Shadow, Theme, Vector,
     alignment::Vertical,
@@ -13,10 +17,6 @@ use crate::{
         hover_card_body::hover_card_figure_payloads::{PreviewTile, WorkspacePreview},
     },
     widgets::{
-        configured_theme::{
-            background_color, background_strong_color, background_weak_color, danger_color,
-            primary_color, secondary_text_color, text_color,
-        },
         favicon::Favicons,
         shared_metrics::OUTLINE_WIDTH_PX,
         window_icon::{WindowAssets, window_icon},

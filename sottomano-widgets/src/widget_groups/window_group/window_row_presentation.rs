@@ -1,9 +1,10 @@
-use super::window_list::WindowListInteraction;
-use crate::widgets::{
-    configured_theme::background_color,
-    pointer_drag::{slot_group::SlotGroup, slot_pager::UngroupedHighlightLook},
-    window_title::WindowTitle,
+use corredo::{
+    drag_reorder::{SlotGroup, UngroupedHighlightLook},
+    theming::background_color,
 };
+
+use super::window_list::WindowListInteraction;
+use crate::widgets::window_title::WindowTitle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum WindowTileMarking {

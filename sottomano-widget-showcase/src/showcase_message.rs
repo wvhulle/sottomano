@@ -245,7 +245,8 @@ impl From<WorkspacesMessage> for ShowcaseInteraction {
             WorkspacesMessage::HoverCard(hover_card) => ShowcaseInteraction::HoverCard(hover_card),
             WorkspacesMessage::Drag(_)
             | WorkspacesMessage::RestoreOrder { .. }
-            | WorkspacesMessage::ToggleEmptyWorkspaces => ShowcaseInteraction::OutsideShowcase,
+            | WorkspacesMessage::ToggleEmptyWorkspaces
+            | WorkspacesMessage::Scrolled { .. } => ShowcaseInteraction::OutsideShowcase,
         }
     }
 }

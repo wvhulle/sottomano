@@ -1,5 +1,4 @@
-pub use corredo::record_table::separator_rule;
-use corredo::record_table::{self as generic_table, RecordTable, TableRow};
+use corredo::data_tables::{self as generic_table, GroupedTable, TableRow};
 use iced::alignment::Horizontal;
 use sottomano_toml_config::severity::Severity;
 
@@ -65,21 +64,21 @@ pub(crate) fn record_cells<const COLUMNS: usize>(
 pub fn column_record_table<const COLUMNS: usize>(
     columns: TableColumns,
     records: impl IntoIterator<Item: IntoTableRecord<COLUMNS>>,
-) -> RecordTable<'static, ValueCell, Severity> {
-    RecordTable::new(columns, record_cells(records))
+) -> GroupedTable<'static, ValueCell, Severity> {
+    GroupedTable::new(columns, record_cells(records))
 }
 
 pub fn labeled_value_record_table(
     entries: impl IntoIterator<Item = LabeledValue>,
-) -> RecordTable<'static, ValueCell, Severity> {
+) -> GroupedTable<'static, ValueCell, Severity> {
     column_record_table(TableColumns::Unheaded(vec![Horizontal::Left]), entries)
 }
 
 pub fn grouped_record_table<const COLUMNS: usize>(
     columns: TableColumns,
     groups: impl IntoIterator<Item: IntoIterator<Item: IntoTableRecord<COLUMNS>>>,
-) -> RecordTable<'static, ValueCell, Severity> {
-    RecordTable::grouped(
+) -> GroupedTable<'static, ValueCell, Severity> {
+    GroupedTable::grouped(
         columns,
         groups
             .into_iter()
@@ -121,7 +120,7 @@ mod tests {
         names.iter().map(|name| Planet { name, moons: 1 }).collect()
     }
 
-    fn row_shapes(table: &RecordTable<'static, ValueCell, Severity>) -> Vec<&'static str> {
+    fn row_shapes(table: &GroupedTable<'static, ValueCell, Severity>) -> Vec<&'static str> {
         table
             .rows()
             .iter()

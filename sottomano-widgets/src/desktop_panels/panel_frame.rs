@@ -1,6 +1,6 @@
 use core::slice;
 
-pub use corredo::frame_style::{FrameStyle, OutlinedSides};
+use corredo::theming::{FrameStyle, OutlinedSides};
 use iced::{
     Border, Color, Element, Event, Length, Rectangle, Size, Vector,
     advanced::{

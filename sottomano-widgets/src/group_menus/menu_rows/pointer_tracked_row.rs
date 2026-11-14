@@ -1,5 +1,6 @@
 use core::{mem::take, slice};
 
+use corredo::popovers::CascadeDirection;
 use iced::{
     Border, Element, Event, Length, Point, Rectangle, Size, Theme, Vector,
     advanced::{
@@ -12,10 +13,7 @@ use iced::{
 };
 
 use crate::{
-    group_menus::{
-        cascading_layout::cascade_row::CascadeDirection,
-        menu_rows::menu_row::{MenuRowLook, menu_row_background, row_text_color},
-    },
+    group_menus::menu_rows::menu_row::{MenuRowLook, menu_row_background, row_text_color},
     hover_cards::PointerPresence,
 };
 
@@ -299,10 +297,10 @@ impl<Message: Clone> Widget<Message, Theme, iced::Renderer> for PointerTrackedRo
 
 #[cfg(test)]
 mod tests {
+    use corredo::popovers::CascadeDirection;
     use iced::Point;
 
     use super::{PointerAim, PointerTrail, SatelliteReach};
-    use crate::group_menus::cascading_layout::cascade_row::CascadeDirection;
 
     const ENTERED_LEFT: Point = Point::new(20.0, 40.0);
     const ENTERED_RIGHT: Point = Point::new(80.0, 40.0);

@@ -1,5 +1,9 @@
 use std::mem::take;
 
+use corredo::{
+    orientation::Axis, selection_scroll::selection_following_scroll,
+    width_layout::equal_width_column,
+};
 use iced::Element;
 use sottomano_toml_config::Config;
 
@@ -16,10 +20,6 @@ use crate::{
     widget_groups::{
         widget_group_content::{GroupEvent, GroupMenuItemRow, RowInspection},
         widget_group_identity::WidgetGroupIdentity,
-    },
-    widgets::{
-        selection_scroller::{ScrollAxis, selection_scroller},
-        uniform_width_column::uniform_width_column,
     },
 };
 
@@ -65,9 +65,9 @@ pub(crate) fn cascading_columns<'a, M: Clone + From<GroupEvent<M>> + From<PopupM
         group_row(layout, entry, look)
     });
     Some(GroupMenuCascadeSurfaces {
-        primary: selection_scroller(
-            Element::from(uniform_width_column(group_rows)).map(M::from),
-            ScrollAxis::Vertical,
+        primary: selection_following_scroll(
+            Element::from(equal_width_column(group_rows)).map(M::from),
+            Axis::Vertical,
         )
         .edge_fade(
             layout
@@ -109,7 +109,7 @@ fn open_group_satellites<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage>
     );
     let item_list_scrolled_px = layout.group_menus.item_list_scrolled_px(layout.menu.topic);
     let item_list_scroll_message = layout.menu.item_list_scroll_message();
-    let item_list_viewport = selection_scroller(item_list, ScrollAxis::Vertical)
+    let item_list_viewport = selection_following_scroll(item_list, Axis::Vertical)
         .edge_fade(
             layout
                 .cascade_satellite_panels

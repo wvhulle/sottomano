@@ -569,17 +569,14 @@ impl GroupMenuState {
 mod tests {
     use std::time::Duration;
 
+    use corredo::transitions::ExpansionState;
+
     use super::{
         AlertPinState, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
         GroupSourceDemand, MENU_SOURCE_LINGER, MenuPinState, OpenGroupMenu, PanelRaise,
         WidgetGroupFamily, WidgetGroupIdentity,
     };
-    use crate::{
-        clock::Clock,
-        widget_groups::{
-            widget_group_content::ExpansionState, widget_group_identity::WidgetGroupInstance,
-        },
-    };
+    use crate::{clock::Clock, widget_groups::widget_group_identity::WidgetGroupInstance};
 
     const GPU_GROUP: WidgetGroupIdentity = WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu);
 

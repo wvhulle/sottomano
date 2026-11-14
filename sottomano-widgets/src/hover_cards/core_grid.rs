@@ -1,3 +1,4 @@
+use corredo::theming::secondary_text_color;
 use iced::{
     Border, Color, Element, Length,
     widget::{Row, container, progress_bar},
@@ -11,10 +12,7 @@ use crate::{
         PopupMessage,
         hover_card_body::hover_card_figure_payloads::{PhysicalCoreCells, ThreadCell},
     },
-    widgets::{
-        configured_theme::secondary_text_color,
-        shared_metrics::{OUTLINE_WIDTH_PX, SMALL_CORNER_RADIUS_PX},
-    },
+    widgets::shared_metrics::{OUTLINE_WIDTH_PX, SMALL_CORNER_RADIUS_PX},
 };
 
 pub struct CoreCellGrid<'a> {

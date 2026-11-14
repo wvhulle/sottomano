@@ -1,17 +1,16 @@
 use chrono::{Weekday, WeekdaySet};
 use corredo::{
-    context_menu::{
-        ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing, context_menu,
+    changing_text::animated_text,
+    gauges::FillGauge,
+    orientation::Axis,
+    popovers::{
+        ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing, PopupVisibility,
+        context_menu, popup_trigger,
     },
-    fill_gauge::FillGauge,
-    inline_slider::inline_slider,
-    popup_trigger::{PopupVisibility, popup_trigger},
-    pressable_text::pressable_text,
-    selection_scroller::{ScrollAxis, selection_scroller},
-    theme_colors::primary_color,
-    toggle_switch::{TogglePosition, toggle_switch},
-    transitioning_text::animated_text,
-    weekday_picker::weekday_picker,
+    press_actions::flash_on_press_text,
+    selection_scroll::selection_following_scroll,
+    theming::primary_color,
+    value_controls::{TogglePosition, inline_slider, toggle_switch, weekday_picker},
 };
 use iced::{
     Element, Point, Settings, Size, Theme,
@@ -43,13 +42,13 @@ fn plain_context_menu<'a>() -> Element<'a, GalleryMessage> {
 fn gallery<'a>() -> Element<'a, GalleryMessage> {
     column![
         animated_text("animated label"),
-        pressable_text(text("pressable label"), (), |()| GalleryMessage::Pressed),
+        flash_on_press_text(text("pressable label"), (), |()| GalleryMessage::Pressed),
         inline_slider(0.0..=10.0, 5.0, GalleryMessage::Slid),
         toggle_switch(TogglePosition::On),
         FillGauge::new(0.5, primary_color, 16.0),
         weekday_picker(WeekdaySet::EMPTY, GalleryMessage::DayToggled),
         plain_context_menu(),
-        selection_scroller(text("scrolled label"), ScrollAxis::Vertical),
+        selection_following_scroll(text("scrolled label"), Axis::Vertical),
         popup_trigger(
             text("trigger label"),
             text("popup label"),

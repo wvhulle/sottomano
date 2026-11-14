@@ -6,6 +6,7 @@ pub mod hover_card_content;
 pub mod hover_card_surfaces;
 pub mod hover_card_transition;
 pub mod laid_out_anchors;
+use corredo::transitions::ExpansionState;
 use iced::{Rectangle, window::Id};
 use sottomano_desktop_sources::login_session_presence::idle_session_actions::IdleAction;
 use sottomano_toml_config::screen_edges::Position;
@@ -80,7 +81,6 @@ use crate::{
         wallpaper_group::WallpaperTarget,
         waydroid_container_group::WaydroidContainerTarget,
         weather_group::WeatherTarget,
-        widget_group_content::ExpansionState,
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
         wifi_adapters_group::WifiAdapterTarget,
         window_group::{WindowGroupInteraction, WindowTarget},

@@ -1,5 +1,6 @@
 mod sqlite_layer_appearance;
 
+use corredo::theming::{OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle};
 use iced::Task;
 use sottomano_toml_config::Config;
 
@@ -17,9 +18,7 @@ use crate::{
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widgets::{
         phosphor::{Phosphor, Weight},
-        shell_layer_appearance::{
-            LayerAppearance, OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle, ShellLayer,
-        },
+        shell_layer_appearance::{LayerAppearance, ShellLayer},
     },
 };
 
@@ -424,6 +423,9 @@ impl LayerAppearanceControls {
 
 #[cfg(test)]
 mod tests {
+    use corredo::theming::{
+        FrameBackground, OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle,
+    };
     use sottomano_desktop_sources::sqlite_state_store::StoreError;
 
     use super::{AppearanceMessage, LayerAppearanceControls};
@@ -432,10 +434,7 @@ mod tests {
         group_items::slider_control::ControlMessage,
         hover_cards::HoverTarget,
         widget_groups::panel_settings_group::PanelSettingsTarget,
-        widgets::shell_layer_appearance::{
-            FrameBackground, LayerAppearance, OutlineStyle, OutlineTracing, ShadowCasting,
-            ShadowStyle, ShellLayer,
-        },
+        widgets::shell_layer_appearance::{LayerAppearance, ShellLayer},
     };
 
     fn panel_controls() -> LayerAppearanceControls {

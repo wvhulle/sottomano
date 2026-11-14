@@ -1,5 +1,9 @@
 use std::borrow::Cow;
 
+use corredo::{
+    press_actions::flat_button,
+    theming::{background_strong_color, primary_weak_color, primary_weak_text_color, text_color},
+};
 use iced::{
     Alignment, Color, Element, Length, Padding, Theme,
     border::Radius,
@@ -12,13 +16,7 @@ use crate::{
     group_menus::menu_rows::pointer_tracked_row::{PointerTrackedRow, RowHoverReaction},
     hover_cards::PointerPresence,
     widget_groups::widget_group_content::{GroupEvent, RowInspection},
-    widgets::{
-        configured_theme::{
-            background_strong_color, primary_weak_color, primary_weak_text_color, text_color,
-        },
-        flat_button,
-        text::panel_text,
-    },
+    widgets::text::panel_text,
 };
 
 pub(crate) struct MenuRowContent<'a, M> {
@@ -144,15 +142,11 @@ pub(crate) fn menu_row_background(
 
 #[cfg(test)]
 mod tests {
+    use corredo::theming::{background_strong_color, primary_weak_color};
     use sottomano_toml_config::theme::palette::Palette;
 
     use super::{MenuRowEmphasis, menu_row_background};
-    use crate::{
-        hover_cards::PointerPresence,
-        widgets::configured_theme::{
-            background_strong_color, configured_theme, primary_weak_color,
-        },
-    };
+    use crate::{hover_cards::PointerPresence, widgets::configured_theme::configured_theme};
 
     #[test]
     fn a_selected_row_keeps_its_background_whether_or_not_the_pointer_is_over_it() {

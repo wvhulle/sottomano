@@ -1,13 +1,11 @@
+use corredo::theming::{OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle};
 use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::ColorMode;
 
 use crate::{
     desktop_panels::region_reporter::BackdropBlur,
     widgets::{
         phosphor::{Phosphor, Weight},
-        shell_layer_appearance::{
-            LayerAppearance, LookComparison, OutlineStyle, OutlineTracing, ShadowCasting,
-            ShadowStyle, ShellLayer,
-        },
+        shell_layer_appearance::{LayerAppearance, LookComparison, ShellLayer},
     },
 };
 
@@ -203,12 +201,12 @@ impl AppearancePreset {
 
 #[cfg(test)]
 mod tests {
+    use corredo::theming::{ShadowCasting, ShadowStyle};
+
     use super::{AppearancePreset, ShellAppearance};
     use crate::{
         desktop_panels::region_reporter::BackdropBlur,
-        widgets::shell_layer_appearance::{
-            LayerAppearance, LookComparison, ShadowCasting, ShadowStyle,
-        },
+        widgets::shell_layer_appearance::{LayerAppearance, LookComparison},
     };
 
     #[test]

@@ -1,5 +1,9 @@
 use std::collections::BTreeMap;
 
+use corredo::{
+    popovers::{CascadeOrientation, OutsidePress, PopupFraming, PopupRendering},
+    transitions::ExpansionState,
+};
 use iced::{
     Element, Rectangle, Task, task,
     time::{Duration, Instant},
@@ -12,14 +16,11 @@ use tokio::time::sleep;
 
 use crate::{
     clock::Clock,
-    group_menus::cascading_layout::cascade_row::{CascadeOrientation, cascade_row},
+    group_menus::cascading_layout::cascade_row::cascade_row,
     hover_cards::{
         HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator, PointerPresence,
         PopupMessage, WidgetAnchor,
-        anchored_popup::{
-            OutsidePress, PopupAppearances, PopupFraming, PopupMorph, PopupRendering, PressCatcher,
-            anchored_popup,
-        },
+        anchored_popup::{PopupAppearances, PopupMorph, PressCatcher, anchored_popup},
         hover_card_body::hover_card_source_delivery::HoverCard,
         hover_card_content::HoverCardContent,
         hover_card_transition::{
@@ -29,7 +30,6 @@ use crate::{
         laid_out_anchors::{LaidOutAnchors, WidgetLiveness, dropped_widget_watch},
     },
     layer_surfaces::{PanelEdge, SurfaceRequest},
-    widget_groups::widget_group_content::ExpansionState,
     widgets::{
         shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade,
         window_icon::WindowAssets,

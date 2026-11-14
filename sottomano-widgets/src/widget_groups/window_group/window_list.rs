@@ -3,6 +3,16 @@ use std::{
     time::{Duration, Instant},
 };
 
+use corredo::{
+    drag_reorder::{HoverReorder, ListDeparture, SlotAlarm, draggable_slot},
+    gauges::activity_line,
+    orientation::Axis,
+    selection_scroll::{ScrollEdgeFade, ScrollPacing, selection_following_scroll},
+    theming::{
+        background_color, background_strong_color, danger_color, primary_color, warning_color,
+    },
+    transitions::{DepartingPane, MotionState, SlideBand, SwapPane, sliding_pane_swap},
+};
 use iced::{
     Alignment, Animation, Element, Subscription, Task,
     animation::Easing,
@@ -54,28 +64,18 @@ use crate::{
     },
     widgets::{
         DISABLED_ALPHA,
-        activity_line::activity_line,
-        configured_theme::{
-            background_color, background_strong_color, danger_color, primary_color, warning_color,
-        },
-        edge_alpha_fade::ScrollEdgeFade,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         icon_glyph::IconGlyph,
-        motion_state::MotionState,
         phosphor::{Phosphor, Weight},
         pointer_drag::{
-            DragView, DraggedPanelSlot, ListDeparture, PanelSlotList,
-            draggable_slot::{HoverReorder, draggable_slot},
-            slot_pager::{SlotAlarm, slot_pager},
+            DragView, DraggedPanelSlot, PanelSlotList, reorderable_list::reorderable_list,
         },
         program_brand_icons::program_brand_icon,
-        selection_scroller::{ScrollAxis, ScrollPacing, selection_scroller},
         shared_metrics::{ACCENT_STROKE_PX, pill_corners},
         simple_icons::view_simple_icon,
         text::font_faces_of,
         window_icon::{WindowAssets, window_icon},
         window_title::WindowTitle,
-        workspace_swap::{DepartingPane, SlideBand, SwapPane, workspace_swap},
     },
 };
 
@@ -363,7 +363,7 @@ impl WindowList {
         let workspace = shown_workspace(compositor, output, &slot_context.drag)?;
         let arriving = SwapPane {
             identity: workspace,
-            workspace_order: workspace_index(compositor, output, workspace),
+            slide_order: workspace_index(compositor, output, workspace),
             content: self.workspace_row(compositor, icons, audio, workspace, slot_context),
         };
         let departing =
@@ -375,7 +375,7 @@ impl WindowList {
                     DepartingPane::Departing {
                         pane: SwapPane {
                             identity: departed.workspace_id,
-                            workspace_order: departed.workspace_index,
+                            slide_order: departed.workspace_index,
                             content: self.workspace_row(
                                 compositor,
                                 icons,
@@ -397,7 +397,7 @@ impl WindowList {
             return None;
         }
         Some(
-            workspace_swap(arriving, departing)
+            sliding_pane_swap(arriving, departing)
                 .faded_into(slot_context.panel_frame_style)
                 .sliding_within(panel_slide_band(slot_context))
                 .into(),
@@ -570,13 +570,13 @@ impl WindowList {
             .iter()
             .find(|window_entry| window_entry.is_focused)
             .map(|window_entry| window_slot_key(window_entry, workspace));
-        let pager = slot_pager(slots, edge, config)
+        let pager = reorderable_list(slots, edge, config)
             .highlight(focused_key, primary_color)
             .ungrouped_highlight_look(ungrouped_highlight_look)
             .alarms(alarms)
             .groups(groups)
             .draggable(PanelSlotList::Windows, &drag, dragged);
-        selection_scroller(pager, ScrollAxis::Horizontal)
+        selection_following_scroll(pager, Axis::Horizontal)
             .edge_fade(ScrollEdgeFade::away_from_frame(
                 slot_context.panel_frame_style,
                 maximum_window_title_width_px(config),

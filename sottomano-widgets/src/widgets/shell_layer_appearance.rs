@@ -1,6 +1,6 @@
 use core::f32::consts::FRAC_1_SQRT_2;
 
-pub use corredo::frame_style::{
+use corredo::theming::{
     FrameBackground, FrameStyle, OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle,
 };
 

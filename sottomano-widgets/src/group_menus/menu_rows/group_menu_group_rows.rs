@@ -1,3 +1,8 @@
+use corredo::{
+    popovers::{CascadeDirection, PopupGrowth},
+    theming::{primary_weak_text_color, secondary_text_color, text_color},
+    width_layout::equal_width_column,
+};
 use iced::{
     Element,
     border::Radius,
@@ -8,10 +13,7 @@ use sottomano_toml_config::Config;
 use crate::{
     group_items::{group_item::MenuParts, group_item_gestures::GroupItemGesture},
     group_menus::{
-        cascading_layout::{
-            cascade_row::CascadeDirection, cascade_satellite_panels::CascadeSatellitePanels,
-            notched_panel::PanelGrowth,
-        },
+        cascading_layout::cascade_satellite_panels::CascadeSatellitePanels,
         group_menu_presentation::{GroupMenuLayout, GroupMenuPresentation},
         group_menu_state::{GroupMenuPin, GroupMenuState},
         group_menu_view::GroupMenuMessenger,
@@ -26,11 +28,9 @@ use crate::{
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
-        configured_theme::{primary_weak_text_color, secondary_text_color, text_color},
         glyph_button,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        uniform_width_column::uniform_width_column,
     },
 };
 
@@ -66,11 +66,11 @@ pub(crate) struct GroupMenuRowContext<'p, 'a, M> {
     pub cascade_satellite_panels: &'p CascadeSatellitePanels,
 }
 
-const fn accordion_caret(emphasis: MenuRowEmphasis, growth: PanelGrowth) -> Phosphor {
+const fn accordion_caret(emphasis: MenuRowEmphasis, growth: PopupGrowth) -> Phosphor {
     match (emphasis, growth) {
         (MenuRowEmphasis::Plain, _) => Phosphor::CaretRight(Weight::Regular),
-        (MenuRowEmphasis::Selected, PanelGrowth::Downward) => Phosphor::CaretDown(Weight::Regular),
-        (MenuRowEmphasis::Selected, PanelGrowth::Upward) => Phosphor::CaretUp(Weight::Regular),
+        (MenuRowEmphasis::Selected, PopupGrowth::Downward) => Phosphor::CaretDown(Weight::Regular),
+        (MenuRowEmphasis::Selected, PopupGrowth::Upward) => Phosphor::CaretUp(Weight::Regular),
     }
 }
 
@@ -184,7 +184,7 @@ pub(crate) fn item_menu<'a, M: Clone + From<GroupEvent<M>> + 'a>(
             item_row(layout, group, item, look).map(M::from)
         })
         .collect();
-    uniform_width_column(rows).into()
+    equal_width_column(rows).into()
 }
 
 pub(crate) fn item_row<'a, M: Clone + 'a>(

@@ -4,7 +4,17 @@ use std::{
     time::{Duration, Instant},
 };
 
-use corredo::record_table::RecordTableStyle;
+use corredo::{
+    changing_text::{TextPresence, TransitionStyle, TransitioningText},
+    data_tables::GroupedTableStyle,
+    gauges::CountdownDial,
+    press_actions::flash_on_press_text,
+    theming::{
+        LINE_HEIGHT, background_strong_color, primary_color, primary_shades, primary_weak_color,
+        secondary_text_color, success_color, success_shades, text_color,
+    },
+    width_layout::equal_width_column,
+};
 use iced::{
     Background, Element, Length, Padding, Pixels,
     alignment::Vertical,
@@ -35,21 +45,11 @@ use crate::{
         workspaces_group::workspace_preview::WorkspaceSchematic,
     },
     widgets::{
-        configured_theme::{
-            background_strong_color, primary_color, primary_shades, primary_weak_color,
-            secondary_text_color, success_color, success_shades, text_color,
-        },
         icon_glyph::IconGlyph,
         keyed_record_table::labeled_value_record_table,
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
-        pressable_text::pressable_text,
-        refresh_dial::RefreshDial,
-        text::{
-            LINE_HEIGHT, column_heading, font_faces_of, panel_text, text_effects_of, text_face_of,
-        },
-        transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
-        uniform_width_column::uniform_width_column,
+        text::{column_heading, font_faces_of, panel_text, text_effects_of, text_face_of},
         value_cells::{ValueCell, ValueCellPressMessages, ValueCellView, wrapped_text},
         window_icon::WindowAssets,
     },
@@ -126,7 +126,7 @@ impl<'a> HoverCardContent<'a> {
         let group_title = self.group_title_row().map(lift);
         let groups: Vec<&SourcedSections> = self.hover_card.filled_groups().collect();
         let Some((closing_group, leading_groups)) = groups.split_last() else {
-            let content = uniform_width_column(
+            let content = equal_width_column(
                 enclosed_panel
                     .into_iter()
                     .chain(self.closing_row(None).map(lift)),
@@ -136,14 +136,14 @@ impl<'a> HoverCardContent<'a> {
         };
         let leading = leading_groups.iter().map(|group| {
             lift(
-                uniform_width_column(once(self.group_sections(group)).chain(
+                equal_width_column(once(self.group_sections(group)).chain(
                     self.footer_row(None, self.delivery_state_view(group.delivery_state())),
                 ))
                 .spacing(self.config.theme.spacing.item_gap)
                 .into(),
             )
         });
-        let closing: Element<'panel, Message> = uniform_width_column(
+        let closing: Element<'panel, Message> = equal_width_column(
             once(lift(self.group_sections(closing_group)))
                 .chain(enclosed_panel)
                 .chain(
@@ -153,7 +153,7 @@ impl<'a> HoverCardContent<'a> {
         )
         .spacing(self.config.theme.spacing.item_gap)
         .into();
-        let content = uniform_width_column(leading.chain(once(closing)))
+        let content = equal_width_column(leading.chain(once(closing)))
             .spacing(self.config.theme.spacing.group_gap)
             .into();
         self.shell_below_title(group_title, content)
@@ -165,7 +165,7 @@ impl<'a> HoverCardContent<'a> {
         content: Element<'panel, Message>,
     ) -> Element<'panel, Message> {
         container(
-            uniform_width_column(group_title.into_iter().chain(once(content)))
+            equal_width_column(group_title.into_iter().chain(once(content)))
                 .spacing(self.config.theme.spacing.item_gap),
         )
         .padding(self.shell_padding())
@@ -268,14 +268,14 @@ impl<'a> HoverCardContent<'a> {
                     .into(),
             )
         });
-        let sections: Element<'static, PopupMessage> = uniform_width_column(
+        let sections: Element<'static, PopupMessage> = equal_width_column(
             group
                 .filled_sections()
                 .map(|section| content.section(section)),
         )
         .spacing(self.config.theme.spacing.group_gap)
         .into();
-        uniform_width_column(source_heading.into_iter().chain(once(sections)))
+        equal_width_column(source_heading.into_iter().chain(once(sections)))
             .spacing(self.config.theme.spacing.item_gap)
             .into()
     }
@@ -429,10 +429,10 @@ impl<'a> HoverCardContent<'a> {
     ) -> Element<'static, PopupMessage> {
         let glyph_size = self.config.theme.font.small_text_size_px;
         Element::from(
-            pressable_text(
+            flash_on_press_text(
                 row([
                     self.small_dim_text(label_text).into(),
-                    RefreshDial::new(
+                    CountdownDial::new(
                         self.clock
                             .instant
                             .checked_duration_since(delivered_at)
@@ -574,12 +574,12 @@ impl<'a> HoverCardContent<'a> {
         }
     }
 
-    fn record_table_style(&self) -> RecordTableStyle<ValueCell, Severity, PopupMessage> {
+    fn record_table_style(&self) -> GroupedTableStyle<ValueCell, Severity, PopupMessage> {
         let key_view = self.value_cell_view().key_view();
         let omitted_key_view = key_view.clone();
         let cell_view = self.value_cell_view();
         let heading_font = self.config.theme.font.clone();
-        RecordTableStyle {
+        GroupedTableStyle {
             key_cell: Rc::new(move |record| {
                 key_view.key(record.key().clone(), secondary_text_color)
             }),

@@ -1,6 +1,10 @@
 use std::iter::once;
 
 use chrono::Locale;
+use corredo::{
+    orientation::Axis, popovers::CascadeOrientation, selection_scroll::selection_following_scroll,
+    theming::text_color,
+};
 use iced::{Element, widget::Column};
 use sottomano_toml_config::{Config, screen_edges::Position, severity::Severity};
 
@@ -10,8 +14,7 @@ use crate::{
     group_menus::{
         accordion_layout::accordion_sections::accordion_sections,
         cascading_layout::{
-            cascade_row::CascadeOrientation, cascade_satellite_panels::CascadeSatellitePanels,
-            cascading_columns::cascading_columns,
+            cascade_satellite_panels::CascadeSatellitePanels, cascading_columns::cascading_columns,
         },
         group_menu_presentation::{GroupMenuLayout, GroupMenuOpenTrigger},
         group_menu_state::{
@@ -36,11 +39,7 @@ use crate::{
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
-        configured_theme::text_color,
-        icon_glyph::IconGlyph,
-        selection_scroller::{ScrollAxis, selection_scroller},
-        shell_layer_appearance::LayerAppearance,
-        window_icon::WindowAssets,
+        icon_glyph::IconGlyph, shell_layer_appearance::LayerAppearance, window_icon::WindowAssets,
     },
 };
 
@@ -364,7 +363,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         match (table, cascade) {
             (None, None) => None,
             (Some(table), None) => Some(GroupMenuCascadeSurfaces {
-                primary: selection_scroller(table, ScrollAxis::Vertical)
+                primary: selection_following_scroll(table, Axis::Vertical)
                     .edge_fade(table_edge_fade)
                     .controlled(scrolled_px, move |scrolled_px| {
                         M::from(scroll_message(scrolled_px))
@@ -383,6 +382,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
 
 #[cfg(test)]
 mod tests {
+    use corredo::popovers::{CascadeDirection, CascadeOrientation, PopupGrowth};
     use iced::{
         Element, Event, Point, Settings, Size, mouse,
         widget::{Row, text},
@@ -402,10 +402,6 @@ mod tests {
             group_item_reading::NamedTestReading,
         },
         group_menus::{
-            cascading_layout::{
-                cascade_row::{CascadeDirection, CascadeOrientation},
-                notched_panel::PanelGrowth,
-            },
             group_menu_presentation::{
                 GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
                 SubmenuConnector,
@@ -588,15 +584,15 @@ mod tests {
         for presentation in every_presentation() {
             let group_menus = opened_menu_state(presentation);
             for direction in [CascadeDirection::Rightward, CascadeDirection::Leftward] {
-                for growth in [PanelGrowth::Downward, PanelGrowth::Upward] {
+                for growth in [PopupGrowth::Downward, PopupGrowth::Upward] {
                     let orientation = CascadeOrientation { direction, growth };
                     let (header_top, item_top) = row_tops(&group_menus, orientation, clock);
                     match (presentation.layout, growth) {
                         (GroupMenuLayout::Cascading, _) => assert_eq!(item_top, None),
-                        (GroupMenuLayout::Accordion, PanelGrowth::Downward) => {
+                        (GroupMenuLayout::Accordion, PopupGrowth::Downward) => {
                             assert!(item_top.is_some_and(|item| item > header_top));
                         }
-                        (GroupMenuLayout::Accordion, PanelGrowth::Upward) => {
+                        (GroupMenuLayout::Accordion, PopupGrowth::Upward) => {
                             assert!(item_top.is_some_and(|item| item < header_top));
                         }
                     }
@@ -653,7 +649,7 @@ mod tests {
             &bench,
             CascadeOrientation {
                 direction: CascadeDirection::Rightward,
-                growth: PanelGrowth::Downward,
+                growth: PopupGrowth::Downward,
             },
         );
         let item_list = surfaces.first_item_list();
@@ -786,7 +782,7 @@ mod tests {
             &bench,
             CascadeOrientation {
                 direction: CascadeDirection::Rightward,
-                growth: PanelGrowth::Downward,
+                growth: PopupGrowth::Downward,
             },
         );
         let item_list = surfaces.first_item_list();
@@ -855,7 +851,7 @@ mod tests {
             &bench,
             CascadeOrientation {
                 direction: CascadeDirection::Rightward,
-                growth: PanelGrowth::Downward,
+                growth: PopupGrowth::Downward,
             },
         );
         let mut simulator = Simulator::with_size(

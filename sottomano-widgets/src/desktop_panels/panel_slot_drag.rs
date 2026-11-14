@@ -1,8 +1,8 @@
+use corredo::theming::FrameStyle;
 use sottomano_toml_config::{Config, screen_edges::Position};
 
 use crate::{
     clock::Clock,
-    desktop_panels::panel_frame::FrameStyle,
     widget_groups::window_group::{WindowRowLayout, WindowTitleLength},
     widgets::pointer_drag::{self, DragEvent, DragView, DraggedPanelSlot, ForeignHover},
 };

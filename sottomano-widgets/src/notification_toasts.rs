@@ -1,4 +1,3 @@
-pub use corredo::markup_body;
 pub mod toast_anchor_geometry;
 pub mod toast_card;
 pub mod toast_card_backdrop;
@@ -10,6 +9,7 @@ pub mod window_anchored_toasts;
 
 use std::cmp::Reverse;
 
+use corredo::transitions::{MotionState, vertical_reveal};
 use iced::{
     Padding, Subscription, Theme,
     futures::{StreamExt, stream},
@@ -48,9 +48,8 @@ use crate::{
         quiet_schedule_group::quiet_window::QuietPhase,
     },
     widgets::{
-        announced_level::LevelReading, motion_state::MotionState, ongoing_toast::OngoingKey,
-        reveal_clip::reveal_y, shell_layer_appearance::LayerAppearance,
-        typing_under_cards::CardBackgroundFade,
+        announced_level::LevelReading, ongoing_toast::OngoingKey,
+        shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade,
     },
 };
 
@@ -200,7 +199,7 @@ impl<Routed: Clone> NotificationLayer<Routed> {
             .map(|notif| AnchoredToast {
                 id: notif.data.id,
                 anchor: notif.place.anchor,
-                card: reveal_y(
+                card: vertical_reveal(
                     ToastCard::new(notif, config, theme, overlay_appearance, clock.wall)
                         .pointer_presence(if self.hovered == Some(notif.data.id) {
                             PointerPresence::PointedAt

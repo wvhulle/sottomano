@@ -1,3 +1,4 @@
+use corredo::transitions::MotionState;
 use iced::{
     Animation, Rectangle, Subscription,
     animation::Easing,
@@ -13,8 +14,6 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::overlay_surfaces::OverlaySurfacesConfig;
 use tokio::time::sleep_until;
-
-use crate::widgets::motion_state::MotionState;
 
 const POINTER_SETTLE_IDLE_DELAYS: u32 = 2;
 

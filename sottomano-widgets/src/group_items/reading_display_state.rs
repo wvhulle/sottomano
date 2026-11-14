@@ -1,3 +1,6 @@
+use corredo::theming::{
+    danger_color, primary_color, secondary_text_color, text_color, warning_color,
+};
 use iced::{Color, Theme, widget::text};
 use sottomano_desktop_sources::{
     media_playback_audio::mpris_players::{LoopMode, QueueOrder},
@@ -9,12 +12,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::severity::Severity;
 
-use crate::widgets::{
-    configured_theme::{
-        danger_color, primary_color, secondary_text_color, text_color, warning_color,
-    },
-    phosphor::Weight,
-};
+use crate::widgets::phosphor::Weight;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ReadingDisplayState {

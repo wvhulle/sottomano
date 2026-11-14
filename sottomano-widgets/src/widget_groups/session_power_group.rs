@@ -1,5 +1,9 @@
 use std::{iter::once, time::Duration};
 
+use corredo::{
+    popovers::{ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing},
+    theming::text_color,
+};
 use iced::{Element, Task, border::Radius};
 use sottomano_desktop_sinks::login_session_presence::logind_session_commands::perform_session_action;
 use sottomano_desktop_sources::login_session_presence::{
@@ -28,10 +32,7 @@ use crate::{
         idle_pause_groups::{ScheduledAfterIdle, Timeouts},
     },
     widgets::{
-        configured_theme::text_color,
-        context_menu::{
-            ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing, context_menu,
-        },
+        context_menu::context_menu,
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},

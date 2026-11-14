@@ -6,8 +6,13 @@ use std::{
 };
 
 use chrono::Locale;
-use corredo::primitives::expand_animation::{ExpansionState, expand_animation};
-pub use corredo::primitives::scroll_steps::scroll_direction;
+use corredo::{
+    changing_text::{ReadoutLabels, steady_width_readout},
+    press_actions::flat_button,
+    selection_scroll::wheel_step_direction,
+    theming::text_color,
+    transitions::{ExpansionState, expand_transition, horizontal_reveal},
+};
 use iced::{
     Alignment, Element, Length, Padding, Task,
     alignment::Horizontal,
@@ -35,15 +40,11 @@ use crate::{
     },
     widgets::{
         announced_level::{AnnouncedLevel, LevelAnnouncement, LevelChangeOrigin},
-        configured_theme::text_color,
-        flat_button,
         icon_glyph::IconGlyph,
         inline_slider::inline_slider,
         phosphor::Phosphor,
-        reveal_clip::reveal_x,
         text::{panel_text, text_face_of},
         value_cells::{LabeledValue, SliderReadout, ValueCell},
-        widest_readout_text::{ReadoutLabels, widest_readout_text},
     },
 };
 
@@ -357,7 +358,7 @@ impl SliderControl {
                 }
             },
             ControlMessage::Scroll(delta) => {
-                let Some(step) = scroll_direction(&mut self.accum, delta) else {
+                let Some(step) = wheel_step_direction(&mut self.accum, delta) else {
                     return Action::None;
                 };
                 #[allow(clippy::cast_precision_loss)]
@@ -451,7 +452,7 @@ impl SliderControl {
     ) -> Element<'a, ControlMessage> {
         let expansion = config.group_items.slider_expansion_duration;
         let hover_origin = hover_origin.clone();
-        expand_animation(self.expansion_state, expansion, move |expand| {
+        expand_transition(self.expansion_state, expansion, move |expand| {
             if expand > 0.0 {
                 self.expanded_view(config, expand, clock, hover_origin.clone())
             } else {
@@ -512,7 +513,7 @@ impl SliderControl {
         .align_y(Alignment::Center);
         let opened = Row::with_children([
             closing_button(self.state_glyph(config, clock)),
-            reveal_x(container(revealed).padding(Padding::ZERO.left(gap)), expand),
+            horizontal_reveal(container(revealed).padding(Padding::ZERO.left(gap)), expand),
         ])
         .align_y(Alignment::Center);
         let press_hints = PressHints {
@@ -554,7 +555,7 @@ impl SliderControl {
     }
 
     fn readout_view<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {
-        widest_readout_text(
+        steady_width_readout(
             ReadoutLabels {
                 owner: self.target.clone(),
                 range: self.range.clone(),

@@ -1,5 +1,6 @@
 use std::slice::from_ref;
 
+use corredo::popovers::PopupGrowth;
 use iced::{
     Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{
@@ -11,9 +12,7 @@ use iced::{
     mouse::Cursor,
 };
 
-use crate::{
-    group_menus::cascading_layout::notched_panel::PanelGrowth, hover_cards::PointerPresence,
-};
+use crate::hover_cards::PointerPresence;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct HeldHeight {
@@ -59,14 +58,14 @@ impl HeldHeight {
 #[must_use]
 pub fn pointer_held_height<'a, Message: 'a>(
     content: Element<'a, Message>,
-    growth: PanelGrowth,
+    growth: PopupGrowth,
 ) -> Element<'a, Message> {
     Element::new(PointerHeldHeight { content, growth })
 }
 
 struct PointerHeldHeight<'a, Message> {
     content: Element<'a, Message>,
-    growth: PanelGrowth,
+    growth: PopupGrowth,
 }
 
 impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PointerHeldHeight<'_, Message> {
@@ -100,8 +99,8 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PointerHeldHeight
         let shown_px = held.holding(natural.height).min(limits.max().height);
         *held = held.after_layout(shown_px);
         let child_top = match self.growth {
-            PanelGrowth::Downward => 0.0,
-            PanelGrowth::Upward => shown_px - natural.height,
+            PopupGrowth::Downward => 0.0,
+            PopupGrowth::Upward => shown_px - natural.height,
         };
         Node::with_children(
             Size::new(natural.width, shown_px),

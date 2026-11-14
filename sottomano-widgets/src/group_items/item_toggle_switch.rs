@@ -1,4 +1,4 @@
-use corredo::toggle_switch::{TogglePosition, toggle_switch};
+use corredo::value_controls::{TogglePosition, toggle_switch};
 use iced::Element;
 use sottomano_toml_config::Config;
 

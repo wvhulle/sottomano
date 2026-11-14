@@ -1,5 +1,4 @@
-use corredo::confirm_button::ConfirmButtonIcons;
-pub use corredo::confirm_button::{ConfirmButton, ConfirmPolicy, ConfirmPress, ConfirmStage};
+use corredo::press_actions::{ConfirmButton, ConfirmButtonIcons};
 use iced::{Element, Theme};
 use sottomano_toml_config::Config;
 

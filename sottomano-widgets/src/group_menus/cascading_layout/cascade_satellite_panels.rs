@@ -1,20 +1,21 @@
+use corredo::{
+    popovers::{CascadeDirection, CascadeOrientation, PopupGrowth},
+    selection_scroll::ScrollEdgeFade,
+    theming::FrameStyle,
+};
 use iced::{Element, border::Radius, time::Duration};
 use sottomano_toml_config::Config;
 
 use crate::{
-    desktop_panels::{panel_frame::FrameStyle, region_reporter::BackdropBlur},
+    desktop_panels::region_reporter::BackdropBlur,
     group_menus::{
-        cascading_layout::{
-            cascade_row::{CascadeDirection, CascadeOrientation},
-            notched_panel::{
-                NotchPlacement, NotchRowAnchor, NotchSide, PanelGrowth, ResolvedPanelTop,
-                notched_panel,
-            },
+        cascading_layout::notched_panel::{
+            NotchPlacement, NotchRowAnchor, NotchSide, ResolvedPanelTop, notched_panel,
         },
         group_menu_presentation::SubmenuConnector,
         menu_rows::menu_row::menu_row_height,
     },
-    widgets::{edge_alpha_fade::ScrollEdgeFade, shell_layer_appearance::LayerAppearance},
+    widgets::shell_layer_appearance::LayerAppearance,
 };
 
 #[derive(Clone, Copy)]
@@ -25,7 +26,7 @@ struct PanelSurface {
 
 pub(crate) struct CascadeSatellitePanels {
     notch_side: NotchSide,
-    pub growth: PanelGrowth,
+    pub growth: PopupGrowth,
     list_frame: FrameStyle,
     list_backdrop_blur: BackdropBlur,
     card_frame: FrameStyle,

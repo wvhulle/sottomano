@@ -1,3 +1,4 @@
+use corredo::drag_reorder::{GhostPlacement, ListDeparture, drag_ghost};
 use iced::{
     Element, Length, Vector,
     widget::{column, container, stack},
@@ -7,10 +8,7 @@ use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     hover_cards::{HoverCardMessage, WidgetAnchor},
     widget_groups::{window_group::WindowGroupInteraction, workspaces_group},
-    widgets::pointer_drag::{
-        DraggedPanelSlot, ListDeparture,
-        drag_ghost::{GhostPlacement, drag_ghost},
-    },
+    widgets::pointer_drag::DraggedPanelSlot,
 };
 
 use crate::{

@@ -1,17 +1,15 @@
 use chrono::{Weekday, WeekdaySet};
 use corredo::{
-    context_menu::{
-        ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing, context_menu,
+    changing_text::animated_text,
+    data_tables::text_grouped_table,
+    gauges::FillGauge,
+    popovers::{
+        ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing, PopupVisibility,
+        context_menu, popup_trigger,
     },
-    fill_gauge::FillGauge,
-    inline_slider::inline_slider,
-    popup_trigger::{PopupVisibility, popup_trigger},
-    pressable_text::pressable_text,
-    record_table::text_record_table,
-    theme_colors::primary_color,
-    toggle_switch::{TogglePosition, toggle_switch},
-    transitioning_text::animated_text,
-    weekday_picker::weekday_picker,
+    press_actions::flash_on_press_text,
+    theming::primary_color,
+    value_controls::{TogglePosition, inline_slider, toggle_switch, weekday_picker},
 };
 use iced::{
     Element,
@@ -82,7 +80,7 @@ impl WidgetGallery {
     }
 
     fn view(&self) -> Element<'_, GalleryMessage> {
-        let table = text_record_table(
+        let table = text_grouped_table(
             ["Moons"],
             [
                 ("Earth".to_owned(), vec!["1".to_owned()]),
@@ -103,7 +101,7 @@ impl WidgetGallery {
             mouse_area(toggle_switch(self.toggle_position)).on_press(GalleryMessage::SwitchToggled),
             FillGauge::new(self.slider_value / 10.0, primary_color, 32.0),
             weekday_picker(self.chosen_days, GalleryMessage::DayToggled),
-            pressable_text(
+            flash_on_press_text(
                 text(format!("Pressed {} times", self.text_presses)),
                 (),
                 |()| GalleryMessage::TextPressed

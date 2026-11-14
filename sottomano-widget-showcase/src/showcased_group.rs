@@ -1,5 +1,6 @@
 use std::ops::ControlFlow;
 
+use corredo::theming::{background_color, primary_color, secondary_text_color, success_color};
 use iced::{
     Color, Element, Font, Length, Padding, Theme, border,
     widget::{Column, Row, container, stack, text},
@@ -68,7 +69,6 @@ use sottomano_widgets::{
     },
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
-        configured_theme::{background_color, primary_color, secondary_text_color, success_color},
         favicon::Favicons,
         pointer_drag::DragView,
         window_icon::WindowAssets,
