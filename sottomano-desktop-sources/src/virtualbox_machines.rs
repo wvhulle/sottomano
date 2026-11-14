@@ -12,6 +12,7 @@ use crate::{
     delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::{
         procfs_process_scan::{program_stem, readable_text, scan_processes},
+        shell_command_output::{self, blocking},
         sysfs_attribute_reads::Error,
     },
 };
@@ -20,6 +21,7 @@ const MACHINE_POLL_PERIOD: Duration = Duration::from_secs(5);
 const PROBE_POLL_PERIOD: Duration = Duration::from_secs(30);
 const VIRTUALBOX_VM_PROGRAMS: [&str; 3] = ["VBoxHeadless", "VirtualBoxVM", "VBoxSDL"];
 const DEFAULT_MACHINE_FOLDER: &str = "VirtualBox VMs";
+const VIRTUALBOX_MANAGER_PROGRAM: &str = "VBoxManage";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VirtualBoxMachineProbe {
@@ -68,8 +70,15 @@ pub struct VirtualBoxMachineListing {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegisteredVirtualBoxMachine {
+    pub machine_name: String,
+    pub machine_uuid: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VirtualBoxMachineListings {
     pub listings: Vec<VirtualBoxMachineListing>,
+    pub stopped_machines: Vec<RegisteredVirtualBoxMachine>,
 }
 
 impl SnapshotSource for VirtualBoxMachineListings {
@@ -108,7 +117,50 @@ fn named_machines() -> Result<VirtualBoxMachineListings, Error> {
         })
         .collect();
     listings.sort_by(|first, second| first.machine_name.cmp(&second.machine_name));
-    Ok(VirtualBoxMachineListings { listings })
+    let stopped_machines = stopped_among(registered_machines(), &listings);
+    Ok(VirtualBoxMachineListings {
+        listings,
+        stopped_machines,
+    })
+}
+
+fn registered_machines() -> Vec<RegisteredVirtualBoxMachine> {
+    match blocking::output(VIRTUALBOX_MANAGER_PROGRAM, &["list", "vms"]) {
+        Ok(machine_list) => parsed_machine_list(&machine_list),
+        Err(shell_command_output::Error::NotInstalled { .. }) => Vec::new(),
+        Err(list_failure) => {
+            tracing::debug!(%list_failure, "registered VirtualBox machines unreadable");
+            Vec::new()
+        }
+    }
+}
+
+fn parsed_machine_list(machine_list: &str) -> Vec<RegisteredVirtualBoxMachine> {
+    machine_list
+        .lines()
+        .filter_map(|machine_line| {
+            let (quoted_name, braced_uuid) = machine_line.trim().rsplit_once(' ')?;
+            Some(RegisteredVirtualBoxMachine {
+                machine_name: quoted_name.strip_prefix('"')?.strip_suffix('"')?.to_owned(),
+                machine_uuid: braced_uuid.strip_prefix('{')?.strip_suffix('}')?.to_owned(),
+            })
+        })
+        .collect()
+}
+
+fn stopped_among(
+    registered: Vec<RegisteredVirtualBoxMachine>,
+    running: &[VirtualBoxMachineListing],
+) -> Vec<RegisteredVirtualBoxMachine> {
+    registered
+        .into_iter()
+        .filter(|machine| {
+            !running.iter().any(|listing| {
+                listing.machine_reference == machine.machine_uuid
+                    || listing.machine_reference == machine.machine_name
+            })
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -269,7 +321,34 @@ pub fn settings_folder_of(machine: &VirtualBoxMachine) -> Option<&Path> {
 mod tests {
     use bytesize::ByteSize;
 
-    use super::{MachineSettings, option_value, parsed_machine_settings};
+    use super::{
+        MachineSettings, RegisteredVirtualBoxMachine, VirtualBoxMachineListing, option_value,
+        parsed_machine_list, parsed_machine_settings, stopped_among,
+    };
+
+    #[test]
+    fn registered_machines_not_running_are_stopped() {
+        let registered = parsed_machine_list(
+            "\"Ubuntu Server\" {0b1c2d3e-0000-4000-8000-000000000001}\n\"Windows 11\" \
+             {0b1c2d3e-0000-4000-8000-000000000002}\n",
+        );
+        assert_eq!(
+            registered[0],
+            RegisteredVirtualBoxMachine {
+                machine_name: "Ubuntu Server".to_owned(),
+                machine_uuid: "0b1c2d3e-0000-4000-8000-000000000001".to_owned(),
+            }
+        );
+        let running = [VirtualBoxMachineListing {
+            pid: 7,
+            machine_name: "Ubuntu Server".to_owned(),
+            machine_reference: "0b1c2d3e-0000-4000-8000-000000000001".to_owned(),
+            running: true,
+        }];
+        let stopped = stopped_among(registered, &running);
+        assert_eq!(stopped.len(), 1);
+        assert_eq!(stopped[0].machine_name, "Windows 11");
+    }
 
     #[test]
     fn a_headless_launch_names_its_machine_by_comment_and_uuid() {

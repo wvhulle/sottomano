@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::qemu_virtual_machines::libvirt_domain_shutdown::{
-    request_libvirt_shutdown, request_qmp_powerdown,
+    request_libvirt_shutdown, request_libvirt_start, request_qmp_powerdown,
 };
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -50,16 +50,18 @@ use crate::{
 
 const FOCUS_WINDOW_HINT: &str = "Focus its window";
 const POWER_OFF_HINT: &str = "Power off";
+const POWER_ON_HINT: &str = "Power on";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VirtualMachineTarget {
-    pid: i32,
+pub enum VirtualMachineTarget {
+    RunningProcess { pid: i32 },
+    InactiveDomain { domain_name: Cow<'static, str> },
 }
 
 impl VirtualMachineTarget {
     #[must_use]
     pub const fn of_pid(pid: i32) -> Self {
-        Self { pid }
+        Self::RunningProcess { pid }
     }
 }
 
@@ -167,6 +169,42 @@ impl VirtualMachineRow<'_> {
     }
 }
 
+struct InactiveDomainRow<'a> {
+    domain_name: &'a str,
+}
+
+impl GroupItemReading for InactiveDomainRow<'_> {
+    fn name(&self) -> &'static str {
+        "Virtual machine"
+    }
+
+    fn menu_row_name(&self) -> Cow<'static, str> {
+        self.domain_name.to_owned().into()
+    }
+
+    fn icon(&self) -> IconGlyph {
+        Phosphor::DesktopTower(Weight::Regular).into()
+    }
+
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
+        Some("shut off".to_owned())
+    }
+
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::Off
+    }
+
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary([
+            LabeledValue::new(
+                "Origin",
+                origin_text(&VirtualMachineOrigin::LibvirtDomain).into_owned(),
+            ),
+            LabeledValue::new("State", "shut off"),
+        ])
+    }
+}
+
 impl GroupItemReading for VirtualMachineRow<'_> {
     fn name(&self) -> &'static str {
         "Virtual machine"
@@ -212,8 +250,8 @@ pub struct VirtualMachinesGroup {
 pub enum VirtualMachinesMessage {
     Machines(SnapshotDelivery<VirtualMachinesReadout>),
     WindowNotFound(i32),
-    PowerOffAccepted(String),
-    PowerOffRefused(String),
+    PowerChangeAccepted(String),
+    PowerChangeRefused(String),
     Interaction(VirtualMachinesInteraction),
 }
 
@@ -222,6 +260,7 @@ pub enum VirtualMachinesInteraction {
     Expansion(WidgetGroupExpansionMessage),
     FocusWindow(i32),
     PowerOff(GuestPowerControl),
+    PowerOn(String),
 }
 
 pub enum Action {
@@ -240,8 +279,8 @@ fn power_off_task(power_control: GuestPowerControl) -> Task<VirtualMachinesMessa
                     .map_err(|failure| failure.to_string())
             },
             |shutdown| match shutdown {
-                Ok(target_label) => VirtualMachinesMessage::PowerOffAccepted(target_label),
-                Err(failure) => VirtualMachinesMessage::PowerOffRefused(failure),
+                Ok(target_label) => VirtualMachinesMessage::PowerChangeAccepted(target_label),
+                Err(failure) => VirtualMachinesMessage::PowerChangeRefused(failure),
             },
         ),
         GuestPowerControl::LibvirtDomain(domain_name) => Task::perform(
@@ -251,12 +290,26 @@ fn power_off_task(power_control: GuestPowerControl) -> Task<VirtualMachinesMessa
                     .unwrap_or_else(|join_failure| Err(join_failure.to_string()))
             },
             |shutdown| match shutdown {
-                Ok(domain_name) => VirtualMachinesMessage::PowerOffAccepted(domain_name),
-                Err(failure) => VirtualMachinesMessage::PowerOffRefused(failure),
+                Ok(domain_name) => VirtualMachinesMessage::PowerChangeAccepted(domain_name),
+                Err(failure) => VirtualMachinesMessage::PowerChangeRefused(failure),
             },
         ),
         GuestPowerControl::Unavailable => Task::none(),
     }
+}
+
+fn power_on_task(domain_name: String) -> Task<VirtualMachinesMessage> {
+    Task::perform(
+        async move {
+            spawn_blocking(move || request_libvirt_start(&domain_name).map(|()| domain_name))
+                .await
+                .unwrap_or_else(|join_failure| Err(join_failure.to_string()))
+        },
+        |start| match start {
+            Ok(domain_name) => VirtualMachinesMessage::PowerChangeAccepted(domain_name),
+            Err(failure) => VirtualMachinesMessage::PowerChangeRefused(failure),
+        },
+    )
 }
 
 impl VirtualMachinesGroup {
@@ -279,12 +332,12 @@ impl VirtualMachinesGroup {
                 tracing::debug!("virtual machine {pid} has no window");
                 Action::Run(Task::none())
             }
-            VirtualMachinesMessage::PowerOffAccepted(domain_name) => {
-                tracing::info!("libvirt domain {domain_name} is shutting down");
+            VirtualMachinesMessage::PowerChangeAccepted(machine_label) => {
+                tracing::info!(%machine_label, "virtual machine power change accepted");
                 Action::Run(Task::none())
             }
-            VirtualMachinesMessage::PowerOffRefused(failure) => {
-                tracing::warn!("virtual machine power off: {failure}");
+            VirtualMachinesMessage::PowerChangeRefused(failure) => {
+                tracing::warn!(%failure, "virtual machine power change refused");
                 Action::Run(Task::none())
             }
             VirtualMachinesMessage::Interaction(VirtualMachinesInteraction::Expansion(
@@ -302,6 +355,9 @@ impl VirtualMachinesGroup {
             VirtualMachinesMessage::Interaction(VirtualMachinesInteraction::PowerOff(
                 power_control,
             )) => Action::Run(power_off_task(power_control)),
+            VirtualMachinesMessage::Interaction(VirtualMachinesInteraction::PowerOn(
+                domain_name,
+            )) => Action::Run(power_on_task(domain_name)),
         }
     }
 
@@ -315,9 +371,22 @@ impl VirtualMachinesGroup {
 
     #[must_use]
     pub fn hover_card_for(&self, target: &VirtualMachineTarget, clock: Clock) -> Option<HoverCard> {
-        let machine = self.machine_with_pid(target.pid)?;
-        self.readout
-            .hover_card_with(VirtualMachineRow { machine }.hover_card(clock))
+        match target {
+            VirtualMachineTarget::RunningProcess { pid } => {
+                let machine = self.machine_with_pid(*pid)?;
+                self.readout
+                    .hover_card_with(VirtualMachineRow { machine }.hover_card(clock))
+            }
+            VirtualMachineTarget::InactiveDomain { domain_name } => {
+                let readout = self.readout.get()?;
+                let domain_name = readout
+                    .inactive_domains
+                    .iter()
+                    .find(|inactive| inactive.as_str() == domain_name.as_ref())?;
+                self.readout
+                    .hover_card_with(InactiveDomainRow { domain_name }.hover_card(clock))
+            }
+        }
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, VirtualMachinesInteraction> {
@@ -351,11 +420,29 @@ impl VirtualMachinesGroup {
                 ),
             }
         });
+        let inactive_domains = self
+            .readout
+            .get()
+            .map(|readout| readout.inactive_domains.as_slice())
+            .unwrap_or_default();
+        let inactive_rows = inactive_domains.iter().map(|domain_name| {
+            GroupItem::reading(
+                InactiveDomainRow { domain_name },
+                VirtualMachineTarget::InactiveDomain {
+                    domain_name: Cow::Owned(domain_name.clone()),
+                },
+            )
+            .on_switch_press(
+                SwitchPosition::Off,
+                POWER_ON_HINT,
+                VirtualMachinesInteraction::PowerOn(domain_name.clone()),
+            )
+        });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::VirtualMachines,
             &self.expansion,
             VirtualMachinesInteraction::Expansion,
-            rows,
+            rows.chain(inactive_rows),
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::DesktopTower(Weight::Regular).into(),
@@ -384,5 +471,36 @@ mod tests {
             }),
             "tcp 2222 → 22"
         );
+    }
+
+    #[test]
+    fn a_shut_off_libvirt_domain_has_its_own_hover_card() {
+        use std::time::Duration;
+
+        use sottomano_desktop_sources::delivery_cadence_drivers::{
+            DeliveryCadence, PeriodicPolling,
+        };
+
+        let clock = Clock::real();
+        let mut group = VirtualMachinesGroup::default();
+        let _ = group.update(
+            VirtualMachinesMessage::Machines(SnapshotDelivery::fixture_delivered(
+                Ok(VirtualMachinesReadout {
+                    machines: Vec::new(),
+                    inactive_domains: vec!["windows-11".to_owned()],
+                }),
+                DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
+            )),
+            clock,
+        );
+        let target_of = |domain_name: &'static str| VirtualMachineTarget::InactiveDomain {
+            domain_name: Cow::Borrowed(domain_name),
+        };
+        assert!(
+            group
+                .hover_card_for(&target_of("windows-11"), clock)
+                .is_some()
+        );
+        assert!(group.hover_card_for(&target_of("debian"), clock).is_none());
     }
 }
