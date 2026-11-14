@@ -9,7 +9,6 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use chrono::DateTime;
 use futures::{Stream, StreamExt};
 use serde::Deserialize;
 use tokio::sync::Mutex;
@@ -27,7 +26,7 @@ use crate::{
         libpod_running_containers::{
             ContainerCiIdentity, ContainerPhase, EngineContainers, EngineListing, EngineReadError,
             EngineReadout, RunningContainer, StoppedContainer, classified_engine_failure,
-            phased_containers,
+            parsed_engine_timestamp, phased_containers,
         },
         systemd_service_engine_discovery::EngineOwner,
     },
@@ -150,20 +149,6 @@ struct ContainerProcessStart {
     started_at: Option<SystemTime>,
 }
 
-fn parsed_start_time(started_at: &str) -> Option<SystemTime> {
-    if started_at.is_empty() {
-        return None;
-    }
-    DateTime::parse_from_rfc3339(started_at)
-        .inspect_err(|parse_failure| {
-            tracing::warn!(
-                "docker: container start time {started_at} is malformed: {parse_failure}"
-            );
-        })
-        .ok()
-        .map(SystemTime::from)
-}
-
 pub(crate) struct DockerEngineSampler {
     socket_path: PathBuf,
     process_starts_by_id: HashMap<String, ContainerProcessStart>,
@@ -213,7 +198,7 @@ impl DockerEngineSampler {
                     container_id,
                     ContainerProcessStart {
                         pid: inspected.state.pid,
-                        started_at: parsed_start_time(&inspected.state.started_at),
+                        started_at: parsed_engine_timestamp(&inspected.state.started_at),
                     },
                 );
             }
@@ -445,7 +430,8 @@ impl SnapshotSource for DockerEngineReadout {
 mod tests {
     use serde_json::json;
 
-    use super::{ListedDockerContainer, parsed_start_time};
+    use super::ListedDockerContainer;
+    use crate::podman_container_engine::libpod_running_containers::parsed_engine_timestamp;
 
     #[test]
     fn a_listed_container_drops_the_leading_slash_of_its_name() {
@@ -476,8 +462,8 @@ mod tests {
 
     #[test]
     fn docker_start_times_parse_with_nanoseconds() {
-        assert!(parsed_start_time("2026-11-10T17:42:03.123456789Z").is_some());
-        assert!(parsed_start_time("0001-01-01T00:00:00Z").is_some());
-        assert!(parsed_start_time("").is_none());
+        assert!(parsed_engine_timestamp("2026-11-10T17:42:03.123456789Z").is_some());
+        assert!(parsed_engine_timestamp("0001-01-01T00:00:00Z").is_some());
+        assert!(parsed_engine_timestamp("").is_none());
     }
 }

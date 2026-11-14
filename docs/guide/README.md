@@ -31,7 +31,7 @@ The Menus group in the Behaviour menu changes how every menu opens. Menus can op
 | Appearance | bottom, left | panel, sidebar, overlay, window and menu settings with a unit |
 | Behaviour | bottom, left | the remaining panel, sidebar, overlay, window and menu settings, the application menu switch, looks |
 | Applications | bottom, middle | frequently launched apps, one group per category, launcher options |
-| Virtualization | bottom, right | virtual machines, microVMs, Incus instances, nspawn containers, LXC containers, Podman containers, Docker containers, Waydroid, Flatpak apps, memory limits |
+| Virtualization | bottom, right | QEMU machines, microvm.nix guests, Incus instances, nspawn containers, LXC containers, Podman containers, Docker containers, Waydroid, Flatpak apps, memory limits |
 | Services | bottom, right | local models, CI runs, AI usage, systemd units, journal, upgrades |
 | Session | bottom, right | idle timeouts, login session |
 

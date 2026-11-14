@@ -256,7 +256,7 @@ pub const DEMOS: &[Demo] = &[
         shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
-            Step::PressText("VMs"),
+            Step::PressText("QEMU machines"),
             Step::Hover(HoverTarget::VirtualMachine(VirtualMachineTarget::of_pid(
                 virtual_machines::INTERACTIVE_VM_PID,
             ))),
@@ -270,7 +270,7 @@ pub const DEMOS: &[Demo] = &[
         shown: GroupShown::InMenu(GroupMenuTopic::Virtualization),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
-            Step::PressText("MicroVMs"),
+            Step::PressText("microvm.nix guests"),
             Step::Hover(HoverTarget::MicrovmGuest(MicrovmGuestTarget::of_pid(
                 microvm_guests::HOVERED_MICROVM_PID,
             ))),
