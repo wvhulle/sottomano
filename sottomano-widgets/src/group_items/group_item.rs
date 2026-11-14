@@ -4,6 +4,7 @@ use chrono::Locale;
 use corredo::{press_actions::flat_button, theming::text_color};
 use iced::{
     Alignment, Element,
+    mouse::ScrollDelta,
     widget::{Row, Space, button, mouse_area, row},
 };
 use sottomano_toml_config::{Config, severity::Severity};
@@ -43,6 +44,13 @@ use crate::{
 type DrawItem<'a, M> = Box<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
 type DrawControl<'a, M> =
     Box<dyn Fn(f32, Clock, ItemPlacement, &HoverOrigin) -> Element<'a, GroupEvent<M>> + 'a>;
+
+type AdjustByScroll<'a, M> = Rc<dyn Fn(ScrollDelta) -> M + 'a>;
+
+pub(crate) enum RowScroll<'a, M> {
+    Inert,
+    AdjustsValue(AdjustByScroll<'a, M>),
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ItemPlacement {
@@ -152,6 +160,7 @@ enum GroupItemContent<'a, M> {
         widget: &'a dyn GroupItemReading,
         target: HoverTarget,
         draw: DrawControl<'a, M>,
+        adjust_by_scroll: AdjustByScroll<'a, M>,
     },
     Composed {
         identity: ComposedGroupItemFace,
@@ -200,10 +209,12 @@ impl<'a, M: 'a> GroupItemContent<'a, M> {
                 widget,
                 target,
                 draw,
+                adjust_by_scroll,
             } => GroupItemContent::Slider {
                 widget,
                 target,
                 draw: lift_control(draw),
+                adjust_by_scroll: Rc::new(move |delta| lift(adjust_by_scroll(delta))),
             },
             GroupItemContent::Composed {
                 identity,
@@ -274,9 +285,11 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         on_control: impl Fn(ControlMessage) -> M + 'a,
     ) -> Self {
         let on_control = Rc::new(on_control);
+        let scrolled_control = Rc::clone(&on_control);
         Self::from(GroupItemContent::Slider {
             widget: slider,
             target: slider.target().clone(),
+            adjust_by_scroll: Rc::new(move |delta| scrolled_control(ControlMessage::Scroll(delta))),
             draw: Box::new(move |reveal, clock, placement, hover_origin| {
                 let on_control = Rc::clone(&on_control);
                 let slider_view = match placement {
@@ -600,6 +613,17 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         MenuParts {
             icon: parts.icon,
             value: self.with_switch_indicator(config, parts.value, 1.0),
+        }
+    }
+
+    pub(crate) fn row_scroll(&self) -> RowScroll<'a, M> {
+        match &self.kind {
+            GroupItemContent::Slider {
+                adjust_by_scroll, ..
+            } => RowScroll::AdjustsValue(Rc::clone(adjust_by_scroll)),
+            GroupItemContent::Reading { .. } | GroupItemContent::Composed { .. } => {
+                RowScroll::Inert
+            }
         }
     }
 

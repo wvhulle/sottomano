@@ -27,7 +27,7 @@ use crate::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
-            MenuParts,
+            MenuParts, RowScroll,
         },
         group_item_gestures::GroupItemGestures,
         group_item_reading::GroupItemReading,
@@ -320,6 +320,7 @@ pub(crate) struct GroupMenuItemRow<'a, M> {
     pub pin: GroupItemPin,
     pub inspected_target: HoverTarget,
     pub gestures: GroupItemGestures<M>,
+    pub row_scroll: RowScroll<'a, M>,
     pub parts: MenuParts<'a, M>,
 }
 
@@ -671,6 +672,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 },
                 inspected_target: item.inspected_target().clone(),
                 gestures: item.gestures(),
+                row_scroll: item.row_scroll(),
                 parts: item.item_row_parts(config, clock),
             })
             .collect();

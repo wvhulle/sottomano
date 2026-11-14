@@ -115,6 +115,7 @@ pub enum HoverTarget {
     DarkMode(DarkModeTarget),
     VoiceDictation(VoiceDictationTarget),
     IdleTimeout(IdleAction),
+    IdleOutcome(IdleAction),
     PauseBlocker(PauseBlockerTarget),
     Reachability(ReachabilityTarget),
     Tailnet(TailnetTarget),

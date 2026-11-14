@@ -11,7 +11,10 @@ use iced::{
 use sottomano_toml_config::Config;
 
 use crate::{
-    group_items::{group_item::MenuParts, group_item_gestures::GroupItemGesture},
+    group_items::{
+        group_item::{MenuParts, RowScroll},
+        group_item_gestures::GroupItemGesture,
+    },
     group_menus::{
         cascading_layout::cascade_satellite_panels::CascadeSatellitePanels,
         group_menu_presentation::{GroupMenuLayout, GroupMenuPresentation},
@@ -249,7 +252,12 @@ pub(crate) fn item_row<'a, M: Clone + 'a>(
         RowHoverReaction::Highlights,
     );
     let inspect = layout.menu.inspect_row(inspected_target.clone());
-    let inspected_on_enter = mouse_area(row).on_enter(inspect);
+    let inspected_on_enter = match item.row_scroll {
+        RowScroll::AdjustsValue(adjust_by_scroll) => mouse_area(row)
+            .on_enter(inspect)
+            .on_scroll(move |delta| GroupEvent::Group(adjust_by_scroll(delta))),
+        RowScroll::Inert => mouse_area(row).on_enter(inspect),
+    };
     let gestured_row = match item.gestures.right {
         GroupItemGesture::Performs { message, .. } => inspected_on_enter
             .on_right_press(GroupEvent::Group(message))

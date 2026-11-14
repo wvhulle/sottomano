@@ -109,6 +109,7 @@ impl ShellWidgetGroups {
             | HoverTarget::Bluetooth(_)
             | HoverTarget::Audio(_)
             | HoverTarget::IdleTimeout(_)
+            | HoverTarget::IdleOutcome(_)
             | HoverTarget::PauseBlocker(_)
             | HoverTarget::Wallpaper(_)
             | HoverTarget::Caldav(_)

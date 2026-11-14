@@ -417,7 +417,7 @@ impl IdlePauseGroups {
             .map(|state| {
                 GroupItem::reading(
                     NextSleepStateRow { state },
-                    HoverTarget::IdleTimeout(IdleAction::Sleep),
+                    HoverTarget::IdleOutcome(IdleAction::Sleep),
                 )
             });
         let scheduled_shutdown = self
@@ -428,7 +428,7 @@ impl IdlePauseGroups {
             .map(|shutdown| {
                 GroupItem::reading(
                     ScheduledShutdownRow { shutdown },
-                    HoverTarget::IdleTimeout(IdleAction::PowerOff),
+                    HoverTarget::IdleOutcome(IdleAction::PowerOff),
                 )
             });
         let glyph = pause_glyph(pause).into();

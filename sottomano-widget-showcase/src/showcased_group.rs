@@ -1077,7 +1077,9 @@ impl ShowcasedGroup {
                     .hover_card_for(target, &media.desktop_entries, clock)
             }
             ShowcasedGroup::IdleTimeouts(group) => match target {
-                HoverTarget::IdleTimeout(kind) => Some(group.hover_card_for(*kind, clock)),
+                HoverTarget::IdleTimeout(kind) | HoverTarget::IdleOutcome(kind) => {
+                    Some(group.hover_card_for(*kind, clock))
+                }
                 HoverTarget::PauseBlocker(blocker) => group.blocker_hover_card_for(blocker),
                 _ => None,
             },
