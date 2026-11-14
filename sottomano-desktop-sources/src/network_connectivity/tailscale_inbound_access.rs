@@ -110,11 +110,13 @@ impl TryFrom<String> for FilterAddress {
 
 impl Display for FilterAddress {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        match (self, self.host_address()) {
-            (FilterAddress::Any, _) => formatter.write_str(ANY_SOURCE_NAME),
-            (FilterAddress::Network(_), Some(host_address)) => host_address.fmt(formatter),
-            (FilterAddress::Network(network), None) => network.fmt(formatter),
-            (FilterAddress::Range { first, last }, _) => write!(formatter, "{first}-{last}"),
+        match self {
+            FilterAddress::Any => formatter.write_str(ANY_SOURCE_NAME),
+            FilterAddress::Network(network) => match self.host_address() {
+                Some(host_address) => host_address.fmt(formatter),
+                None => network.fmt(formatter),
+            },
+            FilterAddress::Range { first, last } => write!(formatter, "{first}-{last}"),
         }
     }
 }

@@ -301,11 +301,13 @@ impl From<LrclibRecord> for TrackLyrics {
         let plain_text = record
             .plain_lyrics
             .filter(|plain_text| !plain_text.trim().is_empty());
-        match (synced_lines, plain_text) {
-            (Some(timed_lines), _) => Self::Synced(timed_lines),
-            (None, Some(plain_text)) => Self::PlainOnly(plain_text),
-            (None, None) if record.instrumental => Self::Instrumental,
-            (None, None) => Self::Missing,
+        match synced_lines {
+            Some(timed_lines) => Self::Synced(timed_lines),
+            None => match plain_text {
+                Some(plain_text) => Self::PlainOnly(plain_text),
+                None if record.instrumental => Self::Instrumental,
+                None => Self::Missing,
+            },
         }
     }
 }

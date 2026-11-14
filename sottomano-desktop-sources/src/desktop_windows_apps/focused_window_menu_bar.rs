@@ -52,11 +52,16 @@ impl From<&CompositorWindow> for FocusedWindowOwner {
                 })
                 .ok()
         });
-        match (process_id, compositor_window.app_id.clone()) {
-            (Some(process_id), Some(app_id)) => Self::ProcessAndApp { process_id, app_id },
-            (Some(process_id), None) => Self::ProcessOnly { process_id },
-            (None, Some(app_id)) => Self::AppOnly { app_id },
-            (None, None) => Self::Unidentified,
+        let window_app_id = compositor_window.app_id.clone();
+        match process_id {
+            Some(process_id) => match window_app_id {
+                Some(app_id) => Self::ProcessAndApp { process_id, app_id },
+                None => Self::ProcessOnly { process_id },
+            },
+            None => match window_app_id {
+                Some(app_id) => Self::AppOnly { app_id },
+                None => Self::Unidentified,
+            },
         }
     }
 }

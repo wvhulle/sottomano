@@ -32,15 +32,16 @@ impl GamepadDriver {
     async fn apply(&mut self, effects: Vec<MachineEffect>) -> Vec<GamepadInput> {
         let mut delivered = Vec::new();
         for effect in effects {
-            match (effect, self.pointer.as_mut()) {
-                (MachineEffect::Deliver(input), _) => delivered.push(input),
-                (MachineEffect::Pointer(effect), Some(pointer)) => {
-                    if let Err(e) = pointer.apply(effect).await {
-                        tracing::warn!("gamepad: pointer steering stopped: {e}");
+            match effect {
+                MachineEffect::Deliver(input) => delivered.push(input),
+                MachineEffect::Pointer(effect) => {
+                    if let Some(pointer) = self.pointer.as_mut()
+                        && let Err(pointer_failure) = pointer.apply(effect).await
+                    {
+                        tracing::warn!("gamepad: pointer steering stopped: {pointer_failure}");
                         self.pointer = None;
                     }
                 }
-                (MachineEffect::Pointer(_), None) => {}
             }
         }
         delivered

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{cmp::Ordering, collections::HashMap};
 
 use sottomano_toml_config::screen_edges::{HEdge, VEdge};
 
@@ -210,18 +210,30 @@ fn workspace_viewing(
 }
 
 fn vertical_edge(window_ws_idx: Option<u8>, active_ws_idx: Option<u8>) -> VEdge {
-    match (window_ws_idx, active_ws_idx) {
-        (Some(w), Some(a)) if w < a => VEdge::Top,
-        (Some(w), Some(a)) if w > a => VEdge::Bottom,
-        _ => VEdge::Center,
+    let Some(window_workspace) = window_ws_idx else {
+        return VEdge::Center;
+    };
+    let Some(active_workspace) = active_ws_idx else {
+        return VEdge::Center;
+    };
+    match window_workspace.cmp(&active_workspace) {
+        Ordering::Less => VEdge::Top,
+        Ordering::Greater => VEdge::Bottom,
+        Ordering::Equal => VEdge::Center,
     }
 }
 
 fn horizontal_edge(window_col: Option<usize>, ws_focused_col: Option<usize>) -> HEdge {
-    match (window_col, ws_focused_col) {
-        (Some(w), Some(f)) if w < f => HEdge::Left,
-        (Some(w), Some(f)) if w > f => HEdge::Right,
-        _ => HEdge::Center,
+    let Some(window_column) = window_col else {
+        return HEdge::Center;
+    };
+    let Some(focused_column) = ws_focused_col else {
+        return HEdge::Center;
+    };
+    match window_column.cmp(&focused_column) {
+        Ordering::Less => HEdge::Left,
+        Ordering::Greater => HEdge::Right,
+        Ordering::Equal => HEdge::Center,
     }
 }
 

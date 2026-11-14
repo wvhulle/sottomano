@@ -68,16 +68,17 @@ impl WallpaperGroup {
     }
 
     pub fn subscription(&self, buses: Option<&DesktopBuses>) -> Subscription<WallpaperMessage> {
-        match (&self.unsplash_key, buses) {
-            (Some(unsplash_key), Some(buses)) => {
-                snapshot_subscription::<Lookup>(OnlineSourceInputs {
-                    buses: buses.clone(),
-                    source_inputs: unsplash_key.clone(),
-                })
-                .map(|reading| WallpaperMessage::Lookup(Box::new(reading)))
-            }
-            _ => Subscription::none(),
-        }
+        let Some(unsplash_key) = &self.unsplash_key else {
+            return Subscription::none();
+        };
+        let Some(buses) = buses else {
+            return Subscription::none();
+        };
+        snapshot_subscription::<Lookup>(OnlineSourceInputs {
+            buses: buses.clone(),
+            source_inputs: unsplash_key.clone(),
+        })
+        .map(|reading| WallpaperMessage::Lookup(Box::new(reading)))
     }
 
     pub fn update(&mut self, message: WallpaperMessage, clock: Clock) -> Task<WallpaperMessage> {

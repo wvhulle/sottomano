@@ -92,21 +92,22 @@ impl CaldavGroup {
         config: &CaldavAccountConfig,
         buses: Option<&DesktopBuses>,
     ) -> Subscription<CaldavMessage> {
-        match (self.account(config), buses) {
-            (Some(account), Some(buses)) => {
-                let online_account = OnlineSourceInputs {
-                    buses: buses.clone(),
-                    source_inputs: account,
-                };
-                Subscription::batch([
-                    snapshot_subscription::<UpcomingEventList>(online_account.clone())
-                        .map(|delivery| CaldavMessage::UpcomingEvents(Box::new(delivery))),
-                    snapshot_subscription::<OpenTaskList>(online_account)
-                        .map(|delivery| CaldavMessage::OpenTasks(Box::new(delivery))),
-                ])
-            }
-            _ => Subscription::none(),
-        }
+        let Some(account) = self.account(config) else {
+            return Subscription::none();
+        };
+        let Some(buses) = buses else {
+            return Subscription::none();
+        };
+        let online_account = OnlineSourceInputs {
+            buses: buses.clone(),
+            source_inputs: account,
+        };
+        Subscription::batch([
+            snapshot_subscription::<UpcomingEventList>(online_account.clone())
+                .map(|delivery| CaldavMessage::UpcomingEvents(Box::new(delivery))),
+            snapshot_subscription::<OpenTaskList>(online_account)
+                .map(|delivery| CaldavMessage::OpenTasks(Box::new(delivery))),
+        ])
     }
 
     pub fn update(&mut self, message: CaldavMessage, clock: Clock) -> Task<CaldavMessage> {

@@ -104,19 +104,15 @@ impl TryFrom<TrayItems> for TrayConfig {
             if id.is_empty() {
                 return Err(String::from("tray item id is empty"));
             }
-            match (
-                &rule.window_app_id,
-                rule.clicks().contains(&ClickAction::FocusAppWindow),
-            ) {
-                (Some(app_id), _) if app_id.is_empty() => {
+            if let Some(app_id) = &rule.window_app_id {
+                if app_id.is_empty() {
                     return Err(format!("tray item {id} has an empty window_app_id"));
                 }
-                (Some(app_id), false) => {
+                if !rule.clicks().contains(&ClickAction::FocusAppWindow) {
                     return Err(format!(
                         "tray item {id} names window_app_id {app_id} but no click focuses a window"
                     ));
                 }
-                _ => {}
             }
         }
         Ok(Self { items: raw.items })

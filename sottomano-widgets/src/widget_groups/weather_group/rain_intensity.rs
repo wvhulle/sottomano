@@ -342,20 +342,20 @@ impl RainForecast<'_> {
             at: at.to_utc(),
             format: LocalizedTimeFormat::HourAndMinute,
         };
-        let entries: Vec<LabeledValue> = match (self.sources.radar(), self.sources.model()) {
-            (Some(rain), _) => match (rain.outlook, rain.forecast.last()) {
-                (RainOutlook::Dry, Some(last_frame)) => vec![
+        let entries: Vec<LabeledValue> = match self.sources.radar() {
+            Some(rain) => match rain.forecast.last() {
+                Some(last_frame) if rain.outlook == RainOutlook::Dry => vec![
                     LabeledValue::new("Rain", "none expected"),
                     LabeledValue::new("Dry until at least", time_of_day(last_frame.at)),
                 ],
-                (outlook, _) => {
+                _ => {
                     let peak = &rain.peak;
                     iter::once(LabeledValue::new(
                         "Now",
                         current_intensity_cell(rain.intensity),
                     ))
                     .chain(
-                        outlook_turn(outlook)
+                        outlook_turn(rain.outlook)
                             .map(|turn| LabeledValue::new(turn.label, time_of_day(turn.at))),
                     )
                     .chain([
@@ -365,19 +365,21 @@ impl RainForecast<'_> {
                     .collect()
                 }
             },
-            (None, Some(model))
-                if model.current.condition.sky_wetness() == SkyWetness::Precipitating =>
-            {
-                vec![
-                    LabeledValue::new("Now", model_quarter_text(&model.current)),
-                    LabeledValue::new(
-                        "Rain",
-                        Quantity::precipitation_rate(model.current.intensity),
-                    ),
-                ]
-            }
-            (None, Some(_)) => vec![LabeledValue::new("Now", "Dry")],
-            (None, None) => Vec::new(),
+            None => match self.sources.model() {
+                Some(model)
+                    if model.current.condition.sky_wetness() == SkyWetness::Precipitating =>
+                {
+                    vec![
+                        LabeledValue::new("Now", model_quarter_text(&model.current)),
+                        LabeledValue::new(
+                            "Rain",
+                            Quantity::precipitation_rate(model.current.intensity),
+                        ),
+                    ]
+                }
+                Some(_) => vec![LabeledValue::new("Now", "Dry")],
+                None => Vec::new(),
+            },
         };
         let title = match self.sources {
             RainSources::Model(_) => "Next 3 hours",
@@ -393,15 +395,17 @@ impl GroupItemReading for RainForecast<'_> {
     }
 
     fn icon(&self) -> IconGlyph {
-        match (self.radar_forecast(), self.sources.model()) {
-            (Some(radar), _) => radar.icon(),
-            (None, Some(model)) => model_quarter_glyph(
-                &model.current,
-                self.intensity_scale()
-                    .strength(model.current.intensity)
-                    .glyph(),
-            ),
-            (None, None) => Self::fallback_icon(),
+        match self.radar_forecast() {
+            Some(radar) => radar.icon(),
+            None => match self.sources.model() {
+                Some(model) => model_quarter_glyph(
+                    &model.current,
+                    self.intensity_scale()
+                        .strength(model.current.intensity)
+                        .glyph(),
+                ),
+                None => Self::fallback_icon(),
+            },
         }
     }
 
@@ -410,24 +414,25 @@ impl GroupItemReading for RainForecast<'_> {
     }
 
     fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
-        match (self.radar_forecast(), self.sources.model()) {
-            (Some(radar), _) => radar.label(clock, locale),
-            (None, Some(model)) => (model.current.condition.sky_wetness()
-                == SkyWetness::Precipitating)
-                .then(|| model.current.condition.to_string()),
-            (None, None) => None,
+        if let Some(radar) = self.radar_forecast() {
+            return radar.label(clock, locale);
         }
+        let model = self.sources.model()?;
+        (model.current.condition.sky_wetness() == SkyWetness::Precipitating)
+            .then(|| model.current.condition.to_string())
     }
 
     fn state(&self, clock: Clock) -> ReadingDisplayState {
-        match (self.radar_forecast(), self.sources.model()) {
-            (Some(radar), _) => radar.state(clock),
-            (None, Some(model))
-                if model.current.condition.sky_wetness() == SkyWetness::Precipitating =>
-            {
-                ReadingDisplayState::Idle
-            }
-            (None, _) => ReadingDisplayState::Off,
+        match self.radar_forecast() {
+            Some(radar) => radar.state(clock),
+            None => match self.sources.model() {
+                Some(model)
+                    if model.current.condition.sky_wetness() == SkyWetness::Precipitating =>
+                {
+                    ReadingDisplayState::Idle
+                }
+                _ => ReadingDisplayState::Off,
+            },
         }
     }
 
