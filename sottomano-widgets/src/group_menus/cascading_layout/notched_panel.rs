@@ -2,7 +2,9 @@ use std::{cell::Cell, rc::Rc, slice};
 
 use corredo::{
     orientation::Edge,
-    popovers::{ConnectedSurface, ConnectorTriangle, PopupGrowth, RectangleMorph},
+    popovers::{
+        ConnectedSurface, ConnectorTriangle, PopupGrowth, RectangleMorph, SubmenuConnector,
+    },
     theming::FrameStyle,
     transitions::MotionState,
 };
@@ -21,10 +23,7 @@ use iced::{
     window,
 };
 
-use crate::{
-    desktop_panels::region_reporter::{BackdropBlur, PointerInput, RegionRoles},
-    group_menus::group_menu_presentation::SubmenuConnector,
-};
+use crate::desktop_panels::region_reporter::{BackdropBlur, PointerInput, RegionRoles};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NotchSide {

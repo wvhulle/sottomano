@@ -1,7 +1,7 @@
 use std::{borrow::Cow, rc::Rc};
 
 use chrono::Locale;
-use corredo::{press_actions::flat_button, theming::text_color};
+use corredo::{popovers::NestedMenuOpenTrigger, press_actions::flat_button, theming::text_color};
 use iced::{
     Alignment, Element,
     mouse::ScrollDelta,
@@ -21,10 +21,7 @@ use crate::{
         source_reading::{reading_icon, reading_value, source_reading},
         toggle_control::{IconToggle, SwitchPosition},
     },
-    group_menus::{
-        group_menu_presentation::GroupMenuOpenTrigger,
-        group_menu_state::{GroupMenuPin, GroupMenuState, GroupMenuTopic, MenuPinState},
-    },
+    group_menus::group_menu_state::{GroupMenuPin, GroupMenuState, GroupMenuTopic, MenuPinState},
     hover_cards::{
         HoverAnnouncement, HoverOrigin, HoverTarget, PressHints, announcing_hoverable,
         press_toggled_hoverable,
@@ -248,7 +245,7 @@ pub struct GroupItem<'a, M> {
     ongoing_toast_action_buttons: Vec<OngoingToastActionButton<M>>,
     ongoing_toasts: Vec<OngoingToast<M>>,
     alignment: ItemAlignment,
-    card_opening_trigger: GroupMenuOpenTrigger,
+    card_opening_trigger: NestedMenuOpenTrigger,
 }
 
 impl<'a, M: 'a> GroupItem<'a, M> {
@@ -265,7 +262,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     #[must_use]
-    pub(crate) fn opening_card_on(self, card_opening_trigger: GroupMenuOpenTrigger) -> Self {
+    pub(crate) fn opening_card_on(self, card_opening_trigger: NestedMenuOpenTrigger) -> Self {
         Self {
             card_opening_trigger,
             ..self
@@ -678,13 +675,13 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         let explained = |element: Element<'a, GroupEvent<M>>, target: &HoverTarget| match placement
         {
             DrawnItemPlacement::Panel => match self.card_opening_trigger {
-                GroupMenuOpenTrigger::Hover => announcing_hoverable(
+                NestedMenuOpenTrigger::Hover => announcing_hoverable(
                     element,
                     target.clone(),
                     self.announcement(),
                     GroupEvent::HoverCard,
                 ),
-                GroupMenuOpenTrigger::Press => press_toggled_hoverable(
+                NestedMenuOpenTrigger::Press => press_toggled_hoverable(
                     element,
                     target.clone(),
                     self.announcement(),
@@ -758,7 +755,7 @@ impl<'a, M: 'a> From<GroupItemContent<'a, M>> for GroupItem<'a, M> {
             ongoing_toast_action_buttons: Vec::new(),
             ongoing_toasts: Vec::new(),
             alignment: ItemAlignment::Unaligned,
-            card_opening_trigger: GroupMenuOpenTrigger::Hover,
+            card_opening_trigger: NestedMenuOpenTrigger::Hover,
         }
     }
 }

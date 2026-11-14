@@ -1,5 +1,5 @@
 use corredo::{
-    popovers::{CascadeDirection, PopupGrowth},
+    popovers::{CascadeDirection, NestedMenuLayout, NestedMenuPresentation, PopupGrowth},
     theming::{primary_weak_text_color, secondary_text_color, text_color},
     width_layout::equal_width_column,
 };
@@ -17,7 +17,6 @@ use crate::{
     },
     group_menus::{
         cascading_layout::cascade_satellite_panels::CascadeSatellitePanels,
-        group_menu_presentation::{GroupMenuLayout, GroupMenuPresentation},
         group_menu_state::{GroupMenuPin, GroupMenuState},
         group_menu_view::GroupMenuMessenger,
         menu_rows::{
@@ -63,7 +62,7 @@ pub(crate) fn one_row_per_identity<'a, M>(
 pub(crate) struct GroupMenuRowContext<'p, 'a, M> {
     pub config: &'a Config,
     pub direction: CascadeDirection,
-    pub presentation: GroupMenuPresentation,
+    pub presentation: NestedMenuPresentation,
     pub menu: &'p GroupMenuMessenger<M>,
     pub group_menus: &'p GroupMenuState,
     pub cascade_satellite_panels: &'p CascadeSatellitePanels,
@@ -110,7 +109,7 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
     );
     let caret_color = trailing_glyph_color(look.emphasis);
     let (leading, trailing) = match (layout.presentation.layout, layout.direction) {
-        (GroupMenuLayout::Accordion, _) => (
+        (NestedMenuLayout::Accordion, _) => (
             Vec::new(),
             vec![
                 pin,
@@ -121,14 +120,14 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
                 .view(icon_size, caret_color),
             ],
         ),
-        (GroupMenuLayout::Cascading, CascadeDirection::Rightward) => (
+        (NestedMenuLayout::Cascading, CascadeDirection::Rightward) => (
             Vec::new(),
             vec![
                 pin,
                 IconGlyph::from(Phosphor::CaretRight(Weight::Regular)).view(icon_size, caret_color),
             ],
         ),
-        (GroupMenuLayout::Cascading, CascadeDirection::Leftward) => (
+        (NestedMenuLayout::Cascading, CascadeDirection::Leftward) => (
             vec![
                 IconGlyph::from(Phosphor::CaretLeft(Weight::Regular)).view(icon_size, caret_color),
             ],
@@ -143,7 +142,7 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
     };
     let group_identity = entry.group_identity;
     let (press_event, hover_reaction) = match layout.presentation.layout {
-        GroupMenuLayout::Cascading => (
+        NestedMenuLayout::Cascading => (
             layout.menu.reveal_group(group_identity.clone()),
             RowHoverReaction::Reveals {
                 reveal: layout.menu.reveal_group(group_identity.clone()),
@@ -156,7 +155,7 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
                 },
             },
         ),
-        GroupMenuLayout::Accordion => (
+        NestedMenuLayout::Accordion => (
             layout.menu.toggle_group(group_identity),
             RowHoverReaction::Highlights,
         ),
@@ -222,7 +221,7 @@ pub(crate) fn item_row<'a, M: Clone + 'a>(
     };
     let inspected_target = item.inspected_target;
     let (leading, trailing) = match (layout.presentation.layout, layout.direction) {
-        (GroupMenuLayout::Accordion, _) => (
+        (NestedMenuLayout::Accordion, _) => (
             vec![
                 Space::new()
                     .width(layout.config.theme.font.icon_size_px)
@@ -230,7 +229,7 @@ pub(crate) fn item_row<'a, M: Clone + 'a>(
             ],
             item_pin.into_iter().collect(),
         ),
-        (GroupMenuLayout::Cascading, _) => (Vec::new(), item_pin.into_iter().collect()),
+        (NestedMenuLayout::Cascading, _) => (Vec::new(), item_pin.into_iter().collect()),
     };
     let content = MenuRowContent {
         leading,

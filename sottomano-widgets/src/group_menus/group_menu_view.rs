@@ -2,7 +2,9 @@ use std::iter::once;
 
 use chrono::Locale;
 use corredo::{
-    orientation::Axis, popovers::CascadeOrientation, selection_scroll::selection_following_scroll,
+    orientation::Axis,
+    popovers::{CascadeOrientation, NestedMenuLayout, NestedMenuOpenTrigger},
+    selection_scroll::selection_following_scroll,
     theming::text_color,
 };
 use iced::{Element, widget::Column};
@@ -16,7 +18,6 @@ use crate::{
         cascading_layout::{
             cascade_satellite_panels::CascadeSatellitePanels, cascading_columns::cascading_columns,
         },
-        group_menu_presentation::{GroupMenuLayout, GroupMenuOpenTrigger},
         group_menu_state::{
             GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic, MenuPinState,
             OpenGroupMenu, PanelRaise,
@@ -261,10 +262,10 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             PressHints::default(),
         );
         let handle = match self.group_menus.presentation().open_trigger {
-            GroupMenuOpenTrigger::Hover => {
+            NestedMenuOpenTrigger::Hover => {
                 announcing_hoverable(glyph, target, announcement, GroupEvent::HoverCard)
             }
-            GroupMenuOpenTrigger::Press => {
+            NestedMenuOpenTrigger::Press => {
                 press_toggled_hoverable(glyph, target, announcement, GroupEvent::HoverCard)
             }
         };
@@ -357,8 +358,8 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         let scrolled_px = group_menus.scrolled_px(messenger.topic);
         let scroll_message = messenger.scroll_message();
         let cascade = match row_context.presentation.layout {
-            GroupMenuLayout::Cascading => cascading_columns(group_rows, &row_context, card),
-            GroupMenuLayout::Accordion => accordion_sections(group_rows, &row_context, card),
+            NestedMenuLayout::Cascading => cascading_columns(group_rows, &row_context, card),
+            NestedMenuLayout::Accordion => accordion_sections(group_rows, &row_context, card),
         };
         match (table, cascade) {
             (None, None) => None,
@@ -382,7 +383,10 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
 
 #[cfg(test)]
 mod tests {
-    use corredo::popovers::{CascadeDirection, CascadeOrientation, PopupGrowth};
+    use corredo::popovers::{
+        CascadeDirection, CascadeOrientation, NestedMenuLayout, NestedMenuOpenTrigger,
+        NestedMenuPresentation, OpenGroupLimit, PopupGrowth, SubmenuConnector,
+    };
     use iced::{
         Element, Event, Point, Settings, Size, mouse,
         widget::{Row, text},
@@ -402,10 +406,6 @@ mod tests {
             group_item_reading::NamedTestReading,
         },
         group_menus::{
-            group_menu_presentation::{
-                GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
-                SubmenuConnector,
-            },
             group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
             menu_rows::menu_row::menu_row_height,
         },
@@ -499,9 +499,9 @@ mod tests {
         }
     }
 
-    fn every_presentation() -> Vec<GroupMenuPresentation> {
-        let layouts = [GroupMenuLayout::Cascading, GroupMenuLayout::Accordion];
-        let triggers = [GroupMenuOpenTrigger::Hover, GroupMenuOpenTrigger::Press];
+    fn every_presentation() -> Vec<NestedMenuPresentation> {
+        let layouts = [NestedMenuLayout::Cascading, NestedMenuLayout::Accordion];
+        let triggers = [NestedMenuOpenTrigger::Hover, NestedMenuOpenTrigger::Press];
         let limits = [OpenGroupLimit::One, OpenGroupLimit::Several];
         let connectors = [SubmenuConnector::Hidden, SubmenuConnector::Shown];
         layouts
@@ -509,21 +509,21 @@ mod tests {
             .flat_map(|layout| {
                 triggers.into_iter().flat_map(move |open_trigger| {
                     limits.into_iter().flat_map(move |accordion_open_limit| {
-                        connectors
-                            .into_iter()
-                            .map(move |submenu_connector| GroupMenuPresentation {
+                        connectors.into_iter().map(move |submenu_connector| {
+                            NestedMenuPresentation {
                                 layout,
                                 open_trigger,
                                 accordion_open_limit,
                                 submenu_connector,
-                            })
+                            }
+                        })
                     })
                 })
             })
             .collect()
     }
 
-    fn opened_menu_state(presentation: GroupMenuPresentation) -> GroupMenuState {
+    fn opened_menu_state(presentation: NestedMenuPresentation) -> GroupMenuState {
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(GroupMenuMessage::PresentationLoaded(presentation));
         let _ = group_menus.update(GroupMenuMessage::RevealMenuGroup {
@@ -588,11 +588,11 @@ mod tests {
                     let orientation = CascadeOrientation { direction, growth };
                     let (header_top, item_top) = row_tops(&group_menus, orientation, clock);
                     match (presentation.layout, growth) {
-                        (GroupMenuLayout::Cascading, _) => assert_eq!(item_top, None),
-                        (GroupMenuLayout::Accordion, PopupGrowth::Downward) => {
+                        (NestedMenuLayout::Cascading, _) => assert_eq!(item_top, None),
+                        (NestedMenuLayout::Accordion, PopupGrowth::Downward) => {
                             assert!(item_top.is_some_and(|item| item > header_top));
                         }
-                        (GroupMenuLayout::Accordion, PopupGrowth::Upward) => {
+                        (NestedMenuLayout::Accordion, PopupGrowth::Upward) => {
                             assert!(item_top.is_some_and(|item| item < header_top));
                         }
                     }
@@ -625,9 +625,9 @@ mod tests {
         );
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(GroupMenuMessage::PresentationLoaded(
-            GroupMenuPresentation {
-                layout: GroupMenuLayout::Cascading,
-                ..GroupMenuPresentation::default()
+            NestedMenuPresentation {
+                layout: NestedMenuLayout::Cascading,
+                ..NestedMenuPresentation::default()
             },
         ));
         let _ = group_menus.update(GroupMenuMessage::RevealMenuGroup {
@@ -752,7 +752,7 @@ mod tests {
     ) -> Vec<RowPointerMessage> {
         let bench = MenuTestBench::default();
         let expansion = WidgetGroupExpansion::default();
-        let group_menus = opened_menu_state(GroupMenuPresentation::default());
+        let group_menus = opened_menu_state(NestedMenuPresentation::default());
         let group = WidgetGroupContent::expandable(
             WidgetGroupFamily::Gpu,
             &expansion,
@@ -818,7 +818,7 @@ mod tests {
     fn compute_reveal_messages(approach: PointerApproach) -> Vec<RowPointerMessage> {
         let bench = MenuTestBench::default();
         let expansion = WidgetGroupExpansion::default();
-        let group_menus = opened_menu_state(GroupMenuPresentation::default());
+        let group_menus = opened_menu_state(NestedMenuPresentation::default());
         let groups = [WidgetGroupFamily::Gpu, WidgetGroupFamily::Compute].map(|family| {
             WidgetGroupContent::expandable(
                 family,

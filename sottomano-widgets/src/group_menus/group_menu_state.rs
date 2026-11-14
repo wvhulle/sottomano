@@ -5,6 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use corredo::popovers::NestedMenuPresentation;
 use iced::{Task, task};
 use sottomano_desktop_sources::sqlite_state_store::StoreError;
 use tokio::time::sleep;
@@ -13,7 +14,6 @@ use crate::{
     background_work::logged_failure_task,
     group_menus::{
         group_menu_inspection::GroupMenuInspection,
-        group_menu_presentation::GroupMenuPresentation,
         group_menu_settings::GroupMenuSettingsTarget,
         group_source_demand::{GroupSourceDemand, GroupSurface},
         sqlite_group_menu_pins,
@@ -210,8 +210,8 @@ pub enum GroupMenuMessage {
     },
     SettingsExpansion(WidgetGroupExpansionMessage),
     Appearance(AppearanceMessage),
-    PresentationLoaded(GroupMenuPresentation),
-    SwitchPresentation(GroupMenuPresentation),
+    PresentationLoaded(NestedMenuPresentation),
+    SwitchPresentation(NestedMenuPresentation),
     Closed,
 }
 
@@ -268,7 +268,7 @@ pub struct GroupMenuState {
     reveal_intent: GroupRevealIntent,
     pub layer: LayerAppearanceControls,
     settings_expansion: WidgetGroupExpansion,
-    presentation: GroupMenuPresentation,
+    presentation: NestedMenuPresentation,
     pinned: BTreeSet<StoredGroupMenuPin>,
     inspection: GroupMenuInspection,
     recently_open_menus: Vec<RecentlyOpenMenu>,
@@ -284,7 +284,7 @@ impl Default for GroupMenuState {
                 GroupMenuSettingsTarget::Appearance(target).into()
             }),
             settings_expansion: WidgetGroupExpansion::default(),
-            presentation: GroupMenuPresentation::default(),
+            presentation: NestedMenuPresentation::default(),
             pinned: BTreeSet::new(),
             inspection: GroupMenuInspection::default(),
             recently_open_menus: Vec::new(),
@@ -391,31 +391,31 @@ impl GroupMenuState {
     }
 
     #[must_use]
-    pub const fn presentation(&self) -> GroupMenuPresentation {
+    pub const fn presentation(&self) -> NestedMenuPresentation {
         self.presentation
     }
 
     #[must_use]
     pub fn scrolled_px(&self, menu: GroupMenuTopic) -> f32 {
-        self.inspection.scrolled_px(menu)
+        self.inspection.scrolled_px(&menu)
     }
 
     #[must_use]
     pub fn item_list_scrolled_px(&self, menu: GroupMenuTopic) -> f32 {
-        self.inspection.item_list_scrolled_px(menu)
+        self.inspection.item_list_scrolled_px(&menu)
     }
 
     #[must_use]
     pub fn open_groups(&self, menu: GroupMenuTopic) -> &[WidgetGroupIdentity] {
-        self.inspection.open_groups(menu)
+        self.inspection.open_groups(&menu)
     }
 
     #[must_use]
     pub fn inspected_target(&self, menu: GroupMenuTopic) -> Option<&HoverTarget> {
-        self.inspection.inspected_target(menu)
+        self.inspection.inspected_target(&menu)
     }
 
-    fn adopt_presentation(&mut self, presentation: GroupMenuPresentation) {
+    fn adopt_presentation(&mut self, presentation: NestedMenuPresentation) {
         self.presentation = presentation;
         self.inspection =
             take(&mut self.inspection).adopting_open_limit(presentation.open_group_limit());
@@ -528,7 +528,7 @@ impl GroupMenuState {
             }
             GroupMenuMessage::ItemListScrolled { menu, scrolled_px } => {
                 self.inspection =
-                    take(&mut self.inspection).item_list_scrolled_to(menu, scrolled_px);
+                    take(&mut self.inspection).item_list_scrolled_to(&menu, scrolled_px);
                 Task::none()
             }
             GroupMenuMessage::SettingsExpansion(expansion) => {
@@ -553,7 +553,7 @@ impl GroupMenuState {
                 )
             }
             GroupMenuMessage::InspectRow { menu, target } => {
-                self.inspection = take(&mut self.inspection).inspecting_row(menu, target);
+                self.inspection = take(&mut self.inspection).inspecting_row(&menu, target);
                 Task::none()
             }
             GroupMenuMessage::Closed => {

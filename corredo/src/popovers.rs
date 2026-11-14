@@ -16,3 +16,8 @@ mod popup_connector;
 pub use popup_connector::{ConnectedSurface, ConnectorTriangle};
 mod rectangle_morph;
 pub use rectangle_morph::{RectangleMorph, interpolated_rectangle};
+mod nested_menu_state;
+pub use nested_menu_state::{
+    NestedMenuInspection, NestedMenuLayout, NestedMenuOpenTrigger, NestedMenuPresentation,
+    OpenGroupLimit, OpenNestedMenuRows, SubmenuConnector,
+};
