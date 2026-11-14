@@ -18,14 +18,16 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::{Availability, AvailabilityStreams},
     blocking_background_work::blocking_poll,
+    container_run_state::ContainerRunState,
     delivery_cadence_drivers::{
         ChangeTriggerStreams, PeriodicPolling, RereadSchedule, SamplingNeed,
         SnapshotDeliveryStreams, triggered_deliveries_with_recheck,
     },
     podman_container_engine::{
         libpod_running_containers::{
-            ContainerCiIdentity, EngineContainers, EngineReadError, EngineReadout,
-            RunningContainer, classified_engine_failure,
+            ContainerCiIdentity, ContainerPhase, EngineContainers, EngineListing, EngineReadError,
+            EngineReadout, RunningContainer, StoppedContainer, classified_engine_failure,
+            phased_containers,
         },
         systemd_service_engine_discovery::EngineOwner,
     },
@@ -39,7 +41,9 @@ use crate::{
 
 mod docker_events;
 
-const DOCKER_API_ROOT: &str = "http://docker/v1.41";
+pub const DOCKER_API_ROOT: &str = "http://docker/v1.41";
+const DOCKER_RUNNING_STATE: &str = "running";
+const DOCKER_STOPPED_STATES: [&str; 2] = ["created", "exited"];
 const DOCKER_POLL_PERIOD: Duration = Duration::from_secs(5);
 const ROOTFUL_DOCKER_SOCKET: &str = "/run/docker.sock";
 const ROOTLESS_DOCKER_SOCKET: &str = "docker.sock";
@@ -93,8 +97,29 @@ impl ListedDockerContainer {
         )
     }
 
-    fn is_running(&self) -> bool {
-        self.state.is_empty() || self.state == "running"
+    fn phase(&self) -> ContainerPhase {
+        if self.state.is_empty() || self.state == DOCKER_RUNNING_STATE {
+            ContainerPhase::Running
+        } else if DOCKER_STOPPED_STATES.contains(&self.state.as_str()) {
+            ContainerPhase::Stopped
+        } else {
+            ContainerPhase::Transitional
+        }
+    }
+
+    fn shown_name(&self) -> String {
+        self.step_label()
+            .map_or_else(|| self.container_name(), str::to_owned)
+    }
+
+    fn stopped_container(&self) -> StoppedContainer {
+        StoppedContainer {
+            id: self.id.clone(),
+            container_name: self.container_name(),
+            shown_name: self.shown_name(),
+            image: self.image.clone(),
+            stopped_at: UNIX_EPOCH + Duration::from_secs(self.created_unix_seconds),
+        }
     }
 
     fn step_label(&self) -> Option<&str> {
@@ -157,7 +182,7 @@ impl DockerEngineSampler {
     async fn listed_containers(&self) -> Result<Vec<ListedDockerContainer>, EngineReadError> {
         match http_json_client::get_json_over_unix_socket(
             &self.socket_path,
-            &format!("{DOCKER_API_ROOT}/containers/json"),
+            &format!("{DOCKER_API_ROOT}/containers/json?all=1"),
         )
         .await
         {
@@ -195,22 +220,36 @@ impl DockerEngineSampler {
         }
     }
 
-    async fn sample(&mut self) -> Result<EngineContainers, EngineReadError> {
-        let listed = self.listed_containers().await?;
-        let live_ids: HashSet<String> = listed
+    async fn sample(&mut self) -> Result<EngineListing, EngineReadError> {
+        let phased = phased_containers(
+            self.listed_containers().await?,
+            ListedDockerContainer::phase,
+            ListedDockerContainer::stopped_container,
+        );
+        Ok(EngineListing {
+            running: self.measured_running(&phased.running).await?,
+            stopped: phased.stopped,
+        })
+    }
+
+    async fn measured_running(
+        &mut self,
+        listed: &[ListedDockerContainer],
+    ) -> Result<EngineContainers, EngineReadError> {
+        let running_ids: HashSet<String> = listed
             .iter()
             .map(|container| container.id.clone())
             .collect();
         self.process_starts_by_id
-            .retain(|container_id, _| live_ids.contains(container_id));
+            .retain(|container_id, _| running_ids.contains(container_id));
         self.checkpoints_by_id
-            .retain_keys(|container_id| live_ids.contains(container_id));
+            .retain_keys(|container_id| running_ids.contains(container_id));
         if listed.is_empty() {
             return Ok(EngineContainers {
                 containers: Vec::new(),
             });
         }
-        self.learn_process_starts(&listed).await;
+        self.learn_process_starts(listed).await;
         let process_table = blocking_poll(|| {
             ProcessTable::read_current().ok_or(EngineReadError::ProcessTableUnreadable)
         })
@@ -238,13 +277,10 @@ impl DockerEngineSampler {
             totals.spent_ticks,
             taken_at,
         );
-        let container_name = container.container_name();
         RunningContainer {
             id: container.id.clone(),
-            shown_name: container
-                .step_label()
-                .map_or_else(|| container_name.clone(), str::to_owned),
-            container_name,
+            shown_name: container.shown_name(),
+            container_name: container.container_name(),
             image: container.image.clone(),
             started_at: process_start
                 .and_then(|process_start| process_start.started_at)
@@ -285,8 +321,9 @@ impl SnapshotSource for DockerEngineProbe {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DockerContainerListing {
+    pub id: String,
     pub container_name: String,
-    pub running: bool,
+    pub run_state: ContainerRunState,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -299,7 +336,7 @@ impl DockerEngineListing {
     pub fn running_count(&self) -> usize {
         self.listings
             .iter()
-            .filter(|listing| listing.running)
+            .filter(|listing| listing.run_state == ContainerRunState::Running)
             .count()
     }
 }
@@ -337,16 +374,24 @@ impl SnapshotSource for DockerEngineListing {
 async fn listed_docker_names(socket_path: &Path) -> Result<DockerEngineListing, EngineReadError> {
     let listed = http_json_client::get_json_over_unix_socket::<Vec<ListedDockerContainer>>(
         socket_path,
-        &format!("{DOCKER_API_ROOT}/containers/json"),
+        &format!("{DOCKER_API_ROOT}/containers/json?all=1"),
     )
     .await;
     match listed {
         Ok(listed) => Ok(DockerEngineListing {
             listings: listed
                 .iter()
-                .map(|container| DockerContainerListing {
-                    container_name: container.container_name(),
-                    running: container.is_running(),
+                .filter_map(|container| {
+                    let run_state = match container.phase() {
+                        ContainerPhase::Running => ContainerRunState::Running,
+                        ContainerPhase::Stopped => ContainerRunState::Stopped,
+                        ContainerPhase::Transitional => return None,
+                    };
+                    Some(DockerContainerListing {
+                        id: container.id.clone(),
+                        container_name: container.container_name(),
+                        run_state,
+                    })
                 })
                 .collect(),
         }),

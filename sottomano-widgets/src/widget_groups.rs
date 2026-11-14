@@ -16,6 +16,7 @@ pub mod copilot_usage_group;
 pub mod dark_mode_group;
 pub mod docker_engines_group;
 mod echo_probe_window_rows;
+pub mod engine_container_rows;
 pub mod ethernet_ports_group;
 pub mod fixed_panel_group;
 pub mod flatpak_sandboxes_group;

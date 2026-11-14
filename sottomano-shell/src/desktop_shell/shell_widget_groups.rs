@@ -353,10 +353,10 @@ impl ShellWidgetGroups {
                 .llama_server_group
                 .update(msg, config, clock)
                 .map(Message::LlamaServer),
-            Message::PodmanEngines(msg) => {
-                self.podman_engines_group.update(msg, clock);
-                Task::none()
-            }
+            Message::PodmanEngines(msg) => self
+                .podman_engines_group
+                .update(msg, clock)
+                .map(Message::PodmanEngines),
             Message::MicrovmGuests(microvm_message) => self
                 .microvm_guests_group
                 .update(microvm_message, clock)
@@ -389,10 +389,10 @@ impl ShellWidgetGroups {
                 .apptainer_containers_group
                 .update(group_message, clock)
                 .map(Message::ApptainerContainers),
-            Message::DockerEngines(docker_message) => {
-                self.docker_engines_group.update(docker_message, clock);
-                Task::none()
-            }
+            Message::DockerEngines(docker_message) => self
+                .docker_engines_group
+                .update(docker_message, clock)
+                .map(Message::DockerEngines),
             Message::CgroupMemoryLimits(limits_message) => self
                 .cgroup_memory_limits_group
                 .update(limits_message, clock)

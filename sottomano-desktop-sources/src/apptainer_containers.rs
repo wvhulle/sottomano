@@ -54,7 +54,6 @@ fn counted_runtime_parents() -> usize {
 pub struct ApptainerContainerListing {
     pub runtime_pid: i32,
     pub container_name: String,
-    pub running: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,7 +94,6 @@ fn named_runtime_parents() -> Result<ApptainerContainerListings, Error> {
             ApptainerContainerListing {
                 runtime_pid: runtime_parent.pid,
                 container_name,
-                running: true,
             }
         })
         .collect();

@@ -22,6 +22,7 @@ use sottomano_widgets::{
         claude_usage_group::ClaudeUsageTarget,
         compute_group::ComputeTarget,
         docker_engines_group::DockerEngineTarget,
+        engine_container_rows::EngineContainerTarget,
         flatpak_sandboxes_group::FlatpakSandboxTarget,
         gamepad_group::GamepadTarget,
         incus_instances_group::IncusInstanceTarget,
@@ -403,8 +404,11 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Docker containers"),
-            Step::Hover(HoverTarget::DockerEngine(DockerEngineTarget::of_socket(
-                Cow::Borrowed(docker_engines::ROOTFUL_DOCKER_SOCKET),
+            Step::Hover(HoverTarget::DockerEngine(DockerEngineTarget::Container(
+                EngineContainerTarget {
+                    socket_path: Cow::Borrowed(docker_engines::ROOTFUL_DOCKER_SOCKET),
+                    container_id: Cow::Borrowed(docker_engines::HOVERED_CONTAINER_ID),
+                },
             ))),
         ],
     },

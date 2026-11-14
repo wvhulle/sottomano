@@ -3,6 +3,7 @@ use corredo::theming::{
 };
 use iced::{Color, Theme, widget::text};
 use sottomano_desktop_sources::{
+    container_run_state::ContainerRunState,
     media_playback_audio::mpris_players::{LoopMode, QueueOrder},
     network_connectivity::{
         network_manager_proxies::{DeviceLinkState, RadioPower},
@@ -90,6 +91,15 @@ impl From<DeviceLinkState> for ReadingDisplayState {
             DeviceLinkState::Connected => ReadingDisplayState::On,
             DeviceLinkState::Switching => ReadingDisplayState::Pending,
             DeviceLinkState::Disconnected => ReadingDisplayState::Off,
+        }
+    }
+}
+
+impl From<ContainerRunState> for ReadingDisplayState {
+    fn from(run_state: ContainerRunState) -> Self {
+        match run_state {
+            ContainerRunState::Running => ReadingDisplayState::On,
+            ContainerRunState::Stopped => ReadingDisplayState::Off,
         }
     }
 }

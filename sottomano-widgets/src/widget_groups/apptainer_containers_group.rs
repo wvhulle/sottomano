@@ -5,9 +5,12 @@ use std::{
 
 use chrono::Locale;
 use sottomano_desktop_sinks::apptainer_containers::stop_apptainer_container;
-use sottomano_desktop_sources::apptainer_containers::{
-    ApptainerContainer, ApptainerContainerListing, ApptainerContainerListings, ApptainerContainers,
-    ApptainerProbe,
+use sottomano_desktop_sources::{
+    apptainer_containers::{
+        ApptainerContainer, ApptainerContainerListing, ApptainerContainerListings,
+        ApptainerContainers, ApptainerProbe,
+    },
+    container_run_state::ContainerRunState,
 };
 
 use crate::{
@@ -21,9 +24,7 @@ use crate::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
             ContainerFamilyMessage, FamilyRow, RowPower,
         },
-        process_usage_cells::{
-            approximate_memory_text, running_display_state, running_state_text, uptime_entry,
-        },
+        process_usage_cells::{approximate_memory_text, uptime_entry},
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
@@ -69,17 +70,17 @@ impl GroupItemReading for ApptainerContainerListingRow<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(running_state_text(self.listing.running).to_owned())
+        Some(ContainerRunState::Running.label().to_owned())
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        running_display_state(self.listing.running)
+        ContainerRunState::Running.into()
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         HoverCardBody::dictionary([LabeledValue::new(
             "State",
-            running_state_text(self.listing.running),
+            ContainerRunState::Running.label(),
         )])
     }
 }

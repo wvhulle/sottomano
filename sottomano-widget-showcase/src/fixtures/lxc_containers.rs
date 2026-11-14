@@ -3,6 +3,7 @@ use std::{path::PathBuf, time::Duration};
 use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    container_run_state::ContainerRunState,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     lxc_containers::{LxcContainer, LxcContainers},
 };
@@ -23,14 +24,14 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
                 containers: vec![
                     LxcContainer {
                         container_name: "backup".to_owned(),
-                        running: false,
+                        run_state: ContainerRunState::Stopped,
                         memory_in_use: None,
                         configured_addresses: Vec::new(),
                         config_path: Some(PathBuf::from("/var/lib/lxc/backup/config")),
                     },
                     LxcContainer {
                         container_name: HOVERED_CONTAINER_NAME.to_owned(),
-                        running: true,
+                        run_state: ContainerRunState::Running,
                         memory_in_use: Some(ByteSize::mib(530)),
                         configured_addresses: vec!["10.0.3.15/24".to_owned()],
                         config_path: Some(PathBuf::from("/var/lib/lxc/media/config")),

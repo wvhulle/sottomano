@@ -2,8 +2,12 @@ use std::borrow::Cow;
 
 use chrono::Locale;
 use sottomano_desktop_sinks::flatpak_sandboxes::stop_flatpak_instance;
-use sottomano_desktop_sources::flatpak_sandboxes::{
-    FlatpakProbe, FlatpakSandbox, FlatpakSandboxListing, FlatpakSandboxListings, FlatpakSandboxes,
+use sottomano_desktop_sources::{
+    container_run_state::ContainerRunState,
+    flatpak_sandboxes::{
+        FlatpakProbe, FlatpakSandbox, FlatpakSandboxListing, FlatpakSandboxListings,
+        FlatpakSandboxes,
+    },
 };
 
 use crate::{
@@ -17,7 +21,7 @@ use crate::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
             ContainerFamilyMessage, FamilyRow, RowPower,
         },
-        process_usage_cells::{approximate_memory_text, running_state_text},
+        process_usage_cells::approximate_memory_text,
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
@@ -67,21 +71,17 @@ impl GroupItemReading for FlatpakSandboxListingRow<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(running_state_text(self.listing.running).to_owned())
+        Some(ContainerRunState::Running.label().to_owned())
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.listing.running {
-            ReadingDisplayState::On
-        } else {
-            ReadingDisplayState::Off
-        }
+        ContainerRunState::Running.into()
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         HoverCardBody::dictionary([
             LabeledValue::new("App", self.listing.application_id.clone()),
-            LabeledValue::new("State", running_state_text(self.listing.running)),
+            LabeledValue::new("State", ContainerRunState::Running.label()),
         ])
     }
 }

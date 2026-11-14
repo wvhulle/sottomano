@@ -15,7 +15,7 @@ use sottomano_widgets::{
         ci_runs_group::{CiRunsInteraction, CiRunsMessage},
         claude_usage_group::ClaudeUsageMessage,
         compute_group::{ComputeInteraction, ComputeMessage},
-        docker_engines_group::DockerEnginesMessage,
+        docker_engines_group::{DockerEnginesInteraction, DockerEnginesMessage},
         flatpak_sandboxes_group::{FlatpakSandboxesInteraction, FlatpakSandboxesMessage},
         gamepad_group::{GamepadInteraction, GamepadMessage},
         idle_pause_groups::{IdlePauseInteraction, IdlePauseMessage},
@@ -26,7 +26,7 @@ use sottomano_widgets::{
         memory_board_group::MemoryBoardMessage,
         microvm_guests_group::{MicrovmGuestsInteraction, MicrovmGuestsMessage},
         nspawn_containers_group::{NspawnContainersInteraction, NspawnContainersMessage},
-        podman_engines_group::PodmanEnginesMessage,
+        podman_engines_group::{PodmanEnginesInteraction, PodmanEnginesMessage},
         tailnet_group::{TailnetInteraction, TailnetMessage},
         virtual_machines_group::{VirtualMachinesInteraction, VirtualMachinesMessage},
         virtualbox_machines_group::{VirtualBoxMachinesInteraction, VirtualBoxMachinesMessage},
@@ -96,11 +96,11 @@ pub enum ShowcaseInteraction {
     Gamepad(GamepadInteraction),
     VoiceDictation(VoiceDictationInteraction),
     Caldav(WidgetGroupExpansionMessage),
-    PodmanEngines(WidgetGroupExpansionMessage),
+    PodmanEngines(PodmanEnginesInteraction),
     VirtualMachines(VirtualMachinesInteraction),
     NspawnContainers(NspawnContainersInteraction),
     CgroupMemoryLimits(CgroupMemoryLimitsInteraction),
-    DockerEngines(WidgetGroupExpansionMessage),
+    DockerEngines(DockerEnginesInteraction),
     ApptainerContainers(ApptainerContainersInteraction),
     VmwareMachines(VmwareMachinesInteraction),
     VirtualBoxMachines(VirtualBoxMachinesInteraction),
@@ -155,8 +155,8 @@ impl From<ShowcaseInteraction> for ShowcaseMessage {
             ShowcaseInteraction::Caldav(expansion) => {
                 ShowcaseMessage::Caldav(CaldavMessage::Expansion(expansion))
             }
-            ShowcaseInteraction::PodmanEngines(expansion) => {
-                ShowcaseMessage::PodmanEngines(PodmanEnginesMessage::Expansion(expansion))
+            ShowcaseInteraction::PodmanEngines(interaction) => {
+                ShowcaseMessage::PodmanEngines(PodmanEnginesMessage::Interaction(interaction))
             }
             ShowcaseInteraction::VirtualMachines(interaction) => {
                 ShowcaseMessage::VirtualMachines(VirtualMachinesMessage::Interaction(interaction))
@@ -169,8 +169,8 @@ impl From<ShowcaseInteraction> for ShowcaseMessage {
                     interaction,
                 ))
             }
-            ShowcaseInteraction::DockerEngines(expansion) => {
-                ShowcaseMessage::DockerEngines(DockerEnginesMessage::Expansion(expansion))
+            ShowcaseInteraction::DockerEngines(interaction) => {
+                ShowcaseMessage::DockerEngines(DockerEnginesMessage::Interaction(interaction))
             }
             ShowcaseInteraction::ApptainerContainers(interaction) => {
                 ShowcaseMessage::ApptainerContainers(ApptainerContainersMessage::Interaction(

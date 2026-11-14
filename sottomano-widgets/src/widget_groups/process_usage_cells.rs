@@ -6,7 +6,6 @@ use uom::si::ratio::percent;
 
 use crate::{
     clock::Clock,
-    group_items::reading_display_state::ReadingDisplayState,
     widgets::{
         localized_quantities::{DisplayUnit, Quantity},
         value_cells::{LabeledValue, ValueCell},
@@ -32,20 +31,6 @@ pub(crate) fn cpu_share_quantity(cpu_load: ProcessTreeCpuLoad) -> Option<Quantit
 #[must_use]
 pub(crate) fn approximate_memory_text(resident_memory: ByteSize) -> String {
     format!("~{resident_memory}")
-}
-
-#[must_use]
-pub(crate) fn running_state_text(running: bool) -> &'static str {
-    if running { "running" } else { "stopped" }
-}
-
-#[must_use]
-pub(crate) fn running_display_state(running: bool) -> ReadingDisplayState {
-    if running {
-        ReadingDisplayState::On
-    } else {
-        ReadingDisplayState::Off
-    }
 }
 
 #[must_use]

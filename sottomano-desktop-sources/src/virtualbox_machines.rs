@@ -66,7 +66,6 @@ pub struct VirtualBoxMachineListing {
     pub pid: i32,
     pub machine_name: String,
     pub machine_reference: String,
-    pub running: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,7 +111,6 @@ fn named_machines() -> Result<VirtualBoxMachineListings, Error> {
                 pid: scanned.pid,
                 machine_name,
                 machine_reference,
-                running: true,
             })
         })
         .collect();
@@ -343,7 +341,6 @@ mod tests {
             pid: 7,
             machine_name: "Ubuntu Server".to_owned(),
             machine_reference: "0b1c2d3e-0000-4000-8000-000000000001".to_owned(),
-            running: true,
         }];
         let stopped = stopped_among(registered, &running);
         assert_eq!(stopped.len(), 1);

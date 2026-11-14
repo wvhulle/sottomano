@@ -22,7 +22,7 @@ use crate::{
 
 const PODMAN_TYPE_FIELD: &str = "PODMAN_TYPE";
 const CONTAINER_PODMAN_TYPE: &str = "container";
-const RUNNING_SET_EVENTS: [&str; 3] = ["start", "died", "remove"];
+const RUNNING_SET_EVENTS: [&str; 5] = ["create", "start", "stop", "died", "remove"];
 const TRIGGER_BURST_GAP: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Deserialize)]
@@ -102,15 +102,15 @@ mod tests {
     }
 
     #[test]
-    fn starts_deaths_and_removals_change_the_running_set() {
-        for podman_event in ["start", "died", "remove"] {
+    fn creations_starts_stops_deaths_and_removals_change_the_container_set() {
+        for podman_event in ["create", "start", "stop", "died", "remove"] {
             assert!(admitted(podman_event).is_some(), "{podman_event}");
         }
     }
 
     #[test]
     fn lifecycle_steps_around_them_are_ignored() {
-        for podman_event in ["create", "init", "cleanup", "stop", "exec"] {
+        for podman_event in ["init", "cleanup", "exec"] {
             assert!(admitted(podman_event).is_none(), "{podman_event}");
         }
     }

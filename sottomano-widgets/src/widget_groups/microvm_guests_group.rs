@@ -5,6 +5,7 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sinks::microvm_guests::press_guest_power_button;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    container_run_state::ContainerRunState,
     microvm_guests::{
         MicrovmGuest, MicrovmGuestListing, MicrovmGuestListings, MicrovmGuests, MicrovmProbe,
         MicrovmUnit, MicrovmUnits, api_socket_of, hypervisor_command_lines::MicrovmHypervisor,
@@ -29,9 +30,7 @@ use crate::{
         hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
-        process_usage_cells::{
-            approximate_memory_text, running_display_state, running_state_text, uptime_entry,
-        },
+        process_usage_cells::{approximate_memory_text, uptime_entry},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
@@ -130,17 +129,17 @@ impl GroupItemReading for MicrovmGuestListingRow<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(running_state_text(self.listing.running).to_owned())
+        Some(ContainerRunState::Running.label().to_owned())
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        running_display_state(self.listing.running)
+        ContainerRunState::Running.into()
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         HoverCardBody::dictionary([LabeledValue::new(
             "State",
-            running_state_text(self.listing.running),
+            ContainerRunState::Running.label(),
         )])
     }
 }

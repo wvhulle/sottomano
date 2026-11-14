@@ -11,6 +11,7 @@ use futures::Stream;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    container_run_state::ContainerRunState,
     delivery_cadence_drivers::{ChangeTriggerStreams, PeriodicPolling},
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
@@ -29,7 +30,7 @@ const EXCLUDED_CONTAINERS: [&str; 1] = ["waydroid"];
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LxcContainer {
     pub container_name: String,
-    pub running: bool,
+    pub run_state: ContainerRunState,
     pub memory_in_use: Option<ByteSize>,
     pub configured_addresses: Vec<String>,
     pub config_path: Option<PathBuf>,
@@ -81,7 +82,7 @@ fn counted_lxc_containers(lxc_path: &Path, cgroup_root: &Path) -> LxcProbe {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LxcContainerListing {
     pub container_name: String,
-    pub running: bool,
+    pub run_state: ContainerRunState,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,12 +118,9 @@ fn named_lxc_containers(lxc_path: &Path, cgroup_root: &Path) -> LxcContainerList
         .cloned()
         .collect::<BTreeSet<String>>()
         .into_iter()
-        .map(|container_name| {
-            let running = running_cgroups.contains_key(&container_name);
-            LxcContainerListing {
-                container_name,
-                running,
-            }
+        .map(|container_name| LxcContainerListing {
+            run_state: run_state_of(running_cgroups.get(&container_name)),
+            container_name,
         })
         .collect();
     LxcContainerListings { listings }
@@ -220,7 +218,7 @@ fn listed_containers(lxc_path: &Path, cgroup_root: &Path) -> LxcContainers {
             let payload_cgroup = running_cgroups.remove(&container_name);
             let config_path = config_paths.remove(&container_name);
             LxcContainer {
-                running: payload_cgroup.is_some(),
+                run_state: run_state_of(payload_cgroup.as_ref()),
                 memory_in_use: payload_cgroup
                     .as_deref()
                     .and_then(read_cgroup_memory)
@@ -247,6 +245,13 @@ fn listed_containers(lxc_path: &Path, cgroup_root: &Path) -> LxcContainers {
     LxcContainers { containers }
 }
 
+fn run_state_of(payload_cgroup: Option<&PathBuf>) -> ContainerRunState {
+    match payload_cgroup {
+        Some(_) => ContainerRunState::Running,
+        None => ContainerRunState::Stopped,
+    }
+}
+
 fn utf8_directory_name(entry: &DirEntry) -> Option<String> {
     entry
         .file_name()
@@ -267,6 +272,7 @@ mod tests {
     use bytesize::ByteSize;
 
     use super::{configured_addresses_in, listed_containers};
+    use crate::container_run_state::ContainerRunState;
 
     #[test]
     fn a_static_address_is_read_from_the_container_config() {
@@ -294,13 +300,13 @@ mod tests {
         }
         let listed = listed_containers(&lxc_path, &cgroup_root);
         fs::remove_dir_all(&scratch).unwrap();
-        let summary: Vec<(&str, bool, Option<ByteSize>)> = listed
+        let summary: Vec<(&str, ContainerRunState, Option<ByteSize>)> = listed
             .containers
             .iter()
             .map(|container| {
                 (
                     container.container_name.as_str(),
-                    container.running,
+                    container.run_state,
                     container.memory_in_use,
                 )
             })
@@ -308,8 +314,8 @@ mod tests {
         assert_eq!(
             summary,
             [
-                ("backup", false, None),
-                ("media", true, Some(ByteSize::mib(50)))
+                ("backup", ContainerRunState::Stopped, None),
+                ("media", ContainerRunState::Running, Some(ByteSize::mib(50)))
             ]
         );
     }

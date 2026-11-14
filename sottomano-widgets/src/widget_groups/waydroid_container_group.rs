@@ -6,6 +6,7 @@ use sottomano_desktop_sinks::waydroid_container::{start_waydroid_session, stop_w
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     backing_service_availability::Availability,
+    container_run_state::ContainerRunState,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope},
     waydroid_container::{WaydroidListing, WaydroidProbe, WaydroidReadout, WaydroidState},
@@ -80,19 +81,11 @@ impl<'a> ShownWaydroid<'a> {
         }
     }
 
-    fn container_running(self) -> bool {
+    fn container(self) -> ContainerRunState {
         match self {
-            ShownWaydroid::Detailed(readout) => readout.container_running,
-            ShownWaydroid::Listed(listing) => listing.container_running,
+            ShownWaydroid::Detailed(readout) => readout.container,
+            ShownWaydroid::Listed(listing) => listing.container,
         }
-    }
-}
-
-fn container_state_text(container_running: bool) -> &'static str {
-    if container_running {
-        "running"
-    } else {
-        "stopped"
     }
 }
 
@@ -117,27 +110,20 @@ impl GroupItemReading for WaydroidContainerRow<'_> {
         match self.shown {
             ShownWaydroid::Detailed(WaydroidReadout {
                 memory_in_use: Some(memory_in_use),
-                container_running: true,
+                container: ContainerRunState::Running,
                 ..
             }) => Some(approximate_memory_text(*memory_in_use)),
-            _ => Some(container_state_text(self.shown.container_running()).to_owned()),
+            _ => Some(self.shown.container().label().to_owned()),
         }
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.shown.container_running() {
-            ReadingDisplayState::On
-        } else {
-            ReadingDisplayState::Off
-        }
+        self.shown.container().into()
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let mut detail_entries = vec![
-            LabeledValue::new(
-                "State",
-                container_state_text(self.shown.container_running()),
-            ),
+            LabeledValue::new("State", self.shown.container().label()),
             LabeledValue::new("Unit", WAYDROID_CONTAINER_UNIT),
         ];
         if let ShownWaydroid::Detailed(WaydroidReadout {
@@ -381,8 +367,10 @@ impl WaydroidContainerGroup {
             Some(_) => self
                 .container_switch
                 .attach_switch_press(row, WaydroidContainerInteraction::ContainerSwitchPressed),
-            None if shown.container_running() => row.inert_switch(SwitchPosition::On),
-            None => row.inert_switch(SwitchPosition::Off),
+            None => row.inert_switch(match shown.container() {
+                ContainerRunState::Running => SwitchPosition::On,
+                ContainerRunState::Stopped => SwitchPosition::Off,
+            }),
         }
     }
 
@@ -391,7 +379,7 @@ impl WaydroidContainerGroup {
             return Vec::new();
         };
         let container_row = self.container_row(shown);
-        if !shown.container_running() {
+        if shown.container() == ContainerRunState::Stopped {
             return vec![container_row];
         }
         let session_row = GroupItem::reading(

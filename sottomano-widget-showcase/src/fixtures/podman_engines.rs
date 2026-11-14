@@ -5,7 +5,8 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     podman_container_engine::libpod_running_containers::{
-        ContainerCiIdentity, EngineContainers, EngineReadError, EngineReadout, RunningContainer,
+        ContainerCiIdentity, EngineContainers, EngineListing, EngineReadError, EngineReadout,
+        RunningContainer, StoppedContainer,
     },
     system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad,
     systemd_units_journal::{SystemdUnitScope, service_commands::ServiceAccount},
@@ -114,17 +115,29 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     let readouts = [
         delivered(
             ROOTLESS_SOCKET,
-            EngineReadout::Containers(EngineContainers {
-                containers: Vec::new(),
+            EngineReadout::Containers(EngineListing {
+                running: EngineContainers {
+                    containers: Vec::new(),
+                },
+                stopped: vec![StoppedContainer {
+                    id: "toolbox".to_owned(),
+                    container_name: "fedora-toolbox-42".to_owned(),
+                    shown_name: "fedora-toolbox-42".to_owned(),
+                    image: "registry.fedoraproject.org/fedora-toolbox:42".to_owned(),
+                    stopped_at: clock.wall - Duration::from_hours(5),
+                }],
             }),
         ),
         delivered(
             WOODPECKER_SOCKET,
-            EngineReadout::Containers(EngineContainers {
-                containers: vec![
-                    step_container("run-tests", 19.0, ByteSize::gib(4), clock),
-                    step_container("clone", 1.2, ByteSize::mib(120), clock),
-                ],
+            EngineReadout::Containers(EngineListing {
+                running: EngineContainers {
+                    containers: vec![
+                        step_container("run-tests", 19.0, ByteSize::gib(4), clock),
+                        step_container("clone", 1.2, ByteSize::mib(120), clock),
+                    ],
+                },
+                stopped: Vec::new(),
             }),
         ),
         delivered(
@@ -135,6 +148,8 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     discovered_engines()
         .into_iter()
         .chain(readouts)
-        .for_each(|message| group.update(message, clock));
+        .for_each(|message| {
+            let _ = group.update(message, clock);
+        });
     ShowcasedGroup::PodmanEngines(Box::new(group))
 }
