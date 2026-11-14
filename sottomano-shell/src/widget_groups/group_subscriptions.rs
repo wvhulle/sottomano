@@ -31,7 +31,7 @@ use sottomano_widgets::{
     },
 };
 
-use crate::{desktop_shell::shell_widget_groups::ShellWidgetGroups, shell_message::Message};
+use crate::{shell_message::Message, widget_groups::ShellWidgetGroups};
 
 impl ShellWidgetGroups {
     pub fn subscription(

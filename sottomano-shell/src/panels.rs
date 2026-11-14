@@ -1,33 +1,39 @@
+pub(crate) mod bottom_panel;
+pub(crate) mod panel_bar_view;
+pub(crate) mod standalone_groups;
+pub(crate) mod top_panel;
+pub(crate) mod workspace_sidebar;
+
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::group_menus::group_menu_state::GroupMenuTopic;
 
 use self::{
-    FixedPanelEntry::SessionPower,
     PanelZoneEntry::{Fixed, InlineWorkspaces, Menu, OutputWindows, Standalone},
-    StandaloneWidgetGroup::{Clock, Notifications, Tray},
+    bottom_panel::BOTTOM_PANEL,
+    top_panel::TOP_PANEL,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::desktop_shell) enum PanelZone {
+pub(crate) enum PanelZone {
     Start,
     Center,
     End,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::desktop_shell) enum StandaloneWidgetGroup {
+pub(crate) enum StandaloneWidgetGroup {
     Clock,
     Notifications,
     Tray,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::desktop_shell) enum FixedPanelEntry {
+pub(crate) enum FixedPanelEntry {
     SessionPower,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::desktop_shell) enum PanelZoneEntry {
+pub(crate) enum PanelZoneEntry {
     Menu(GroupMenuTopic),
     Standalone(StandaloneWidgetGroup),
     Fixed(FixedPanelEntry),
@@ -35,18 +41,15 @@ pub(in crate::desktop_shell) enum PanelZoneEntry {
     OutputWindows,
 }
 
-pub(in crate::desktop_shell) struct PanelBarComposition {
+pub(crate) struct PanelBarComposition {
     pub position: Position,
-    start: &'static [PanelZoneEntry],
-    center: &'static [PanelZoneEntry],
-    end: &'static [PanelZoneEntry],
+    pub(crate) start: &'static [PanelZoneEntry],
+    pub(crate) center: &'static [PanelZoneEntry],
+    pub(crate) end: &'static [PanelZoneEntry],
 }
 
 impl PanelBarComposition {
-    pub(in crate::desktop_shell) const fn entries_in(
-        &self,
-        zone: PanelZone,
-    ) -> &'static [PanelZoneEntry] {
+    pub(crate) const fn entries_in(&self, zone: PanelZone) -> &'static [PanelZoneEntry] {
         match zone {
             PanelZone::Start => self.start,
             PanelZone::Center => self.center,
@@ -62,55 +65,18 @@ impl PanelBarComposition {
     }
 }
 
-pub(in crate::desktop_shell) const TOP_PANEL: PanelBarComposition = PanelBarComposition {
-    position: Position::Top,
-    start: &[
-        Menu(GroupMenuTopic::Hardware),
-        Menu(GroupMenuTopic::Network),
-        Menu(GroupMenuTopic::ApplicationMenu),
-    ],
-    center: &[
-        Standalone(Clock),
-        Menu(GroupMenuTopic::Agenda),
-        Standalone(Notifications),
-    ],
-    end: &[
-        Menu(GroupMenuTopic::Display),
-        Menu(GroupMenuTopic::Media),
-        Fixed(SessionPower),
-    ],
-};
-
-pub(in crate::desktop_shell) const BOTTOM_PANEL: PanelBarComposition = PanelBarComposition {
-    position: Position::Bottom,
-    start: &[
-        Menu(GroupMenuTopic::Applications),
-        Menu(GroupMenuTopic::Appearance),
-        Menu(GroupMenuTopic::Behaviour),
-        InlineWorkspaces,
-    ],
-    center: &[OutputWindows],
-    end: &[
-        Menu(GroupMenuTopic::Virtualization),
-        Menu(GroupMenuTopic::Services),
-        Menu(GroupMenuTopic::Session),
-        Standalone(Tray),
-    ],
-};
-
 fn all_panel_entries() -> impl Iterator<Item = PanelZoneEntry> {
     TOP_PANEL.entries().chain(BOTTOM_PANEL.entries())
 }
 
-pub(in crate::desktop_shell) fn composed_menu_topics() -> impl Iterator<Item = GroupMenuTopic> {
+pub(crate) fn composed_menu_topics() -> impl Iterator<Item = GroupMenuTopic> {
     all_panel_entries().filter_map(|entry| match entry {
         Menu(topic) => Some(topic),
         Standalone(_) | Fixed(_) | InlineWorkspaces | OutputWindows => None,
     })
 }
 
-pub(in crate::desktop_shell) fn composed_standalone_groups()
--> impl Iterator<Item = StandaloneWidgetGroup> {
+pub(crate) fn composed_standalone_groups() -> impl Iterator<Item = StandaloneWidgetGroup> {
     all_panel_entries().filter_map(|entry| match entry {
         Standalone(group) => Some(group),
         Menu(_) | Fixed(_) | InlineWorkspaces | OutputWindows => None,
@@ -122,10 +88,11 @@ mod tests {
     use sottomano_widgets::group_menus::group_menu_state::GroupMenuTopic;
 
     use super::{
-        BOTTOM_PANEL, Clock, Notifications, PanelZone, StandaloneWidgetGroup, TOP_PANEL, Tray,
-        composed_menu_topics, composed_standalone_groups,
+        BOTTOM_PANEL, PanelZone,
+        PanelZoneEntry::{Menu, Standalone},
+        StandaloneWidgetGroup::{self, Clock, Notifications, Tray},
+        TOP_PANEL, composed_menu_topics, composed_standalone_groups,
     };
-    use crate::desktop_shell::desktop_panels::panel_bar_composition::{Menu, Standalone};
 
     #[test]
     fn every_menu_topic_sits_on_exactly_one_panel() {

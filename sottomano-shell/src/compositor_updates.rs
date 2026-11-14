@@ -19,20 +19,17 @@ use sottomano_widgets::widget_groups::app_launcher_group::{
     AppLaunchUsage, FrequentApp, FrequentAppScope, OutputFrequentApps, WorkspaceWindowPresence,
 };
 
-use crate::{
-    desktop_shell::{DesktopShell, sqlite_app_launches},
-    shell_message::Message,
-};
+use crate::{desktop_shell::DesktopShell, shell_message::Message, sqlite_app_launches};
 
 impl DesktopShell {
-    pub(super) fn derive_window_snapshot(&mut self) {
+    pub(crate) fn derive_window_snapshot(&mut self) {
         self.window_snapshot = workspace_window_snapshot::Snapshot::derive(
             &self.compositor,
             self.widget_groups.window_group.window_processes(),
         );
     }
 
-    pub(super) fn show_compositor_failure(
+    pub(crate) fn show_compositor_failure(
         &mut self,
         failure: &CompositorRequestFailure,
     ) -> Task<Message> {
@@ -51,7 +48,7 @@ impl DesktopShell {
             .map(Message::from)
     }
 
-    pub(super) fn read_niri_workspace_order(&self) -> Task<Message> {
+    pub(crate) fn read_niri_workspace_order(&self) -> Task<Message> {
         if CompositorKind::detected().map(CompositorKind::workspace_config_source)
             != Some(WorkspaceConfigSource::NiriKdl)
         {
@@ -60,7 +57,7 @@ impl DesktopShell {
         Task::perform(self.niri_config.read_workspaces(), Message::NiriConfigRead)
     }
 
-    pub(super) fn apply_compositor_update(&mut self, update: CompositorUpdate) -> Task<Message> {
+    pub(crate) fn apply_compositor_update(&mut self, update: CompositorUpdate) -> Task<Message> {
         let changed = |change| update.changes.contains(&change);
         let config_reloaded = changed(CompositorChange::ConfigReload);
         let focus_changed = changed(CompositorChange::Focus);
@@ -115,7 +112,7 @@ impl DesktopShell {
         Task::batch(tasks)
     }
 
-    pub(super) fn refresh_app_launcher(&mut self) -> Task<Message> {
+    pub(crate) fn refresh_app_launcher(&mut self) -> Task<Message> {
         let Some(entries) = self.desktop_entries.arc() else {
             return Task::none();
         };
@@ -172,7 +169,7 @@ impl DesktopShell {
         self.resolve_icons()
     }
 
-    pub(super) fn resolve_icons(&mut self) -> Task<Message> {
+    pub(crate) fn resolve_icons(&mut self) -> Task<Message> {
         let app_keys = desktop_entry_app_icons::app_icon_keys(&self.window_snapshot);
         let theme_keys = desktop_entry_app_icons::theme_icon_keys(&self.window_snapshot);
         self.desktop_entries
@@ -181,7 +178,7 @@ impl DesktopShell {
     }
 }
 
-pub(super) fn report_missing_compositor() -> Task<Message> {
+pub(crate) fn report_missing_compositor() -> Task<Message> {
     if CompositorKind::detected().is_some() {
         return Task::none();
     }
@@ -193,7 +190,7 @@ pub(super) fn report_missing_compositor() -> Task<Message> {
     ))
 }
 
-pub(super) fn switch_heat_effect(message: &Message) -> SwitchHeatEffect {
+pub(crate) fn switch_heat_effect(message: &Message) -> SwitchHeatEffect {
     match message {
         Message::Compositor(_)
         | Message::SessionFocus(_)
@@ -204,7 +201,7 @@ pub(super) fn switch_heat_effect(message: &Message) -> SwitchHeatEffect {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum SwitchHeatEffect {
+pub(crate) enum SwitchHeatEffect {
     Reheats,
     Unaffected,
 }

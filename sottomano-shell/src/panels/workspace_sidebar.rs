@@ -17,7 +17,7 @@ use sottomano_widgets::{
 use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};
 
 impl DesktopShell {
-    pub(super) fn workspace_sidebar<'a>(
+    pub(crate) fn workspace_sidebar<'a>(
         &'a self,
         window: Id,
         output: &str,

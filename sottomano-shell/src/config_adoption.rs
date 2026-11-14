@@ -13,7 +13,7 @@ use sottomano_widgets::{
 use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 impl DesktopShell {
-    pub(super) fn reload_config(&self) -> Task<Message> {
+    pub(crate) fn reload_config(&self) -> Task<Message> {
         let file = self.config_file.clone();
         Task::future(blocking("config reload", move || Some(file.load()))).and_then(|loaded| {
             Task::done(Message::ConfigLoaded(
@@ -22,7 +22,7 @@ impl DesktopShell {
         })
     }
 
-    pub(super) fn adopt_config(&mut self, config: Config) -> Task<Message> {
+    pub(crate) fn adopt_config(&mut self, config: Config) -> Task<Message> {
         self.typing_under_cards
             .adopt_config(&config.overlay_surfaces);
         let previous = mem::replace(&mut self.config, config);
@@ -37,7 +37,7 @@ impl DesktopShell {
         ])
     }
 
-    pub(super) fn adopt_fonts(&mut self, previous: &Theme) -> Task<Message> {
+    pub(crate) fn adopt_fonts(&mut self, previous: &Theme) -> Task<Message> {
         let theme = &self.config.theme;
         if theme.font.data == previous.font.data
             && theme.monospace_font.family == previous.monospace_font.family
@@ -53,7 +53,7 @@ impl DesktopShell {
         })
     }
 
-    pub(super) fn adopt_panel_geometry(&mut self, previous: &Config) -> Task<Message> {
+    pub(crate) fn adopt_panel_geometry(&mut self, previous: &Config) -> Task<Message> {
         let unchanged = self.config.desktop_panels == previous.desktop_panels
             && self.config.theme.spacing == previous.theme.spacing
             && (self.config.theme.font.text_size_px - previous.theme.font.text_size_px).abs()
@@ -67,7 +67,7 @@ impl DesktopShell {
         Task::batch([self.resize_backdrops(), self.reserve()])
     }
 
-    pub(super) fn show_change_watch_failure(
+    pub(crate) fn show_change_watch_failure(
         &mut self,
         stopped_watch: StoppedChangeWatch,
         watch_failure: &ChangeWatchFailure,
@@ -87,7 +87,7 @@ impl DesktopShell {
             .map(Message::from)
     }
 
-    pub(super) fn reject_config(&mut self, error: &LoadError) -> Task<Message> {
+    pub(crate) fn reject_config(&mut self, error: &LoadError) -> Task<Message> {
         let path = self.config_file.path();
         tracing::warn!("invalid configuration {}: {error}", path.display());
         self.notifications

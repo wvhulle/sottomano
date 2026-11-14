@@ -12,10 +12,8 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    desktop_shell::{
-        DesktopShell,
-        desktop_panels::panel_bar_composition::{BOTTOM_PANEL, TOP_PANEL},
-    },
+    desktop_shell::DesktopShell,
+    panels::{bottom_panel::BOTTOM_PANEL, top_panel::TOP_PANEL},
     shell_message::ShellInteraction,
 };
 
@@ -69,7 +67,7 @@ fn anchor_hover_cards_on_surface(
 }
 
 impl DesktopShell {
-    pub(super) fn monitor_layout<'a>(
+    pub(crate) fn monitor_layout<'a>(
         &'a self,
         window: Id,
         output: &'a str,

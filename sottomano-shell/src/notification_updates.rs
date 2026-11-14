@@ -16,20 +16,18 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    desktop_shell::{
-        DesktopShell,
-        desktop_panels::panel_bar_composition::{composed_menu_topics, composed_standalone_groups},
-    },
+    desktop_shell::DesktopShell,
+    panels::{composed_menu_topics, composed_standalone_groups},
     shell_message::{Message, ShellInteraction},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum AlertRescanNeed {
+pub(crate) enum AlertRescanNeed {
     Rescans,
     Skips,
 }
 
-pub(super) fn alert_rescan_need(message: &Message) -> AlertRescanNeed {
+pub(crate) fn alert_rescan_need(message: &Message) -> AlertRescanNeed {
     match message {
         Message::HoverCard(_)
         | Message::GroupMenuState(
@@ -52,13 +50,13 @@ pub(super) fn alert_rescan_need(message: &Message) -> AlertRescanNeed {
     }
 }
 
-pub(super) struct GroupAlertScan {
+pub(crate) struct GroupAlertScan {
     pub toast_requests: GroupToastRequests<ShellInteraction>,
     pub panel_raises: Vec<PanelRaise>,
 }
 
 impl DesktopShell {
-    pub(super) fn scan_group_alerts(&self) -> GroupAlertScan {
+    pub(crate) fn scan_group_alerts(&self) -> GroupAlertScan {
         let locale = self.config.calendar.locale;
         let group_menus: Vec<_> = composed_menu_topics()
             .map(|topic| self.group_menu_of(topic, self.hovered_output()))

@@ -260,7 +260,7 @@ impl DesktopShell {
         )
     }
 
-    pub(super) fn hover_card_output(&self) -> Option<&str> {
+    pub(crate) fn hover_card_output(&self) -> Option<&str> {
         self.hover_card
             .placement()
             .map(|placement| placement.output.as_str())
@@ -435,7 +435,7 @@ mod tests {
     use sottomano_toml_config::screen_edges::Position;
 
     use super::{Surface, SurfaceRole, restack_around_hover_card};
-    use crate::desktop_shell::monitor_surfaces::HoverCardPresence;
+    use crate::monitors::monitor_surfaces::HoverCardPresence;
 
     fn resting_surface(output: &str, role: SurfaceRole) -> Surface {
         Surface {
