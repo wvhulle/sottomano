@@ -1,9 +1,9 @@
 use std::mem::take;
 
 use corredo::{
+    drag_reorder::ListEndCorners,
     orientation::Axis,
-    popovers::{NestedMenuRowEmphasis, NestedMenuRowLook},
-    selection_scroll::selection_following_scroll,
+    popovers::{NestedMenuRowEmphasis, NestedMenuRowLook, ResolvedPanelTop},
     width_layout::equal_width_column,
 };
 use iced::Element;
@@ -11,7 +11,6 @@ use sottomano_toml_config::Config;
 
 use crate::{
     group_menus::{
-        cascading_layout::notched_panel::ResolvedPanelTop,
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
         menu_rows::{
             group_menu_group_rows::{GroupMenuGroupRow, GroupMenuRowContext, group_row, item_menu},
@@ -23,6 +22,7 @@ use crate::{
         widget_group_content::{GroupEvent, GroupMenuItemRow, RowInspection},
         widget_group_identity::WidgetGroupIdentity,
     },
+    widgets::configured_scroll::configured_scroll,
 };
 
 struct OpenGroup<'a, M> {
@@ -54,7 +54,8 @@ pub(crate) fn cascading_columns<'a, M: Clone + From<GroupEvent<M>> + From<PopupM
             items: take(&mut entries[position].items),
         });
     let open_position = open_group.as_ref().map(|open| open.position);
-    let frame_corners = layout.cascade_satellite_panels.frame_corners;
+    let row_corners =
+        ListEndCorners::new(entries.len(), layout.cascade_satellite_panels.frame_corners);
     let group_rows = entries.into_iter().enumerate().map(|(position, entry)| {
         let look = NestedMenuRowLook {
             emphasis: if open_position == Some(position) {
@@ -62,14 +63,15 @@ pub(crate) fn cascading_columns<'a, M: Clone + From<GroupEvent<M>> + From<PopupM
             } else {
                 NestedMenuRowEmphasis::Plain
             },
-            frame_corners,
+            frame_corners: row_corners.radius_at(position),
         };
         group_row(layout, entry, look)
     });
     Some(GroupMenuCascadeSurfaces {
-        primary: selection_following_scroll(
+        primary: configured_scroll(
             Element::from(equal_width_column(group_rows)).map(M::from),
             Axis::Vertical,
+            layout.config,
         )
         .edge_fade(
             layout
@@ -111,7 +113,7 @@ fn open_group_satellites<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage>
     );
     let item_list_scrolled_px = layout.group_menus.item_list_scrolled_px(layout.menu.topic);
     let item_list_scroll_message = layout.menu.item_list_scroll_message();
-    let item_list_viewport = selection_following_scroll(item_list, Axis::Vertical)
+    let item_list_viewport = configured_scroll(item_list, Axis::Vertical, layout.config)
         .edge_fade(
             layout
                 .cascade_satellite_panels

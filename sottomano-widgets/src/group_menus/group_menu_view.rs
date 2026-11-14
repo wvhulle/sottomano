@@ -4,7 +4,6 @@ use chrono::Locale;
 use corredo::{
     orientation::Axis,
     popovers::{CascadeOrientation, NestedMenuLayout, NestedMenuOpenTrigger},
-    selection_scroll::selection_following_scroll,
     theming::text_color,
 };
 use iced::{Element, widget::Column};
@@ -40,7 +39,8 @@ use crate::{
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
-        icon_glyph::IconGlyph, shell_layer_appearance::LayerAppearance, window_icon::WindowAssets,
+        configured_scroll::configured_scroll, icon_glyph::IconGlyph,
+        shell_layer_appearance::LayerAppearance, window_icon::WindowAssets,
     },
 };
 
@@ -361,23 +361,24 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             NestedMenuLayout::Cascading => cascading_columns(group_rows, &row_context, card),
             NestedMenuLayout::Accordion => accordion_sections(group_rows, &row_context, card),
         };
-        match (table, cascade) {
-            (None, None) => None,
-            (Some(table), None) => Some(GroupMenuCascadeSurfaces {
-                primary: selection_following_scroll(table, Axis::Vertical)
+        let Some(table) = table else {
+            return cascade;
+        };
+        let Some(cascade) = cascade else {
+            return Some(GroupMenuCascadeSurfaces {
+                primary: configured_scroll(table, Axis::Vertical, config)
                     .edge_fade(table_edge_fade)
                     .controlled(scrolled_px, move |scrolled_px| {
                         M::from(scroll_message(scrolled_px))
                     })
                     .into(),
                 satellites: Vec::new(),
-            }),
-            (None, Some(cascade)) => Some(cascade),
-            (Some(table), Some(cascade)) => Some(GroupMenuCascadeSurfaces {
-                primary: Column::with_children([table, cascade.primary]).into(),
-                satellites: cascade.satellites,
-            }),
-        }
+            });
+        };
+        Some(GroupMenuCascadeSurfaces {
+            primary: Column::with_children([table, cascade.primary]).into(),
+            satellites: cascade.satellites,
+        })
     }
 }
 
@@ -587,13 +588,10 @@ mod tests {
                 for growth in [PopupGrowth::Downward, PopupGrowth::Upward] {
                     let orientation = CascadeOrientation { direction, growth };
                     let (header_top, item_top) = row_tops(&group_menus, orientation, clock);
-                    match (presentation.layout, growth) {
-                        (NestedMenuLayout::Cascading, _) => assert_eq!(item_top, None),
-                        (NestedMenuLayout::Accordion, PopupGrowth::Downward) => {
+                    match presentation.layout {
+                        NestedMenuLayout::Cascading => assert_eq!(item_top, None),
+                        NestedMenuLayout::Accordion => {
                             assert!(item_top.is_some_and(|item| item > header_top));
-                        }
-                        (NestedMenuLayout::Accordion, PopupGrowth::Upward) => {
-                            assert!(item_top.is_some_and(|item| item < header_top));
                         }
                     }
                 }

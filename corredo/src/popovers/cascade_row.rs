@@ -1,9 +1,5 @@
 use std::iter::once;
 
-use corredo::{
-    popovers::{CascadeDirection, CascadeOrientation, PopupGrowth},
-    width_layout::fair_column_widths,
-};
 use iced::{
     Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{
@@ -14,17 +10,11 @@ use iced::{
     },
     mouse::{Cursor, Interaction},
 };
-use sottomano_toml_config::screen_edges::Position;
 
-use crate::group_menus::cascading_layout::notched_panel::ScreenRoom;
-
-#[must_use]
-pub fn growth_away_from(bar: Position) -> PopupGrowth {
-    match bar {
-        Position::Bottom => PopupGrowth::Upward,
-        Position::Top | Position::Left => PopupGrowth::Downward,
-    }
-}
+use crate::{
+    popovers::{CascadeDirection, CascadeOrientation, PopupGrowth, notched_panel::ScreenRoom},
+    width_layout::fair_column_widths,
+};
 
 pub struct CascadeRow<'a, Message> {
     panels: Vec<Element<'a, Message>>,

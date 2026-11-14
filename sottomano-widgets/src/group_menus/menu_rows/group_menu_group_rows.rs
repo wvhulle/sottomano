@@ -1,7 +1,8 @@
 use corredo::{
+    drag_reorder::ListEndCorners,
     popovers::{
         CascadeDirection, NestedMenuLayout, NestedMenuPresentation, NestedMenuRowEmphasis,
-        NestedMenuRowLook, NestedMenuRowPress, PopupGrowth, RowHoverReaction, SatelliteReach,
+        NestedMenuRowLook, NestedMenuRowPress, RowHoverReaction, SatelliteReach,
     },
     theming::{primary_weak_text_color, secondary_text_color, text_color},
     width_layout::equal_width_column,
@@ -68,28 +69,25 @@ pub(crate) struct GroupMenuRowContext<'p, 'a, M> {
     pub cascade_satellite_panels: &'p CascadeSatellitePanels,
 }
 
-const fn accordion_caret(emphasis: NestedMenuRowEmphasis, growth: PopupGrowth) -> Phosphor {
-    match (emphasis, growth) {
-        (NestedMenuRowEmphasis::Plain, _) => Phosphor::CaretRight(Weight::Regular),
-        (NestedMenuRowEmphasis::Selected, PopupGrowth::Downward) => {
+const fn accordion_caret(emphasis: NestedMenuRowEmphasis) -> Phosphor {
+    match emphasis {
+        NestedMenuRowEmphasis::Plain => Phosphor::CaretRight(Weight::Regular),
+        NestedMenuRowEmphasis::Opened | NestedMenuRowEmphasis::Selected => {
             Phosphor::CaretDown(Weight::Regular)
-        }
-        (NestedMenuRowEmphasis::Selected, PopupGrowth::Upward) => {
-            Phosphor::CaretUp(Weight::Regular)
         }
     }
 }
 
 fn trailing_glyph_color(emphasis: NestedMenuRowEmphasis) -> fn(&iced::Theme) -> iced::Color {
     match emphasis {
-        NestedMenuRowEmphasis::Plain => secondary_text_color,
+        NestedMenuRowEmphasis::Plain | NestedMenuRowEmphasis::Opened => secondary_text_color,
         NestedMenuRowEmphasis::Selected => primary_weak_text_color,
     }
 }
 
 fn pinned_glyph_color(emphasis: NestedMenuRowEmphasis) -> fn(&iced::Theme) -> iced::Color {
     match emphasis {
-        NestedMenuRowEmphasis::Plain => text_color,
+        NestedMenuRowEmphasis::Plain | NestedMenuRowEmphasis::Opened => text_color,
         NestedMenuRowEmphasis::Selected => primary_weak_text_color,
     }
 }
@@ -117,11 +115,7 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
             Vec::new(),
             vec![
                 pin,
-                IconGlyph::from(accordion_caret(
-                    look.emphasis,
-                    layout.cascade_satellite_panels.growth,
-                ))
-                .view(icon_size, caret_color),
+                IconGlyph::from(accordion_caret(look.emphasis)).view(icon_size, caret_color),
             ],
         ),
         (NestedMenuLayout::Cascading, CascadeDirection::Rightward) => (
@@ -180,12 +174,14 @@ pub(crate) fn item_menu<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     inspected_target: Option<&HoverTarget>,
     panel_corners: Radius,
 ) -> Element<'a, M> {
+    let row_corners = ListEndCorners::new(items.len(), panel_corners);
     let rows: Vec<Element<'a, M>> = items
         .into_iter()
-        .map(|item| {
+        .enumerate()
+        .map(|(position, item)| {
             let look = NestedMenuRowLook {
                 emphasis: NestedMenuRowEmphasis::from(item.inspection(inspected_target)),
-                frame_corners: panel_corners,
+                frame_corners: row_corners.radius_at(position),
             };
             item_row(layout, group, item, look).map(M::from)
         })

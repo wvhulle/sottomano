@@ -27,7 +27,7 @@ use sottomano_widgets::{
     desktop_index::DesktopIndex,
     desktop_panels::panel_frame::{outlined_sides_inward_of, panel_frame},
     group_menus::{
-        cascading_layout::cascade_row::growth_away_from,
+        cascading_layout::popup_growth::growth_away_from,
         group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
         group_menu_view::{GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard},
     },

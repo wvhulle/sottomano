@@ -1,13 +1,5 @@
 use std::{cell::Cell, rc::Rc, slice};
 
-use corredo::{
-    orientation::Edge,
-    popovers::{
-        ConnectedSurface, ConnectorTriangle, PopupGrowth, RectangleMorph, SubmenuConnector,
-    },
-    theming::FrameStyle,
-    transitions::MotionState,
-};
 use iced::{
     Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{
@@ -23,7 +15,14 @@ use iced::{
     window,
 };
 
-use crate::desktop_panels::region_reporter::{BackdropBlur, PointerInput, RegionRoles};
+use crate::{
+    orientation::Edge,
+    popovers::{
+        ConnectedSurface, ConnectorTriangle, PopupGrowth, RectangleMorph, SubmenuConnector,
+    },
+    theming::FrameStyle,
+    transitions::MotionState,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NotchSide {
@@ -95,11 +94,18 @@ pub struct NotchPlacement {
     pub submenu_connector: SubmenuConnector,
 }
 
-pub struct NotchedPanel<'a, Message> {
+#[derive(Debug, Clone, PartialEq)]
+pub struct NotchedPanelRegions {
+    pub surface_rows: Vec<Rectangle>,
+    pub surface_corners: Radius,
+    pub accepting_input: Rectangle,
+    pub bounds: Rectangle,
+}
+
+struct NotchedPanel<'a, Message> {
     content: Element<'a, Message>,
     frame: FrameStyle,
     corner_radius: f32,
-    backdrop_blur: BackdropBlur,
     placement: NotchPlacement,
     row_top: f32,
     morph: Duration,
@@ -109,7 +115,6 @@ pub struct NotchedPanel<'a, Message> {
 pub fn notched_panel<'a, Message: 'a>(
     content: Element<'a, Message>,
     frame: FrameStyle,
-    backdrop_blur: BackdropBlur,
     placement: NotchPlacement,
     morph: Duration,
 ) -> Element<'a, Message> {
@@ -117,7 +122,6 @@ pub fn notched_panel<'a, Message: 'a>(
         content,
         corner_radius: frame.corner_radius().top_left,
         frame,
-        backdrop_blur,
         row_top: placement.row.row_top(),
         placement,
         morph,
@@ -332,26 +336,20 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
         let panel_morph: &PanelMorph = tree.state.downcast_ref();
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
         let panel = self.drawn_panel(panel_morph, layout.bounds());
-        let blur_corners = match self.placement.submenu_connector {
+        let surface_corners = match self.placement.submenu_connector {
             SubmenuConnector::Shown => Radius::default(),
             SubmenuConnector::Hidden => self.panel_corners(),
         };
-        RegionRoles {
-            pointer_input: PointerInput::PassedThrough,
-            backdrop_blur: self.backdrop_blur,
-            corner_radius: blur_corners,
-        }
-        .report(
-            &self.drawn_surface_rows(panel, origin),
+        operation.custom(
+            None,
             layout.bounds(),
-            operation,
+            &mut NotchedPanelRegions {
+                surface_rows: self.drawn_surface_rows(panel, origin),
+                surface_corners,
+                accepting_input: self.panel_with_gap(panel),
+                bounds: layout.bounds(),
+            },
         );
-        RegionRoles {
-            pointer_input: PointerInput::Accepted,
-            backdrop_blur: BackdropBlur::Clear,
-            corner_radius: Radius::default(),
-        }
-        .report(&[self.panel_with_gap(panel)], layout.bounds(), operation);
         let content_layout = layout.children().next().unwrap();
         self.content.as_widget_mut().operate(
             &mut tree.children[0],

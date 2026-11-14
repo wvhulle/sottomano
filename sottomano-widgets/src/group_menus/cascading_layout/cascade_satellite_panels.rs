@@ -1,5 +1,8 @@
 use corredo::{
-    popovers::{CascadeDirection, CascadeOrientation, PopupGrowth, SubmenuConnector},
+    popovers::{
+        CascadeDirection, CascadeOrientation, NotchPlacement, NotchRowAnchor, NotchSide,
+        NotchedPanelRegions, PopupGrowth, ResolvedPanelTop, SubmenuConnector, notched_panel,
+    },
     selection_scroll::ScrollEdgeFade,
     theming::FrameStyle,
 };
@@ -7,13 +10,11 @@ use iced::{Element, border::Radius, time::Duration};
 use sottomano_toml_config::Config;
 
 use crate::{
-    desktop_panels::region_reporter::BackdropBlur,
-    group_menus::{
-        cascading_layout::notched_panel::{
-            NotchPlacement, NotchRowAnchor, NotchSide, ResolvedPanelTop, notched_panel,
-        },
-        menu_rows::menu_row::menu_row_height,
+    desktop_panels::{
+        region_reporter::{BackdropBlur, PointerInput, RegionRoles},
+        region_translation::translated_regions,
     },
+    group_menus::menu_rows::menu_row::menu_row_height,
     widgets::shell_layer_appearance::LayerAppearance,
 };
 
@@ -62,7 +63,10 @@ impl CascadeSatellitePanels {
     }
 
     pub(crate) fn rows_edge_fade(&self, config: &Config) -> ScrollEdgeFade {
-        ScrollEdgeFade::within_frame(self.list_frame, menu_row_height(config))
+        ScrollEdgeFade::within_frame(
+            self.list_frame,
+            config.group_menus.scroll_fade_rows * menu_row_height(config),
+        )
     }
 
     pub(crate) fn beside_row<'a, Message: 'a>(
@@ -132,10 +136,10 @@ impl CascadeSatellitePanels {
         row: NotchRowAnchor,
         panel_top: ResolvedPanelTop,
     ) -> Element<'a, Message> {
-        notched_panel(
+        let backdrop_blur = surface.backdrop_blur;
+        let panel = notched_panel(
             content,
             surface.frame,
-            surface.backdrop_blur,
             NotchPlacement {
                 side: self.notch_side,
                 growth: self.growth,
@@ -146,6 +150,20 @@ impl CascadeSatellitePanels {
                 submenu_connector: self.submenu_connector,
             },
             self.morph,
-        )
+        );
+        translated_regions(panel, move |regions: &NotchedPanelRegions, operation| {
+            RegionRoles {
+                pointer_input: PointerInput::PassedThrough,
+                backdrop_blur,
+                corner_radius: regions.surface_corners,
+            }
+            .report(&regions.surface_rows, regions.bounds, operation);
+            RegionRoles {
+                pointer_input: PointerInput::Accepted,
+                backdrop_blur: BackdropBlur::Clear,
+                corner_radius: Radius::default(),
+            }
+            .report(&[regions.accepting_input], regions.bounds, operation);
+        })
     }
 }

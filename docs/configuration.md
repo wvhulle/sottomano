@@ -63,12 +63,17 @@ focus_indicator_duration = "160ms"
 
 [group_menus]
 alert_promotion_severity = "warning"
+scroll_fade_rows = 1.5
 
 [widget_group_layout]
 expansion_duration = "180ms"
 
 [group_items]
 slider_expansion_duration = "180ms"
+
+[scrolling]
+wheel_line_px = 60.0
+wheel_easing = "140ms"
 
 [hover_cards]
 copy_flash_duration = "700ms"

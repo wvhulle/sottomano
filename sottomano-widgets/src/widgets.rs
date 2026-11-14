@@ -3,6 +3,7 @@ pub mod announced_level;
 pub mod app_window_focus;
 pub mod appearance_presets;
 pub mod application_menu_lines;
+pub mod configured_scroll;
 pub mod configured_theme;
 pub mod context_menu;
 pub mod discovered_systemd_services;

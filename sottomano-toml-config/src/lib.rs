@@ -9,6 +9,7 @@ pub mod load;
 pub mod notification_toasts;
 pub mod overlay_surfaces;
 pub mod screen_edges;
+pub mod scrolling;
 pub mod secrets;
 pub mod severity;
 pub mod spacing;
