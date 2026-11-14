@@ -79,11 +79,13 @@ impl IntoTableRecord<5> for &TaskRow<'_> {
 }
 
 fn task_severity(task: &OpenTask, now: DateTime<Local>) -> Severity {
-    match (task.due_status(now), task.priority.band()) {
-        (TaskDueStatus::Overdue, _) => Severity::Critical,
-        (TaskDueStatus::NotYetDue, Some(PriorityBand::High)) => Severity::Warning,
-        (TaskDueStatus::NotYetDue, Some(PriorityBand::Low)) => Severity::Low,
-        (TaskDueStatus::NotYetDue, Some(PriorityBand::Medium) | None) => Severity::Normal,
+    match task.due_status(now) {
+        TaskDueStatus::Overdue => Severity::Critical,
+        TaskDueStatus::NotYetDue => match task.priority.band() {
+            Some(PriorityBand::High) => Severity::Warning,
+            Some(PriorityBand::Low) => Severity::Low,
+            Some(PriorityBand::Medium) | None => Severity::Normal,
+        },
     }
 }
 

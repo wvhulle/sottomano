@@ -184,12 +184,12 @@ async fn serve() -> zbus::Result<impl Stream<Item = Vec<RegisteredMenuBar>> + Se
                 tracing::warn!("appmenu registrar: invalid owner change: {args_failure}");
             })
             .ok()
-            .and_then(
-                |change_args| match (change_args.name(), change_args.new_owner().as_ref()) {
-                    (BusName::Unique(unique_name), None) => Some(unique_name.to_owned()),
-                    _ => None,
-                },
-            );
+            .and_then(|change_args| match change_args.name() {
+                BusName::Unique(unique_name) if change_args.new_owner().is_none() => {
+                    Some(unique_name.to_owned())
+                }
+                _ => None,
+            });
         if let Some(vanished_name) = vanished_name {
             registered_menu_bars.send_if_modified(|registered| {
                 let before = registered.len();

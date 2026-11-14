@@ -191,14 +191,14 @@ impl WeatherGroup {
     }
 
     fn rain_forecast<'a>(&'a self, config: &'a Config) -> Option<RainForecast<'a>> {
-        let sources = match (
-            self.rain.visible_reading(),
-            self.precipitation_model.visible_reading(),
-        ) {
-            (Some(radar), Some(model)) => RainSources::RadarAndModel { radar, model },
-            (Some(radar), None) => RainSources::Radar(radar),
-            (None, Some(model)) => RainSources::Model(model),
-            (None, None) => return None,
+        let visible_radar = self.rain.visible_reading();
+        let visible_model = self.precipitation_model.visible_reading();
+        let sources = match visible_radar {
+            Some(radar) => match visible_model {
+                Some(model) => RainSources::RadarAndModel { radar, model },
+                None => RainSources::Radar(radar),
+            },
+            None => RainSources::Model(visible_model?),
         };
         Some(RainForecast {
             sources,

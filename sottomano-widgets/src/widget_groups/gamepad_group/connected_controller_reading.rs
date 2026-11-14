@@ -107,19 +107,18 @@ fn axis_label(
     axis_arrow: &str,
 ) -> Option<String> {
     let stem = |action: CompositorAction| action.short_label().trim_end_matches(DIRECTION_ARROWS);
-    match (first, second) {
-        (Some(first), Some(second)) if stem(first) == stem(second) => {
-            Some(format!("{} {axis_arrow}", stem(first)))
-        }
-        (first, second) => {
-            let labels: Vec<&str> = first
-                .into_iter()
-                .chain(second)
-                .map(CompositorAction::short_label)
-                .collect();
-            (!labels.is_empty()).then(|| labels.join(" / "))
-        }
+    if let Some(first_action) = first
+        && let Some(second_action) = second
+        && stem(first_action) == stem(second_action)
+    {
+        return Some(format!("{} {axis_arrow}", stem(first_action)));
     }
+    let labels: Vec<&str> = first
+        .into_iter()
+        .chain(second)
+        .map(CompositorAction::short_label)
+        .collect();
+    (!labels.is_empty()).then(|| labels.join(" / "))
 }
 
 fn distinguishing_name(alias: &str, model_name: &str) -> String {

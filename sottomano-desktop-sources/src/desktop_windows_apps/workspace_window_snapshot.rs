@@ -281,13 +281,15 @@ impl WinEntry {
 fn win_entry(w: &CompositorWindow, processes: &WindowProcesses) -> WinEntry {
     let title = w.title.clone().filter(|title| !title.is_empty());
     let app_id = w.app_id.clone().filter(|app_id| !app_id.is_empty());
-    let label = match (processes.terminal_label_in(w.id), app_id.as_deref()) {
-        (Some(terminal_label), _) => Some(WindowLabel::TerminalShell(terminal_label.clone())),
-        (None, Some(app_id)) => Some(WindowLabel::classify(
-            app_id,
-            title.as_deref().unwrap_or(app_id),
-        )),
-        (None, None) => title.map(WindowLabel::Titled),
+    let label = match processes.terminal_label_in(w.id) {
+        Some(terminal_label) => Some(WindowLabel::TerminalShell(terminal_label.clone())),
+        None => match app_id.as_deref() {
+            Some(app_id) => Some(WindowLabel::classify(
+                app_id,
+                title.as_deref().unwrap_or(app_id),
+            )),
+            None => title.map(WindowLabel::Titled),
+        },
     };
     WinEntry {
         id: w.id,

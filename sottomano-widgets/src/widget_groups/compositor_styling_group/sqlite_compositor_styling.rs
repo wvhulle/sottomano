@@ -68,13 +68,13 @@ async fn read_blur_depth(
 async fn read_styling(connection: &turso::Connection) -> Result<StoredStyling, StoreError> {
     let layout = read_layout(connection).await?;
     let blur_depth = read_blur_depth(connection).await?;
-    Ok(match (layout, blur_depth) {
-        (None, None) => StoredStyling::Empty,
-        (layout, blur_depth) => StoredStyling::Partial(CompositorStyling {
-            blur_depth: blur_depth.unwrap_or_default(),
-            layout: layout.unwrap_or_default(),
-        }),
-    })
+    if layout.is_none() && blur_depth.is_none() {
+        return Ok(StoredStyling::Empty);
+    }
+    Ok(StoredStyling::Partial(CompositorStyling {
+        blur_depth: blur_depth.unwrap_or_default(),
+        layout: layout.unwrap_or_default(),
+    }))
 }
 
 async fn write_layout(

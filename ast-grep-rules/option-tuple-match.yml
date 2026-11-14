@@ -5,6 +5,12 @@ message: Matching on a tuple of Options mixes independent absences into one tabl
 note: Bail out of each Option on its own with let-else, or match one Option and nest the next; when the combination is a real state, produce an enum for it where the values are read.
 files:
   - corredo/src/**/*.rs
+  - sottomano-desktop-sources/src/**/*.rs
+  - sottomano-desktop-sinks/src/**/*.rs
+  - sottomano-widgets/src/**/*.rs
+  - sottomano-shell/src/**/*.rs
+  - sottomano-widget-showcase/src/**/*.rs
+  - sottomano-toml-config/src/**/*.rs
 rule:
   kind: match_expression
   all:

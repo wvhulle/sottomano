@@ -547,17 +547,19 @@ impl GlobalMenuGroup {
 
     fn entry_item(&self, entry: FlattenedEntry<'_>) -> GroupItem<'_, GlobalMenuInteraction> {
         let node = entry.node;
-        let icon = match (node.kind, &node.icon) {
-            (MenuKind::Toggle(true), _) => GroupItemIcon::IconGlyph {
+        let icon = match node.kind {
+            MenuKind::Toggle(true) => GroupItemIcon::IconGlyph {
                 glyph: Phosphor::Check(Weight::Regular).into(),
                 state: ReadingDisplayState::Idle,
             },
-            (_, Some(icon_source)) => {
-                GroupItemIcon::Image(self.pixmap_handles.icon_handle(icon_source))
-            }
-            (_, None) => GroupItemIcon::IconGlyph {
-                glyph: Phosphor::Dot(Weight::Regular).into(),
-                state: ReadingDisplayState::Idle,
+            _ => match &node.icon {
+                Some(icon_source) => {
+                    GroupItemIcon::Image(self.pixmap_handles.icon_handle(icon_source))
+                }
+                None => GroupItemIcon::IconGlyph {
+                    glyph: Phosphor::Dot(Weight::Regular).into(),
+                    state: ReadingDisplayState::Idle,
+                },
             },
         };
         let entry_item = GroupItem::composed_pinnable(
