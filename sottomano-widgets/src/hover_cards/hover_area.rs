@@ -1,5 +1,6 @@
 use std::{mem::replace, slice::from_ref, sync::Arc};
 
+use corredo::popovers::anchor_marker;
 use iced::{
     Element, Event, Length, Rectangle, Size, Vector,
     advanced::{
@@ -361,10 +362,7 @@ pub fn marked_by_hover_target<'a, M: 'a>(
     content: Element<'a, M>,
     target: HoverTarget,
 ) -> Element<'a, M> {
-    Element::new(LocatableMark {
-        content,
-        marker: target,
-    })
+    anchor_marker(content, target)
 }
 
 #[must_use]
@@ -372,128 +370,7 @@ pub fn marked_by_menu_pin<'a, M: 'a>(
     content: Element<'a, M>,
     entry: GroupMenuPin,
 ) -> Element<'a, M> {
-    Element::new(LocatableMark {
-        content,
-        marker: entry,
-    })
-}
-
-struct LocatableMark<'a, M, Marker> {
-    content: Element<'a, M>,
-    marker: Marker,
-}
-
-impl<M, Marker: Send + Sync + 'static> Widget<M, iced::Theme, iced::Renderer>
-    for LocatableMark<'_, M, Marker>
-{
-    fn children(&self) -> Vec<Tree> {
-        vec![Tree::new(&self.content)]
-    }
-
-    fn diff(&self, tree: &mut Tree) {
-        tree.diff_children(from_ref(&self.content));
-    }
-
-    fn size(&self) -> Size<Length> {
-        self.content.as_widget().size()
-    }
-
-    fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
-        self.content
-            .as_widget_mut()
-            .layout(&mut tree.children[0], renderer, limits)
-    }
-
-    fn draw(
-        &self,
-        tree: &Tree,
-        renderer: &mut iced::Renderer,
-        theme: &iced::Theme,
-        style: &renderer::Style,
-        layout: Layout<'_>,
-        cursor: mouse::Cursor,
-        viewport: &Rectangle,
-    ) {
-        self.content.as_widget().draw(
-            &tree.children[0],
-            renderer,
-            theme,
-            style,
-            layout,
-            cursor,
-            viewport,
-        );
-    }
-
-    fn update(
-        &mut self,
-        tree: &mut Tree,
-        event: &Event,
-        layout: Layout<'_>,
-        cursor: mouse::Cursor,
-        renderer: &iced::Renderer,
-        clipboard: &mut dyn Clipboard,
-        shell: &mut Shell<'_, M>,
-        viewport: &Rectangle,
-    ) {
-        self.content.as_widget_mut().update(
-            &mut tree.children[0],
-            event,
-            layout,
-            cursor,
-            renderer,
-            clipboard,
-            shell,
-            viewport,
-        );
-    }
-
-    fn operate(
-        &mut self,
-        tree: &mut Tree,
-        layout: Layout<'_>,
-        renderer: &iced::Renderer,
-        operation: &mut dyn Operation,
-    ) {
-        operation.custom(None, layout.bounds(), &mut self.marker);
-        self.content
-            .as_widget_mut()
-            .operate(&mut tree.children[0], layout, renderer, operation);
-    }
-
-    fn mouse_interaction(
-        &self,
-        tree: &Tree,
-        layout: Layout<'_>,
-        cursor: mouse::Cursor,
-        viewport: &Rectangle,
-        renderer: &iced::Renderer,
-    ) -> mouse::Interaction {
-        self.content.as_widget().mouse_interaction(
-            &tree.children[0],
-            layout,
-            cursor,
-            viewport,
-            renderer,
-        )
-    }
-
-    fn overlay<'b>(
-        &'b mut self,
-        tree: &'b mut Tree,
-        layout: Layout<'b>,
-        renderer: &iced::Renderer,
-        viewport: &Rectangle,
-        translation: Vector,
-    ) -> Option<overlay::Element<'b, M, iced::Theme, iced::Renderer>> {
-        self.content.as_widget_mut().overlay(
-            &mut tree.children[0],
-            layout,
-            renderer,
-            viewport,
-            translation,
-        )
-    }
+    anchor_marker(content, entry)
 }
 
 #[cfg(test)]

@@ -1,15 +1,6 @@
 use std::sync::Weak;
 
-use iced::{
-    Element, Event, Length, Rectangle, Size,
-    advanced::{
-        Clipboard, Layout, Shell, Widget,
-        layout::{Limits, Node},
-        mouse, renderer,
-        widget::Tree,
-    },
-    window,
-};
+use iced::Rectangle;
 
 use crate::hover_cards::{HoverTarget, PointerPresence};
 
@@ -127,64 +118,6 @@ impl LaidOutAnchors {
     }
 }
 
-pub fn dropped_widget_watch<'a, Message: Clone + 'a>(
-    presence: Option<Weak<()>>,
-    on_dropped: Message,
-) -> Element<'a, Message> {
-    Element::new(DroppedWidgetWatch {
-        presence,
-        on_dropped,
-    })
-}
-
-struct DroppedWidgetWatch<Message> {
-    presence: Option<Weak<()>>,
-    on_dropped: Message,
-}
-
-impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for DroppedWidgetWatch<Message> {
-    fn size(&self) -> Size<Length> {
-        Size::new(Length::Shrink, Length::Shrink)
-    }
-
-    fn layout(&mut self, _tree: &mut Tree, _renderer: &iced::Renderer, _limits: &Limits) -> Node {
-        Node::new(Size::ZERO)
-    }
-
-    fn draw(
-        &self,
-        _tree: &Tree,
-        _renderer: &mut iced::Renderer,
-        _theme: &iced::Theme,
-        _style: &renderer::Style,
-        _layout: Layout<'_>,
-        _cursor: mouse::Cursor,
-        _viewport: &Rectangle,
-    ) {
-    }
-
-    fn update(
-        &mut self,
-        _tree: &mut Tree,
-        event: &Event,
-        _layout: Layout<'_>,
-        _cursor: mouse::Cursor,
-        _renderer: &iced::Renderer,
-        _clipboard: &mut dyn Clipboard,
-        shell: &mut Shell<'_, Message>,
-        _viewport: &Rectangle,
-    ) {
-        if matches!(event, Event::Window(window::Event::RedrawRequested(_)))
-            && self
-                .presence
-                .as_ref()
-                .is_some_and(|presence| presence.strong_count() == 0)
-        {
-            shell.publish(self.on_dropped.clone());
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WidgetLiveness {
     Alive,
@@ -193,16 +126,12 @@ pub enum WidgetLiveness {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, LazyLock, Weak};
+    use std::sync::{Arc, LazyLock};
 
-    use iced::{Point, Rectangle, Settings, Size, window};
-    use iced_test::Simulator;
+    use iced::{Point, Rectangle, Size};
 
-    use super::{CardOpening, LaidOutAnchors, WidgetAnchor, dropped_widget_watch};
-    use crate::{
-        clock::Clock,
-        hover_cards::{HoverTarget, PointerPresence, laid_out_anchors::WidgetLiveness},
-    };
+    use super::{CardOpening, LaidOutAnchors, WidgetAnchor};
+    use crate::hover_cards::{HoverTarget, PointerPresence, laid_out_anchors::WidgetLiveness};
 
     static LIVE_WIDGET: LazyLock<Arc<()>> = LazyLock::new(|| Arc::new(()));
 
@@ -222,29 +151,6 @@ mod tests {
             visible: true,
             presence: Arc::downgrade(&LIVE_WIDGET),
         }
-    }
-
-    fn messages_from_a_redraw(presence: Option<Weak<()>>) -> Vec<&'static str> {
-        let watch = dropped_widget_watch(presence, "dropped");
-        let mut simulator = Simulator::with_size(Settings::default(), Size::new(10.0, 10.0), watch);
-        let _redrawn = simulator.simulate([iced::Event::Window(window::Event::RedrawRequested(
-            Clock::real().instant,
-        ))]);
-        simulator.into_messages().collect()
-    }
-
-    #[test]
-    fn a_dropped_widget_is_noticed_on_the_next_redraw() {
-        let widget = Arc::new(());
-        let presence = Arc::downgrade(&widget);
-        assert!(messages_from_a_redraw(Some(presence.clone())).is_empty());
-        drop(widget);
-        assert_eq!(messages_from_a_redraw(Some(presence)), ["dropped"]);
-    }
-
-    #[test]
-    fn a_watch_with_nothing_to_watch_stays_silent() {
-        assert!(messages_from_a_redraw(None).is_empty());
     }
 
     #[test]

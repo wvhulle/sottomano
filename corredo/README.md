@@ -23,8 +23,8 @@ types directly, as in `corredo::popovers::popup_trigger`.
 
 | Module | Widgets | Feature |
 | --- | --- | --- |
-| `popovers` | `popup_trigger`: popup attached to a trigger, with connector and morph transition; `anchored_popup`: popup attached to any rectangle; `context_menu`: menu with notes, dividers and submenus; `nested_menu`: grouped menu in a cascading or accordion layout, with side panels and scrolling; `notched_panel`: side panel that grows out of a row | |
-| `drag_reorder` | `reorderable_list`: drag-to-reorder list with groups and an animated highlight; `draggable_slot`, `drag_ghost` and the drag state machine | |
+| `popovers` | `popup_trigger`: popup attached to a trigger, with connector and morph transition; `anchored_popup`: popup attached to any rectangle; `context_menu`: menu with notes, dividers and submenus; `nested_menu`: grouped menu in a cascading or accordion layout, with side panels and scrolling; `notched_panel`: side panel that grows out of a row; `anchor_marker` and `dropped_anchor_watch`: mark a widget so tools and popups can find it, and notice when it is gone | |
+| `drag_reorder` | `reorderable_list`: drag-to-reorder list with groups, an animated highlight and optional wheel selection; `draggable_slot`, `drag_ghost` and the drag state machine | |
 | `selection_scroll` | `selection_following_scroll`: scrolling list that follows a selection, with faded edges | |
 | `value_controls` | `expanding_slider`: a face that opens into a slider and readout, adjustable by wheel; `inline_slider`: slider that fits inside a row; `seek_bar`: seek bar that holds its target until playback arrives; `toggle_switch`; `weekday_picker`: localized weekday picker; `SyncedValue`: the value a control shows while writes to its source are in flight | `chrono` for `weekday_picker` |
 | `press_actions` | `confirm_button`: button that asks for confirmation; `flash_on_press_text`: text that copies or acts on press, with a brief flash; `flat_button` | |

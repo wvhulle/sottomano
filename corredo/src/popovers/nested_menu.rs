@@ -1,15 +1,9 @@
-use std::{iter::once, slice::from_ref, time::Duration};
+use std::{iter::once, time::Duration};
 
 use iced::{
-    Border, Element, Event, Length, Rectangle, Size, Theme, Vector,
-    advanced::{
-        Clipboard, Layout, Shell, Widget,
-        layout::{Limits, Node},
-        mouse, overlay, renderer,
-        widget::{Operation, Tree},
-    },
+    Border, Element, Length, Theme,
     border::Radius,
-    mouse::{Cursor, ScrollDelta},
+    mouse::ScrollDelta,
     widget::{Space, container, mouse_area, rule, stack},
 };
 
@@ -19,7 +13,8 @@ use crate::{
     popovers::{
         CascadeOrientation, NestedMenuLayout, NestedMenuMetrics, NestedMenuRowContent,
         NestedMenuRowEmphasis, NestedMenuRowLook, NestedMenuRowPress, NotchRowAnchor,
-        ResolvedPanelTop, RowHoverReaction, SubmenuConnector, nested_menu_row, notched_panel,
+        ResolvedPanelTop, RowHoverReaction, SubmenuConnector, anchor_marker, nested_menu_row,
+        notched_panel,
     },
     selection_scroll::{ScrollEdgeFade, ScrollPacing, selection_following_scroll},
     theming::{
@@ -369,7 +364,7 @@ impl MenuChrome {
                 if let BesideRow::Card(card) = item.beside {
                     beside_card = Some((position, card));
                 }
-                marked_row(
+                anchor_marker(
                     finished_row(item.row, self.metrics, item_corners.radius_at(position)),
                     item.key,
                 )
@@ -450,7 +445,7 @@ impl MenuChrome {
                             .insert(0, Space::new().width(self.item_indent_px).into());
                         let corners = row_corners.radius_at(rows_above);
                         section_row(
-                            marked_row(
+                            anchor_marker(
                                 finished_row(menu_item.row, self.metrics, corners),
                                 menu_item.key,
                             ),
@@ -589,147 +584,6 @@ fn rows_above_section(sections: &[AccordionSectionRows], section: usize) -> usiz
 
 fn rows_above_item(sections: &[AccordionSectionRows], section: usize, item: usize) -> usize {
     rows_above_section(sections, section) + 1 + item
-}
-
-fn marked_row<'a, Message: 'a, RowKey: Clone + Send + Sync + 'static>(
-    content: Element<'a, Message>,
-    key: RowKey,
-) -> Element<'a, Message> {
-    Element::new(MarkedRow { content, key })
-}
-
-struct MarkedRow<'a, Message, RowKey> {
-    content: Element<'a, Message>,
-    key: RowKey,
-}
-
-impl<Message, RowKey: Clone + Send + Sync + 'static> Widget<Message, Theme, iced::Renderer>
-    for MarkedRow<'_, Message, RowKey>
-{
-    fn children(&self) -> Vec<Tree> {
-        vec![Tree::new(&self.content)]
-    }
-
-    fn diff(&self, tree: &mut Tree) {
-        tree.diff_children(from_ref(&self.content));
-    }
-
-    fn size(&self) -> Size<Length> {
-        self.content.as_widget().size()
-    }
-
-    fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
-        let content = self
-            .content
-            .as_widget_mut()
-            .layout(&mut tree.children[0], renderer, limits);
-        Node::with_children(content.size(), vec![content])
-    }
-
-    fn draw(
-        &self,
-        tree: &Tree,
-        renderer: &mut iced::Renderer,
-        theme: &Theme,
-        style: &renderer::Style,
-        layout: Layout<'_>,
-        cursor: Cursor,
-        viewport: &Rectangle,
-    ) {
-        self.content.as_widget().draw(
-            &tree.children[0],
-            renderer,
-            theme,
-            style,
-            content_layout(layout),
-            cursor,
-            viewport,
-        );
-    }
-
-    fn operate(
-        &mut self,
-        tree: &mut Tree,
-        layout: Layout<'_>,
-        renderer: &iced::Renderer,
-        operation: &mut dyn Operation,
-    ) {
-        let mut key = self.key.clone();
-        operation.custom(None, layout.bounds(), &mut key);
-        self.content.as_widget_mut().operate(
-            &mut tree.children[0],
-            content_layout(layout),
-            renderer,
-            operation,
-        );
-    }
-
-    fn update(
-        &mut self,
-        tree: &mut Tree,
-        event: &Event,
-        layout: Layout<'_>,
-        cursor: Cursor,
-        renderer: &iced::Renderer,
-        clipboard: &mut dyn Clipboard,
-        shell: &mut Shell<'_, Message>,
-        viewport: &Rectangle,
-    ) {
-        self.content.as_widget_mut().update(
-            &mut tree.children[0],
-            event,
-            content_layout(layout),
-            cursor,
-            renderer,
-            clipboard,
-            shell,
-            viewport,
-        );
-    }
-
-    fn mouse_interaction(
-        &self,
-        tree: &Tree,
-        layout: Layout<'_>,
-        cursor: Cursor,
-        viewport: &Rectangle,
-        renderer: &iced::Renderer,
-    ) -> mouse::Interaction {
-        self.content.as_widget().mouse_interaction(
-            &tree.children[0],
-            content_layout(layout),
-            cursor,
-            viewport,
-            renderer,
-        )
-    }
-
-    fn overlay<'overlay>(
-        &'overlay mut self,
-        tree: &'overlay mut Tree,
-        layout: Layout<'overlay>,
-        renderer: &iced::Renderer,
-        viewport: &Rectangle,
-        translation: Vector,
-    ) -> Option<overlay::Element<'overlay, Message, Theme, iced::Renderer>> {
-        self.content.as_widget_mut().overlay(
-            &mut tree.children[0],
-            layout
-                .children()
-                .next()
-                .expect("a marked row lays out its content"),
-            renderer,
-            viewport,
-            translation,
-        )
-    }
-}
-
-fn content_layout(layout: Layout<'_>) -> Layout<'_> {
-    layout
-        .children()
-        .next()
-        .expect("a marked row lays out its content")
 }
 
 #[cfg(test)]
