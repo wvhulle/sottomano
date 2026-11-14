@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use chrono::{NaiveTime, TimeDelta, Timelike};
 use sottomano_desktop_sources::sqlite_state_store::{
-    Columns, StoreError, flag, in_state_store, with_state_store,
+    StoreError, flag, in_state_store, singleton_row, with_state_store,
 };
 
 use crate::widget_groups::quiet_schedule_group::quiet_window::QuietScheduleAdherence;
@@ -45,41 +45,37 @@ fn time_of_minutes(minutes: i64) -> NaiveTime {
 }
 
 async fn read_schedule(connection: &turso::Connection) -> Result<QuietHoursSchedule, StoreError> {
-    let mut rows = connection
-        .query(
-            "SELECT follows_schedule, start_minutes, end_minutes FROM quiet_hours WHERE id = 0",
-            (),
-        )
-        .await?;
-    let columns = Columns::of(&rows);
-    let Some(row) = rows.next().await? else {
-        return Ok(QuietHoursSchedule::default());
-    };
-    Ok(QuietHoursSchedule {
-        schedule_adherence: match columns.integer(&row, "follows_schedule")? {
-            0 => QuietScheduleAdherence::Ignored,
-            _ => QuietScheduleAdherence::Followed,
+    let screen_off = read_screen_off(connection).await?;
+    let stored = singleton_row(
+        connection,
+        "SELECT follows_schedule, start_minutes, end_minutes FROM quiet_hours WHERE id = 0",
+        |columns, row| {
+            Ok(QuietHoursSchedule {
+                schedule_adherence: match columns.integer(row, "follows_schedule")? {
+                    0 => QuietScheduleAdherence::Ignored,
+                    _ => QuietScheduleAdherence::Followed,
+                },
+                start: time_of_minutes(columns.integer(row, "start_minutes")?),
+                end: time_of_minutes(columns.integer(row, "end_minutes")?),
+                screen_off,
+            })
         },
-        start: time_of_minutes(columns.integer(&row, "start_minutes")?),
-        end: time_of_minutes(columns.integer(&row, "end_minutes")?),
-        screen_off: read_screen_off(connection).await?,
-    })
+    )
+    .await?;
+    Ok(stored.unwrap_or_default())
 }
 
 async fn read_screen_off(connection: &turso::Connection) -> Result<Option<Duration>, StoreError> {
-    let mut rows = connection
-        .query(
-            "SELECT after_seconds FROM quiet_hours_screen_off WHERE id = 0",
-            (),
-        )
-        .await?;
-    let columns = Columns::of(&rows);
-    let Some(row) = rows.next().await? else {
-        return Ok(None);
-    };
-    Ok(Some(Duration::from_secs(
-        columns.ranged_integer(&row, "after_seconds")?,
-    )))
+    singleton_row(
+        connection,
+        "SELECT after_seconds FROM quiet_hours_screen_off WHERE id = 0",
+        |columns, row| {
+            Ok(Duration::from_secs(
+                columns.ranged_integer(row, "after_seconds")?,
+            ))
+        },
+    )
+    .await
 }
 
 async fn write_schedule(
