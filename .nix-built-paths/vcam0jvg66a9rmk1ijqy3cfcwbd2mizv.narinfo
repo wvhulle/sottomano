@@ -1,0 +1,10 @@
+StorePath: /nix/store/vcam0jvg66a9rmk1ijqy3cfcwbd2mizv-cargo-package-signal-hook-registry-1.4.8
+URL: nar/1kvm0x13d32rcyik2lagmpabisy3fzap3hpna7w53x3d8zyx1hgh.nar.zst
+Compression: zstd
+FileHash: sha256:1kvm0x13d32rcyik2lagmpabisy3fzap3hpna7w53x3d8zyx1hgh
+FileSize: 22983
+NarHash: sha256:00i3j9c9jlgvms5ydgb4z0d377zmvk1b9nhhk9qqflzv60ys534w
+NarSize: 71320
+References: 
+Deriver: fdyx0gnzdpbadii4plhrppp14v5m78vh-cargo-package-signal-hook-registry-1.4.8.drv
+Sig: cache.nixos.org-1:yfBwQq4lxnjF1MKe61EKnVjYzikosMO/yOEv/tjNzb0F6VRX6GsRbZy0BlzERqjdhVxhaa5vL1ESnQzDLNKzDQ==

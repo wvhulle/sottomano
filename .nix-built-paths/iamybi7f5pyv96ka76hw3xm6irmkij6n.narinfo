@@ -1,0 +1,10 @@
+StorePath: /nix/store/iamybi7f5pyv96ka76hw3xm6irmkij6n-cargo-package-flate2-1.1.10
+URL: nar/0cvpr15zvlrknrd0akxw4kf2qs63d8grswjacwh2hdpyw1bmcdvg.nar.zst
+Compression: zstd
+FileHash: sha256:0cvpr15zvlrknrd0akxw4kf2qs63d8grswjacwh2hdpyw1bmcdvg
+FileSize: 77629
+NarHash: sha256:1kwi73iavaqd42nm9ag117ciy1fvzgnjan1dcz66jyjmjph4jffg
+NarSize: 362880
+References: 
+Deriver: 3273znjyz8px7dy5f8dy0ldk9jm9rfyv-cargo-package-flate2-1.1.10.drv
+Sig: wvhulle.cachix.org-1:zhuxEWgu0v39fNKZ78W49A2UDbNTAm2GfRar6q6/zEeVp1HhtHT2z+D3eFkwQNi3gLSOc/eNZIXUlFBqaKlHAg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/jkcqxxwkp0x1x41sqd5xxaxp6hglbc3b-cargo-package-rusty-money-0.5.1
+URL: nar/0dq2cs4yb3bsamlbixkdrxryd0k257x0sss8jkz247qqp47i9sxb.nar.zst
+Compression: zstd
+FileHash: sha256:0dq2cs4yb3bsamlbixkdrxryd0k257x0sss8jkz247qqp47i9sxb
+FileSize: 69751
+NarHash: sha256:0dljpmgzzb88wxpfpd84305yzd7s4b87fqf1myzv3ig1z8z9i68g
+NarSize: 348768
+References: 
+Deriver: arsv3sszls63961s845z3lw0cs1lnaqm-cargo-package-rusty-money-0.5.1.drv
+Sig: wvhulle.cachix.org-1:wHI8/EMqY7Zc320gbq5FQDGLQGDk9i2gqjoTjya9CyVxiZnr3w/2S6M6jnLzAH6q6/DqjbBbKBtOBTFVrsR9Cw==

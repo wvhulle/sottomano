@@ -1,0 +1,10 @@
+StorePath: /nix/store/pgbq5jx2kr2m906b2xnkmc3r6ycvdqpy-cargo-package-walkdir-2.5.0
+URL: nar/0bjhpbmwxqp1idfp3hm1qgy7dic5zh9pna6jc1rp6bya5d7ql4mw.nar.zst
+Compression: zstd
+FileHash: sha256:0bjhpbmwxqp1idfp3hm1qgy7dic5zh9pna6jc1rp6bya5d7ql4mw
+FileSize: 25882
+NarHash: sha256:1vnq25j87kjccw6apj4ckfd2hl3wvmxf8vldpqjqf3bf7nii8y82
+NarSize: 117632
+References: 
+Deriver: 5nyq68cps00njvzwrj54qacdczq7mw06-cargo-package-walkdir-2.5.0.drv
+Sig: cache.nixos.org-1:/eVl4m9aVBwT37O1IZpBHbfUPmEdm+TP2TpSmN5B+02UwaR0/Z/zIL+BQzM/D40kJSQlrClkGUNt0m0ZdOlhCw==

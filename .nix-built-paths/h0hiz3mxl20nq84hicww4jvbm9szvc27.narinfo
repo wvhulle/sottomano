@@ -1,0 +1,10 @@
+StorePath: /nix/store/h0hiz3mxl20nq84hicww4jvbm9szvc27-cargo-package-smithay-client-toolkit-0.20.0
+URL: nar/095b2vbvxq0vspyx7f12kvh4wg8ns3la0wvlb68s49chb0j4vpjr.nar.zst
+Compression: zstd
+FileHash: sha256:095b2vbvxq0vspyx7f12kvh4wg8ns3la0wvlb68s49chb0j4vpjr
+FileSize: 143441
+NarHash: sha256:0giiz7gxypigxw9i997qg1fx35x8ipchpgpjc4ids8wxbhcx5kzz
+NarSize: 739128
+References: 
+Deriver: c6x0ii0sbs5wlvy5wsp39ixx7a2bhp0f-cargo-package-smithay-client-toolkit-0.20.0.drv
+Sig: wvhulle.cachix.org-1:Wy3kdamRZsCrqATH1QkmY+bc5TxN9/xLUWqgBPVCXoZNtN7E8RvLuPnXF6+wdpl50XprxqJe0aBZaiLfaka8Dg==

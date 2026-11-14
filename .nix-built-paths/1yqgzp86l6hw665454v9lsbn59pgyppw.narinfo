@@ -1,0 +1,10 @@
+StorePath: /nix/store/1yqgzp86l6hw665454v9lsbn59pgyppw-cargo-package-parking-2.2.1
+URL: nar/1h50m2byb42wnnpr7gd1fqr6zh6i92cvfwhfl58w2ys36grx0dkm.nar.zst
+Compression: zstd
+FileHash: sha256:1h50m2byb42wnnpr7gd1fqr6zh6i92cvfwhfl58w2ys36grx0dkm
+FileSize: 11496
+NarHash: sha256:1misyn2dpn2kgkrrzl7lzz4rbgk1yr4y2hzr7lfmr9i5mq3fyh3x
+NarSize: 37904
+References: 
+Deriver: lwdafpvv2jyin8h7abbrf3nv0rvmvwpm-cargo-package-parking-2.2.1.drv
+Sig: wvhulle.cachix.org-1:gVXd1meQ6EG/Fibn2w1cUbuqkoJtg4mBfF5IGK4C4J7ST7wwlZRI0+UekqZ4MSSG6Ar5kPiIeYIkM5vnOw4aDw==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/lmfbg2f1d9nly110yxpd9apfa0izd9f2-cargo-package-wayland-protocols-misc-0.3.12
+URL: nar/0ipyy53h8d0fi3qg836yy5np0qxgc23zjp151rpqk11ia8zs6h27.nar.zst
+Compression: zstd
+FileHash: sha256:0ipyy53h8d0fi3qg836yy5np0qxgc23zjp151rpqk11ia8zs6h27
+FileSize: 15915
+NarHash: sha256:011phqa3iqkhp8y6id4afllpxqg3kbd02xq2a2hm6zf7ywgs0aik
+NarSize: 63616
+References: 
+Deriver: ar1rv6j6fzz0b2im8dg8z8bjw7y0vp45-cargo-package-wayland-protocols-misc-0.3.12.drv
+Sig: wvhulle.cachix.org-1:M7hMy+sn3OX3mmPwmVyYdvzwbVaFhj20kSIneLL9+wSWRa4M9XHxcH6nlrRNdApO1jJP4wqn0rK5p8FnUlsjCg==

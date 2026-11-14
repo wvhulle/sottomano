@@ -1,0 +1,10 @@
+StorePath: /nix/store/w3v3m8qmrpyb5iz1zrc5kx4sjxqnl1a2-cargo-package-num_enum_derive-0.7.6
+URL: nar/18qfczacl45x2crlc055rdldxsqjcv5izvs09vdiykn665y1y3wh.nar.zst
+Compression: zstd
+FileHash: sha256:18qfczacl45x2crlc055rdldxsqjcv5izvs09vdiykn665y1y3wh
+FileSize: 20464
+NarHash: sha256:0brxw0f4ps2a8fmq50ij8aj6hl19lbs9wrjw1xz8h9bjxw75r1w4
+NarSize: 80616
+References: 
+Deriver: 3h0naggxg9hn1ab4b9wih31s8iw1y0pr-cargo-package-num_enum_derive-0.7.6.drv
+Sig: wvhulle.cachix.org-1:mGOyWZXYNEMLJEtMpcSVd1IAuZ5qa1EnAhNJ39yQApkmxH7c1QcdIDyRWVEeMN/vHZL9uIxFJPoIa7XpX+nTBw==

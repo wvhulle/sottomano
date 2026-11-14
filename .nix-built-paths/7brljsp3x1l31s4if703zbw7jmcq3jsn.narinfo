@@ -1,0 +1,10 @@
+StorePath: /nix/store/7brljsp3x1l31s4if703zbw7jmcq3jsn-cargo-package-freedesktop-desktop-entry-0.8.3
+URL: nar/17bnwln048kfl9vxg2h93cjr6r7srgzh6v65fyafbng9gxjcwlm6.nar.zst
+Compression: zstd
+FileHash: sha256:17bnwln048kfl9vxg2h93cjr6r7srgzh6v65fyafbng9gxjcwlm6
+FileSize: 39500
+NarHash: sha256:14sbwx05jhvw3vwnasirnxw9qcsqy2853l1lvn46zqnmkxqffjhw
+NarSize: 134584
+References: 
+Deriver: ll1l8hprc69my1ll2qxgcksnw6cjqz2y-cargo-package-freedesktop-desktop-entry-0.8.3.drv
+Sig: wvhulle.cachix.org-1:jJA1sbFToNOwSHdnnRysUW2ub02J8dlZYb5nzY+iNT0dxErF1pQOADOrnzvXPw946I0SNvypaKgAkAveq6WOBw==

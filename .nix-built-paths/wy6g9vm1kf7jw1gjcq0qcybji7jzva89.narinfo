@@ -1,0 +1,10 @@
+StorePath: /nix/store/wy6g9vm1kf7jw1gjcq0qcybji7jzva89-cargo-package-rfd-0.16.0
+URL: nar/0x4yx7p243sbjjwbc055rnibkn631gdwn2sw047avnp9s66r8zzm.nar.zst
+Compression: zstd
+FileHash: sha256:0x4yx7p243sbjjwbc055rnibkn631gdwn2sw047avnp9s66r8zzm
+FileSize: 59598
+NarHash: sha256:1jxncmkndwklvh0y0yirjlxzaiysbz1r1p6qcf2ysq9wai5rxa7j
+NarSize: 273400
+References: 
+Deriver: ir8cs3krm8bwp2wpdz61qigfkd7iwmlp-cargo-package-rfd-0.16.0.drv
+Sig: wvhulle.cachix.org-1:8OVWxoBGoLARvCC7wnrQDTYgNdm2ui9fnI/IgoOoZo9FXyITvhLYFsPpb6B0rgUkbhX3H9A6DlQmV6z5opQLCQ==

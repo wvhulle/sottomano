@@ -1,0 +1,10 @@
+StorePath: /nix/store/71ii803a4vqhiqgwkbhrg2mxnivsw8cd-cargo-package-regex-automata-0.4.18
+URL: nar/1rp9af73l2301y0andsv719vg3sqsc1s2z8hpxvi5rgwk462h3jj.nar.zst
+Compression: zstd
+FileHash: sha256:1rp9af73l2301y0andsv719vg3sqsc1s2z8hpxvi5rgwk462h3jj
+FileSize: 575100
+NarHash: sha256:008xw6597i2kpk3pzw7n3yb5wq89yz3k3j6qkb04dgv9342w46w9
+NarSize: 2758248
+References: 
+Deriver: 3dq6lq9rd9f4zwy06ia1ny095cxrp81f-cargo-package-regex-automata-0.4.18.drv
+Sig: wvhulle.cachix.org-1:s7KB41/wIG57hKUomC3JjLki0yS4VxdzaKD1QoPnJHaG4ToFdbssqVteJDoSfwVUGjqb074Lo64cDJjlzmKPAw==

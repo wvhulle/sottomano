@@ -1,0 +1,10 @@
+StorePath: /nix/store/nc832z15fa04b630qcddlxp1f2hnrjp1-cargo-package-smithay-clipboard-0.7.3
+URL: nar/126f1a0fj9vrblf46crpa94j3dg4if356afz44xhqv01fr6qdynv.nar.zst
+Compression: zstd
+FileHash: sha256:126f1a0fj9vrblf46crpa94j3dg4if356afz44xhqv01fr6qdynv
+FileSize: 19490
+NarHash: sha256:0agjs7yyzjn9n6rbf6xb83wyyamqxznxpjq3102drlf6hxlqnn25
+NarSize: 71896
+References: 
+Deriver: al0w0115zkndr79grq08h5q2iqin49gd-cargo-package-smithay-clipboard-0.7.3.drv
+Sig: wvhulle.cachix.org-1:hjgHOf0WpMUO5CJ8sPTGpgvegMOdl7KA3SJTixu037dsv7dX2ujgJRle2CP3msu890Yj1NW0YPAqOPJQ8HGmCA==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/2ba5fwk7f6hfax7r7frbbh4fylxfvr79-cargo-package-mutate_once-0.1.2
+URL: nar/08ynp0vlr7yixqcpqrnskj9c6wxy70nkphrdaikmxbzhwqziz7xm.nar.zst
+Compression: zstd
+FileHash: sha256:08ynp0vlr7yixqcpqrnskj9c6wxy70nkphrdaikmxbzhwqziz7xm
+FileSize: 4970
+NarHash: sha256:0mx3rrb538k5hvd5pskp807zjja2qgrdyfsmp3jvdznpaiaxhiz0
+NarSize: 19144
+References: 
+Deriver: 3bzdl1blv4675vak16qkvbwlz9bzqxki-cargo-package-mutate_once-0.1.2.drv
+Sig: wvhulle.cachix.org-1:/NTE38XNduuaH3qXPKZx+5HibT98W61gDuL4Q6TcF9UFtEXk7SguJy6rcNE8pviprzKhiu/MhRc5lDzO3jqfDg==

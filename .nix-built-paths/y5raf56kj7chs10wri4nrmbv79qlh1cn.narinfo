@@ -1,0 +1,10 @@
+StorePath: /nix/store/y5raf56kj7chs10wri4nrmbv79qlh1cn-cargo-package-anstyle-parse-1.0.0
+URL: nar/1rffah31m2i691iwr6y8b5ryjdxvq6b62kfcynx9g2dcgq3nkbh0.nar.zst
+Compression: zstd
+FileHash: sha256:1rffah31m2i691iwr6y8b5ryjdxvq6b62kfcynx9g2dcgq3nkbh0
+FileSize: 23787
+NarHash: sha256:1am4iarmxs8yvjz87phcbghv7yjj84jxhm5m8y74vxqwz8q72yqa
+NarSize: 108240
+References: 
+Deriver: 3fa0nz5c3ikd6b46cmsn7d43bm22b9h4-cargo-package-anstyle-parse-1.0.0.drv
+Sig: cache.nixos.org-1:9RhY5s40zlcqyvmYP6Z5hDGMt2NLruriWQkGUI5y2oXCmVDXt/NfUYSjHsLC+YRkmuGw8fi2Ms3yCINryT+TCA==

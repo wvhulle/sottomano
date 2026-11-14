@@ -1,0 +1,10 @@
+StorePath: /nix/store/6dkhgdxl500i6f7hbz706bhanbacs40l-cargo-package-litrs-1.0.1
+URL: nar/03k63bzdcyasm91vzwfkgyqy1prnfqwvh0qnz30k6pbcy8fr0mda.nar.zst
+Compression: zstd
+FileHash: sha256:03k63bzdcyasm91vzwfkgyqy1prnfqwvh0qnz30k6pbcy8fr0mda
+FileSize: 47286
+NarHash: sha256:0649hd58zdba0al3svc7c7n1irzzc6bkblfwxngapanlqczllz00
+NarSize: 218296
+References: 
+Deriver: xym86hpgzjbmnbxkab6l4ps9i0vlhdxc-cargo-package-litrs-1.0.1.drv
+Sig: wvhulle.cachix.org-1:ouVr9B4pHmQyH3RvY51jwrNk2kpvHtwboTz6q1mPQ48cZ7ns2DgXZFkMV7sFlkDGxX2p+owJoiLKw7uUsOBhAw==

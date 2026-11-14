@@ -1,0 +1,10 @@
+StorePath: /nix/store/narawrm4szgh5hcrbc9zhi1a2ydlx90w-cargo-package-time-core-0.1.9
+URL: nar/0m48nmz7d73bcxdwgc8ajlwxbh2i1cklj7wpgi6kdscrm4hdviwb.nar.zst
+Compression: zstd
+FileHash: sha256:0m48nmz7d73bcxdwgc8ajlwxbh2i1cklj7wpgi6kdscrm4hdviwb
+FileSize: 10976
+NarHash: sha256:1fb77hgdgjv729f9han3dd3kcmx37hk92d7k63wf9jx5x2pqynzz
+NarSize: 36416
+References: 
+Deriver: z9rcyapzglj94vf2r3s2i6i41234vlrm-cargo-package-time-core-0.1.9.drv
+Sig: wvhulle.cachix.org-1:Rf9IhV9AigF2Uis53Kq29p3u3cp30qUQ+avsehbNXRujyDqVzDt7xowYQtZGUjeXrH0pAAoKiAe0Itoqazh9AA==

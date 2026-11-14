@@ -1,0 +1,10 @@
+StorePath: /nix/store/rd1rrrzpxm42bwk3wyn88p13m5lvwfs4-cargo-package-num-complex-0.4.6
+URL: nar/1k1w7cvcq2xldicivpk8jxzlxszqf6xsgwr0hc8gwgf49zvzvckp.nar.zst
+Compression: zstd
+FileHash: sha256:1k1w7cvcq2xldicivpk8jxzlxszqf6xsgwr0hc8gwgf49zvzvckp
+FileSize: 32700
+NarHash: sha256:12w0aqxhcms331vnq75yr54a331mwa24sykxryqz7x8gx848xwg9
+NarSize: 145584
+References: 
+Deriver: ssg39fh63gwh0q8m3d6mdi1azwl7w662-cargo-package-num-complex-0.4.6.drv
+Sig: wvhulle.cachix.org-1:abkeaFSfeeoUtbkcEYUJ0scag/dVv9rz3xHL4nRJTb0iswa5FdDhgN0Hpukcu4qszJQnmyly+gyO64d9YK0tAw==

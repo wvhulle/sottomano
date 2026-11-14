@@ -1,0 +1,10 @@
+StorePath: /nix/store/m0v9wfgrlm2vbc97m52drn8rqxi6kp9d-cargo-package-strum-0.26.3
+URL: nar/0784d1g41pribbg2yl6iv04p7p5vaxdsp1lmnv8jaahqd4rrcki6.nar.zst
+Compression: zstd
+FileHash: sha256:0784d1g41pribbg2yl6iv04p7p5vaxdsp1lmnv8jaahqd4rrcki6
+FileSize: 7683
+NarHash: sha256:11p3lplkc3qfg36z00a1ab0xbwqplr90a43vyjdgm6v2ydswxq9b
+NarSize: 22024
+References: 
+Deriver: z5qwg35p3s6scvaspq0a55cxj324k2w6-cargo-package-strum-0.26.3.drv
+Sig: wvhulle.cachix.org-1:Hy11oNpePhz/Qwd7g61AHtnAC+Z2gX9HmnZhflUH6cVG5fcAr8zoUbnMYiluBy6mTDyB/HZcrU0TjodZlxT6Bg==

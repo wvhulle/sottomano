@@ -1,0 +1,10 @@
+StorePath: /nix/store/vqydddsiyxh9f54lav6x8xzgxhzl7gqi-cargo-package-hashbrown-0.17.1
+URL: nar/03k6pa3s43nxa8nngbjqdkgprn3n3ii0403x8zhxs4l9kaahl3z5.nar.zst
+Compression: zstd
+FileHash: sha256:03k6pa3s43nxa8nngbjqdkgprn3n3ii0403x8zhxs4l9kaahl3z5
+FileSize: 155524
+NarHash: sha256:13ch3snsn5w4s3391l5hjqrcrwgn3f7lkldmlvah5vbva3f5d8l8
+NarSize: 900840
+References: 
+Deriver: qq1wia9sqjx37c9gf1rvwj5vpfwicziq-cargo-package-hashbrown-0.17.1.drv
+Sig: cache.nixos.org-1:5zIytB3BHnngHaYoooaQxmdpKBGkj7XWE0DED7gNQY0szHzhNNFhZOtK2JCtUc0N+qJLy69S5je9r2l6VVxxDw==

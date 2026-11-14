@@ -1,0 +1,10 @@
+StorePath: /nix/store/1k69hrirrg3ry6n3vhn6xjvbb5z2cwv9-cargo-package-aegis-0.9.20
+URL: nar/0rs11j6a997n93pa7rxpcz6ysqjvriry7xk3m3rc8fliqab1sna5.nar.zst
+Compression: zstd
+FileHash: sha256:0rs11j6a997n93pa7rxpcz6ysqjvriry7xk3m3rc8fliqab1sna5
+FileSize: 211918
+NarHash: sha256:1x087cigd2ghxm26q5vlq3y5yfksq651i7r9ipjg0v3igwm45g0g
+NarSize: 1882912
+References: 
+Deriver: 86kxd9p4dfxplsd5mzp6iiygc9g0c5kx-cargo-package-aegis-0.9.20.drv
+Sig: wvhulle.cachix.org-1:PKCbxcN2UHviIroaD5Ywylsc7gEmxISJcQ6pqpG+bj6EAzh8/OnrhCr0lRiQ5O4JRlNu3j/J9UOniRv0UQHKCw==

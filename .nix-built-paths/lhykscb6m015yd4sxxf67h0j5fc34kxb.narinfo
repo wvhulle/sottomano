@@ -1,0 +1,10 @@
+StorePath: /nix/store/lhykscb6m015yd4sxxf67h0j5fc34kxb-cargo-package-android-activity-0.6.1
+URL: nar/0mfj3f5smwm1l785xhnq14z6xxs94d7bz8djvzbvcv1sncvy5hj5.nar.zst
+Compression: zstd
+FileHash: sha256:0mfj3f5smwm1l785xhnq14z6xxs94d7bz8djvzbvcv1sncvy5hj5
+FileSize: 182348
+NarHash: sha256:0cv9ns31l9781ymlrckwjji4wrhqji6ikkcfa41n6x1ihj47d8qi
+NarSize: 1721592
+References: 
+Deriver: lc99zbig80qxf6ipk48j42k6r5ya6z5b-cargo-package-android-activity-0.6.1.drv
+Sig: wvhulle.cachix.org-1:pNc6NOwjaLWeoNC1fy8AYCPh4V5vFbrHnlUO0pFZ5+b350D94++tpqBEAW2t1BK17ciRGNJrQqK064qOagy6CQ==

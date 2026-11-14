@@ -1,0 +1,10 @@
+StorePath: /nix/store/5a35mp2k3aaqwk0wqv69n8y8cn8dfcw1-cargo-package-clipboard_wayland-0.2.2
+URL: nar/0zxmaydmaryp4wfpchwwqpp2p5axmx2zvrcc3lbn1yhylv6kqs5v.nar.zst
+Compression: zstd
+FileHash: sha256:0zxmaydmaryp4wfpchwwqpp2p5axmx2zvrcc3lbn1yhylv6kqs5v
+FileSize: 5462
+NarHash: sha256:0510y8zkqsdmv1m1cjxmcjy1xjzp986nilcddq0aa6c5ykbpipv1
+NarSize: 15840
+References: 
+Deriver: 9avw49i17vpnwfxy7f1h0jvp0znqkknw-cargo-package-clipboard_wayland-0.2.2.drv
+Sig: wvhulle.cachix.org-1:atQm6724k3N1QTu8TsXfvb8u6KuMRgFZYj1gBbW3RyUpf7i+QAmJ223Hljx1W/h5BchKNCndsDf9xwxd1rrtCw==

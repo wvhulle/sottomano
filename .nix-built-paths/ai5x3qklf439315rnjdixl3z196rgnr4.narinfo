@@ -1,0 +1,10 @@
+StorePath: /nix/store/ai5x3qklf439315rnjdixl3z196rgnr4-cargo-package-wgpu-types-27.0.1
+URL: nar/1wfyyzbzf3xz3yq0jf19lr5w65rmgrijbgviwmd2cq56yqjqxzhn.nar.zst
+Compression: zstd
+FileHash: sha256:1wfyyzbzf3xz3yq0jf19lr5w65rmgrijbgviwmd2cq56yqjqxzhn
+FileSize: 101315
+NarHash: sha256:10vxaq79nvbdilbbzr7m3234nsnrvjlhb54as1d2hppa659xagmy
+NarSize: 485472
+References: 
+Deriver: 0rzbhdiwqjyjzhwv2lxbzvmfcpjnsslq-cargo-package-wgpu-types-27.0.1.drv
+Sig: wvhulle.cachix.org-1:s1HSHXZyJuXxxmxSiuCdIIjPd5QHnlmgj/XCnWmt00G0mVQ4dl04Ee3akqRZTiu1irZ+vWDdm0ZeLFUtxiicAw==

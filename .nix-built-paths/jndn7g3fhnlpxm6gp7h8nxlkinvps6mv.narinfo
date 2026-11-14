@@ -1,0 +1,10 @@
+StorePath: /nix/store/jndn7g3fhnlpxm6gp7h8nxlkinvps6mv-cargo-package-strsim-0.11.1
+URL: nar/0n2138wjhf68ixdc00a0ajr2a8v9zpflgz98zy6kixdws2jc0qki.nar.zst
+Compression: zstd
+FileHash: sha256:0n2138wjhf68ixdc00a0ajr2a8v9zpflgz98zy6kixdws2jc0qki
+FileSize: 15161
+NarHash: sha256:1crkdfnpx9wyz4gf92qpp8nqb1pzyim5yl6agly9fp0w7ggf8nna
+NarSize: 58360
+References: 
+Deriver: gjlz19lnzg5lsyjflflgiq39x8dkpbx3-cargo-package-strsim-0.11.1.drv
+Sig: cache.nixos.org-1:qUx2SdlRb0Zq6r+s+hRBpFRTLu3n6FHFbLQ/ni1JnioggOJFz9IB8bEb5VniiaDiBPkCj0LUbMotdcl+/AvwBA==

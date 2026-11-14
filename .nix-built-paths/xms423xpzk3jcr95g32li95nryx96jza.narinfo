@@ -1,0 +1,10 @@
+StorePath: /nix/store/xms423xpzk3jcr95g32li95nryx96jza-cargo-package-ctor-0.10.1
+URL: nar/13czxlv9sdm35sg3fra3gfwq2jgid51q2sf2k5q9sdf205a900qs.nar.zst
+Compression: zstd
+FileHash: sha256:13czxlv9sdm35sg3fra3gfwq2jgid51q2sf2k5q9sdf205a900qs
+FileSize: 18730
+NarHash: sha256:0mn1idhc2a0gcpzpa2hldc8s5da309xvkr78bqdbaf7pdzg7mmz8
+NarSize: 77888
+References: 
+Deriver: 2b08nnb1hdfkvnnjmygk8xrsf2i3169a-cargo-package-ctor-0.10.1.drv
+Sig: wvhulle.cachix.org-1:SIwYXcPWhv2ASngVbSk/cg8bxtzGvZt2GHW37oNfl3hvE6LczQe377lfn8AkS1dMDf9tGOHQ/H785g9gVM2hCw==

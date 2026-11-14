@@ -1,0 +1,10 @@
+StorePath: /nix/store/qqq3j3galk45lrbj9b4875j57y7fzn9x-cargo-package-ryu-1.0.23
+URL: nar/1dvz8dfh84hrja35bc2s477d4i6yw2micysabgcqxyhg311qaydg.nar.zst
+Compression: zstd
+FileHash: sha256:1dvz8dfh84hrja35bc2s477d4i6yw2micysabgcqxyhg311qaydg
+FileSize: 51506
+NarHash: sha256:19xrdiaarwjvq650vcw7wyafmkfvlrgk1sv3284cjgxsy7fwgvqp
+NarSize: 192408
+References: 
+Deriver: ls3s9zp6mizrr551bm2j7a32lw5bbwih-cargo-package-ryu-1.0.23.drv
+Sig: wvhulle.cachix.org-1:7cL+UOkkhfVx6v6QkKkhVJRzq1znBDPH6aje7hcOGQx5rsvDybeVdw3LJVFV5dxaH+SSzTUoMoefppgituu0Ag==

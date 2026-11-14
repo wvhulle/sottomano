@@ -1,0 +1,10 @@
+StorePath: /nix/store/84yd3njzpgk38a9yr5k7gdx3zy6j6n0n-cargo-git-https-github.com-niri-wm-niri-bc6d4ec00fa422bce3043ba30faefda694c13024
+URL: nar/15410rvj1m25w9c3iplfmq94bbrgjh0dvvrm8vakrr3br1dky9fd.nar.zst
+Compression: zstd
+FileHash: sha256:15410rvj1m25w9c3iplfmq94bbrgjh0dvvrm8vakrr3br1dky9fd
+FileSize: 845703
+NarHash: sha256:1yasc1w07f00irgw5yj75iix373rxq5wh4lqg7xqv2s4qsj4fxgi
+NarSize: 8388440
+References: 
+Deriver: 91wc1fllvigvw9h76vldc65dfdmhrckz-cargo-git-https-github.com-niri-wm-niri-bc6d4ec00fa422bce3043ba30faefda694c13024.drv
+Sig: wvhulle.cachix.org-1:/njrh2nrwUzVCFGm4ZPe8MAKFlnuto/sAauEIq/I/FYjXfInzXESCHfktZpJBeoT6FktjNjCqNijKXmU5y5BBA==

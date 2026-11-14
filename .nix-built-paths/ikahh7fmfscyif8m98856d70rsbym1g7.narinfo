@@ -1,0 +1,10 @@
+StorePath: /nix/store/ikahh7fmfscyif8m98856d70rsbym1g7-cargo-package-naga-27.0.3
+URL: nar/0zp0mvryrz9yrrgl3j1hi64x24n7g97pkpyhx0ibq03ysy67r361.nar.zst
+Compression: zstd
+FileHash: sha256:0zp0mvryrz9yrrgl3j1hi64x24n7g97pkpyhx0ibq03ysy67r361
+FileSize: 764835
+NarHash: sha256:1vhaw9yqpzbby6kwzvm33nx0qxzm338f1azcijph8329qc8y9v4s
+NarSize: 4186136
+References: 
+Deriver: 83c62fmwfw2fpw1bfrqjkbava6knfrqm-cargo-package-naga-27.0.3.drv
+Sig: wvhulle.cachix.org-1:83LMAzvyUxw4K0PxldAnVdd8PKb9/dEvs9D36EinmsRK6mZ9Z2CFvjfKHYUXCibpWok4S/1ZJwNVkjpQ/h7sCA==

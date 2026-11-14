@@ -1,0 +1,10 @@
+StorePath: /nix/store/9y160ixxbxjc7im2802ck9aqrlk1vspb-cargo-package-harfrust-0.12.0
+URL: nar/1iyb5wlbjnszszgk7vhvcp9xak61qa694kr3c1wqbcm0bn6sj3y9.nar.zst
+Compression: zstd
+FileHash: sha256:1iyb5wlbjnszszgk7vhvcp9xak61qa694kr3c1wqbcm0bn6sj3y9
+FileSize: 297795
+NarHash: sha256:1l2vckf9jk6ghcv96s4ri2biqiwafdlc4yp727lphsq1maiv4nwj
+NarSize: 1572000
+References: 
+Deriver: 15zd7246db0gp5cikk2llzka8lgi72gl-cargo-package-harfrust-0.12.0.drv
+Sig: wvhulle.cachix.org-1:l62z8S7qZeMnuLwo4Je3qy6cgQg1vYRxIyBHA4/RQWmvhhUizXCJm/xwuFB5rgzjJQWTLyBZZmxrubvc7v5DDg==

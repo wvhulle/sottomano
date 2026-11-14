@@ -1,0 +1,10 @@
+StorePath: /nix/store/m2qvh39xakg34610hn8l77m3bclh8xqi-cargo-package-iana-time-zone-0.1.65
+URL: nar/17p7fh8v3p9x62nvyfqvprgd18961k0z5b6p4k88vq4m7y2ffrr1.nar.zst
+Compression: zstd
+FileHash: sha256:17p7fh8v3p9x62nvyfqvprgd18961k0z5b6p4k88vq4m7y2ffrr1
+FileSize: 35877
+NarHash: sha256:0f7kdldvw6ib5v18f6hr8mpl6a1i6a56my8s0wjirzb4m4p6gzp1
+NarSize: 188840
+References: 
+Deriver: l44g4w05f939cl7zb2a2zkwmyvf6waww-cargo-package-iana-time-zone-0.1.65.drv
+Sig: wvhulle.cachix.org-1:oawsVhtgDphcuLg1UsfFmpoHWwtJwHfRTgy/zWZb5EST0ArNjK2J6Zxzg0hxpXN4sQ9pNLHhbCGlqrfgRJLoAA==

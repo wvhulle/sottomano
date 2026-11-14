@@ -1,0 +1,10 @@
+StorePath: /nix/store/gv5sarp3nhcvi2sjnxb084bf7ghy6izz-cargo-package-opaque-debug-0.3.1
+URL: nar/1plyzqva0nvfrzadxwwpmzgq2x7bfydhz2mbqp8088mddw8f15pd.nar.zst
+Compression: zstd
+FileHash: sha256:1plyzqva0nvfrzadxwwpmzgq2x7bfydhz2mbqp8088mddw8f15pd
+FileSize: 7497
+NarHash: sha256:1931rpc3bkakcwdz4422mhk4278ghykim4aya03294mr1z5r1mi6
+NarSize: 21120
+References: 
+Deriver: hhyqw2i5s8ypx1azpwwdm7vj7s0rvw8k-cargo-package-opaque-debug-0.3.1.drv
+Sig: wvhulle.cachix.org-1:pbOkJZq8NEPLixGHLlxRnHXIxzqyDCIUl98z5jFD2l+xDR5BtfOFG+D92mMlTXcmvuJHiHQ3W1YRneSxDSooCQ==

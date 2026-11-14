@@ -1,0 +1,10 @@
+StorePath: /nix/store/yc408z645bp3r62jg1cazzyrmiphxyny-cargo-package-xcursor-0.3.11
+URL: nar/0z5ma2iglyxpdsd80r7a4hm3yzmilrsfqdlpsp4cgngs1ks3vpv1.nar.zst
+Compression: zstd
+FileHash: sha256:0z5ma2iglyxpdsd80r7a4hm3yzmilrsfqdlpsp4cgngs1ks3vpv1
+FileSize: 8947
+NarHash: sha256:0nz90jbbf8scgd9n83ysbz99954fjg08jyn376qsic0659nzwkqa
+NarSize: 31168
+References: 
+Deriver: 4m7n2rfdlzhm9j4p99i4jk606j6bii7k-cargo-package-xcursor-0.3.11.drv
+Sig: wvhulle.cachix.org-1:++7kDoYBlpbhwlWz0oWbcgwOlchr0jS4XbFJo7gEgQT0QfZdSpHGxxbAVxnTjfjMvtBiOFx7t0cTEiyfDBJuCA==

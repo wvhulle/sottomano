@@ -1,0 +1,10 @@
+StorePath: /nix/store/2hmpnl606al1gpn22q5jgzxh6amczplk-cargo-package-quote-1.0.47
+URL: nar/1zmpadf5r17dq03nnap621pd2m4gbp0373nmd9x7r1s4jd4x093d.nar.zst
+Compression: zstd
+FileHash: sha256:1zmpadf5r17dq03nnap621pd2m4gbp0373nmd9x7r1s4jd4x093d
+FileSize: 33534
+NarHash: sha256:04jyxm1i9bgqgwhzbvqv1g23z9r0mhn1qr2ibm1fwvx71f25d66s
+NarSize: 145136
+References: 
+Deriver: 8ql3s2hw324a71gsl69qgp566q428nrc-cargo-package-quote-1.0.47.drv
+Sig: wvhulle.cachix.org-1:fSJi5U2yZHlKL3x41dq0MX7YBocyGQy8oPCT99bf7nkcbeTc5aB5xVBwkIlp4KLcpe4xZqKbe8a/v3TbixIEDA==

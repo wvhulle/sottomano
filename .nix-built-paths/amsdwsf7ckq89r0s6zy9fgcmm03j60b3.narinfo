@@ -1,0 +1,10 @@
+StorePath: /nix/store/amsdwsf7ckq89r0s6zy9fgcmm03j60b3-cargo-package-blocking-1.7.0
+URL: nar/1k95byriq1rf2md31sw0k7xzdwk60g5bancx5cik3mn82yz76zp9.nar.zst
+Compression: zstd
+FileHash: sha256:1k95byriq1rf2md31sw0k7xzdwk60g5bancx5cik3mn82yz76zp9
+FileSize: 19487
+NarHash: sha256:1z7l8287ppg0gd0y6k9dqjrywr5ih4i3pypvbjasxrpy5i90idyv
+NarSize: 69544
+References: 
+Deriver: 01g63l9v4n4vdj1rvrq4yr26ygcjgb7w-cargo-package-blocking-1.7.0.drv
+Sig: wvhulle.cachix.org-1:HufkWn0jbAhkVH+/m+y1bOmP3wDPWF2seWjEipgKkCFTOdulCg4KKglziwj0oygn2eAdkomg+7nq0IlKoVD2Dw==

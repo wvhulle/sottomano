@@ -1,0 +1,10 @@
+StorePath: /nix/store/1l3pxfxcp2acdgslwcyqpjf1bgcp18zq-cargo-package-anstyle-1.0.14
+URL: nar/1lj29sn808js43l4f56z3v9z1r0qghm48sgza8rii2v2islvyr85.nar.zst
+Compression: zstd
+FileHash: sha256:1lj29sn808js43l4f56z3v9z1r0qghm48sgza8rii2v2islvyr85
+FileSize: 18930
+NarHash: sha256:05l6qv61mfz5f7893446d19rdf1kq7c3p1q1g89wy3byjvc94kbz
+NarSize: 78616
+References: 
+Deriver: irdz0nkjavhfavcx6ldlg4dcbs1bq2iy-cargo-package-anstyle-1.0.14.drv
+Sig: wvhulle.cachix.org-1:rbgEv+7huvfdHV/EQrPHcWBkayHXTutYixxvtedTOY0VU/gMB7eX/KbFNtkc18D1J+YtUaqI9TuCeY5xk2tVCw==

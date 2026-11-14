@@ -1,0 +1,10 @@
+StorePath: /nix/store/g4alypn0c429z2vsvfv0lb3bn17dh3bm-cargo-package-wgpu-core-deps-windows-linux-android-27.0.0
+URL: nar/0y8fj7hv3n9dc83lfff8a8f8d99bd1l7ipliyh4395y94hai0hvn.nar.zst
+Compression: zstd
+FileHash: sha256:0y8fj7hv3n9dc83lfff8a8f8d99bd1l7ipliyh4395y94hai0hvn
+FileSize: 11950
+NarHash: sha256:03bghkmi1bz9vnsshcgqjq4mlahh9chdr0iakksz8c501z535vyj
+NarSize: 38920
+References: 
+Deriver: 7wvrbmclzgpsn1nv5sc7swa7k1jb0c6z-cargo-package-wgpu-core-deps-windows-linux-android-27.0.0.drv
+Sig: wvhulle.cachix.org-1:H/X9xmlTmNDfZElDJy+0pARVkyw9mBM3hFfML5fp3FXtNoQJbMzgxAaUKi62d+9RW8ZjAq5GfKuqb9qBlOVZCQ==

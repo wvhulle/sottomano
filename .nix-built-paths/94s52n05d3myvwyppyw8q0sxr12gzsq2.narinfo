@@ -1,0 +1,10 @@
+StorePath: /nix/store/94s52n05d3myvwyppyw8q0sxr12gzsq2-cargo-package-miette-5.10.0
+URL: nar/02a97wg87lbr571b1wxrmbcs8v72yvhlf5mdcwsd8ykd2qma9dg0.nar.zst
+Compression: zstd
+FileHash: sha256:02a97wg87lbr571b1wxrmbcs8v72yvhlf5mdcwsd8ykd2qma9dg0
+FileSize: 87440
+NarHash: sha256:0gjjsfswzakdrkpgixhv7x3898hr1f6v386ykk22fpnzmih32icz
+NarSize: 350608
+References: 
+Deriver: dhlr31y8hiavrymdqzjw2m4i5qin6c4m-cargo-package-miette-5.10.0.drv
+Sig: wvhulle.cachix.org-1:EyC4EeUJ/ncdUG/H5HHytLbIE8wBMzrxBCiozi1X6/dnlNItRy++Q3WWS7o/cp51HAiLF846/l+acTltUlFQCg==

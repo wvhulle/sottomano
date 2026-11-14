@@ -1,0 +1,10 @@
+StorePath: /nix/store/mhpifn1iy8li7vlws93x0wfazvb8wmsp-cargo-package-rangemap-1.8.0
+URL: nar/19p97baqjwi0va6ipvmv1hzlqhsxss8fh8wc9xh06q7n8j9bn8d2.nar.zst
+Compression: zstd
+FileHash: sha256:19p97baqjwi0va6ipvmv1hzlqhsxss8fh8wc9xh06q7n8j9bn8d2
+FileSize: 52960
+NarHash: sha256:0s34z33ah24m0g5pnkbxcq7bppqc47kq0zlwdsbxn5kr2bil17rc
+NarSize: 296176
+References: 
+Deriver: xbl3kilb12wbwgwj32mv7hwlml85sm3y-cargo-package-rangemap-1.8.0.drv
+Sig: wvhulle.cachix.org-1:LJxhL1Jn6Rhq8MRddENdOK55cS5PlMWuWdFMAYUsWC1i+0yX+JBJR1/LDpRrSzP4nbtAhhS109SVOfnuPWW6AA==

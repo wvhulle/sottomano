@@ -1,0 +1,10 @@
+StorePath: /nix/store/67vln8zlhjqgxljvk9hprqiq2hrp6amz-cargo-package-tower-0.5.3
+URL: nar/1my6aaravsrj590capsbwbs4snr3x23wlaifkr0pkcc9xz4bwxjh.nar.zst
+Compression: zstd
+FileHash: sha256:1my6aaravsrj590capsbwbs4snr3x23wlaifkr0pkcc9xz4bwxjh
+FileSize: 111589
+NarHash: sha256:1q5c1bm8ibpq4mhxl9q8gr8xc0wwjpckh7siihky048dn6sadpxw
+NarSize: 526688
+References: 
+Deriver: 9bzx03gd2cqpw09xvgsmq9mg7x8f8cqv-cargo-package-tower-0.5.3.drv
+Sig: wvhulle.cachix.org-1:u7bDuizIr47U1qUhXaTzXXgURP5C5MgnrVBRAennOilCgs1PFf9xbaiMqd7cvIFOWlyADundYbfeHTYzaoSECg==

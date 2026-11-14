@@ -1,0 +1,10 @@
+StorePath: /nix/store/lbd8jpfqncm721ka4cbykg61zn00a4fz-cargo-package-tokio-macros-2.7.2
+URL: nar/0w0gznkc54ypyjcsafdm904y4vjnjxizhraqnfajh6f5daba09zd.nar.zst
+Compression: zstd
+FileHash: sha256:0w0gznkc54ypyjcsafdm904y4vjnjxizhraqnfajh6f5daba09zd
+FileSize: 17063
+NarHash: sha256:0bbgai1qxnfn7922fgc8mkkdag2n0mq7hzj4bick1j9pppv0bq3j
+NarSize: 68072
+References: 
+Deriver: xvvsijn09iq8mrwaf5n2sc82jl5vhasv-cargo-package-tokio-macros-2.7.2.drv
+Sig: wvhulle.cachix.org-1:hwm4bHxWi4PXZIyEv8EJ5RJyw35C6TSWktMrbZVFqGUzEJ2O40/GXp2ZrtiOldUd/4c4WFnoCUxdoZxHVqcSDA==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/9nr5jawi83zln8v8830b7x3yznrkas3l-cargo-git-https-github.com-wvhulle-system-tray.git-a485cb484d10374b40e523a87fd9a5464b4a246f
+URL: nar/1l889yrmpk5cckh16wgbrn0yda5z9nvrlv67djhbb7jvkjfqkl1i.nar.zst
+Compression: zstd
+FileHash: sha256:1l889yrmpk5cckh16wgbrn0yda5z9nvrlv67djhbb7jvkjfqkl1i
+FileSize: 26899
+NarHash: sha256:09sndrfj691asirq1clr8g0m2fl41q8ms2nypqw00lggg94r3c1d
+NarSize: 109592
+References: 
+Deriver: j835ki74bz4v0l7z342ig7ph1786jws0-cargo-git-https-github.com-wvhulle-system-tray.git-a485cb484d10374b40e523a87fd9a5464b4a246f.drv
+Sig: wvhulle.cachix.org-1:lxW0He8BIHowZi/JEL39xP/Fl6+1rZ8XywEByfCbAYBzRIt8v0IQVHHvIA1a0y8EoZPHHnizghj0DUcdhnF8Ag==

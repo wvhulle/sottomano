@@ -1,0 +1,10 @@
+StorePath: /nix/store/ynhzjx446frg7rfhx1p9i31h86q4xirc-cargo-package-unicode-linebreak-0.1.5
+URL: nar/08ayycn6l9czb30qj66dy532vg5p006f8s41hwdnasb1g12p74kf.nar.zst
+Compression: zstd
+FileHash: sha256:08ayycn6l9czb30qj66dy532vg5p006f8s41hwdnasb1g12p74kf
+FileSize: 17408
+NarHash: sha256:0s6d93nkac694lg03bqs0agdr15sfk3g4422dnbi1i59mmwlmhm8
+NarSize: 91712
+References: 
+Deriver: 30np0irn3mhi6mcfpggzgsm60lkf5lzz-cargo-package-unicode-linebreak-0.1.5.drv
+Sig: cache.nixos.org-1:SVjb4YeC1oNnSYH1P/5kN6O3KoMZprD6uNPeVIr04zbjHkn+xgiYlVW0nvyIrx/IEblFvraU9bCYvlw1UGFdDw==

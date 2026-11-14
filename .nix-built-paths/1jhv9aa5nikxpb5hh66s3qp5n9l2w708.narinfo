@@ -1,0 +1,10 @@
+StorePath: /nix/store/1jhv9aa5nikxpb5hh66s3qp5n9l2w708-cargo-package-cipher-0.4.4
+URL: nar/1bd3njcb5kgnzp4jw1991j1jacq1qbpbaya142pz6xcj7mf93vhg.nar.zst
+Compression: zstd
+FileHash: sha256:1bd3njcb5kgnzp4jw1991j1jacq1qbpbaya142pz6xcj7mf93vhg
+FileSize: 20363
+NarHash: sha256:01q6sh9xnf40qxdgkw2k29rswgxx913bpklgrp9850rj6mzd3wjc
+NarSize: 95248
+References: 
+Deriver: 88k8nv60ga118p95bbqllbfyk5xxdfl5-cargo-package-cipher-0.4.4.drv
+Sig: wvhulle.cachix.org-1:6wCvzxwEJsCuAnd+W4w9lGqhK+aoGxIvWRlwY5B+QA1UeVEeKd05tdMkpcwR2nYft/FFHjqdYmersDF3OcDPDQ==

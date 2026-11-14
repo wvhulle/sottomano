@@ -1,0 +1,10 @@
+StorePath: /nix/store/6xkp1124n9ihh23jldm10bgp5fdwvh38-cargo-package-is_terminal_polyfill-1.70.2
+URL: nar/0skqyrv78s2yajs155mg4xy6php92q6gr1m6igmhyn3mh5nadgnv.nar.zst
+Compression: zstd
+FileHash: sha256:0skqyrv78s2yajs155mg4xy6php92q6gr1m6igmhyn3mh5nadgnv
+FileSize: 7863
+NarHash: sha256:12bwhnbxg2yvszpcxmzwry7w4rmn7s1bywx9a69x0s27hssyrlcw
+NarSize: 24336
+References: 
+Deriver: 7rv0z4kfrb47dafxaahpmx95140s6jn5-cargo-package-is_terminal_polyfill-1.70.2.drv
+Sig: wvhulle.cachix.org-1:0XU8YZB0EeJnV+ZEE13uclVM0uQPYaZXj4bw5XoXcZOVkJQkYSOJ19V/FaUv4Hkg05jwbPoUicDcQHDp3PkrAg==

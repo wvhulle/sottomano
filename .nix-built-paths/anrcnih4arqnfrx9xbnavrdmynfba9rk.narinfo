@@ -1,0 +1,10 @@
+StorePath: /nix/store/anrcnih4arqnfrx9xbnavrdmynfba9rk-cargo-package-async-lock-3.4.2
+URL: nar/1g19gjcaw5bpf358wdqgwfysm9mbv641hasd7j0bw14vfni134an.nar.zst
+Compression: zstd
+FileHash: sha256:1g19gjcaw5bpf358wdqgwfysm9mbv641hasd7j0bw14vfni134an
+FileSize: 42550
+NarHash: sha256:1qz5kyn6nhn2w4i2k4j22nnj0gn1kiscklxsn8f6rv2gzxn3iw4p
+NarSize: 221240
+References: 
+Deriver: hajmhq03b1gvmahi350fd1kadbmaxv5h-cargo-package-async-lock-3.4.2.drv
+Sig: wvhulle.cachix.org-1:L1T5H+jOZjv1sVx23EV7FAFNkSXyMeGc7CHcpJCzeiU35dqid3xuSDAfOx51zlGFAZqmIVLkt+iZaKOxaWg/CQ==

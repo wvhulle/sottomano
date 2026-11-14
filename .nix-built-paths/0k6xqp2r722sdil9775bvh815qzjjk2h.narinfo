@@ -1,0 +1,10 @@
+StorePath: /nix/store/0k6xqp2r722sdil9775bvh815qzjjk2h-cargo-package-malloc_buf-0.0.6
+URL: nar/0s6inwckk56bkwrkaa02srhb25bwkbmqi0hsfhz5hm4ayncmp4bk.nar.zst
+Compression: zstd
+FileHash: sha256:0s6inwckk56bkwrkaa02srhb25bwkbmqi0hsfhz5hm4ayncmp4bk
+FileSize: 1421
+NarHash: sha256:0cmq532cgwfparbvm2cph07da1nahwqgah3cidxx5jv729k6s14v
+NarSize: 3576
+References: 
+Deriver: 45qacy1f3jbzanry72h7kp2cvn6hw4dw-cargo-package-malloc_buf-0.0.6.drv
+Sig: wvhulle.cachix.org-1:Yl2Rv2XkqNzfACKu1x10yzX4TVpoomBsr5+yd0Jv07HHaybrHuR0zqZf6/TnXjdgC95kU9Ys4LTX5SnRjs+2BQ==

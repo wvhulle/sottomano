@@ -1,0 +1,10 @@
+StorePath: /nix/store/j356qzgzw2dvak6npaj7pxxin2zxrsj0-cargo-package-scoped-tls-1.0.1
+URL: nar/1icilqcwfv9yicrp9djpss4kgrxa7bp1q77r5sq4abbakzrchwn2.nar.zst
+Compression: zstd
+FileHash: sha256:1icilqcwfv9yicrp9djpss4kgrxa7bp1q77r5sq4abbakzrchwn2
+FileSize: 8731
+NarHash: sha256:1512gsvbql417q8pif3hff4xl7hi5jfm59zdnnd8j5d76xis724v
+NarSize: 25088
+References: 
+Deriver: 66hvgfw0bzk08jzchxb895p0kjszpb79-cargo-package-scoped-tls-1.0.1.drv
+Sig: wvhulle.cachix.org-1:zrTEKGMy4lX2ZjvoK1A/GfkTv1U1sn1VRSS3Zks5bFrY5AYuaEmMKFoFqvm9JQpv9z2XsheT3MUyjoz4FgmLAA==

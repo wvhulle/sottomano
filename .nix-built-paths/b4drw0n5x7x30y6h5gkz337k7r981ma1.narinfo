@@ -1,0 +1,10 @@
+StorePath: /nix/store/b4drw0n5x7x30y6h5gkz337k7r981ma1-cargo-package-windows_i686_gnu-0.48.5
+URL: nar/1npkfkzjc7x4apbwhbdki4gpwr8r0saarz0ngigkz3xr0nfkcx5f.nar.zst
+Compression: zstd
+FileHash: sha256:1npkfkzjc7x4apbwhbdki4gpwr8r0saarz0ngigkz3xr0nfkcx5f
+FileSize: 905202
+NarHash: sha256:0kk362r2qgcdqag76a3bnrgw97dvrjil1icanbdfd3jqzacbzxi5
+NarSize: 12649296
+References: 
+Deriver: jdr2xfdr9kn9k0h5j0idp93sx8pqjrp0-cargo-package-windows_i686_gnu-0.48.5.drv
+Sig: wvhulle.cachix.org-1:xuu04RAexsdldDDXx0Ryi89aIqPXngUIrzSWnUBajoh2RZyyS7M+8FGmr2aYjFOKxKRkSDiOoOoJkfobyp4UBA==

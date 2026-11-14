@@ -1,0 +1,10 @@
+StorePath: /nix/store/cdhn3cwcjph1b99va5whhhg423l0yfh8-cargo-package-toml_datetime-1.1.2+spec-1.1.0
+URL: nar/1p4qmznlbr8986rm6ja918v67yffhiqncxd0hsaf2vij96k0rvq1.nar.zst
+Compression: zstd
+FileHash: sha256:1p4qmznlbr8986rm6ja918v67yffhiqncxd0hsaf2vij96k0rvq1
+FileSize: 19504
+NarHash: sha256:1hppn4hxzaylixv4za3zw2ibshy40xn7v6sf4prya9har9084d4g
+NarSize: 74328
+References: 
+Deriver: z2a1rlil2m4cmrpvsa9xl2v605jhzirr-cargo-package-toml_datetime-1.1.2+spec-1.1.0.drv
+Sig: wvhulle.cachix.org-1:G8cLK2yTpMXOoByZK0ipDHcA1cxRH1kUQnx4R7lqUoI0g0RcI/c5LsepjCl9+D1A+1coUXeF2MBBNlrR3tKjAg==

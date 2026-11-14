@@ -1,0 +1,10 @@
+StorePath: /nix/store/dd6abvshm3fn3sl9hh6s8cmygdwd21iz-cargo-package-thiserror-impl-2.0.21
+URL: nar/12pm9bmw0h8pl7gx66xq7fbd824b1qdc4wl83mffr83hwvdancpy.nar.zst
+Compression: zstd
+FileHash: sha256:12pm9bmw0h8pl7gx66xq7fbd824b1qdc4wl83mffr83hwvdancpy
+FileSize: 23667
+NarHash: sha256:02cx6hywi4la176gx7nbh4gkahmkfmvaqy3b2hkffi4hrzmj69bq
+NarSize: 100984
+References: 
+Deriver: 4ai3pbyzkryap41mm3cr4dgs671ljwpq-cargo-package-thiserror-impl-2.0.21.drv
+Sig: wvhulle.cachix.org-1:sp/PSGTTdxIoTqQohXeB2/WcK5OLj99robaHqyHSkArvW+LBYTi2aS4J3xnFICkQNa+OuhQsvnrLeEiJwMtYDg==

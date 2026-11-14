@@ -1,0 +1,10 @@
+StorePath: /nix/store/2laafc6050x9fagcysl7d7v2s31vg5xa-cargo-package-matrixmultiply-0.3.11
+URL: nar/1j0v21x5qzlly87vx5kfalmspi3ygyndqzf1jq24864ma44i1213.nar.zst
+Compression: zstd
+FileHash: sha256:1j0v21x5qzlly87vx5kfalmspi3ygyndqzf1jq24864ma44i1213
+FileSize: 49027
+NarHash: sha256:1kb9467mypk2zrqcrw5xz63f9piqzvd36gj1c228wg1qfc37ipzl
+NarSize: 228336
+References: 
+Deriver: 2b3wg1g94rnwjwnmnhjqlyh6ysyvs3qq-cargo-package-matrixmultiply-0.3.11.drv
+Sig: wvhulle.cachix.org-1:AS+fvKpd9XeQc/RbGw6Ot9RthPVFjBw1QtC0vFANnDaapJtSAVahM9tAOvOUv4l3OVpoTRTpBb/BSecgbfz1BQ==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/7m1gsyna8jhn97xkzgidj92nrlrf7ln2-cargo-package-zerofrom-derive-0.1.8
+URL: nar/0v5bbn5xplsxvfdvrpvifa0xm9wfsj879bykn5pmw7vb9zyz7h1f.nar.zst
+Compression: zstd
+FileHash: sha256:0v5bbn5xplsxvfdvrpvifa0xm9wfsj879bykn5pmw7vb9zyz7h1f
+FileSize: 9558
+NarHash: sha256:16m15vlk6zsd3dhhiz164wpablx5dpvlryj9j049djgq9sminygk
+NarSize: 29264
+References: 
+Deriver: rc6h1z55nmag203w8jrgq69clxhkqlc1-cargo-package-zerofrom-derive-0.1.8.drv
+Sig: wvhulle.cachix.org-1:KV2EXklESKQeU2zRo05PTIXNSjl0aUu7fqhHaKPhnnRCRBv7wp8+wywKJhXGwuJ1ET10ZdJYXpLhdf+dJTMFBQ==

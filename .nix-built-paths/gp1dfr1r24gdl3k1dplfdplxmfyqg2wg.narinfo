@@ -1,0 +1,10 @@
+StorePath: /nix/store/gp1dfr1r24gdl3k1dplfdplxmfyqg2wg-cargo-package-lyon_tessellation-1.0.22
+URL: nar/1akaf72dn1xyy4xbgdfr61p1nr3402j3jvgby3c8aznj7kraj599.nar.zst
+Compression: zstd
+FileHash: sha256:1akaf72dn1xyy4xbgdfr61p1nr3402j3jvgby3c8aznj7kraj599
+FileSize: 199491
+NarHash: sha256:0p5vblw8ml23s7qbvy06y0iang29ji9hg6j4j1jrsbi6nggsmnn4
+NarSize: 988848
+References: 
+Deriver: snzlczp82d9546srazwcd7dzgizrdiay-cargo-package-lyon_tessellation-1.0.22.drv
+Sig: wvhulle.cachix.org-1:RSOh5vIwdYUbV1pKFz3tkENWiMIfr+3rwM25MauZaPYYk0tbuaa7FmXfBd2IeB5jXMvi3P2lSGjjcCX+LeOFCQ==

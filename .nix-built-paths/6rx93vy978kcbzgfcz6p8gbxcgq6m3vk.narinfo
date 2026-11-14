@@ -1,0 +1,10 @@
+StorePath: /nix/store/6rx93vy978kcbzgfcz6p8gbxcgq6m3vk-cargo-package-objc2-core-graphics-0.3.2
+URL: nar/04s9lzgbim5kk4ak6n31z6i60656r3xf3kvl1d4605x38jh9rfma.nar.zst
+Compression: zstd
+FileHash: sha256:04s9lzgbim5kk4ak6n31z6i60656r3xf3kvl1d4605x38jh9rfma
+FileSize: 91779
+NarHash: sha256:0z3n4nnkhz0nng0gmiaxps8hqi5aib08rcp6v06pwl060hbmhij1
+NarSize: 821304
+References: 
+Deriver: q4jsr9whhyjr5mi4iz9q5mm591syk55g-cargo-package-objc2-core-graphics-0.3.2.drv
+Sig: wvhulle.cachix.org-1:HN3YKlYBuluw/1nRzYYZTeKyrLsQnZLLfR36Q8y6v36JfmM7Rc7TTSL99WgQkUrr1GTMdbrdmeEX6bzdiaG4Aw==

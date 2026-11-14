@@ -1,0 +1,10 @@
+StorePath: /nix/store/nq9qcqqxc1837n6wh3xyxl1sk4fv0qf2-cargo-package-rustybuzz-0.20.1
+URL: nar/1662ga0jy8g9xgdq9672hzaklhggpm9fdfp0fhn9xhj9qisxd2l4.nar.zst
+Compression: zstd
+FileHash: sha256:1662ga0jy8g9xgdq9672hzaklhggpm9fdfp0fhn9xhj9qisxd2l4
+FileSize: 274658
+NarHash: sha256:12rmvz1hidx7lxa43gcvv8r3d7gcr86f1vzvjfina6qgqrjmlfjj
+NarSize: 1408000
+References: 
+Deriver: hfbm5s0n3vscwkanmj4a81pl6fsvlgia-cargo-package-rustybuzz-0.20.1.drv
+Sig: wvhulle.cachix.org-1:otHNpDkOB4q+rsgrUyztRpvYSc+Z7FzYJuKPCDNqZqHYb/0NDk0aC8rnAYwiIhHOBUXio2n10GQ+SnW5/FRBCw==

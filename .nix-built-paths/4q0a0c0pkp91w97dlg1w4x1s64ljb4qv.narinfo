@@ -1,0 +1,10 @@
+StorePath: /nix/store/4q0a0c0pkp91w97dlg1w4x1s64ljb4qv-cargo-package-openssl-probe-0.1.6
+URL: nar/1kgrl9mkcwdfprr83bsh83jxcgw24ka1ksmfln0j8hrj2qwwvdjp.nar.zst
+Compression: zstd
+FileHash: sha256:1kgrl9mkcwdfprr83bsh83jxcgw24ka1ksmfln0j8hrj2qwwvdjp
+FileSize: 8616
+NarHash: sha256:009b2g4v52fdzhhcn0j2r48xgs8g8jkw8632kj84gn6ic2aizf5q
+NarSize: 25664
+References: 
+Deriver: xngrpm7hfmfrdz2zr1gxa3acf7ggga89-cargo-package-openssl-probe-0.1.6.drv
+Sig: wvhulle.cachix.org-1:x8wmq/BxCJUDuXL8hHakBryCdt9GiiMIJqiyoXGwHGHQxL9v5NUtwwoh85lNA1pf1OXlISAGtmYibu4k91dFCQ==

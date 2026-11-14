@@ -1,0 +1,10 @@
+StorePath: /nix/store/kgfzcaq1kr73hv69j1qr1szf6x00gl1z-cargo-package-icu_experimental_data-0.7.0
+URL: nar/0yklkgjhmzx3l098f6x135cmzlb7lg1gc95mnaq7k2mvv9f7zz04.nar.zst
+Compression: zstd
+FileHash: sha256:0yklkgjhmzx3l098f6x135cmzlb7lg1gc95mnaq7k2mvv9f7zz04
+FileSize: 4466645
+NarHash: sha256:14vnmrab357vnw3jsa5qswliyvdhr0ifa8rf4ci1lcv310w7im8z
+NarSize: 30407712
+References: 
+Deriver: x801cvwxn239kpq8h3g3hb15qlb2bdx7-cargo-package-icu_experimental_data-0.7.0.drv
+Sig: wvhulle.cachix.org-1:+6RtL/tJW1T/85P1sfSXv5TJ1dLDlvSk5Qnb84HBsyn2MPUer2RJd90twnQWOgmBj8JKBZmUeBIguPKs+XgjDA==

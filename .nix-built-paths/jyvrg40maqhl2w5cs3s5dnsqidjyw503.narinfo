@@ -1,0 +1,10 @@
+StorePath: /nix/store/jyvrg40maqhl2w5cs3s5dnsqidjyw503-cargo-package-wasm-bindgen-0.2.129
+URL: nar/13y4wnzyvpk6j5dlgby21d4z1qaxz4i4ja19v78p9f8v82kpdbji.nar.zst
+Compression: zstd
+FileHash: sha256:13y4wnzyvpk6j5dlgby21d4z1qaxz4i4ja19v78p9f8v82kpdbji
+FileSize: 72790
+NarHash: sha256:1dy0if57sn0aha32i047n6bwzzjpbxh3zrw79ci22jqjfgjgr1hp
+NarSize: 300672
+References: 
+Deriver: q27drzhq5bf15nw1qbinsi4bwpbmpmih-cargo-package-wasm-bindgen-0.2.129.drv
+Sig: wvhulle.cachix.org-1:SSYQsJmW4dsV0qUnoRrwiHhi5yzLydPfKUqOwUJ4Ayd8ank/4kEVzg3A4Ku3NjBeVlCmj2mqGkoeue5qp9/1CA==

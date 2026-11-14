@@ -1,0 +1,10 @@
+StorePath: /nix/store/vhqc6aq411zq56aafvq01582nzj4z8mh-cargo-package-miette-derive-5.10.0
+URL: nar/0k0pqv15pbsins1d30gvkf0kgk99hq9l4n4pgpdwdv03g6kcv60l.nar.zst
+Compression: zstd
+FileHash: sha256:0k0pqv15pbsins1d30gvkf0kgk99hq9l4n4pgpdwdv03g6kcv60l
+FileSize: 17756
+NarHash: sha256:11iifhh0glnv90ahjsgcgy8hhl0b66lw6bshii8dw4g90prsyr4h
+NarSize: 83872
+References: 
+Deriver: b3i7q0fj3mfbknrknqaf5yzwhp30ldaz-cargo-package-miette-derive-5.10.0.drv
+Sig: wvhulle.cachix.org-1:2kc3zuCGYtbGoAEoNOQH8mWo08k6gsnn5VyYHfBjex/O6cHETX7QKiL2M9wjALcf4ia22sMo9cIRgQa4z+xEDw==

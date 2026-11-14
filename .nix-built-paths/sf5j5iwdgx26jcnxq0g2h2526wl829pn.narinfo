@@ -1,0 +1,10 @@
+StorePath: /nix/store/sf5j5iwdgx26jcnxq0g2h2526wl829pn-cargo-package-percent-encoding-2.3.2
+URL: nar/0mazcghawaj1rxm300v15ivp0al7x5b6rqcnxydspki9h1940hhq.nar.zst
+Compression: zstd
+FileHash: sha256:0mazcghawaj1rxm300v15ivp0al7x5b6rqcnxydspki9h1940hhq
+FileSize: 12309
+NarHash: sha256:1iwxy5kwg5dx4nyprlxm2j9bl829h7zlvmp8xlvg7vhbkpf4s3wy
+NarSize: 37656
+References: 
+Deriver: 5rpmyhzj3yxf2shxhspwifwfnvfw4v79-cargo-package-percent-encoding-2.3.2.drv
+Sig: cache.nixos.org-1:GozvqUZ9cEvVMAETerTHw6ol5+NDF6zA3765q972Thuj+snN9m4uYZnIUpDa+8iXfNkRQ5vDSxt3AXG9fWrBAg==

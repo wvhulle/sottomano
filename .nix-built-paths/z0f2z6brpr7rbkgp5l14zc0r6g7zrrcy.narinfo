@@ -1,0 +1,10 @@
+StorePath: /nix/store/z0f2z6brpr7rbkgp5l14zc0r6g7zrrcy-cargo-package-indexmap-2.14.2
+URL: nar/1aqq4qibypc5z5khh82p669ap5vj0wj4bqvrjzc1b6bjl54jvpdd.nar.zst
+Compression: zstd
+FileHash: sha256:1aqq4qibypc5z5khh82p669ap5vj0wj4bqvrjzc1b6bjl54jvpdd
+FileSize: 99155
+NarHash: sha256:0wrapjlw0hpnmh0zgdac9nfgk5n47hm4yf1nlmnw3lrw8g3qrjja
+NarSize: 540280
+References: 
+Deriver: l2x51rmkkr0xfbmqmjszdkl9fg6lib4l-cargo-package-indexmap-2.14.2.drv
+Sig: wvhulle.cachix.org-1:arxgnE4MhgtCGv4f3bFssFrC7RZIO/UIvu59xim3AcqfOx2LY08YZTMc+2RXm6ZCVAasug1RFecEPqgZnHSgBA==

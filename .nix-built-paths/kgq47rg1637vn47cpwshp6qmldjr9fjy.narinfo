@@ -1,0 +1,9 @@
+StorePath: /nix/store/kgq47rg1637vn47cpwshp6qmldjr9fjy-sottomano-widget-showcase-0.0.1
+URL: nar/1222z6kaf4kxx9wvkvhwlfkp9rz9273fa4v483rdga3jmz3z1485.nar.zst
+Compression: zstd
+FileHash: sha256:1222z6kaf4kxx9wvkvhwlfkp9rz9273fa4v483rdga3jmz3z1485
+FileSize: 18021410
+NarHash: sha256:12x6vgniz311p4g7ai5gf535ci0xk77f43p9bh53w4r422rwad2r
+NarSize: 19025808
+References: 
+Deriver: 7fzi53z888ryyc8c27j59n4id620hmy3-sottomano-widget-showcase-0.0.1.drv

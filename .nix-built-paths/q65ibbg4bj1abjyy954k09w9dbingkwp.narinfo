@@ -1,0 +1,10 @@
+StorePath: /nix/store/q65ibbg4bj1abjyy954k09w9dbingkwp-cargo-package-ring-0.17.14
+URL: nar/1l5x3x8rha031cyxx2800zswj3pmc345y0pfncxpr7kfawcq78sr.nar.zst
+Compression: zstd
+FileHash: sha256:1l5x3x8rha031cyxx2800zswj3pmc345y0pfncxpr7kfawcq78sr
+FileSize: 1374492
+NarHash: sha256:0g8rbfwr70wp6my0l59r23hinm3bmc6m0mwwg89d028059ifdp9i
+NarSize: 7845624
+References: 
+Deriver: 1rkj5733pil7d68nzl7izwg2kz9l5j1c-cargo-package-ring-0.17.14.drv
+Sig: cache.nixos.org-1:r3POjAbCJV7wzl0pHRpfleYindpfPAWho4bunJg5KiefuhGGrp8jmtKSgnyRunCNAEjGxaWEWA206t2iviH7Aw==

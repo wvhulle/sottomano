@@ -1,0 +1,10 @@
+StorePath: /nix/store/p589ia79s2rrjr6h922qak9zim53rwiw-cargo-package-zeno-0.3.3
+URL: nar/1m4v63b20vs9zk8za6lni2888daykd6y0l45y2fz52n3mnnvc6kf.nar.zst
+Compression: zstd
+FileHash: sha256:1m4v63b20vs9zk8za6lni2888daykd6y0l45y2fz52n3mnnvc6kf
+FileSize: 49294
+NarHash: sha256:1qg44l3scpxyirxx76kbr017b66jdrgrg41f2qvwp26nvg44lak2
+NarSize: 230328
+References: 
+Deriver: j78fhn10a2c6bhb9jls8qg8yfs8925wg-cargo-package-zeno-0.3.3.drv
+Sig: wvhulle.cachix.org-1:8f6cugVu/IjoazE7HW5VYDeTvgR+BWgdHHH4sfr8K0UWsKDT4rqlbKp1P4yMesnGfJvcl1RgrrAbfwGIidFnDA==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/18d4254jixcf2qf6m2g3rlqymscnj5bk-cargo-package-event-listener-5.4.2
+URL: nar/0hlvb0iwnb4j8dffvc6lg7jjb8g0qmfw8srfgww5vkah1cxj2vdd.nar.zst
+Compression: zstd
+FileHash: sha256:0hlvb0iwnb4j8dffvc6lg7jjb8g0qmfw8srfgww5vkah1cxj2vdd
+FileSize: 37479
+NarHash: sha256:028a8m57c3h83ls3zbp2l1lbwk0q6qkhd3gzr18gm4gyybwn75kf
+NarSize: 150280
+References: 
+Deriver: 9y76kqxnk03ivmdhffrgzni2xvlkcmn1-cargo-package-event-listener-5.4.2.drv
+Sig: wvhulle.cachix.org-1:h7VON06xrduCJGzOU5//DHN1da0YyrsqZ1znSsNpbLB7ys/05iPPE6aWvQk1Fjquuuh8L1ETLJlNbYbwLnSzCA==

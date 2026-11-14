@@ -1,0 +1,10 @@
+StorePath: /nix/store/jjxjbarzlj3ymvmarxwbwjyq3nak6cp5-cargo-package-jmap-tools-0.1.8
+URL: nar/1plmvmqdp5cdmzmy1dfzvsxpdp380j0hgikprc9zn83slk5i8yk0.nar.zst
+Compression: zstd
+FileHash: sha256:1plmvmqdp5cdmzmy1dfzvsxpdp380j0hgikprc9zn83slk5i8yk0
+FileSize: 29239
+NarHash: sha256:19z3z98ks85xbabc5jfndnik22kspjh97i4cf6s1l4p2cxfpbfz1
+NarSize: 138960
+References: 
+Deriver: iqxarqvpgwj1k5hg32dk99vz01w4a3qj-cargo-package-jmap-tools-0.1.8.drv
+Sig: wvhulle.cachix.org-1:HVKFSCern/UkRaD9CtWdNOlqi4mwvLZ5HweeM2IYW/+hhL8Tal9vqfNbbpZKRBWEjFSVhGkLi+ZujokhyQJSCQ==

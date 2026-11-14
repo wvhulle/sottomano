@@ -1,0 +1,10 @@
+StorePath: /nix/store/vgaz43jlc5zlia2sjlr9gn7457qzkihf-cargo-package-icu_normalizer_data-2.4.0
+URL: nar/0gbqq5zr38hih2bjqza6ihkqi3dk4jzx0rclmckyicbfjnyjr4sc.nar.zst
+Compression: zstd
+FileHash: sha256:0gbqq5zr38hih2bjqza6ihkqi3dk4jzx0rclmckyicbfjnyjr4sc
+FileSize: 53247
+NarHash: sha256:1ym14162687ad6lc7wj5vwjw7jb18q14bxvjf2jazm3bi4zyicir
+NarSize: 427520
+References: 
+Deriver: v897242mjsb74j39njfvckavizdpnkxl-cargo-package-icu_normalizer_data-2.4.0.drv
+Sig: wvhulle.cachix.org-1:XO7lD5zJwlJ5ecfxYz+om98EaH+SFJXU4FMKHvrvbZq4HmlWvfj7V4Az9ykiXYy5HHE1gED2sBGaIURCLMFMAQ==

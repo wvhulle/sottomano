@@ -1,0 +1,10 @@
+StorePath: /nix/store/scb1iws7kh2yrf6p96ch0vygx5j1mjar-cargo-package-redox_users-0.4.6
+URL: nar/0ahrmzrlrfb15bckwvg471y5papnn4wcg25xndg0p34r1ccy597n.nar.zst
+Compression: zstd
+FileHash: sha256:0ahrmzrlrfb15bckwvg471y5papnn4wcg25xndg0p34r1ccy597n
+FileSize: 16786
+NarHash: sha256:028wmlp2piqwv6blsb8bh43q90gl4dfgdpf9kczpspjimk279w07
+NarSize: 62480
+References: 
+Deriver: gpsjz0jk08xgclb4xpck8bbcik8i7arx-cargo-package-redox_users-0.4.6.drv
+Sig: wvhulle.cachix.org-1:+8/S+FtAkMPmqldr/5IjAbtpuaCDodeZPehcfHG/gqbGftmd+UDok3ME0ESR1PUyVVxRjfiMhokJxELuTQRgDA==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/3m66adsidbkgmyipif11d2rjsmkvz9i4-cargo-package-lyon_geom-1.0.19
+URL: nar/1w8c91aasr28l2vbaq6difrwap4p3h290jpg5rqdl22lqg907d4c.nar.zst
+Compression: zstd
+FileHash: sha256:1w8c91aasr28l2vbaq6difrwap4p3h290jpg5rqdl22lqg907d4c
+FileSize: 55485
+NarHash: sha256:1kd8x08cc7bgvkl6vdzgirg5265xwl1ajrzdviznasl4c3933v9x
+NarSize: 275376
+References: 
+Deriver: z4jj1pq68h58l48w9zs4zga1h9frgil4-cargo-package-lyon_geom-1.0.19.drv
+Sig: wvhulle.cachix.org-1:2oKTgug2kY5iAJwwwegmFEVG+E9UqNqGixgXRdbq1pLK0ABrGHv10iovF3PW8A8BDjGexLdCVEAFCiNnBWW5CQ==

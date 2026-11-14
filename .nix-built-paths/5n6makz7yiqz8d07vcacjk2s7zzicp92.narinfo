@@ -1,0 +1,10 @@
+StorePath: /nix/store/5n6makz7yiqz8d07vcacjk2s7zzicp92-cargo-package-qmlib-2.3.0
+URL: nar/1ddxbvvifgk0zig7ss4xizkhzq5w516hxvcv2krnlnih3k337zkf.nar.zst
+Compression: zstd
+FileHash: sha256:1ddxbvvifgk0zig7ss4xizkhzq5w516hxvcv2krnlnih3k337zkf
+FileSize: 41822
+NarHash: sha256:1i1xs9243gq1vwmhf71l8kfzfs743hnr6q0h3v3z5b6kmrjffwiq
+NarSize: 208400
+References: 
+Deriver: 84l9id1wmvpkj1z80g9aph3vdgd7mhrh-cargo-package-qmlib-2.3.0.drv
+Sig: wvhulle.cachix.org-1:73/Ev6VL4ev8qQP3g73jlvyQOAySGFuCjCvFwN41pSzpvvU6AyFCtMvR/Vx3WRnMycoeUVsstGWNO1pett12Cw==

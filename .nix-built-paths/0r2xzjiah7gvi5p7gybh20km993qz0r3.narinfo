@@ -1,0 +1,10 @@
+StorePath: /nix/store/0r2xzjiah7gvi5p7gybh20km993qz0r3-cargo-package-windows-collections-0.3.2
+URL: nar/104nxl2jlbpr755rfh3c4q1wfw9c94kq34092ckcz3v6mi21kzc2.nar.zst
+Compression: zstd
+FileHash: sha256:104nxl2jlbpr755rfh3c4q1wfw9c94kq34092ckcz3v6mi21kzc2
+FileSize: 14895
+NarHash: sha256:0p04npy5b9k07a0hwabd6vcvr2zfkll2pf8m3j085g7b0xfjcg6d
+NarSize: 103912
+References: 
+Deriver: s5a8kfrazh4d69s43m91p1h7zc204q5p-cargo-package-windows-collections-0.3.2.drv
+Sig: wvhulle.cachix.org-1:5GFRZzPQZz30r76B2Q2h7GOiSf6Luqr2RXFcUcSC+Z0luO1PtNHbjYjENOIbVCUknBsoqNrrsUQsRGWOkpN0Aw==

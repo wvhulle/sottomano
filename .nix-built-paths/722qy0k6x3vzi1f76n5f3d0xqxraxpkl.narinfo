@@ -1,0 +1,10 @@
+StorePath: /nix/store/722qy0k6x3vzi1f76n5f3d0xqxraxpkl-cargo-package-zune-core-0.4.12
+URL: nar/026nmk0swdsfvjjfarqdyhqhsjjasmxq94j43qrg7apsiwk8881b.nar.zst
+Compression: zstd
+FileHash: sha256:026nmk0swdsfvjjfarqdyhqhsjjasmxq94j43qrg7apsiwk8881b
+FileSize: 18779
+NarHash: sha256:0ri14yz3b1kcgxxzgwp522f3iamai3grypi4n2knrgavnm5m24vb
+NarSize: 81080
+References: 
+Deriver: kv79ppxwbx5mxlikq9lgcbxbspf6g63l-cargo-package-zune-core-0.4.12.drv
+Sig: wvhulle.cachix.org-1:TKZSkdsLV5NYmco+zKNcY71b1uOXIAy8CLiwGKiww/jyvWswFwYp1hm61sNl7VJodIpKmtFY9ionHdcK3apNAw==

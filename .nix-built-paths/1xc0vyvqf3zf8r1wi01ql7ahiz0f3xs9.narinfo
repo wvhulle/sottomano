@@ -1,0 +1,10 @@
+StorePath: /nix/store/1xc0vyvqf3zf8r1wi01ql7ahiz0f3xs9-cargo-package-dirs-sys-0.4.1
+URL: nar/1pqmafqjy6qipmngh6jj2bm90nwa5rv4c78djldyw557xh6qvxfg.nar.zst
+Compression: zstd
+FileHash: sha256:1pqmafqjy6qipmngh6jj2bm90nwa5rv4c78djldyw557xh6qvxfg
+FileSize: 11382
+NarHash: sha256:1fm83hgq0chvfksn14vrqfc20qb6a8qnljcm9490zn6ipahgnrf8
+NarSize: 36160
+References: 
+Deriver: 60zmgh5n42p1kj3fmaj2yn59k7dfgq12-cargo-package-dirs-sys-0.4.1.drv
+Sig: wvhulle.cachix.org-1:9wMtBmAO+Px2e7P96KqyTPyr9qf6T4LZKom+ggPBpUwtFm02AnnLu5BeM/pHywsUoKieMn1AqRNGGW9fQ5hzAA==

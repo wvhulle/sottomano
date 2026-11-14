@@ -1,0 +1,10 @@
+StorePath: /nix/store/rjz69m10309lk9p8sfly630nqlg4wi9w-cargo-package-xkbcommon-0.8.0
+URL: nar/1a0bzk70acvpm1j0kzrm6qlhvprpl14bzha5jarfwkdapkyv6vxi.nar.zst
+Compression: zstd
+FileHash: sha256:1a0bzk70acvpm1j0kzrm6qlhvprpl14bzha5jarfwkdapkyv6vxi
+FileSize: 59791
+NarHash: sha256:123yjacfyrzc4sx7klvrgx6dhc3dy7ddkaxbknqfigjnf49aw7sb
+NarSize: 280712
+References: 
+Deriver: 86kf2cwv7z112nhs1a95gdjcsnhrmlb1-cargo-package-xkbcommon-0.8.0.drv
+Sig: wvhulle.cachix.org-1:eN6OjrFxpNuPwmzmwPJqzW2iROt1uvWCQsaVK+wXu5tnQY/xXm+sLvD8lIa1ZSiVLuBkvI/AGZEpwDwQfbh9CQ==

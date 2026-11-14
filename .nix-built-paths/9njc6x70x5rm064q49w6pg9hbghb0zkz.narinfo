@@ -1,0 +1,10 @@
+StorePath: /nix/store/9njc6x70x5rm064q49w6pg9hbghb0zkz-cargo-package-objc-foundation-0.1.1
+URL: nar/0hwi51rdk6grhrwxcnibm9zkjg8mcmmb37rlblydrh8v089xrppn.nar.zst
+Compression: zstd
+FileHash: sha256:0hwi51rdk6grhrwxcnibm9zkjg8mcmmb37rlblydrh8v089xrppn
+FileSize: 10213
+NarHash: sha256:1jpmmjs8ndn9ya235h44p0f4q0nvbgmikpixfdmfnqqcmi98fdwd
+NarSize: 44792
+References: 
+Deriver: cm91523v6j9j9j9ik53p7d78z8n06g1q-cargo-package-objc-foundation-0.1.1.drv
+Sig: wvhulle.cachix.org-1:fVRcnXl5MuipQQ8vTksYRNCXmj2P+LhHYXHRJKbVU30HNr6PqCi4QQM6popwWG5lsfny4WgkkZUrv3Ge9Vd1Cg==

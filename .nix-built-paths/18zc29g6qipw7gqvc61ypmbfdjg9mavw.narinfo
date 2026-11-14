@@ -1,0 +1,10 @@
+StorePath: /nix/store/18zc29g6qipw7gqvc61ypmbfdjg9mavw-cargo-package-intrusive-collections-0.9.7
+URL: nar/13zpwf8xishr8g071lk5hsv2bv4rwmar4kl89i8n8dfw2xvk04jm.nar.zst
+Compression: zstd
+FileHash: sha256:13zpwf8xishr8g071lk5hsv2bv4rwmar4kl89i8n8dfw2xvk04jm
+FileSize: 48463
+NarHash: sha256:06s3ih67pki17ijmfqmlsq6sr85h6mch7jnvil18pipy977rgv4w
+NarSize: 375024
+References: 
+Deriver: c0j4k06sfsxz7dzypaghkq9ysmx1nxf4-cargo-package-intrusive-collections-0.9.7.drv
+Sig: wvhulle.cachix.org-1:Yr2CVj0rAqSfLZERXeGhQ0gkc74FRI+DfOnEilVXhYSyHskupOfVq3w5hhaKD9Ps/tfRGRXJsrCKI6KaCi8ZDw==

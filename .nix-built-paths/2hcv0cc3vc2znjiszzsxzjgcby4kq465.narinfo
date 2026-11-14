@@ -1,0 +1,10 @@
+StorePath: /nix/store/2hcv0cc3vc2znjiszzsxzjgcby4kq465-cargo-package-procfs-0.18.0
+URL: nar/1crg1mn76p7rpgwwdhhnaac7lk58cah9a0ww02p19rrwa549ynvv.nar.zst
+Compression: zstd
+FileHash: sha256:1crg1mn76p7rpgwwdhhnaac7lk58cah9a0ww02p19rrwa549ynvv
+FileSize: 75541
+NarHash: sha256:11phvfaly0d2r24d88l2xbxxxyjzv19g06vl5lipnbl1f6bjfdpj
+NarSize: 285992
+References: 
+Deriver: f7dqh2l7jcc4356y73dwsldl24scc40r-cargo-package-procfs-0.18.0.drv
+Sig: wvhulle.cachix.org-1:q8lCqfIzoXdWfpV+ZKNQdtnQPpuZjQbqerdp0dBhhZFNFuztGSB7t8X0hDGrnG/3JrGyixHLFaHGOXT8qZGkAA==

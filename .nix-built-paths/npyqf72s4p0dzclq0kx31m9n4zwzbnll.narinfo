@@ -1,0 +1,10 @@
+StorePath: /nix/store/npyqf72s4p0dzclq0kx31m9n4zwzbnll-cargo-package-futures-core-0.3.34
+URL: nar/1zassayhcvbqqsa0fgr6j07l03cjhxg93vgpba5q0l0z7bxdjm89.nar.zst
+Compression: zstd
+FileHash: sha256:1zassayhcvbqqsa0fgr6j07l03cjhxg93vgpba5q0l0z7bxdjm89
+FileSize: 15477
+NarHash: sha256:0kgw1lpb66rw939vz1bw3sv2wgj3f8jmg02y9b09sgk1j20wjrvq
+NarSize: 50496
+References: 
+Deriver: azwm0ki8lbyh0m93dlzp828r82gc5smc-cargo-package-futures-core-0.3.34.drv
+Sig: wvhulle.cachix.org-1:5NJp8IbvwQweP/KZSziGbcPFlI0ZB8nGWmhkJolNbeTcvcorBpqi+pOzRt598v6FkpLE1ZQcAzmgPSX8z71NAg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/dlw0qym2giwm52rgsnjww4grpyycvwya-cargo-package-objc2-symbols-0.2.2
+URL: nar/019mva8csd6pbsf1bgvy12c7sl6z7z8rd7jqfadmw1s7kn2jhjfd.nar.zst
+Compression: zstd
+FileHash: sha256:019mva8csd6pbsf1bgvy12c7sl6z7z8rd7jqfadmw1s7kn2jhjfd
+FileSize: 3923
+NarHash: sha256:13b1hj6dm3cr2x73by1pa2xqf5j7aw0aa0q19mfb3sljcvmz2bqa
+NarSize: 24728
+References: 
+Deriver: l3q669gx7r3ccihf7q3bprriz2s311x8-cargo-package-objc2-symbols-0.2.2.drv
+Sig: wvhulle.cachix.org-1:aaPaWFP95PE2ZyJgFNWyzLynn2FthEoMQhOm8hqgnnbZT8OYomz2r7i48AXt15zYxsq85wUW9qlV1E+OlIZnDw==

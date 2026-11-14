@@ -1,0 +1,10 @@
+StorePath: /nix/store/gkf62hlkd3130j87dp89pkv0gnd7cma4-cargo-package-git2-0.21.0
+URL: nar/0l4fmmlwbwawyand52a2dq12ixszgfasz077q4ig0hij73hm96m6.nar.zst
+Compression: zstd
+FileHash: sha256:0l4fmmlwbwawyand52a2dq12ixszgfasz077q4ig0hij73hm96m6
+FileSize: 242038
+NarHash: sha256:00z9pwg7ynfn0viwfw9k803lyazikmknr4n9b9qz9g8chm5nb5h5
+NarSize: 1160232
+References: 
+Deriver: 2j301zhavv3x7h5fr79rpnznppdfpz11-cargo-package-git2-0.21.0.drv
+Sig: wvhulle.cachix.org-1:46Lgv0O03eLyzRBlhOZQQoIOEnRunVs1MyLzQasEEptZKOieMuXiT4E/j23WZ4xclEiEUU0PvEd+7Aq3bu7ACA==

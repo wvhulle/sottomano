@@ -1,0 +1,10 @@
+StorePath: /nix/store/pdxak89hk96h7pgq2bxzy3b0bwrpa5r8-cargo-package-lazy_static-1.5.1
+URL: nar/1b9dcp1bs5naj90ak9q49ibibc8ywm5nn5f2n1c78h33m0jdfcz3.nar.zst
+Compression: zstd
+FileHash: sha256:1b9dcp1bs5naj90ak9q49ibibc8ywm5nn5f2n1c78h33m0jdfcz3
+FileSize: 14701
+NarHash: sha256:0mg8rk5bi68w0ci9gfx86bipyn6bbn09ql69cf8s3hixbd25l1f0
+NarSize: 48408
+References: 
+Deriver: wpfr18fan2zrnz4c7rk2bmw8xw35azmf-cargo-package-lazy_static-1.5.1.drv
+Sig: wvhulle.cachix.org-1:p/MOY/6F5wHqqrzVOXuLrZcsiJElNcDoMl9ry0Y9bzb5wVoy5T+IKw4OX/Iymrp5x43zRIuIsRyMC5KZovHSBQ==

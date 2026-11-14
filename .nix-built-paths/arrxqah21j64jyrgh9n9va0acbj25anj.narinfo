@@ -1,0 +1,10 @@
+StorePath: /nix/store/arrxqah21j64jyrgh9n9va0acbj25anj-cargo-package-gpu-allocator-0.27.0
+URL: nar/12jhivvalhkm3505i2baqnf4fqa7dlw3x63nwfvxv5ymlln3ly1p.nar.zst
+Compression: zstd
+FileHash: sha256:12jhivvalhkm3505i2baqnf4fqa7dlw3x63nwfvxv5ymlln3ly1p
+FileSize: 47900
+NarHash: sha256:0l3f6y1z3243z4rjfas1ags91krly9i1jwc2hjr9rh44my5cv3g5
+NarSize: 239200
+References: 
+Deriver: fnp77x7fg6xjpb2l99qyg6npqdj1yp7w-cargo-package-gpu-allocator-0.27.0.drv
+Sig: wvhulle.cachix.org-1:cWPS/O+Zi+W4UxBSflBcKCv3EjIPtqcKztA+mZQzrrQ8qfSydjtQxlxRos+ntMZkSTncS3h41WNvj92o3Ny4Cw==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/mlggdbicvqrr06201anq9phd4rfwx52b-cargo-package-half-2.7.1
+URL: nar/114yyyq7f6b6p585j41bcldhsagls16hrhg1lm5fpw49rh1iqvvv.nar.zst
+Compression: zstd
+FileHash: sha256:114yyyq7f6b6p585j41bcldhsagls16hrhg1lm5fpw49rh1iqvvv
+FileSize: 56680
+NarHash: sha256:1m44l5sdkp77p7ig6b6i3hz2ndchfzvdky9zg6m3y6kqpj2db0vx
+NarSize: 348752
+References: 
+Deriver: 67h3frbbxxld6jy5schcl77c8zlw0bb3-cargo-package-half-2.7.1.drv
+Sig: wvhulle.cachix.org-1:iMu6PrZGE2IN3DKHADzmezJ38nfJiAMVkrEg1R19UqiKcrKGDk80kH+zinsupWUCirsehppA/PHGVdeRW2kaDQ==

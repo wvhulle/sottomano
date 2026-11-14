@@ -1,0 +1,10 @@
+StorePath: /nix/store/mqnll4kz735jhll13wk4iyljlk0vnvzd-cargo-package-udev-0.9.3
+URL: nar/188cd18lsgpqad44bq6amhvd84czqcyvqssbpyyah8n2q7309frx.nar.zst
+Compression: zstd
+FileHash: sha256:188cd18lsgpqad44bq6amhvd84czqcyvqssbpyyah8n2q7309frx
+FileSize: 23197
+NarHash: sha256:1lmprswy33hmvsjv0l78ay93klbs9sg3is7zjzcim15arsc4c36d
+NarSize: 90080
+References: 
+Deriver: mbhfmvx01m2sbz9rnq3mjyacgcd9ha6r-cargo-package-udev-0.9.3.drv
+Sig: wvhulle.cachix.org-1:iustqfk23gviplPAByhVEzSxkDV4DT2X41wsV3uaPL7hrtf2UR9WHPAPBvMWmlXegbwDeEksoArbDSTNaZYjBA==

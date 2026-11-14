@@ -1,0 +1,10 @@
+StorePath: /nix/store/i249m3zbfj9c66j974nwhqg1fjvss0ld-cargo-package-clap_lex-1.1.1
+URL: nar/1x2csy6949w3pjrl439h07z7clpksavpkyi17x7xq3s9cz006xxi.nar.zst
+Compression: zstd
+FileHash: sha256:1x2csy6949w3pjrl439h07z7clpksavpkyi17x7xq3s9cz006xxi
+FileSize: 14478
+NarHash: sha256:0brxsyjrpvfcycsasf2hhbbqxn4yzi7b6lvd3ar88ml3znm0xfkr
+NarSize: 48280
+References: 
+Deriver: fzq0i8wwi7nl5ch2qr5sbbvd7vc9wczj-cargo-package-clap_lex-1.1.1.drv
+Sig: wvhulle.cachix.org-1:kgfzAh1C8w4RcIyzEzdDN1naeKebRv/EdSGrg8AFpl1dKl7PkRa0MGIlomWtifqZGELduDaw+Yx8KvRyM0meAw==

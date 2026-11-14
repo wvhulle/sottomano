@@ -1,0 +1,10 @@
+StorePath: /nix/store/7inpyflx4g6q3y89c6id7i8jw44wzvgn-cargo-package-tinyvec-1.13.3
+URL: nar/11z44gm80lvhxa16yk4hybibdgi20f12zjhfr0fvpn2wphwa4xf0.nar.zst
+Compression: zstd
+FileHash: sha256:11z44gm80lvhxa16yk4hybibdgi20f12zjhfr0fvpn2wphwa4xf0
+FileSize: 57395
+NarHash: sha256:1bviyd0y8i916p6p7f7fsmdjasmgpzmmf7iiz68i4v7nbbsgrc4m
+NarSize: 280912
+References: 
+Deriver: 4v427ly6zmpx171n77w158p64zm2prpw-cargo-package-tinyvec-1.13.3.drv
+Sig: wvhulle.cachix.org-1:iouy+I/ZSCL13X8T+i1N8E4c2tSCJYlZ7cglkTq/Kr4MguFOlKjX8ZsJIL4GYQ+y11Ept94JLAq6DX8nrZqMAg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/j41ymdfkmyq9bj9mnzmwjvcq5hyq6r84-cargo-package-wasip2-1.0.4+wasi-0.2.12
+URL: nar/0mh165amwjim86hsrjapg3cxhl2vvi5imdv0sayp7rqfdj466ddj.nar.zst
+Compression: zstd
+FileHash: sha256:0mh165amwjim86hsrjapg3cxhl2vvi5imdv0sayp7rqfdj466ddj
+FileSize: 109157
+NarHash: sha256:0dzbja8vn82mc574d56zl3yhg7a6dpzrknid25lziwkbjrj0g526
+NarSize: 1220448
+References: 
+Deriver: isqbhfjisvdd0gr6s12lrb4ansl2krz5-cargo-package-wasip2-1.0.4+wasi-0.2.12.drv
+Sig: wvhulle.cachix.org-1:k9jGze0SABHW4Ptm18j/9B3D5z2MYvjzpGm9te3IJBOWdQoc3Viha8YYQsqemi3mqcYtCbV2JFvDvrovDe1SDw==

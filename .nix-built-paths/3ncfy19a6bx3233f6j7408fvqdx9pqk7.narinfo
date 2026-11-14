@@ -1,0 +1,10 @@
+StorePath: /nix/store/3ncfy19a6bx3233f6j7408fvqdx9pqk7-cargo-package-linux-raw-sys-0.12.1
+URL: nar/0srq2k884pchw011qjf8alcd9qrpl78xqrmp2s28sp8751rviwx4.nar.zst
+Compression: zstd
+FileHash: sha256:0srq2k884pchw011qjf8alcd9qrpl78xqrmp2s28sp8751rviwx4
+FileSize: 635715
+NarHash: sha256:060dyhqvq7cfmzyh2ri7krygkhp11dcacflnc8zhv09g7k8balwy
+NarSize: 17028864
+References: 
+Deriver: z716cqnr2v6b6p7mn7y86nw4rhpmnhr9-cargo-package-linux-raw-sys-0.12.1.drv
+Sig: cache.nixos.org-1:5HTJTEV4prLGz+peJdX8sqlobkOLwrr8RAzWH0OGDiizebKsYIryTszEWdeavVN82ARUNhowJRbsGSwU1tCCDg==

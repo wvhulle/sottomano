@@ -1,0 +1,10 @@
+StorePath: /nix/store/blwmjmpbl66yax1pzmkc1gb289xndcdg-cargo-package-swash-0.2.10
+URL: nar/0rw35zn9wna45xqbj0h0rwr8qbglf5vm32grwdf4gqlmj39xsq0c.nar.zst
+Compression: zstd
+FileHash: sha256:0rw35zn9wna45xqbj0h0rwr8qbglf5vm32grwdf4gqlmj39xsq0c
+FileSize: 250328
+NarHash: sha256:0smbsf6f3skb52dyg11cbxk6picayf5n1lsjmalm2la5z46nrmzp
+NarSize: 1308952
+References: 
+Deriver: 58asc57p2lm0z85v2sc51g2zjsxhbvml-cargo-package-swash-0.2.10.drv
+Sig: wvhulle.cachix.org-1:jpnQg538hpoNRD1aSxNHLSKivSO6nogj5zVI2JlWVWPKWpJAjAX2QjGf7324JrC1AuTKtXpTJJfoRYyPX75gBg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/9j0zad5vrchf8mwq36amqbmqk83qqavh-cargo-package-annotate-snippets-0.11.5
+URL: nar/0vir1ib99cymycg8pamb01f30kn45j113nvif4pdwj3phv768z7m.nar.zst
+Compression: zstd
+FileHash: sha256:0vir1ib99cymycg8pamb01f30kn45j113nvif4pdwj3phv768z7m
+FileSize: 36900
+NarHash: sha256:083yklx7sgqfsamcxmv5idw8gq0yfh7jfbfag71v7727cf2m2mhj
+NarSize: 157408
+References: 
+Deriver: 0nwb61fx9x3sc038h9h1byidayg0lfva-cargo-package-annotate-snippets-0.11.5.drv
+Sig: wvhulle.cachix.org-1:+S5V7J8AtaBA15kbBtr+ONljs1KAbmiumnNFhbmbjaDGrAMYB6N2GQDwYO/YgcrgEmWBF1CFAQbDV4feH4HqDg==

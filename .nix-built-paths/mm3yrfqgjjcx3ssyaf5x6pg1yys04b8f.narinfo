@@ -1,0 +1,10 @@
+StorePath: /nix/store/mm3yrfqgjjcx3ssyaf5x6pg1yys04b8f-cargo-package-async-fs-2.2.0
+URL: nar/0404dfmdd02z8m28wn4wz3l6z8kwjpbpiad0yc74kbi6lxg840a9.nar.zst
+Compression: zstd
+FileHash: sha256:0404dfmdd02z8m28wn4wz3l6z8kwjpbpiad0yc74kbi6lxg840a9
+FileSize: 20428
+NarHash: sha256:06717v50fqa3ncdilm1caqd4w2iayijgqww6qwmf0937v7zdi64q
+NarSize: 84376
+References: 
+Deriver: wxjvdwyx4r5wxflcmp3pzffvwnbaara9-cargo-package-async-fs-2.2.0.drv
+Sig: wvhulle.cachix.org-1:S+LxeHJBlPXFNjeBxGZcgBY7T5IYvLYkS6qzX+H0j47N1hsrOnJBjO/1JhgX4xagq9vByViRkDcoaPIA6BnyAg==

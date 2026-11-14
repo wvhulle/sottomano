@@ -1,0 +1,10 @@
+StorePath: /nix/store/3n2g1hbkjqdqr53f2xwnrrxn330bs6k9-cargo-package-js-sys-0.3.106
+URL: nar/0lqq1yifjvcf9ixkpyq29aglf7jyicvvzq7kgm810zf8a2bnfa77.nar.zst
+Compression: zstd
+FileHash: sha256:0lqq1yifjvcf9ixkpyq29aglf7jyicvvzq7kgm810zf8a2bnfa77
+FileSize: 121476
+NarHash: sha256:08zy0lr1fhrgv5x7yfcal57acx5hmdhqlshjiramjkd02i05sjqb
+NarSize: 875864
+References: 
+Deriver: vpwf25bf6vsnx0bs740h6a9jqxzciz82-cargo-package-js-sys-0.3.106.drv
+Sig: wvhulle.cachix.org-1:7KyrN7veoHp3DdeUp5Wt8r+Q56K+aYPTi5zfSMJLXY/D785JcDuo27dIJuRtV4+YQtlv/lGfKcDVzy6B7+jKAQ==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/ai9f99hdzd0ff35nwp2f1ww0p9b73hy4-cargo-package-pin-utils-0.1.1
+URL: nar/135vhxnwqr6xp4mqyr4sn36i2a1h1vgha1xb4y5af5ihfy1i8arz.nar.zst
+Compression: zstd
+FileHash: sha256:135vhxnwqr6xp4mqyr4sn36i2a1h1vgha1xb4y5af5ihfy1i8arz
+FileSize: 8849
+NarHash: sha256:1rxax3nrd6h94ampa8mqk9h9w1a5prfand3cf1bqnhmbm0j31anw
+NarSize: 26560
+References: 
+Deriver: k6gc3jf302hmm6j138n93ln98c9f4rm7-cargo-package-pin-utils-0.1.1.drv
+Sig: wvhulle.cachix.org-1:yCQTJ9llcaCvTBf7UOLirjrdCfhjmx5WgwbukrAGraAANKCwx32cSNqvaWUKnfLJ80fz/hwqdtlv2STH/vuwDg==

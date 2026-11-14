@@ -1,0 +1,10 @@
+StorePath: /nix/store/l5qpk8yn8v505v9bqxk8vzrbvp205gc4-cargo-package-rawpointer-0.2.1
+URL: nar/05psjialcxnivcgdy4j2ygdci13d8bxjpxdivyz9s4f67858irsz.nar.zst
+Compression: zstd
+FileHash: sha256:05psjialcxnivcgdy4j2ygdci13d8bxjpxdivyz9s4f67858irsz
+FileSize: 7869
+NarHash: sha256:1mq0y46py815iayk4pfiqhs2hwb4c1jbcqhgfa8v15kpwi7bvvvk
+NarSize: 23112
+References: 
+Deriver: 7018ipf8z40ymbcfcxqnp8vb58w2jiip-cargo-package-rawpointer-0.2.1.drv
+Sig: wvhulle.cachix.org-1:a/wUIDLmwnybZI22BLXr5CpbHLR5GW5aVKOZbLtsQCiFFfgivFlFN/MlHx4s1T2OAHzOYqIGOT9YkkP3c7WaCA==

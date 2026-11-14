@@ -1,0 +1,10 @@
+StorePath: /nix/store/l2qbc6ysg93l5f9ik2k0wh6v4fy92dax-cargo-package-turso_sdk_kit-0.8.3
+URL: nar/077sfdridn36q16rmplwyqjvqiqs64fzcl4w7lk3barvbbhfhd1v.nar.zst
+Compression: zstd
+FileHash: sha256:077sfdridn36q16rmplwyqjvqiqs64fzcl4w7lk3barvbbhfhd1v
+FileSize: 65495
+NarHash: sha256:01nzn5vkjr9qlfk4x1vd2d3w869hbn28jgrdn50p7442hc5vmnmd
+NarSize: 325648
+References: 
+Deriver: ps0sb7sfswgss7b7b6w523gi9rq4qqqg-cargo-package-turso_sdk_kit-0.8.3.drv
+Sig: wvhulle.cachix.org-1:KIolhNaLvrQ+lHnzURIa6PXLxXdHJXMpcZ2bMq9nFkuyvHySH9yhhDVi1GXmu+WnHg1kv52u2vWAmPdUiQC+Cw==

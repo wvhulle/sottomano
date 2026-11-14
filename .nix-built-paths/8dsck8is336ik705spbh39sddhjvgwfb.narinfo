@@ -1,0 +1,10 @@
+StorePath: /nix/store/8dsck8is336ik705spbh39sddhjvgwfb-cargo-package-android-properties-0.2.2
+URL: nar/1lrf60cyg80p7x298hayb8zn0n86c8q9c7fkapvh9kjc05qwpzjw.nar.zst
+Compression: zstd
+FileHash: sha256:1lrf60cyg80p7x298hayb8zn0n86c8q9c7fkapvh9kjc05qwpzjw
+FileSize: 4873
+NarHash: sha256:09irqnxq9y3nr3dig6x9gfk4rqcvwgbx7p41yyqvcgldc6xjys78
+NarSize: 17240
+References: 
+Deriver: 20yd8r3r8i4lp41rwj4bvhm2al0fk9fh-cargo-package-android-properties-0.2.2.drv
+Sig: wvhulle.cachix.org-1:YvHVoJKwg5Sm7Fi8MWOngKCnjv7wnjLYjxg5Hmg+VwTyEiAe5XuP6IaJQbig/zGQ/Z0I1JQQ/rc+Cvq3VcnDDg==

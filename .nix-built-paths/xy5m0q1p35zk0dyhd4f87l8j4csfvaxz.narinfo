@@ -1,0 +1,10 @@
+StorePath: /nix/store/xy5m0q1p35zk0dyhd4f87l8j4csfvaxz-cargo-package-nu-ansi-term-0.50.3
+URL: nar/0iwvb9qhcn74r84f7frnf91dw6sy10v3d5p4a236cb7lfwd0k8yi.nar.zst
+Compression: zstd
+FileHash: sha256:0iwvb9qhcn74r84f7frnf91dw6sy10v3d5p4a236cb7lfwd0k8yi
+FileSize: 30023
+NarHash: sha256:19jrs5xypf8y3g14x0qwdx4lz57liqzm8nk7wn7rmin4b2g06l07
+NarSize: 132792
+References: 
+Deriver: ykbc8a0pk3nn8hprnyki98wvrdivv6bf-cargo-package-nu-ansi-term-0.50.3.drv
+Sig: wvhulle.cachix.org-1:mT1I+XP+he6WgyG6o7vYn1m1nM+vR2b+CyHZA4s+xGwW3QyXMyF3PhmUTsluS94ANkWokUGT5u5PgoRzbIHdCA==

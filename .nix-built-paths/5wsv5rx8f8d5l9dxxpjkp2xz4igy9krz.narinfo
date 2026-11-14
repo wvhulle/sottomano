@@ -1,0 +1,10 @@
+StorePath: /nix/store/5wsv5rx8f8d5l9dxxpjkp2xz4igy9krz-cargo-package-byteorder-lite-0.1.0
+URL: nar/0hin55kxkfahggiv65zjgnb8lpcny0l263dgq4f4nn8d2dwn6r5y.nar.zst
+Compression: zstd
+FileHash: sha256:0hin55kxkfahggiv65zjgnb8lpcny0l263dgq4f4nn8d2dwn6r5y
+FileSize: 16813
+NarHash: sha256:13902jgnp4q7yin8ljf3n0f2sc5wajm3496xyc7p7681y8p947g3
+NarSize: 147296
+References: 
+Deriver: wp5v4nsd8n257z8l8h96s5dvx0dakzsz-cargo-package-byteorder-lite-0.1.0.drv
+Sig: wvhulle.cachix.org-1:84wpI4VSaNXetio/azPeGyr3B4iWXdITwt4ClpkewYkKcsCQXlhx+A6JxVf/N28jYL7TnXA1nlpgMs13YynPDw==

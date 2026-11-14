@@ -1,0 +1,10 @@
+StorePath: /nix/store/sl9vmdvbl1yjnc7ykwb4aac8ypawdchp-cargo-package-bitflags-2.13.2
+URL: nar/08jgrqh2w41y85y4smz2mx17ry0xfg5chymg5qxagbmrdymsx5cn.nar.zst
+Compression: zstd
+FileHash: sha256:08jgrqh2w41y85y4smz2mx17ry0xfg5chymg5qxagbmrdymsx5cn
+FileSize: 53780
+NarHash: sha256:02nlqh4v201gpdbvy1rznap33nr5syf4888v1fk3vgps9glf7v66
+NarSize: 259720
+References: 
+Deriver: rxiqv3lckv1wpr4wvbwdyw008g6vlpd8-cargo-package-bitflags-2.13.2.drv
+Sig: wvhulle.cachix.org-1:2u55VnTset9a5W5fZPbQWO5DuHVlc2IRFY/ByyplBrc6eIy2IuOV/FI8ejDTry4P7KcrcybQ3eSxpcT9fBakAA==

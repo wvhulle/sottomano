@@ -1,0 +1,10 @@
+StorePath: /nix/store/691sqc0xbzandnyggmafjnf1wrrv5jbm-cargo-package-as-raw-xcb-connection-1.0.1
+URL: nar/05p14y7xprxq4cz6jqwwckvr6awvydqk8bldl8mpfrh4kxvrww8g.nar.zst
+Compression: zstd
+FileHash: sha256:05p14y7xprxq4cz6jqwwckvr6awvydqk8bldl8mpfrh4kxvrww8g
+FileSize: 6726
+NarHash: sha256:071p74lhr6wwwarsj6chbg5b6271aaqw29y7mlb9hy2dx4mmch3l
+NarSize: 19656
+References: 
+Deriver: 74mm84fmzg1qnnhv9cqsqbvjlkqnszgy-cargo-package-as-raw-xcb-connection-1.0.1.drv
+Sig: wvhulle.cachix.org-1:0AHK5m9KkulRUXFyOXRelRmSn29WJNjczwNxMbnltbgD6METzKLn6NgoSteZcKqbWE4o0cGPq4ZknkVsBviCCA==

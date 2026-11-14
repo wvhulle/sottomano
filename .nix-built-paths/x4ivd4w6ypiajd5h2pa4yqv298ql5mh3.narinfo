@@ -1,0 +1,10 @@
+StorePath: /nix/store/x4ivd4w6ypiajd5h2pa4yqv298ql5mh3-cargo-package-async-trait-0.1.92
+URL: nar/04w0j8gps96ff2bn7ambc39lqfsw4w45iksz1qb83q3dm7jp3j2h.nar.zst
+Compression: zstd
+FileHash: sha256:04w0j8gps96ff2bn7ambc39lqfsw4w45iksz1qb83q3dm7jp3j2h
+FileSize: 34329
+NarHash: sha256:0alh45z1hjfih2qapmisb9792v17hv5jbfs2yhshw2nybq99cm3b
+NarSize: 142440
+References: 
+Deriver: 3npwizd5cpls9hhnknnsysx15q39579d-cargo-package-async-trait-0.1.92.drv
+Sig: wvhulle.cachix.org-1:km6PZAznVshw83uGdoyif+Ud4y7fzjIo7UFDTEYEUMFwVtBsJzjF+ytVSwKC+kEScNKki2q0gjwcRQEnEl/jAg==

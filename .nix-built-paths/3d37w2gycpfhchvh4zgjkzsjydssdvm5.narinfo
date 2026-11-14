@@ -1,0 +1,10 @@
+StorePath: /nix/store/3d37w2gycpfhchvh4zgjkzsjydssdvm5-cargo-package-generic-array-0.14.7
+URL: nar/1j3n73vgggi9y2glzi56dz6ljglipyndydbcpb9x27bl8if2pl5q.nar.zst
+Compression: zstd
+FileHash: sha256:1j3n73vgggi9y2glzi56dz6ljglipyndydbcpb9x27bl8if2pl5q
+FileSize: 17047
+NarHash: sha256:19ihfl9ipbwmfwfsilphcbj8sinh8l9axr9v9bkczp5ba4lp3p5p
+NarSize: 71464
+References: 
+Deriver: 7kpw2i022517lcgc3dvg1936i4jki1z6-cargo-package-generic-array-0.14.7.drv
+Sig: cache.nixos.org-1:zjviGBJlda1DCTey6aBUwdGnukl3+wFPmxda948RPhH3Yngcemlqq7AhAMAm8S2IMyGJ/PcFTnotxhai/M11AQ==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/6zsfhm5adkx4hr5h4va6bra46grjcb74-cargo-package-weezl-0.1.12
+URL: nar/1y39gbsinn8610cj0y107l7cd6pybfnxvzz32qzmiiw55fk7vn6n.nar.zst
+Compression: zstd
+FileHash: sha256:1y39gbsinn8610cj0y107l7cd6pybfnxvzz32qzmiiw55fk7vn6n
+FileSize: 44089
+NarHash: sha256:0hkcclw7pfy5a2lx7dz0rc7f22viwcfscpzhq4gihjhzfqixh185
+NarSize: 181344
+References: 
+Deriver: ghymzpc8i29d44cwwnpyapdbah14afb0-cargo-package-weezl-0.1.12.drv
+Sig: wvhulle.cachix.org-1:Q83hTO368nXl46+TR4PJ3ONhgLlExbPPNYP9lK8ESVXnjIs2T310o4J3vbyVNMPJ5IkAmgN0CFcTK84h7Go8DQ==

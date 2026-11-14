@@ -1,0 +1,10 @@
+StorePath: /nix/store/wh34wszlggkkilm06lds2mm0apmj8cpl-cargo-package-pico-args-0.5.0
+URL: nar/0ykbsmvcyxp0aw59d6sdpnm81imwx5s7wf4nnvglw7jab2mpyzny.nar.zst
+Compression: zstd
+FileHash: sha256:0ykbsmvcyxp0aw59d6sdpnm81imwx5s7wf4nnvglw7jab2mpyzny
+FileSize: 12726
+NarHash: sha256:09msyn7g06b3mda0jk5697cfcj1s8lygsixwlf5m6abb79vpp2ia
+NarSize: 58744
+References: 
+Deriver: zcq8bm5zvdghmjhml27m52fd5nm3nl1j-cargo-package-pico-args-0.5.0.drv
+Sig: cache.nixos.org-1:TpJzkDUaQH+jP9Eg7K+dLbmH1Im0fYBApXwcAKHfqgSdQQeUosCfc8FGPdjt5kxYXZ1U5hK6ryBTNmJ7UZagBg==

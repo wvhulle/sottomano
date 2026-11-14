@@ -1,0 +1,10 @@
+StorePath: /nix/store/zg5r90fkqi4mrpc6h4sb3l525qb2888w-cargo-package-wayland-scanner-0.31.11
+URL: nar/0lsxd6gcb9907xhwz1vl2cal3s36kkja6aakhclfl26ddbi5q2nm.nar.zst
+Compression: zstd
+FileHash: sha256:0lsxd6gcb9907xhwz1vl2cal3s36kkja6aakhclfl26ddbi5q2nm
+FileSize: 35459
+NarHash: sha256:1y1f91mzsgi86cfcsjlx9l72m67wc4dc1m93ia04h89i1adfyxc5
+NarSize: 279488
+References: 
+Deriver: ixad7hjcvr6sm84wjd116i64an83w32r-cargo-package-wayland-scanner-0.31.11.drv
+Sig: wvhulle.cachix.org-1:dLtsvoNeXt740dwFJIPF9ChJoEXjKb71ywGxARnYzAniuyBCYYcuDBSK9T3j6A/ahsZ9roNQTnsl7JAO92RkAg==

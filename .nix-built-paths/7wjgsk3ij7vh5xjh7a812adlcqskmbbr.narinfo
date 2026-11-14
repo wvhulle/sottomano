@@ -1,0 +1,10 @@
+StorePath: /nix/store/7wjgsk3ij7vh5xjh7a812adlcqskmbbr-cargo-package-lazycell-1.3.0
+URL: nar/10fwr2104y8dxln765pv7wfyn508z0nz2agddysxf1cg32f75wv2.nar.zst
+Compression: zstd
+FileHash: sha256:10fwr2104y8dxln765pv7wfyn508z0nz2agddysxf1cg32f75wv2
+FileSize: 13504
+NarHash: sha256:06ldjn2i69g6cmm5g7y424c1pnr1hl8wnhzn53x4wippaa7rgj9q
+NarSize: 49072
+References: 
+Deriver: wxzf3ql8ca7l9hxgngypz1b82apxk59j-cargo-package-lazycell-1.3.0.drv
+Sig: wvhulle.cachix.org-1:Kc9tNFB74nqDzCGQpQyfAiihgofVAagO5CgSQyQEuIwKoRuDwrpchn32yQ1DdVXGuMRSBWd22ZqxBMa435FPBQ==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/h5klmzpgqj41vmim3qmj7mlf7dlp7zmp-cargo-package-memmap2-0.9.11
+URL: nar/08m9q55lkziw4xyi01f6jhbax9kwa6ri323kh6hb2kd8ssziwgas.nar.zst
+Compression: zstd
+FileHash: sha256:08m9q55lkziw4xyi01f6jhbax9kwa6ri323kh6hb2kd8ssziwgas
+FileSize: 37654
+NarHash: sha256:04k75j6x7w5zpj6afk960hn4343d63b3m46nz0vgxvk2l98bgbhd
+NarSize: 170376
+References: 
+Deriver: gy0dz8bjmaxgmb7lpcn45lvkl1i8y72i-cargo-package-memmap2-0.9.11.drv
+Sig: wvhulle.cachix.org-1:tQzv1okh86rASy3+331uio5aBw+XWQCLpfcRq96iDLW2m2mvsRoXefPzT4MT9OEcYWc2Lu+f97gQYO93EktSBA==

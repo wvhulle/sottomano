@@ -1,0 +1,10 @@
+StorePath: /nix/store/ddhaf2vxvgd4v1m0in6jxkva14946wxh-cargo-package-rustix-1.1.5
+URL: nar/02nriv5ya04cngmf8nilx551y480i53qhx8yb8r3f5y93fx8n86z.nar.zst
+Compression: zstd
+FileHash: sha256:02nriv5ya04cngmf8nilx551y480i53qhx8yb8r3f5y93fx8n86z
+FileSize: 402851
+NarHash: sha256:0pyc1wqzznlydr62bxr775dir6lh1fn50w31ddjpd7m1bjnb3802
+NarSize: 2438520
+References: 
+Deriver: gfblvmq3zh6d8swpfwn43q4hmnnigpmn-cargo-package-rustix-1.1.5.drv
+Sig: wvhulle.cachix.org-1:ZlMV+P70dVB+7Nym70fu4XNwM4gGMTXcwk5sxq/rFyKECx7tmjIL496ML5JF26aYySfrPkxwD381OAbeB4L7AA==

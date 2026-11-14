@@ -1,0 +1,10 @@
+StorePath: /nix/store/akli2g69vfqbynnzvicfk19rvfn1gp36-cargo-package-kdl-6.7.1
+URL: nar/1wld45l6zi18wssi8nkz2s7dr9y6i9fsq2349fshmia14iamyrl5.nar.zst
+Compression: zstd
+FileHash: sha256:1wld45l6zi18wssi8nkz2s7dr9y6i9fsq2349fshmia14iamyrl5
+FileSize: 126447
+NarHash: sha256:1gbljlagrgwcm5s0gvxnbm3bkyb3yr0sw5h07flnxs94wnydjh72
+NarSize: 711624
+References: 
+Deriver: nahjbnh3w9rnbsr28x3jvhzl23f14hay-cargo-package-kdl-6.7.1.drv
+Sig: wvhulle.cachix.org-1:GN+jOvLO7AfShdjdCknAhBCBcDqbHn4ON5OuMHBK+w9dStaqSHvbduPxXtBeVGGG0ujuZIWYgqHHU1IW6v3JCA==

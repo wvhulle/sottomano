@@ -1,0 +1,10 @@
+StorePath: /nix/store/zf3c2apbzm2021zzlprdqv64lv6qnmg4-cargo-package-calcard-0.3.14
+URL: nar/0xc489n4vzg1wglb1zmlr3xaddk8c9f9ixy20vpsbg0rw4f0cb00.nar.zst
+Compression: zstd
+FileHash: sha256:0xc489n4vzg1wglb1zmlr3xaddk8c9f9ixy20vpsbg0rw4f0cb00
+FileSize: 2607102
+NarHash: sha256:0b1ldk8xgq3b2xhs1g2a7yhwv8sa6sqalhrpkbynq8sbwckga67j
+NarSize: 18096112
+References: 
+Deriver: 7561qh54xd638575hniqck9b6yw1qxrq-cargo-package-calcard-0.3.14.drv
+Sig: wvhulle.cachix.org-1:AS0UvGH2PzQZrcKuUPPUB8BXKCPuZnHQmTLVgXyh4GSFDPW5YhgqrsMRb+Y/oXb0sxXA6gMLF3xttJXa5HmKCg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/w3vbnk7sqda5nwi4a2320ndx8bscpdy8-cargo-package-anstyle-query-1.1.5
+URL: nar/0samd9yjinbp2xd65qnic40xc52i453f445gnj9wri5s8kf87ybj.nar.zst
+Compression: zstd
+FileHash: sha256:0samd9yjinbp2xd65qnic40xc52i453f445gnj9wri5s8kf87ybj
+FileSize: 10783
+NarHash: sha256:07nbwp152mnkhlafys23l4zy75vi2c5jbmnjwscnn80ma5r6cbni
+NarSize: 32120
+References: 
+Deriver: 5cb2nb70nkicmnbrbvl7l2ysb15rmhb4-cargo-package-anstyle-query-1.1.5.drv
+Sig: wvhulle.cachix.org-1:U/slBTT5K/TSqul3vD0lY0CNmSH9cesAXOnBcSg8IcyZKAGpAQygzTWEDHSLpolfcT85MRMUH+OhT8Olmw2TBw==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/lwwq5hzlwf4afcdv8q70jisbl8k5hi5x-cargo-package-bit-set-0.8.0
+URL: nar/0fa1581aans2n8x7r4b6n15szkjvb6gz16f1axzbf7gcsxi1v7yc.nar.zst
+Compression: zstd
+FileHash: sha256:0fa1581aans2n8x7r4b6n15szkjvb6gz16f1axzbf7gcsxi1v7yc
+FileSize: 18111
+NarHash: sha256:1marj0k4di2ikadh763jwpd818npffriwdb9sj295h8x78i5ka5v
+NarSize: 71584
+References: 
+Deriver: 6np49qlpwh7ks31xgz4zlbn97hqi4mz8-cargo-package-bit-set-0.8.0.drv
+Sig: wvhulle.cachix.org-1:yy9j7LNzIgshDFZ7pJIzwHsk9GfNRqHYoI5pGxyX63309cJGrjCQNL7bpNILEaF5J5QA5/+ye1Q2lttRArlwBA==

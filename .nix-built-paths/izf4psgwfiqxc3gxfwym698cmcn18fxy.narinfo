@@ -1,0 +1,10 @@
+StorePath: /nix/store/izf4psgwfiqxc3gxfwym698cmcn18fxy-cargo-package-evdev-0.13.2
+URL: nar/0pwxnvlbx1jz2gsh200vyn4kinhwxbd1ws9m21v2w2dm3zqvmw3r.nar.zst
+Compression: zstd
+FileHash: sha256:0pwxnvlbx1jz2gsh200vyn4kinhwxbd1ws9m21v2w2dm3zqvmw3r
+FileSize: 63355
+NarHash: sha256:16q1vvfncl3r6kkbgi4glwqa7zvi3wx4fjkpmdiv5jmp7pgx787v
+NarSize: 252640
+References: 
+Deriver: 4igbk3qcd81yibzaizwdzqd2pvwn90dv-cargo-package-evdev-0.13.2.drv
+Sig: wvhulle.cachix.org-1:hOaHzPpFSL60MWgE02N5NLx3Iy2iS2D5NkCIdX6Ik5JC1t5GMFOLpFPBDTjhYNNNCSLCdDrEVmCbaJxxzG42Cg==

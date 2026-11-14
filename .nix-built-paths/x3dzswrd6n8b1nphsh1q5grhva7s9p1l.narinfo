@@ -1,0 +1,10 @@
+StorePath: /nix/store/x3dzswrd6n8b1nphsh1q5grhva7s9p1l-cargo-package-unicode-ident-1.0.27
+URL: nar/02p9wk9mn5ilgjndmz85jwz69pip22msgsdyf1vmf8q2snzknhgz.nar.zst
+Compression: zstd
+FileHash: sha256:02p9wk9mn5ilgjndmz85jwz69pip22msgsdyf1vmf8q2snzknhgz
+FileSize: 53011
+NarHash: sha256:0d0l3n33wj7myhry574m27kc93m95sxn6l9hbd2rxf1d8nsn0g4n
+NarSize: 348536
+References: 
+Deriver: jwc163fy7rm8n98pcppf39gry8392byc-cargo-package-unicode-ident-1.0.27.drv
+Sig: wvhulle.cachix.org-1:+x+/BmnTH3r84JoMfIPShHaWwM4ieQAxnaYzVEwjLcfRScvNMRsQ+wnoNNquInyOC/jAywFqe8QQzQGiOfbhDg==

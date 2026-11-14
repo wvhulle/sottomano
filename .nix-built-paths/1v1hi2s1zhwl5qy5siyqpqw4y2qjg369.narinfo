@@ -1,0 +1,10 @@
+StorePath: /nix/store/1v1hi2s1zhwl5qy5siyqpqw4y2qjg369-cargo-package-aristo-macros-0.4.1
+URL: nar/16r5byl1l0gmxb4q7859hfbzjsp6pms6lv6qx66qd4nbdawjn0p6.nar.zst
+Compression: zstd
+FileHash: sha256:16r5byl1l0gmxb4q7859hfbzjsp6pms6lv6qx66qd4nbdawjn0p6
+FileSize: 38927
+NarHash: sha256:1816nlgn01hdhhw41bc91npiy8dq9947il3hvjd0kawk6ymxfd1w
+NarSize: 137576
+References: 
+Deriver: by6v46n7a36ih9mbsviy09b7h7maajg5-cargo-package-aristo-macros-0.4.1.drv
+Sig: wvhulle.cachix.org-1:M9VpUnIjoElJFa/USID/9FTuRWn1PZTPkVJXdvyvCUHgtPtX1D0Vw1eKVSp3EHo9roGla23WUXQUI6sRrvEsAw==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/vlypi2vc19dbf0yyg82ngs9qg3xcnc5r-cargo-package-cexpr-0.6.0
+URL: nar/1by91yxqsbi55f98vv0frgcwp0rj89qhhp1ax841lsmnwlp91rxb.nar.zst
+Compression: zstd
+FileHash: sha256:1by91yxqsbi55f98vv0frgcwp0rj89qhhp1ax841lsmnwlp91rxb
+FileSize: 19300
+NarHash: sha256:104nmsxlhzcw5h58zbgi9ps53cf0r6347iac4jaj1hp0pgsfc03w
+NarSize: 69984
+References: 
+Deriver: nwl0lwnnwx2h4z38mv5hcgm217msjbla-cargo-package-cexpr-0.6.0.drv
+Sig: wvhulle.cachix.org-1:Y0VBUj5OmNxOxUXw5zq6YLNmnZQ0RrbtnM0kpCDFqN5Ssld8bq+k7VkF09az93jm1eW7e985iLjK+8iLR8AwDA==

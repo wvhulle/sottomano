@@ -1,0 +1,10 @@
+StorePath: /nix/store/w4859pq4f0kzjsn9cwq5g1hl80hhhf0v-cargo-package-fallible-iterator-0.3.0
+URL: nar/1z3jdybgnbjrhc31hxq9h1w624lxxjxy4jqwjdfgxpaw13f41vzm.nar.zst
+Compression: zstd
+FileHash: sha256:1z3jdybgnbjrhc31hxq9h1w624lxxjxy4jqwjdfgxpaw13f41vzm
+FileSize: 22026
+NarHash: sha256:0zvlkdp98ah2gh0q2d76adpwrrzw2lh3s8cflbsynf1z1kirbfn0
+NarSize: 105448
+References: 
+Deriver: xf2sh9wy9i5czr8n6kcyil3z8pzm08l3-cargo-package-fallible-iterator-0.3.0.drv
+Sig: wvhulle.cachix.org-1:VgF8bkbSoUu1CI/s4/PBs5FnWpOgUTZbAvAXHL/KuRS57K9MLB4wPHyjn4X6kuJ60nFZFnYhss+hm6kvsX35Aw==

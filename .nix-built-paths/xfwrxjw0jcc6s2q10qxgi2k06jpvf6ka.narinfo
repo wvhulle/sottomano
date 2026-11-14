@@ -1,0 +1,10 @@
+StorePath: /nix/store/xfwrxjw0jcc6s2q10qxgi2k06jpvf6ka-cargo-package-tracing-appender-0.2.5
+URL: nar/0lnxfg6crnlgiqwcvz8ind63izq7724dn57km0rscq69vkwcpgv4.nar.zst
+Compression: zstd
+FileHash: sha256:0lnxfg6crnlgiqwcvz8ind63izq7724dn57km0rscq69vkwcpgv4
+FileSize: 32439
+NarHash: sha256:1j59g0fhl581scv517c8macw66yljmbj50q7mifhs59sq38fcbr1
+NarSize: 135128
+References: 
+Deriver: 2gpxg02a3vpx15nkscxm9wsd01fk78vp-cargo-package-tracing-appender-0.2.5.drv
+Sig: wvhulle.cachix.org-1:fMNn8mB+GFZiEcuyL2A4k8zqt9HmWEmCELL9/xqsE2A9MPHtJw46437Cy4bMFF5TQYMhv+roKRlbvlsnHDgaBQ==

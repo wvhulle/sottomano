@@ -1,0 +1,10 @@
+StorePath: /nix/store/crmpq0khvzbsjnp3x7zq1mglzzl92b74-cargo-package-simplecss-0.2.2
+URL: nar/1s8s8i43hskipsj8fm1ijw2iki150qhcgyw8wv14hi0q1lmjkgnr.nar.zst
+Compression: zstd
+FileHash: sha256:1s8s8i43hskipsj8fm1ijw2iki150qhcgyw8wv14hi0q1lmjkgnr
+FileSize: 23979
+NarHash: sha256:1jmvginqinqkzlzxr7wj786qljr4qxrxsy84jqmc9zrvsq40csns
+NarSize: 103248
+References: 
+Deriver: syf2108lcb7gw4vb35886lrcb8krqc09-cargo-package-simplecss-0.2.2.drv
+Sig: wvhulle.cachix.org-1:AUlBJu/3MBD/31pxyXfCqzaPPVotgK7Cf1JZIaeMfSbPUkJmAPb1yRnS1s1zefVxgH2YlSpjHoSYEX/tUxA0CA==

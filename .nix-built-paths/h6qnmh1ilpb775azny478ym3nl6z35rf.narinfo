@@ -1,0 +1,10 @@
+StorePath: /nix/store/h6qnmh1ilpb775azny478ym3nl6z35rf-cargo-package-rustls-platform-verifier-0.7.1
+URL: nar/15pdpfdcphmizzn5q0s3h8i7604vzw3sq3bq7jahx4wvzb69dpag.nar.zst
+Compression: zstd
+FileHash: sha256:15pdpfdcphmizzn5q0s3h8i7604vzw3sq3bq7jahx4wvzb69dpag
+FileSize: 62011
+NarHash: sha256:0lcyh8ajlgp91ki06gqrjjzw90j4mwsblv4p6hpfmyfrrmlqna6d
+NarSize: 207168
+References: 
+Deriver: vrp20m1hfsz570d8rdab45l39cjwjmfb-cargo-package-rustls-platform-verifier-0.7.1.drv
+Sig: wvhulle.cachix.org-1:Gvw//yJ5x8qsoSZFNpVzQpOX5CIbt0v5h1I2a21QKY1Urb2EmwG8M4/mmfLdpEznaHSvuxB+ktkEi82kqc/NAw==

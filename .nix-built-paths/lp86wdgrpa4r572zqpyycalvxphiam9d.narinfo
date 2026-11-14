@@ -1,0 +1,10 @@
+StorePath: /nix/store/lp86wdgrpa4r572zqpyycalvxphiam9d-cargo-package-winapi-i686-pc-windows-gnu-0.4.0
+URL: nar/1bwp2p80kb0c6jn4nmvl0pminidarylpqj8z0h1ky45j5gq5kqzw.nar.zst
+Compression: zstd
+FileHash: sha256:1bwp2p80kb0c6jn4nmvl0pminidarylpqj8z0h1ky45j5gq5kqzw
+FileSize: 2698100
+NarHash: sha256:18glck8z2qvfvfb54hn1nyh6sxv09m1jr90i4gvsmbp07whrjq40
+NarSize: 51244648
+References: 
+Deriver: gylxwqsjjzr8xv4galivps7pnddd1p1h-cargo-package-winapi-i686-pc-windows-gnu-0.4.0.drv
+Sig: cache.nixos.org-1:PgRNqJuIjXaPBmPCNuOPtqkiY3I5GFu6b1b/nVEuM+Zi9dPA3ramqh+snqsj7nF3kJ3RqKLWndrApNwsr7xUCg==

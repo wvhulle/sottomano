@@ -1,0 +1,10 @@
+StorePath: /nix/store/bjmi9mp4gr3v9qxg9vjqpa197ayzckqj-cargo-package-itoa-1.0.18
+URL: nar/1kxhj5q9x8c8xr333s0cbkycxcsdr36m44b6dmmbq4wlc32zg06d.nar.zst
+Compression: zstd
+FileHash: sha256:1kxhj5q9x8c8xr333s0cbkycxcsdr36m44b6dmmbq4wlc32zg06d
+FileSize: 16786
+NarHash: sha256:1sp3gbcvs0sj1yyv99q2117qahkz3a5jd14dj5cp6x7a23kp4wad
+NarSize: 55040
+References: 
+Deriver: fbk8s1px7kv33a7w9b3arq90xj0vw5l5-cargo-package-itoa-1.0.18.drv
+Sig: cache.nixos.org-1:SHuxiJPMU8d4T4Ab1tdejoYSuZuz4e+hXH92ovZcWbNwdJ3hQymvtQlCy2Q18cF8w04W35O3jT7sep358V+XCA==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/4hacq42r7sq6gwl3vbm9hg2vz6szl59r-cargo-package-libm-0.2.16
+URL: nar/0xlh13w2c4b9dl8dqf7i9wnj3zr3y39bw3nnf1d5ysr135n40dqd.nar.zst
+Compression: zstd
+FileHash: sha256:0xlh13w2c4b9dl8dqf7i9wnj3zr3y39bw3nnf1d5ysr135n40dqd
+FileSize: 164973
+NarHash: sha256:0jcps9al8asr8sfd89vjs876fnbb21rn9vi335cgkf8ydmyckw0l
+NarSize: 699648
+References: 
+Deriver: 274lfs5xqrgax3f35hlxnc2n9hrs5a4m-cargo-package-libm-0.2.16.drv
+Sig: wvhulle.cachix.org-1:yvWMgeRcG0qAhnxDGsV1jriyHw/UQFyFkCtbK7yf1TQASeWjeOid0Mm5coxBIwwT6nEjUa3eXkQfPLGVNbrWAA==

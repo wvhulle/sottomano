@@ -1,0 +1,10 @@
+StorePath: /nix/store/qjz4g5qdb4jzzn9z3vzyz9g80mir5xna-cargo-package-wayrs-proto-parser-3.0.1
+URL: nar/0yqdmsrdv4mf2498brg4w6hsqpj594vlb73z9v8n9ys75hzbf6ql.nar.zst
+Compression: zstd
+FileHash: sha256:0yqdmsrdv4mf2498brg4w6hsqpj594vlb73z9v8n9ys75hzbf6ql
+FileSize: 6296
+NarHash: sha256:1ynvhhp4l8wkmmhlhh9l99nbi43698hasq87biywiz7816w6x1r0
+NarSize: 23608
+References: 
+Deriver: 6lqmpak08kp4kck8pw21610hawk3psfl-cargo-package-wayrs-proto-parser-3.0.1.drv
+Sig: wvhulle.cachix.org-1:6zbqAH239O2nlf4ySjAUSEUAPBlfnD8fb3jDXfpycBSwE60Bh3fBlsMklr3RoM980kL/vwWp3+GxlWXTkWs3Bw==

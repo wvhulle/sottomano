@@ -1,0 +1,10 @@
+StorePath: /nix/store/jcfy8hp5rshqr8291ngjy6cgp21hhn87-cargo-package-slotmap-1.1.1
+URL: nar/0pnzjrvzzs1pr1sn9cdnhylkngzmm9sqxg5k1fsrsmiz0qvrp896.nar.zst
+Compression: zstd
+FileHash: sha256:0pnzjrvzzs1pr1sn9cdnhylkngzmm9sqxg5k1fsrsmiz0qvrp896
+FileSize: 46377
+NarHash: sha256:0hqb15jvvjf6z5dw3fh67d7bibhs10d4d4jsm6vxj518xpcs6fdi
+NarSize: 305712
+References: 
+Deriver: 7nmbda36ys90zzz6j7a189hy31bim2z0-cargo-package-slotmap-1.1.1.drv
+Sig: wvhulle.cachix.org-1:4xugKgjyShMfn6EijcF/jXcdWPL4fhit+46ZKPOEv0N3VzQeid8Z/iqCBwqxeRvIuT2CUAwv9+qPBuJuoN4mDA==

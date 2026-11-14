@@ -1,0 +1,10 @@
+StorePath: /nix/store/xps4s0l8d5i7paaa5jadc5161f3wq8gq-cargo-package-aws-lc-rs-1.18.2
+URL: nar/0ghyadl3xrvymablybdk83fllvw1vrihwv6a4kzwirn0wpbsmy97.nar.zst
+Compression: zstd
+FileHash: sha256:0ghyadl3xrvymablybdk83fllvw1vrihwv6a4kzwirn0wpbsmy97
+FileSize: 245325
+NarHash: sha256:07hh3mmi16p8vnvm6r0ygnls9rm2nni2fc61q2s9sl13jbsvgx8k
+NarSize: 1253536
+References: 
+Deriver: sm6qizd8lby2nib1hajqrxwaq5h9vlks-cargo-package-aws-lc-rs-1.18.2.drv
+Sig: wvhulle.cachix.org-1:ncmb0J2to1ziVunBufkG5KSxrH/0g7Xurc4SD8UX8sbmpOATfKt9vbesP2sYmYKN2B9jJZuwYNJMKzVPPQ2MDw==

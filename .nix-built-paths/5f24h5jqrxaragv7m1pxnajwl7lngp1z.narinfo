@@ -1,0 +1,10 @@
+StorePath: /nix/store/5f24h5jqrxaragv7m1pxnajwl7lngp1z-cargo-package-gif-0.14.2
+URL: nar/1d3b55h31x862qz22cy8mqxg9adarlbsl1n9s15i9874jl0nqx1i.nar.zst
+Compression: zstd
+FileHash: sha256:1d3b55h31x862qz22cy8mqxg9adarlbsl1n9s15i9874jl0nqx1i
+FileSize: 40719
+NarHash: sha256:076dl51yzqd8ai8wcw0j1wmayhzdnlzls95rr9xizw61m6qrj2f3
+NarSize: 152616
+References: 
+Deriver: szaa34881aqncczsd2zlj88zhsszbva4-cargo-package-gif-0.14.2.drv
+Sig: wvhulle.cachix.org-1:MCR3cVnakPnVDTEyYuh07J3aSmFaGMmkKHc1w9Ro82xyWOpRuJy0ZkOQ8yHaE5Wp4NPeD4X9U5Gd5kMMc0uWBQ==

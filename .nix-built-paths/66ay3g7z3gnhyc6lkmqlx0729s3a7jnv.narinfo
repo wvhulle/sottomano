@@ -1,0 +1,10 @@
+StorePath: /nix/store/66ay3g7z3gnhyc6lkmqlx0729s3a7jnv-cargo-package-float-cmp-0.9.0
+URL: nar/0s3ndm1hzv7lyj66i8ydqsfvjhzhlas1v4841w4mgax5fr7nwj5f.nar.zst
+Compression: zstd
+FileHash: sha256:0s3ndm1hzv7lyj66i8ydqsfvjhzhlas1v4841w4mgax5fr7nwj5f
+FileSize: 10885
+NarHash: sha256:1hfv5pnvrrq2aygzxmwgrilv3lh38975494bclqxnxrzhv0fcnyw
+NarSize: 49584
+References: 
+Deriver: gpgsk1b9970pkv9n6ym835376hz0340r-cargo-package-float-cmp-0.9.0.drv
+Sig: wvhulle.cachix.org-1:2xZQ2ywdtx9dPFCY3MP0mP1ng+7w9Xv/m8RuAJuM7ZGasXrk3GwawY2D1y4qYgFBhfqPM391L6XfYVol0+QhAA==

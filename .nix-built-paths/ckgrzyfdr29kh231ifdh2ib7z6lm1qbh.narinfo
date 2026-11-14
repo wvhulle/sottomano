@@ -1,0 +1,10 @@
+StorePath: /nix/store/ckgrzyfdr29kh231ifdh2ib7z6lm1qbh-cargo-package-dtor-0.8.1
+URL: nar/19y2zkj5kd10g9dpfzrdvlgssbzr81yhmx1p2xx8if7zl4mrx1y6.nar.zst
+Compression: zstd
+FileHash: sha256:19y2zkj5kd10g9dpfzrdvlgssbzr81yhmx1p2xx8if7zl4mrx1y6
+FileSize: 15452
+NarHash: sha256:14ba4vap9qdgz3ndxcdrr4sc28rcq72b24l0d5pavhmhdjxqfbys
+NarSize: 64016
+References: 
+Deriver: frm68qr3f5jbiyv8q3wk9qz0qai1a4sj-cargo-package-dtor-0.8.1.drv
+Sig: wvhulle.cachix.org-1:Bgi4JccjWZShAocxePy9M9KFSGFz+mZ57bN/VtoVd17igfQGP70C/9Ku2YqytoBneOHWrC6BuIAuE9S1swPuAQ==

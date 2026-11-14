@@ -1,0 +1,10 @@
+StorePath: /nix/store/gky9p9xmww92krzl1czwiabpkpmin942-cargo-package-manyhow-0.14.1
+URL: nar/0p46qiizhcvzm8i33371nbx2d78yax75hz5x1g9qa8il72k8ygx3.nar.zst
+Compression: zstd
+FileHash: sha256:0p46qiizhcvzm8i33371nbx2d78yax75hz5x1g9qa8il72k8ygx3
+FileSize: 25926
+NarHash: sha256:0cjr58nmciqdzxd6zm2k1z9mrz4qxr6qkhabw8bgin7qvgcrig7h
+NarSize: 103144
+References: 
+Deriver: jk01p6icl20jcrch0wnql1prn9b2c8dd-cargo-package-manyhow-0.14.1.drv
+Sig: wvhulle.cachix.org-1:9DPLurA5TDRI5k4rMnBv3UlPjx6olXDGBhpRl5yL4ZHMb952Tgs8qQf+T/POv7xYKX4U4VkEiGOeOZF4NkbnDA==

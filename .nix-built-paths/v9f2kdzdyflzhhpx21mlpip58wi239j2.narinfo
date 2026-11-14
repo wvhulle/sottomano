@@ -1,0 +1,10 @@
+StorePath: /nix/store/v9f2kdzdyflzhhpx21mlpip58wi239j2-cargo-package-linebender_resource_handle-0.1.1
+URL: nar/1ng3gdjhy1aadzzbicjpwlhpr3a6z298s43rsgixks4k4y4bqr8d.nar.zst
+Compression: zstd
+FileHash: sha256:1ng3gdjhy1aadzzbicjpwlhpr3a6z298s43rsgixks4k4y4bqr8d
+FileSize: 11358
+NarHash: sha256:1pjk8sggbyqcpvgh79gzmk2zv17zkcf4yy9r7v0phwwn88y14mj1
+NarSize: 34000
+References: 
+Deriver: k8mybh1pykn0bpq6vd0lvx8w2pchdpij-cargo-package-linebender_resource_handle-0.1.1.drv
+Sig: wvhulle.cachix.org-1:3eu6+LUaxVDBJ9IuU40IWBkggAPqbG+A51h21TYKNCXEPkndISPpccPo4TMm1LWJP24mXvFFknuc6waYUtcFAQ==

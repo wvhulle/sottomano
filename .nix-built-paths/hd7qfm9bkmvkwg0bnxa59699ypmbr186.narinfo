@@ -1,0 +1,10 @@
+StorePath: /nix/store/hd7qfm9bkmvkwg0bnxa59699ypmbr186-cargo-package-zerotrie-0.2.5
+URL: nar/1874g4bf1lsjf7qis0fa36ihvqx0pz9yl2kzmqac075azqv8a07h.nar.zst
+Compression: zstd
+FileHash: sha256:1874g4bf1lsjf7qis0fa36ihvqx0pz9yl2kzmqac075azqv8a07h
+FileSize: 85061
+NarHash: sha256:0mhxzjg0rjsd60jg911975anr5lqir5nk913f581p9gz0srvl7a3
+NarSize: 424928
+References: 
+Deriver: qcmf7fg52vjk2ygfi7cq75jyz87sx6xw-cargo-package-zerotrie-0.2.5.drv
+Sig: wvhulle.cachix.org-1:Cmj65KegxEB/q1+01+t7diBeCk8TuaSgyLh/D6sRdg46+g1R1PWvgL/gdiZB3lD7s6/ciRanYy7teUbuSn3kBQ==

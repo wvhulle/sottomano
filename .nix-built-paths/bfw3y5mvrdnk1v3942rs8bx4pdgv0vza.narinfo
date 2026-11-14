@@ -1,0 +1,10 @@
+StorePath: /nix/store/bfw3y5mvrdnk1v3942rs8bx4pdgv0vza-cargo-package-inout-0.1.4
+URL: nar/1zkvkacr6vlz77l56b5qhnqkxa583zj47cvgayjwmldpsvxxqd7v.nar.zst
+Compression: zstd
+FileHash: sha256:1zkvkacr6vlz77l56b5qhnqkxa583zj47cvgayjwmldpsvxxqd7v
+FileSize: 12327
+NarHash: sha256:0pi96kzgppcfik06qfiiivzkak1g6d7if6yq93bl82srjqkiwnyb
+NarSize: 44864
+References: 
+Deriver: 171bncq7ll3182z4bb0kcqgi5cwh49fh-cargo-package-inout-0.1.4.drv
+Sig: wvhulle.cachix.org-1:WMlHrf0YVZghizjZJhyvYe2DHS3ZHlRzRCrIzxWY50HMtt3gepPyqdOPQB33nb8WZvx3zO11yHLRXXoEp3ahAg==

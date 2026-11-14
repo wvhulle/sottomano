@@ -1,0 +1,10 @@
+StorePath: /nix/store/g0ra5sa8fdmivalx1lbimwjdfhnjij3q-cargo-package-clang-sys-1.9.1
+URL: nar/017kkiq7xyvfqbh9c0k20zs0kkns4airnn6ylswx1b6qg81spg0j.nar.zst
+Compression: zstd
+FileHash: sha256:017kkiq7xyvfqbh9c0k20zs0kkns4airnn6ylswx1b6qg81spg0j
+FileSize: 49667
+NarHash: sha256:03hhqxd9kx9w52nfl3czycmis87qw05daz9n5lgdzk9a57an14kg
+NarSize: 231680
+References: 
+Deriver: n1f1k6njg6j41r1a69qdl19q6fwy4nr9-cargo-package-clang-sys-1.9.1.drv
+Sig: wvhulle.cachix.org-1:kOuax/mwFhQ9TCtwF1iHh037F7Kcvtx/wFfvD2WC0ro9487fWTTne6eEnB95TPxPxiPjh+ymE4j3Y0bghpnDCA==

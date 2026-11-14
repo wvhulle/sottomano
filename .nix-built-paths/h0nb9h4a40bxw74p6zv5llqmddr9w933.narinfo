@@ -1,0 +1,10 @@
+StorePath: /nix/store/h0nb9h4a40bxw74p6zv5llqmddr9w933-cargo-package-zvariant_utils-4.2.0
+URL: nar/1x7rljg999lh13lak6mps8fqd0iz9vlqhgd8a0bspf6arrixrv3g.nar.zst
+Compression: zstd
+FileHash: sha256:1x7rljg999lh13lak6mps8fqd0iz9vlqhgd8a0bspf6arrixrv3g
+FileSize: 28108
+NarHash: sha256:1ycn8dn8l1wv0j7a8jlddfab08pb5x61lynviq7vg6q6bqg53fiy
+NarSize: 120664
+References: 
+Deriver: dd61lqrnj11awj0yxc76nivjgd50jm25-cargo-package-zvariant_utils-4.2.0.drv
+Sig: wvhulle.cachix.org-1:XdQ4vCMz1Vj5vMnZEMBGgSX7rD5PEE7yXFd4tUYT7Meo9lRNSmyEWC5br+FoBWQNDQn0bFbQhzvwu2WnRMukBQ==

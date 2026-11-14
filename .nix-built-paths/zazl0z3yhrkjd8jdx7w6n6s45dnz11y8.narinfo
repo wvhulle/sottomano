@@ -1,0 +1,10 @@
+StorePath: /nix/store/zazl0z3yhrkjd8jdx7w6n6s45dnz11y8-cargo-package-pipewire-sys-0.10.1
+URL: nar/15d5gzajhwbrkknxcb76ibscxnmmib9akcdyhpzzkxkly88jpsp8.nar.zst
+Compression: zstd
+FileHash: sha256:15d5gzajhwbrkknxcb76ibscxnmmib9akcdyhpzzkxkly88jpsp8
+FileSize: 6597
+NarHash: sha256:0y2wp66jwsnyvln13a7hji9wrq5lki99z2r35vhgxwd4kg65m95g
+NarSize: 20008
+References: 
+Deriver: skkkk0fgkvdxynlps2pgfmmk8lfargy4-cargo-package-pipewire-sys-0.10.1.drv
+Sig: wvhulle.cachix.org-1:o/plkN3PmOb7wbRfFEgQ3rNc78KP8gv/fXvN+uLt5Pjfo+HjjPgZo5T3i0hlsTfg6+Nm8+FIHP6AQvknsLi8Aw==

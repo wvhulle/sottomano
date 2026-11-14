@@ -1,0 +1,10 @@
+StorePath: /nix/store/9l9sbfmlhvqkjxphfxrp1yaaav1l27ph-cargo-package-proc-macro-utils-0.10.0
+URL: nar/04mxz0spbh8pr7f1nxaqibndg4r1401i838sjmlzz4hbqq8is4f4.nar.zst
+Compression: zstd
+FileHash: sha256:04mxz0spbh8pr7f1nxaqibndg4r1401i838sjmlzz4hbqq8is4f4
+FileSize: 23353
+NarHash: sha256:0i2h9l9qqa2yj4h8vzh6q5sg5qaf10d7g9hcmlf2fag1n5bp2xda
+NarSize: 97824
+References: 
+Deriver: m56j0yk7aidds9k456waqlgzf11hcj5z-cargo-package-proc-macro-utils-0.10.0.drv
+Sig: wvhulle.cachix.org-1:R9bntuBXkT0X/3WkmYBeQlT/8tQ5XEjI6BYk9fxFhZvbOQyo8wJaCx5uXHKDhpZC9KblmRulWqNucMv3BwmVAA==

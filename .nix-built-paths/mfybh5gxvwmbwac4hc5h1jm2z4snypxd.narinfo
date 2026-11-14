@@ -1,0 +1,10 @@
+StorePath: /nix/store/mfybh5gxvwmbwac4hc5h1jm2z4snypxd-cargo-package-anstream-1.0.0
+URL: nar/0zms67042pah0kawwdhvvfayfzjmgjic52c2rlvmhvnlpy8n8kd5.nar.zst
+Compression: zstd
+FileHash: sha256:0zms67042pah0kawwdhvvfayfzjmgjic52c2rlvmhvnlpy8n8kd5
+FileSize: 30660
+NarHash: sha256:0lpwhzzcr0a0fanqh679w19vzm86kpya06pkzbarxawvnpkd62aq
+NarSize: 127760
+References: 
+Deriver: p2654352ijq390sw3fiwfylz9dhj2v4i-cargo-package-anstream-1.0.0.drv
+Sig: cache.nixos.org-1:wQRiT2jtL1J315sIInJmkR7aJXzsAYc0XY104pmr+blo+77b7IGlYHauB8g+uXFEhh9AOWPSjv/GXE/nFQYHCg==

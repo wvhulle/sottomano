@@ -1,0 +1,10 @@
+StorePath: /nix/store/va1wqq3484rwviipnl39lkdqzw1y37js-cargo-package-simsimd-6.5.16
+URL: nar/0rd2dlw3axxr7d231bl7jfb5iagwhnvf7mjan0rcfziwfhw3lvmm.nar.zst
+Compression: zstd
+FileHash: sha256:0rd2dlw3axxr7d231bl7jfb5iagwhnvf7mjan0rcfziwfhw3lvmm
+FileSize: 128491
+NarHash: sha256:1inkxnpfygwy7lck51jvqbwkfsg6n22jiq5p7h47l04gswa4960q
+NarSize: 895816
+References: 
+Deriver: rc9g90q0rww3zd61avp5xkmackmr31bk-cargo-package-simsimd-6.5.16.drv
+Sig: wvhulle.cachix.org-1:5YHUx+/WjkDY9rDApUlEmTz6FrD68iIAyLQcDbOwbCM2hrz7HOHDzyQjslBzps3BXuZ9CnuHogoQfAWebqibCQ==

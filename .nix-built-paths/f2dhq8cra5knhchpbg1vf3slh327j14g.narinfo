@@ -1,0 +1,10 @@
+StorePath: /nix/store/f2dhq8cra5knhchpbg1vf3slh327j14g-cargo-package-num-rational-0.4.2
+URL: nar/048l3ms5sv23a5428s2mvp99xzd6v9gb88g3grj1zf9yq6czpv7c.nar.zst
+Compression: zstd
+FileHash: sha256:048l3ms5sv23a5428s2mvp99xzd6v9gb88g3grj1zf9yq6czpv7c
+FileSize: 30439
+NarHash: sha256:0njn4r9iqqcqncndy46d0j5kw3k8gl9733j3az2ky7fwh2j276aj
+NarSize: 134272
+References: 
+Deriver: sy3rfjdx424hmr4slqbg1zrxv7kwqi2r-cargo-package-num-rational-0.4.2.drv
+Sig: wvhulle.cachix.org-1:ZkTNc8PQ3NOTWCu9BJYq1YEcPXA9tncuyZ9JmTFGLHB5LCnbXbvJNrYDL9kyf9mEDiW4nm4DhFUAF+LA4V5WCA==

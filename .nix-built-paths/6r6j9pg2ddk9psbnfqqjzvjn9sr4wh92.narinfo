@@ -1,0 +1,10 @@
+StorePath: /nix/store/6r6j9pg2ddk9psbnfqqjzvjn9sr4wh92-cargo-package-jobserver-0.1.35
+URL: nar/1gffi8ic9pz13l7xr6gw9slhz7bkxcxr6q06423ak17k9awf16jv.nar.zst
+Compression: zstd
+FileHash: sha256:1gffi8ic9pz13l7xr6gw9slhz7bkxcxr6q06423ak17k9awf16jv
+FileSize: 30996
+NarHash: sha256:1k4879mhiq4jnfhhli5wv5hk9qrpg04c0vjkszyrc59ard0nxczb
+NarSize: 109504
+References: 
+Deriver: xpf1wgrk6j70ly10rz54w2ync8blw6y5-cargo-package-jobserver-0.1.35.drv
+Sig: wvhulle.cachix.org-1:Oz8nSoYtoHhvbx1Gxu2F4eiOfeKZdEe4sarSBlooUyVCfY/GDTBtrmCcQLnk/JsftLIWOdg2U4uXQO2eyY4WCg==

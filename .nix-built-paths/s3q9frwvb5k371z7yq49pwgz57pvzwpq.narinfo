@@ -1,0 +1,10 @@
+StorePath: /nix/store/s3q9frwvb5k371z7yq49pwgz57pvzwpq-cargo-package-brotli-decompressor-6.0.1
+URL: nar/051ivj9a8npczljl4kzh1pv9z97jbxg2021nlxkiy677bs2l08xv.nar.zst
+Compression: zstd
+FileHash: sha256:051ivj9a8npczljl4kzh1pv9z97jbxg2021nlxkiy677bs2l08xv
+FileSize: 285820
+NarHash: sha256:1kwk2jgvlw9v4vsyfsf0hy32c5abv4p03rw681pj38iq68fgw3c4
+NarSize: 2255344
+References: 
+Deriver: cx3w6lcm8i1a1brpp2v2ng3vjw337jgk-cargo-package-brotli-decompressor-6.0.1.drv
+Sig: wvhulle.cachix.org-1:fAZVwpYaPaKRcib45hJVQjlW52KHGehz0YeGWVUL7lTdBfJVSqILDe3xg3/HmWRdrVqip2Qu7k5PUvNK1NZ9Ag==

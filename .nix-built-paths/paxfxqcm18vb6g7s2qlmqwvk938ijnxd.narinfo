@@ -1,0 +1,10 @@
+StorePath: /nix/store/paxfxqcm18vb6g7s2qlmqwvk938ijnxd-cargo-package-icu_collator_data-2.4.0
+URL: nar/028rgr8bwjkjrwsyy9ldi4bjzcnsvzhna29k8mr2v3gfk7ba00sw.nar.zst
+Compression: zstd
+FileHash: sha256:028rgr8bwjkjrwsyy9ldi4bjzcnsvzhna29k8mr2v3gfk7ba00sw
+FileSize: 530024
+NarHash: sha256:1ggx4lcdd0mfiyzwbf7p24pfvzn8n56wb9ylzs9yxqiav3g1k6l5
+NarSize: 3264272
+References: 
+Deriver: d32ac595qch2chrfgcf1pmvxsnqkgrw4-cargo-package-icu_collator_data-2.4.0.drv
+Sig: wvhulle.cachix.org-1:m2UwI/xyR55SfhuxQaMWQ5ENgGLy9LNhB0WabOUxFtQ+FJOn+as6hep5sPUKwea3mN9mKPwRR7P8ezzopZ3kDA==

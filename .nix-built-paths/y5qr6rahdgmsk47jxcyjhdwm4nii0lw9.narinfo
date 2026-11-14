@@ -1,0 +1,10 @@
+StorePath: /nix/store/y5qr6rahdgmsk47jxcyjhdwm4nii0lw9-cargo-package-mundy-0.2.3
+URL: nar/1mcqmi02sa85n4wpyq45i18dfl835rvh01ny09n3ikymymyy4nzc.nar.zst
+Compression: zstd
+FileHash: sha256:1mcqmi02sa85n4wpyq45i18dfl835rvh01ny09n3ikymymyy4nzc
+FileSize: 57859
+NarHash: sha256:1445b3nm76397hil2f26fd8y2n4fy64jqy47dwyvbiv9qrb97s5l
+NarSize: 232408
+References: 
+Deriver: kdz4bsbk3hvc3s40s9l5nxl3fsaczi5m-cargo-package-mundy-0.2.3.drv
+Sig: wvhulle.cachix.org-1:lrjHGdtejKZFfd3111W4OboDj4H3QKqQ+4Vjh93XgYruwoaR4Y2ctVxbbVBDWmxW5EVFw1tcKHZhi26BesTzCg==

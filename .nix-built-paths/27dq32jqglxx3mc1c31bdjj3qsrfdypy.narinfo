@@ -1,0 +1,10 @@
+StorePath: /nix/store/27dq32jqglxx3mc1c31bdjj3qsrfdypy-cargo-package-pxfm-0.1.30
+URL: nar/06bbajs209ld0p22znmb5vfhnz0fd751cd8mid93xdvmswfv09h7.nar.zst
+Compression: zstd
+FileHash: sha256:06bbajs209ld0p22znmb5vfhnz0fd751cd8mid93xdvmswfv09h7
+FileSize: 700101
+NarHash: sha256:1x0j3vl4ps1bjzqa075hxxkfa4g6im5d0ynw68k861ad8g5pxmjm
+NarSize: 3873752
+References: 
+Deriver: 5jcx91jqzn72lyq8hqw8466nkcck4r0q-cargo-package-pxfm-0.1.30.drv
+Sig: wvhulle.cachix.org-1:x00hPfsLRRlQITnlsvUzEI1+i1nFgSAV0Bae0afH6iscMBCTubi0M0kommzqxQZjuIkbXl/xvdOyR6pfjJhPBw==

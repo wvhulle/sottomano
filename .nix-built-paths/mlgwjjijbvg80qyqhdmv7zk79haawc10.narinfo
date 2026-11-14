@@ -1,0 +1,10 @@
+StorePath: /nix/store/mlgwjjijbvg80qyqhdmv7zk79haawc10-cargo-package-tracing-log-0.2.0
+URL: nar/0sqs11rpvxckfr39nklx2kl9ajlbh7zryn8wpgsb50yk60ibrvy3.nar.zst
+Compression: zstd
+FileHash: sha256:0sqs11rpvxckfr39nklx2kl9ajlbh7zryn8wpgsb50yk60ibrvy3
+FileSize: 18911
+NarHash: sha256:1wvajywi7j1228lccwpv4rczqwqwk1mr5m5afxlyc10k97c3b2nq
+NarSize: 69816
+References: 
+Deriver: x58vcychrin3hl1pscf3581lflsspxiq-cargo-package-tracing-log-0.2.0.drv
+Sig: wvhulle.cachix.org-1:8fo+1qmjxhCI6UQvWiNjj/8QfQYNCXJv3zizhwi4+TZ66fpDUkZioq6E3SHA8yYxDsVJEG/IhRUv48AbhGL7Cg==

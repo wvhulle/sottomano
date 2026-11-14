@@ -1,0 +1,10 @@
+StorePath: /nix/store/kkp4y10w1rmayir7a3f1qpxv8cr4q7h0-cargo-package-num-integer-0.1.47
+URL: nar/125y8v5lvp719n7q6whv27jarjfva5j4a991lg1gy0cnhxa6c3iz.nar.zst
+Compression: zstd
+FileHash: sha256:125y8v5lvp719n7q6whv27jarjfva5j4a991lg1gy0cnhxa6c3iz
+FileSize: 25082
+NarHash: sha256:15br0xnn0rx6biq7syanl9jhkyjihakxf22xrfpnv8ips7chxjhl
+NarSize: 116912
+References: 
+Deriver: wy56p6x5cyb9sgrgczqjqm1nn3hqwkzv-cargo-package-num-integer-0.1.47.drv
+Sig: wvhulle.cachix.org-1:3Pka1CtFJ9BXSHXnf0+i0ljRWH2aGOAY5lIEXw9LdmVGA40yxRZmjSk/bdsUPyNfI9Pp5DIdYgGugPiT6A0nBA==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/5zlyhxr3aainm11sz0i3fld51cmacznp-cargo-package-inotify-sys-0.1.8
+URL: nar/1467jls9fa679f4y2ngh0iwaawakdy79mhsd3qxgxwbf5n2ynaw0.nar.zst
+Compression: zstd
+FileHash: sha256:1467jls9fa679f4y2ngh0iwaawakdy79mhsd3qxgxwbf5n2ynaw0
+FileSize: 8986
+NarHash: sha256:1k0gsq4myk8g7f4wi4b8gy4v8m4nfn6s67p2x3rk3s2bahlp2pqk
+NarSize: 39952
+References: 
+Deriver: 7jyi9ihrfys0329bwnpmvl5p9g2j2irr-cargo-package-inotify-sys-0.1.8.drv
+Sig: wvhulle.cachix.org-1:fxrASXSq5K7zjxvooElkObafX1vX3eXDH/t+gsFVs76nCF2SznJUcKppAOwh2A5maM+gj3jgzwWJjYbKUlejDg==

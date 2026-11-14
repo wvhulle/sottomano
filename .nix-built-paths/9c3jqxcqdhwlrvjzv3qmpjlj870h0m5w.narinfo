@@ -1,0 +1,10 @@
+StorePath: /nix/store/9c3jqxcqdhwlrvjzv3qmpjlj870h0m5w-cargo-package-polycool-0.4.0
+URL: nar/003sgjxihf6man8k5bkhm3mzzkhvgdhdd6d87csr5bz1b641va98.nar.zst
+Compression: zstd
+FileHash: sha256:003sgjxihf6man8k5bkhm3mzzkhvgdhdd6d87csr5bz1b641va98
+FileSize: 23619
+NarHash: sha256:1f48l5gykgm0q8jc343hkw3cf52nc94shvpiwc60w8msal4wj2fa
+NarSize: 83624
+References: 
+Deriver: zrxigd3vdhw7sly82kdmxiikgc5hgs6d-cargo-package-polycool-0.4.0.drv
+Sig: wvhulle.cachix.org-1:6R2yY6L4OFKZNNPoCVNALNyHzOYdqxGskyU4jf7dd54WuulY6sGFeDg08bnxDyUPlrIRgkq4yBvrU5bO22YOAw==

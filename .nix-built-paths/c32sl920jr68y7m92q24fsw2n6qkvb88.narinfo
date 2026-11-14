@@ -1,0 +1,10 @@
+StorePath: /nix/store/c32sl920jr68y7m92q24fsw2n6qkvb88-cargo-package-uds_windows-1.2.1
+URL: nar/0v7xfwbdv0pyc8ajdncxa9fvrwbb6kgr60mwmirw5rq012xp4bq8.nar.zst
+Compression: zstd
+FileHash: sha256:0v7xfwbdv0pyc8ajdncxa9fvrwbb6kgr60mwmirw5rq012xp4bq8
+FileSize: 23629
+NarHash: sha256:09rhqpgcd37rjd4my05hgadpl6wjmqsp82zb440k41jmqbdl94i3
+NarSize: 92600
+References: 
+Deriver: xjwqz4valha0hgpf1klpkk4xiyvky142-cargo-package-uds_windows-1.2.1.drv
+Sig: wvhulle.cachix.org-1:GGXJgtAxdFxRjqet2t5NDJ9ESmF3VnD4oPW3WGiiHHTzN5oft5fAUcZ/4qYX1KWuVOvzpFwAVk69Gt94oa1YAg==

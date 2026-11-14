@@ -1,0 +1,10 @@
+StorePath: /nix/store/craxsk9kip3bqykwdxv95rw9iyzq2f1f-cargo-package-khronos-egl-6.0.0
+URL: nar/0364qxa7gipmql7l1arzb35bwzri0r3q6ha4n21ragfdzq5ch8lx.nar.zst
+Compression: zstd
+FileHash: sha256:0364qxa7gipmql7l1arzb35bwzri0r3q6ha4n21ragfdzq5ch8lx
+FileSize: 31320
+NarHash: sha256:1yady2n5b76yrlamhdik9ni9jxmgqcqvfgx8rw47zch0q997vw6k
+NarSize: 138960
+References: 
+Deriver: w9n97avyb7cqbzkhl3yqr3yd6bv535ml-cargo-package-khronos-egl-6.0.0.drv
+Sig: wvhulle.cachix.org-1:NtxXQDuFR2Jwbd7eAUzhJmdR2njOhzFA13J4uEv71OcpoRrzOO1vJwhAxNTg4Q4iK/EydQI6UrdC4pjBzWCGAg==

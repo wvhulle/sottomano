@@ -1,0 +1,10 @@
+StorePath: /nix/store/kjg61l56cqkaqzdmc45z94w0n05phrn6-cargo-package-jiff-0.2.38
+URL: nar/1w15yvs4wndggs97pbd1nfr04dsykss8jas5hippl8cd96l6azkl.nar.zst
+Compression: zstd
+FileHash: sha256:1w15yvs4wndggs97pbd1nfr04dsykss8jas5hippl8cd96l6azkl
+FileSize: 641230
+NarHash: sha256:09sndsqfamjc9ai0j1wq0vpgp0znznwyiqzixszzgzl1klafbhr8
+NarSize: 3524104
+References: 
+Deriver: din1v9i098il0ilmn81h9465yz3yarpf-cargo-package-jiff-0.2.38.drv
+Sig: wvhulle.cachix.org-1:C2lFkeo0Bu5nngzO+JVylHPjBnSWJebnEAXlNvG09DzDRkOl6T9jsB0xxMv3UYTz3+ij0CmVPD5ZXU1TcpR4AQ==

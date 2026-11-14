@@ -1,0 +1,10 @@
+StorePath: /nix/store/gnkxpa8paps04gggkfr1jsb8rh3hmaws-cargo-package-bytemuck-1.25.2
+URL: nar/0d49yx5ysmahz7nw9lk73k9625h91ljhd6sckgdhjy9ny05l49i5.nar.zst
+Compression: zstd
+FileHash: sha256:0d49yx5ysmahz7nw9lk73k9625h91ljhd6sckgdhjy9ny05l49i5
+FileSize: 55480
+NarHash: sha256:0x8m2hrxh6qhyvswg99qblynvxx0l40xfdqn0qsyifb1fk84dd47
+NarSize: 240256
+References: 
+Deriver: spy1749942lcl68yv3rwgvxvhl60z045-cargo-package-bytemuck-1.25.2.drv
+Sig: wvhulle.cachix.org-1:2cp7M8/rBzfLMWHnpXceti1FZtW7A3e1KO1lJKqWspCa7FE450KcQ1eInfJPK5nGPaZ+Yh9lOnl4HPC8ZtvRCg==

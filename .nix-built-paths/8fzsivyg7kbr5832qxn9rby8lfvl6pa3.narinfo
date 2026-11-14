@@ -1,0 +1,10 @@
+StorePath: /nix/store/8fzsivyg7kbr5832qxn9rby8lfvl6pa3-cargo-package-windows_aarch64_gnullvm-0.52.6
+URL: nar/044c282r3izr6jhyq4r663jv9b4vxymvc09x9pfa77iywjy43gc1.nar.zst
+Compression: zstd
+FileHash: sha256:044c282r3izr6jhyq4r663jv9b4vxymvc09x9pfa77iywjy43gc1
+FileSize: 464662
+NarHash: sha256:0r7rjsax7fpdv2aqgj1vx8qnc1qdbw95922k0ln4xzypgkzdn15b
+NarSize: 3894496
+References: 
+Deriver: gqgrjssa0ic17rincqdfng7kjxb2zkj2-cargo-package-windows_aarch64_gnullvm-0.52.6.drv
+Sig: cache.nixos.org-1:mQCcaokFbKcoJzn6oogiqXKkphRfp0OQIrb9yqAs9mrlFzjpnMnBr41I2YWeIO9QHWAUMOOZAVHn3MGxinOnAg==

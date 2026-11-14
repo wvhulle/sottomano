@@ -1,0 +1,10 @@
+StorePath: /nix/store/5jxf9375fx93k63g17isaa2k6mnhr4j4-cargo-package-roaring-0.11.5
+URL: nar/0im7nn9q6mr3rm3nvq6na1ngpwiv9ww26x8saglds9cjsw1vk3q8.nar.zst
+Compression: zstd
+FileHash: sha256:0im7nn9q6mr3rm3nvq6na1ngpwiv9ww26x8saglds9cjsw1vk3q8
+FileSize: 130024
+NarHash: sha256:1zrbjnihvgl1zl41swg6fxzbldg5qhvf2sbq0m68m1bh8v3afv3f
+NarSize: 835064
+References: 
+Deriver: w1r7nylxyac72f58hqinrcb7b3kp1kh8-cargo-package-roaring-0.11.5.drv
+Sig: wvhulle.cachix.org-1:zpkeRgiYDZDAzrUA6KcBnag6iNBpcKQZCvPWFqevXBlmaN/6g2nK/CGjZ/q2eRkPKvEEKC7F8MM/LQ0fAykOCg==

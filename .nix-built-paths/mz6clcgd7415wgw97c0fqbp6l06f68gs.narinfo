@@ -1,0 +1,10 @@
+StorePath: /nix/store/mz6clcgd7415wgw97c0fqbp6l06f68gs-cargo-package-target-lexicon-0.13.5
+URL: nar/0vx6x7sq2dav1drxpprczigmg3gv9kh9p9msii0zl64m7f35am3g.nar.zst
+Compression: zstd
+FileHash: sha256:0vx6x7sq2dav1drxpprczigmg3gv9kh9p9msii0zl64m7f35am3g
+FileSize: 28400
+NarHash: sha256:1m0a4x97qrrnh8agcd0p1x3pyylzfpd8df867cjqqi1gq5dcv71i
+NarSize: 126680
+References: 
+Deriver: gd86l5ifzkbh6igw6mw8ki6fwyssyd3i-cargo-package-target-lexicon-0.13.5.drv
+Sig: wvhulle.cachix.org-1:QfU1a8X2pH1anhOKb7+qjilAUHkNAWlKy+iQx7tK28pNhhjeT0yLz+7SWnFgewM09Pm8a323BMU/0Zum9BndCw==

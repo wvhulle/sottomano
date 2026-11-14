@@ -1,0 +1,10 @@
+StorePath: /nix/store/ckssqaksvhn4maqhmgsay62pjr6kyyvn-cargo-package-wayrs-core-1.0.5
+URL: nar/1j9k44vacqy38s0gxi22z6lcfadill99582m6mmzhjdzmxdd93cy.nar.zst
+Compression: zstd
+FileHash: sha256:1j9k44vacqy38s0gxi22z6lcfadill99582m6mmzhjdzmxdd93cy
+FileSize: 10541
+NarHash: sha256:07fwk5bdv5indmv2j44a8362hdbpa9940999kpqng9gjra28w1zw
+NarSize: 35664
+References: 
+Deriver: 1ywaj9gyix8ai4q8k56hing1zq46zwcq-cargo-package-wayrs-core-1.0.5.drv
+Sig: wvhulle.cachix.org-1:nvqLXyJ6H16YtqV4TISmn3fO2YfAAnHMu18GCECij5FXBjDHKelI1+EkuC3f/LoTY3of5Dm3fW9TrlOcFRTzCA==

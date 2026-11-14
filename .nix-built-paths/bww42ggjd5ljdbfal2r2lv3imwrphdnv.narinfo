@@ -1,0 +1,10 @@
+StorePath: /nix/store/bww42ggjd5ljdbfal2r2lv3imwrphdnv-cargo-package-paste-1.0.15
+URL: nar/1hvnq36h6ilqwq95xsiff7pk6pfn2gppjm5s0xjmcnwz0a5gxsbc.nar.zst
+Compression: zstd
+FileHash: sha256:1hvnq36h6ilqwq95xsiff7pk6pfn2gppjm5s0xjmcnwz0a5gxsbc
+FileSize: 19829
+NarHash: sha256:04xv6wda6k5px601g0gp0966jm0lgbvckijx8fppkva0w8kpbfdv
+NarSize: 80160
+References: 
+Deriver: cp210b7imn250yawbfgz2bh8p84wyps2-cargo-package-paste-1.0.15.drv
+Sig: wvhulle.cachix.org-1:Q1X8BeybHqwfd7WeaUYqEn8ai4SxeJDyRkvF8nSZz/9JmF50co593o/4OeovyMsGNrts4tmjmqWS025GR5hRDA==

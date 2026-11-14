@@ -1,0 +1,10 @@
+StorePath: /nix/store/7mi35ipc7bmmqb097d22nq28bqaigpac-cargo-package-xdg-3.0.0
+URL: nar/025fj3sn4s715yhvvavv4km0kwl323fy6mwjqwsgv1rj3zixhr3m.nar.zst
+Compression: zstd
+FileHash: sha256:025fj3sn4s715yhvvavv4km0kwl323fy6mwjqwsgv1rj3zixhr3m
+FileSize: 17212
+NarHash: sha256:0jz51iyddvwi6h3z5wikmf5z2vlsjynvn7xdsyrgf8mq4pi6w7fk
+NarSize: 79112
+References: 
+Deriver: z0ww3wblmmykrp81hr5h8x1s9xdq5pb4-cargo-package-xdg-3.0.0.drv
+Sig: cache.nixos.org-1:/Hb2Gf8NPMSpcgBj1+kV0bQR0kNC8Giv+le2USntDX4FhsZMMpeER+EruFTBydiKQyqDmgcOGsti0KM78/29Aw==

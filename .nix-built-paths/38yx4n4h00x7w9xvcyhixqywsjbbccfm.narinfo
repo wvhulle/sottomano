@@ -1,0 +1,10 @@
+StorePath: /nix/store/38yx4n4h00x7w9xvcyhixqywsjbbccfm-cargo-package-zbus_macros-5.19.0
+URL: nar/0qs9y6ywsqx702azzk2jsv8wfvq1k2krkq9yjzadhs1f98py1fiw.nar.zst
+Compression: zstd
+FileHash: sha256:0qs9y6ywsqx702azzk2jsv8wfvq1k2krkq9yjzadhs1f98py1fiw
+FileSize: 42175
+NarHash: sha256:1zvc08zd23j9z2s8s2gz8ipfq2x27asq7da86ifxpzbagvls2sxi
+NarSize: 178056
+References: 
+Deriver: fy48xib316zspzqxrina2yybi5d3x7k4-cargo-package-zbus_macros-5.19.0.drv
+Sig: wvhulle.cachix.org-1:1gVyk+Rpq3HX+a2bNYhQBZQerUVu73WcMTKsaMbBCk73JUXM/lrtmDMI33bKI43TTAeiZVRXz5pjGKVKUtfKAw==

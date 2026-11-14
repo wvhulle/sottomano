@@ -1,0 +1,10 @@
+StorePath: /nix/store/i50c09z6dgznnhbww6v668cnzlggaxgk-cargo-package-prettyplease-0.2.37
+URL: nar/16x9rn44jqrxr3dkznrysfmpkc7lwbnlpg10q3hhpxdzwjjfm4pd.nar.zst
+Compression: zstd
+FileHash: sha256:16x9rn44jqrxr3dkznrysfmpkc7lwbnlpg10q3hhpxdzwjjfm4pd
+FileSize: 74691
+NarHash: sha256:0f4hjg9cvaz1p2x0yljpal2350z7y3rhzh5wsbhiaib1zamlvvyn
+NarSize: 426104
+References: 
+Deriver: zb5nmyjgv56h683ivkb4wv3kpzy8jcjm-cargo-package-prettyplease-0.2.37.drv
+Sig: cache.nixos.org-1:R/R36PTKWFN7bzheqo0u23gOdtLPQ1wMfV3es3EdiQsktODbPzJVN+rMF/rX06wVcnWsM+ZBprohSjLwgR0oAA==

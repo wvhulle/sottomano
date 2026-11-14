@@ -1,0 +1,10 @@
+StorePath: /nix/store/z10f2w0lskgfyxip1c5iaxswrj74l6yv-cargo-package-zune-jpeg-0.5.15
+URL: nar/1vfajdji1703ryl636xh8ij26m92w88scs9fllc28h0znxnkl366.nar.zst
+Compression: zstd
+FileHash: sha256:1vfajdji1703ryl636xh8ij26m92w88scs9fllc28h0znxnkl366
+FileSize: 90940
+NarHash: sha256:1yxhb84l8p38m3q0bwrq5s7hv08bpa1jnb6vfjn1xwl9nwvjab7i
+NarSize: 381872
+References: 
+Deriver: dikm2i75xg9fsv1hd5kwh0sxcdkv7m2v-cargo-package-zune-jpeg-0.5.15.drv
+Sig: wvhulle.cachix.org-1:38Nb5DuhWobWe3pPHBXyi151oywdC2RdLaMJTcJcPl8/cQNaQvgpJg13Acvzz0tvfKlqfgH372GiJTv/iY+rCw==

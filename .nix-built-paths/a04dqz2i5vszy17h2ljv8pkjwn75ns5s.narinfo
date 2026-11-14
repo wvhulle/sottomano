@@ -1,0 +1,10 @@
+StorePath: /nix/store/a04dqz2i5vszy17h2ljv8pkjwn75ns5s-cargo-package-dlib-0.5.3
+URL: nar/15df368jaalbwcs7iqzqmfhmlpc9k42yrmqahxsd61jchvid3rd8.nar.zst
+Compression: zstd
+FileHash: sha256:15df368jaalbwcs7iqzqmfhmlpc9k42yrmqahxsd61jchvid3rd8
+FileSize: 7688
+NarHash: sha256:19vy7fhld5sfrkdfnlckjiqif6wnfnrhfm3kjffyb1gfdp901ljm
+NarSize: 29584
+References: 
+Deriver: xrqsqh56pdpaa7q604kahiiqcam5zvwz-cargo-package-dlib-0.5.3.drv
+Sig: wvhulle.cachix.org-1:6fPoTDFo065CTdLh54diWsjrtVJxwp8++tSJ2cQRa3fN8nXLy265UX8/eJvff3PdJvFXdTr7vG32b1s50ociDw==

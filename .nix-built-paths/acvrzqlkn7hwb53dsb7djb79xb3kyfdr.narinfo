@@ -1,0 +1,10 @@
+StorePath: /nix/store/acvrzqlkn7hwb53dsb7djb79xb3kyfdr-cargo-package-hyper-rustls-0.27.10
+URL: nar/0i5rqkwz2aw2pdvncjz2sa1ybk81f9qm18yayzxlhxp5lba8cqyy.nar.zst
+Compression: zstd
+FileHash: sha256:0i5rqkwz2aw2pdvncjz2sa1ybk81f9qm18yayzxlhxp5lba8cqyy
+FileSize: 24556
+NarHash: sha256:05daqdh5494yyxwn4dx859hdblqz75nnap2vl1llq3fg166ag5cv
+NarSize: 90896
+References: 
+Deriver: hpl6d3k1sny207ybs9v9ny0pr1lcs61c-cargo-package-hyper-rustls-0.27.10.drv
+Sig: wvhulle.cachix.org-1:ziD52NvTk/qnm7eKDiEbkfmHgMsU3QDxoqRBRfnYQ6WypHrQ277Ct0Eud1dCX5C9uuFMJK++sfSZpLFrw0ToBA==

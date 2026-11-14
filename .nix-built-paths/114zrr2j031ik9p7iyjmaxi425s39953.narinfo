@@ -1,0 +1,10 @@
+StorePath: /nix/store/114zrr2j031ik9p7iyjmaxi425s39953-cargo-package-svgtypes-0.16.1
+URL: nar/1j3mnxmlkazdyiy7yl273qg8mznwbdb5mgfbj2c4m0dgkb26bj1f.nar.zst
+Compression: zstd
+FileHash: sha256:1j3mnxmlkazdyiy7yl273qg8mznwbdb5mgfbj2c4m0dgkb26bj1f
+FileSize: 46703
+NarHash: sha256:0jb7rz97adjsfd3ryyh6l8yafbsm39hflrdg2igd1vmmashfr7a3
+NarSize: 227080
+References: 
+Deriver: k5bs45xlx3fvp2cdlv57k934bdvqv9rr-cargo-package-svgtypes-0.16.1.drv
+Sig: wvhulle.cachix.org-1:gVjtrwLaAniS5G6uTIoeKLRuk3NmAbtzUn8IIw8462opVpUXj+92CoI6yVnnfdmWjY9p/Vje6t2Jwz4tXWp0Ag==

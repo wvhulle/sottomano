@@ -1,0 +1,10 @@
+StorePath: /nix/store/85c2v724y7j5l3y3n1fqvzgn9kvpvgbp-cargo-package-etagere-0.2.15
+URL: nar/0xbxki23acn59964iy0ln1pzqi8yb3p2kzfmmyjrqpb0qxl8qwzj.nar.zst
+Compression: zstd
+FileHash: sha256:0xbxki23acn59964iy0ln1pzqi8yb3p2kzfmmyjrqpb0qxl8qwzj
+FileSize: 21750
+NarHash: sha256:1ni7yvz4xc0gdi50bz8lwj8skjc76sk0q5fcdwd0in3833mmn02k
+NarSize: 98912
+References: 
+Deriver: i5p6blvn12xrk81bawxa2b3bdxq4kwq0-cargo-package-etagere-0.2.15.drv
+Sig: wvhulle.cachix.org-1:MhCqhXjXRkBa9BngMAdBcC3CzYxrri7XOw4+tSo9JY8p/hJ2+7xJeDXi9L2hkfN7W4cwidMv4dmnkuAo4JTlBg==

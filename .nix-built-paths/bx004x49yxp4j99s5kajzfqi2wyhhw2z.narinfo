@@ -1,0 +1,10 @@
+StorePath: /nix/store/bx004x49yxp4j99s5kajzfqi2wyhhw2z-cargo-package-zcheapstr-1.1.0
+URL: nar/013fdrsxjl02pbslz024m58ak5hqaqwjagvmndz6hln76xyjgzch.nar.zst
+Compression: zstd
+FileHash: sha256:013fdrsxjl02pbslz024m58ak5hqaqwjagvmndz6hln76xyjgzch
+FileSize: 13823
+NarHash: sha256:02jdmppw7cqw6yaps9zdfd6psm33mvcwhhi3c4m3a6jv6zq0xn0f
+NarSize: 43560
+References: 
+Deriver: iz57v519x125q3599fls3p18arb719zj-cargo-package-zcheapstr-1.1.0.drv
+Sig: wvhulle.cachix.org-1:RYvqelUYB4ISyUYaaJ5lN5FhTRG3RgkO1w41iegeGYQdApFUfraGxvE2qpv1tA83UBxZacT7cKh+9lEWZi7XCA==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/0i6xb448yp77i8s6j90dwghdaqfyx7jn-cargo-package-tokio-rustls-0.26.6
+URL: nar/13f03qi7dllpc54ss6mfrylr0nbfj83rg4bq18zl7vl04ajf36bx.nar.zst
+Compression: zstd
+FileHash: sha256:13f03qi7dllpc54ss6mfrylr0nbfj83rg4bq18zl7vl04ajf36bx
+FileSize: 29489
+NarHash: sha256:0jz8w0mijrr9v8mhl4g23jcr5wl8ybfj6gxkwsrd9q2j35yzh92c
+NarSize: 122736
+References: 
+Deriver: bnp4773rl7m8fjlhr08b9hhyxnh5zxpk-cargo-package-tokio-rustls-0.26.6.drv
+Sig: wvhulle.cachix.org-1:Msh93sJmqNl65lELzaeMsPCN+YjA092JIE1qSuf0GzyWB0ijcXfM7+ugsFzKQgXH0t9x4zfbWSWjGS9j8e2HDA==

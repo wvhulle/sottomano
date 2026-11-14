@@ -1,0 +1,10 @@
+StorePath: /nix/store/y2k71q59blzbcpvr7ghm2d82spn4q38j-cargo-package-cryoglyph-0.1.0
+URL: nar/09vlbi3yrhalv13d52q8qb95kalkicxp2cdw53jbcnf90gqhs17w.nar.zst
+Compression: zstd
+FileHash: sha256:09vlbi3yrhalv13d52q8qb95kalkicxp2cdw53jbcnf90gqhs17w
+FileSize: 247377
+NarHash: sha256:11wh88kjw0mpgakyqqwqrr2wyrpc3bzg15g9k2afxc2kzxyhwpk8
+NarSize: 615128
+References: 
+Deriver: lyn1adlpvq9wqkyll48i0502vvdga0aq-cargo-package-cryoglyph-0.1.0.drv
+Sig: wvhulle.cachix.org-1:tpGk7I4jLyNGq4pWSxeXQD1Au1RgmjKsTd+4F+uU9w6W8rwM/IHUUoA71gVTcpJNXNPT8rEBMrMmyDuUP9VNDw==

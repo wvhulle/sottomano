@@ -1,0 +1,10 @@
+StorePath: /nix/store/089d2w8ydi19djgg2wl1giw0p4wx9z79-cargo-package-objc2-ui-kit-0.2.2
+URL: nar/1nnkryqf5gssdbsyx5m6a7namjdsw99pl7p7dgp29qp7l3ar20hg.nar.zst
+Compression: zstd
+FileHash: sha256:1nnkryqf5gssdbsyx5m6a7namjdsw99pl7p7dgp29qp7l3ar20hg
+FileSize: 315938
+NarHash: sha256:0n9477wp53ms38ndkhxkdm6p8325gxz7lk70grpj3i53b447np66
+NarSize: 3056496
+References: 
+Deriver: jn72ivlhwg7vkwgws67h5harfb2ijzd3-cargo-package-objc2-ui-kit-0.2.2.drv
+Sig: wvhulle.cachix.org-1:y5srJMHJ0FUcjD7ZOuBZp4VBBZwDaET/ZmXStRNnDFgFy6gEQsqoS2pVOtjmVROnulAmA8fI22pHk9RhAsjWDg==

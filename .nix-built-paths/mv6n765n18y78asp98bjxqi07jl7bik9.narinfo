@@ -1,0 +1,9 @@
+StorePath: /nix/store/mv6n765n18y78asp98bjxqi07jl7bik9-linkLockedDeps
+URL: nar/0y4ny7c6k4mvsv4xmhrcrvx6dghyjnw3kag9f51xwmd8lcnchri3.nar.zst
+Compression: zstd
+FileHash: sha256:0y4ny7c6k4mvsv4xmhrcrvx6dghyjnw3kag9f51xwmd8lcnchri3
+FileSize: 246
+NarHash: sha256:12zm64r15bdsmplh3fk2viqwd907hdrsd2s21l1q1cq06x9m8pfs
+NarSize: 432
+References: 84yd3njzpgk38a9yr5k7gdx3zy6j6n0n-cargo-git-https-github.com-niri-wm-niri-bc6d4ec00fa422bce3043ba30faefda694c13024
+Deriver: qd7adqxvna4aqlhfz60f8firxvq94xrv-linkLockedDeps.drv

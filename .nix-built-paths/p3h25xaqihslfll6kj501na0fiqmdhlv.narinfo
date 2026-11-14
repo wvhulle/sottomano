@@ -1,0 +1,10 @@
+StorePath: /nix/store/p3h25xaqihslfll6kj501na0fiqmdhlv-cargo-package-strum_macros-0.26.4
+URL: nar/05zfgxrqqfj7glygascf2ybip9q7cjvms156ds5r4mxxzf63nryj.nar.zst
+Compression: zstd
+FileHash: sha256:05zfgxrqqfj7glygascf2ybip9q7cjvms156ds5r4mxxzf63nryj
+FileSize: 30008
+NarHash: sha256:13ypvja23ybmvg93x6dykbnw0avia6my3hbafa504p9q70kycirb
+NarSize: 139728
+References: 
+Deriver: rmbqzq6b4724d6ksmv53jq26b3vzdla6-cargo-package-strum_macros-0.26.4.drv
+Sig: wvhulle.cachix.org-1:D29iSCwhh9K9ikV1QKIPzXJT1sRTnccKGhc/45aj5y6Yv6PRWQKFII15TFwDm9YFQjbVO+bZHhWeXXGsSEyfAQ==

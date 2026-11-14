@@ -1,0 +1,10 @@
+StorePath: /nix/store/md94g1x3sqay5ivv93chhn64zjaykk3h-cargo-package-crypto-common-0.1.7
+URL: nar/0d4rvagj53ri7r2hdx4h66wqykls7wqk6710n9nlb063xn8gzdsd.nar.zst
+Compression: zstd
+FileHash: sha256:0d4rvagj53ri7r2hdx4h66wqykls7wqk6710n9nlb063xn8gzdsd
+FileSize: 10127
+NarHash: sha256:002ivbfsp3dn96bn8n5qas4whwdyj11h0c9rflxzkacr3rij68m4
+NarSize: 30904
+References: 
+Deriver: dxwn6g48qvjh2bhyklnfk97f1yj7xl2l-cargo-package-crypto-common-0.1.7.drv
+Sig: wvhulle.cachix.org-1:NM8FGkgwywY3bU9XfO5H3t/Mh0s0QJRfbjVtNOkqjCLtLTTSOqlGOAJyZEglRy8ogs+lyEx2I/KYPdh542gUBA==

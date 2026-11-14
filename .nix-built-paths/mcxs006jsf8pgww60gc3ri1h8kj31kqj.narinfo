@@ -1,0 +1,10 @@
+StorePath: /nix/store/mcxs006jsf8pgww60gc3ri1h8kj31kqj-cargo-package-xkeysym-0.2.1
+URL: nar/10rh45f6j6mhcrs9cvcmmpwn5zl5szj0pzpin6wlc5j9y2mlaxgn.nar.zst
+Compression: zstd
+FileHash: sha256:10rh45f6j6mhcrs9cvcmmpwn5zl5szj0pzpin6wlc5j9y2mlaxgn
+FileSize: 100429
+NarHash: sha256:0n45ghiwmim2cb49k6g5ick4w9jlx6pbcz6v0wprq8flb2d354d2
+NarSize: 761912
+References: 
+Deriver: 9wd1bhbzwvzk6679wy5wjrn0rn72k8d8-cargo-package-xkeysym-0.2.1.drv
+Sig: wvhulle.cachix.org-1:v/kIkYJviVImkmtAnNpXicaCRX65DtHZndaoAec1ZWHE6uNTleJwQi3InwBvybu9ovKOHlitEWeCva8OIoJxBQ==

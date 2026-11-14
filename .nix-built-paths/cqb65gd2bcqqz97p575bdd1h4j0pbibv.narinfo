@@ -1,0 +1,10 @@
+StorePath: /nix/store/cqb65gd2bcqqz97p575bdd1h4j0pbibv-cargo-package-quinn-proto-0.11.19
+URL: nar/1sr259jmbr03afbf08xgdgz0hmclg95nrfz92sjx2rwv5z7fq0ka.nar.zst
+Compression: zstd
+FileHash: sha256:1sr259jmbr03afbf08xgdgz0hmclg95nrfz92sjx2rwv5z7fq0ka
+FileSize: 265135
+NarHash: sha256:0l2h52vy8n39726xibq7rz037b7dy7w18p5bx286ahi9syk3ghmh
+NarSize: 1184624
+References: 
+Deriver: 4m22sh2gb81lq8vw4cg0lf1rjnchr5k6-cargo-package-quinn-proto-0.11.19.drv
+Sig: wvhulle.cachix.org-1:eWYz65ENh0DrfSaAaYWApoDp2Jt2tdEIx7SrdpsNJt3C8824KrcaXuvZlPskTxbgm7N993tMMm151Sgs4JUMBQ==

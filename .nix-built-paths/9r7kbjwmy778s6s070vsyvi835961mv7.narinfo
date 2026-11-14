@@ -1,0 +1,10 @@
+StorePath: /nix/store/9r7kbjwmy778s6s070vsyvi835961mv7-cargo-package-bit-vec-0.8.0
+URL: nar/00v28dg6y1yff5dbhapwn8l5mqvd4272cgz10g4by5qyg82bgk0z.nar.zst
+Compression: zstd
+FileHash: sha256:00v28dg6y1yff5dbhapwn8l5mqvd4272cgz10g4by5qyg82bgk0z
+FileSize: 27122
+NarHash: sha256:1rjagpw43l6wpyw2bbzd6zqpc1r69fzv87nhla5d8d90pxhixpcq
+NarSize: 127584
+References: 
+Deriver: 8n5vni9ix97f11m2gm3lj4kq635i8sap-cargo-package-bit-vec-0.8.0.drv
+Sig: wvhulle.cachix.org-1:38tyoAZNofKnZkH7WNpalmI81kcikn/YocIN8qfXO8gvzZoLgsJyH6g0oOUVrLizlRsC+UBX2G6lC7oiLvOgCQ==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/h5z6zq7f45rzn9z3aa511y8v4z0m3s9h-cargo-package-guillotiere-0.6.2
+URL: nar/0667nbq8z6prqhhpmq2zh81s56j3r62p3nxhiq4c4v9acwp3ib6s.nar.zst
+Compression: zstd
+FileHash: sha256:0667nbq8z6prqhhpmq2zh81s56j3r62p3nxhiq4c4v9acwp3ib6s
+FileSize: 20192
+NarHash: sha256:0ywiggh1z6bmwx3k917i6w3iiw4i36cx8h3z726in4civf3iak85
+NarSize: 87040
+References: 
+Deriver: 2asrff9hsi2lp1zv9d2g9rh80fb0a9zg-cargo-package-guillotiere-0.6.2.drv
+Sig: wvhulle.cachix.org-1:W3iagJV9Y9OEj+5Re+ELP85tS5Wyt+cbf5TB8zQIobzDPdTwaNghmiX6r9IwZsBJE0QycteWmGaX9Iv4xusbDw==

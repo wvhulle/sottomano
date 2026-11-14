@@ -1,0 +1,10 @@
+StorePath: /nix/store/k4j9ammvplnz22dd48ixy4242krq1k75-cargo-package-tracing-subscriber-0.3.23
+URL: nar/0psqiz8518w1r0ygmnv0jifk0vlivmnxxypx16z8y1ylg38wf39c.nar.zst
+Compression: zstd
+FileHash: sha256:0psqiz8518w1r0ygmnv0jifk0vlivmnxxypx16z8y1ylg38wf39c
+FileSize: 213362
+NarHash: sha256:1nr37n13nf09nxag8nss4qbfn20vfzpxnmqz22y3jy923k1r750y
+NarSize: 1102728
+References: 
+Deriver: zffgq7s0c6q4w63bapmwkdb3si1nd4l6-cargo-package-tracing-subscriber-0.3.23.drv
+Sig: wvhulle.cachix.org-1:X5sRbblQOh2ZCk5MVwK4+bAU4euDuVDtSizxfnbH/BXKsPjN4EJW3y6qjP1fz8dRWQmzY+DuM594S+0+MDlgBw==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/jdrpj7mh0wcwjpyzk9x03x4n43gv73jz-cargo-package-quick-error-2.0.1
+URL: nar/1h66mgzv1zwva02l70y8cks1yd33ric0575x183hqg6nmh9h9bvi.nar.zst
+Compression: zstd
+FileHash: sha256:1h66mgzv1zwva02l70y8cks1yd33ric0575x183hqg6nmh9h9bvi
+FileSize: 15641
+NarHash: sha256:0dacznrv6x5jz225jrgs77phspblhkjvz3rnahsa9zr0ppagjj2r
+NarSize: 66632
+References: 
+Deriver: prx5cmr3wd0bhr9rpaa7amcrpjy5na21-cargo-package-quick-error-2.0.1.drv
+Sig: wvhulle.cachix.org-1:9/1WelG+0w47TTT1oZqRWpE3DvyU3+jkrmaE908B18fGV7Xo/VUIFa5Uw/cNsJyfqvVzaBZTlDy9dBPnnyTeCw==

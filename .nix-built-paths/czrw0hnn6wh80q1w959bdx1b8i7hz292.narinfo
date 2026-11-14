@@ -1,0 +1,10 @@
+StorePath: /nix/store/czrw0hnn6wh80q1w959bdx1b8i7hz292-cargo-package-ghash-0.5.1
+URL: nar/1sd78yb248q74p30f7i401qcb0s0x0d6ps32xvq16sbgcsw9y06d.nar.zst
+Compression: zstd
+FileHash: sha256:1sd78yb248q74p30f7i401qcb0s0x0d6ps32xvq16sbgcsw9y06d
+FileSize: 10047
+NarHash: sha256:1ci6cjc46z5lc4rlfc0m46dv57rdbalvxxvvcjamyvyqsigxcp60
+NarSize: 28240
+References: 
+Deriver: aa4cbp0mnzikplzdnmni81x01qksgcdq-cargo-package-ghash-0.5.1.drv
+Sig: wvhulle.cachix.org-1:n6Gxl7WHvTEbwTj5wYjmo58VJTTolhqKH1sWAVXrhW+QKpIgl/+YDrzdSOjeXra6kxOFr3W3e6RLcBk2/7mhDg==

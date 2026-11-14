@@ -1,0 +1,10 @@
+StorePath: /nix/store/5zqlmk65dryr5vi9md8qy21nk0n499na-cargo-package-try-lock-0.2.5
+URL: nar/1q5f6pv9cdw8l1fcdxf9bcj0v90yy6ly4i7ppw2sj07xa7r9d40h.nar.zst
+Compression: zstd
+FileHash: sha256:1q5f6pv9cdw8l1fcdxf9bcj0v90yy6ly4i7ppw2sj07xa7r9d40h
+FileSize: 4622
+NarHash: sha256:0bn3r3z0nic2c21j71fg4l6idpxaykjk6a7n3g1sy9ysqz8c0hbz
+NarSize: 14648
+References: 
+Deriver: xr49nm2x5anjc25wkdxc1m6jma59rgrz-cargo-package-try-lock-0.2.5.drv
+Sig: cache.nixos.org-1:V1te1yB97xEJ/0+XirYK1kjdUsLmx4iRaG1OqyYM0MUr2L+dPVM0FkpTmAB52LPX9xsfQ8K8PojdccIfQUrtDw==

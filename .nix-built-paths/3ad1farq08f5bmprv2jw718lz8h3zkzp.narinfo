@@ -1,0 +1,10 @@
+StorePath: /nix/store/3ad1farq08f5bmprv2jw718lz8h3zkzp-cargo-package-virt-sys-0.3.1
+URL: nar/129kahd8mkxkmma0zmg89jxr62q2qgfavxdvr73zb9c5mlkx4mf2.nar.zst
+Compression: zstd
+FileHash: sha256:129kahd8mkxkmma0zmg89jxr62q2qgfavxdvr73zb9c5mlkx4mf2
+FileSize: 37158
+NarHash: sha256:0jgcyk5s5y294liz8gfrabyfvgq44js0zhanmn3dan6n790dljba
+NarSize: 321040
+References: 
+Deriver: 8xa70mi9h04q1nfwbw03hpb3bvny9sdm-cargo-package-virt-sys-0.3.1.drv
+Sig: wvhulle.cachix.org-1:iss3WX3vNhIADF2tOR+kKldsveRtP1FMEKKhZATyO3l4mDClpvB139HNRnKn3NT4X/voh9iQlnMKbUt1FGP9AA==

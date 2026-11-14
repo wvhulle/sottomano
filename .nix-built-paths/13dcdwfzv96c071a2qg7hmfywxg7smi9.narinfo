@@ -1,0 +1,10 @@
+StorePath: /nix/store/13dcdwfzv96c071a2qg7hmfywxg7smi9-cargo-package-cpufeatures-0.2.17
+URL: nar/00srgzqngh5bxkvhx1xfbgpr3xb7jn2vk7gyvyvqjc2jqy20668a.nar.zst
+Compression: zstd
+FileHash: sha256:00srgzqngh5bxkvhx1xfbgpr3xb7jn2vk7gyvyvqjc2jqy20668a
+FileSize: 14335
+NarHash: sha256:0jh67zqqfim4yhc7cm9h1vpjp4ni7afm8h8ngh7ya9fska0qn2il
+NarSize: 48184
+References: 
+Deriver: kk175krxs2i9zl6d2hi31q3w2gxp6lc0-cargo-package-cpufeatures-0.2.17.drv
+Sig: cache.nixos.org-1:6HKncHneEYGCV6mZLpGyXWDkLrYR4dTuIQb0ty475in7aE1xHcJua5NxlmHFpslTZ/Hu75x3uMIoseMd1mZ3Cw==

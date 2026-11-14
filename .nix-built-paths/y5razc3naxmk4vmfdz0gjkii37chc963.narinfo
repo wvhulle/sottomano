@@ -1,0 +1,10 @@
+StorePath: /nix/store/y5razc3naxmk4vmfdz0gjkii37chc963-cargo-package-gettext-sys-0.27.0
+URL: nar/1hq8hh6nmvpx2rbw3qi7dkzqivbnzimzkgqxnbjp8j05lzsyplk6.nar.zst
+Compression: zstd
+FileHash: sha256:1hq8hh6nmvpx2rbw3qi7dkzqivbnzimzkgqxnbjp8j05lzsyplk6
+FileSize: 10420995
+NarHash: sha256:06chany9is94rn8rb8kxx3din99zhsxrjlh3xdqk0yjvmxk28gqg
+NarSize: 10434040
+References: 
+Deriver: 8b6pgr0ks8cip93l38hzwp0djnbn5r3n-cargo-package-gettext-sys-0.27.0.drv
+Sig: wvhulle.cachix.org-1:2bVwoREWtAXwQmw4F8azEM1aeHglEnlw1wQ0SkdLkDtDevqKOan1rWuQMh2kS9b5OhzdScLapFqrrqZBcsIfCw==

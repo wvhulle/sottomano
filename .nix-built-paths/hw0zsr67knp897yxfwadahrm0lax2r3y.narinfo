@@ -1,0 +1,10 @@
+StorePath: /nix/store/hw0zsr67knp897yxfwadahrm0lax2r3y-cargo-package-compression-codecs-0.4.46
+URL: nar/1ahakpkjkgcdnb10pya8fvf92zbiziqxjdn2pp3j54pq4nzr2czk.nar.zst
+Compression: zstd
+FileHash: sha256:1ahakpkjkgcdnb10pya8fvf92zbiziqxjdn2pp3j54pq4nzr2czk
+FileSize: 38300
+NarHash: sha256:1d7kshgiik4s34i2ip05xxnbi1b9ik75sydpzknbmxi33j41rj2l
+NarSize: 189200
+References: 
+Deriver: kshgnhylfjw7svwcav8d68zlsb97fwrv-cargo-package-compression-codecs-0.4.46.drv
+Sig: wvhulle.cachix.org-1:5xdtR6wLXCZkqtCyT3Pxh+jHBhl4efdSkK2F1qPgNMy9AQcP2Tm04Gx2bJONPusPNJ4bB7imCg0fgBNX4UeEBg==

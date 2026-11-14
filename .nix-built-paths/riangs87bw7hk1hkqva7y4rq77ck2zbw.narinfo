@@ -1,0 +1,9 @@
+StorePath: /nix/store/riangs87bw7hk1hkqva7y4rq77ck2zbw-linkLockedDeps
+URL: nar/01wx32jp5icx4a5g8rv56i9y3x4zqz76kp0vdml219f9z0jrj9b2.nar.zst
+Compression: zstd
+FileHash: sha256:01wx32jp5icx4a5g8rv56i9y3x4zqz76kp0vdml219f9z0jrj9b2
+FileSize: 420
+NarHash: sha256:07kmhfnjhz0lppmwlrsjsmrw60jffgbcminfrwh9rymfbzx9hgj6
+NarSize: 2352
+References: 2mw6a448jlxw16lv76022fpll1agiy78-cargo-git-https-github.com-wvhulle-exwlshelleventloop.git-6fcda18cd313770e62d9d96a9bd3220503b7918f
+Deriver: q98hm0ha4bnaz97irw9pgxq1b7crhyhp-linkLockedDeps.drv

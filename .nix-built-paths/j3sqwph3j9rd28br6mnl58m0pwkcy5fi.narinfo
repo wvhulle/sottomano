@@ -1,0 +1,10 @@
+StorePath: /nix/store/j3sqwph3j9rd28br6mnl58m0pwkcy5fi-cargo-package-futures-channel-0.3.34
+URL: nar/0jg02mlcwhhjd6mbkrcac5nvfskv5sfc9kjgnlnbq26f0sky1dj4.nar.zst
+Compression: zstd
+FileHash: sha256:0jg02mlcwhhjd6mbkrcac5nvfskv5sfc9kjgnlnbq26f0sky1dj4
+FileSize: 35173
+NarHash: sha256:0d2bpa1ms410a8sy008xqfs8dzy8nmphczcfbr37dp04rwf4gm6n
+NarSize: 146488
+References: 
+Deriver: 2xk4j92ym7y5amjq72mm2z0pffw0r5np-cargo-package-futures-channel-0.3.34.drv
+Sig: wvhulle.cachix.org-1:p3M5yublRrPpx5LqoPLhsMfdvRCdA75m4Dl8/CIAuz1fZnVw/i2mikQ+1RzZ+j6vSsRP4ccaBq8JxCM/zbPOAw==

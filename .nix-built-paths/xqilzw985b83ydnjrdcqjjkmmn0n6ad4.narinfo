@@ -1,0 +1,10 @@
+StorePath: /nix/store/xqilzw985b83ydnjrdcqjjkmmn0n6ad4-cargo-package-sync_wrapper-1.0.2
+URL: nar/0z34qwvhw2s669xk1gjgqav4v7l02m600pmyw4i874fncminb9k7.nar.zst
+Compression: zstd
+FileHash: sha256:0z34qwvhw2s669xk1gjgqav4v7l02m600pmyw4i874fncminb9k7
+FileSize: 7345
+NarHash: sha256:0fdwgw9csaz7vilpggj6idz6zd9m53wss7g3l85q9sddlv6r8pyx
+NarSize: 22720
+References: 
+Deriver: 88gw6mfjmiy1fxq0dvfj4d3zrn7sb6gn-cargo-package-sync_wrapper-1.0.2.drv
+Sig: cache.nixos.org-1:BASTCc/0Uz9Iaa4LbujfuOyjpTQDjRuJV4agHuWbK0gHeNlGbBkpfB0bVd1T/w7q7wRp/9pdXnoqk5VYLS8XBA==

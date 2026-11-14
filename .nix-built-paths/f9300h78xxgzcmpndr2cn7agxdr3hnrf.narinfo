@@ -1,0 +1,10 @@
+StorePath: /nix/store/f9300h78xxgzcmpndr2cn7agxdr3hnrf-cargo-package-orbclient-0.3.55
+URL: nar/06kikbdisxmj95ndgl17j8d89xj5849378y4aqr93k1bmpcf3ksk.nar.zst
+Compression: zstd
+FileHash: sha256:06kikbdisxmj95ndgl17j8d89xj5849378y4aqr93k1bmpcf3ksk
+FileSize: 1409707
+NarHash: sha256:0c6y81x87arxfpvv67p5240wc0ijvl4v0l3kyvh7kji0pf30fxdv
+NarSize: 5008408
+References: 
+Deriver: h94ski1sml69nldd77xn7xaahrswc760-cargo-package-orbclient-0.3.55.drv
+Sig: wvhulle.cachix.org-1:9VhQJEZHgV6V8OrNIBzqlyML3412dXvnbyYBhaTIGfk91mQttu7V1uqlUNZKTw9mjW47YMb7S/BytpQT2M+YBw==

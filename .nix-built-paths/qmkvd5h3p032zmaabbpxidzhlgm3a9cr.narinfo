@@ -1,0 +1,10 @@
+StorePath: /nix/store/qmkvd5h3p032zmaabbpxidzhlgm3a9cr-cargo-package-regex-syntax-0.8.11
+URL: nar/0cxwc96c9ax95z4d2m6sgv1jqys50bv18gyi8ai2a03dbdh286v3.nar.zst
+Compression: zstd
+FileHash: sha256:0cxwc96c9ax95z4d2m6sgv1jqys50bv18gyi8ai2a03dbdh286v3
+FileSize: 267772
+NarHash: sha256:1qp3la7csmxj135fxwng0az2y5jck760slr5lrf2vl8c7rkfl22p
+NarSize: 1691592
+References: 
+Deriver: z0gsmi1aqradv7lspgh1ryc3dhzc1x2v-cargo-package-regex-syntax-0.8.11.drv
+Sig: cache.nixos.org-1:4A4EW26E7TJt5tfkJTS/Ztzka2n6ANtZJypXPxxqImrsvA6MDc0MQxF+N1AVBBmKHmmuoWkVVZC3CkYUUaz6AA==

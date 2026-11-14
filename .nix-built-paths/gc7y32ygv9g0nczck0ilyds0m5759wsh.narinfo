@@ -1,0 +1,10 @@
+StorePath: /nix/store/gc7y32ygv9g0nczck0ilyds0m5759wsh-cargo-package-systemd-0.10.1
+URL: nar/0wsazfijwylnf0wzcsdhcpf3rmb8ias2bwyqxcy3c7apdmhiw6df.nar.zst
+Compression: zstd
+FileHash: sha256:0wsazfijwylnf0wzcsdhcpf3rmb8ias2bwyqxcy3c7apdmhiw6df
+FileSize: 47668
+NarHash: sha256:1z47hds6l2nms1kw9px29rpn71l0p0000hzav21jdxpm13x18jk6
+NarSize: 183928
+References: 
+Deriver: 1mrizvdbdvzmj65rvx2r623n8sd1vlqq-cargo-package-systemd-0.10.1.drv
+Sig: wvhulle.cachix.org-1:T+GeoGk3JbFtBScjkRNBG083QOhCrRXWOe5SwV5fOcdJ89fjmgieK/2JRuSSiJf2KoTwpOXVw8eSDnuab+1BDQ==

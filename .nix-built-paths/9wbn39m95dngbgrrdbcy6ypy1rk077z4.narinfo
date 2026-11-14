@@ -1,0 +1,10 @@
+StorePath: /nix/store/9wbn39m95dngbgrrdbcy6ypy1rk077z4-cargo-package-rand_chacha-0.9.0
+URL: nar/1rdiy8784ivmkb3kd7cwfz8xj7y1jmb8xh3byf7apkf26s4r62v9.nar.zst
+Compression: zstd
+FileHash: sha256:1rdiy8784ivmkb3kd7cwfz8xj7y1jmb8xh3byf7apkf26s4r62v9
+FileSize: 19520
+NarHash: sha256:166ixpy37a7q1s9c92aaamc3v1mslzdjcl0nkl877s1cr2snv3z6
+NarSize: 64768
+References: 
+Deriver: h28kayraakag1r72nlrqmi7l9rgi2r8m-cargo-package-rand_chacha-0.9.0.drv
+Sig: cache.nixos.org-1:u1E9Ksmp59nWAPb+x6KLCN6Jc6cBPTDRNKoLPGp64FzFpNJUT/qdn4XtaKMRZO4G85uE0bhW7qJubK/jmUUjDw==

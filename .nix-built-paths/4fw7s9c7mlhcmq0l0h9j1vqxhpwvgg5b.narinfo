@@ -1,0 +1,10 @@
+StorePath: /nix/store/4fw7s9c7mlhcmq0l0h9j1vqxhpwvgg5b-cargo-package-objc2-uniform-type-identifiers-0.2.2
+URL: nar/06hycfc58s8g63bpyaa2yvw50yvym9s9mpb2iyb09zvr49fxbhi6.nar.zst
+Compression: zstd
+FileHash: sha256:06hycfc58s8g63bpyaa2yvw50yvym9s9mpb2iyb09zvr49fxbhi6
+FileSize: 6338
+NarHash: sha256:1ki0vsf7ffhqpxiy4k2nhqs4l71fyl3d7wbmnjg6cl22y11m8qn2
+NarSize: 49312
+References: 
+Deriver: fakbq8v5bmv054k28sm6yswl5h3162ff-cargo-package-objc2-uniform-type-identifiers-0.2.2.drv
+Sig: wvhulle.cachix.org-1:vBLWU8KljDXhAXA2Li4Da+sQ6H8hFMHyMTN2v7AEtu7wov7EheNddfpzxBTu1UXBQJXbFWiFeHAHV1fhg9XcBg==

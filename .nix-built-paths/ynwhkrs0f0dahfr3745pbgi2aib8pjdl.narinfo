@@ -1,0 +1,10 @@
+StorePath: /nix/store/ynwhkrs0f0dahfr3745pbgi2aib8pjdl-cargo-package-enumflags2-0.7.12
+URL: nar/14i27p2yfabwjawidzszr4431wkia162bl6prwf8mig2p7qb5llj.nar.zst
+Compression: zstd
+FileHash: sha256:14i27p2yfabwjawidzszr4431wkia162bl6prwf8mig2p7qb5llj
+FileSize: 19014
+NarHash: sha256:1d6894zkx0fiq97v9p6rc5a8b1dp3f4aiz06pg3nyndfa830nmq6
+NarSize: 70608
+References: 
+Deriver: f55aa14cx145rb3qbq0fbzgajbz4wrpa-cargo-package-enumflags2-0.7.12.drv
+Sig: wvhulle.cachix.org-1:7jAISAu/PZ38nkmP3BFvDX1E38CYygPpRmtcTEl5HD4jzonU51j9JGCdEDWuMQrJ3Tp5sRwMR06umJakBxxBAg==

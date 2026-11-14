@@ -1,0 +1,10 @@
+StorePath: /nix/store/frl839papfcc017icnkpd4dmwd2375hd-cargo-package-clap-4.6.7
+URL: nar/1sxclzzf2ndccn2j40gq71qj305gs3ww3kyn5lif79nqw54pdhzq.nar.zst
+Compression: zstd
+FileHash: sha256:1sxclzzf2ndccn2j40gq71qj305gs3ww3kyn5lif79nqw54pdhzq
+FileSize: 64373
+NarHash: sha256:1riib92k8mczsscjs12cgr1q2dgbbildn55x73rn0ylr5b2ci7wd
+NarSize: 308592
+References: 
+Deriver: 978f4vrc7vhkxy8kflw9r379c2sjn0yg-cargo-package-clap-4.6.7.drv
+Sig: wvhulle.cachix.org-1:c2CyFlMNiMn9E8Dhb1C1nFF2E1bccyS5Sy3dvwm8+Lz9I31nFiDItxZ7iA5qgjo/7isW6+UsXrcRANhxfp3dCg==

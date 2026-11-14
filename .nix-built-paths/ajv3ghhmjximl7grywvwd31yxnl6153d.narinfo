@@ -1,0 +1,10 @@
+StorePath: /nix/store/ajv3ghhmjximl7grywvwd31yxnl6153d-cargo-package-thiserror-2.0.21
+URL: nar/0f90jxywbl2bhv22341fkjlvwf02h1a9gbcc9sclvxkazxfiyy96.nar.zst
+Compression: zstd
+FileHash: sha256:0f90jxywbl2bhv22341fkjlvwf02h1a9gbcc9sclvxkazxfiyy96
+FileSize: 30501
+NarHash: sha256:0vw8k58181i1142893n46bl9k4nj1w3xgb3yqdankgzv3ywnklik
+NarSize: 141088
+References: 
+Deriver: 4nh7wbmg3acmw5znxkqm4ivs5jz57b1w-cargo-package-thiserror-2.0.21.drv
+Sig: wvhulle.cachix.org-1:qBQrYJbB50aGlFq6moi7lGhGK/EhTeUdU6V3ZLwbNa8/rNNNtJBRltIiW/P24sC50Lyw/adANffmsns8BBk4Cw==

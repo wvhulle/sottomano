@@ -1,0 +1,10 @@
+StorePath: /nix/store/kl7lrnxk67cvkpbnw12xv0p3v26sqaz8-cargo-package-redox_syscall-0.4.1
+URL: nar/19i1zl1g009qfdnl1z52raqi9939k1z5civy0lgy4bpyjc7lqwsx.nar.zst
+Compression: zstd
+FileHash: sha256:19i1zl1g009qfdnl1z52raqi9939k1z5civy0lgy4bpyjc7lqwsx
+FileSize: 26494
+NarHash: sha256:1f58m43109i79vxj6f5z8215cnqfay5kng5ccdcwqh83x681d0sz
+NarSize: 141208
+References: 
+Deriver: s2xshmrijdjx0mswwqdd3fk8aimiyp4y-cargo-package-redox_syscall-0.4.1.drv
+Sig: wvhulle.cachix.org-1:zRPPdyb7/b6jUDQ36P3uIOwM3n6O6USE/1B9IFrIw7UTrKhpUAm0z22/7/9r0JcshikRmZK/iH9NdfaPjvXwBA==

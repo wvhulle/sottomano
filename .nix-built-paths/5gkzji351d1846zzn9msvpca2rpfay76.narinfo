@@ -1,0 +1,10 @@
+StorePath: /nix/store/5gkzji351d1846zzn9msvpca2rpfay76-cargo-package-xmlwriter-0.1.0
+URL: nar/03zyvv3vs5gz3921mkwzky57jlca2rcz3k1izpg1h57jsr4g6djs.nar.zst
+Compression: zstd
+FileHash: sha256:03zyvv3vs5gz3921mkwzky57jlca2rcz3k1izpg1h57jsr4g6djs
+FileSize: 7024
+NarHash: sha256:1zzvs3zxj57pf32sgldcmm9k15pvhgqwlj845n780jh64af6904s
+NarSize: 32192
+References: 
+Deriver: 2fjns4s661x2m7zcil6vwsn7xj2915qg-cargo-package-xmlwriter-0.1.0.drv
+Sig: wvhulle.cachix.org-1:ZSK5sP9LXKWsaH50PbnSp3uJVODUHf7g9aIVv3K3nB/lvASvGDNtrjOjubZLqFWJZlAuvcSz6lTSKxrWBOMmAg==

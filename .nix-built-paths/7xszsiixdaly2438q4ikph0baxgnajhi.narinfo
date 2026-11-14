@@ -1,0 +1,10 @@
+StorePath: /nix/store/7xszsiixdaly2438q4ikph0baxgnajhi-cargo-package-pollster-0.4.0
+URL: nar/06ma85v4zjsmn0bsn8zifhdjmv7kbm88pm0m05spgvadha8icpjb.nar.zst
+Compression: zstd
+FileHash: sha256:06ma85v4zjsmn0bsn8zifhdjmv7kbm88pm0m05spgvadha8icpjb
+FileSize: 10384
+NarHash: sha256:01gghg40p2r5cwvzdrcq0wgnh5m23m1wkgxqky9lml3widri4idr
+NarSize: 28552
+References: 
+Deriver: q8msv477g3r3ag499vk0mkz7snzz1wqq-cargo-package-pollster-0.4.0.drv
+Sig: wvhulle.cachix.org-1:6sNkgxQVPXcgzF2pDLNnsqQKvrzQyJI1CwNVpi3u99DHTuHkhpBvHLvopisO1j/WYJ9/Pxcbm5lLFtquE5vdBg==

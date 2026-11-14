@@ -1,0 +1,10 @@
+StorePath: /nix/store/92rzrjy1184jahsp8j78fhf6g0hihixh-cargo-package-rapidhash-4.5.1
+URL: nar/18h16yri0xgphwbilh7ky0a5g5inm7aw8d9xkdywczhwpp4nkk0p.nar.zst
+Compression: zstd
+FileHash: sha256:18h16yri0xgphwbilh7ky0a5g5inm7aw8d9xkdywczhwpp4nkk0p
+FileSize: 58074
+NarHash: sha256:1ynxn3nwza9nb8bn8hvkwimh94v113f7j8hjva47zqc7cz9mp4aa
+NarSize: 291152
+References: 
+Deriver: 2fsmq3gvw1w1gbigmjvg5bm01bxrpyfa-cargo-package-rapidhash-4.5.1.drv
+Sig: wvhulle.cachix.org-1:BxFAWktG4DusE8qzjFyDP6PwXJRky4abqmWWO+A5EkizFFdxH5+4W718/ZUuopVFHQLRkB/Q1DxrUS2E382rCw==

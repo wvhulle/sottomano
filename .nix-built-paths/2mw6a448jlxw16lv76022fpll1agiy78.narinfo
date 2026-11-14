@@ -1,0 +1,10 @@
+StorePath: /nix/store/2mw6a448jlxw16lv76022fpll1agiy78-cargo-git-https-github.com-wvhulle-exwlshelleventloop.git-6fcda18cd313770e62d9d96a9bd3220503b7918f
+URL: nar/0q2jy2il5pk8r6vxw9sj02s45ncvlmxpixq6pdhksq10bfv9w3pn.nar.zst
+Compression: zstd
+FileHash: sha256:0q2jy2il5pk8r6vxw9sj02s45ncvlmxpixq6pdhksq10bfv9w3pn
+FileSize: 358733
+NarHash: sha256:0yy6x4r8vgzid7kryiww8jgilds8yr3k1rd9m0b43i2zxjasiq0x
+NarSize: 1085216
+References: 
+Deriver: v9xcfsg34krvvpkrn4kwii7w6rdmqn7x-cargo-git-https-github.com-wvhulle-exwlshelleventloop.git-6fcda18cd313770e62d9d96a9bd3220503b7918f.drv
+Sig: wvhulle.cachix.org-1:CMC8rOX7Phxec9JqFWxkEfENedDciqQ7hc7RnEY1dyR+o8MPLjv9Rj+vGNs4Ibsz8L6dzOgwcuEv+lxqT8ZuAQ==

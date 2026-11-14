@@ -1,0 +1,10 @@
+StorePath: /nix/store/fqzk1i2zdjcsxc1l81sx4rzvidc03560-cargo-package-windows-threading-0.2.1
+URL: nar/00p0wwmrblhny4hjfykf33syncpqggjly6v49c9wb31al2hr7q6i.nar.zst
+Compression: zstd
+FileHash: sha256:00p0wwmrblhny4hjfykf33syncpqggjly6v49c9wb31al2hr7q6i
+FileSize: 10154
+NarHash: sha256:04dqgv5kv8bpg6p7cvb51155v76zc2d6b550ppbnbqlx2kj2xkbj
+NarSize: 30000
+References: 
+Deriver: 5yk8080xd8kxqkw30zpa1gh3l7mn3zrk-cargo-package-windows-threading-0.2.1.drv
+Sig: wvhulle.cachix.org-1:jBWA3pWEnMJO0U75E2RrSZ1OJ3uBiT1/1xE0ATH1mNE4/f081lY3Vb1qqGyTvLlk129BISOArsJORXQXo6qrDg==

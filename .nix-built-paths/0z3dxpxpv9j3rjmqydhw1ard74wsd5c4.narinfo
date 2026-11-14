@@ -1,0 +1,10 @@
+StorePath: /nix/store/0z3dxpxpv9j3rjmqydhw1ard74wsd5c4-cargo-package-unicode-bidi-0.3.18
+URL: nar/1s63k7yl0qrg7mklq2r6na2mq9b701i4jhiipbwwvwmy40z942qa.nar.zst
+Compression: zstd
+FileHash: sha256:1s63k7yl0qrg7mklq2r6na2mq9b701i4jhiipbwwvwmy40z942qa
+FileSize: 57621
+NarHash: sha256:0c3m90ggs8sff8zcgiyayk2mshaybnsn6q5jd6zvlbyc0hs0841n
+NarSize: 271328
+References: 
+Deriver: ck9bsdr6yb4m0q2026qg5g40sh6q0l4n-cargo-package-unicode-bidi-0.3.18.drv
+Sig: wvhulle.cachix.org-1:8OlYvnMJCp6pdvlp2PtpchG7YfNnXXSRmGQ9VyscelUldUPEqGnJbSNvDY9ZEpXj/Ras3pi8szmOQtvcRFABAQ==

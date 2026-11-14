@@ -1,0 +1,10 @@
+StorePath: /nix/store/8gb8s56f8xrxqlhrr5jgi4azx5n4gspx-cargo-package-rustls-native-certs-0.8.5
+URL: nar/0pgl34vayw40hacpzkca2m24rnxly7pchx03s94287l0rckcwclf.nar.zst
+Compression: zstd
+FileHash: sha256:0pgl34vayw40hacpzkca2m24rnxly7pchx03s94287l0rckcwclf
+FileSize: 22198
+NarHash: sha256:18ik5z10clrmns3cfp5rxw96jhnb2lg575y26c823442j2qcbf8d
+NarSize: 69856
+References: 
+Deriver: 0hk4s1q8yvqkgjz4sx5fspw2jfhns473-cargo-package-rustls-native-certs-0.8.5.drv
+Sig: wvhulle.cachix.org-1:Uw/rqMx7JkVIQNw/ROlfjIiqrsN/ppT/pupnHG/ia8DnJnrzLwkiS3pR6glmz5J+QD277gAIcGIyaFwThEJ2DQ==

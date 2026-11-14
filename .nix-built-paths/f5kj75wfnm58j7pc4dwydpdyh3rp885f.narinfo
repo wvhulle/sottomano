@@ -1,0 +1,10 @@
+StorePath: /nix/store/f5kj75wfnm58j7pc4dwydpdyh3rp885f-cargo-package-ab_glyph-0.2.32
+URL: nar/05zndw5j14ks5bykqcsaych0zibsgx6gxq4nvwl4bnrkdcqf3ama.nar.zst
+Compression: zstd
+FileHash: sha256:05zndw5j14ks5bykqcsaych0zibsgx6gxq4nvwl4bnrkdcqf3ama
+FileSize: 21786
+NarHash: sha256:148ah8spnv0k1ps9m6wplmhfzssw3jgjgzgjla1cisnlxp8zipx0
+NarSize: 87168
+References: 
+Deriver: p3mp8r889hc9za9dvwj3k7d5jzmxjca9-cargo-package-ab_glyph-0.2.32.drv
+Sig: wvhulle.cachix.org-1:F3MZL1mhrtVSSi7NqxzFKCFnQb9tQtz+WA6gLNuKPCIUW4g3F48Ippk9IYq2/ftfiMMuhJlJto/nZxltVfFGCQ==

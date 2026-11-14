@@ -1,0 +1,10 @@
+StorePath: /nix/store/5bjklqqwma496fg0vvws36g3p2zvks4n-cargo-package-foldhash-0.2.0
+URL: nar/0s7niyh589vah2p0bxg73kxc8jmy84nylkh4akr25az6yghcql8n.nar.zst
+Compression: zstd
+FileHash: sha256:0s7niyh589vah2p0bxg73kxc8jmy84nylkh4akr25az6yghcql8n
+FileSize: 24251
+NarHash: sha256:1xlb9xgqsdk3b17isj98kb2hkjir8nv8zv2i2yy1jp657h0naj8c
+NarSize: 87784
+References: 
+Deriver: m828w9q4r3ghgwn9151p3lmh91rvgyn1-cargo-package-foldhash-0.2.0.drv
+Sig: cache.nixos.org-1:WSy3t9mru5Q9tjZ3u2ErA3EJI7s/BDhL0idDw1UgtwlIIIhQTqQphmGp8UuiNoWIxaese/RKnpY8LXEXzjiUDQ==

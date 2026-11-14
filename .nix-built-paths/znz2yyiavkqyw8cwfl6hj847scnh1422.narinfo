@@ -1,0 +1,10 @@
+StorePath: /nix/store/znz2yyiavkqyw8cwfl6hj847scnh1422-cargo-package-bytes-1.12.1
+URL: nar/1vim7p768qpxg3q42prmm60w6f8ibbivk681qpvchngngzpyhjpf.nar.zst
+Compression: zstd
+FileHash: sha256:1vim7p768qpxg3q42prmm60w6f8ibbivk681qpvchngngzpyhjpf
+FileSize: 77114
+NarHash: sha256:0fk2j9wfs73v5w1dy7jafxq0vchmhwb4zpq82sw31k49g9ij57ly
+NarSize: 410408
+References: 
+Deriver: 524brhmfl9f16d2ivkc7bmnqawqxqn6q-cargo-package-bytes-1.12.1.drv
+Sig: wvhulle.cachix.org-1:c9G0DjUWeg9XLYL64M60SeD8jplrnaz/Vi1+CnZeLJzziVn/lSrjkcJvuVFfeeFfY8fKrKXEACuGf7kr6cxzBg==

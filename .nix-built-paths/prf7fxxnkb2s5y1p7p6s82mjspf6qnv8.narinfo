@@ -1,0 +1,10 @@
+StorePath: /nix/store/prf7fxxnkb2s5y1p7p6s82mjspf6qnv8-cargo-package-allocator-api2-0.4.0
+URL: nar/1nrrqnbn710v2vwkg59sahm2q065bd24dyb6liy62mmmw6d7wyyd.nar.zst
+Compression: zstd
+FileHash: sha256:1nrrqnbn710v2vwkg59sahm2q065bd24dyb6liy62mmmw6d7wyyd
+FileSize: 70586
+NarHash: sha256:1m4nmcmrj7c6lh1clw4cbx2sg8vfz5c9cmb6ff1kmfymkm0x746c
+NarSize: 323904
+References: 
+Deriver: 2q1acb0ij12dvvbmavah1r05pjz9j4zc-cargo-package-allocator-api2-0.4.0.drv
+Sig: wvhulle.cachix.org-1:i6FuyVbQvVSCHLbfhQScm+uS7+VZ4DAii1Fqat1+5b3T4IvkpFEMY2HNk3c0My2PDWfdCiMDJbsZbhCrIVDVCg==

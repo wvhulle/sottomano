@@ -1,0 +1,10 @@
+StorePath: /nix/store/7s9c0kgbpmaizlhy85fahvkmkd6nb7ca-cargo-package-profiling-1.0.18
+URL: nar/0mq52k3vlmf22rhg4i5vkh3g6ai0a6v2ki2aqijj1nal49sw2x5v.nar.zst
+Compression: zstd
+FileHash: sha256:0mq52k3vlmf22rhg4i5vkh3g6ai0a6v2ki2aqijj1nal49sw2x5v
+FileSize: 12489
+NarHash: sha256:1yv56310gjvvkgvwyi3am2lvma69a11lxzacsqa9j9sirfxg4x11
+NarSize: 46776
+References: 
+Deriver: bvd2v5b9s0p0dnnscx4fykr4bx5mx7xd-cargo-package-profiling-1.0.18.drv
+Sig: wvhulle.cachix.org-1:C9ASI14QrTDFj6Y9PGnrturD+p83ctf5ToM0Igbf1I0kLF/dQlyVn4FVRlPfs1yTuD5d7li4yopgYVRXunt4CA==

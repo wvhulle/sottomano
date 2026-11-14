@@ -1,0 +1,10 @@
+StorePath: /nix/store/316n9q3x6qbqq29ir074br2ws5llckm0-cargo-package-memoffset-0.9.1
+URL: nar/1cvcsx5i2j59nn090dadxcqb2rld3ckn9c0qla52vm1znymgzdxq.nar.zst
+Compression: zstd
+FileHash: sha256:1cvcsx5i2j59nn090dadxcqb2rld3ckn9c0qla52vm1znymgzdxq
+FileSize: 9713
+NarHash: sha256:161ka4d4aa4kl8pw38w1h7yydrzpvhhbjkhi1fw1man5zz21gmkj
+NarSize: 42776
+References: 
+Deriver: b2xkglyhimdyk3fp6p353vg58yij29kr-cargo-package-memoffset-0.9.1.drv
+Sig: wvhulle.cachix.org-1:Yfm5MCOGrgdz3wIrh+xTXChFlVvWeftA2QTM6WaBjqWTPSDLPqhUrsGHGD3kgGvtg3QH2GxGx6uSlj2FF40tCQ==

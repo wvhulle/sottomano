@@ -1,0 +1,10 @@
+StorePath: /nix/store/1q2r27y767bcivp2l4zrcp3pps99y3zf-cargo-package-portable-atomic-util-0.2.8
+URL: nar/0nmm82frh5zswma3l7vhjgwlkm5ph55v4394x4n2gnnz5y9cadbp.nar.zst
+Compression: zstd
+FileHash: sha256:0nmm82frh5zswma3l7vhjgwlkm5ph55v4394x4n2gnnz5y9cadbp
+FileSize: 55592
+NarHash: sha256:0ixlv1rmxx33jhc4y990l13hgvgfq4086i0xip76ij2jip6v05xc
+NarSize: 217032
+References: 
+Deriver: pc9bc1whyzkiqzcprzknnlzrmnbsxpkl-cargo-package-portable-atomic-util-0.2.8.drv
+Sig: wvhulle.cachix.org-1:cJ78/VLJfjFoWGQd4M57XZDOP93uISezHWJ3dzIyjYQQK5/zoP7obi/1+R+IDXY4zeSi93TFXpFwDxB++w0DDg==

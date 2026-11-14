@@ -1,0 +1,10 @@
+StorePath: /nix/store/c90g1mdyjxi63qyagk4dfsbrrx0k2mzk-cargo-package-icu_decimal_data-2.4.0
+URL: nar/1qhc62hczfgi3pj05080h84a0rgcivpki9c1qcpzcm0k4f2akf7l.nar.zst
+Compression: zstd
+FileHash: sha256:1qhc62hczfgi3pj05080h84a0rgcivpki9c1qcpzcm0k4f2akf7l
+FileSize: 23785
+NarHash: sha256:1xcb0c42rvgvvlc6rbjgrc3clwp3vkkyx58nkv2wiz81cq0dh2f5
+NarSize: 142864
+References: 
+Deriver: k0l2n27nkf5i07071d1zsdjxjbz8fm1z-cargo-package-icu_decimal_data-2.4.0.drv
+Sig: wvhulle.cachix.org-1:WZcudVKVhwZkPYJAdMPyWD7QhHvNpJAVndnEyYtD4JaF/2Tjt7Lg+AWBA6PnovSM+mQ/wPbQg5kTHx4dAd3YDg==

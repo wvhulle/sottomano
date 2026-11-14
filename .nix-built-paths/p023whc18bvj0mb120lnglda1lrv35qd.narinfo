@@ -1,0 +1,10 @@
+StorePath: /nix/store/p023whc18bvj0mb120lnglda1lrv35qd-cargo-package-wgpu-hal-27.0.4
+URL: nar/15arbz2ifzpqvrsy4vvyxl2yn8anzc39dfhpiyylk16zbni7qmdh.nar.zst
+Compression: zstd
+FileHash: sha256:15arbz2ifzpqvrsy4vvyxl2yn8anzc39dfhpiyylk16zbni7qmdh
+FileSize: 385425
+NarHash: sha256:09xcxq86x6j97yqh1j88sa32wpikjzl7hhyn1cnbmk356l5nfnwf
+NarSize: 1945072
+References: 
+Deriver: 25vsi1nqv5p3xh7mhm4s3kphs08mcr8h-cargo-package-wgpu-hal-27.0.4.drv
+Sig: wvhulle.cachix.org-1:JTstBY1AdBTnZ110KmY0lbIHNGgIXVi+4V16nQYbg55rQHBDbXk6gveh4ZgAQpKjE+dXaC56cNujxlzzx0ZfBQ==

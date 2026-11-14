@@ -1,0 +1,10 @@
+StorePath: /nix/store/l9nirw2vg3nqd4jcjsn7w66b5z19158z-cargo-package-libwebp-sys2-0.1.11
+URL: nar/1yrbk6yypm9vxx490drdr4s9aaa7pai9kzf67jvzzvfwcbpjg18v.nar.zst
+Compression: zstd
+FileHash: sha256:1yrbk6yypm9vxx490drdr4s9aaa7pai9kzf67jvzzvfwcbpjg18v
+FileSize: 2543037
+NarHash: sha256:0k6s3ij2zg5kjpybmp7smwkif26jgzprlrfavraj8p34xlqhx8r2
+NarSize: 8206416
+References: 
+Deriver: vb17zg83lska6bjci62snk1m1yzablwi-cargo-package-libwebp-sys2-0.1.11.drv
+Sig: wvhulle.cachix.org-1:yjtfANrWFPt3kYbWKN33yNC4/q4oRwTKf4PkOyvYrayH6RXM9QswpVZb8p6fl9qn2X5ULD9SLTpu3fnUroDfDA==

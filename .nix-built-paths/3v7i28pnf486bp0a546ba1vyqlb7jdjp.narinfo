@@ -1,0 +1,10 @@
+StorePath: /nix/store/3v7i28pnf486bp0a546ba1vyqlb7jdjp-cargo-package-wasm-streams-0.5.0
+URL: nar/0l71qmrdspcgf1hfv9bh2swk83h1r3amfwbm7vlpkvjwmlk9xsfz.nar.zst
+Compression: zstd
+FileHash: sha256:0l71qmrdspcgf1hfv9bh2swk83h1r3amfwbm7vlpkvjwmlk9xsfz
+FileSize: 38852
+NarHash: sha256:1c3g7vw0h26i2b2h465shlsp2q62cmwqqb5yw9rqy15f9vfbyg81
+NarSize: 202272
+References: 
+Deriver: 3v44lrxsdkcd2mi76825zs7ncxissjwy-cargo-package-wasm-streams-0.5.0.drv
+Sig: wvhulle.cachix.org-1:JCR+GQWBtOhzIwhL0be5+0a9dsFP5KAtfMoYr1xEZE41phrEqFo1TMyFj6Zisvm/f9Ah1yi0NfDfLxOeEBXyCg==

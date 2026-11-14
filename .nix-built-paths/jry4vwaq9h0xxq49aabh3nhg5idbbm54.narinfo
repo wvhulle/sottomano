@@ -1,0 +1,10 @@
+StorePath: /nix/store/jry4vwaq9h0xxq49aabh3nhg5idbbm54-cargo-package-wrapcenum-derive-0.4.1
+URL: nar/08brz7j5frjxr694lnxi5kgigadk4cqzc6gcw09bd0n7mckzad28.nar.zst
+Compression: zstd
+FileHash: sha256:08brz7j5frjxr694lnxi5kgigadk4cqzc6gcw09bd0n7mckzad28
+FileSize: 7808
+NarHash: sha256:1ar06cyd7v9hq2zc9hgdc5y1vxm00bxlirfbc1wih06kzybd1y0p
+NarSize: 22568
+References: 
+Deriver: llvjgv33mhb9cw2gyj2zmc4z0qazzds6-cargo-package-wrapcenum-derive-0.4.1.drv
+Sig: wvhulle.cachix.org-1:BTkB+2RO1hZLI0yZ1xAb5wW7KYT9brSP3brlBKHuWCJ91F91M2mkj15R/7M2K8vhZqIYdi0kvM+z9tbRozOUCw==

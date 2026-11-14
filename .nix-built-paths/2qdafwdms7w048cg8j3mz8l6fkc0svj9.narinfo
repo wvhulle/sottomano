@@ -1,0 +1,10 @@
+StorePath: /nix/store/2qdafwdms7w048cg8j3mz8l6fkc0svj9-cargo-package-kurbo-0.10.4
+URL: nar/118qdxy4lspb81194h1fhvzw3xjcbgby4ga5087h5bqvvrxisqjy.nar.zst
+Compression: zstd
+FileHash: sha256:118qdxy4lspb81194h1fhvzw3xjcbgby4ga5087h5bqvvrxisqjy
+FileSize: 758118
+NarHash: sha256:19563296v5vxfdr6xjrj5yl7gaimx7wpis45cwn2gq839f7z9l21
+NarSize: 2974720
+References: 
+Deriver: g1v166gfg49fi45921jyp7k36zmlfn2b-cargo-package-kurbo-0.10.4.drv
+Sig: wvhulle.cachix.org-1:RHyy3cw24BQaWFhgEPcVJmAmYl8cxlPSkwhCvJ+TSkyuesr0j4g4pFFkZv56G2w82qVdxCiEdcJStISvHDXcDQ==

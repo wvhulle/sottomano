@@ -1,0 +1,10 @@
+StorePath: /nix/store/5p8xqrd434cv7ybgdpjm0s5s3x9riivw-cargo-package-clipboard-win-5.4.1
+URL: nar/16w1s8kby0fij0yiy0g2gmfqv3yab0vx7yqhr78w9bfcqh19mb8m.nar.zst
+Compression: zstd
+FileHash: sha256:16w1s8kby0fij0yiy0g2gmfqv3yab0vx7yqhr78w9bfcqh19mb8m
+FileSize: 22337
+NarHash: sha256:0jim1cdkka17ifyjhxa7w5cmcryc4pvv4pq4x3dl72pncl1zbfgz
+NarSize: 91648
+References: 
+Deriver: 3228133ckl6xykgdjqik92y6nl7wh1wk-cargo-package-clipboard-win-5.4.1.drv
+Sig: cache.nixos.org-1:nt9McUCgqZN1i28QkGeuwUOwh8vRB8HUs6cK6CcwAUReeGFHfL/i1GAZP9Za6UgP7/bypyvQ74rBvOW4Lue4Cg==

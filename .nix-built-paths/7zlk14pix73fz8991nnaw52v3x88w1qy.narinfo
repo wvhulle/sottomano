@@ -1,0 +1,10 @@
+StorePath: /nix/store/7zlk14pix73fz8991nnaw52v3x88w1qy-cargo-package-metal-0.32.0
+URL: nar/1qr59il83fbss2asrdp9zi9nr146258n9xj5rkgfk5311zhsj1k4.nar.zst
+Compression: zstd
+FileHash: sha256:1qr59il83fbss2asrdp9zi9nr146258n9xj5rkgfk5311zhsj1k4
+FileSize: 3039288
+NarHash: sha256:1ky5n3i1nhmykh661cgkf99i1f8c0p11agkflrcim5jhxw53f03b
+NarSize: 3734432
+References: 
+Deriver: jahmcrzrqvgyd5gkk83gb7hf8rjispmi-cargo-package-metal-0.32.0.drv
+Sig: wvhulle.cachix.org-1:KZ75Q8LIbmntL91UIlZPTedYSavd4wgoXiE68CMLF1npR+VkhiE0Z3vdfjJin4LzylpaMSf1aDigtHEzPKk8AA==

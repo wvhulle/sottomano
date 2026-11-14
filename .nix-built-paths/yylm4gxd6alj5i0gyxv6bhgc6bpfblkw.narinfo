@@ -1,0 +1,10 @@
+StorePath: /nix/store/yylm4gxd6alj5i0gyxv6bhgc6bpfblkw-cargo-package-ahash-0.8.12
+URL: nar/02b6j0a0c2jfv4yh5slifrx5xvn4c8vipmv6ga62bfj3x30x38l1.nar.zst
+Compression: zstd
+FileHash: sha256:02b6j0a0c2jfv4yh5slifrx5xvn4c8vipmv6ga62bfj3x30x38l1
+FileSize: 45918
+NarHash: sha256:0fdyvw7x2zh7hmv5yvhpdzmskhcp10k1inj55bnlhkkqypbx7506
+NarSize: 186328
+References: 
+Deriver: qn3xhhsd4gsxzndbcalg2q9hgqzjx5d9-cargo-package-ahash-0.8.12.drv
+Sig: cache.nixos.org-1:YhuS49jas6AYDMKOouHyKpFsfH3yC5XGi/7yfLo+azVOwaMvReGEP66Wpu8gtSOyqtPIr2y8JPmwi19de2yRCA==

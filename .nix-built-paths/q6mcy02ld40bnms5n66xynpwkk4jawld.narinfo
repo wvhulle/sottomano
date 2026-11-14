@@ -1,0 +1,10 @@
+StorePath: /nix/store/q6mcy02ld40bnms5n66xynpwkk4jawld-cargo-package-mail-parser-0.11.9
+URL: nar/00rxr8cz9qhr6g88v6nyvrw90z1j25vc1bk7zdr3j1agv3ms56d9.nar.zst
+Compression: zstd
+FileHash: sha256:00rxr8cz9qhr6g88v6nyvrw90z1j25vc1bk7zdr3j1agv3ms56d9
+FileSize: 330858
+NarHash: sha256:1j1c7rr98hzc5dvkrflx50w0a0z5388k8hjl13dj3aqnm9ziws2a
+NarSize: 4991288
+References: 
+Deriver: ahj84xch5765v0qf1avx2z539r2l23ij-cargo-package-mail-parser-0.11.9.drv
+Sig: wvhulle.cachix.org-1:aLg9OGU4X8dSRkObSKBh8QIca2450GRYtGqR0kbJj3McwFB6AD+NI206gmKgqd5XY4+wijqNBHO2w8eHWt5uAQ==

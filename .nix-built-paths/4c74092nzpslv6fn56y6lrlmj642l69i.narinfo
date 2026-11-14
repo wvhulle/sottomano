@@ -1,0 +1,10 @@
+StorePath: /nix/store/4c74092nzpslv6fn56y6lrlmj642l69i-cargo-package-yazi-0.2.1
+URL: nar/0wx2i5finiypnx39za7m4zmabsnpp6sy0s3nhn936zhpf383wv80.nar.zst
+Compression: zstd
+FileHash: sha256:0wx2i5finiypnx39za7m4zmabsnpp6sy0s3nhn936zhpf383wv80
+FileSize: 31590
+NarHash: sha256:04lvgxfmbv02kbl8l26x1mhw3zrkx53zaxycggln57m6clx25867
+NarSize: 148104
+References: 
+Deriver: 4nagzks004idk21i5fxzf57wgik02wb3-cargo-package-yazi-0.2.1.drv
+Sig: wvhulle.cachix.org-1:Yj0O/EjCytArZb4Z2gn5L0d14jrWGWVetS+jQ8tUXOskgvdLWDmeC0O97jSa5PO/sxdlXPE3JcnNr7qdqB+SDg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/m57fgg61k3b7qgcghxfxhg5gf4wh88ng-cargo-package-tokio-util-0.7.20
+URL: nar/1r51a1a5pz6lgm3d2ndxqpaqq8rf8bwzqv5ncjs5iw7jny6sn3m1.nar.zst
+Compression: zstd
+FileHash: sha256:1r51a1a5pz6lgm3d2ndxqpaqq8rf8bwzqv5ncjs5iw7jny6sn3m1
+FileSize: 154590
+NarHash: sha256:12js6zija31mhmn8wah0k5synlgg0mjk4q3wc9wfbmc6nw7p00bj
+NarSize: 755312
+References: 
+Deriver: k8xrgwmc81l9qk9djng0h5fm79xndz9i-cargo-package-tokio-util-0.7.20.drv
+Sig: wvhulle.cachix.org-1:NqL8bL5nMBxUTlM0yuL/MkHU/ecHb08PIo2Bc6W4+NbSsroIQKKX3Pz7e/eynmFKUUjWo1GSoUA++HTa4sO4CQ==

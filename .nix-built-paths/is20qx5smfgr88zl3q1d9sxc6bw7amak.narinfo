@@ -1,0 +1,10 @@
+StorePath: /nix/store/is20qx5smfgr88zl3q1d9sxc6bw7amak-cargo-package-android-build-0.1.4
+URL: nar/0d0iabg0jxs2xs87hggjr416nyxqw5vfckw3yy3b3yvrybvalncg.nar.zst
+Compression: zstd
+FileHash: sha256:0d0iabg0jxs2xs87hggjr416nyxqw5vfckw3yy3b3yvrybvalncg
+FileSize: 15537
+NarHash: sha256:0l9slmz4maik8jbmq9msq8m5wal6vy6d0yqw6f28kys0gnvys8z7
+NarSize: 61096
+References: 
+Deriver: k8pdym2p4mpafkkjdxjdxka8g0dfy507-cargo-package-android-build-0.1.4.drv
+Sig: wvhulle.cachix.org-1:C44tkOY9e06QICpoJYz0Gwz9Oq9/YdjH1m29ulXCYHzEJhaRxfEAXG00rgdo7tpccT10df6Llggs27Ai0ALrCw==

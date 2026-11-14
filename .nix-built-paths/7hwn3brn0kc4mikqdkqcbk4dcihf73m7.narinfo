@@ -1,0 +1,10 @@
+StorePath: /nix/store/7hwn3brn0kc4mikqdkqcbk4dcihf73m7-cargo-package-glam-0.30.10
+URL: nar/05xq7jk31va2bhz8vwvc8h7dk67pyf9cnv0f164vbl05nwqgyxrg.nar.zst
+Compression: zstd
+FileHash: sha256:05xq7jk31va2bhz8vwvc8h7dk67pyf9cnv0f164vbl05nwqgyxrg
+FileSize: 428706
+NarHash: sha256:1wpbkxkvlbjb4igqyab44rxkzs815vyxyys5v75dd2aknksyaa8n
+NarSize: 6459256
+References: 
+Deriver: vv1w5lwgkv2ncbszm2dd4lljy5s2vzzp-cargo-package-glam-0.30.10.drv
+Sig: wvhulle.cachix.org-1:UDCu/RSLVH2k99AJFM+J1tkQM3Z1fFlgcxdrcYIzhxed3IwQjrnniERk3rwlhxpdTXsONc9xA8Vh6+Nap72LDw==

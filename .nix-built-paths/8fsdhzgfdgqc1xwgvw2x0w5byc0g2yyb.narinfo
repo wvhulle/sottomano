@@ -1,0 +1,10 @@
+StorePath: /nix/store/8fsdhzgfdgqc1xwgvw2x0w5byc0g2yyb-cargo-package-rustls-0.23.46
+URL: nar/1cbrgdqzax4b1s09z60yq33q1lhpkmh1nbmxliyh2fs0wja7ngql.nar.zst
+Compression: zstd
+FileHash: sha256:1cbrgdqzax4b1s09z60yq33q1lhpkmh1nbmxliyh2fs0wja7ngql
+FileSize: 373701
+NarHash: sha256:0jjqyvndxg4q11g87npx2v0563glrmbacmdvl8hgg8nm415p0zy9
+NarSize: 1831912
+References: 
+Deriver: nbhybkxhzvi8ly57cwrqsda8xw4rp2d1-cargo-package-rustls-0.23.46.drv
+Sig: wvhulle.cachix.org-1:6z1r0n058HkXqg2sqMGjly/s2X7dxXucKs63YXcFBIjyw68oWjysehbuEHI9ke8rbve4ZYSFq5SCHE29cc81Dg==

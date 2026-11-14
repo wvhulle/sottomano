@@ -1,0 +1,10 @@
+StorePath: /nix/store/42whb5gdvg6lvqjl8sbmff5m00q8y1d2-cargo-package-reqwest-0.13.5
+URL: nar/0992ax78bk738vakiz605xdqz56zcq8vh22kjf9bihqziq3mbr39.nar.zst
+Compression: zstd
+FileHash: sha256:0992ax78bk738vakiz605xdqz56zcq8vh22kjf9bihqziq3mbr39
+FileSize: 150070
+NarHash: sha256:1kr68n7ypijkqgzc76mhv6hdps9m7is7zyqi5yf4ja19v070cdin
+NarSize: 770928
+References: 
+Deriver: dhh2qcr7c9zx9khb9hkfhw2rgg4ni43l-cargo-package-reqwest-0.13.5.drv
+Sig: wvhulle.cachix.org-1:yMKuSxUeYy+JcAEfsZ+RTGwj2lRA+sEsuOaP2VKFVccESXHXgMNuNuV2lmBPdLUj/UdvoHD4lq43itlNfgy0Dg==

@@ -1,0 +1,9 @@
+StorePath: /nix/store/8fa7kq24qmz9r62r4slzhr0vcmh0qn9l-linkLockedDeps
+URL: nar/1c6r3ykbz03xlpsksjxmkaxndijq7fckzz00spj1jljr33g4mfp9.nar.zst
+Compression: zstd
+FileHash: sha256:1c6r3ykbz03xlpsksjxmkaxndijq7fckzz00spj1jljr33g4mfp9
+FileSize: 528
+NarHash: sha256:1v1mb2y61i5d1i0xyiqhrbx5d5bhy6vk0al2afisjc73wcs6m8ld
+NarSize: 6040
+References: q7m9k8cy0j4anbgs9sv8mylvdvrr5lgb-cargo-git-https-github.com-wvhulle-iced.git-fb9b834ee696e2a823fe54bd08c166ee6fd41a10
+Deriver: zlqp1fr8wcqcgvy8812iay7nimcyriv9-linkLockedDeps.drv

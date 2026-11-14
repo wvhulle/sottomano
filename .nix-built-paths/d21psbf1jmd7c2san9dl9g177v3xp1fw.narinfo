@@ -1,0 +1,10 @@
+StorePath: /nix/store/d21psbf1jmd7c2san9dl9g177v3xp1fw-cargo-package-sctk-adwaita-0.10.1
+URL: nar/01vjl9v8vrrj212b687sh8p4siryh0h483s6ak14mbpjan2x1sqv.nar.zst
+Compression: zstd
+FileHash: sha256:01vjl9v8vrrj212b687sh8p4siryh0h483s6ak14mbpjan2x1sqv
+FileSize: 56233
+NarHash: sha256:0rfjs2x2mk9iwzpzsxn1837x74jbdjypb5bwq4zdr2hw9zfs88nd
+NarSize: 177176
+References: 
+Deriver: 1n4yj3zd444vbj63r5gdf498iymvcwj8-cargo-package-sctk-adwaita-0.10.1.drv
+Sig: wvhulle.cachix.org-1:OWd0R2KXKrBlNiZUbTD3ax+pdQ24euvaAP6s0r7yClpBX+qtqWeff0L40/GPywHGHNBSW1l9397Tf34byFIRCQ==

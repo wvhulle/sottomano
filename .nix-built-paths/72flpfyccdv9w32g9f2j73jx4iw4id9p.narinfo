@@ -1,0 +1,10 @@
+StorePath: /nix/store/72flpfyccdv9w32g9f2j73jx4iw4id9p-cargo-package-async-signal-0.2.14
+URL: nar/04xf0qq8qvhwq1d5215b7ivgv58dcyip125gdqd0hcwnk3glxf3n.nar.zst
+Compression: zstd
+FileHash: sha256:04xf0qq8qvhwq1d5215b7ivgv58dcyip125gdqd0hcwnk3glxf3n
+FileSize: 17516
+NarHash: sha256:0rsgv9pv6vs74lh3j85z04lgjmdd9w5ymahry0far9mcqb94niqj
+NarSize: 56720
+References: 
+Deriver: zhcdgp6s3m2cfgwvrwd9qbsg3gv3034h-cargo-package-async-signal-0.2.14.drv
+Sig: wvhulle.cachix.org-1:TXiah3j/LNp9tiHI7YLioRfW5oCDI5cVcqZ9XWGb/s9pd4rOzWEEjhvL1eT5RwrmFIzxrFHrbvW7n8qYZp9yBQ==

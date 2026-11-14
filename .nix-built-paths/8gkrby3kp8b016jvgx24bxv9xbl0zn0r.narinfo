@@ -1,0 +1,10 @@
+StorePath: /nix/store/8gkrby3kp8b016jvgx24bxv9xbl0zn0r-cargo-package-zstd-safe-8.1.0
+URL: nar/008rkhk8waiz3hbl44s98pwfc1j6hmk9y7gpfsb5wsvn45kbs4n7.nar.zst
+Compression: zstd
+FileHash: sha256:008rkhk8waiz3hbl44s98pwfc1j6hmk9y7gpfsb5wsvn45kbs4n7
+FileSize: 36995
+NarHash: sha256:04hi21b99q2vz4r333hbgdkiyynxnrjvzg25c3la1fhvdb1czvf0
+NarSize: 165224
+References: 
+Deriver: v0kncqw5mbglysprgvjrmpg6m75293ml-cargo-package-zstd-safe-8.1.0.drv
+Sig: wvhulle.cachix.org-1:Lk0jQyJEkNZt1ErqTZ0R58AEwwjHC8cbEAlRq6uc6gPg15NXWOQlsVGBTxD4SSXvkc1/vq8cFUaI0v5iRo6oCA==

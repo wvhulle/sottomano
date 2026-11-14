@@ -1,0 +1,10 @@
+StorePath: /nix/store/ilk6448ap5gi1rhs81p5a9yqak39n4s0-cargo-package-x11-dl-2.21.0
+URL: nar/1axn3xbmjkrxrvcmfbj1dfr2p25nmjphbx9r3p4a3i5svgwjfiry.nar.zst
+Compression: zstd
+FileHash: sha256:1axn3xbmjkrxrvcmfbj1dfr2p25nmjphbx9r3p4a3i5svgwjfiry
+FileSize: 71937
+NarHash: sha256:1w2aq57rzqdfzlb9wznkpf9cn1cf6bhfs4mksqiflpqb6hq7iq3p
+NarSize: 421008
+References: 
+Deriver: wqsg7njq9cjlna6hbnki1agz8nbr00cm-cargo-package-x11-dl-2.21.0.drv
+Sig: wvhulle.cachix.org-1:2ll2HfYDLRdRcGIou88ktpty2CHJyZCSeW58yt2BmLZ0eGIpdjHiSp/LMAuBe3Kqx7LvQBpoAn2jbdTpfJthAw==

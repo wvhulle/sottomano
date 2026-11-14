@@ -1,0 +1,10 @@
+StorePath: /nix/store/24ny008p24gmb3al96xzkfnyvwpckmiz-cargo-package-simba-0.10.2
+URL: nar/1wp61f9kvhhql8yw48fcya5ppzjm1n4rwfmim6fmc7b496q6b1bi.nar.zst
+Compression: zstd
+FileHash: sha256:1wp61f9kvhhql8yw48fcya5ppzjm1n4rwfmim6fmc7b496q6b1bi
+FileSize: 52125
+NarHash: sha256:1p4khgqv83lmgdg53d7mbkbjqsqvmz930xdn0743janilygvw13j
+NarSize: 353016
+References: 
+Deriver: x326945iwnzfp0pw01hd57gkrjlngihp-cargo-package-simba-0.10.2.drv
+Sig: wvhulle.cachix.org-1:HC6ckj9JzPdGBXzs4ZrU2OQe46Yj7BeeQ+CwIcJPi4Aw92hrPbECEa2TjBWRdhhgibVXjPFpjdu6Z4IBNV6dCA==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/j55cvc782fhjizay0c6h0asa5x8cp52p-cargo-package-sqlite-wasm-rs-0.5.5
+URL: nar/1fwmvsqnxgd663b8q262dc88vy5qp7v5ra4nn5c7f0acsdaj5gaw.nar.zst
+Compression: zstd
+FileHash: sha256:1fwmvsqnxgd663b8q262dc88vy5qp7v5ra4nn5c7f0acsdaj5gaw
+FileSize: 5825517
+NarHash: sha256:04hiqmfa67mhhya954a46gf1j7nvnk077a1d5mrll70bmm81vwd5
+NarSize: 24742808
+References: 
+Deriver: pmxxn9w7z2912170dxvadz2ik5a8qrd3-cargo-package-sqlite-wasm-rs-0.5.5.drv
+Sig: wvhulle.cachix.org-1:B08zc8Zt7ketL3BTakuDwxgI60Nc5n5/IF7ZBU9wNJYey6Ue+xf5JpRMdgvdiUgJ25QuGLkOpA6/Uht71jHJBQ==

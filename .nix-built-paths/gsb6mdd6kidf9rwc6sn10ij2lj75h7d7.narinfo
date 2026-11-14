@@ -1,0 +1,10 @@
+StorePath: /nix/store/gsb6mdd6kidf9rwc6sn10ij2lj75h7d7-cargo-package-genawaiter-0.99.1
+URL: nar/0jl8wabymac3kj6k8y0p6rbc3bzbgv1d5gv62bfzc94ai6ndbqf2.nar.zst
+Compression: zstd
+FileHash: sha256:0jl8wabymac3kj6k8y0p6rbc3bzbgv1d5gv62bfzc94ai6ndbqf2
+FileSize: 19214
+NarHash: sha256:1jhs99j6ngarr9g5wzpx8ab7d373w55306hgzmyipxdc4d547szv
+NarSize: 103120
+References: 
+Deriver: swhqcn7649hawz2pki0m06wrl9yhc2jp-cargo-package-genawaiter-0.99.1.drv
+Sig: wvhulle.cachix.org-1:PNQrTtqZTSSfVNtXsdj7lDOgV2DNK+aSbnmZfXpgBN+0cMCMzw7TpnTFgdrwDyU1E0s596BKQIz1vFN5YwLLAw==

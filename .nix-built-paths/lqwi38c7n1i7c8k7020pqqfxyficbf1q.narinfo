@@ -1,0 +1,10 @@
+StorePath: /nix/store/lqwi38c7n1i7c8k7020pqqfxyficbf1q-cargo-package-wayrs-scanner-0.15.4
+URL: nar/1a0y6jwp600fakz1jkdkjacxchikx31ncra3n92si9br804yr22j.nar.zst
+Compression: zstd
+FileHash: sha256:1a0y6jwp600fakz1jkdkjacxchikx31ncra3n92si9br804yr22j
+FileSize: 12080
+NarHash: sha256:0rd1rfghgdkjmwhj1fxy4pfsx9hzvdbb88f7z2zk9znha5zn02kz
+NarSize: 45352
+References: 
+Deriver: w3655i7sjyr54glmskr13213ri480k57-cargo-package-wayrs-scanner-0.15.4.drv
+Sig: wvhulle.cachix.org-1:iz9dR36N5TqLyj4++hmmFRgwCrXkbPZ6hY/FXdGkF9+mZbN9dY9kJtU4a2qyF7eZnUAgSDA8lUnARWAdefCZBA==

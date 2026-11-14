@@ -1,0 +1,10 @@
+StorePath: /nix/store/2crzqxibcb6nidw96kil37b0f1q5q0d0-cargo-package-rand_pcg-0.3.1
+URL: nar/0w15pp47lclsyy272pc2gm67jypw6g9s2mld713zkjd9k7iaas2z.nar.zst
+Compression: zstd
+FileHash: sha256:0w15pp47lclsyy272pc2gm67jypw6g9s2mld713zkjd9k7iaas2z
+FileSize: 12755
+NarHash: sha256:15g7bz9jpcbh0cda519kp88zh9bm8m38kvg0pbiia21vw0rvrcd7
+NarSize: 45088
+References: 
+Deriver: 04clhqsbywc8a6js8imr8kx03y2bmywk-cargo-package-rand_pcg-0.3.1.drv
+Sig: wvhulle.cachix.org-1:UfsBxbjbexsNqxYNBmrgjiraRIK2cnLxcsXmW9YA0xpkf92GJnmSi+eTsnbDJYkoB4szYcB6tp9n/3HnjHRSBg==

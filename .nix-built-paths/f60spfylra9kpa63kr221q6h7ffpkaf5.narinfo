@@ -1,0 +1,10 @@
+StorePath: /nix/store/f60spfylra9kpa63kr221q6h7ffpkaf5-cargo-package-rustc-hash-1.1.0
+URL: nar/1d4y97bqwkq3hyq38vwpnhmckvfbpyfspf5vvx4d2gy835zbpcrl.nar.zst
+Compression: zstd
+FileHash: sha256:1d4y97bqwkq3hyq38vwpnhmckvfbpyfspf5vvx4d2gy835zbpcrl
+FileSize: 9725
+NarHash: sha256:1gp752vb8vn4fsygjiz4x798bdrh39r4s98bvlq7l5jdxkf1x1j4
+NarSize: 26584
+References: 
+Deriver: zp7ir60adzp1lcd1ib4mlwk7ds16agw8-cargo-package-rustc-hash-1.1.0.drv
+Sig: wvhulle.cachix.org-1:VX8ZATY8GmHZ1TJY1Z+8YLImbH/Fi+xkfDT4quuiS0+pp0jdXlisZzSgEXlHyjYeljd0/IGGLCDyR+fllfB8Bw==

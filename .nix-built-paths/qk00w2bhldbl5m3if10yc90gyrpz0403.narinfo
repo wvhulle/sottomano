@@ -1,0 +1,10 @@
+StorePath: /nix/store/qk00w2bhldbl5m3if10yc90gyrpz0403-cargo-package-chrono-tz-0.10.4
+URL: nar/08qd2msyllimi3xd2h61sz63dw7ks1z46lsf6pslw4wnqa0yqdvv.nar.zst
+Compression: zstd
+FileHash: sha256:08qd2msyllimi3xd2h61sz63dw7ks1z46lsf6pslw4wnqa0yqdvv
+FileSize: 544892
+NarHash: sha256:1cp1vqd7c630ccif4c1v99ljh09v942q7b1r9hzdz95frkbszidg
+NarSize: 8438920
+References: 
+Deriver: aqdglwrr4ccqyz21qhrvsd517h9c80yv-cargo-package-chrono-tz-0.10.4.drv
+Sig: wvhulle.cachix.org-1:7AuiiMV75kZMvu6jwtauqe7AHz9uJ/pMvqpMj/Gvy22pO8lVVdb+I4Sn8sLsk/OOVJZYxfphI5GQ382+RxqmCQ==

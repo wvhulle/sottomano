@@ -1,0 +1,10 @@
+StorePath: /nix/store/4m3kyhxc3r3kd11bfmzqbxfbzy9s6k02-cargo-package-adskalman-0.18.0
+URL: nar/0mrmb2svlivk97g0pypiixipxlqch1j8j2cw1s9p5jp8ij9j6lmv.nar.zst
+Compression: zstd
+FileHash: sha256:0mrmb2svlivk97g0pypiixipxlqch1j8j2cw1s9p5jp8ij9j6lmv
+FileSize: 34137
+NarHash: sha256:17hmzxxq2q67n5y6bb3g069bhnir77gksbcdyz3w242jqcvawv9n
+NarSize: 96824
+References: 
+Deriver: k8drhm96wg800iknifz2jnvxh1rghxml-cargo-package-adskalman-0.18.0.drv
+Sig: wvhulle.cachix.org-1:P0qIhRc9BY0ey8XmO+YTBS4+7+Tr7o9YEeJMhkos7T0XqAasN61xlsVkwxIQ6J73BRO2WRf6d7OYGqWmI51TDA==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/3g5kcgn0dlm9afbdn7xgxr1kk7rz79pa-cargo-package-windows-future-0.3.2
+URL: nar/0f0bihqn61k5y04bb7lkqi7i18wvljmkgzjvsv2bvzh8ys24ylxc.nar.zst
+Compression: zstd
+FileHash: sha256:0f0bihqn61k5y04bb7lkqi7i18wvljmkgzjvsv2bvzh8ys24ylxc
+FileSize: 20159
+NarHash: sha256:1k6v4rq3gld4x2arzas6aikrxfql0lhi9xbrc0bpyvkfnl7qbgxa
+NarSize: 138320
+References: 
+Deriver: 5ifnirmfydk0f6hkv2mzfnsvawv6b426-cargo-package-windows-future-0.3.2.drv
+Sig: wvhulle.cachix.org-1:NmFIJ5c8EnC71z42tfhhOXbfG1NtY6mX3qN3/wI+l7WHWQ4jAE0G5YJ7zXUZRnmbrqHw9HWivnXUXRjmJXeoBw==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/j6m8wz852mdicvxf4n5g4x28f2h8qyin-cargo-package-fallible-streaming-iterator-0.1.9
+URL: nar/05vg59f6dqqk5zmrdncjvxsljiqq6nhrs57s5s8mzmwiz2l28nrs.nar.zst
+Compression: zstd
+FileHash: sha256:05vg59f6dqqk5zmrdncjvxsljiqq6nhrs57s5s8mzmwiz2l28nrs
+FileSize: 9994
+NarHash: sha256:1v807bjfjp136xd1hd2d80silyrhv7wxz6smcgp21sjj0bym673g
+NarSize: 38728
+References: 
+Deriver: a4xbdfc2k22kh2a368adf5vgbqn3r6ji-cargo-package-fallible-streaming-iterator-0.1.9.drv
+Sig: wvhulle.cachix.org-1:rvSKdHjZY3neb06+lBM2BOb23k+Rq+iuu0ZCwOlnQYWXz0E2zUi7zcBeuBZB69+tm8qn1aGpdpvs9jLMBiRAAQ==

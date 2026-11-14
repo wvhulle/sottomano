@@ -1,0 +1,10 @@
+StorePath: /nix/store/vnxckdz5x2g69nmbacl2c1dhmmn732f7-cargo-package-deranged-0.5.9
+URL: nar/047hxndhw2wy4adfms1kxpcxrh91hhwwvhh0fhv5bjgyhh5py7s2.nar.zst
+Compression: zstd
+FileHash: sha256:047hxndhw2wy4adfms1kxpcxrh91hhwwvhh0fhv5bjgyhh5py7s2
+FileSize: 29590
+NarHash: sha256:00mqv28a00f9jc7pmr57n5mq9762hikfsd6lc385xlz3cq5ylxaw
+NarSize: 158064
+References: 
+Deriver: c5rywllj4xs99034rjffcilmfldbdg07-cargo-package-deranged-0.5.9.drv
+Sig: wvhulle.cachix.org-1:VIHiR0TJms1bsfyq73UzDPYHbk7gytlGditnxFE8arq0EhhSE828klOpS2g534g397AcKQsCWXHebo2oO95IDQ==

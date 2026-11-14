@@ -1,0 +1,10 @@
+StorePath: /nix/store/nh2clg7zcghycc5z25fh5nbx4wwxc8zg-cargo-package-core-foundation-sys-0.8.7
+URL: nar/0mwzqga7gqd91yrqbdldj1b706pylh3m7mxzbrfyi01ckhbvj28g.nar.zst
+Compression: zstd
+FileHash: sha256:0mwzqga7gqd91yrqbdldj1b706pylh3m7mxzbrfyi01ckhbvj28g
+FileSize: 40825
+NarHash: sha256:0ds45xwl2117wqnwf621am3zjgsqlhvfp9943pbx9nvz45p3bhn8
+NarSize: 243392
+References: 
+Deriver: 2z1hxkf946yd2i1xby0kgn22pma3k46h-cargo-package-core-foundation-sys-0.8.7.drv
+Sig: cache.nixos.org-1:A1lX1WoAN7Sq9NwOFprqrlQv7XzLqyfXG6nB0tKixBbDS1pRjQcVMV0JEALenSjqqPbTBVMYVKCfclefDBHqAg==

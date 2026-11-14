@@ -1,0 +1,10 @@
+StorePath: /nix/store/4b8wldslxz84mfi8716bwiwhbshcdhn6-cargo-package-svg_fmt-0.4.5
+URL: nar/0i9i44jpvr94si86667f9cm2mvza058siy3waa79hfh8f4rsha8j.nar.zst
+Compression: zstd
+FileHash: sha256:0i9i44jpvr94si86667f9cm2mvza058siy3waa79hfh8f4rsha8j
+FileSize: 5054
+NarHash: sha256:0h9pn2marfl6hgmls136am7fs6725x3y914ph62vfi34xlh6xx8d
+NarSize: 23152
+References: 
+Deriver: jvwrjbl964m3d78jysqpkdm9mbrwga2d-cargo-package-svg_fmt-0.4.5.drv
+Sig: wvhulle.cachix.org-1:Zw1HZjkGVHGtPp9D36OpJnXkF+Yr2AyFCQ2e0tTGBz47ajVFUW5aYj9In3WoiE8TaQrlmAPy3KG7FrMbIf4cBw==

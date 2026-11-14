@@ -1,0 +1,9 @@
+/nix/store/cdhrjbw8b9d79g3wrhcsa1ymk3bdhr0f-sottomano-showcase-source
+/nix/store/7ap8jaln9dal507rvfhaf0fshq508w9s-linkLockedDeps
+/nix/store/xi1k3gr5l30ifj3g9sry1lnn8ki53dkg-linkLockedDeps
+/nix/store/qn97hdk8xx61b90n73l94ppszifq4vl3-linkLockedDeps
+/nix/store/riangs87bw7hk1hkqva7y4rq77ck2zbw-linkLockedDeps
+/nix/store/8fa7kq24qmz9r62r4slzhr0vcmh0qn9l-linkLockedDeps
+/nix/store/mv6n765n18y78asp98bjxqi07jl7bik9-linkLockedDeps
+/nix/store/1xjw8bcr0xg9h2ixkq8mmbvs974cmibj-vendor-cargo-deps
+/nix/store/kgq47rg1637vn47cpwshp6qmldjr9fjy-sottomano-widget-showcase-0.0.1

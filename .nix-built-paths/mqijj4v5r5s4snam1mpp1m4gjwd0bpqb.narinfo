@@ -1,0 +1,10 @@
+StorePath: /nix/store/mqijj4v5r5s4snam1mpp1m4gjwd0bpqb-cargo-package-crc32fast-1.5.2
+URL: nar/03qslzhdkx18m0s5ypwb644243ibzp8y8ha9z4b78skckfw4lrcj.nar.zst
+Compression: zstd
+FileHash: sha256:03qslzhdkx18m0s5ypwb644243ibzp8y8ha9z4b78skckfw4lrcj
+FileSize: 50120
+NarHash: sha256:1p6x0a4k1mh9dvzxwb9yd5lqz21d5ij9sxxafgm7swax2skjb6z9
+NarSize: 137200
+References: 
+Deriver: vx1379bb1v1dy30pilfv8fhbzfyc53b1-cargo-package-crc32fast-1.5.2.drv
+Sig: wvhulle.cachix.org-1:mz/90Wsxm+mpmq3+1gzLx8NqI1VPqBDizT4SO4Dyw40oiKYDMAMNFzjCLOQf68gO/gxN7xEm/i9z5a0343cQCA==

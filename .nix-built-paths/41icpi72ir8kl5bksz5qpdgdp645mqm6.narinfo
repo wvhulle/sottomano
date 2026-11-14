@@ -1,0 +1,10 @@
+StorePath: /nix/store/41icpi72ir8kl5bksz5qpdgdp645mqm6-cargo-package-litemap-0.8.3
+URL: nar/1m5mqbvgdlvs7sizpm2swdpzc7is3l4v79pfd3sklf4lkc789hym.nar.zst
+Compression: zstd
+FileHash: sha256:1m5mqbvgdlvs7sizpm2swdpzc7is3l4v79pfd3sklf4lkc789hym
+FileSize: 36962
+NarHash: sha256:1rgkn8ljji0b5xfgdm0b25ckj289pnw3fs0ysi70d1bzz5dzfj0z
+NarSize: 166168
+References: 
+Deriver: lq7snnzzq7s3bysh6zcd280wqk1g7i4q-cargo-package-litemap-0.8.3.drv
+Sig: wvhulle.cachix.org-1:Q8hB+AzGHimD7A54uyLjXSbsxey6q7+2PkWUUczESnexbMieczhpZYHztv2ahkGBIhom+6o5TNOGJBpgS2dKAg==

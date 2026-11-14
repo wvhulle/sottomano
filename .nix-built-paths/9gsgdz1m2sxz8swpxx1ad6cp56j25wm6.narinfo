@@ -1,0 +1,10 @@
+StorePath: /nix/store/9gsgdz1m2sxz8swpxx1ad6cp56j25wm6-cargo-package-libsqlite3-sys-0.38.2
+URL: nar/0frszvg5zmk6dqs3qk53l8qwxncy6m5mnw24qfvavm58yx5yh776.nar.zst
+Compression: zstd
+FileHash: sha256:0frszvg5zmk6dqs3qk53l8qwxncy6m5mnw24qfvavm58yx5yh776
+FileSize: 5169226
+NarHash: sha256:0k8hfqz5biifzskycghf4gjlm5mvf5b5brs1jb448qjbzlq77yla
+NarSize: 21630416
+References: 
+Deriver: b8h7lx84jmihivlbd18l08jvh9gnl3zf-cargo-package-libsqlite3-sys-0.38.2.drv
+Sig: wvhulle.cachix.org-1:aCuLWLFeDBKFQuuqzuXoxPN1AObf0tJbtBgHGnXTrzdW4wVqZ25lb3CgAEA0z2aRW3apRR3IVkdHt3WeSdjiBA==

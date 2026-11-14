@@ -1,0 +1,10 @@
+StorePath: /nix/store/b2pwhg7q00iia038aasbswyky9in8x17-cargo-package-winnow-0.7.15
+URL: nar/15dwcb9q2rvmpx1jzpy923353z3psnjn9sf8iz6g0zsqa7z86lqq.nar.zst
+Compression: zstd
+FileHash: sha256:15dwcb9q2rvmpx1jzpy923353z3psnjn9sf8iz6g0zsqa7z86lqq
+FileSize: 190841
+NarHash: sha256:1c560ckd4c6sjnywn85q5sqh434lp8hznl7hfxxsa0qm53fdwa8g
+NarSize: 1363784
+References: 
+Deriver: 0v1zz73s4f4ndw6b31v5xfq5g92qb7kz-cargo-package-winnow-0.7.15.drv
+Sig: wvhulle.cachix.org-1:bqJ+MQN7uo0J/Gm/V3YuqmriQ2yhRjjkjwlnmUTL6l9DeEvVCoaxQ8/VfT0g86GMtlXWdZWbqun9hLGkzv/oDg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/3kr05qwwa6gwnh84jy8cspz9wp1aachn-cargo-package-smol_str-0.3.6
+URL: nar/1dcyg7fsn6bxglmp6q559zxsvpcvyxihm45sixg2ma4b7xjl8sqw.nar.zst
+Compression: zstd
+FileHash: sha256:1dcyg7fsn6bxglmp6q559zxsvpcvyxihm45sixg2ma4b7xjl8sqw
+FileSize: 27978
+NarHash: sha256:0sss9s5m9k5jn9lyk8jrllb9ms1awi7yr568zsrn2c2vjk6k6xwz
+NarSize: 99664
+References: 
+Deriver: cd7i893kj1agsk8amfaks9c1wy3grhbq-cargo-package-smol_str-0.3.6.drv
+Sig: wvhulle.cachix.org-1:hhje7tDMBKthJKVFI3u6XXIuFgo4XxYoI2RgMONL5IlxLD9N8tHBz+tfQO84yGYhRJNvi5a6/vTQuyCPoNpMAA==

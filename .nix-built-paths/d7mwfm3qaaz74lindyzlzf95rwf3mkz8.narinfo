@@ -1,0 +1,10 @@
+StorePath: /nix/store/d7mwfm3qaaz74lindyzlzf95rwf3mkz8-cargo-package-once_cell_polyfill-1.70.2
+URL: nar/0gk3w57r5s3w3lxdqdala5gdwzs8mf4360mkmi8b539zfcgdqrc9.nar.zst
+Compression: zstd
+FileHash: sha256:0gk3w57r5s3w3lxdqdala5gdwzs8mf4360mkmi8b539zfcgdqrc9
+FileSize: 7770
+NarHash: sha256:1fxfhnfi27h252sl339fgirc0x1ln6llxpnjznmsdr37ywcg9y5i
+NarSize: 24432
+References: 
+Deriver: 8gjjwg4kk9m156g239rb9bqq05060rjv-cargo-package-once_cell_polyfill-1.70.2.drv
+Sig: wvhulle.cachix.org-1:25hNTvdAT8HdUMXXPHCVDtuubQIGkO+IBxO7h6ibKDK8rfA0GiuXgPhferQdLxw+kGrEZylnRItkaWceq+4eAw==

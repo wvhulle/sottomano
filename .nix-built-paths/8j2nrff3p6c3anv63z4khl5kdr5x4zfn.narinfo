@@ -1,0 +1,10 @@
+StorePath: /nix/store/8j2nrff3p6c3anv63z4khl5kdr5x4zfn-cargo-package-renderdoc-sys-1.1.0
+URL: nar/07fx41dv17y8ljbg9ggqagfjspipsgxwcf5yp2fw9nlphxmnhkym.nar.zst
+Compression: zstd
+FileHash: sha256:07fx41dv17y8ljbg9ggqagfjspipsgxwcf5yp2fw9nlphxmnhkym
+FileSize: 10522
+NarHash: sha256:0qm99mbxh10g4hjcxv2h17ax4vx0pzqfpzmig4arhfbqk35bmv36
+NarSize: 49144
+References: 
+Deriver: n5hmm0wdssgs2vkf1ihn6iqsmn80wq66-cargo-package-renderdoc-sys-1.1.0.drv
+Sig: wvhulle.cachix.org-1:2aAjro0n+HpmXpz0H1UL5CXxbV93Ubf+30mTw+LvxhqIzlibTMLqezvmzKamIVqhicW0xcPQ29CYhH5f6MQiDg==

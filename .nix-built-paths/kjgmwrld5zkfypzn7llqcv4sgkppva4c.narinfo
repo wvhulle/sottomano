@@ -1,0 +1,10 @@
+StorePath: /nix/store/kjgmwrld5zkfypzn7llqcv4sgkppva4c-cargo-package-presser-0.3.1
+URL: nar/1y5cf9zgs6pqy7a8wsc172a0sr0qd67ar4wgavxi6cylvg4jy71w.nar.zst
+Compression: zstd
+FileHash: sha256:1y5cf9zgs6pqy7a8wsc172a0sr0qd67ar4wgavxi6cylvg4jy71w
+FileSize: 22056
+NarHash: sha256:0sqx30i545bhl53rdxz6ffna4jbjfhnclm9wcix4k8zhasc3lqa2
+NarSize: 76432
+References: 
+Deriver: 5jn7n5gp67gkd39g1xjqcwaa0834msdj-cargo-package-presser-0.3.1.drv
+Sig: wvhulle.cachix.org-1:hb4fnlS37UqGaNi9qnfpWfHGnau74VIiVhCkLdTtr00mnKZR4maKiXdGwGQfhqWG6FdNwchg2+YjysEe6gGhAw==

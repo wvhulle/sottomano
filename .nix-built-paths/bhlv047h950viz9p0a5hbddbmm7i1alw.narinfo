@@ -1,0 +1,10 @@
+StorePath: /nix/store/bhlv047h950viz9p0a5hbddbmm7i1alw-cargo-package-iana-time-zone-haiku-0.1.2
+URL: nar/0sb2r9pwwj0hbipmyn0ya47h0yk3f6wbp799qa5pisbkc5vkp24f.nar.zst
+Compression: zstd
+FileHash: sha256:0sb2r9pwwj0hbipmyn0ya47h0yk3f6wbp799qa5pisbkc5vkp24f
+FileSize: 7533
+NarHash: sha256:1whrywidj1zwbfnz8rjrdhi1nj17125xcawqnhkrar1wd2fgxds0
+NarSize: 20984
+References: 
+Deriver: 3if6sdwlcyjw9lv5qsxziicfgs4qacn9-cargo-package-iana-time-zone-haiku-0.1.2.drv
+Sig: wvhulle.cachix.org-1:0LBN5t8o376i/kf7Xys0waGatLyhBG2hZnG5SM0EFjWHkrHtkPUNfJSUfvAzdoUh5g8hM+n36gRGi1TdrZw2CQ==

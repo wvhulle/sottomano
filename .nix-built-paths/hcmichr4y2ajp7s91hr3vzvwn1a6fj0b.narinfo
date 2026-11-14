@@ -1,0 +1,10 @@
+StorePath: /nix/store/hcmichr4y2ajp7s91hr3vzvwn1a6fj0b-cargo-package-autocfg-1.5.1
+URL: nar/0lsbaqzsq4p6l069al1kxnvpsai15q1hnffxy7n4212f7z5mnlp6.nar.zst
+Compression: zstd
+FileHash: sha256:0lsbaqzsq4p6l069al1kxnvpsai15q1hnffxy7n4212f7z5mnlp6
+FileSize: 20034
+NarHash: sha256:1bh1qhsdjx1a2yk5jd82g6mj2ld9n8hz2j0ynqrliqx1kkhb9wc5
+NarSize: 67584
+References: 
+Deriver: c8062magw2z2j5xmaqlnrzakvp3i7bdp-cargo-package-autocfg-1.5.1.drv
+Sig: wvhulle.cachix.org-1:Z3Zua0xlB+wQ5Owh6eRBGEUlR/yi56xs6arGzcE5ppUyim0YspP2HuUzXcu1vBmHNYxNmttdqZYZDeHtPkFPBg==

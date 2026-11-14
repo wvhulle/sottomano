@@ -1,0 +1,10 @@
+StorePath: /nix/store/ikhd9lc6b7i0khmxhdp0g68pdyp8j6lc-cargo-package-humantime-serde-1.1.1
+URL: nar/0npfwx5zx4hqz5v5bs6jb56idhwssv7jcrhnxbmw8vyayby8ym90.nar.zst
+Compression: zstd
+FileHash: sha256:0npfwx5zx4hqz5v5bs6jb56idhwssv7jcrhnxbmw8vyayby8ym90
+FileSize: 8418
+NarHash: sha256:0xn891dq2nnj7yzc1v12xkmbc6vza6gh7jfl4p5lvwni4lrakgyy
+NarSize: 29120
+References: 
+Deriver: n6s8rv8iqsfpzfwwpjads9i0lm3b2v97-cargo-package-humantime-serde-1.1.1.drv
+Sig: wvhulle.cachix.org-1:7p1PpmxKE6jtmLTCfSUvedZJjoK0+DlS+fqYYiN9AY41WbvbnAmvB08UF5uYs16zLHiX4L0F4YO7FHpS80jvDQ==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/fsd5sidja4igj10rn8sf0i1fakgkphy1-cargo-package-antithesis_sdk-0.3.0
+URL: nar/1w4y3k0cbv0ifh8iy4zwxanzr8wcps1v4m2vrxfwgahhpixyrz7l.nar.zst
+Compression: zstd
+FileHash: sha256:1w4y3k0cbv0ifh8iy4zwxanzr8wcps1v4m2vrxfwgahhpixyrz7l
+FileSize: 26477
+NarHash: sha256:04xg4wad481aq89f7bp47q7kfspza4na49whr3m6ac5bivd07m55
+NarSize: 122584
+References: 
+Deriver: np3h3lrashkbbh8lrlsz2ix1iziz600c-cargo-package-antithesis_sdk-0.3.0.drv
+Sig: wvhulle.cachix.org-1:sVMok0Gu5xrBjnqHgxvqhTSL83k08nDX5y3sE3TVBkzyMLwZtISaVienmuMmC3srZAUYl3FlskV8EDJo+ugkBQ==

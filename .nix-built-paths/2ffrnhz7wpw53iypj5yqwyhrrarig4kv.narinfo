@@ -1,0 +1,10 @@
+StorePath: /nix/store/2ffrnhz7wpw53iypj5yqwyhrrarig4kv-cargo-package-data-encoding-2.11.1
+URL: nar/1jgvk1dq34fp9amsz1nsfcklb23nnlsl4449626afp2ni06c7wjf.nar.zst
+Compression: zstd
+FileHash: sha256:1jgvk1dq34fp9amsz1nsfcklb23nnlsl4449626afp2ni06c7wjf
+FileSize: 24409
+NarHash: sha256:0iana3md8sxqp01h3gwp2ngg8i93rhi28c31salgq8h75fbddac7
+NarSize: 135936
+References: 
+Deriver: is2xix5d9g12mcv8ql8rcs7877dr4s72-cargo-package-data-encoding-2.11.1.drv
+Sig: wvhulle.cachix.org-1:EF2ERn+AL4OpW7oxcyw2bLwp6NAAEZCbrvtVJKbm3upq9odkQyAtvDYtepsE+Xl8ZicFH7sPfp6+WbXxW3rPAg==

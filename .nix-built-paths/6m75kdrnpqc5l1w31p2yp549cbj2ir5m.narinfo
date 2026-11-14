@@ -1,0 +1,10 @@
+StorePath: /nix/store/6m75kdrnpqc5l1w31p2yp549cbj2ir5m-cargo-package-turso_sync_engine-0.8.3
+URL: nar/1apj8vl2fjyv0zkvznc15bgardx7s824ikc9xwfcqy9s7vwkk6qa.nar.zst
+Compression: zstd
+FileHash: sha256:1apj8vl2fjyv0zkvznc15bgardx7s824ikc9xwfcqy9s7vwkk6qa
+FileSize: 155155
+NarHash: sha256:0i982mpg1x1lh4gnb03hw5ha67zgkjga2cgi7ill50pr2hzbzvvz
+NarSize: 868080
+References: 
+Deriver: s2dc8liwkqv5n5yhhd0qb7lljmjdkxcl-cargo-package-turso_sync_engine-0.8.3.drv
+Sig: wvhulle.cachix.org-1:leUEqYswuWjgvPyZxV+POWPHgUSLlIMeMTXc7oA/y5gGPes3tiFzza9JqhsmF6HjFM5QI/QAjd2fHGvdBsh+DA==

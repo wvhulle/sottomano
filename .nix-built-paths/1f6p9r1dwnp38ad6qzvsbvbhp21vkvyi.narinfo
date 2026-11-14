@@ -1,0 +1,10 @@
+StorePath: /nix/store/1f6p9r1dwnp38ad6qzvsbvbhp21vkvyi-cargo-package-shuttle-0.8.1
+URL: nar/1q20park966l4c41fcn0bn2rnhp1dl8jd4iv9lj8y0j03hjln8rs.nar.zst
+Compression: zstd
+FileHash: sha256:1q20park966l4c41fcn0bn2rnhp1dl8jd4iv9lj8y0j03hjln8rs
+FileSize: 257191
+NarHash: sha256:0pjax4hvkaxlxgm6lnnnh53708517cprn0svqnpc3y8q8ph99z89
+NarSize: 1136960
+References: 
+Deriver: vh1wd1l3wfi5lnf17pf8rflflz2mmh1a-cargo-package-shuttle-0.8.1.drv
+Sig: wvhulle.cachix.org-1:a7W2DvouOYC/9ojVzh8u0/qMlanKQP30x0TbJXouP/i0W4DAbAtQXfqnS97hfPbKtOG7iVgH+mwRZnY3hdCPBw==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/9idqklllmaxf00vnbk058qv9p0zha8jk-cargo-package-kamadak-exif-0.6.1
+URL: nar/0ganc3c95msakkbdsl84q2mnghdj4b67x5z6s7w0z6nr98rlbk82.nar.zst
+Compression: zstd
+FileHash: sha256:0ganc3c95msakkbdsl84q2mnghdj4b67x5z6s7w0z6nr98rlbk82
+FileSize: 56541
+NarHash: sha256:0x2blcnhq32jygsni06jf17iz60rjgn08z50v77a4a1y6zz46867
+NarSize: 271696
+References: 
+Deriver: 4qd8ikdyq8aav2kihad8w66i6i0sqx3s-cargo-package-kamadak-exif-0.6.1.drv
+Sig: wvhulle.cachix.org-1:KO/mYrXedFyj4ggUcCdcY1SsmcUL3YLH+QrPO99l+hfTVsbHMRnpNs/r2fEyqDhRpTnzOVWP9qpI3kmq9O0RCA==

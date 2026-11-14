@@ -1,0 +1,10 @@
+StorePath: /nix/store/rh6y0iygzxr7xp323b0n2n7xky1iya80-cargo-package-tracing-chrome-0.7.2
+URL: nar/0yiwxdfl0wsl343ii4fy03gmpimk9vwhwzgyksybp0p71zlpaii3.nar.zst
+Compression: zstd
+FileHash: sha256:0yiwxdfl0wsl343ii4fy03gmpimk9vwhwzgyksybp0p71zlpaii3
+FileSize: 14886
+NarHash: sha256:0ldxhcbz2p6q9zz2knyiw9hyfggxb44n7p5823krar4cw6i6n486
+NarSize: 54192
+References: 
+Deriver: h1fimlmmjwh9lvdxaq6cb7sligap9yx0-cargo-package-tracing-chrome-0.7.2.drv
+Sig: wvhulle.cachix.org-1:h2ZXCMf+XlJkLhkh/S969GhnjbjpDNxsksx6XNBv7mfVx/XBUFW2rHBgXQBNtIKr/4hbynExoR7kgSuby+i+Aw==

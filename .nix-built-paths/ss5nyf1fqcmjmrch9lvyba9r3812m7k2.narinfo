@@ -1,0 +1,10 @@
+StorePath: /nix/store/ss5nyf1fqcmjmrch9lvyba9r3812m7k2-cargo-package-shlex-1.3.0
+URL: nar/0w77a9qiva8xp8vza5hdc3w9l98rlq0dj9yvx4z0qmk16c00kr2s.nar.zst
+Compression: zstd
+FileHash: sha256:0w77a9qiva8xp8vza5hdc3w9l98rlq0dj9yvx4z0qmk16c00kr2s
+FileSize: 19858
+NarHash: sha256:0ysswkxy3h4l3b9cncbddyxbz6p421kwp7v9776xydrd5d0mbyqx
+NarSize: 61824
+References: 
+Deriver: i6f69fwb5f1bkw1rq4giyachh0kkr16l-cargo-package-shlex-1.3.0.drv
+Sig: cache.nixos.org-1:hClRyCAyo+FWFKLHhJ7c0MBYmC8bI8nYU97YTl93zoQUJJ3Rpn6Uub01RIDc0cakS6fXX7k2EX7hg1IgdKEGDg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/4sa00phizks9sirhr0r71r6anh4yjhwl-cargo-package-endi-1.1.1
+URL: nar/1sx9lv5y979xkchm7c092zq7z3lfg4yjqm1hg3jzf596dc14b6hs.nar.zst
+Compression: zstd
+FileHash: sha256:1sx9lv5y979xkchm7c092zq7z3lfg4yjqm1hg3jzf596dc14b6hs
+FileSize: 5520
+NarHash: sha256:0pk1cn0lppp8wayx6yrbx3n3abadc6wdyha7ra240nzv1kp46i29
+NarSize: 21272
+References: 
+Deriver: c4fn9l07fwvy28xqyy4kly0j914mqcah-cargo-package-endi-1.1.1.drv
+Sig: wvhulle.cachix.org-1:fCt6u5wwkYXnBX8PAyyEEzZndOgxgrFo+CqVkaPWUDEGODY9jSH80UwydPYYFoDcnWtGun6RmoG9eMXs5HE4Bw==

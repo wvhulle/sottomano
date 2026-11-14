@@ -1,0 +1,10 @@
+StorePath: /nix/store/7r5rc39a25jpqh8g4gllzlsapdkdqrmh-cargo-package-skrifa-0.44.0
+URL: nar/0hy7v7q6dgxm5l4bh7wgh7xg6lrbir1d8cnl35v7qal7hr95rm1x.nar.zst
+Compression: zstd
+FileHash: sha256:0hy7v7q6dgxm5l4bh7wgh7xg6lrbir1d8cnl35v7qal7hr95rm1x
+FileSize: 305603
+NarHash: sha256:0g4jh3zx9wkrl860l4nl9gjrdhxf506rbbc5r7z43yrvnn2qxpjr
+NarSize: 1472344
+References: 
+Deriver: lbp8cplma74hqm37ls4mp5ksmcd1n4m5-cargo-package-skrifa-0.44.0.drv
+Sig: wvhulle.cachix.org-1:HzJYMKTJpLl4GOlkwZzpCFnOQ0OF6roYjDBqTQeHOYOHhvunVMs9KgNj/xwGbLz7hWrNzAzVa1898P67E4C1CA==

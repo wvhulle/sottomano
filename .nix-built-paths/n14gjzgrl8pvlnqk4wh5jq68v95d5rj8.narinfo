@@ -1,0 +1,10 @@
+StorePath: /nix/store/n14gjzgrl8pvlnqk4wh5jq68v95d5rj8-cargo-package-semver-1.0.28
+URL: nar/1zns3pzairqs6sbvx538yq4pji81m330ay7gk2zwbzkrmx53jvwl.nar.zst
+Compression: zstd
+FileHash: sha256:1zns3pzairqs6sbvx538yq4pji81m330ay7gk2zwbzkrmx53jvwl
+FileSize: 34624
+NarHash: sha256:1vi30lrbqsr1jhs3wkpi5yv03y84ap0k4rzchqfn06adcw9ka1yl
+NarSize: 137448
+References: 
+Deriver: sj904bwza6nln4pkqpiv9sxwmi99nv1g-cargo-package-semver-1.0.28.drv
+Sig: wvhulle.cachix.org-1:oQG+4Wtl45S35vzZWgDU8OEVOWty5BOnKTRByKXLaqh3YgbNo+iUv9BQumehgs6M3dP3qie+zueaVvLBIuFfBw==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/9ap242z1bldamvqbk3cxm22pdlr0wpnj-cargo-package-tungstenite-0.30.0
+URL: nar/0n4shcj70mz8hfljygcmwm0vvsgzvxnmqaf0cf5amjhdnkj18wc9.nar.zst
+Compression: zstd
+FileHash: sha256:0n4shcj70mz8hfljygcmwm0vvsgzvxnmqaf0cf5amjhdnkj18wc9
+FileSize: 74030
+NarHash: sha256:15gnkg0m2ahkldfnm4qxqcabiji5288rx4f6y95yf538wccrgh2m
+NarSize: 289808
+References: 
+Deriver: 3kmb232khxsc2pqy2pjn03ijgfpmgg3v-cargo-package-tungstenite-0.30.0.drv
+Sig: wvhulle.cachix.org-1:c7qWsYErqRTksbsfmrwoH1/x9e44GeOP3tkrnTxmPBqJCMCzhKrd2wUebjV9PixP8pYSWSbl9yUVuNBNC2jwAQ==

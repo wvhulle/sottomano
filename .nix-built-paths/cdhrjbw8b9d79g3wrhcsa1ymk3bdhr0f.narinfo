@@ -1,0 +1,9 @@
+StorePath: /nix/store/cdhrjbw8b9d79g3wrhcsa1ymk3bdhr0f-sottomano-showcase-source
+URL: nar/0fcrjmca5rf0rl3mcxip4hrxnycq0qkkzkpgzgdd3q1s3rbl798l.nar.zst
+Compression: zstd
+FileHash: sha256:0fcrjmca5rf0rl3mcxip4hrxnycq0qkkzkpgzgdd3q1s3rbl798l
+FileSize: 1547333
+NarHash: sha256:1l4sqp0wlxgynj8f8cc3nvm0v1mv7rbwdhgbwdz4ml33mhi74m9d
+NarSize: 7087504
+References: 
+Deriver: bqzbka78fkk1vxfaxprv4rf4h1w3cf6m-sottomano-showcase-source.drv

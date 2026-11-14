@@ -1,0 +1,10 @@
+StorePath: /nix/store/iga7m076ziw3g644yb0s6bsi2wzsw821-cargo-package-windows-sys-0.60.2
+URL: nar/1m82hfjqnkjkc76mq1prll3p8jwqn98ci78azvpirda5i4r1gi2s.nar.zst
+Compression: zstd
+FileHash: sha256:1m82hfjqnkjkc76mq1prll3p8jwqn98ci78azvpirda5i4r1gi2s
+FileSize: 2609034
+NarHash: sha256:09wzv9w8w4x52g4c6d02cll4ynwmyk6jyqjh8rzkrnqx3ycl775c
+NarSize: 18337792
+References: 
+Deriver: npqv8pdxlr5fs75v8bjrw4pf5n3b5fk7-cargo-package-windows-sys-0.60.2.drv
+Sig: cache.nixos.org-1:mMIMKpLGrq6AlSyTPISRW50S52S8Ll5PzF2wMANi70d4cYwVY7PhxxkyFkPuut28VLOz7jPdIIiZM2j6I5MXAA==

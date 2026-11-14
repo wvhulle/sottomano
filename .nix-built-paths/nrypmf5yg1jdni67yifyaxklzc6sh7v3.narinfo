@@ -1,0 +1,10 @@
+StorePath: /nix/store/nrypmf5yg1jdni67yifyaxklzc6sh7v3-cargo-package-funty-2.0.0
+URL: nar/0f3n8xbjx8nkiyz479bk4jxvkrizawz54pn1pxc4airrgl477409.nar.zst
+Compression: zstd
+FileHash: sha256:0f3n8xbjx8nkiyz479bk4jxvkrizawz54pn1pxc4airrgl477409
+FileSize: 13995
+NarHash: sha256:1gm0n69cgpqdwz7swa977kwdq5sssc1vrvpiq29zl65yc4dy1avs
+NarSize: 58888
+References: 
+Deriver: gzsbhk46f8vv8s2p9bdcc81j66iagzjs-cargo-package-funty-2.0.0.drv
+Sig: wvhulle.cachix.org-1:WalhUn8OTaEoGPkjmug6PccybtSxAriwJntLhD4noksKu2sD/GrNRwGMhdPZ4CJsOUzlpxqZc9xM9igkOtffAw==

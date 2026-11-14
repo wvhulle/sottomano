@@ -1,0 +1,10 @@
+StorePath: /nix/store/gsj8a4qb1fi48gdrzh9ln2cwf6h4gyvm-cargo-package-thiserror-impl-1.0.69
+URL: nar/0qnlj2v5hadqkwh2sgwgcs7jgrq6pv6fh0d1zml2hskv6421vg27.nar.zst
+Compression: zstd
+FileHash: sha256:0qnlj2v5hadqkwh2sgwgcs7jgrq6pv6fh0d1zml2hskv6421vg27
+FileSize: 20309
+NarHash: sha256:0hz0yvh182r4jzsh84mrbzhngsrnxq5vawjrslgrmvn5jh6sizhy
+NarSize: 85248
+References: 
+Deriver: aw0a98w6lg18q8pp5kdcy0l50913s2f6-cargo-package-thiserror-impl-1.0.69.drv
+Sig: cache.nixos.org-1:/e6A9dqe3Z7FsuflJHdJnTrfvCqaXedGrpjmZypATXUrLm1PxziFTBPKGxMjka9untZz8/pKRMTkfOobKFNHAA==

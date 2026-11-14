@@ -1,0 +1,10 @@
+StorePath: /nix/store/y7hz1gbc35p9rhwscwjf9saaq06rp9wn-cargo-package-darling_macro-0.20.11
+URL: nar/0ijfc8mk8gvyx0176jpqf8xlhn4fdzbc0zh6yfmy5hrl26wla36x.nar.zst
+Compression: zstd
+FileHash: sha256:0ijfc8mk8gvyx0176jpqf8xlhn4fdzbc0zh6yfmy5hrl26wla36x
+FileSize: 2699
+NarHash: sha256:1ywdmsv1g5c1qpfcnz896hpskcp062z1sfjr07xm84yp1np9a27h
+NarSize: 7800
+References: 
+Deriver: 0kyrhnpjxzvxf14j8wblb3ry3b087ys9-cargo-package-darling_macro-0.20.11.drv
+Sig: wvhulle.cachix.org-1:uyplqafDKy3WNC+r+o7W7EgikapectoYDQP1zUAtNh4T1umiqlIoWgYiKsWVDrvvQ/xPY/9vetNeuB6fSMFdBg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/lwn9h1q9y0gr7fnp53rc6sfrqb9wiqkp-cargo-package-ipnet-2.12.2
+URL: nar/12k91zzrq17rm8s9wr6pbxx2nckf514mlajhii6p4qg9rw1l2gzl.nar.zst
+Compression: zstd
+FileHash: sha256:12k91zzrq17rm8s9wr6pbxx2nckf514mlajhii6p4qg9rw1l2gzl
+FileSize: 33340
+NarHash: sha256:1hy93vvazkks90njr9drbsnv98dpfz1g6n4g0rdscaxsc5349yh5
+NarSize: 168472
+References: 
+Deriver: s0y0jgsivsprdxhpci8s76qca59qq0sv-cargo-package-ipnet-2.12.2.drv
+Sig: wvhulle.cachix.org-1:mNXTuMUkiepleBhTRTzySMXJ0qWoVmlBweoP9srcL6+XAKbRpS97b6oepkIJxDPxXMY0QJEmvKk9QVoxtZICBA==

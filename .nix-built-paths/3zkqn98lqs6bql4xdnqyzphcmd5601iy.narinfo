@@ -1,0 +1,10 @@
+StorePath: /nix/store/3zkqn98lqs6bql4xdnqyzphcmd5601iy-cargo-package-objc2-metal-0.2.2
+URL: nar/0jazmxpl9998nraxwg3njfi4cnxpn03jhmd1vhb1zarjw94jrfzr.nar.zst
+Compression: zstd
+FileHash: sha256:0jazmxpl9998nraxwg3njfi4cnxpn03jhmd1vhb1zarjw94jrfzr
+FileSize: 78670
+NarHash: sha256:09wrx9ysxzy3kgmza7fwsg8dwbs6da7xqhlaj5xh14yn2sp3vdcw
+NarSize: 700768
+References: 
+Deriver: zibs6hx7q1636hv1wqfqaizd80rdxqay-cargo-package-objc2-metal-0.2.2.drv
+Sig: wvhulle.cachix.org-1:RVBZinTK+DvIw2360UDOmeY4ZXp+/j5x3bI+DfnI3K2SoiplPT6EPfkjwbuMqyIhPIaHpC8tCV51HYxU5E18AQ==

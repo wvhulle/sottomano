@@ -1,0 +1,10 @@
+StorePath: /nix/store/9qx969px94a64nbav3wqnpplnpm7dnfb-cargo-package-polling-3.11.0
+URL: nar/1nva1mkjqg00ijc9r1x7hjwb80lb9gw3464gvkskfldsz17njn2n.nar.zst
+Compression: zstd
+FileHash: sha256:1nva1mkjqg00ijc9r1x7hjwb80lb9gw3464gvkskfldsz17njn2n
+FileSize: 60107
+NarHash: sha256:18hdbg6sz2sf2v3n05pdnw1rqy6iddrb0vgj2xk8aq59qf1mba38
+NarSize: 272528
+References: 
+Deriver: l0qlb0c7hsr5dq91c7qalpchcc1izkd7-cargo-package-polling-3.11.0.drv
+Sig: wvhulle.cachix.org-1:FqSoNUKWSw251KqNv2nQGvVdEg2+NvYkdVumVM+7JvSfANlDA03NN8UNUyBM/+tZEMWj4fQTMxkCfvUu1yaNAQ==

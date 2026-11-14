@@ -1,0 +1,10 @@
+StorePath: /nix/store/h6x57xllhynysv9fkj7xv0y0i2f7qhcz-cargo-package-futures-macro-0.3.34
+URL: nar/0wyp0jql7w21671mlmkgw52wg28ym6xmjhj7zyinxyk2hhg87sbi.nar.zst
+Compression: zstd
+FileHash: sha256:0wyp0jql7w21671mlmkgw52wg28ym6xmjhj7zyinxyk2hhg87sbi
+FileSize: 12823
+NarHash: sha256:0vrn7ygbp9jg7kd8sfzxanz0b662vnglqlscj8vyw227660xrkr1
+NarSize: 43408
+References: 
+Deriver: 8yjj8jgxnifadmcmr3l113gli0d2p31a-cargo-package-futures-macro-0.3.34.drv
+Sig: wvhulle.cachix.org-1:wLHPEGiGOwDISEmLg5L16BDnKBGMnu6mQ6eaTR3p+fml36W79c0GWa6sQMWqBbFLxpEeIl6jwqhHrmI1vcBwAw==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/mybz6y04kmh1dyha65pdrbd2lm0wwl6r-cargo-package-codespan-reporting-0.12.0
+URL: nar/0502v9f6mwd3ms4zwvn9klq76fgxgiwixq6rmlqb39yns7xvxf89.nar.zst
+Compression: zstd
+FileHash: sha256:0502v9f6mwd3ms4zwvn9klq76fgxgiwixq6rmlqb39yns7xvxf89
+FileSize: 56805
+NarHash: sha256:0i1xlyr3a5m0p3xljk2ziiq8ldmlfib33y3jizswyidxi9i2gwz8
+NarSize: 301656
+References: 
+Deriver: 9dgcbiwnh984nwlmzwkv1d4670361ak4-cargo-package-codespan-reporting-0.12.0.drv
+Sig: cache.nixos.org-1:q8tbDbl6qYM5Os2c1H7FwH6BVylgGUreXj3c+Y/r/eqpiqdAxWxR/HvriIH79AHhjT5WrL1aairPO/doxnpzAQ==

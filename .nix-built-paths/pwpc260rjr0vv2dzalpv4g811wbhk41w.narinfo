@@ -1,0 +1,10 @@
+StorePath: /nix/store/pwpc260rjr0vv2dzalpv4g811wbhk41w-cargo-package-num-conv-0.2.2
+URL: nar/0p8w8c0k7dc9qpiwrmhw1ws8n3qcszcj0gyhysa50w88xwcldycs.nar.zst
+Compression: zstd
+FileHash: sha256:0p8w8c0k7dc9qpiwrmhw1ws8n3qcszcj0gyhysa50w88xwcldycs
+FileSize: 7901
+NarHash: sha256:1anqdivc0z1lhy0z02jli8d17ir8gi0dgc0cq0kckksgarmyyhsp
+NarSize: 26840
+References: 
+Deriver: wwrw9y658vppjdkg2cybz6dsraa1z6z8-cargo-package-num-conv-0.2.2.drv
+Sig: wvhulle.cachix.org-1:yFWArERSWFxpmoreLOHLrdSzYt6ZIUUag2YlK7PB82dh6qB9lvEPl7erO+Zv82BTk3YIFzLpQGv12Bjr7/QQCg==

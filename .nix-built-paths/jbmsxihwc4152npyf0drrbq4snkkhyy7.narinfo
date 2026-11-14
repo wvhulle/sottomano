@@ -1,0 +1,10 @@
+StorePath: /nix/store/jbmsxihwc4152npyf0drrbq4snkkhyy7-cargo-package-libspa-0.10.1
+URL: nar/0jgsa7ycn8qgczpidhcahx7kmqdyd8zc4prs30bln656q0f7gbwn.nar.zst
+Compression: zstd
+FileHash: sha256:0jgsa7ycn8qgczpidhcahx7kmqdyd8zc4prs30bln656q0f7gbwn
+FileSize: 67084
+NarHash: sha256:1sswwc82fsjwndqzb3khaglfh4arsam5xgvafn3zdmcs87y767dk
+NarSize: 392440
+References: 
+Deriver: ihr9c217g3icdz39haq6av92p3klvrgk-cargo-package-libspa-0.10.1.drv
+Sig: wvhulle.cachix.org-1:j7XU10yIrcOLtJ7Nhs8lwXNtunl4VzMfFWc8terLrLuCJnQCga5f0BgC0H3O6PJR8jJ7ZABVYkKsrYHrOGAmAg==

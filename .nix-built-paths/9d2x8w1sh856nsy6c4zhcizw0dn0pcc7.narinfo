@@ -1,0 +1,10 @@
+StorePath: /nix/store/9d2x8w1sh856nsy6c4zhcizw0dn0pcc7-cargo-package-nalgebra-macros-0.3.0
+URL: nar/1w2s5ap5faj9iacxc18z0l9px01nkiliv9lg2bdxw86bxqclq6a0.nar.zst
+Compression: zstd
+FileHash: sha256:1w2s5ap5faj9iacxc18z0l9px01nkiliv9lg2bdxw86bxqclq6a0
+FileSize: 13919
+NarHash: sha256:1s006j8x1k829n4s1cg5n6hgdl6g4csrnrwgrnmwg5jpcc9h6ysz
+NarSize: 51584
+References: 
+Deriver: lb21pj1nkf6n5hqjawjjccwfcjzkp5cz-cargo-package-nalgebra-macros-0.3.0.drv
+Sig: wvhulle.cachix.org-1:IZdA/AJId1WfeDLC4ScS+Mw8HXlzr7qKWMb0q5EszF0UtIQcWH9gvOMGc3HsNANT3nQKbnpYyY+Yxdc3/vfDAg==

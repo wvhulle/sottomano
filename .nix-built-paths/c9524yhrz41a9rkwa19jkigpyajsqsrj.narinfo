@@ -1,0 +1,10 @@
+StorePath: /nix/store/c9524yhrz41a9rkwa19jkigpyajsqsrj-cargo-package-brotli-9.0.0
+URL: nar/1xdi1vp1f03z4av8a47p775235c310zqbqf7yd48daivd56dnaql.nar.zst
+Compression: zstd
+FileHash: sha256:1xdi1vp1f03z4av8a47p775235c310zqbqf7yd48daivd56dnaql
+FileSize: 821716
+NarHash: sha256:14q7n2mpfdkwxpfkrmz4321nk5jhp0b8a5yp4fz7bvc91an8iqlw
+NarSize: 4575296
+References: 
+Deriver: adq2ldjlmanpx42yja5hm6ss1qv1m9yn-cargo-package-brotli-9.0.0.drv
+Sig: wvhulle.cachix.org-1:Oz6BfSFjQrWH/hvXUnVL8NuoDs7dh9ZCsj54nmuryUJUNpvbWPWqoQprkHIkh6eciDSGjkcqvUPVQ9bfH8izCw==

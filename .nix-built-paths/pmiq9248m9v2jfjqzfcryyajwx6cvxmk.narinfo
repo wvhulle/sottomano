@@ -1,0 +1,10 @@
+StorePath: /nix/store/pmiq9248m9v2jfjqzfcryyajwx6cvxmk-cargo-package-vcpkg-0.2.15
+URL: nar/0ky1pqkhqnfji2ir08nh5xwddh70jvaifjl6gn0a5wyq2mi2bdgc.nar.zst
+Compression: zstd
+FileHash: sha256:0ky1pqkhqnfji2ir08nh5xwddh70jvaifjl6gn0a5wyq2mi2bdgc
+FileSize: 183099
+NarHash: sha256:12n9j6wf17rngs4csfm2y6gfhfa949d7pxnymlwarbaznvyaz1i0
+NarSize: 2662656
+References: 
+Deriver: dda0v9cr7an79mini0zahvbzk3m70xbi-cargo-package-vcpkg-0.2.15.drv
+Sig: wvhulle.cachix.org-1:tOmWnxjl6Zj1hqIbzH/SwMXF5q0aOHdHkL+cTQlLbGLbBd3/5rbUeor4MVz0gIMVuwLMfwu5ReACkdUQZx+8Cg==

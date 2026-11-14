@@ -1,0 +1,10 @@
+StorePath: /nix/store/8zk1gw1fri4b3idy30p9ii4r325zfvbr-cargo-package-nalgebra-0.35.0
+URL: nar/1zh1n85kscr0g3khhx7s83249fx1qbzq83jy1psvadcmi6p0cn8p.nar.zst
+Compression: zstd
+FileHash: sha256:1zh1n85kscr0g3khhx7s83249fx1qbzq83jy1psvadcmi6p0cn8p
+FileSize: 391347
+NarHash: sha256:0irna70kc6si8pghkpnzyfwv565vznm9pf64wcxfv7pi6dkghg68
+NarSize: 2460160
+References: 
+Deriver: x6r74dchia0javhaqlv3grqcrx8sz11v-cargo-package-nalgebra-0.35.0.drv
+Sig: wvhulle.cachix.org-1:l51sj/ZnOo2jtAr44xh+LWikRxMAsEKntyIT4B4HuK/hqzQtZhmmOscMe4iDDa8kYKiDV3vnYWe8ZZJ3j2TjBw==

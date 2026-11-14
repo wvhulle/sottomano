@@ -1,0 +1,10 @@
+StorePath: /nix/store/nib6k4rm0zgyc5lhsnvixjrvmfzjai03-cargo-package-moxcms-0.8.1
+URL: nar/0cvy3zy56rj2bak5cpwmr3cvn1i5pb79yhs7625yr8jdfn8d95dl.nar.zst
+Compression: zstd
+FileHash: sha256:0cvy3zy56rj2bak5cpwmr3cvn1i5pb79yhs7625yr8jdfn8d95dl
+FileSize: 173665
+NarHash: sha256:03z1qbz5i550m42aqv10dbifnlsaiyqrbwrhyi6fhd0gymql48ms
+NarSize: 1580384
+References: 
+Deriver: vm510hscry9g8xvziig04vcyndf720n7-cargo-package-moxcms-0.8.1.drv
+Sig: wvhulle.cachix.org-1:ZbMM/q+uPGOdyNyXoF+0V010A8JxCSNZlwI4KcIP82uvxlDErH9m6bXlAtAo0/vhpgs6GWR7y54DL0NzAFFrDQ==

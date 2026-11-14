@@ -1,0 +1,10 @@
+StorePath: /nix/store/9wlpzbfz0kvvp9ciqz35fv9hp9c2vfk1-cargo-package-mio-1.2.4
+URL: nar/14liip00wq9nh99aszh3l8dq82qsa0l96119lm1bxws05m3723vh.nar.zst
+Compression: zstd
+FileHash: sha256:14liip00wq9nh99aszh3l8dq82qsa0l96119lm1bxws05m3723vh
+FileSize: 110658
+NarHash: sha256:1dl58msbf2iydsis7awmaizqppap8lyirk8wkxx04ivq9x97pfrl
+NarSize: 522672
+References: 
+Deriver: i8zi9varg8zj34xw00mj4lh31sb3c0lk-cargo-package-mio-1.2.4.drv
+Sig: wvhulle.cachix.org-1:kRuzoxSJhVD1gRokGeAdnEUwHB/h7LXbtt9dNDL/IXoBt2kkAIU4CCsJ8Qzmp8I4bPG2x1QRHDRqMjNnfKa4Bg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/hbgqk3lsbcdcvhxl2sdl1hy5fch6m8ky-cargo-package-objc2-core-image-0.2.2
+URL: nar/1bfkq7m4h43bq60xq903i7yk9mzf5xcn0jiad7zv5x6vc86j5vks.nar.zst
+Compression: zstd
+FileHash: sha256:1bfkq7m4h43bq60xq903i7yk9mzf5xcn0jiad7zv5x6vc86j5vks
+FileSize: 20894
+NarHash: sha256:1c932w6cdzf87bhb7l37l2dqms5nww925ni4xf5vxh7ym6frnl3a
+NarSize: 177880
+References: 
+Deriver: w0zhm9l9zdln0p9rs2g3y72g8ln7nz0n-cargo-package-objc2-core-image-0.2.2.drv
+Sig: wvhulle.cachix.org-1:B5u7ZYQlMwTadf5CoPKW4ffXndJcrUWK/g3YZIR2TScrlr+0/Uu39C2znmZ9JLw1ZfETq9yr4l7tFEHm7+J8Cg==

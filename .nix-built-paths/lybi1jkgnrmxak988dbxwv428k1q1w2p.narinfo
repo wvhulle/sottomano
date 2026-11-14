@@ -1,0 +1,10 @@
+StorePath: /nix/store/lybi1jkgnrmxak988dbxwv428k1q1w2p-cargo-package-linux-raw-sys-0.4.15
+URL: nar/1100vgr4z6zcrh2n18qaw07sf9wdcn008ac5873bkny1bp0ji4jb.nar.zst
+Compression: zstd
+FileHash: sha256:1100vgr4z6zcrh2n18qaw07sf9wdcn008ac5873bkny1bp0ji4jb
+FileSize: 436556
+NarHash: sha256:1m4mhlam8z7bcl0k7r95nr67mvdapvf6imah0m79ckhlcmybwqks
+NarSize: 11946976
+References: 
+Deriver: 2f0ncd8nslz9z3phnhrhl8rz5hf57rhn-cargo-package-linux-raw-sys-0.4.15.drv
+Sig: wvhulle.cachix.org-1:exco8uchTrVdmg0ByoOQk6jCpOpUuieubspBHDFHvLTan2p8Rejoc44b+3Eu08kA2VTqp94ZCYQYI9rRJ9v4BA==

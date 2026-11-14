@@ -1,0 +1,10 @@
+StorePath: /nix/store/33ak27pcpy3yq09kjmzszng4n4fqwcv4-cargo-package-aes-gcm-0.10.3
+URL: nar/0p2wazm193m3biihja2d23bwnhrwlvgymfypmc4m7drr3xds3k8g.nar.zst
+Compression: zstd
+FileHash: sha256:0p2wazm193m3biihja2d23bwnhrwlvgymfypmc4m7drr3xds3k8g
+FileSize: 148309
+NarHash: sha256:0fyk4wlajxdg863yg06kq46z8i4mq69602izp8965g7sij63hnps
+NarSize: 387144
+References: 
+Deriver: 346slag3znx0q939ibyv3z4mazsw393a-cargo-package-aes-gcm-0.10.3.drv
+Sig: wvhulle.cachix.org-1:/2rFZWhACf2R5uqeTyduQjBgfIKNZLybGOwV3cbNSjyoDSVIv4NQDXc3BaBqC1NZEW5ooBw5YRX3owYDiNL8Ag==

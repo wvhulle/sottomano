@@ -1,0 +1,10 @@
+StorePath: /nix/store/id73v63xy4a12g67llslrcafjyscz9i3-cargo-package-heck-0.5.0
+URL: nar/1w5xv4hy8wahaqligx0a34ijpbjl0kvgcgvnc5vchi9a5b4vcnvs.nar.zst
+Compression: zstd
+FileHash: sha256:1w5xv4hy8wahaqligx0a34ijpbjl0kvgcgvnc5vchi9a5b4vcnvs
+FileSize: 12116
+NarHash: sha256:168znq4m1zj0mhsgvg89adkzyp2s0cjjyi1rwdq31phyvqpm089d
+NarSize: 46992
+References: 
+Deriver: mpa7r65g58pz3l85g2i4y96yv0pw8jlw-cargo-package-heck-0.5.0.drv
+Sig: cache.nixos.org-1:5TOQjYxlYFnCSoMy5ZNH+SYG7YtTQXDWTBTyXc/fFyc+eXNFVg2vfzyWjXtmhZpZSpbEw7mEfFZ7hZNh6n1wDA==

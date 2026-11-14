@@ -1,0 +1,10 @@
+StorePath: /nix/store/7g2vnl9dwr2zdg7p7vi7wcgqvzl1qmkc-cargo-package-manyhow-macros-0.14.1
+URL: nar/1x7nrk6hrg4y6ywrl5mk3sq5zxdvq6bcc2iph5yamdxq116yvgkb.nar.zst
+Compression: zstd
+FileHash: sha256:1x7nrk6hrg4y6ywrl5mk3sq5zxdvq6bcc2iph5yamdxq116yvgkb
+FileSize: 6162
+NarHash: sha256:1pnv1y98j06iyr5kbxz9mha0d3sk0jvy79kaq7m5l13l4p6n19vn
+NarSize: 20760
+References: 
+Deriver: 4w236821py0iras6v00w4xybrqyzb07a-cargo-package-manyhow-macros-0.14.1.drv
+Sig: wvhulle.cachix.org-1:J5jgCEWwb52wgrCxXlb9/hCdJjRDeZXRQlU0mVzXsMCOSPZyY47HjdRKoaLhaNtvBoA+pGaPDAwhdK+M7apKAg==

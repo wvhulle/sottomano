@@ -1,0 +1,10 @@
+StorePath: /nix/store/6i62c3mi92j50a0saazpgnj56p3d3f9f-cargo-package-zlib-rs-0.6.8
+URL: nar/18nrgjy35vh4pj597w60la4my05pryv07664hpn3i47jfm6ipnqk.nar.zst
+Compression: zstd
+FileHash: sha256:18nrgjy35vh4pj597w60la4my05pryv07664hpn3i47jfm6ipnqk
+FileSize: 217884
+NarHash: sha256:02byhjp24x0l3jbvvr9wphfjiq2jfm0d1fj73cjr08vc83b6wx8b
+NarSize: 798776
+References: 
+Deriver: m33k6y7w3nj538sdhvl73iqqkag8vsl3-cargo-package-zlib-rs-0.6.8.drv
+Sig: wvhulle.cachix.org-1:/5VdFFN4ugW50dGH4vmlAfacy+Ybz2gnmN1kYphqzw2+l9Dwx1U63XSDB0iYSevucol4hc9C+x/ltukCJDM1Cg==

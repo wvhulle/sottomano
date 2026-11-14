@@ -1,0 +1,10 @@
+StorePath: /nix/store/2mfa0w8a2w9yk3l8jksbjinzalqar5f0-cargo-package-simd-adler32-0.3.10
+URL: nar/1fjc14ah2jv5ilgi2c64bpw60zax8fmv4p4a7s2jf9614awlr657.nar.zst
+Compression: zstd
+FileHash: sha256:1fjc14ah2jv5ilgi2c64bpw60zax8fmv4p4a7s2jf9614awlr657
+FileSize: 19298
+NarHash: sha256:08ys3zr5nq23z16ym6y7yl94392rm7g3v2j90f79yd4bb983z6a9
+NarSize: 87728
+References: 
+Deriver: ihv91hbg4ayvmnq8c08hlmkp8x58y9c6-cargo-package-simd-adler32-0.3.10.drv
+Sig: wvhulle.cachix.org-1:3SDa6YyEnXFhaY8vmdOBghWo/ykPQC8zfuM29yKPHkVow+OVaJ1SQ8NdzuMgi/e9+FC1vDHZHVcS76fEC/lJAg==

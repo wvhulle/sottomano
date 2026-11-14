@@ -1,0 +1,10 @@
+StorePath: /nix/store/psr9flac62zql2q9zpy6w5kcxim4df6b-cargo-package-tiny-xlib-0.2.5
+URL: nar/1kffsdra10n5kfmkgqnc2ggm5zzfmw5r2a7zccqqwalwaq7ldswc.nar.zst
+Compression: zstd
+FileHash: sha256:1kffsdra10n5kfmkgqnc2ggm5zzfmw5r2a7zccqqwalwaq7ldswc
+FileSize: 23278
+NarHash: sha256:09z64sw62adqvdhyjbhsznwqfcx0cdbnqip2jjqhynxj9yp5l5qc
+NarSize: 79696
+References: 
+Deriver: xb26w0gq0hyrvi6im4z2slkcnvn09yw2-cargo-package-tiny-xlib-0.2.5.drv
+Sig: wvhulle.cachix.org-1:KRe72R9tmufSgqJv8i/0Jgk8FxPtbbgAKZT/FZE7/wP9cn7xTTAX1r6qNNyqDmqlKudELeaEA4tloiu8Yv93Bw==

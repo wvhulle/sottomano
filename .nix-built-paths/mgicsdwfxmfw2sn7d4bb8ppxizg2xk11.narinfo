@@ -1,0 +1,10 @@
+StorePath: /nix/store/mgicsdwfxmfw2sn7d4bb8ppxizg2xk11-cargo-package-sunrise-3.0.0
+URL: nar/0n2hx2inc13qbbb0lqlb28xrpixa1sgd6hz76x1xawdiznwmjd2k.nar.zst
+Compression: zstd
+FileHash: sha256:0n2hx2inc13qbbb0lqlb28xrpixa1sgd6hz76x1xawdiznwmjd2k
+FileSize: 10580
+NarHash: sha256:1spmdvc30bbka58jq5i92acspkmfh321z57y6jqg9jvw95qdbidn
+NarSize: 51256
+References: 
+Deriver: 8rh4jqdy05zp2jj00f91x45pr1pyl5pj-cargo-package-sunrise-3.0.0.drv
+Sig: wvhulle.cachix.org-1:hEjw54fUbdoUfjtSnT7Q+2E78PopjeQKETmxvPYDDgxt+GizwaRt0BZyf7CrxUXnQEBfNyubTmbgEgpWL/36Cg==

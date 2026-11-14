@@ -1,0 +1,10 @@
+StorePath: /nix/store/i30i8jnqc88vfhcfc6yliamadp10dciz-cargo-package-rustls-pki-types-1.15.1
+URL: nar/00h77cj99k0yrwd3nalzsy848kixkh0b7r18qdvy5dsq5x4igbms.nar.zst
+Compression: zstd
+FileHash: sha256:00h77cj99k0yrwd3nalzsy848kixkh0b7r18qdvy5dsq5x4igbms
+FileSize: 40431
+NarHash: sha256:1p1xzmcsn7b6hh1qbiv98w5qvmpb58xpk33l4n5gfc1x6diarsvp
+NarSize: 173752
+References: 
+Deriver: v6r94n5162a7dc9gpdz8c23imrr6b4f7-cargo-package-rustls-pki-types-1.15.1.drv
+Sig: wvhulle.cachix.org-1:1dl7pNuDGZCtjBcA5F5TGMH18r3oToImynJP/NoIjvxc25P1bMzvU373QuFh2qcyjkt07RVmEhxUQImn1k2bCg==

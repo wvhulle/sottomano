@@ -1,0 +1,10 @@
+StorePath: /nix/store/xvpg7hmcqv6qfhgbkkkw7plg8i8larb7-cargo-package-read-fonts-0.35.0
+URL: nar/0svgxpw6hmwrrfixvr4fyp15azlc5b3j89lgb4awp6cjypla4q9x.nar.zst
+Compression: zstd
+FileHash: sha256:0svgxpw6hmwrrfixvr4fyp15azlc5b3j89lgb4awp6cjypla4q9x
+FileSize: 412879
+NarHash: sha256:1rfr3qa9d0h85kp0lqmp3a5flap7npnb04hxlr6n7sn1zcgyh22q
+NarSize: 2959248
+References: 
+Deriver: mzmdqinb08kb61kd86ryk076cw3g5npk-cargo-package-read-fonts-0.35.0.drv
+Sig: wvhulle.cachix.org-1:0g7sv0WtjD3l9DqKk4NTOKW9YRtWyKPiBgnV7zpl/yAfMMzuymxemvgTLeHhzew3qZsjmi8k2U9TS0GIObQjCw==

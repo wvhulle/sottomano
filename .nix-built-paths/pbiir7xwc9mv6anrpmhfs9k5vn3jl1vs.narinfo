@@ -1,0 +1,10 @@
+StorePath: /nix/store/pbiir7xwc9mv6anrpmhfs9k5vn3jl1vs-cargo-package-idna-1.1.0
+URL: nar/16gcx6l534q6z36wbnljxhc75w8a4dkcrcfa4mkd52vywfid1wwx.nar.zst
+Compression: zstd
+FileHash: sha256:16gcx6l534q6z36wbnljxhc75w8a4dkcrcfa4mkd52vywfid1wwx
+FileSize: 164127
+NarHash: sha256:0a2a3p5d0r88kahqjwvs74frpr2w281vhiq7df3ifnflxqs9gb5v
+NarSize: 970616
+References: 
+Deriver: khjlh65v393czz3hijzcax0xjnd692pi-cargo-package-idna-1.1.0.drv
+Sig: cache.nixos.org-1:RWdq5dgt32Po2sAQTuqDziGJtCQ7sl2Uz/FlYIx85R2/OSKqOc/bbLPvY3+U6cGhvFVF6hIntrWTp1Rml3YADA==

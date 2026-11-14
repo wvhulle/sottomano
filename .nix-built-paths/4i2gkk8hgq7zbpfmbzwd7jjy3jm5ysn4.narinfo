@@ -1,0 +1,10 @@
+StorePath: /nix/store/4i2gkk8hgq7zbpfmbzwd7jjy3jm5ysn4-cargo-package-color_quant-1.1.0
+URL: nar/007rpzg87znjh1by77b2lfrrrkvb6gmbsmgisw3m5ambc92amzi4.nar.zst
+Compression: zstd
+FileHash: sha256:007rpzg87znjh1by77b2lfrrrkvb6gmbsmgisw3m5ambc92amzi4
+FileSize: 7078
+NarHash: sha256:07i9npw0rghp69cfd1jifr98dbvv82g82sykqvvvy10fkp98xsz3
+NarSize: 24120
+References: 
+Deriver: iqyakpx5qhc4bc8vypcfsb94ran26bl3-cargo-package-color_quant-1.1.0.drv
+Sig: wvhulle.cachix.org-1:nAH8NnEZRXkolS59MD5ht/WraZrHskKbtmwYzLhu8Ybk+GaBQYgbaO5SKLyl2M8b3CIYiqhLJhKGzmOeOtvvBw==

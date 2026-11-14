@@ -1,0 +1,10 @@
+StorePath: /nix/store/1a3xhd4nbabk8cmj2kb2xkd0f8g54g2j-cargo-package-termcolor-1.4.1
+URL: nar/0gzscb1251bshwlk9rk516f8acfyassqxnny7c71wim1ljn7rdjf.nar.zst
+Compression: zstd
+FileHash: sha256:0gzscb1251bshwlk9rk516f8acfyassqxnny7c71wim1ljn7rdjf
+FileSize: 20559
+NarHash: sha256:032c1sjiwsmcidxjs537rmjgsjdm3a8yl0sliv2n8m47fc6gahc6
+NarSize: 94744
+References: 
+Deriver: hj7hqn6kxll6a1dlz1xa4kk8l74sa9j8-cargo-package-termcolor-1.4.1.drv
+Sig: cache.nixos.org-1:g+BpuKzLgnov12HjFg8jAqdhvZS2cAaRf64cFg228mRqUp+QfcqYVkvwnROloSzCWxnCttZkZX+usKKN9l/rBw==

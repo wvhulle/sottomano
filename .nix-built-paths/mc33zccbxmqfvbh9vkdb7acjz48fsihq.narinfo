@@ -1,0 +1,10 @@
+StorePath: /nix/store/mc33zccbxmqfvbh9vkdb7acjz48fsihq-cargo-package-rustversion-1.0.23
+URL: nar/1byrfvkqb0x2q6i675hwnfv4cqbr0i4jxss0440hmdfsxksf2yzv.nar.zst
+Compression: zstd
+FileHash: sha256:1byrfvkqb0x2q6i675hwnfv4cqbr0i4jxss0440hmdfsxksf2yzv
+FileSize: 21501
+NarHash: sha256:0vb7s26kypsbb2pkqqsi1xcwbbxx358sqq4dnigf0n2ciarq2y9n
+NarSize: 87104
+References: 
+Deriver: lvy6dn38nw9wkd6wwww1qjz24dydph8q-cargo-package-rustversion-1.0.23.drv
+Sig: wvhulle.cachix.org-1:yUNH8xr4tf/cahvX0A+wcs+HD+pmqCk+s2va/YHzNuFxvXd0T7hiyqBPyYq9cojwDugWg2+t9mjuzCDghsPuBg==

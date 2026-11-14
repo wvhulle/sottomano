@@ -1,0 +1,10 @@
+StorePath: /nix/store/k36534ivvsaza4jbl0fypmdhkc6x090f-cargo-package-webpki-root-certs-1.0.9
+URL: nar/1gbfnbhpkj9z0f0jpr355x6n38fy72y408v3bfj2p4a7bcs3s6qf.nar.zst
+Compression: zstd
+FileHash: sha256:1gbfnbhpkj9z0f0jpr355x6n38fy72y408v3bfj2p4a7bcs3s6qf
+FileSize: 157254
+NarHash: sha256:18byd5n7w9r61566cwns1vqjl84yjhjppsfs6mzrrk7cfyr1bawm
+NarSize: 555176
+References: 
+Deriver: y2hvk0jjjihlpx3a84yslifhyqwdl36p-cargo-package-webpki-root-certs-1.0.9.drv
+Sig: wvhulle.cachix.org-1:f0ozZPooZWHuNyy/MfNQUoa7l3VY25MWfwkPyOkPCwzuZL0th4pTPyZClafj1J47/fCq5qVohb/gyCCmwbL/AA==

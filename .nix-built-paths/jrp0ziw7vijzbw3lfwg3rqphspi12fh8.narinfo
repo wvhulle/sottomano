@@ -1,0 +1,10 @@
+StorePath: /nix/store/jrp0ziw7vijzbw3lfwg3rqphspi12fh8-cargo-package-quinn-0.11.12
+URL: nar/1a8ql0swvhfk30651vhq3ms408kadi2hibdj93k6ya9dwchw8606.nar.zst
+Compression: zstd
+FileHash: sha256:1a8ql0swvhfk30651vhq3ms408kadi2hibdj93k6ya9dwchw8606
+FileSize: 87153
+NarHash: sha256:1pxjr9511qf6mk90x8rd3d70sgd4cngvi4ay6igqv1qzq3j05l33
+NarSize: 346608
+References: 
+Deriver: 9j4w93ljbr9qxnfsavaff81v9cv9s2g1-cargo-package-quinn-0.11.12.drv
+Sig: wvhulle.cachix.org-1:m8nv3OB+MoMLG9V96JGp3l+byQ+O4Pp+pLQADb8f7MIr7UOzEboen90uPReVwuW5KEPlAgSpJxKJVE3AppS0Bw==

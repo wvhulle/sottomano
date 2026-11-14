@@ -1,0 +1,10 @@
+StorePath: /nix/store/7kzzzzk2zp9mv4wwl1n21c3jkglglaf1-cargo-package-softbuffer-0.4.8
+URL: nar/125pihk5dfn7a3nw0lvz5jyvgvyl7ncba9lk3dn6n66y3110bppc.nar.zst
+Compression: zstd
+FileHash: sha256:125pihk5dfn7a3nw0lvz5jyvgvyl7ncba9lk3dn6n66y3110bppc
+FileSize: 67415
+NarHash: sha256:1rsz8nhnqsdy2ly2rsc1rj8y3bj8hnvrkpa145jnbsi4mjqm7fw2
+NarSize: 267464
+References: 
+Deriver: a4qvah2wppxdmkhw6sas4rcyf5didkq2-cargo-package-softbuffer-0.4.8.drv
+Sig: wvhulle.cachix.org-1:CApvlweMiOOUEjB8R/vnrSg1KcNgNa7+EjVbX9RUZZQ4Ll0gUeSRXmlpwZ2Z/ogjim6SkRhCbO03qWBDPVarCw==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/apcj3blkvx3q831j0bwa66m25wihz2ig-cargo-package-icu_casemap_data-2.4.0
+URL: nar/0a2a9lfg34ipnspgjk8fa4fqhxrn0vn608z5y309ki9m27r7c3b0.nar.zst
+Compression: zstd
+FileHash: sha256:0a2a9lfg34ipnspgjk8fa4fqhxrn0vn608z5y309ki9m27r7c3b0
+FileSize: 16324
+NarHash: sha256:1j7gp1x4pavbbdinqhkpxa6zlm355hqlp82r3b8jjspxvayy9avc
+NarSize: 92072
+References: 
+Deriver: w6jil1lrk7n42wbnc8kwn3nqnjn5wwgi-cargo-package-icu_casemap_data-2.4.0.drv
+Sig: wvhulle.cachix.org-1:BuBxF9XQoD6s0KsV4LMdPQ27UlEnt0D2PlbaQbMhmsWpUdFPZExBTqfFsEn652IpWFW0hlwQf22DZ3y7ZBadDA==

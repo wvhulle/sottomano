@@ -1,0 +1,10 @@
+StorePath: /nix/store/18jysqdp22i9lbi3xhmdsvlq549xizq5-cargo-package-prost-0.14.4
+URL: nar/0xp7i78666r6cgrh83yik43334c0nm0qkg2p7ndlc0p2cb1h7ial.nar.zst
+Compression: zstd
+FileHash: sha256:0xp7i78666r6cgrh83yik43334c0nm0qkg2p7ndlc0p2cb1h7ial
+FileSize: 37609
+NarHash: sha256:1hmwknm90h8yr4v1bbblvs9k88fpn7yr71c31iy8nzdsnvw7an61
+NarSize: 152744
+References: 
+Deriver: 8ggjkzfjv5fjn7hc6xqk9szaw1zm8970-cargo-package-prost-0.14.4.drv
+Sig: wvhulle.cachix.org-1:g/Ja+oL14VheNToNHHoEpCVaaxzHHpIGQcVAMOBWV/s9ll5M8eM0JoNKtuinop0w7XeSs0FopzXYCRNIGevyCw==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/6849ddpf0y6lkydi74bc70w3r0a122h2-cargo-package-io-lifetimes-1.0.11
+URL: nar/122zdykjmcfjlhsn92a5mnfy90pahn5d3a9bzxkj0nxivacpq9bl.nar.zst
+Compression: zstd
+FileHash: sha256:122zdykjmcfjlhsn92a5mnfy90pahn5d3a9bzxkj0nxivacpq9bl
+FileSize: 39772
+NarHash: sha256:00q43bk3cy2nlasncc610z9p9v9p4m915638q2b11bfh65jad4bj
+NarSize: 221400
+References: 
+Deriver: 78sc30h5sf4xhw8nn2p327y5brnbrdhb-cargo-package-io-lifetimes-1.0.11.drv
+Sig: wvhulle.cachix.org-1:cTKnmVieaxzp5cbS2IM0sEJGfKdwq+YauEZXQUenaZgrAFvBYtY400gGDURFmYzQ2+nfo560J3fHUY6wU3Y3DA==

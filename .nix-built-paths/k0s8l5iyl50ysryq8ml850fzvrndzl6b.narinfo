@@ -1,0 +1,10 @@
+StorePath: /nix/store/k0s8l5iyl50ysryq8ml850fzvrndzl6b-cargo-package-font-types-0.10.1
+URL: nar/06jsfi1p7q7v6sfm2vb2s6aql9122ivmvqmzvw0dgq1199rbcd2s.nar.zst
+Compression: zstd
+FileHash: sha256:06jsfi1p7q7v6sfm2vb2s6aql9122ivmvqmzvw0dgq1199rbcd2s
+FileSize: 26090
+NarHash: sha256:1lg5nn7gvx4v8y0g2ldzdan4vqd12m4kd0srcjv8j3lj0fr43jd6
+NarSize: 100424
+References: 
+Deriver: 95da919fg5f6v1nsjf9377vjjqrixhan-cargo-package-font-types-0.10.1.drv
+Sig: wvhulle.cachix.org-1:M0gpSeX8EODKNw+qb0oEvZhOiCfOiMjeC+4uK4BrcDi94qk7QQg/kzGqRFTCHk9YUh4Hbm5svperCxwCUcv+Bg==

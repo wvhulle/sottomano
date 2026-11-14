@@ -1,0 +1,10 @@
+StorePath: /nix/store/w0hz045p5xivm3kibgcb5i3b48q29sxp-cargo-package-roxmltree-0.20.0
+URL: nar/1gp1sprp2p0yc108p11p685jwdpjp2kg6pfnih1316v6wgjvk00c.nar.zst
+Compression: zstd
+FileHash: sha256:1gp1sprp2p0yc108p11p685jwdpjp2kg6pfnih1316v6wgjvk00c
+FileSize: 56795
+NarHash: sha256:065vsx5d164ij33din26dn3ck4ghvfd88zv9q7g7lxpvz0s90mrh
+NarSize: 288168
+References: 
+Deriver: lwmfbqknl17v2w1xjk2jy7lbnhwfxscw-cargo-package-roxmltree-0.20.0.drv
+Sig: wvhulle.cachix.org-1:s4dL+l9h2AdToRZxdMBLafgbEsWLqVysnslBTsSUURgduzoQDMULZ2AqWNM4pKB3EnjAp6Wt27bdDE3LSrB9Bg==

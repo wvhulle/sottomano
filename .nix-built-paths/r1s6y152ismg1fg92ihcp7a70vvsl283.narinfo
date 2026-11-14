@@ -1,0 +1,10 @@
+StorePath: /nix/store/r1s6y152ismg1fg92ihcp7a70vvsl283-cargo-package-downcast-rs-1.2.1
+URL: nar/0gy3p8x35ifxg4av068mv5wx4vw61v9idbysf320hhh37qcg1wds.nar.zst
+Compression: zstd
+FileHash: sha256:0gy3p8x35ifxg4av068mv5wx4vw61v9idbysf320hhh37qcg1wds
+FileSize: 13031
+NarHash: sha256:1nsf3lwmnbhf39c267k4jk6cv94zrqn8k6ck7wf4qs5mszil8pll
+NarSize: 52696
+References: 
+Deriver: b1pv2sfxwn9sm2wkk39lak44bqaacw3v-cargo-package-downcast-rs-1.2.1.drv
+Sig: wvhulle.cachix.org-1:PgW97paFCsVDiuYhCA016YHEtwMZ6n10W5N5EzBqzGzGl3nHVqXZwtXlrzuqduoIDRU+80SqqN1XAhxhaGibBg==

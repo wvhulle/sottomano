@@ -1,0 +1,10 @@
+StorePath: /nix/store/jihq01kjp0kc66ih6hwxfw2yv18f3nh9-cargo-package-zeroize-1.9.1
+URL: nar/1acp9nh0z09ff5m91inwkaqabj82212giz9lqh4jghyivgfwqzj5.nar.zst
+Compression: zstd
+FileHash: sha256:1acp9nh0z09ff5m91inwkaqabj82212giz9lqh4jghyivgfwqzj5
+FileSize: 26327
+NarHash: sha256:0i9vj33i39pfz15jrk6iyzz8j5ry6hszqdh1m955yv4as3s31wms
+NarSize: 87160
+References: 
+Deriver: fl5a9lnjz86b5yrkmq29h5z9l5fclymj-cargo-package-zeroize-1.9.1.drv
+Sig: wvhulle.cachix.org-1:KoaTFX0T5M8VH53BpX4+rSKYv+PFWoo/2JRE6Eb/+aa+AcZFsqajhYe7LPxt8mq2t5UaLW0uNbQEodSHM59GAg==

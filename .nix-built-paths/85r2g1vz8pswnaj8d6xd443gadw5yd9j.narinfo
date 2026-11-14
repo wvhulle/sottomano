@@ -1,0 +1,10 @@
+StorePath: /nix/store/85r2g1vz8pswnaj8d6xd443gadw5yd9j-cargo-package-rsqlite-vfs-0.1.1
+URL: nar/0bawscnpn4hy1wpzffpz5zr9648w8hc9rp2793dzdvfk448a1gh6.nar.zst
+Compression: zstd
+FileHash: sha256:0bawscnpn4hy1wpzffpz5zr9648w8hc9rp2793dzdvfk448a1gh6
+FileSize: 21902
+NarHash: sha256:1s8058a3h2jlz1nd0mcayhfvxzirmyk3kci4cv1hkp28cnqjkiij
+NarSize: 89704
+References: 
+Deriver: zh669kbbmixy0dwv51wgwfgcv0dcjc41-cargo-package-rsqlite-vfs-0.1.1.drv
+Sig: wvhulle.cachix.org-1:a+ZTv/RNPxqWvmkSL+WW671lZ53S5p98dz1fEHNhAKMIeKjfR5ViwDoCHoON4c/2dTXTe97t3KPDZhc7DwkXCg==

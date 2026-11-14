@@ -1,0 +1,10 @@
+StorePath: /nix/store/fz5rgqrkzcyhvpvsxaid3m9gcqdvha1a-cargo-package-cmake-0.1.58
+URL: nar/02qlrw0vhbyd8whsgnyzjs5r76rjwdrh15krrwr3428figwzpgni.nar.zst
+Compression: zstd
+FileHash: sha256:02qlrw0vhbyd8whsgnyzjs5r76rjwdrh15krrwr3428figwzpgni
+FileSize: 21872
+NarHash: sha256:06gm3wnj6zx197prwvwdy3vys54dspxbcn7s0yv7gzh8kf171qh1
+NarSize: 75152
+References: 
+Deriver: 107zgl2pcgfsn0bdd6rl3y674daw7mv8-cargo-package-cmake-0.1.58.drv
+Sig: cache.nixos.org-1:lrOESZQSgOWTaRSTAlJeYho5LGtoO7voZlFCmbxiOuZC9Hd+LFJ7h+atycD0GdD5FWWL63QYD8iaH0ziPTLiAQ==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/lpgwyi2ls84l9fjf03k7zsj1ifmfalji-cargo-package-synstructure-0.14.0
+URL: nar/0kh1b6kvm5spw9qpb3aj7kddag5ni5h4cgpg9knyczl6xy507m38.nar.zst
+Compression: zstd
+FileHash: sha256:0kh1b6kvm5spw9qpb3aj7kddag5ni5h4cgpg9knyczl6xy507m38
+FileSize: 20913
+NarHash: sha256:1lxs01khn9afd7axm8k1hhidnnll0ck0b8n88rffs0yhq9n0642f
+NarSize: 103488
+References: 
+Deriver: 6k0nd12j1kdpghr7zv0kkqm5217h4s73-cargo-package-synstructure-0.14.0.drv
+Sig: wvhulle.cachix.org-1:ldBq5zLWJRunNAyLqrRX43Cpcf44qSO/Xxasrs+pblt0geDJwT1fmqmFiMBBtBuCC7SsOHMkdlO7xeNBjmc1Ag==

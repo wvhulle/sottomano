@@ -1,0 +1,10 @@
+StorePath: /nix/store/yq1iphrkwbk5915n5g15yznpc309yr7p-cargo-package-wayland-protocols-0.32.13
+URL: nar/0sx8ni8vrvvqw90hwlhnrpv8ndlv15pcyq939ph8k17r2iy2ny1n.nar.zst
+Compression: zstd
+FileHash: sha256:0sx8ni8vrvvqw90hwlhnrpv8ndlv15pcyq939ph8k17r2iy2ny1n
+FileSize: 153273
+NarHash: sha256:0ja2fiv8zhj0rk0ir734i79sfhgz7sidy75kq39r2yz8g6isgvnn
+NarSize: 814400
+References: 
+Deriver: a7rfj6452gw47cvmw6hnjb6pqd41hasv-cargo-package-wayland-protocols-0.32.13.drv
+Sig: wvhulle.cachix.org-1:tu3axTBmOlAuaiSrsE5ffjfrdKnRey2pz9ym2yuIAl8OG3lT+RYzShwH2b8sSZ/b4GAcv3PyjQJLU+WS/BhcBg==

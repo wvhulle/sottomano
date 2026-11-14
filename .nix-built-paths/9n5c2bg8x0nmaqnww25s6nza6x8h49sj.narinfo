@@ -1,0 +1,10 @@
+StorePath: /nix/store/9n5c2bg8x0nmaqnww25s6nza6x8h49sj-cargo-package-system-deps-7.0.8
+URL: nar/07jv0z4875i18qd28y3hqhampv6fip9780vd232iqwqjn59ynsrd.nar.zst
+Compression: zstd
+FileHash: sha256:07jv0z4875i18qd28y3hqhampv6fip9780vd232iqwqjn59ynsrd
+FileSize: 32340
+NarHash: sha256:0r8hjrjrh6q32i0kk876fa16lilwb3jr496d9xmw88s29j23ck2p
+NarSize: 152056
+References: 
+Deriver: mh2zfsafis8ljsh8gk0xqkpaylbr4jj2-cargo-package-system-deps-7.0.8.drv
+Sig: wvhulle.cachix.org-1:Z/9S0B6w5L2naoaO4dclgg347zzpUjrcXOU6nbNDX004PV76+sEwFLfgM35MvgcNKVV/UeW/cX8jgzcVv3H8AQ==

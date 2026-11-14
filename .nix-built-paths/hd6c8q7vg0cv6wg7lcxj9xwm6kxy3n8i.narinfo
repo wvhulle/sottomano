@@ -1,0 +1,10 @@
+StorePath: /nix/store/hd6c8q7vg0cv6wg7lcxj9xwm6kxy3n8i-cargo-package-zerocopy-0.8.63
+URL: nar/135svx8binvciw55mnrkh9vamyzgq0m4d1ydmq74icbj71l7i55k.nar.zst
+Compression: zstd
+FileHash: sha256:135svx8binvciw55mnrkh9vamyzgq0m4d1ydmq74icbj71l7i55k
+FileSize: 332045
+NarHash: sha256:1pvb8gy7vwvfbp6h3idx8sl9yagbirfwf85asq8124avdpcx4xn1
+NarSize: 2068344
+References: 
+Deriver: 5jl6m6p28nvphz05p1ack2qdafx11g2p-cargo-package-zerocopy-0.8.63.drv
+Sig: wvhulle.cachix.org-1:stS/Jl2MmwpMR7/Htw/bchCbBKpngv4HU+T0zmw0kcpd357fYAfNgZ+WYx86ZLcS1gIbStGratE5AAn/Ze90Ag==

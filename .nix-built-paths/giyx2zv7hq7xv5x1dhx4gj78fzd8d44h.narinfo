@@ -1,0 +1,10 @@
+StorePath: /nix/store/giyx2zv7hq7xv5x1dhx4gj78fzd8d44h-cargo-package-objc2-contacts-0.2.2
+URL: nar/12d11741mfkk0zwsvbdrpdqwvpzrd5bzzzw0rjbkc9nxsb8z0k9q.nar.zst
+Compression: zstd
+FileHash: sha256:12d11741mfkk0zwsvbdrpdqwvpzrd5bzzzw0rjbkc9nxsb8z0k9q
+FileSize: 17773
+NarHash: sha256:1h0i9gbfb5fkcf1qilxznii4rncawk7dxdjaw725jqccw7xkbgl1
+NarSize: 184448
+References: 
+Deriver: pqsy3aawi8kl6bsk3bjrryjkq8x6hjhg-cargo-package-objc2-contacts-0.2.2.drv
+Sig: wvhulle.cachix.org-1:hhd9ksHd4GX1b45l5ZZ1SU4erN9ERUWcCCxCckc+KBVS/3OKJ3wbLv/1m1+ZNtBCu54nXC1tRoMIH3OmvX4zBg==

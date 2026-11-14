@@ -1,0 +1,10 @@
+StorePath: /nix/store/g2sz826w6b3bp38hvhw3b8d1vayah3v7-cargo-package-windows-numerics-0.3.1
+URL: nar/1hzwsky9y6m3air5lnrys8a3a835jdk9w2xqvfmibc14s0l84hhq.nar.zst
+Compression: zstd
+FileHash: sha256:1hzwsky9y6m3air5lnrys8a3a835jdk9w2xqvfmibc14s0l84hhq
+FileSize: 10233
+NarHash: sha256:1b4n6xrdh51vvism7zxyagybmcm933rkjsdv7z2q9xh6nmmbhyn9
+NarSize: 51784
+References: 
+Deriver: lkrinq9bk3jnn1df0w38c438qjasx8ib-cargo-package-windows-numerics-0.3.1.drv
+Sig: wvhulle.cachix.org-1:iQDDxQDn94oDUN7MHIMVnzJbx8KZnDE2ONB9bjCYaPD/ySiGAUFxXZR/R2iH98wLHW9klbNvOURu6wvJG7xrAQ==

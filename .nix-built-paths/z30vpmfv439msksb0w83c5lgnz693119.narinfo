@@ -1,0 +1,10 @@
+StorePath: /nix/store/z30vpmfv439msksb0w83c5lgnz693119-cargo-package-tower-layer-0.3.3
+URL: nar/18sjlr2pcyhsl58v5mkb982qgl0crfb99vwvmmwwyxiyzkyjlipk.nar.zst
+Compression: zstd
+FileHash: sha256:18sjlr2pcyhsl58v5mkb982qgl0crfb99vwvmmwwyxiyzkyjlipk
+FileSize: 6625
+NarHash: sha256:1c2f96yk7dwr61fzcs6npwcgg6w2zmnl4a64bz760k9a6rpq1062
+NarSize: 26832
+References: 
+Deriver: 37zxqdbddr75xaw4kcrczgiqr5si47ri-cargo-package-tower-layer-0.3.3.drv
+Sig: cache.nixos.org-1:AaJ2PhP7XPZkiFGKgYiFMIhAqBKez07raiBcGCYpikCzXWbyWefxhappJ/McS7yrww2RoolofMFGz6u/gdq1BA==

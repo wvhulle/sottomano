@@ -1,0 +1,10 @@
+StorePath: /nix/store/sq5f8gb1brs1fa06ag0gj3zx08syp921-cargo-package-serde_derive-1.0.229
+URL: nar/1cj4m3ahsp7m69x6jq5mx10sbjg9mn4gipl4sr6pdpcrkrv950pl.nar.zst
+Compression: zstd
+FileHash: sha256:1cj4m3ahsp7m69x6jq5mx10sbjg9mn4gipl4sr6pdpcrkrv950pl
+FileSize: 64416
+NarHash: sha256:1g05c71iz5yh4l5j3qc59f2kzy9i9qw13xrmsn0cwbhlhjbspsxj
+NarSize: 341784
+References: 
+Deriver: 3i8h3kd7p1zd7r1x4b9mpjx8jml0qkxv-cargo-package-serde_derive-1.0.229.drv
+Sig: wvhulle.cachix.org-1:BinPgF5QmuBjJSYukvlXKLObvAXRaTf4D3z0VFWLTggC/7txOpFp1MjajbLcXQ7jtx0Btjqv0WRR8GOcojjXAA==

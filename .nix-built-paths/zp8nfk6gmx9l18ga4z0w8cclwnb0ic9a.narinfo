@@ -1,0 +1,10 @@
+StorePath: /nix/store/zp8nfk6gmx9l18ga4z0w8cclwnb0ic9a-cargo-package-find-msvc-tools-0.1.14
+URL: nar/1g1i12bjyi3pvgy5pz6j3v51xk8gjyi5yrwlwga4szcv2s641hhg.nar.zst
+Compression: zstd
+FileHash: sha256:1g1i12bjyi3pvgy5pz6j3v51xk8gjyi5yrwlwga4szcv2s641hhg
+FileSize: 32988
+NarHash: sha256:1wgdpcmr1ayah8k8sfwp09lvrxpq3mvghaq6dk7qir5k37jf7jzz
+NarSize: 120552
+References: 
+Deriver: c442a0f7csnah7893ripii888i6nwnm2-cargo-package-find-msvc-tools-0.1.14.drv
+Sig: wvhulle.cachix.org-1:HZF8NcoQeiNo/88A/UwjTkW5kjrVEoOZ+SUhpNj1O9YkzitxsKtpIWlsznxLTKUsR67g4mrua36248xeMpI5Dg==

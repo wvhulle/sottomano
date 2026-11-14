@@ -1,0 +1,10 @@
+StorePath: /nix/store/7vfb1p9rci8gyi25knhlik0lqw269svy-cargo-package-socket2-0.6.5
+URL: nar/04r0fkvqjgbh0n5xqnnwjhjk9g7g3ifxnnh2z8nfln1swlmsgm9i.nar.zst
+Compression: zstd
+FileHash: sha256:04r0fkvqjgbh0n5xqnnwjhjk9g7g3ifxnnh2z8nfln1swlmsgm9i
+FileSize: 61207
+NarHash: sha256:081j7kdvq9p0i026gyjppqn7m9nz2rzavnbnaacrbbgsfxibfqvj
+NarSize: 304304
+References: 
+Deriver: jkjj1rx75g214wv6im712xc3hcbjsiy1-cargo-package-socket2-0.6.5.drv
+Sig: wvhulle.cachix.org-1:qjjT98YFHbGe7s13U/WLKKEz7AbTIm00E6TynzhQnSGSSO5OFQZNCI/YCfr298tc/l6xdF0RSTRdbYvaPxavCw==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/bvkpkwy0zvj6p7q1a1zqsihdjjml0ks5-cargo-package-icalendar-0.17.15
+URL: nar/16y8y73kixng2z7qrnydsvjk1cyxf2ym8vr6c2zzzpynvnk8lcd2.nar.zst
+Compression: zstd
+FileHash: sha256:16y8y73kixng2z7qrnydsvjk1cyxf2ym8vr6c2zzzpynvnk8lcd2
+FileSize: 91570
+NarHash: sha256:1mmba1xyshs1s9933yw4pc7rkfb410nvjkd4v05f99836sqzqkw2
+NarSize: 397208
+References: 
+Deriver: ghxpy6950sg2lws0a4k459adz57d8j3p-cargo-package-icalendar-0.17.15.drv
+Sig: wvhulle.cachix.org-1:MxnpdO+Q+77/G9LvkNClGx0j0LoHWkgYyfNNx9HNMLhGEfd4sEF1I2mkdTYI0wI+lIl190yRNg9m4HFezPG6AA==

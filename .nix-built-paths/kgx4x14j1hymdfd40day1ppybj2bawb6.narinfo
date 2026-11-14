@@ -1,0 +1,10 @@
+StorePath: /nix/store/kgx4x14j1hymdfd40day1ppybj2bawb6-cargo-package-subtle-2.6.1
+URL: nar/1cx6gbwyzgvznax6mwhjwz605fi0zi1b79kf8s1aydy5gq43n6kx.nar.zst
+Compression: zstd
+FileHash: sha256:1cx6gbwyzgvznax6mwhjwz605fi0zi1b79kf8s1aydy5gq43n6kx
+FileSize: 15796
+NarHash: sha256:1m7q5vrgk04ph4ng6zbfqdjwb1ypinnww899bcy1a6my4j0s82sk
+NarSize: 60064
+References: 
+Deriver: m5jwz44l8zrq9wanp2hjch33ql2cpd51-cargo-package-subtle-2.6.1.drv
+Sig: cache.nixos.org-1:TgMeH8i6wCiZWH/UjH+boqFuixTTmX7TDc60fy+fOeewNMmuP1xVCi+Vswai1nH7obY1Sq13mH9bIPhzWbJrBg==

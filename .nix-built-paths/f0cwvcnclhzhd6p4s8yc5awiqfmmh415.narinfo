@@ -1,0 +1,10 @@
+StorePath: /nix/store/f0cwvcnclhzhd6p4s8yc5awiqfmmh415-cargo-package-beul-1.0.0
+URL: nar/17qb9ch2lrax1m231p13n0f9199z226ph0xd4lxb1lb5lg6623rb.nar.zst
+Compression: zstd
+FileHash: sha256:17qb9ch2lrax1m231p13n0f9199z226ph0xd4lxb1lb5lg6623rb
+FileSize: 8728
+NarHash: sha256:126xrnrdd1f2chjhpv9pxys39pnl7ygxd2hif655p4ahkvc7k432
+NarSize: 25064
+References: 
+Deriver: xjkzh2z44imdma5dr5zhi6b5avr6dim8-cargo-package-beul-1.0.0.drv
+Sig: wvhulle.cachix.org-1:QyRqjzUtcpQFa6DVTq4LYMAPMZAwlfSIL6qG2f26YvSeCwISviU0SD3WjW8AmVSZB9rZib7mzVG6xGyHwM4DAA==

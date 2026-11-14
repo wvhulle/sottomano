@@ -1,0 +1,10 @@
+StorePath: /nix/store/0spjh2z5w354ja1i44glpj27w7svbf9n-cargo-package-lyon_path-1.0.19
+URL: nar/1pjjj09253flqdg6wzcvf39l986151nmp6aajgyk9pnhrv82yrxd.nar.zst
+Compression: zstd
+FileHash: sha256:1pjjj09253flqdg6wzcvf39l986151nmp6aajgyk9pnhrv82yrxd
+FileSize: 40323
+NarHash: sha256:1xl9i3lzr077cgawgv1qbywiphkdr6kss7551gkipn5330izpnmv
+NarSize: 224632
+References: 
+Deriver: rvzifla0s89rv5w1bidq0ayk99d82xn0-cargo-package-lyon_path-1.0.19.drv
+Sig: wvhulle.cachix.org-1:KdW8G46d6IitkgQTvOGgYsNpbS41E3ar+X8KpR3Sad1lBVwrwy66vPTN+21x15sy8V1ETfPwq9qYfAHclOEjCA==

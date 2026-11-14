@@ -1,0 +1,10 @@
+StorePath: /nix/store/j3yxcimwz1ily795zlydcfwfr2sxnp8v-cargo-package-clipboard_macos-0.1.1
+URL: nar/06y1ylcd9qsyf3x060dqg10jji78g36is06g1avvjbrn2fpwck5i.nar.zst
+Compression: zstd
+FileHash: sha256:06y1ylcd9qsyf3x060dqg10jji78g36is06g1avvjbrn2fpwck5i
+FileSize: 6381
+NarHash: sha256:079vfqm2wlkn6kqfnbpn95wc5lnnk2vfb3hl8w4x7a8a20kq7h9k
+NarSize: 18232
+References: 
+Deriver: q90cllbms7ryhp7bmcawdb2q1wfmihfz-cargo-package-clipboard_macos-0.1.1.drv
+Sig: wvhulle.cachix.org-1:DIynhldvuS7DAbeH8he4/vBAwGxblpo4ZBgRNUfDAHIqleVxp7Ev3dojJPNHYR07wokPWeG4OYUaR/y6ldynCg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/mvvzdsrffiszsy2gvqrnfkw0h7zjg54z-cargo-package-hermit-abi-0.3.9
+URL: nar/0fh7smbp2ij5706x8fw90adfdl94qm528807fmzjfs71sbn5xdn9.nar.zst
+Compression: zstd
+FileHash: sha256:0fh7smbp2ij5706x8fw90adfdl94qm528807fmzjfs71sbn5xdn9
+FileSize: 17182
+NarHash: sha256:0yr8nfq0f56rbxivf1miqxrkqb6p3h2mlgd6ih6jp70gbd91knan
+NarSize: 57168
+References: 
+Deriver: q8x5rb9zhpa7ivjspza7ssirk5vm9q72-cargo-package-hermit-abi-0.3.9.drv
+Sig: wvhulle.cachix.org-1:Bq7h5Hre9DaPOtXw3yeAsTSrajNHDGrB589m14bd/t622nZpye/4NCdCnTYFMuhNxTF9hI++mP1YFb79gnCBBQ==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/xaj8gdv735h9mv6c254f3ygaazc3f40l-cargo-package-simd_cesu8-1.2.0
+URL: nar/0ilhmspha8f803yrqvfq5qgp423icr9y45x95vch0kv0hd95cl0b.nar.zst
+Compression: zstd
+FileHash: sha256:0ilhmspha8f803yrqvfq5qgp423icr9y45x95vch0kv0hd95cl0b
+FileSize: 321329
+NarHash: sha256:10gbki5jh0sc2f5djsx961cx6s6qx9w7jq9qd7s5la2ybx2wkdnj
+NarSize: 566328
+References: 
+Deriver: 83mbr2bi646fqzncv7gynirq2ivya1d4-cargo-package-simd_cesu8-1.2.0.drv
+Sig: wvhulle.cachix.org-1:CZfWRjtOWuoMEp7jrjzarEenGDRaZfXoBjj2iUfPFW3gIPieW6loeZMwzkg/75upH9+I+yrExQ+vMGgk92X+Dw==

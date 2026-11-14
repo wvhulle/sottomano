@@ -1,0 +1,10 @@
+StorePath: /nix/store/hmg6dll1pncdx1i9yi8kmrpknfnkj9py-cargo-package-windows_aarch64_gnullvm-0.53.1
+URL: nar/19yhgbnypz7hw5sks21s6cc85zbfr0bfpx5ir7z37wchpzk4bfa9.nar.zst
+Compression: zstd
+FileHash: sha256:19yhgbnypz7hw5sks21s6cc85zbfr0bfpx5ir7z37wchpzk4bfa9
+FileSize: 758486
+NarHash: sha256:04n1c6b9w2xidvs6q9rymkxbjna9l6w8xmbrxid0qj10zkn3if0w
+NarSize: 5094968
+References: 
+Deriver: cjzpvzqir1qmbx53n12d7y43xip1v67j-cargo-package-windows_aarch64_gnullvm-0.53.1.drv
+Sig: wvhulle.cachix.org-1:g9RcV8R3SKOd3VRONRtOCuI8LJn/aXKAQ9P66AhmB4D3LFTY4+Uwfrh3PvKGA8YYuFwthLb3w0IXVbS+joP6CA==

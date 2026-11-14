@@ -1,0 +1,10 @@
+StorePath: /nix/store/2vrknqxk4b6zlz9jgc2kdklrqwlpazc4-cargo-package-glutin_wgl_sys-0.6.1
+URL: nar/0gwjkfs8hf9p500nwyck0ym47chy5zip1i903dhl1im18gzjyvv3.nar.zst
+Compression: zstd
+FileHash: sha256:0gwjkfs8hf9p500nwyck0ym47chy5zip1i903dhl1im18gzjyvv3
+FileSize: 5822
+NarHash: sha256:086x03y93vqys646z47cjhxdskr6dzjil6ldgrxzh89h51rcm0wj
+NarSize: 16656
+References: 
+Deriver: l00v5bxd3z5bvczq8zgdk8h2q28d9sq9-cargo-package-glutin_wgl_sys-0.6.1.drv
+Sig: wvhulle.cachix.org-1:Thg8Xunh3dfngTzAosqk2jbOA60wkTOExpJVqjxgQIQb3GWqnC0WyYPbslrPvnKgWqPzCCan2JtQLgN0LpH2BQ==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/02s1a3h29xgqx2f080c8rh10j1jvfy1b-cargo-package-errno-0.3.14
+URL: nar/0n4ags3dawbf3rhjldjp32disx4nb3i0cw3s0149ikjv0q6d2f3a.nar.zst
+Compression: zstd
+FileHash: sha256:0n4ags3dawbf3rhjldjp32disx4nb3i0cw3s0149ikjv0q6d2f3a
+FileSize: 12577
+NarHash: sha256:0wirgkkn1c7rkq7x9ak9qvwxv457glgq2jhr7va401cv8v9hbgap
+NarSize: 42040
+References: 
+Deriver: 349v6llycc94lz6l82hdhkbx2ymbmr3p-cargo-package-errno-0.3.14.drv
+Sig: cache.nixos.org-1:6LdxrHJBy7W8ib/1DL48JpTAL1BRYikv0LcVDmJcQeq1+cedczFulpxqUsAs9RnAmOG3D4wJJ00a6AiGf+H4Ag==

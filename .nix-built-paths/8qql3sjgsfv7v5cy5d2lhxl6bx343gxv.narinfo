@@ -1,0 +1,10 @@
+StorePath: /nix/store/8qql3sjgsfv7v5cy5d2lhxl6bx343gxv-cargo-package-hexf-parse-0.2.1
+URL: nar/180y2lnkgibfic879jdr10p19r80r954yflk2qay5rdkycw41j7h.nar.zst
+Compression: zstd
+FileHash: sha256:180y2lnkgibfic879jdr10p19r80r954yflk2qay5rdkycw41j7h
+FileSize: 5170
+NarHash: sha256:090b8b701kywlsss29kr64ax5aj1qsfbp6mng68g7lg6pkinz3wa
+NarSize: 22152
+References: 
+Deriver: j28ncfznkkh56d3rzkvj7248g1646mld-cargo-package-hexf-parse-0.2.1.drv
+Sig: wvhulle.cachix.org-1:tQ2wbK7UCx5U+l25kgczjQnN9Z2WkpWCz0FXZb4DvH/v/bI/EqRQDVlUcM+NuGmTRt4f2p8GH4iPS7vb6DiHBA==

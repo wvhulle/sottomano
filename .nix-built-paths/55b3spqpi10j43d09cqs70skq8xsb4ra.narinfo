@@ -1,0 +1,10 @@
+StorePath: /nix/store/55b3spqpi10j43d09cqs70skq8xsb4ra-cargo-package-jni-macros-0.22.4
+URL: nar/1hr6vg2igp8yw769199yrv8z02wg3srkvn62xy9b2anqkfj8qghv.nar.zst
+Compression: zstd
+FileHash: sha256:1hr6vg2igp8yw769199yrv8z02wg3srkvn62xy9b2anqkfj8qghv
+FileSize: 67846
+NarHash: sha256:1y217kghbnrw31z4j0qiab1abxv1xs8476qanagh5gq7m1zv6rq9
+NarSize: 334704
+References: 
+Deriver: 2nl0ar7ci7vc0406f9vr5yb0zs2v0n2s-cargo-package-jni-macros-0.22.4.drv
+Sig: cache.nixos.org-1:qzsf93pC9Ng+IYMMPoARS3wvJY/feexc01nJWGcicVOGmfkRnKTJ3HtXOqKI/W1+BmWAYUMKInBCd8ijeQZ+BQ==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/371spisrf3ri59p61bw2gf7iybs9m253-cargo-package-jni-sys-0.4.1
+URL: nar/013xqd67y3xhmlli5jslrbgrfld80pqrrpq0w23p2z2250lwb0zi.nar.zst
+Compression: zstd
+FileHash: sha256:013xqd67y3xhmlli5jslrbgrfld80pqrrpq0w23p2z2250lwb0zi
+FileSize: 14033
+NarHash: sha256:1bqz93a52rpgcskhzsailnimnid7hxd6hvzw8l8kzj153sfclm55
+NarSize: 68352
+References: 
+Deriver: mjcy3lcrqakmam8z6piyldrav7vps42k-cargo-package-jni-sys-0.4.1.drv
+Sig: cache.nixos.org-1:6E7FrwzbDog7iaX6ZSyL8km3nrQNTpHyp5wGmu9n/TzKZFpdJXopwBLQCZC01+fu0mThKqwLMwZS2jSr2bE5Cg==

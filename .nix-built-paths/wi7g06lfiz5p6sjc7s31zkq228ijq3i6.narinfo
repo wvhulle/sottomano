@@ -1,0 +1,10 @@
+StorePath: /nix/store/wi7g06lfiz5p6sjc7s31zkq228ijq3i6-cargo-package-adler2-2.0.1
+URL: nar/1fx13zqi9hc7bvb9b1jyvvwc40d6j09jbicg48s0my059ga9b8db.nar.zst
+Compression: zstd
+FileHash: sha256:1fx13zqi9hc7bvb9b1jyvvwc40d6j09jbicg48s0my059ga9b8db
+FileSize: 14157
+NarHash: sha256:08badkf71xplwzik74xkmbljbwqbdl4y9bg254knva68dvd0mwhs
+NarSize: 42088
+References: 
+Deriver: pxfkciffikl1zhkhg2gfwny73fgzar7r-cargo-package-adler2-2.0.1.drv
+Sig: cache.nixos.org-1:7/VPEBby/woLT3X8g28nUQBEZCg96z1bF8pgIDNQEzS6UdHK58vgj+YTrs+8/IQD1g3adEJkq/1dzHAvyspUDQ==

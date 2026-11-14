@@ -1,0 +1,10 @@
+StorePath: /nix/store/jqb32773nr1dsfarxnmx46w4iaw5blhx-cargo-package-wayrs-protocols-0.14.11+1.45
+URL: nar/1pblc3b5n2scfgdh80crj0dzp7qjrg9hl01an7lpn2jy26z79s9w.nar.zst
+Compression: zstd
+FileHash: sha256:1pblc3b5n2scfgdh80crj0dzp7qjrg9hl01an7lpn2jy26z79s9w
+FileSize: 191585
+NarHash: sha256:16zyp8zvpwn8swvva10icxd5hzi6kvz5s90rw7mxix5cny1wapk8
+NarSize: 1135376
+References: 
+Deriver: s599hxdamnyq0l7sqp2hwb60bhx3azjy-cargo-package-wayrs-protocols-0.14.11+1.45.drv
+Sig: wvhulle.cachix.org-1:qtOmBjEsfRPrQu0nuupfovOespUEnunn9Ig22tYhxrBPpz0SMt2NRDcFaOdFTrTXK58b1POY4ci5UBT7TUr6DQ==

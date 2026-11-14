@@ -1,0 +1,10 @@
+StorePath: /nix/store/9jdwmy73s7wx343pqhmxx8jvkc99q31v-cargo-package-clipboard_x11-0.4.3
+URL: nar/04qwkhm4kjpp8g2yzzwhr98bgy99savs4snzi6zacpk4wpqia53a.nar.zst
+Compression: zstd
+FileHash: sha256:04qwkhm4kjpp8g2yzzwhr98bgy99savs4snzi6zacpk4wpqia53a
+FileSize: 7662
+NarHash: sha256:1lqnfm8bfw9i94v22hbhsz62svjsh920xrkirlyxnc16iqr5y6bf
+NarSize: 26968
+References: 
+Deriver: wxvdd5qdqkmmxzx380i6bprph95zaa12-cargo-package-clipboard_x11-0.4.3.drv
+Sig: wvhulle.cachix.org-1:1V6Q+rTZ9J+t8Zoxeyq/++LBYMD0ZHNTRKOKlopaowAuas6B1WhYoeXeLjcGYdAQsgUBIprNOCFmGqk6qw6MDA==

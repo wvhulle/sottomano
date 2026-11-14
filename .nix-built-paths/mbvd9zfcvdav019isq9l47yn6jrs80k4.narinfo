@@ -1,0 +1,10 @@
+StorePath: /nix/store/mbvd9zfcvdav019isq9l47yn6jrs80k4-cargo-package-objc2-core-video-0.3.2
+URL: nar/03zizywzk4a1vl1jwx7xl1nmv810d07d4mqwwvkbd9c3qvy9bs7q.nar.zst
+Compression: zstd
+FileHash: sha256:03zizywzk4a1vl1jwx7xl1nmv810d07d4mqwwvkbd9c3qvy9bs7q
+FileSize: 40830
+NarHash: sha256:0swmcwy22r2hnhhnq40ihvbgrkjz1gqf9bdq47g8if5qxh92h2lj
+NarSize: 311080
+References: 
+Deriver: 8bhkhlrk31bp54p37iqdjyrnl5xkm61x-cargo-package-objc2-core-video-0.3.2.drv
+Sig: wvhulle.cachix.org-1:ZkSDEPqKhkGUPB0dP2+dYVCqksed+K8FYkuG49utmy1WAcQyrdGwmMIG213gTRQ2cNc2qhQ8jl4Jqz48LAXpDg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/q7m9k8cy0j4anbgs9sv8mylvdvrr5lgb-cargo-git-https-github.com-wvhulle-iced.git-fb9b834ee696e2a823fe54bd08c166ee6fd41a10
+URL: nar/1fhxxjdlb3hgj13d35y8dz4k8ijvixx2nj9r56sp1nx5fn6c11vb.nar.zst
+Compression: zstd
+FileHash: sha256:1fhxxjdlb3hgj13d35y8dz4k8ijvixx2nj9r56sp1nx5fn6c11vb
+FileSize: 5165077
+NarHash: sha256:0jdfynxkaa3fsc2v5j29rd4dxr4bwsw0yjisj0gzbzbsv3799jc9
+NarSize: 8521392
+References: 
+Deriver: 6ifck04qh2nr93mfdky067d2cxrzqis0-cargo-git-https-github.com-wvhulle-iced.git-fb9b834ee696e2a823fe54bd08c166ee6fd41a10.drv
+Sig: wvhulle.cachix.org-1:yjSKmmMfENRfmWFHUJ5WBWQxySJm4HR1g0xIfuG+zg2OMK5hjFXEl+gm9WkLQJYvsDwXNpz6YlT64mgfEll+CA==

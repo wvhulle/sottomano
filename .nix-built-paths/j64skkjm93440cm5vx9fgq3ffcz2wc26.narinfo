@@ -1,0 +1,10 @@
+StorePath: /nix/store/j64skkjm93440cm5vx9fgq3ffcz2wc26-cargo-package-getrandom-0.3.4
+URL: nar/0mz6ilhpmvgjakh2p4l9mczsl5d3hrxiplm1pp4bmk89mbr6ypda.nar.zst
+Compression: zstd
+FileHash: sha256:0mz6ilhpmvgjakh2p4l9mczsl5d3hrxiplm1pp4bmk89mbr6ypda
+FileSize: 52093
+NarHash: sha256:09ngn3dk7nhyan3n58fnvj0bn2725d764hz0hysxs3h3v0ayanmk
+NarSize: 185664
+References: 
+Deriver: 0pxkk9q0xsn01jvinlh64rsjyiy7bfd0-cargo-package-getrandom-0.3.4.drv
+Sig: wvhulle.cachix.org-1:K1P5TJln1cWgz4b2ZLomanVacEedYew2kXnPVO6Z3V3uEs3SHqqYRLDd3V15ftdlgZ/QsDbRRAvO1LVXAiXYBA==

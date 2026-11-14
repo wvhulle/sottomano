@@ -1,0 +1,10 @@
+StorePath: /nix/store/5ig3vz0a44qb0z1di1dy3ci4vzs9hzv0-cargo-package-bumpalo-3.20.3
+URL: nar/1wnrq86lgfkkngwdm95jarzl0isc3fbqki43w2gzrgj7v1wcawxv.nar.zst
+Compression: zstd
+FileHash: sha256:1wnrq86lgfkkngwdm95jarzl0isc3fbqki43w2gzrgj7v1wcawxv
+FileSize: 101328
+NarHash: sha256:0l105lz1z68fzfikhfwb2m0sbs5cq5w8llzcjx2ngv079hdbsl5h
+NarSize: 429104
+References: 
+Deriver: cfibliksfp70m3kann3sm1d5xxlnz8d5-cargo-package-bumpalo-3.20.3.drv
+Sig: wvhulle.cachix.org-1:RBWDYoA7GWFoHFLEoOHqADV61UVMHyhN4EtLBwIte6neMeqq8rzrVNWVo7LLI74KHdwB06pGa89zIboZ/XrEDA==

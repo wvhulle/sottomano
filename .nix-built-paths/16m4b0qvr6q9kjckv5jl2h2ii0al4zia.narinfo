@@ -1,0 +1,10 @@
+StorePath: /nix/store/16m4b0qvr6q9kjckv5jl2h2ii0al4zia-cargo-package-openssl-sys-0.9.117
+URL: nar/1wn4gxz43p6c9856bsq21wmkdqki0c08isrqvzy8ad50bjp33nhr.nar.zst
+Compression: zstd
+FileHash: sha256:1wn4gxz43p6c9856bsq21wmkdqki0c08isrqvzy8ad50bjp33nhr
+FileSize: 82098
+NarHash: sha256:0aglk4sn0vz5fd2vwkdfl4m2wlch56l5sckzan9li5dkvjplskw1
+NarSize: 418616
+References: 
+Deriver: ybi08fr6y6627gass0lms2r55gqjglg5-cargo-package-openssl-sys-0.9.117.drv
+Sig: wvhulle.cachix.org-1:+YvmPYaefXl5NC0ABZ5QWs2YNn6AU2QYvl4VffSt6vjQn6kiGXoMwDEP8o2/Wzx9bp6uuNcNgVlp8VdsQ/EICA==

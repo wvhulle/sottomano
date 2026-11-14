@@ -1,0 +1,10 @@
+StorePath: /nix/store/gvwn9w01p1ndqpamzdm6zca8myvp8m0i-cargo-package-powerfmt-0.2.1
+URL: nar/1avyv2lxzsil70xjz1ff0pz4cmiq5vyff87ils9xpb504zsq5ida.nar.zst
+Compression: zstd
+FileHash: sha256:1avyv2lxzsil70xjz1ff0pz4cmiq5vyff87ils9xpb504zsq5ida
+FileSize: 17245
+NarHash: sha256:1jk7p7pn9ybdhald2agcinzk3yixisy3alnxs7f0y29baizkkvwz
+NarSize: 63464
+References: 
+Deriver: 7z9iwi59azqk2ranjmwdszh2dkbiamd6-cargo-package-powerfmt-0.2.1.drv
+Sig: wvhulle.cachix.org-1:Ze5Awhyz/GUrGyuVZugQMVgULlfZxbuGrcj2KBNGg8idNEx39K84uPFKQs34MCldu88eFv6QqyBNfiTOfLJbBQ==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/vgaamsk3fvbsapfii759gnqdng276yvk-cargo-package-fnv-1.0.7
+URL: nar/1jij4278qp90q841bv79ymi72s4z66sz0v0jm5y3cn6ig8wb1qf3.nar.zst
+Compression: zstd
+FileHash: sha256:1jij4278qp90q841bv79ymi72s4z66sz0v0jm5y3cn6ig8wb1qf3
+FileSize: 11750
+NarHash: sha256:188q6wz5zg9m2c3j80vkq7sg5vbk0n9fd9srn969ixd8b4wixw9b
+NarSize: 37056
+References: 
+Deriver: aivhxq0351c6m82s2gxj4vf5sdzisily-cargo-package-fnv-1.0.7.drv
+Sig: cache.nixos.org-1:9DDBGg1SMBD677KZYPtGj1x/HckvjZpQLOpQ/6TVsup4smF1fhhcnf9b3C8nuSRYm8qQN5HJN8CZTcpcyeNfCg==

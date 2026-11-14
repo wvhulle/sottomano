@@ -1,0 +1,10 @@
+StorePath: /nix/store/6w0mny0l5n0xg0qdqiwbmzq7621f7sa5-cargo-package-wasmtimer-0.4.3
+URL: nar/1s3viydb8psxarxhkbzh4yyp29j6klny2rpg7a3gd5cagli2z2v8.nar.zst
+Compression: zstd
+FileHash: sha256:1s3viydb8psxarxhkbzh4yyp29j6klny2rpg7a3gd5cagli2z2v8
+FileSize: 39893
+NarHash: sha256:0n14bjmp6djd80ajwd5z4szsi30x0flxgpbj6yhszlm6chymsndk
+NarSize: 163856
+References: 
+Deriver: qqcfbingm09ryjb83vzip4gygl63mv11-cargo-package-wasmtimer-0.4.3.drv
+Sig: wvhulle.cachix.org-1:wNztD6bky/q92a5ZzTGleWAIzeOfH2tRcsn5tC20EBHwdyREHHr5Jyoiwg8viNcx/mJVOJyPv82HxM+kgIxlAg==

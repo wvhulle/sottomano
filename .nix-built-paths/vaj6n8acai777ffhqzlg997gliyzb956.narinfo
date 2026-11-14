@@ -1,0 +1,10 @@
+StorePath: /nix/store/vaj6n8acai777ffhqzlg997gliyzb956-cargo-package-alloc-stdlib-0.3.0
+URL: nar/0rbbpbamp1wwfkv9yyg9m9sp1g5w3pngzgflb7h9l366zlc8b7gw.nar.zst
+Compression: zstd
+FileHash: sha256:0rbbpbamp1wwfkv9yyg9m9sp1g5w3pngzgflb7h9l366zlc8b7gw
+FileSize: 7686
+NarHash: sha256:04bm1jfrjgw360nwziv6iwhgn5js2fxa46g6zcm93xh34f4xhn3x
+NarSize: 38944
+References: 
+Deriver: b4ll8chwk9ynyhw6bfpcwvfdcc14czkk-cargo-package-alloc-stdlib-0.3.0.drv
+Sig: wvhulle.cachix.org-1:4dTFqiwSFkFAf238330fQi6QhHt9n3bIoWxh4HsLm5uEoZ+F/p7kyAFqGFg+E83xkiRiWyUf/7fe38oLNAr8Ag==

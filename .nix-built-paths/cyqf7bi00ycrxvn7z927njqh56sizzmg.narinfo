@@ -1,0 +1,10 @@
+StorePath: /nix/store/cyqf7bi00ycrxvn7z927njqh56sizzmg-cargo-package-schannel-0.1.29
+URL: nar/0r8rdv3a5p79pknrq1dby5z6d7ims7mmigp555fwzdzxdy21a6mb.nar.zst
+Compression: zstd
+FileHash: sha256:0r8rdv3a5p79pknrq1dby5z6d7ims7mmigp555fwzdzxdy21a6mb
+FileSize: 36608
+NarHash: sha256:1g6akfkw8zw5ard6qf2vyrzy7ph3mipr24h010x1hsim64ryamim
+NarSize: 172504
+References: 
+Deriver: j2q7lgjr5s8q1gbw67qz1s2f2kbcpd95-cargo-package-schannel-0.1.29.drv
+Sig: cache.nixos.org-1:p5rYK8LjIZIetu6+jqiW8pMYKzSNADxx3qYzZnwqKHhPLHcW8C760DHiy5lmbetaq8Edq6aW8BLCbvqV3FpYDA==

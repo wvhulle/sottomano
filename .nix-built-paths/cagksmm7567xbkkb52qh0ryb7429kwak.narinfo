@@ -1,0 +1,10 @@
+StorePath: /nix/store/cagksmm7567xbkkb52qh0ryb7429kwak-cargo-package-loom-0.7.2
+URL: nar/1g3m9lrcxw9zfmmrpwvwj6p9fir8dvax7f6s723jyw49a4bj15mv.nar.zst
+Compression: zstd
+FileHash: sha256:1g3m9lrcxw9zfmmrpwvwj6p9fir8dvax7f6s723jyw49a4bj15mv
+FileSize: 77255
+NarHash: sha256:0n99gcvxhb7qyg7ly5rjcv7y4509hfr73fzynll0qrp4axj27jyh
+NarSize: 348272
+References: 
+Deriver: hbiymbr2rwj3mi391nsivhdlp0xh2zi4-cargo-package-loom-0.7.2.drv
+Sig: wvhulle.cachix.org-1:c0VsQGcRxLKPlbtjKyefZ+jtBm2eJIfG/PeMnKa4DC3xwFpUVWCs9+30qZ9jq4LIsQRXth8RwhTEbduKvkhdDw==

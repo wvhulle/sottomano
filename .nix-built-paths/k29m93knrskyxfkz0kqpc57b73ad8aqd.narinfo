@@ -1,0 +1,10 @@
+StorePath: /nix/store/k29m93knrskyxfkz0kqpc57b73ad8aqd-cargo-package-ppv-lite86-0.2.21
+URL: nar/1x634d1ghr957iyhs366yz3za5i3vz6xg8sdpanic4y6gz3y55wv.nar.zst
+Compression: zstd
+FileHash: sha256:1x634d1ghr957iyhs366yz3za5i3vz6xg8sdpanic4y6gz3y55wv
+FileSize: 24002
+NarHash: sha256:0ps2rrrsr948k209mx9znk34gr7pzmqm33mh1zakd3r9qaa6g568
+NarSize: 135680
+References: 
+Deriver: 3069qlqn1hf2j1jb24vfwlc8nkz4yy4s-cargo-package-ppv-lite86-0.2.21.drv
+Sig: cache.nixos.org-1:W1aSfMtHgG8h6Dj7m75Lkioi8XPsRmrUITCxAMn5NmefYNdMaah+rxqAM2e054MCw9JiDfQ+oXBnpRuuR0FACw==

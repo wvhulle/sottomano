@@ -1,0 +1,10 @@
+StorePath: /nix/store/qzmcs8r9l60ni4s9zkmk11fmrvzdg0d6-cargo-package-rustc_version-0.4.1
+URL: nar/1yhx16jskm4557wjzmxmyy4q1hmmg6xprigkgjzl9wpahk6zkjqk.nar.zst
+Compression: zstd
+FileHash: sha256:1yhx16jskm4557wjzmxmyy4q1hmmg6xprigkgjzl9wpahk6zkjqk
+FileSize: 13220
+NarHash: sha256:0hs08xv05ffsis1gl0092i44nv8ndfmrxrkmcpfpzly7dw77sg65
+NarSize: 47352
+References: 
+Deriver: xab1fd459j1axy0jr7nzzmzc6flg8qa0-cargo-package-rustc_version-0.4.1.drv
+Sig: cache.nixos.org-1:xwxfHV0PgrQnqW+AhOEYW0iVym4aluwY13sbeD/4aYP8WjtpahGdu0tVoCdLxVRvvYeJqowFnkJ1XSImsvdbCQ==

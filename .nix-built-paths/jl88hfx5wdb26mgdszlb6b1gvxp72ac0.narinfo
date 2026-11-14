@@ -1,0 +1,10 @@
+StorePath: /nix/store/jl88hfx5wdb26mgdszlb6b1gvxp72ac0-cargo-package-num-traits-0.2.19
+URL: nar/1cfqi2cmxswx470xkwy082q2kzb3p1a70b7iyzkmw2z9k94638c7.nar.zst
+Compression: zstd
+FileHash: sha256:1cfqi2cmxswx470xkwy082q2kzb3p1a70b7iyzkmw2z9k94638c7
+FileSize: 52253
+NarHash: sha256:1l08aaq9qhy02kn6aqb4hwanfsiri0n56icbim9w7079j6dkf7yv
+NarSize: 280440
+References: 
+Deriver: glgmvmj6ig7qvfynzlfqsy8d9h5ap7jq-cargo-package-num-traits-0.2.19.drv
+Sig: cache.nixos.org-1:FvLSpgJjG9vSvZMziqe1c2kh6PyLWwPZFTJNL3YI0idZKnNxMF9vDcv7f9X2k+v6FlYpjiUwCWtccZvASbt2Dg==

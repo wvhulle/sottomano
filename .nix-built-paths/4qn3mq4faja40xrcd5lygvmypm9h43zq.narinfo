@@ -1,0 +1,10 @@
+StorePath: /nix/store/4qn3mq4faja40xrcd5lygvmypm9h43zq-cargo-package-fast-dav-rs-0.19.0
+URL: nar/05rgkaqxzq7jrpvsmkvcis095824r4c3k8hn0qclxpz4ny3ddsvq.nar.zst
+Compression: zstd
+FileHash: sha256:05rgkaqxzq7jrpvsmkvcis095824r4c3k8hn0qclxpz4ny3ddsvq
+FileSize: 228316
+NarHash: sha256:1byycqw1fy77h2ari0kd1s64q2n5715810laclfm99ib5qbqwp6y
+NarSize: 949816
+References: 
+Deriver: 2wn77r7m4wciffbx8w3jh5sshra2q7z4-cargo-package-fast-dav-rs-0.19.0.drv
+Sig: wvhulle.cachix.org-1:PuEFd76izYAoWtligX+dk0qHC2Fc2PdaoAgwvouk5tYIfwvCubS6MARtNJDddAugkFRN/kjAw4HZqDr54DsMDw==

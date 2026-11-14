@@ -1,0 +1,10 @@
+StorePath: /nix/store/8jkd9140bwfnkw6jr5kkjaic6nppw22b-cargo-package-pure-rust-locales-0.8.2
+URL: nar/0pz1px58qynlwgm4sq4wn8yf8rl7hdp082hh2p250rsdaq1wvxr0.nar.zst
+Compression: zstd
+FileHash: sha256:0pz1px58qynlwgm4sq4wn8yf8rl7hdp082hh2p250rsdaq1wvxr0
+FileSize: 172346
+NarHash: sha256:09crxcq79vd6r6kr2j2gzdxa6fvvnbkcpnmzs3ih1wjdyq666dly
+NarSize: 2497424
+References: 
+Deriver: zd93ijfm32lxqvyzllhbakaraf2i8fj4-cargo-package-pure-rust-locales-0.8.2.drv
+Sig: wvhulle.cachix.org-1:rUt9uyrgbvm+Z8CE2IrQ6wKOSIcSa8MKuP6M10hTLq/PhGYMjPed/h/9rEZC0OQRtgkJkRgRp2QCtJ8dmvlJBg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/fmnp9j1ngkwr497g9l0ysvan93hwpa0h-cargo-package-rusqlite-0.40.2
+URL: nar/0da4cy0zjccq4n24bh8khijgwvy71x92ngnz92sh28hqb1aq15q8.nar.zst
+Compression: zstd
+FileHash: sha256:0da4cy0zjccq4n24bh8khijgwvy71x92ngnz92sh28hqb1aq15q8
+FileSize: 178705
+NarHash: sha256:173vncsp6k86zwjfjp0l2lfz6grzbh6xilpnnpdlp722rg67r8qh
+NarSize: 834248
+References: 
+Deriver: jc6qamzbamjy601dy3bp9symsxj8x60w-cargo-package-rusqlite-0.40.2.drv
+Sig: wvhulle.cachix.org-1:2GoIatxGQ/iKhPK9NKU96Ij6M85KB03CA+bypliKdhDiMrLYF3Kium+zfJWePqgn3wfMRJXfD18bxbfTgaq/Cw==

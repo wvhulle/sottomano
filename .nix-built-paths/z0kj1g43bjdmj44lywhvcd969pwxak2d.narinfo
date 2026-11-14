@@ -1,0 +1,10 @@
+StorePath: /nix/store/z0kj1g43bjdmj44lywhvcd969pwxak2d-cargo-package-gpu-alloc-0.6.2
+URL: nar/0wqycxv7px85pnmycghaqgh8jj4navn3bbfp04s6r7bjs63r4ys8.nar.zst
+Compression: zstd
+FileHash: sha256:0wqycxv7px85pnmycghaqgh8jj4navn3bbfp04s6r7bjs63r4ys8
+FileSize: 22410
+NarHash: sha256:0bwlr5zd8s3j6zizl6ajqs1y8vf94l7bc5nfyl5j8d0nx7sdb92b
+NarSize: 101976
+References: 
+Deriver: bw1f30n3k36hgaxqg60j1g4n9d25hcn2-cargo-package-gpu-alloc-0.6.2.drv
+Sig: wvhulle.cachix.org-1:GR4zMNYnasGM4chroBXDPj94M+wWVxcl+o3SI3W5Z8DxZ/781ya4fjV8ki5qzfRtx1MH8I3T9WSQrmCjrye7Dg==

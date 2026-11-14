@@ -1,0 +1,10 @@
+StorePath: /nix/store/7fhp6ahn404rb83h2qs2ghiaxv3f6y5q-cargo-package-chacha20-0.10.2
+URL: nar/0vlzr3blgj35r15mf75hf5ggd1r9p0s355scwzrchamnpvyzn0xw.nar.zst
+Compression: zstd
+FileHash: sha256:0vlzr3blgj35r15mf75hf5ggd1r9p0s355scwzrchamnpvyzn0xw
+FileSize: 40320
+NarHash: sha256:0lnv53d41sahqywanq6dh80bhh49nhm42k9wnd95zha97ghfx3w5
+NarSize: 164576
+References: 
+Deriver: c0b1rnfc18g9kbp7hin57c3d5g3p98ra-cargo-package-chacha20-0.10.2.drv
+Sig: wvhulle.cachix.org-1:cIXqOQDxp6wZDOChAJ7HjfKXLeH7V6t1DNm/8Ub7De6Ptv70jPOW69aMRoPYP+4DyrM1rz5MUnZdqFV6/kE/DA==

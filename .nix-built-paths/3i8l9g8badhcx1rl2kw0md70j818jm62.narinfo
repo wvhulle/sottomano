@@ -1,0 +1,10 @@
+StorePath: /nix/store/3i8l9g8badhcx1rl2kw0md70j818jm62-cargo-package-hashify-0.2.9
+URL: nar/1hgzxy2g26fqk0la3a2n6pc4ssq3m0qh8cz36nw1nc1vwb729gz7.nar.zst
+Compression: zstd
+FileHash: sha256:1hgzxy2g26fqk0la3a2n6pc4ssq3m0qh8cz36nw1nc1vwb729gz7
+FileSize: 40217
+NarHash: sha256:150kpfa0z84clfvf98yzk1li2cv5hcvbk4faqqnw8k102n6jfc7y
+NarSize: 376952
+References: 
+Deriver: 1dlz7r61xccsyyz9wza6x34ffv77gwbc-cargo-package-hashify-0.2.9.drv
+Sig: wvhulle.cachix.org-1:2HUUQChs/+FsjY+/WbbU5KV55CrEtdSRzZbX5Ak3gTltcMBkOeyrdv1rWlRIj94dnRb3jXeCeKXnszA7yaE2Aw==

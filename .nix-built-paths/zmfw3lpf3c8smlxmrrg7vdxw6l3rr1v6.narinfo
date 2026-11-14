@@ -1,0 +1,10 @@
+StorePath: /nix/store/zmfw3lpf3c8smlxmrrg7vdxw6l3rr1v6-cargo-package-tokio-tungstenite-0.30.0
+URL: nar/15chqbk3srl2dyz9cgydmvw0v8j3ri4znlaypzz1xss40ii7g6kd.nar.zst
+Compression: zstd
+FileHash: sha256:15chqbk3srl2dyz9cgydmvw0v8j3ri4znlaypzz1xss40ii7g6kd
+FileSize: 30735
+NarHash: sha256:081a5n2xvjdmm03zkbw61lqz0c4zhyqsx3cglgrshm36hwzywgyn
+NarSize: 119160
+References: 
+Deriver: p03rdc1mr3f45g4xwpphc3bxsrq96rcx-cargo-package-tokio-tungstenite-0.30.0.drv
+Sig: wvhulle.cachix.org-1:jC85mGg98KGEVJ4iMIjEBDLgPLnHis4Av8o5nEJ56S/CmNayTAWE+ysnV2HLn+VH1SzDWOgkzL2PmL73tEYjCA==

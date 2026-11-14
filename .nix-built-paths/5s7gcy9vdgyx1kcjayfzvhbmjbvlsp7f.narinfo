@@ -1,0 +1,10 @@
+StorePath: /nix/store/5s7gcy9vdgyx1kcjayfzvhbmjbvlsp7f-cargo-package-window_clipboard-0.5.1
+URL: nar/19w5av9kqv4iy2cf5k38wlsy7j80b6ji19k0wqx6ql997jpbmnys.nar.zst
+Compression: zstd
+FileHash: sha256:19w5av9kqv4iy2cf5k38wlsy7j80b6ji19k0wqx6ql997jpbmnys
+FileSize: 17009
+NarHash: sha256:0b5hx3x3khcifm8rl3y92xh994hdipykg92w61hhc53vc5h5mhmg
+NarSize: 69128
+References: 
+Deriver: 4rva66j5a1c3nh1pvsssl50d7xngks7k-cargo-package-window_clipboard-0.5.1.drv
+Sig: wvhulle.cachix.org-1:i9FPRiq714OtnWQzMzI22IjX7dLbuKl5SdMV8PUcQL8doz79KQKcrmD40cR+zoG/vQa3gjzFddePkF12mwvICw==

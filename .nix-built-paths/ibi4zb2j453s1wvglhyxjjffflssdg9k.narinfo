@@ -1,0 +1,10 @@
+StorePath: /nix/store/ibi4zb2j453s1wvglhyxjjffflssdg9k-cargo-package-libredox-0.1.25
+URL: nar/1bb0f65ya8kc9a4c1zmxxi3471nkh3hii54gdqq9w4b6p5ybxhls.nar.zst
+Compression: zstd
+FileHash: sha256:1bb0f65ya8kc9a4c1zmxxi3471nkh3hii54gdqq9w4b6p5ybxhls
+FileSize: 11713
+NarHash: sha256:03bqs52skvhgi3hkg7bh83303293sb5c24qawzmm8k86mcrnb1nl
+NarSize: 46304
+References: 
+Deriver: xa3jwn4b2bacrqnf0q667hva8yg140y6-cargo-package-libredox-0.1.25.drv
+Sig: wvhulle.cachix.org-1:8jzJzrVGOstytCvZmxkhMWF8ry5ifDJLETYsxx1q0AkHh+oPFACPHxdE7wEXv+SD1a/rfGYSlLDspVSSNKa2BQ==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/ikhcswwyryq5z4v17sj6w43kflcpqi7d-cargo-package-khronos_api-3.1.0
+URL: nar/0mnk4rhqhdd78h355la62ky31lbk54a3z52fqv5si13mp3lj1zif.nar.zst
+Compression: zstd
+FileHash: sha256:0mnk4rhqhdd78h355la62ky31lbk54a3z52fqv5si13mp3lj1zif
+FileSize: 606544
+NarHash: sha256:0jhh7a4vbzyfs6kk42w4mh3k5y0n90kda1f5m9xzmp4136z6yp5s
+NarSize: 6651896
+References: 
+Deriver: l543l53jxivs4x6m4drlh5a4ypfg5jjz-cargo-package-khronos_api-3.1.0.drv
+Sig: wvhulle.cachix.org-1:2EsNe6dxqD4/0QUQNrkUxcFL3UNRZksmMgKvTPMWjiYAK+uYpJtDQAA2ErFnJbFU2IyL4MJnVd5wzaoQ1vU/BQ==

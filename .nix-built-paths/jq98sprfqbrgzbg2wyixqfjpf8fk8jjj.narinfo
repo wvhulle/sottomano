@@ -1,0 +1,10 @@
+StorePath: /nix/store/jq98sprfqbrgzbg2wyixqfjpf8fk8jjj-cargo-package-branches-0.4.6
+URL: nar/10ai60ll2b2fjkx1r8fnnl5qfc90djzwvnv68w0jyiawfdxv6r0m.nar.zst
+Compression: zstd
+FileHash: sha256:10ai60ll2b2fjkx1r8fnnl5qfc90djzwvnv68w0jyiawfdxv6r0m
+FileSize: 167270
+NarHash: sha256:1638l825yf3qdj6z7x01yzq6ic528rq5lybmb5jldh17ihqvd89n
+NarSize: 215880
+References: 
+Deriver: lyr6svcg4sjd7misga43hdlalhbsp3ga-cargo-package-branches-0.4.6.drv
+Sig: wvhulle.cachix.org-1:oFI4H1DXoN+O3rq/6aoOjtBMAZmlgTTpDMNXJUUJ+5BYtgVW5kFbNJIl8QRsa2Ek0OT3/7Q4DHJVRFh5bXa8Dg==

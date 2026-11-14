@@ -1,0 +1,10 @@
+StorePath: /nix/store/1asspcyhzbvbgyg286rj03wraf44llsa-cargo-package-simdutf8-0.1.5
+URL: nar/030jfqy1w7qdd7whkzwlbnzbv1n57sv738z5zfhl108l89w0n0jf.nar.zst
+Compression: zstd
+FileHash: sha256:030jfqy1w7qdd7whkzwlbnzbv1n57sv738z5zfhl108l89w0n0jf
+FileSize: 28595
+NarHash: sha256:1zjbmgayzi5snyfrxnkdhjq3rs2dq6nwdzslfdf83vimp6iz6r57
+NarSize: 136432
+References: 
+Deriver: x5f1n4x7ad58v31fdyq8qi7v2dlr1znn-cargo-package-simdutf8-0.1.5.drv
+Sig: cache.nixos.org-1:ncHDS+wkLw3CQ6l03HpRr1IEU9Yqu0w3mUXe0/ssvpPPkHXVd1i/v9KvSKNKNQVpM6teXzQFX9BgZ6BEMCDkAg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/0g36xgv285sm6awf2hxynxnlnngg06pp-cargo-package-security-framework-3.7.0
+URL: nar/0gzk8cgwynnfpj4bja4ksv1p45q9zlpy3krx5jf6xjg0c0n478g8.nar.zst
+Compression: zstd
+FileHash: sha256:0gzk8cgwynnfpj4bja4ksv1p45q9zlpy3krx5jf6xjg0c0n478g8
+FileSize: 92539
+NarHash: sha256:01xm26dz0f21ayk03dqgn8qr9ar6is7v7llwa6gqs8zlr3dy1bv1
+NarSize: 429560
+References: 
+Deriver: nyi05fshmdj7dwrcxa6jfbfbra3wv92l-cargo-package-security-framework-3.7.0.drv
+Sig: cache.nixos.org-1:seCxkZd3ossMA4+Z0uYGOihpbMIxF7c0G7OhLKjmlQ9QCj7zro0PJ8c50T8CHoT6SoTF6uXpxIwSwJFULy1WDA==

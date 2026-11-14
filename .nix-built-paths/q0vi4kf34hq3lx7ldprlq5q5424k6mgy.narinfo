@@ -1,0 +1,10 @@
+StorePath: /nix/store/q0vi4kf34hq3lx7ldprlq5q5424k6mgy-cargo-package-lru-slab-0.1.3
+URL: nar/082hlsxkpsd4ncgr0967rhc3if72psjc57mpsh7is9x8s9dhhi9v.nar.zst
+Compression: zstd
+FileHash: sha256:082hlsxkpsd4ncgr0967rhc3if72psjc57mpsh7is9x8s9dhhi9v
+FileSize: 9889
+NarHash: sha256:1kf8iypg48jq3zqhnvxc0za0l5sn26x60ci4av5xzbvwfj6fbvzp
+NarSize: 31944
+References: 
+Deriver: zs2lknsrllb5brmgdi52v6c39812sf6i-cargo-package-lru-slab-0.1.3.drv
+Sig: wvhulle.cachix.org-1:ZRMkL3DBpwxC1rz7oX6PNyjInYc13qjjYP285h/wkaksNFUe96qef3KKJaCQhIEDliQAliDIsfowgK8stdf+Dg==

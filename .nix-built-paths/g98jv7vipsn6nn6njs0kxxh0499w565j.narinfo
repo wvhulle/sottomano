@@ -1,0 +1,10 @@
+StorePath: /nix/store/g98jv7vipsn6nn6njs0kxxh0499w565j-cargo-package-lru-0.16.4
+URL: nar/0nv9s2f50d7kkc5f9lddi1w7ipi3d1smc6fdamqlbbhafjcqj9qh.nar.zst
+Compression: zstd
+FileHash: sha256:0nv9s2f50d7kkc5f9lddi1w7ipi3d1smc6fdamqlbbhafjcqj9qh
+FileSize: 19567
+NarHash: sha256:0arh85314mk1if3cnsl80i51sq6kf915k9qdp4maqc3swcwckcz0
+NarSize: 118176
+References: 
+Deriver: l0698kk61ip8lk1hlz4jdcgbdaxfxhd7-cargo-package-lru-0.16.4.drv
+Sig: wvhulle.cachix.org-1:HDuBWlUNpZ/DFYTm4jj39Mq+EY6bBlv+hr+Dn9B2PEN4dfyYCsVzVxATj/fSS/qm838qCic/q2VrbbydUaaQBA==

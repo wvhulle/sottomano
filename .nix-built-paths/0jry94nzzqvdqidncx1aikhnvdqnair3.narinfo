@@ -1,0 +1,10 @@
+StorePath: /nix/store/0jry94nzzqvdqidncx1aikhnvdqnair3-cargo-package-webp-animation-0.10.0
+URL: nar/0y846h4vrmw2dywan6px8jpddkikcv7xkr0n47n7xn6yapwnm6lw.nar.zst
+Compression: zstd
+FileHash: sha256:0y846h4vrmw2dywan6px8jpddkikcv7xkr0n47n7xn6yapwnm6lw
+FileSize: 44910
+NarHash: sha256:1wb7nkbzb80m18rjsqcpfy5kfcrqajzv9xkrqyc43vmrjyz21h8m
+NarSize: 161520
+References: 
+Deriver: qqw9k3jf7nv96nb9q6hl9gnibmchf46b-cargo-package-webp-animation-0.10.0.drv
+Sig: wvhulle.cachix.org-1:811pQdlrxj4iJjykNQ8bAH23ykkkdW/7So4XJ/dO1mPQtd4LX4i1etrygirC69UbhZK0Ovw+RTeZQZadM0KIDA==

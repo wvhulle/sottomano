@@ -1,0 +1,10 @@
+StorePath: /nix/store/xan3wv879dx84l42fzyb6n6iphbd6y9b-cargo-package-quinn-udp-0.5.16
+URL: nar/01kyvrnzab182fbig10dnvqwih1956ffilnc7f47khpgaa7r6f4i.nar.zst
+Compression: zstd
+FileHash: sha256:01kyvrnzab182fbig10dnvqwih1956ffilnc7f47khpgaa7r6f4i
+FileSize: 34744
+NarHash: sha256:1k1rznk17b8hd9i7qm1nwg9fd0njf2zicchlj2ndb65hl0hiwnb4
+NarSize: 132936
+References: 
+Deriver: 231hw18p861w60iwmpbxy554z2pfl67b-cargo-package-quinn-udp-0.5.16.drv
+Sig: wvhulle.cachix.org-1:P9tDVI39cO+Cbll93atUkOTnaeqMRXm1zqQjO6heHdP9MS7XQ3qk5ad8t/LjQgJRdGu37cn3JkgW2Pv6gZW/CA==

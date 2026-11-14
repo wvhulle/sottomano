@@ -1,0 +1,10 @@
+StorePath: /nix/store/ylkr1rymf84s0xvyigkd8abk1sb4ywqp-cargo-package-rust_decimal-1.43.0
+URL: nar/1hdzhbpdh8dq9nx4l536akd1plby4yg90rjqr7xqx5mvdb14fw3l.nar.zst
+Compression: zstd
+FileHash: sha256:1hdzhbpdh8dq9nx4l536akd1plby4yg90rjqr7xqx5mvdb14fw3l
+FileSize: 173290
+NarHash: sha256:0cnxk1hsh8fgmqariw4q67lz5imnvn9f6qqf61p34hy47admv7mn
+NarSize: 827472
+References: 
+Deriver: y6wjypn6xfdwf202mdmbw114v2drals9-cargo-package-rust_decimal-1.43.0.drv
+Sig: wvhulle.cachix.org-1:jIlF5Z9FpjIkyYyrqtZlX12ESy6vmXJVfGVyI6NS1t9GAvuJcEQEwJuUYoTCGaRyn5zRZnn/UBolPW1bSI/IAg==

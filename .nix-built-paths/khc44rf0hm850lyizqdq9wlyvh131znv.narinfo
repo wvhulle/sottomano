@@ -1,0 +1,10 @@
+StorePath: /nix/store/khc44rf0hm850lyizqdq9wlyvh131znv-cargo-package-borsh-derive-1.8.1
+URL: nar/17xvy411vrkmkfi53jxlvpvv5lqw6zd6rlf9d2yz9z340af2br9g.nar.zst
+Compression: zstd
+FileHash: sha256:17xvy411vrkmkfi53jxlvpvv5lqw6zd6rlf9d2yz9z340af2br9g
+FileSize: 35462
+NarHash: sha256:1kqhpzvi4x4jrsswllyr2hy06jcvc2w3h5ms7g5hkriajzvb1lay
+NarSize: 201752
+References: 
+Deriver: 9488m5k172vg3v2nq4hbyf905dbhs5dp-cargo-package-borsh-derive-1.8.1.drv
+Sig: wvhulle.cachix.org-1:gSrqi5PUH1MydPXn1lrCj5szizPnm0exTgLZdu0QUZYzApeZG42pwT/OApeCIllu9p7c7/bH4QlYINN/e7OhBg==

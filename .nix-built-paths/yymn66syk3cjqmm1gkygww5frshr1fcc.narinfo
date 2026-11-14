@@ -1,0 +1,10 @@
+StorePath: /nix/store/yymn66syk3cjqmm1gkygww5frshr1fcc-cargo-package-humantime-2.4.0
+URL: nar/1d83x7vh2xqimmajlp12vab7y7a2dal5s2gprbf8k03rcs3m5rbh.nar.zst
+Compression: zstd
+FileHash: sha256:1d83x7vh2xqimmajlp12vab7y7a2dal5s2gprbf8k03rcs3m5rbh
+FileSize: 24658
+NarHash: sha256:0yjsprp66yfm0rpf82yjqnwvv8lb2zrz7ff7x8f93f3a3r9c478f
+NarSize: 98240
+References: 
+Deriver: 2vw680lkvgkc772831vf2vjmj6ljjyv0-cargo-package-humantime-2.4.0.drv
+Sig: wvhulle.cachix.org-1:jMXEnWebkQZ8jJf2YWRvJddupugSMV6xvdSjdO35l8yiiuugemy2xNoKrl5YVdEpuyQQbXteYWIF3dac0cBHBg==

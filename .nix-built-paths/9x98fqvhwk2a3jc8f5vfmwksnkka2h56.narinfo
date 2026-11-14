@@ -1,0 +1,10 @@
+StorePath: /nix/store/9x98fqvhwk2a3jc8f5vfmwksnkka2h56-cargo-package-winit-core-0.31.0-beta.3
+URL: nar/1a285rj7wvbvlqd7c8k6irfz3za19y7vhmr0s78ggbg94q8f0kfj.nar.zst
+Compression: zstd
+FileHash: sha256:1a285rj7wvbvlqd7c8k6irfz3za19y7vhmr0s78ggbg94q8f0kfj
+FileSize: 83384
+NarHash: sha256:0as3b0mlwfwgmlfmsi4l6id1f48azdjb6k57dj1amwrjzmv0h66l
+NarSize: 330624
+References: 
+Deriver: 17wjqshm8hn6s9kivqacbpbrvxx7rgzm-cargo-package-winit-core-0.31.0-beta.3.drv
+Sig: wvhulle.cachix.org-1:yuNMCwKyzcsrqd1C+WucTF6Od6qEqZkndG8zBGzEE2c3dfEKx7X0FYqkAdUvGPqociQS9q23T97ndGIgcd1/Cg==

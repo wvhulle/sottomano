@@ -1,0 +1,10 @@
+StorePath: /nix/store/g9iwri5szczdi4b3h1626ha9jfmb9f07-cargo-package-idna_adapter-1.2.2
+URL: nar/06hp5wmjf4id1607rxx0bvb2bvcazxhzq6hrld2lvwi3h6srgd7j.nar.zst
+Compression: zstd
+FileHash: sha256:06hp5wmjf4id1607rxx0bvb2bvcazxhzq6hrld2lvwi3h6srgd7j
+FileSize: 10998
+NarHash: sha256:13m49cpp4p8a8va2wybym3wcr8fjxp0mf3vgivsbzfb9zdv8qs9l
+NarSize: 37032
+References: 
+Deriver: cbaycwwvzg0qwczmgzjzjmchyz9mb75m-cargo-package-idna_adapter-1.2.2.drv
+Sig: wvhulle.cachix.org-1:1FCqS1MGS7zK+QXxwAQSbspCWFE38o7w2R/e8RtLmcp4Zrkx5d55GV6io1ylGqt8h4bP4mcBSIQyDqv9G+AQCQ==

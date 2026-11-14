@@ -16,7 +16,7 @@ Every running QEMU virtual machine on this computer, one row each, with its CPU 
 
 A libvirt domain has a switch: pressing it shuts a running domain down or starts a shut-off one. Any other machine with a QMP socket this user can open has a stop square, which powers it off the way the power button would. A machine with neither gets a muted switch, and its card says power control is unavailable. Right-pressing a machine that has its own window focuses that window.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/virtual_machines.webp" width="1096" alt="Opening the QEMU machines group from the Virtualization menu and hovering a machine started from a terminal">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/virtual_machines.webp" width="1280" alt="Opening the QEMU machines group from the Virtualization menu and hovering a machine started from a terminal">
 
 ## Virtualization: VirtualBox machines
 
@@ -24,13 +24,13 @@ Every running VirtualBox machine on this computer, one row each, with its memory
 
 Pressing the switch on a running machine presses its power button through `VBoxManage controlvm`; on a stopped machine it starts it with `VBoxManage startvm`.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/virtualbox_machines_headless.webp" width="1054" alt="Opening the VirtualBox machines group from the Virtualization menu and hovering a headless machine">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/virtualbox_machines_headless.webp" width="1159" alt="Opening the VirtualBox machines group from the Virtualization menu and hovering a headless machine">
 
 ## Virtualization: VMware machines
 
 Every running VMware machine on this computer, one row each, with its memory use. The card lists its memory use, guest system, guest memory and cores, uptime and configuration file. Pressing a machine's stop square shuts its guest down with `vmrun stop`.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/vmware_machines_workstation.webp" width="952" alt="Opening the VMware machines group from the Virtualization menu and hovering a machine">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/vmware_machines_workstation.webp" width="977" alt="Opening the VMware machines group from the Virtualization menu and hovering a machine">
 
 ## Virtualization: microvm.nix guests
 
@@ -38,13 +38,13 @@ Every guest running under a lightweight hypervisor on this computer, one row eac
 
 Pressing the switch on a microvm.nix guest starts or stops its service, which needs your user in the system module's `containerControllers`. A guest started by hand has a stop square when it is a Cloud Hypervisor or Firecracker guest with an API socket this user can open, which presses its power button, and a muted switch otherwise.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/microvm_guests_cloud_hypervisor.webp" width="897" alt="Opening the microvm.nix guests group from the Virtualization menu and hovering a Cloud Hypervisor guest">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/microvm_guests_cloud_hypervisor.webp" width="982" alt="Opening the microvm.nix guests group from the Virtualization menu and hovering a Cloud Hypervisor guest">
 
 ## Virtualization: Incus instances
 
 Every Incus or LXD instance on this computer, containers and virtual machines alike, across all projects, one row each. A running instance shows its address, or its memory use when it has none; a stopped one says so. The card lists its kind, status, daemon, project, memory use, addresses and image. Pressing the switch on a stopped instance starts it, and on a running one stops it. Reading the daemon needs your user in the `incus-admin` (or `lxd`) group; without it the daemon gets one row that says access is denied.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/incus_instances_container.webp" width="793" alt="Opening the Incus instances group from the Virtualization menu and hovering a container">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/incus_instances_container.webp" width="830" alt="Opening the Incus instances group from the Virtualization menu and hovering a container">
 
 ## Virtualization: nspawn containers
 
@@ -60,7 +60,7 @@ Every plain LXC container on this computer, one row each: the running ones, foun
 
 Pressing the switch on a running container stops it with `lxc-stop`, and on a stopped one starts it with `lxc-start`. Both run as your user, so a container only root may manage refuses the press.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/lxc_containers_running.webp" width="781" alt="Opening the LXC containers group from the Virtualization menu and hovering a running container">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/lxc_containers_running.webp" width="818" alt="Opening the LXC containers group from the Virtualization menu and hovering a running container">
 
 ## Virtualization: Podman containers
 
@@ -68,7 +68,7 @@ Every container in the Podman engines that systemd services on this computer ser
 
 Pressing the switch on a running container stops it, giving it ten seconds to exit, and on a stopped one starts it. An engine whose socket this user may not open gets one row with a warning, and its card says why and lists the engine's unit and socket.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/podman_engines.webp" width="648" alt="Opening the Podman containers group from the Virtualization menu">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/podman_engines.webp" width="785" alt="Opening the Podman containers group from the Virtualization menu">
 
 ## Virtualization: Docker containers
 
@@ -76,13 +76,13 @@ Every container in the Docker engines on this computer, one row each: the system
 
 Pressing the switch on a running container stops it, giving it ten seconds to exit, and on a stopped one starts it. An engine whose socket this user may not open gets one row with a warning.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/docker_engines_rootful.webp" width="917" alt="Opening the Docker containers group from the Virtualization menu and hovering a container in the system engine">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/docker_engines_rootful.webp" width="828" alt="Opening the Docker containers group from the Virtualization menu and hovering a container in the system engine">
 
 ## Virtualization: Apptainer containers
 
 Every running Apptainer or Singularity container on this computer, one row each, named after its image, with its memory use. The card lists the image file, the command it runs, memory use, uptime, owner and runtime. Pressing a container's stop square sends its runtime a termination signal.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/apptainer_containers_image.webp" width="939" alt="Opening the Apptainer containers group from the Virtualization menu and hovering a container started from an image">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/apptainer_containers_image.webp" width="1033" alt="Opening the Apptainer containers group from the Virtualization menu and hovering a container started from an image">
 
 ## Virtualization: Waydroid
 
@@ -90,13 +90,13 @@ Waydroid as two rows: its container, and the Android session inside it, which is
 
 Pressing the container's switch starts or stops `waydroid-container.service`, which needs your user in the system module's `containerControllers`. Before Sottomano has read the service's state, the container row shows a muted switch. Pressing the session's switch starts the session with `waydroid session start`, or stops it with `waydroid session stop`.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/waydroid_container_session.webp" width="705" alt="Opening the Waydroid group from the Virtualization menu and hovering its session">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/waydroid_container_session.webp" width="750" alt="Opening the Waydroid group from the Virtualization menu and hovering its session">
 
 ## Virtualization: Flatpak apps
 
 Every Flatpak app you are running, one row per sandbox, with its memory use. The card lists the app, memory use, uptime, runtime, branch, instance number and sandbox process. Pressing an app's stop square quits it with `flatpak kill`.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/flatpak_sandboxes_app.webp" width="1012" alt="Opening the Flatpak apps group from the Virtualization menu and hovering a running app">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/flatpak_sandboxes_app.webp" width="1124" alt="Opening the Flatpak apps group from the Virtualization menu and hovering a running app">
 
 ## Virtualization: Memory limits
 

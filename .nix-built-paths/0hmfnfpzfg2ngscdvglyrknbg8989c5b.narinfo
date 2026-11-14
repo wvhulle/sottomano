@@ -1,0 +1,10 @@
+StorePath: /nix/store/0hmfnfpzfg2ngscdvglyrknbg8989c5b-cargo-package-displaydoc-0.2.7
+URL: nar/0nhjq9j9j71vzyq5mavcapdpr201brrvx9x9acx3byl0xjappm7a.nar.zst
+Compression: zstd
+FileHash: sha256:0nhjq9j9j71vzyq5mavcapdpr201brrvx9x9acx3byl0xjappm7a
+FileSize: 22716
+NarHash: sha256:19si23s56qn30b4n91hi698sxkpfyk9l3pry1w8625w7m06hq353
+NarSize: 80824
+References: 
+Deriver: qg9g0hvvig807g44r0g9aq22nif955x7-cargo-package-displaydoc-0.2.7.drv
+Sig: wvhulle.cachix.org-1:wlEwe4CoVRxIQj2XfHRh7OcIpxXU9mcce47SC10lSBun+oBPZo3aaHlBUHrcW+hp8kHH6hHVfD7jVZZ6X/UQDg==

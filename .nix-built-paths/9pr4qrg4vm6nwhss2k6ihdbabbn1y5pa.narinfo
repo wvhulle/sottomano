@@ -1,0 +1,10 @@
+StorePath: /nix/store/9pr4qrg4vm6nwhss2k6ihdbabbn1y5pa-cargo-package-club-kdl-0.14.1
+URL: nar/1g0qw743isf1854d4b3qbfrj1gwm5rmq293d9p56j72v6g3kc5sj.nar.zst
+Compression: zstd
+FileHash: sha256:1g0qw743isf1854d4b3qbfrj1gwm5rmq293d9p56j72v6g3kc5sj
+FileSize: 121220
+NarHash: sha256:1bfy9wrlg2xr3l885g96d0c32iwilqd12yv3inynfzqzb4860ak6
+NarSize: 471720
+References: 
+Deriver: i42y9im1yljdf2845bqk5zcy50rq5s6l-cargo-package-club-kdl-0.14.1.drv
+Sig: wvhulle.cachix.org-1:vGDp1fFVjcFjVCEuytfPL3oFKjrqtRLFryY9QW7Qo4B8w/J0brSyLKisttnJMLpzEKamDmQhCAnYYnDXD4f+Bw==

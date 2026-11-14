@@ -1,0 +1,10 @@
+StorePath: /nix/store/1yryky71h2wa6hr038ihl989sm62acmi-cargo-package-tinystr-0.8.5
+URL: nar/0pqcwqx7xh654wnhryi766rxbmszwvj4qn834b0gi0nxyb1kizwg.nar.zst
+Compression: zstd
+FileHash: sha256:0pqcwqx7xh654wnhryi766rxbmszwvj4qn834b0gi0nxyb1kizwg
+FileSize: 25654
+NarHash: sha256:1ajpd66l4dv36yfkyprdg6dwg47qki502d113nr3ry67ncmyhmar
+NarSize: 121208
+References: 
+Deriver: ry2naavp5am69yx68dabardilhl5j9x5-cargo-package-tinystr-0.8.5.drv
+Sig: wvhulle.cachix.org-1:zqGnjKKq9TaUR6pI5lfICmgQai72d+8N7NUJxc2SlJa3kSO1qLphxs/6/evkKiufo+7vAsliVwsmZvS3rf/+DA==

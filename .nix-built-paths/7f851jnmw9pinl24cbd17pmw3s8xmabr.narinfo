@@ -1,0 +1,10 @@
+StorePath: /nix/store/7f851jnmw9pinl24cbd17pmw3s8xmabr-cargo-package-aho-corasick-1.1.5
+URL: nar/156zbpvvrzqikh8chwaz52l1qkb4xsf0bhnrjq4p1sn7zl5xc5yi.nar.zst
+Compression: zstd
+FileHash: sha256:156zbpvvrzqikh8chwaz52l1qkb4xsf0bhnrjq4p1sn7zl5xc5yi
+FileSize: 179427
+NarHash: sha256:1ih81r59df0w0iy2l96k97b0fppzl2xibkxx0xhsn96yl0i129qa
+NarSize: 847024
+References: 
+Deriver: 5mpkqqwk3pkxf6g3rqdwlic3gx9l136a-cargo-package-aho-corasick-1.1.5.drv
+Sig: wvhulle.cachix.org-1:bdCh6167QLb49Gu+TjPeIWbYyfv9J0lQHhEQl34NhF+luejvBJkTqOT009UoqA0/gQ/Izc/uG6Oc5wAprufgBw==

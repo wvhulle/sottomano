@@ -1,0 +1,10 @@
+StorePath: /nix/store/70qpwv8a7b1x1w5p5h095chha1qh97rz-cargo-package-time-macros-0.2.32
+URL: nar/0s6wmz8dxdpxghv2scb6qcvbdjv4nl23np3j33kaw8ibnz3b6h0b.nar.zst
+Compression: zstd
+FileHash: sha256:0s6wmz8dxdpxghv2scb6qcvbdjv4nl23np3j33kaw8ibnz3b6h0b
+FileSize: 35965
+NarHash: sha256:1srz6s7v9q7lj54sky0kdin46z8iiypdsn9fwmsz7qrixdwcaiz4
+NarSize: 166216
+References: 
+Deriver: g7j7j6kf3rshf8f1gbw3jsbb5m9k8bj5-cargo-package-time-macros-0.2.32.drv
+Sig: wvhulle.cachix.org-1:XFMPRVBiZtHIUn1vvkqbkByWThej5gdCfMePxMojlsqbfBVQ9+0Rlb1oII6iRDQ1yp5cZHP4RtR1u2BR0rzLDQ==

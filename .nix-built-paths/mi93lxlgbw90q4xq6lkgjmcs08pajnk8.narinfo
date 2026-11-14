@@ -1,0 +1,10 @@
+StorePath: /nix/store/mi93lxlgbw90q4xq6lkgjmcs08pajnk8-cargo-package-bigdecimal-0.4.11
+URL: nar/1ij9lrnh1y83b1rcsbih3pmmk6s7hp8rhk1yzwixyprkq2a9kps4.nar.zst
+Compression: zstd
+FileHash: sha256:1ij9lrnh1y83b1rcsbih3pmmk6s7hp8rhk1yzwixyprkq2a9kps4
+FileSize: 135560
+NarHash: sha256:1dff2xvl6hskg8ayk6cnrpjdnpahpnlii93aiqlbg3ixmjlrk0in
+NarSize: 591672
+References: 
+Deriver: y7hhwhwi48iyvf0pp2mdm8m7zbwx5zip-cargo-package-bigdecimal-0.4.11.drv
+Sig: wvhulle.cachix.org-1:00C3SWfQhraYiyCqZZ0bA2oVD48PTcjN1ob1J9U/XW1a4lLDgPmQN0XvKo9eBM6x06K1grCN44Sg0qFiAGvBDw==

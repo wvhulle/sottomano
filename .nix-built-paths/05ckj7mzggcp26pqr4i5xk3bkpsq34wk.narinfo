@@ -1,0 +1,10 @@
+StorePath: /nix/store/05ckj7mzggcp26pqr4i5xk3bkpsq34wk-cargo-package-arrayvec-0.7.8
+URL: nar/1dhv9n0xzi3shlx2d7sa55wr7h4lcd9yxsvbib9qcgk3zq1mwd41.nar.zst
+Compression: zstd
+FileHash: sha256:1dhv9n0xzi3shlx2d7sa55wr7h4lcd9yxsvbib9qcgk3zq1mwd41
+FileSize: 35772
+NarHash: sha256:10avkiia9mfsx805qmfqdhpc6g4krlam44rr9wvm3s9ppwjf8wqf
+NarSize: 138000
+References: 
+Deriver: zaaidy3ycd1560l0kzsmkr4yv3qw0yjp-cargo-package-arrayvec-0.7.8.drv
+Sig: wvhulle.cachix.org-1:Y6TwRPRbG2CM2HBRCdQbOXK3cXgzGvONaYIzEAs4mNK8UOR/aFpV8ahUEEOEy2lgZh0wxYCflM6Au7ektxnlBg==

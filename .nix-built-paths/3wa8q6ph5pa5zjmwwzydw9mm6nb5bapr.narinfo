@@ -1,0 +1,10 @@
+StorePath: /nix/store/3wa8q6ph5pa5zjmwwzydw9mm6nb5bapr-cargo-package-bitvec-1.1.1
+URL: nar/04j2saci1x6bg5g9qqbhkw7zhr21z4mxp88plsd7l9dblglzffba.nar.zst
+Compression: zstd
+FileHash: sha256:04j2saci1x6bg5g9qqbhkw7zhr21z4mxp88plsd7l9dblglzffba
+FileSize: 222538
+NarHash: sha256:0m8g1smrlrcmc35sny1ff90nbkrzk9yp4psv9shiyzrk9shs5401
+NarSize: 1080648
+References: 
+Deriver: j6p9h9bqjzf5k59x8s283nvikzbx8vkk-cargo-package-bitvec-1.1.1.drv
+Sig: wvhulle.cachix.org-1:joZD1NcQ+kMuDx3y2m9K4gv1d+qujJlcZqzUhAQkLzWQurG6LDWYHf+hxmEUcyy9XZDe4rJ+6xd/RfQ+FYDqCQ==

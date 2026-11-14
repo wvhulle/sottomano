@@ -1,0 +1,10 @@
+StorePath: /nix/store/4ajh7a6scc02mw54s5gq4scw1s2rczyl-cargo-package-error-code-3.4.0
+URL: nar/1xfwxf697lqp2i80qis8nvhay64n37ndwnyc284bian0b7pyp1hy.nar.zst
+Compression: zstd
+FileHash: sha256:1xfwxf697lqp2i80qis8nvhay64n37ndwnyc284bian0b7pyp1hy
+FileSize: 9567
+NarHash: sha256:15ypv26wja28i5bg521qarcac53dr1hi7102nqry27mkv5jgcria
+NarSize: 34592
+References: 
+Deriver: lnzwxjw3r2f5kzk0qbj6fny9y4nrh0fw-cargo-package-error-code-3.4.0.drv
+Sig: wvhulle.cachix.org-1:eviljU1vws/bM7EYt36hu8VZysp/nRkX0k1zYh0d7wDywbpRDLva2tdXHy8fEDcMa/1fleMxv54KCZVFWwPtDQ==

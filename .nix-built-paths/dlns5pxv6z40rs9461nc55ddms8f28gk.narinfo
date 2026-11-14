@@ -1,0 +1,10 @@
+StorePath: /nix/store/dlns5pxv6z40rs9461nc55ddms8f28gk-cargo-package-zbus_names-4.3.4
+URL: nar/1g80afjx25nmd2dfcrxys0p4w31xlwmi3bw7y8dalg4k693xn4da.nar.zst
+Compression: zstd
+FileHash: sha256:1g80afjx25nmd2dfcrxys0p4w31xlwmi3bw7y8dalg4k693xn4da
+FileSize: 19435
+NarHash: sha256:09ay79cvj2i9ypqv2wxq8b4k3nlyq683kd2xvswq15jjsb2k69df
+NarSize: 87240
+References: 
+Deriver: 3spjbiywwd58k2hm17cn94677ifsgqx2-cargo-package-zbus_names-4.3.4.drv
+Sig: wvhulle.cachix.org-1:I+y9BFwyu5E3gwAyWgY50z7LEVVDRdkeTMoXfBDO+GmydLr2KpdARWPuYoTvzLj2HYllJmcnGY+hHbLJEM3rDw==

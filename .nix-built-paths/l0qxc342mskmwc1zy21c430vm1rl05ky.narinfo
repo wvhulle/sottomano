@@ -1,0 +1,10 @@
+StorePath: /nix/store/l0qxc342mskmwc1zy21c430vm1rl05ky-cargo-package-raw-window-handle-0.6.2
+URL: nar/0bp3z24k4qjklmjfanxw82myg18yyl0syyh7kvsp3hdk6y5wy06v.nar.zst
+Compression: zstd
+FileHash: sha256:0bp3z24k4qjklmjfanxw82myg18yyl0syyh7kvsp3hdk6y5wy06v
+FileSize: 21136
+NarHash: sha256:1ykv4vm97czgdbvv3xk3w1344jzrqfvv88hk57wriy0797g202d9
+NarSize: 94912
+References: 
+Deriver: 4w9464img04gv2cwz96qpd33sr2b8i5z-cargo-package-raw-window-handle-0.6.2.drv
+Sig: wvhulle.cachix.org-1:rzDBIRv79Dztg7KmE7r8pEVojY1nvnZKRAQ2PUaFGNsjJxdJLwZOO7b3t5Pl+rHAqF6a3uAT5CVLBkh6Kw9pCQ==

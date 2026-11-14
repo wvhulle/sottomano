@@ -1,0 +1,10 @@
+StorePath: /nix/store/qx278pv0xbc4z25k3dmn8yah2iwajd3l-cargo-package-pin-project-lite-0.2.17
+URL: nar/1rkd1w929p351481khgyxpb291slvglgbdzsxxyyk8hdfcxnwwzk.nar.zst
+Compression: zstd
+FileHash: sha256:1rkd1w929p351481khgyxpb291slvglgbdzsxxyyk8hdfcxnwwzk
+FileSize: 33571
+NarHash: sha256:0h8yjy0izm1g4ilrsldxsjnhgy0li04s6mrqg7jx7mh3m2rf2nnl
+NarSize: 257912
+References: 
+Deriver: imkx304pis4krb8yawr294929rl7xixg-cargo-package-pin-project-lite-0.2.17.drv
+Sig: wvhulle.cachix.org-1:pqmTUvKLxxZsLLcdWpRtX8PWVV5VEcMyGudPHHmIIK1zEe7aeNBaOBbK0f+A6SQs5mY2qmUP5YWozxoKnaC8Ag==

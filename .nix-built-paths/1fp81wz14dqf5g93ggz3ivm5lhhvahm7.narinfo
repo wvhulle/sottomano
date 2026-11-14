@@ -1,0 +1,10 @@
+StorePath: /nix/store/1fp81wz14dqf5g93ggz3ivm5lhhvahm7-cargo-package-windows-targets-0.52.6
+URL: nar/06qan0ac0n6s5riz12mxan443l3my8797zs05lknkqs15mbw15k4.nar.zst
+Compression: zstd
+FileHash: sha256:06qan0ac0n6s5riz12mxan443l3my8797zs05lknkqs15mbw15k4
+FileSize: 6763
+NarHash: sha256:0jkcm2aaxrqkrk9rzsmj1mi7vjrcil0g9pw8h0nhkmc2xkh2078m
+NarSize: 20920
+References: 
+Deriver: sc6g1f5w6vs56b2kqk0r8xwhi5i8g2kb-cargo-package-windows-targets-0.52.6.drv
+Sig: cache.nixos.org-1:cDfwluXXURZzkYGm1Vg7S/GjXd9BzdFUafOIn6e4g3LTR98YCg7nSq+NTBIBX6LU7B7vwcd58ejeiRi8UWKdBw==

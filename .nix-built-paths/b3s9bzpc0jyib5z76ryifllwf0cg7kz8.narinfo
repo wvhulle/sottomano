@@ -1,0 +1,10 @@
+StorePath: /nix/store/b3s9bzpc0jyib5z76ryifllwf0cg7kz8-cargo-package-freedesktop-icons-0.4.0
+URL: nar/1a0jv4s1c2g0wp7dmn6s9k8shq4153898l4z8sd049w3j2nb2vvn.nar.zst
+Compression: zstd
+FileHash: sha256:1a0jv4s1c2g0wp7dmn6s9k8shq4153898l4z8sd049w3j2nb2vvn
+FileSize: 22744
+NarHash: sha256:1l1jkxm2sc5cnr2wb6azmirm5xmpn71yhyyh3zmajw6y3hlnc9wq
+NarSize: 88680
+References: 
+Deriver: rn0mlbm2y1ib1cnkxpxi1yisb6lihgg1-cargo-package-freedesktop-icons-0.4.0.drv
+Sig: wvhulle.cachix.org-1:918xoJL6YzV/8QCSWihSPfed5HivM/N+J8zswheV5m3ps8+CvRBxFCmYwE/V3c/nLIP7xJ7l4LFErWYQEbnmBw==

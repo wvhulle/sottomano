@@ -1,0 +1,10 @@
+StorePath: /nix/store/j518hb1ld7zhd5fnfx5zi39ch1pzsyfr-cargo-package-matchers-0.2.0
+URL: nar/0nxa5q02xh5nz2ln1qcgy2s3h2f9lb6pk2lp9c4m4phia71y7dad.nar.zst
+Compression: zstd
+FileHash: sha256:0nxa5q02xh5nz2ln1qcgy2s3h2f9lb6pk2lp9c4m4phia71y7dad
+FileSize: 7704
+NarHash: sha256:0lf3kk08w7p346f1r0zb15lxm9mpxa1ffcn6wvc0dd1dqxpv968q
+NarSize: 30240
+References: 
+Deriver: 5c7rxf7lrd9jp333rbk7ghhnvhdv146d-cargo-package-matchers-0.2.0.drv
+Sig: wvhulle.cachix.org-1:U1N3IWy9vY0+JQWIJPsgbe8WURQDLi7ZG92O8YgtwyTbvEfa91N8NrR8NlQPLzpGVQEVO8zqCOToRvLbH6UKAg==

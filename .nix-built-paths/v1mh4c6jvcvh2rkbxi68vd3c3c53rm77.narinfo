@@ -1,0 +1,10 @@
+StorePath: /nix/store/v1mh4c6jvcvh2rkbxi68vd3c3c53rm77-cargo-package-gethostname-1.1.0
+URL: nar/0cgl8gw5f9cq5pivb1ap042gnayxrafi4qs72wsdslm6f25j3460.nar.zst
+Compression: zstd
+FileHash: sha256:0cgl8gw5f9cq5pivb1ap042gnayxrafi4qs72wsdslm6f25j3460
+FileSize: 10252
+NarHash: sha256:1n4088qcf8lii102gi217m32spp8a6imfvp7rnan0jz9mrg56v5i
+NarSize: 31424
+References: 
+Deriver: 506446g6rzndk7a5hcqslkzahy90az13-cargo-package-gethostname-1.1.0.drv
+Sig: wvhulle.cachix.org-1:m9Wza0k1ZR4++jEnYJCARWBpoiiq6lg7YubgsflX3bVL/wJ9KgGx7M+gkbPb71W1aflXMCL5+XLz4X2Zn1kiBQ==

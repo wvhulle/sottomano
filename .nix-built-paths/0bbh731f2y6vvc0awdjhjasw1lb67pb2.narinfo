@@ -1,0 +1,10 @@
+StorePath: /nix/store/0bbh731f2y6vvc0awdjhjasw1lb67pb2-cargo-package-calloop-0.13.0
+URL: nar/0xisrnzxwkdaap6yfsn6hns19vkp14xxyx86py6kpc3x42ahbysv.nar.zst
+Compression: zstd
+FileHash: sha256:0xisrnzxwkdaap6yfsn6hns19vkp14xxyx86py6kpc3x42ahbysv
+FileSize: 72591
+NarHash: sha256:01xzy2710vhpi6db0i5kdvdvyh7fs4bizfmn60a52vgx0aylfff3
+NarSize: 328656
+References: 
+Deriver: lr16yqb7c1f13rv21jwaa84xby31x1jr-cargo-package-calloop-0.13.0.drv
+Sig: wvhulle.cachix.org-1:b+/ZXXGP5UctcPB3dSTdNuqmbiHPcfAfijgYPYB333o1wRjycGyFZHwqTg4p3WulnmzNg66mjz2Tygf1DDE6BA==

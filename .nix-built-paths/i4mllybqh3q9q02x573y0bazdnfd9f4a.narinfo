@@ -1,0 +1,10 @@
+StorePath: /nix/store/i4mllybqh3q9q02x573y0bazdnfd9f4a-cargo-package-wayland-protocols-plasma-0.3.12
+URL: nar/0xhmb9id6445581j38siad1pkg9pjb8l1ghrwhnk8ml1j68al8fc.nar.zst
+Compression: zstd
+FileHash: sha256:0xhmb9id6445581j38siad1pkg9pjb8l1ghrwhnk8ml1j68al8fc
+FileSize: 63917
+NarHash: sha256:0m4w624xyvzjnxbhhrzmj7i8mxp28s504mkridm87hh58csv39ra
+NarSize: 300912
+References: 
+Deriver: 3pasd6z3zxf9fnvvdvl6j50y9xvsrqmq-cargo-package-wayland-protocols-plasma-0.3.12.drv
+Sig: wvhulle.cachix.org-1:F3L9lAZQzD4V14jCWORqo6C4FFIpT5MdQbnVAVgNMo+FWQc/x/2V5SKPcOBg5KDrUOTtoJuz9Dh4MUxz8Hz/Aw==

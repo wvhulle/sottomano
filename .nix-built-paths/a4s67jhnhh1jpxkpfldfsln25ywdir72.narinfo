@@ -1,0 +1,10 @@
+StorePath: /nix/store/a4s67jhnhh1jpxkpfldfsln25ywdir72-cargo-package-fontconfig-parser-0.5.8
+URL: nar/1r7ailixay76hjl8mwp6ycycqjx7cwpfhzh62lwgfg4ssq5yw18j.nar.zst
+Compression: zstd
+FileHash: sha256:1r7ailixay76hjl8mwp6ycycqjx7cwpfhzh62lwgfg4ssq5yw18j
+FileSize: 42148
+NarHash: sha256:18mch5k39sd1gap22by4ppls7cxhswgapll2caqxx6n9g0hv6a2c
+NarSize: 261912
+References: 
+Deriver: 36lg2vh3bh9qyg6dma34p8l4mdq4gcsw-cargo-package-fontconfig-parser-0.5.8.drv
+Sig: wvhulle.cachix.org-1:6OA74nrMQAQCauSss4AzeJOja55cGHk2hZrMcieLxSK6bgDHInCBQg3ybmR4//m+lBmK1Pc+6s1atzARcT6XAg==

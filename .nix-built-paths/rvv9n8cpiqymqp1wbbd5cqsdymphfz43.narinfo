@@ -1,0 +1,10 @@
+StorePath: /nix/store/rvv9n8cpiqymqp1wbbd5cqsdymphfz43-cargo-package-foreign-types-0.5.0
+URL: nar/1vznp1y7brf2im02jiibrs6g1qw61rqrlvc0388rc519s6r99was.nar.zst
+Compression: zstd
+FileHash: sha256:1vznp1y7brf2im02jiibrs6g1qw61rqrlvc0388rc519s6r99was
+FileSize: 8302
+NarHash: sha256:0k4vcl442jzr5vji0vjzzxhpv4riha1cwb5rmpxgxgjnc1v9gcz6
+NarSize: 24816
+References: 
+Deriver: p4nccp9qgh2x7nh71lnn40pbl6kp2y5z-cargo-package-foreign-types-0.5.0.drv
+Sig: wvhulle.cachix.org-1:0zAiA8NX4m6edcoAqz3ZN1cDfNYoxkTroO3ACEj+LFzwfUycku0exu9F7PgxoaevPtZ995jqXnUcuLwZ4o4tBw==

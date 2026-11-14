@@ -1,0 +1,10 @@
+StorePath: /nix/store/ykbgcs496iij0nhllllpjy0xacb0xfa9-cargo-package-crunchy-0.2.4
+URL: nar/1kh8fmqj6i37qqhdcf0nf0gzgnfaympc0dggq99hdfr6p23cxgsb.nar.zst
+Compression: zstd
+FileHash: sha256:1kh8fmqj6i37qqhdcf0nf0gzgnfaympc0dggq99hdfr6p23cxgsb
+FileSize: 4175
+NarHash: sha256:0fxyqhz87f57nn7d7qqjgr38pslk7ngdq4gqh4cnvl4l346g2s1y
+NarSize: 14240
+References: 
+Deriver: ps66511vggn71874abw6al7bxa9vwcgp-cargo-package-crunchy-0.2.4.drv
+Sig: cache.nixos.org-1:lzxBUiS3nC6CGUXsCmBodeaidRvB1WvKk9WuSeKxkC1t/BSveJGaIbIC0/dNT6PPoxMowh8OdCd5ot9VLyLiCg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/q0vxyzkqc4icqvrb50w9k8srjlpvi8pg-cargo-package-euclid-0.22.14
+URL: nar/1ryiaa97q6fqc8dmb53ralv6rvadvc3mmrhrcxl5n982n5faijwy.nar.zst
+Compression: zstd
+FileHash: sha256:1ryiaa97q6fqc8dmb53ralv6rvadvc3mmrhrcxl5n982n5faijwy
+FileSize: 86632
+NarHash: sha256:10xp08yqvr0pfjia65ijfsz4xpdc3vyjhw6lypsin05dgs3z4705
+NarSize: 567096
+References: 
+Deriver: g7qz7af1v9vjfhxf0icb94wj3hdm83wj-cargo-package-euclid-0.22.14.drv
+Sig: wvhulle.cachix.org-1:+IdTI7jql3RUIljdakCz2ROyx2Wv3JuH2sbn8PNXrmpK/pPGGZLDYebZg1EI2HA8dZQYeTCiY0WMdaI9TszrDg==

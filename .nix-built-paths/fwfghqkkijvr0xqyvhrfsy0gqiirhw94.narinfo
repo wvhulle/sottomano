@@ -1,0 +1,10 @@
+StorePath: /nix/store/fwfghqkkijvr0xqyvhrfsy0gqiirhw94-cargo-package-keyboard-types-0.8.3
+URL: nar/1cvp6xff8yxfdy6iiwz3cwcm65hllhcd9m16hd8rbav3scgixnfa.nar.zst
+Compression: zstd
+FileHash: sha256:1cvp6xff8yxfdy6iiwz3cwcm65hllhcd9m16hd8rbav3scgixnfa
+FileSize: 56025
+NarHash: sha256:1hxb7sf247ahg6shdzfdq262z0z54hqn63n8s618asxgwlf8i0ac
+NarSize: 482952
+References: 
+Deriver: 3kxsjpx7k2zqj8d21irl1rcj9k92j7qg-cargo-package-keyboard-types-0.8.3.drv
+Sig: wvhulle.cachix.org-1:qDd/+28MFsgqCbdK2pxmK2HWiLSXmLJeUfNARu2xzufhRntX8HgKNIUb20PlehDf5dW+GRX6YWIgcs8SKROTAw==

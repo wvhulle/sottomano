@@ -1,0 +1,9 @@
+StorePath: /nix/store/xi1k3gr5l30ifj3g9sry1lnn8ki53dkg-linkLockedDeps
+URL: nar/0bkvgad9afr5pp819ycg3shb0jrmda1fg7qdn8sglbywql7k8j50.nar.zst
+Compression: zstd
+FileHash: sha256:0bkvgad9afr5pp819ycg3shb0jrmda1fg7qdn8sglbywql7k8j50
+FileSize: 260
+NarHash: sha256:0nayip1j4an0pq0kyqbhhvy66ls02fa398l5qvsfmaick10l710b
+NarSize: 448
+References: 3b5dx34lbrsjvjj8bv58wyrycafkg429-cargo-git-https-codeberg.org-wvhulle-situo-ad0c9499a9226d2b32cdc8903bd73a7f1e165ce6
+Deriver: 0dbryvbknp0z0nzgch5wl7189wzhnwia-linkLockedDeps.drv

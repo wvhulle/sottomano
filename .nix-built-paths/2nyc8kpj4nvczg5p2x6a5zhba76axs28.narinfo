@@ -1,0 +1,10 @@
+StorePath: /nix/store/2nyc8kpj4nvczg5p2x6a5zhba76axs28-cargo-package-wgpu-core-deps-emscripten-27.0.0
+URL: nar/1gmjx59fq9x36g231aivhp1bh6mdrx3g93vgs340dx6prcaankvv.nar.zst
+Compression: zstd
+FileHash: sha256:1gmjx59fq9x36g231aivhp1bh6mdrx3g93vgs340dx6prcaankvv
+FileSize: 10882
+NarHash: sha256:12ryw59ikcgzq4rdkzhsfcmhg64hsfanw4ady3lb110y82zyq858
+NarSize: 34536
+References: 
+Deriver: dvjhx5i32mgikjg4vp8fxsyksbligrqr-cargo-package-wgpu-core-deps-emscripten-27.0.0.drv
+Sig: wvhulle.cachix.org-1:z+J7ZAQazFxM+7FdCOuSz0q2pZ3/YpbJgXTZ777mRAisgBFx2ca529H1FR4ogxLWPG7LS8UR4RdHVQUXSPfTDQ==

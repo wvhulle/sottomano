@@ -1,0 +1,10 @@
+StorePath: /nix/store/8yzs9vxjpjwahpb80ig59vryp7s13y33-cargo-package-freedesktop-sound-0.1.0
+URL: nar/1wkxcsj7973g0lzygx3dqi1w0h5lkn2sffc7lwpxxqk5nb4zp4sg.nar.zst
+Compression: zstd
+FileHash: sha256:1wkxcsj7973g0lzygx3dqi1w0h5lkn2sffc7lwpxxqk5nb4zp4sg
+FileSize: 13160
+NarHash: sha256:0yg4gh4xr72vjkwb2qcqgklffw1pgvhifacj06y5drzgkim6f0cm
+NarSize: 47016
+References: 
+Deriver: c5w380b393vf0ks3fkqcdapms86x3ggc-cargo-package-freedesktop-sound-0.1.0.drv
+Sig: wvhulle.cachix.org-1:0KyKXLZZVAM+HCI6zyYnywZynoXZZ8uWOqynY9IHbJ3UP9I8xs7hDuBMu4lFOqfJBhxexa4aq6l2DqtTgVlKBw==

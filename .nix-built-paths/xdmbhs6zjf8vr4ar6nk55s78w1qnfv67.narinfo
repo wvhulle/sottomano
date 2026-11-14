@@ -1,0 +1,10 @@
+StorePath: /nix/store/xdmbhs6zjf8vr4ar6nk55s78w1qnfv67-cargo-package-wayland-cursor-0.31.14
+URL: nar/072mgq7ipmjf3whjbdpf8r873bxnvqv81wbbsbwfbmmbv6ns2fzn.nar.zst
+Compression: zstd
+FileHash: sha256:072mgq7ipmjf3whjbdpf8r873bxnvqv81wbbsbwfbmmbv6ns2fzn
+FileSize: 9872
+NarHash: sha256:09zf38dx3j1pfrsc0aai1nz8c4yy0in7zv7vlm9gy65l6cx0fa8z
+NarSize: 28720
+References: 
+Deriver: ybnppkkb8qmpbbnya2w3fqssf60x4s63-cargo-package-wayland-cursor-0.31.14.drv
+Sig: wvhulle.cachix.org-1:q++B7sgW8MZOwub1O/VVVk4KJN4ubPbDEv+nJFglhKGwObWgBxmmLAdeuaWczllblC0UAVoFB7EMMH8iK6TwDw==

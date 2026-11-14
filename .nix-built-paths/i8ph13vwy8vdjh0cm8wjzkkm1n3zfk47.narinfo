@@ -1,0 +1,10 @@
+StorePath: /nix/store/i8ph13vwy8vdjh0cm8wjzkkm1n3zfk47-cargo-package-unicase-2.10.0
+URL: nar/1bjyn8ljlhaqp917n356xw1annj8r7wi1s3wj8dyirc1iap5p5vv.nar.zst
+Compression: zstd
+FileHash: sha256:1bjyn8ljlhaqp917n356xw1annj8r7wi1s3wj8dyirc1iap5p5vv
+FileSize: 24508
+NarHash: sha256:11a6bp1c29j6vc6cdpkxdj2rq947sjbrmpcgdalqfs082y6rlqni
+NarSize: 115912
+References: 
+Deriver: d1dhj4yr6qfzax7qdzgnvp6lcri310y0-cargo-package-unicase-2.10.0.drv
+Sig: wvhulle.cachix.org-1:V+h5zTWAbqObgY7tNtLfarCR3XVfYw56svXiorYDyKlkyOJu/V5X4tr7rKnmn8cppb13wH8GFqDtuIMuzIJbAg==

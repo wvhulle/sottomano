@@ -1,0 +1,10 @@
+StorePath: /nix/store/pz9k63d8mnsirfk6p4rh4l58jf40pgx6-cargo-package-lyon_algorithms-1.0.21
+URL: nar/1x2rfkbavkqi86n8k9if3jv7q4vfr3dwzfg6dr5jr8a2x3aj8ncm.nar.zst
+Compression: zstd
+FileHash: sha256:1x2rfkbavkqi86n8k9if3jv7q4vfr3dwzfg6dr5jr8a2x3aj8ncm
+FileSize: 36151
+NarHash: sha256:0aqg0g0z0dm9112zxb6p7mr4s7b2rypr9da33qg4z1m7fxnmw5kb
+NarSize: 145728
+References: 
+Deriver: d35ijsd8r6wsvf1qb6s0m1li14dvraik-cargo-package-lyon_algorithms-1.0.21.drv
+Sig: wvhulle.cachix.org-1:75bfvxRv3Lvrj6U4U8yszkTiB+IWRvN00fEktkxZ/pgLEI/9yXh2eO8HxiL+30mNcEV+1LzBIz8q7WSHtvYgDA==

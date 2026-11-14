@@ -1,0 +1,10 @@
+StorePath: /nix/store/zcrrcwlnsp140k17hc5j9dcgzb5k5bhf-cargo-package-gpu-descriptor-types-0.2.0
+URL: nar/16s2cka5iz410zxzwaaqjn329g10bh0iy7vr9pbv7rn9cxdzhnz3.nar.zst
+Compression: zstd
+FileHash: sha256:16s2cka5iz410zxzwaaqjn329g10bh0iy7vr9pbv7rn9cxdzhnz3
+FileSize: 2323
+NarHash: sha256:0q6q826cs41cmwkp2cy5zpn1a0kmxxx9di6qv5ylfw0a1dv1d6vg
+NarSize: 7256
+References: 
+Deriver: rkrr0z88rg5mfqmvby6rzh6ls6f3frr1-cargo-package-gpu-descriptor-types-0.2.0.drv
+Sig: wvhulle.cachix.org-1:mblfPdE/TPaAc5EDz+bjO7uIfOuKMFwEsrL/zu9NNZyt/Zhcfnt5GMMbFn43+/rLyAV93bXqQcDDWefmzAAWCA==

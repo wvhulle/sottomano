@@ -1,0 +1,10 @@
+StorePath: /nix/store/lfv3lhfrgk17fd2was6q83zvsfi0napm-cargo-package-cookie-factory-0.3.3
+URL: nar/0bhiqs8lyl07n7wak54n56n05kmw8612irv90g8fhyijqnjia9ap.nar.zst
+Compression: zstd
+FileHash: sha256:0bhiqs8lyl07n7wak54n56n05kmw8612irv90g8fhyijqnjia9ap
+FileSize: 19951
+NarHash: sha256:1vb8kbp5vbl5drpjfn32kn0hf9x2m9d1jhr6lqfggdsj0qlgikj3
+NarSize: 103040
+References: 
+Deriver: 2jra75i2c7hsj4pbs0rm8wk6mdyjyq46-cargo-package-cookie-factory-0.3.3.drv
+Sig: wvhulle.cachix.org-1:aVjO13TyCWUSQ4nqJr6ATmuKurKxYZC73Y5sWyyqoJce8yzjS2+e+5Ca/Br+hiM2RKHdHHQSJuTedgc7SRHyDw==

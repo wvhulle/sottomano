@@ -1,0 +1,10 @@
+StorePath: /nix/store/g0cg4gnw9q0lab2319h7k7b2ikh0r5a3-cargo-package-tiny-skia-path-0.11.4
+URL: nar/116hsdfi6sdkxaxr42xf5gyp66gb1q8rp5g595rvzkx95zlhhy44.nar.zst
+Compression: zstd
+FileHash: sha256:116hsdfi6sdkxaxr42xf5gyp66gb1q8rp5g595rvzkx95zlhhy44
+FileSize: 51111
+NarHash: sha256:1mbs0d9yrcqf70l3xrs0m3l4ailxdfhsg9934msv3zdiizf3g1w6
+NarSize: 220168
+References: 
+Deriver: 7b95nd5rrzqb03zsy1q753ks4l84l4a3-cargo-package-tiny-skia-path-0.11.4.drv
+Sig: wvhulle.cachix.org-1:yDpEyWcNtCHfvbarKsnRZqCvtg7ceO4e5Zm7L+NlulZqk7z2joqfRzppCpnFDMiaNeku1tVooQHqdlfiDHs1DA==

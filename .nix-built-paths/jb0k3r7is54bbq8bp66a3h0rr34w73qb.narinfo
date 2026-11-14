@@ -1,0 +1,10 @@
+StorePath: /nix/store/jb0k3r7is54bbq8bp66a3h0rr34w73qb-cargo-package-r-efi-5.3.0
+URL: nar/1w00wzbhr68xckcknynvdgz7v5xj4qjwahs8v25ifabbd2gg0wnq.nar.zst
+Compression: zstd
+FileHash: sha256:1w00wzbhr68xckcknynvdgz7v5xj4qjwahs8v25ifabbd2gg0wnq
+FileSize: 66123
+NarHash: sha256:1cc8x76n8i4k76fv5874v4rqfk6nwf7z5vghlc0whddgh4qh9nl8
+NarSize: 303720
+References: 
+Deriver: v84aahq0m76mhz4q5lh6b0hn72kxn0gf-cargo-package-r-efi-5.3.0.drv
+Sig: cache.nixos.org-1:P7hrIB4U682M6uiJxwimyhVaazoC/m4mLIJsk4B+CswYw24Kq3lRK0l6yP/WWzPISI+dulI8U5Z8iSGqvywCDA==

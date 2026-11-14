@@ -1,0 +1,10 @@
+StorePath: /nix/store/nk5qmbdy6nqq48x13qmkyhwr5374b8g3-cargo-package-async-net-2.0.0
+URL: nar/0dpx4sq8s4v29hjfm302k2ly2y1b7rhjl126z9g7a0dy8f2hqv3k.nar.zst
+Compression: zstd
+FileHash: sha256:0dpx4sq8s4v29hjfm302k2ly2y1b7rhjl126z9g7a0dy8f2hqv3k
+FileSize: 18307
+NarHash: sha256:0x8kbqqjzh9hvcl48w2dr719r8xz40qijx5q8rabddand5i9b1bh
+NarSize: 99232
+References: 
+Deriver: xi3y6mrjaqr2wr291x9w3xymz60p7174-cargo-package-async-net-2.0.0.drv
+Sig: wvhulle.cachix.org-1:DaxPWmLtcC8uY/P50yvDL1d4q/3nmVdWNZkUMX5WuyEOKhTZJmjqpG+yUKc62pqysTN6bS+9NnfS1YQ3TMUoAw==

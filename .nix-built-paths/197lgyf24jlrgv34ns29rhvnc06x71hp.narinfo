@@ -1,0 +1,10 @@
+StorePath: /nix/store/197lgyf24jlrgv34ns29rhvnc06x71hp-cargo-package-dpi-0.1.2
+URL: nar/0vccmn3x9xqxzbda3v23gdpzcvppnc0gyrwpzbz894n4ckgjxrvc.nar.zst
+Compression: zstd
+FileHash: sha256:0vccmn3x9xqxzbda3v23gdpzcvppnc0gyrwpzbz894n4ckgjxrvc
+FileSize: 15848
+NarHash: sha256:1zx7dbq12v54g6p56jyqr64gfiaq1g88xxzprp92xnb1fmva0dsl
+NarSize: 65752
+References: 
+Deriver: 21cq6kx3hs53qaw5g997b4nffc2r21aa-cargo-package-dpi-0.1.2.drv
+Sig: wvhulle.cachix.org-1:vJhudeJv/PadvgGX812/8s50GlYrUnvoOM02Es037j/mGCqe/XIiKjehu02/Rnt/l5X3FRra9Gzh+cjfBIJXBg==

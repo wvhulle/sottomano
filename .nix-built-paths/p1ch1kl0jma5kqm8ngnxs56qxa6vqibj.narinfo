@@ -1,0 +1,10 @@
+StorePath: /nix/store/p1ch1kl0jma5kqm8ngnxs56qxa6vqibj-cargo-package-hyper-1.12.0
+URL: nar/11akq3qgvbkr6nrk44gxw34phj3jhybbg9d6629y4kr8my36adxl.nar.zst
+Compression: zstd
+FileHash: sha256:11akq3qgvbkr6nrk44gxw34phj3jhybbg9d6629y4kr8my36adxl
+FileSize: 173317
+NarHash: sha256:1k7cgjqb4c54bmwa9rm0ynwi9433zfgqgpls47flnljkw7n399kh
+NarSize: 814472
+References: 
+Deriver: 1qix8w7imi7wzgqycx1na3b9kn356if7-cargo-package-hyper-1.12.0.drv
+Sig: wvhulle.cachix.org-1:PZqEEzxggRjLjvMNP5TT+Z+OejSalqZi5qVAFQmMZPPnXUp98mddEpMWgoDBaF/gzj3OZjIVUZJ5oOcv6fuMCg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/n9hcyc6mcwify594s57167qdk3vyy1a7-cargo-package-libgit2-sys-0.18.8+1.9.7
+URL: nar/0q9xcm4acqkgh9l81f29n497zhmg1sph2whqg1vxsipi74d0vlky.nar.zst
+Compression: zstd
+FileHash: sha256:0q9xcm4acqkgh9l81f29n497zhmg1sph2whqg1vxsipi74d0vlky
+FileSize: 1926756
+NarHash: sha256:11i5dl4fs6lnxhkzx2chk1p1gf18hxjjs994b9qm7pbdwnq2g561
+NarSize: 8831432
+References: 
+Deriver: d6ifg1q8hinn861dr4qpjjwfp3npiigp-cargo-package-libgit2-sys-0.18.8+1.9.7.drv
+Sig: wvhulle.cachix.org-1:rgRqKB9UlOKVWc1A7szNFMAK1IX/R2HKqjKZRrQApymhh4EjFRJx1iz1Kp3n43yagEbNsj2ObWQFYQtLcujfAA==

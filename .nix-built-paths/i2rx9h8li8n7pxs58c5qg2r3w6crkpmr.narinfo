@@ -1,0 +1,10 @@
+StorePath: /nix/store/i2rx9h8li8n7pxs58c5qg2r3w6crkpmr-cargo-package-async-recursion-1.2.0
+URL: nar/1fa6hcax279xravgfp4hnj53bf9hln3fkg7qn2xshy9ldphhplrn.nar.zst
+Compression: zstd
+FileHash: sha256:1fa6hcax279xravgfp4hnj53bf9hln3fkg7qn2xshy9ldphhplrn
+FileSize: 18920
+NarHash: sha256:0fx9x4n1bdxib1ni6j43fb9af1cvx40p191z2ixpa2j4hhq0b4f9
+NarSize: 76568
+References: 
+Deriver: cfyb55c9k4a1kiiijwvh1731z3hczr78-cargo-package-async-recursion-1.2.0.drv
+Sig: wvhulle.cachix.org-1:LQiajiPhweHhZucHWOCq2DJKr9cLFsKo3gilY9NvAGbDYCdVs8zMHI2KIJjBPJpl1+b8aQBKarmxBUmjWJLBCg==

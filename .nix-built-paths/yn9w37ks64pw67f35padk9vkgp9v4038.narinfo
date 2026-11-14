@@ -1,0 +1,10 @@
+StorePath: /nix/store/yn9w37ks64pw67f35padk9vkgp9v4038-cargo-package-ttf-parser-0.25.1
+URL: nar/1pah7lbw3d7yzz6dnd906gqpiwpbdhqf49gig4vfsqi09a9cn904.nar.zst
+Compression: zstd
+FileHash: sha256:1pah7lbw3d7yzz6dnd906gqpiwpbdhqf49gig4vfsqi09a9cn904
+FileSize: 197291
+NarHash: sha256:0a9yw1cqv0jf51rbs5348080f7ik2dmbwkdailz4c9ms1250c9dw
+NarSize: 1075536
+References: 
+Deriver: saax59dqrdgvyx20mf683r490wqkr8ws-cargo-package-ttf-parser-0.25.1.drv
+Sig: wvhulle.cachix.org-1:ou2rspMJ+Hcu8FlP4jehMWG02sIHkJr0i5YMwSGg/4CzsD+TeB5Lo8I63PDF0RbegRLz5zNq2zXY3+HK9zDGCw==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/ig8ik89z4gjp0y6qfzy8kmqyq7my26yq-cargo-package-polyval-0.6.2
+URL: nar/1dcbgpz6hz8y5irc9b8kp1g1pk2dirlbn6pm5i2z41407r92j939.nar.zst
+Compression: zstd
+FileHash: sha256:1dcbgpz6hz8y5irc9b8kp1g1pk2dirlbn6pm5i2z41407r92j939
+FileSize: 19195
+NarHash: sha256:0l9pnffrz5iks2d26hb8n6rflbs040rmr2605wkrmli02fbj51j6
+NarSize: 70920
+References: 
+Deriver: psjg2zja4frn9zp98j9lhf5336isvz58-cargo-package-polyval-0.6.2.drv
+Sig: wvhulle.cachix.org-1:HLC8WOi4UXuVrSb3FB7Gew1QdRHRIkfRR7e7l37jE9Wej8mW4y/u6kgryuYGtEKFppFeyXznkzRv2ni+VK9aCA==

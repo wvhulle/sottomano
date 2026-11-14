@@ -1,0 +1,10 @@
+StorePath: /nix/store/3b5dx34lbrsjvjj8bv58wyrycafkg429-cargo-git-https-codeberg.org-wvhulle-situo-ad0c9499a9226d2b32cdc8903bd73a7f1e165ce6
+URL: nar/1rlw630v4w1065cap8hh6lwqqv1ll5zw77vlzmwd96pkx5kh67ck.nar.zst
+Compression: zstd
+FileHash: sha256:1rlw630v4w1065cap8hh6lwqqv1ll5zw77vlzmwd96pkx5kh67ck
+FileSize: 29573
+NarHash: sha256:19y2s8h023xqw06jr7qf641nzdy0cw7gs8lbfs6nnvvy6aw253a1
+NarSize: 135592
+References: 
+Deriver: jkmdb1gx7v9kijl3n9hr7wqm69sz37zd-cargo-git-https-codeberg.org-wvhulle-situo-ad0c9499a9226d2b32cdc8903bd73a7f1e165ce6.drv
+Sig: wvhulle.cachix.org-1:SmRB5+MZJJK9xmofz75TzbBRvIBfNf4Xpt76tJyH4vuZ50TjqFYqAFDqIRY0pfel6EWQ66Gh1v/qWdVyx2f5BA==

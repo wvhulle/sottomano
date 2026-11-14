@@ -1,0 +1,10 @@
+StorePath: /nix/store/8b1aaw8v7q6zrni7r0i8hs2xq7m0v40d-cargo-package-libz-sys-1.1.31
+URL: nar/1a40580d9sbwhz2x0hcaw173847qg6rylskqixyygyvhzwvgzwir.nar.zst
+Compression: zstd
+FileHash: sha256:1a40580d9sbwhz2x0hcaw173847qg6rylskqixyygyvhzwvgzwir
+FileSize: 520509
+NarHash: sha256:1v5pdwqyh5qq9f9k64cq5qgzlvgn9k9vymkqassjs8c25i5im687
+NarSize: 3093656
+References: 
+Deriver: a3baw0nfb631qrc9w1781cxljg1d02jg-cargo-package-libz-sys-1.1.31.drv
+Sig: wvhulle.cachix.org-1:n7eq235qr35Pcra6U5LcCdjFtwM7XjLrzlSJylyodfDQNEYGpvNgfVlZegP79vvH3+buX+Sr6o2jkivCSJhNCA==

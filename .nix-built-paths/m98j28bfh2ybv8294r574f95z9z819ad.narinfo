@@ -1,0 +1,10 @@
+StorePath: /nix/store/m98j28bfh2ybv8294r574f95z9z819ad-cargo-package-toml_writer-1.1.3+spec-1.1.0
+URL: nar/1v8vrqwav4c0fxp209qcz8j2khryxkx2w816srw5pd4mmdgfnx2p.nar.zst
+Compression: zstd
+FileHash: sha256:1v8vrqwav4c0fxp209qcz8j2khryxkx2w816srw5pd4mmdgfnx2p
+FileSize: 19984
+NarHash: sha256:0dsl8gjivdrmvv366hfyvwy5xrj1acmlr7v9hjl0xccd8rb6hfdw
+NarSize: 76656
+References: 
+Deriver: f0d0cnrbnbfckzjrnbiix8jxjngs1l0y-cargo-package-toml_writer-1.1.3+spec-1.1.0.drv
+Sig: wvhulle.cachix.org-1:txP3xn0y+r5+VOPJcVIU7PK7hw0odpORgfKe0OSaUMpOcfEY8y4PfE6eRHwds/HVpCq2d+YSUASKImNUr689Bw==

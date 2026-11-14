@@ -1,0 +1,10 @@
+StorePath: /nix/store/igwzii0053pjgbhx8vg5m3vs8kcdfhhw-cargo-package-tower-http-0.6.11
+URL: nar/08nllrnvp2ljpbzyfvcwik0md8ll3m7fml0hnjwabvgzsrbhw68l.nar.zst
+Compression: zstd
+FileHash: sha256:08nllrnvp2ljpbzyfvcwik0md8ll3m7fml0hnjwabvgzsrbhw68l
+FileSize: 159412
+NarHash: sha256:01ahi9pdx5s6nqkwnwagwy2g31pn7idijvki79j9xmc54ddl1iz8
+NarSize: 911864
+References: 
+Deriver: rcr106d5c9cgaxbk4gzb3pqddsgkp91x-cargo-package-tower-http-0.6.11.drv
+Sig: cache.nixos.org-1:QxZVl26Ftuqk6ON9Y6jsxQHNFT0md49zlOAfQKnZ6lEby921OkFjLFEjiceLCyxQmqFJQRjbYvt88tZwoZloAw==

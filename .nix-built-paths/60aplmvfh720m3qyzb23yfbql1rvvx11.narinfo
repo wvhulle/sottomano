@@ -1,0 +1,10 @@
+StorePath: /nix/store/60aplmvfh720m3qyzb23yfbql1rvvx11-cargo-package-calloop-wayland-source-0.4.1
+URL: nar/0q1al4j4i3s92pn96zwplz2s50z8f800w1vdqn99abijkaqlcw4p.nar.zst
+Compression: zstd
+FileHash: sha256:0q1al4j4i3s92pn96zwplz2s50z8f800w1vdqn99abijkaqlcw4p
+FileSize: 11936
+NarHash: sha256:1sb1xmdvyn9ca6h5fkn18y2kbyky5q6387b5apxh7sdbywkdrp95
+NarSize: 37712
+References: 
+Deriver: vgwpryd6rrpy724n0xp59knqbi8hm9ln-cargo-package-calloop-wayland-source-0.4.1.drv
+Sig: wvhulle.cachix.org-1:UtlRTnap+24m2Ks3k2MrcAGSFvD2lvT6AI6AKMUHXtO6zEnnmesTZVYMJzR5ts8Gumx1MBQbWU7x6LWMpgD7Cw==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/as3lzc9jf36vwxiaww03zs0jq4x3chrf-cargo-package-cursor-icon-1.2.0
+URL: nar/0xzqyxw5axqiniwlzc4w6n11gri52c08sk4afvccdfl9b91x1q5n.nar.zst
+Compression: zstd
+FileHash: sha256:0xzqyxw5axqiniwlzc4w6n11gri52c08sk4afvccdfl9b91x1q5n
+FileSize: 14998
+NarHash: sha256:130mg5643jd7dhzgfv6i8w7xk2zn45lb5ggq7hd2flw95ig794mw
+NarSize: 46568
+References: 
+Deriver: mi13ln04hd13qkq7h47jawi43h9b6q7g-cargo-package-cursor-icon-1.2.0.drv
+Sig: wvhulle.cachix.org-1:VSS4jbpF5vhFiJjCGUTpvJCqhTtuErcB6ky+XPPK7/xBVLiU09KIM+ebWN2sD6SSZpdFTIhaxKuMNOZJqLkVAg==

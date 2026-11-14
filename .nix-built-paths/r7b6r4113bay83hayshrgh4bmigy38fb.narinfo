@@ -1,0 +1,10 @@
+StorePath: /nix/store/r7b6r4113bay83hayshrgh4bmigy38fb-cargo-package-bindgen-0.72.1
+URL: nar/1691ha8xm9msxna802w4yrhywybbygl4dsppzrgfa1iwxfhw4pzq.nar.zst
+Compression: zstd
+FileHash: sha256:1691ha8xm9msxna802w4yrhywybbygl4dsppzrgfa1iwxfhw4pzq
+FileSize: 250771
+NarHash: sha256:14qdkjg0p678dz2iw5y9g7236caaqbbzc8xalv7r2mk9pywvghlk
+NarSize: 1155784
+References: 
+Deriver: 25f0wmv2hr42m3b0f1jjcr6z553p7yv2-cargo-package-bindgen-0.72.1.drv
+Sig: wvhulle.cachix.org-1:eXvdRnMD2OdFpcmWGlC/aqvTlv+j/EzDrhext4WwEhwGHn4PsuLSTOvEquIHeQWgf+DdmRbuZkf8a7w8TsjCDA==

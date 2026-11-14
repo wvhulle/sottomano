@@ -1,0 +1,10 @@
+StorePath: /nix/store/h0g18p5my74wnfai0rq9c22i7nzpn748-cargo-package-scopeguard-1.2.0
+URL: nar/1l6nyzxyz9afmhv5iil7ir9birra4jis9hbl3fadlswx90qzgkny.nar.zst
+Compression: zstd
+FileHash: sha256:1l6nyzxyz9afmhv5iil7ir9birra4jis9hbl3fadlswx90qzgkny
+FileSize: 12428
+NarHash: sha256:1kh2irxyjk3rl4374jxjjs6g7iw73krn0ajs2f32cp925srcanqs
+NarSize: 38760
+References: 
+Deriver: 0yraiaxg71hf3gsnqy6wjg25g1ycxgs2-cargo-package-scopeguard-1.2.0.drv
+Sig: cache.nixos.org-1:XiVXGxGObi34luY41v00fcq1eTgEDWp4xQ//4eW9uQFc5/bfc87y8sK8XctL6Al8Yaep2MnWGLRbJPAklIstAg==

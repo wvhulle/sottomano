@@ -1,0 +1,10 @@
+StorePath: /nix/store/48b0x2knwi998sr0qvp4sd5rlr3gsfax-cargo-package-winapi-x86_64-pc-windows-gnu-0.4.0
+URL: nar/06k60864mm0r0brybis9070nbx86mab0xv6jdx1037g9b1vfi6b5.nar.zst
+Compression: zstd
+FileHash: sha256:06k60864mm0r0brybis9070nbx86mab0xv6jdx1037g9b1vfi6b5
+FileSize: 2636529
+NarHash: sha256:0aiwidcp6jv24q1v24nkcmqw9lpjcfdjp5afllzj7vq08s85yx5x
+NarSize: 53478176
+References: 
+Deriver: vhwxrfa99v42qgppgjpbvjnyjd5m7nby-cargo-package-winapi-x86_64-pc-windows-gnu-0.4.0.drv
+Sig: cache.nixos.org-1:VMKNjC6V+ltI340rYkk4L0NZEsHpMuY8ziOaF+Ks63hIbq843hI6//3K4Z3x7c8HxTgTtp1I2bgGSUn98NqlBA==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/73rhsfivym57m5z6k5qgalr4fkf91knn-cargo-package-zstd-sys-2.1.1+zstd.1.5.7
+URL: nar/0s02fyhyyakm87maxjdwb9hprqzpmd0rg726h8fcbqp3bvf0pkni.nar.zst
+Compression: zstd
+FileHash: sha256:0s02fyhyyakm87maxjdwb9hprqzpmd0rg726h8fcbqp3bvf0pkni
+FileSize: 648337
+NarHash: sha256:09ay80c99wsx899zaxsy6cljjfh3fhnsj059kl7vdn7s8rjv6mcy
+NarSize: 3682280
+References: 
+Deriver: klqkp9k9bfp09y91y30jmh0nkmgbaykm-cargo-package-zstd-sys-2.1.1+zstd.1.5.7.drv
+Sig: wvhulle.cachix.org-1:kOcv561O+TBQtQVL5hsQELR9OwWaNcQL2TD0FfNQnEirqCVjP0dJj4OnIAzgCPEnYF/XFKfzQLMz7pbnsJMyBw==

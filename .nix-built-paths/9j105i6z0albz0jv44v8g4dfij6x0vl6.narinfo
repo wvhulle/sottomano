@@ -1,0 +1,10 @@
+StorePath: /nix/store/9j105i6z0albz0jv44v8g4dfij6x0vl6-cargo-package-byteorder-1.5.0
+URL: nar/0abi92109n9lwp93s61k0a340z88y98rhyrw11nm6l4xn8lhr55r.nar.zst
+Compression: zstd
+FileHash: sha256:0abi92109n9lwp93s61k0a340z88y98rhyrw11nm6l4xn8lhr55r
+FileSize: 24100
+NarHash: sha256:0whlsi6qkl7wsy0pv2sg5ak7zp1ndgyh80i2a5c32x9cjxrpgq7j
+NarSize: 189264
+References: 
+Deriver: ckp1xlifcl2xi2mb1bcfcq0kw8h3h4rg-cargo-package-byteorder-1.5.0.drv
+Sig: cache.nixos.org-1:y4Og5OnTyoaZARAx06t8mXTF77XJykPKGkNwuVFHUnoJF1HNZhexDEdc7Jpay0MICuUB5XRveI4UALHiqKhNBg==

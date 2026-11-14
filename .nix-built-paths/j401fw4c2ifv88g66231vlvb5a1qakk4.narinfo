@@ -1,0 +1,10 @@
+StorePath: /nix/store/j401fw4c2ifv88g66231vlvb5a1qakk4-cargo-package-arc-swap-1.9.2
+URL: nar/0l0hhnpx4rzkaw989hxjl86s8h45zzf0dy2fdbm7pqghhplwpv5v.nar.zst
+Compression: zstd
+FileHash: sha256:0l0hhnpx4rzkaw989hxjl86s8h45zzf0dy2fdbm7pqghhplwpv5v
+FileSize: 83157
+NarHash: sha256:1bqy31fnan2mnfii4wya90ic3dr1fqw7ls1vqzzp602adp3vrk0v
+NarSize: 313184
+References: 
+Deriver: b1xk5pf8zjjaa67ddsb01siibfr7bh89-cargo-package-arc-swap-1.9.2.drv
+Sig: wvhulle.cachix.org-1:NLcRFZ4nQH/O3uJAz40jrCcL/KIv7ZOkjqgKbUe4RckacGABnLa1p41H1aL2l+wehYzp+wGUWeC+8l+V/0E2Bw==

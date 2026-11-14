@@ -1,0 +1,10 @@
+StorePath: /nix/store/5ccyg10giybqw15sdzpymxqy8hpgh2mf-cargo-package-fontdb-0.24.0
+URL: nar/0a7zjyb5xfmjnc80z04fpvs1994wn5913xb9g5ii8z14ys9xzw52.nar.zst
+Compression: zstd
+FileHash: sha256:0a7zjyb5xfmjnc80z04fpvs1994wn5913xb9g5ii8z14ys9xzw52
+FileSize: 120332
+NarHash: sha256:0xrs0w75rnnkhsixr82d2k0i6a7i7l9bi21kvh7sa164cy3qc28y
+NarSize: 295424
+References: 
+Deriver: rpnrkwa5032ypd9wjy2ygkwb1nd1lyjs-cargo-package-fontdb-0.24.0.drv
+Sig: wvhulle.cachix.org-1:/x4l3PlZGRdFIS3HclI8EiAl546CNyIlKRGYTcC0Fkp+CuNtChNilHilC77ILTPRS8PCW3/5gGKpkMp/KFZ+Aw==

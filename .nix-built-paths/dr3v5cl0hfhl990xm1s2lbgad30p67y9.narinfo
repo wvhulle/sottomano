@@ -1,0 +1,10 @@
+StorePath: /nix/store/dr3v5cl0hfhl990xm1s2lbgad30p67y9-cargo-package-objc2-user-notifications-0.2.2
+URL: nar/1w8v4gdc406fhyj5h25whwsg3ydn1ld51bhskr65g7136f1lraf0.nar.zst
+Compression: zstd
+FileHash: sha256:1w8v4gdc406fhyj5h25whwsg3ydn1ld51bhskr65g7136f1lraf0
+FileSize: 10480
+NarHash: sha256:12d1m44x2i9brhmcqrkmvqrzq3jlm2v9bvj8x9572kdx29qk290a
+NarSize: 80672
+References: 
+Deriver: 61ljn7805a962vlf3kscvajmifk5cwji-cargo-package-objc2-user-notifications-0.2.2.drv
+Sig: wvhulle.cachix.org-1:81wId5bGeIbkBtm5Y3PVt/m7ezaictNFWEUZ3uYDlfhxwQr1COBADD31G5Zy4I62kivwFdGjK8o3Q1sUrclmBg==

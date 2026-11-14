@@ -1,0 +1,10 @@
+StorePath: /nix/store/zvqygpppgfiaf4wfq68c1yn8xlahcncr-cargo-package-gpu-descriptor-0.3.2
+URL: nar/0k2gx3mcsky1sb3gzkh1q1bd3favr68l6fw83jcfymwcikchlr77.nar.zst
+Compression: zstd
+FileHash: sha256:0k2gx3mcsky1sb3gzkh1q1bd3favr68l6fw83jcfymwcikchlr77
+FileSize: 8720
+NarHash: sha256:01n7l8dvbryw4xy88dbnspdpjk35nljfmfhkwlr1j6l83nij11na
+NarSize: 33472
+References: 
+Deriver: 6hzl9sbgpksf8j5vb68hvlymlrxzrzqb-cargo-package-gpu-descriptor-0.3.2.drv
+Sig: wvhulle.cachix.org-1:GS9e97hUVuVU1Hl9qBjwPeLGjq/jihRI+Tp/X5GbG7aIIGAZen6SSuFX5+8Mm3tka0UHAM2SebSjim5CYuHzAg==

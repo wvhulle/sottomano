@@ -1,0 +1,10 @@
+StorePath: /nix/store/h1cjhqyd2jiisjm42vgiw09hlw76m06j-cargo-package-wayland-csd-frame-0.3.0
+URL: nar/0506ahf71rczihk5qqldqpp5xf6hbxm5qgz8bn76n3sqmcxvg36p.nar.zst
+Compression: zstd
+FileHash: sha256:0506ahf71rczihk5qqldqpp5xf6hbxm5qgz8bn76n3sqmcxvg36p
+FileSize: 6026
+NarHash: sha256:0axbdlkrdnm1251i1n7mlrpiszpg9kcvk50vj2cjfaq42cqiy1xz
+NarSize: 17776
+References: 
+Deriver: 0p9ncabvawq5y5x67jwjqjsvhaz78rdk-cargo-package-wayland-csd-frame-0.3.0.drv
+Sig: wvhulle.cachix.org-1:x9CXPmmv5al5gP+J7vZBWdtpE0X2IxMRtxTtC7JOPEwD+xoIxMSLnlh4stFwcxJKqEgUd38C/bcjzbjUn/isDA==

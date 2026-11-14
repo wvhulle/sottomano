@@ -1,0 +1,10 @@
+StorePath: /nix/store/43ximhc1x3rdyf8q8j7a0w7cswaw944a-cargo-package-wayland-protocols-experimental-20250721.0.1
+URL: nar/1x1gyvg3kw3x1g4077wpqnlxqgh142zcqjbfrh4snxlhclwrif9s.nar.zst
+Compression: zstd
+FileHash: sha256:1x1gyvg3kw3x1g4077wpqnlxqgh142zcqjbfrh4snxlhclwrif9s
+FileSize: 21444
+NarHash: sha256:0xi44pf63knp6yq4cii0kvj4jjaf9sw99cmbd2xw4ab0xxj6p8vs
+NarSize: 119104
+References: 
+Deriver: jympvvcfqf8sfa9lr2jpc2l8rmg8b6az-cargo-package-wayland-protocols-experimental-20250721.0.1.drv
+Sig: wvhulle.cachix.org-1:jskBD1ebREWah3Tu3uj6FbRsLP0Ty9s3vHk8HKx+7TjBfd5+BfpJVhDb1MkPionswzRbV0y2DS+O3ZrxHVxtBg==

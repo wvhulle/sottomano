@@ -1,0 +1,10 @@
+StorePath: /nix/store/jmg7rsdcar1grdsm6lnkkn5zd203dsd0-cargo-package-crossbeam-channel-0.5.17
+URL: nar/16jrsjli357grpdg1yzy9amirzqwml89li1878i9nngj7xyn8m2w.nar.zst
+Compression: zstd
+FileHash: sha256:16jrsjli357grpdg1yzy9amirzqwml89li1878i9nngj7xyn8m2w
+FileSize: 98348
+NarHash: sha256:0141i1rgjlbysbdhvhab05770x6nbk8w3w1ijjpv1xgl44qfdic6
+NarSize: 616496
+References: 
+Deriver: dvhbzvn4v9v2ncja7q0x31lv3519py9s-cargo-package-crossbeam-channel-0.5.17.drv
+Sig: wvhulle.cachix.org-1:3AYNO1HaTY9hE1ATA6jQ2H7M3cT7JD5JF1uCQRrLSCSVadNU/xvXYC5VQQacrhVbNovftDAEPIIk2yr2wimGCA==

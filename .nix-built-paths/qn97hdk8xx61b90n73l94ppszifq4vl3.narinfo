@@ -1,0 +1,9 @@
+StorePath: /nix/store/qn97hdk8xx61b90n73l94ppszifq4vl3-linkLockedDeps
+URL: nar/0vfyk9ycn0ym6wkw6rvzqambnwbkiqw1b32lbq2d2i8hzvnaq3bf.nar.zst
+Compression: zstd
+FileHash: sha256:0vfyk9ycn0ym6wkw6rvzqambnwbkiqw1b32lbq2d2i8hzvnaq3bf
+FileSize: 264
+NarHash: sha256:16kb2lsnz6y5x53yfsdl2da1z601hc2ygqf95h6j9lf97h2fdavw
+NarSize: 456
+References: 9nr5jawi83zln8v8830b7x3yznrkas3l-cargo-git-https-github.com-wvhulle-system-tray.git-a485cb484d10374b40e523a87fd9a5464b4a246f
+Deriver: iykg0syzz3s5808zpb0m6zpir3al7ndq-linkLockedDeps.drv

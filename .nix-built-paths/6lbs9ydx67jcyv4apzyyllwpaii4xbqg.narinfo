@@ -1,0 +1,10 @@
+StorePath: /nix/store/6lbs9ydx67jcyv4apzyyllwpaii4xbqg-cargo-package-libsystemd-sys-0.9.4
+URL: nar/085bncj92517pj3dlxwqsrfv2a9hxfmrby3yiic94c65lk63c7zm.nar.zst
+Compression: zstd
+FileHash: sha256:085bncj92517pj3dlxwqsrfv2a9hxfmrby3yiic94c65lk63c7zm
+FileSize: 23409
+NarHash: sha256:0s3dn6hdx3py9nd2p3m5aq5dwabf7b18dz9r25s98d6dmhxdxkkn
+NarSize: 99000
+References: 
+Deriver: iy3vvbd2mhv8r7209cmma3mbm5s20qzd-cargo-package-libsystemd-sys-0.9.4.drv
+Sig: wvhulle.cachix.org-1:4WIEv5BQBOSDYERPlxrn4ipb4rIThitj1x8buWUZa/hSZY4VCtmTT2B5HSZBj7rVh4IiHx1aRu2kucATzYxWDA==

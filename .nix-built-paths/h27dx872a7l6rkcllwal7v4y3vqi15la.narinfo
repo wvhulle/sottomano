@@ -1,0 +1,10 @@
+StorePath: /nix/store/h27dx872a7l6rkcllwal7v4y3vqi15la-cargo-package-zerovec-0.11.9
+URL: nar/10l914hrgaici8vnxsp30wmw9jv38knqf9rvbnbwzgpxyahpkprg.nar.zst
+Compression: zstd
+FileHash: sha256:10l914hrgaici8vnxsp30wmw9jv38knqf9rvbnbwzgpxyahpkprg
+FileSize: 129915
+NarHash: sha256:1d641kkcw9djra7ysb0d1ddhbwclq0nb722ya7pjxxw0ckg3xxvk
+NarSize: 654360
+References: 
+Deriver: ip5v8cmhv9mcsc2ad5qyg1v9if7inaz2-cargo-package-zerovec-0.11.9.drv
+Sig: wvhulle.cachix.org-1:2RWkYVgkWJo22tEBTQr7vmHyrSb5JluYSIeHyfRhKYHOFcyNFKTk729HQq14W38MuOcIA9a4L78s1f+1nHeLCA==

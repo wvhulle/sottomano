@@ -1,0 +1,10 @@
+StorePath: /nix/store/hqhxksyf13x27k1ifm19vh0rqbrqsrbl-cargo-package-core-graphics-types-0.2.0
+URL: nar/0pmqs5ijhqv5izz45h9bcnj53b3nhf6pmnwp2m179z12rv27mnlm.nar.zst
+Compression: zstd
+FileHash: sha256:0pmqs5ijhqv5izz45h9bcnj53b3nhf6pmnwp2m179z12rv27mnlm
+FileSize: 7541
+NarHash: sha256:1ylrjc8dxv023am004hfkn9vrh87sas0yk20q1jwai3jaj4dk8sk
+NarSize: 22968
+References: 
+Deriver: 7375n1qkmkcxayfrn6ra7knsly1611hj-cargo-package-core-graphics-types-0.2.0.drv
+Sig: wvhulle.cachix.org-1:xVXJYtH5a4Sm6kULNZwR1XOm1K3Xg3jYVgyXsjsH9RZPqmLdhGcx2xLHfKTjPSn/84IF2Yeyi3RK5wsOJEFqCg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/6fidsxyl3ndss9ha2nk71d279c5fmbw2-cargo-package-softaes-0.1.7
+URL: nar/1s5s46fck6z2xz7pzph4kyl0w007d8djfhvcyiz3m8dlbf15qzis.nar.zst
+Compression: zstd
+FileHash: sha256:1s5s46fck6z2xz7pzph4kyl0w007d8djfhvcyiz3m8dlbf15qzis
+FileSize: 19709
+NarHash: sha256:11w3pz9p0rhim45540yyi6hzbjy3d4g404brb4n4w6zqc38khq4h
+NarSize: 68224
+References: 
+Deriver: y57lnwblbww7760dclphcln2a1vsxypz-cargo-package-softaes-0.1.7.drv
+Sig: wvhulle.cachix.org-1:F5FGuSvpvW6vJexDxl6KlCx0pLW2h+YlbjRltsrHtP4k3KY5/mA2JJz6TTcP+uusX/2EVpYkKm8t+GpeSmavDA==

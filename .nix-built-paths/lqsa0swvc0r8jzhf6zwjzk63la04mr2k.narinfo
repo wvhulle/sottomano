@@ -1,0 +1,10 @@
+StorePath: /nix/store/lqsa0swvc0r8jzhf6zwjzk63la04mr2k-cargo-package-libudev-sys-0.1.4
+URL: nar/138ci71gnfi1306yfw17amlrvgpgziizqswydx388nw18r0qj7i0.nar.zst
+Compression: zstd
+FileHash: sha256:138ci71gnfi1306yfw17amlrvgpgziizqswydx388nw18r0qj7i0
+FileSize: 6654
+NarHash: sha256:0m74g88rgiyg6xlm1zzvbwg6qwzjjlgvvybnh7fapcc0ks5f0s03
+NarSize: 26392
+References: 
+Deriver: dd8daymc68c218fi6nlz6k5vf4x0iaiq-cargo-package-libudev-sys-0.1.4.drv
+Sig: wvhulle.cachix.org-1:7vholqtkYCNOHt0FOW6gkgaHfVwEy9ycyAb9N3eHn46tPdPIGhrREP1A0VYzj7I5usb99tYLIHpS5+tyF45gBA==

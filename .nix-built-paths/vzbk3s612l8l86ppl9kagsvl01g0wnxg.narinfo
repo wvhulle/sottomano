@@ -1,0 +1,10 @@
+StorePath: /nix/store/vzbk3s612l8l86ppl9kagsvl01g0wnxg-cargo-package-cfg_block-0.1.1
+URL: nar/1zcnm9p0283fcrqigixij2grnxz72fzhk64dah7pwdy45h79myis.nar.zst
+Compression: zstd
+FileHash: sha256:1zcnm9p0283fcrqigixij2grnxz72fzhk64dah7pwdy45h79myis
+FileSize: 4381
+NarHash: sha256:0lmkjjgpfvjf3d78w5z694db276j2894biz5ilbi5cqzf4khxrfz
+NarSize: 15984
+References: 
+Deriver: 16qfjwa0wnlj5lzglpdhz39s2hw68jdp-cargo-package-cfg_block-0.1.1.drv
+Sig: wvhulle.cachix.org-1:o00aheTYrI12Pt8yK324kU448hhxnC02OJm3gBY1Hg3Cd8SCMgbYtgingaH8jsP7ElnR+/ZDSdUAGnQY/wkLAg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/mkfq00q6vqrcbf5blw15f1zh4d9gvsb8-cargo-package-itertools-0.14.0
+URL: nar/1bfvx8jvsz3imjn4d4ds2zck8j6bchca6c1dhkm3jiv3xaydg85b.nar.zst
+Compression: zstd
+FileHash: sha256:1bfvx8jvsz3imjn4d4ds2zck8j6bchca6c1dhkm3jiv3xaydg85b
+FileSize: 159371
+NarHash: sha256:13720byj6y8amwrmx80xx2xsd1axpbsy7shgay36s006nlfxn8cb
+NarSize: 763568
+References: 
+Deriver: 4i3v1s5kj30w9p1gczam3n9nc70wqwd6-cargo-package-itertools-0.14.0.drv
+Sig: cache.nixos.org-1:yamwkXUlzFfgA/uMoFv7tTZIaJEzXuM7Tz/rum9lIUZB2gMmAaloO3YhO5hSHJSgoX7q4xaRjgD8OKYBf/kfBg==

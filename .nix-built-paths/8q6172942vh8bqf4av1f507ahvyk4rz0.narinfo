@@ -1,0 +1,10 @@
+StorePath: /nix/store/8q6172942vh8bqf4av1f507ahvyk4rz0-cargo-package-nvml-wrapper-sys-0.10.0
+URL: nar/1y41c8rw2dghpk747p6w1g70lhdy2y2p890jpsi8x45ygfwsybbg.nar.zst
+Compression: zstd
+FileHash: sha256:1y41c8rw2dghpk747p6w1g70lhdy2y2p890jpsi8x45ygfwsybbg
+FileSize: 55300
+NarHash: sha256:09xamwnb789589xlpcc350xlwmg4xw4wrbzwi74c3lw1nk3zzvw5
+NarSize: 467000
+References: 
+Deriver: liapz4ah47xdbj24c80ki90cig4gzqi0-cargo-package-nvml-wrapper-sys-0.10.0.drv
+Sig: wvhulle.cachix.org-1:L/0eN/ixaJ54ZPR9QEglbmtLdXTU0Roq8w8ZGhW7MBXj4914trg9Ghf+j/7/BmQygs0CImybX6e0ZvOduuq3AA==

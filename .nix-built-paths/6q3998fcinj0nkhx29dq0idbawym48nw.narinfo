@@ -1,0 +1,10 @@
+StorePath: /nix/store/6q3998fcinj0nkhx29dq0idbawym48nw-cargo-package-memchr-2.8.3
+URL: nar/0s6069l6m50x9brcdclx0wcbbsvsdp8cxkz1szgbq21q0c2fjn72.nar.zst
+Compression: zstd
+FileHash: sha256:0s6069l6m50x9brcdclx0wcbbsvsdp8cxkz1szgbq21q0c2fjn72
+FileSize: 87215
+NarHash: sha256:19ahcbadipbc4zx2q97xkz5f4nxvbwlpn4dvpym3rirkcq1x27md
+NarSize: 603304
+References: 
+Deriver: 50h7fa6raxdahy62ji4xb50mk9bh3qrf-cargo-package-memchr-2.8.3.drv
+Sig: wvhulle.cachix.org-1:286DlXOSWurDb4ULoJBIfVxe5zvAQiWwj+LrW1storbh04mKEVu4uzo9duUsCTLsGFvRUHJtsx89qSSYEExTBg==

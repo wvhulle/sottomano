@@ -1,0 +1,10 @@
+StorePath: /nix/store/w4szlvgrlcq1rafmwmsbg9szslvnh055-cargo-package-libc-0.2.190
+URL: nar/0lxfgjsnahwj59pg0wlhgy5xsa64pszmf818hc6yw65krqaacizg.nar.zst
+Compression: zstd
+FileHash: sha256:0lxfgjsnahwj59pg0wlhgy5xsa64pszmf818hc6yw65krqaacizg
+FileSize: 650855
+NarHash: sha256:0al4zpa3fwq763sbrn3i12wzkk5yzr9b14naczyr7wpdpwydk420
+NarSize: 4718440
+References: 
+Deriver: s61jimbkkbc21h2xzbcwr3azr0y91hyx-cargo-package-libc-0.2.190.drv
+Sig: wvhulle.cachix.org-1:a9npNeFTOW6lV41wvi91sxz4eI9qrHQIyDbJOrkmCMN9z003uGE+LmA+9lP3sNQ7bC3p9gkoStyHO1LBlJA9Ag==

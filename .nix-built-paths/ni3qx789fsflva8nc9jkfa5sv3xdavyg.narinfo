@@ -1,0 +1,10 @@
+StorePath: /nix/store/ni3qx789fsflva8nc9jkfa5sv3xdavyg-cargo-package-windows-link-0.2.1
+URL: nar/1n62pi0fh1n50nl9gicy7pa3l3w8sz3yixbh765wyz2a35dl0bhg.nar.zst
+Compression: zstd
+FileHash: sha256:1n62pi0fh1n50nl9gicy7pa3l3w8sz3yixbh765wyz2a35dl0bhg
+FileSize: 6412
+NarHash: sha256:0ibq2bnx99bki123a1vs1czn97qy0f8kyb9nx4lwhxm5r67v6wjn
+NarSize: 18328
+References: 
+Deriver: rsqg3z2wa1bzfik39x8d6mn732rvlrz8-cargo-package-windows-link-0.2.1.drv
+Sig: cache.nixos.org-1:JZzr+k6WMJp5mVLpQ+ZGFEdYAZzW9vODuymkqQTRXex3+od1bW3Rgcq6I9qA4nhEEQB8uuNA8MPTGiiQicDtAw==

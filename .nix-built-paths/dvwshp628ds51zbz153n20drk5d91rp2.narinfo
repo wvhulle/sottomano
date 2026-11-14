@@ -1,0 +1,10 @@
+StorePath: /nix/store/dvwshp628ds51zbz153n20drk5d91rp2-cargo-package-objc2-0.5.3
+URL: nar/192ijrbzbbplpj7rb4vhykvvhy9qsgxh44yrkdz3zjydl725fqyh.nar.zst
+Compression: zstd
+FileHash: sha256:192ijrbzbbplpj7rb4vhykvvhy9qsgxh44yrkdz3zjydl725fqyh
+FileSize: 200941
+NarHash: sha256:15q7bpvciz0am0plv1l22zyhv5afm01ilzss4cli3v9vnk15l3ll
+NarSize: 895728
+References: 
+Deriver: 7l6y03b0bhkqjs8mwgjs95gz8ynz7y93-cargo-package-objc2-0.5.3.drv
+Sig: wvhulle.cachix.org-1:pdGE11ZbdrGJahKUGN2hJwTkfl9Ovj2GHKEDV71eV6H7LrttgZ2uq7fzXJ6y8TU5xgMpGqH1csqoizl4e3u2Cg==

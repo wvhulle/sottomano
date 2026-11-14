@@ -1,0 +1,10 @@
+StorePath: /nix/store/rinh5dmcwf7fcdxl49w92rajjcwv6vb7-cargo-package-owo-colors-3.5.0
+URL: nar/082s3kskhpjb7wqc4zkgak68wmgsx7qrp5zz8qrcg2s5l7lafwkw.nar.zst
+Compression: zstd
+FileHash: sha256:082s3kskhpjb7wqc4zkgak68wmgsx7qrp5zz8qrcg2s5l7lafwkw
+FileSize: 29431
+NarHash: sha256:0sgg1j5kx65mwy08083n29c8hmv19ap052yimq00c88cl62p0y0w
+NarSize: 155592
+References: 
+Deriver: k8cmaqwjcb7vmx682pzlg92r8aw9lrc8-cargo-package-owo-colors-3.5.0.drv
+Sig: wvhulle.cachix.org-1:THmt4lQKz2Rv990ihGlhS8Iy6P9yZcIxLWCTAIYKeXguv7i62wShXImXpOD4ZRhJC7iiDojjrgbVGAsP14PACQ==

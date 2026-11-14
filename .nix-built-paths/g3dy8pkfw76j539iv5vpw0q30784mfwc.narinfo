@@ -1,0 +1,10 @@
+StorePath: /nix/store/g3dy8pkfw76j539iv5vpw0q30784mfwc-cargo-package-glow-0.16.0
+URL: nar/0bl5q0fgagyplkrf807rklxvngkfc4rxpqs878kkpaaa2lcz8d7y.nar.zst
+Compression: zstd
+FileHash: sha256:0bl5q0fgagyplkrf807rklxvngkfc4rxpqs878kkpaaa2lcz8d7y
+FileSize: 174115
+NarHash: sha256:16mi8060b8fcm60k268af54xick15c2a57ldhcr1wmsibi12mfl3
+NarSize: 2054488
+References: 
+Deriver: 6cd1j59mkjs8zqxkq74b2fyb1sf6bngy-cargo-package-glow-0.16.0.drv
+Sig: wvhulle.cachix.org-1:lZP7G+ULEayTwOGC0gqK2vcAZpOuW+VYdBi0qi3vwzuBSOM1rODFRDlSigRJSwGasQ94akddtKoTpz322O7qDQ==

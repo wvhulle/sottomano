@@ -1,0 +1,10 @@
+StorePath: /nix/store/w2markdg9mw8brg024ww6j1biwcskq70-cargo-package-fdeflate-0.3.7
+URL: nar/0qx1z2jy1ikqmyijk8klkqnjwsar2d0h47v34sh30ckzd2ksqgai.nar.zst
+Compression: zstd
+FileHash: sha256:0qx1z2jy1ikqmyijk8klkqnjwsar2d0h47v34sh30ckzd2ksqgai
+FileSize: 29274
+NarHash: sha256:1s58sh4gbr3w1azpfl6biigkcylr43mnk6syk6p49722i17bvrnw
+NarSize: 112552
+References: 
+Deriver: 4q95rlj3d34pyyza4c1n99fayika7w99-cargo-package-fdeflate-0.3.7.drv
+Sig: wvhulle.cachix.org-1:1dTlhPNURhpABMybWmReGaKfULtN1TKfvyjeF50BK+BDMAO8OMVMh10nRZB+h5Vrlq7yIGYIjDu7B4Svh7HgDQ==

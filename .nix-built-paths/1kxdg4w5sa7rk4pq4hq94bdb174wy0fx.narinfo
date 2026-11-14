@@ -1,0 +1,10 @@
+StorePath: /nix/store/1kxdg4w5sa7rk4pq4hq94bdb174wy0fx-cargo-package-core_maths-0.1.1
+URL: nar/0iar6a3rbdx892vmr0nzj2sypiz81gbl193ja2y7f3a0k3y0rs4b.nar.zst
+Compression: zstd
+FileHash: sha256:0iar6a3rbdx892vmr0nzj2sypiz81gbl193ja2y7f3a0k3y0rs4b
+FileSize: 7192
+NarHash: sha256:0kw2yqacvpwn1cnccvmls9d1850zlkkyyplfrphv9v8wapg0wgqw
+NarSize: 35768
+References: 
+Deriver: wnvi03k3rx1iqvwg04z61p3h2w1sb5y5-cargo-package-core_maths-0.1.1.drv
+Sig: wvhulle.cachix.org-1:u8OQbDWdEnVgwbuJXUNj886x5m0lh23+lQJHiVuf9xbLyYNr7+6Dln2do5zr1j8OdU32SP1xQw/DYiaH9D/mBQ==

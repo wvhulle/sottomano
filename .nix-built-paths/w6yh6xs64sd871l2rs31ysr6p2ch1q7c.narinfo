@@ -1,0 +1,10 @@
+StorePath: /nix/store/w6yh6xs64sd871l2rs31ysr6p2ch1q7c-cargo-package-ab_glyph_rasterizer-0.1.10
+URL: nar/00zsxjj3kg7hz3jc7yq2f1m833lkv3fz7nj4lgwry18sicgi0dri.nar.zst
+Compression: zstd
+FileHash: sha256:00zsxjj3kg7hz3jc7yq2f1m833lkv3fz7nj4lgwry18sicgi0dri
+FileSize: 11895
+NarHash: sha256:0qd7krbr4bcd2mxq11pxqfkl94cdm3di665g8xccwgjjdw19748v
+NarSize: 37512
+References: 
+Deriver: zb1qbgppagi3h9jgmn28nhlzp5jm7n5n-cargo-package-ab_glyph_rasterizer-0.1.10.drv
+Sig: wvhulle.cachix.org-1:1hfdZobsqhnlxD4nJq/5lAr+7ZwzKk+SHLX1jBaKD5CLBU7DpXE3EZj02hPheyI5uM4gCGec4ALpGsi7+NWjDA==

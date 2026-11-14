@@ -1,0 +1,10 @@
+StorePath: /nix/store/dj4n9fqi62sqc6lrp505rb6r4d5b654i-cargo-package-futures-task-0.3.34
+URL: nar/19gas8s6rxwkhlf1vg4p9n23r40kzir7jwhzmm63clhal4g4afb4.nar.zst
+Compression: zstd
+FileHash: sha256:19gas8s6rxwkhlf1vg4p9n23r40kzir7jwhzmm63clhal4g4afb4
+FileSize: 12101
+NarHash: sha256:18r7gl8yd7g71awy8kymxngig01d3brvsgifzy4cbbvnc16rnwxk
+NarSize: 43592
+References: 
+Deriver: ys7pi5x5rvqpb4rl36g59abbgqa75481-cargo-package-futures-task-0.3.34.drv
+Sig: wvhulle.cachix.org-1:jYYBX3vbV2j9LQBLFst2IOGt3qHpiF5gloxNbatZMxVu3jWvyQRCo0n3uBLyhgIBc+9ISsi1VDsRBVdbBcYKAQ==

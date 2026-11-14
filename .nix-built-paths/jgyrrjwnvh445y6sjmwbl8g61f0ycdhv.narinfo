@@ -1,0 +1,10 @@
+StorePath: /nix/store/jgyrrjwnvh445y6sjmwbl8g61f0ycdhv-cargo-package-hybrid-array-0.4.15
+URL: nar/03r5fbs65i3ihwqzfxmq8ricza2spwbysx018hf6fqghp4l1cpmr.nar.zst
+Compression: zstd
+FileHash: sha256:03r5fbs65i3ihwqzfxmq8ricza2spwbysx018hf6fqghp4l1cpmr
+FileSize: 37084
+NarHash: sha256:15m2pfk78y4d6zn75whzm4fc6kwdmdar2dsdblf1n42513ky9mr1
+NarSize: 151792
+References: 
+Deriver: high55a9qi0zg1fvqgc23rwm89x335nz-cargo-package-hybrid-array-0.4.15.drv
+Sig: wvhulle.cachix.org-1:HH0cCPy/eNUBx7px92GGLh8RwuL7Auo8JAhSwqkVozE53ArPxLMmHjI6oH2W2K8Lc2diTVAXJuxon7TqZmlhBQ==

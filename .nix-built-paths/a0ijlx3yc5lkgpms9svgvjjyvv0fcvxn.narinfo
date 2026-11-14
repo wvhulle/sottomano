@@ -1,0 +1,10 @@
+StorePath: /nix/store/a0ijlx3yc5lkgpms9svgvjjyvv0fcvxn-cargo-package-linkme-impl-0.3.37
+URL: nar/1sf3da76216my95zzjr0msavbmknk4v57gc38bhl2748l2d2nshk.nar.zst
+Compression: zstd
+FileHash: sha256:1sf3da76216my95zzjr0msavbmknk4v57gc38bhl2748l2d2nshk
+FileSize: 13298
+NarHash: sha256:0wb3kvkicdyygc5vsxq4ah4p6g6c99875j2wd956agnmm598pblr
+NarSize: 50072
+References: 
+Deriver: hd910dp5gdgzf9dr71xjqq6bj6aqs7jz-cargo-package-linkme-impl-0.3.37.drv
+Sig: wvhulle.cachix.org-1:azgxytJWJIifTyMw9CGJGJiFvt8ZUbIdGBDlan8Tl9W666Bnd3f5s85vPW4H628vZiNOHjVWfV+MV6mI6OXrBg==

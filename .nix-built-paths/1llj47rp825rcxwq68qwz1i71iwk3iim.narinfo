@@ -1,0 +1,10 @@
+StorePath: /nix/store/1llj47rp825rcxwq68qwz1i71iwk3iim-cargo-package-perf-event2-0.7.4
+URL: nar/1m5f491i82hinv2nkqggfdsvd4s1xxmzrf81nil4lgljh7jz2pbs.nar.zst
+Compression: zstd
+FileHash: sha256:1m5f491i82hinv2nkqggfdsvd4s1xxmzrf81nil4lgljh7jz2pbs
+FileSize: 63346
+NarHash: sha256:0d8vh3vp0h32dq8b0nkds81knv2bjqaa70nsv5fvnmkdj6yhr9lx
+NarSize: 244744
+References: 
+Deriver: 5ij454pn5iz5ci81r0plbnrk8n2zzkg2-cargo-package-perf-event2-0.7.4.drv
+Sig: wvhulle.cachix.org-1:xdDUqYoe2eZ7Y+eVZ+VvimoT7N5FspIvkqE7GK4v4vxz+8ma3pKh95pSqiv1ERmXxm5IpGG/0pXpqvwAah1FBA==

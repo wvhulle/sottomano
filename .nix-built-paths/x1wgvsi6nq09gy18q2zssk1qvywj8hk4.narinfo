@@ -1,0 +1,10 @@
+StorePath: /nix/store/x1wgvsi6nq09gy18q2zssk1qvywj8hk4-cargo-package-crossbeam-epoch-0.9.21
+URL: nar/0hp6p6ki0dw8cdjj7ldkvbpbbgzwyzrgan7s367l34450dh3bg3g.nar.zst
+Compression: zstd
+FileHash: sha256:0hp6p6ki0dw8cdjj7ldkvbpbbgzwyzrgan7s367l34450dh3bg3g
+FileSize: 50754
+NarHash: sha256:1xbm42gay49br4p23lxmc07zd49p0g2n1yq0hi1dzg3y4xsv817c
+NarSize: 212136
+References: 
+Deriver: 3xrx4bbb92i7i7d1xbhyg2903s0bgk4f-cargo-package-crossbeam-epoch-0.9.21.drv
+Sig: wvhulle.cachix.org-1:ZGYggLmepgiq5eNXkRrLa3askEa0D5pP+nwWukUl9H4ZOvHA8YAxX0QrILGMN4Estt3DXHN2ftd2ebw4gGjUBA==

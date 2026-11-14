@@ -1,0 +1,10 @@
+StorePath: /nix/store/3zimb8hl7n0lqwss56bkrgic05ns2zir-cargo-package-fastbloom-0.14.1
+URL: nar/16jjnzvll4j25j1rb65768llcjbbdbrn9sd3d9jx4hpaygf8vwka.nar.zst
+Compression: zstd
+FileHash: sha256:16jjnzvll4j25j1rb65768llcjbbdbrn9sd3d9jx4hpaygf8vwka
+FileSize: 24659
+NarHash: sha256:0685vm61brdxrwmak9wds9m722fi3hb4492xjijphc7w0g5z950p
+NarSize: 98120
+References: 
+Deriver: 3v45icq61dak9p69b00ghn36bsnmm9vi-cargo-package-fastbloom-0.14.1.drv
+Sig: wvhulle.cachix.org-1:QHBy0lOLIQFHLxkMrGUdZucfqJJkdUEdCVg7573HyWM1O6e6x6RMrjyKNx/rFixO54M/OqELJxt6pa5pzM3MDg==

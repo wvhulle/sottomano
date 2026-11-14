@@ -1,0 +1,10 @@
+StorePath: /nix/store/wdba894j8qxwwlp5dcmmk1lsahyjfpg9-cargo-package-mail-builder-1.0.0
+URL: nar/0lllga0gywcxa28kcgy7gx45w9w28w185ak2axsyffr625mxzbzm.nar.zst
+Compression: zstd
+FileHash: sha256:0lllga0gywcxa28kcgy7gx45w9w28w185ak2axsyffr625mxzbzm
+FileSize: 58380
+NarHash: sha256:0v9mc5l2nvm00b49f6q8lb0py5pwci75d860s85wwjvn7dfs9cv9
+NarSize: 255848
+References: 
+Deriver: hb688krrci7vz60ydbj27gbxbzlfzbkq-cargo-package-mail-builder-1.0.0.drv
+Sig: wvhulle.cachix.org-1:up7FGRlhAi0u2HG/B+pPO9unLMb+IX2YUxf5SkgjJK09x15Cf8cOsxfL5dAPH2O9VmK5lJ6/H0SAMi+2cszhCw==

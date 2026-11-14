@@ -1,0 +1,10 @@
+StorePath: /nix/store/zq1rg1mn8a25m7j4f2fq15fic1kwfmmn-cargo-package-piper-0.2.5
+URL: nar/0p6hil07bc8sjmfiwbm6w0n36gblsda30ym6c7jmwzlmqx7ahbkd.nar.zst
+Compression: zstd
+FileHash: sha256:0p6hil07bc8sjmfiwbm6w0n36gblsda30ym6c7jmwzlmqx7ahbkd
+FileSize: 25780
+NarHash: sha256:1hzgzg183gnb0k1lllsrabhgs8mcjbpsa35ynhz328xmwrd7fmg7
+NarSize: 104600
+References: 
+Deriver: gbwd0zs5b03f607vaw2ia5bkhlp98j9k-cargo-package-piper-0.2.5.drv
+Sig: wvhulle.cachix.org-1:n3XsM6bNvij+w9Xyiinp0Z0CBxVAjC4bdOHR+mPZMNj8VVKSNBVCPrnEmlDZ0i8/AlqHA2rMTSfSZLAg1YaEAQ==

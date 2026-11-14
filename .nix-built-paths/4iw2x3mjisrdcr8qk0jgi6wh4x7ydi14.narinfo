@@ -1,0 +1,10 @@
+StorePath: /nix/store/4iw2x3mjisrdcr8qk0jgi6wh4x7ydi14-cargo-package-twox-hash-2.1.5
+URL: nar/1mfywll6n34w9w3nw5rcsqawa6g8cna014c90hj2g347cmnsfagh.nar.zst
+Compression: zstd
+FileHash: sha256:1mfywll6n34w9w3nw5rcsqawa6g8cna014c90hj2g347cmnsfagh
+FileSize: 37420
+NarHash: sha256:07c3hnpnfcb7m1d6s5ygixvfa54gwfk427qajlrzkdyypm0x175m
+NarSize: 173184
+References: 
+Deriver: vknbkdr8sma93j0gi50164agyjralzdr-cargo-package-twox-hash-2.1.5.drv
+Sig: wvhulle.cachix.org-1:Wn6t/+eXpgUlviebVLQivZ8sNBNjmQEinuVJvcuYphnX2Wou+bsuC0GX5NSLKqzQ2Ze3X4I6eiww1a2AUghUCQ==

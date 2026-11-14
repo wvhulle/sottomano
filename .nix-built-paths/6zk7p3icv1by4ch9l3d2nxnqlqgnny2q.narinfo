@@ -1,0 +1,10 @@
+StorePath: /nix/store/6zk7p3icv1by4ch9l3d2nxnqlqgnny2q-cargo-package-sharded-slab-0.1.7
+URL: nar/15k3qh2bi6ck58n2zrhfgpbgj6pf0aan0s5dla23fk26mvdxz2lk.nar.zst
+Compression: zstd
+FileHash: sha256:15k3qh2bi6ck58n2zrhfgpbgj6pf0aan0s5dla23fk26mvdxz2lk
+FileSize: 57615
+NarHash: sha256:0szx82c8p71487376gzd81b1gncmizi0wpf4hm5d0wnqw3g1yklg
+NarSize: 278896
+References: 
+Deriver: cn0pih6cz5ka8cyhblr1ihyhq880k0ag-cargo-package-sharded-slab-0.1.7.drv
+Sig: wvhulle.cachix.org-1:FqNpUhYmHwqbh27fdx+BEUcytIQbMbEgd4PoEftco9ie0XaTEyrUn/PbueaCvKc8gF3lECuzRxsbGK+4jFn3DA==

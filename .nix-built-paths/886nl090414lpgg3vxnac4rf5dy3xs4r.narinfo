@@ -1,0 +1,10 @@
+StorePath: /nix/store/886nl090414lpgg3vxnac4rf5dy3xs4r-cargo-package-windows-strings-0.1.0
+URL: nar/0mindpx270rm8j81czij3x54xm02azcx2pqj89dc8biqpx9hv2hm.nar.zst
+Compression: zstd
+FileHash: sha256:0mindpx270rm8j81czij3x54xm02azcx2pqj89dc8biqpx9hv2hm
+FileSize: 14999
+NarHash: sha256:1hy55y5fb8ypr1x0s15bbq0mzl2swrh2cp4k18p2rnkn3946c8im
+NarSize: 58544
+References: 
+Deriver: yyc0xbilqlaii99pdqcj7462zpikb1hr-cargo-package-windows-strings-0.1.0.drv
+Sig: wvhulle.cachix.org-1:FVVOsRKeUCTJqyBY6BTtsTc9tH1Hbu/XGnmi69OYwtCSLn1zRuQ9GhQ0A62V8+EQwMpiiRdkIlf5uHLG9YOOBQ==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/zns09mgwi24ip2dq6bfwlc875z09w5c3-cargo-package-cosmic-text-0.15.0
+URL: nar/1bs4p1gj9ylz6jmx49y31qfd9bbidb2wjz8hw3j0jz3jrhirw28f.nar.zst
+Compression: zstd
+FileHash: sha256:1bs4p1gj9ylz6jmx49y31qfd9bbidb2wjz8hw3j0jz3jrhirw28f
+FileSize: 2821168
+NarHash: sha256:03a4hgwrhb9gdwz0kg4fcqzz1bcnm0prnmqxxssasmwxfaqp8b4v
+NarSize: 5573560
+References: 
+Deriver: nwz50kwilh0f3bdxg7zld11aj6rs06lc-cargo-package-cosmic-text-0.15.0.drv
+Sig: wvhulle.cachix.org-1:depR6QaCCiRoyVGw8lHnRg5wnoLWXz3v3CjbeZ3ixuY7opjW1fLy6qXtIUMcTmaM/poUYNURToWX87QTKYg1DA==

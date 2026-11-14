@@ -1,0 +1,10 @@
+StorePath: /nix/store/1l3fq7hi45yx953l0gj9l9dbmidz7bdj-cargo-package-wyz-0.5.1
+URL: nar/1843x4acd86y79mhlj4nnda6cki2hyma6nkhkxwqq1n048givijz.nar.zst
+Compression: zstd
+FileHash: sha256:1843x4acd86y79mhlj4nnda6cki2hyma6nkhkxwqq1n048givijz
+FileSize: 19753
+NarHash: sha256:18sfb7sjaza3b3gmmf6nmhqr9qq1czcgjap1rglp0w7jbwz3hkkf
+NarSize: 64656
+References: 
+Deriver: jlp009ynpqcfai9gb94ph3ywmsf6rssw-cargo-package-wyz-0.5.1.drv
+Sig: wvhulle.cachix.org-1:c4THgTsDZjtyxhnhaTUqNn4JNCOcMqEit5sLJhUNBlIxe3aS6GdI+tpNQrvo+4T2Uk6cmOMhsjpXwzPVG88JDw==

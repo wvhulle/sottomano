@@ -1,0 +1,10 @@
+StorePath: /nix/store/aqyyj3cdmqgmnqza2xzw65vshn5ipvp6-cargo-package-io-uring-0.7.15
+URL: nar/0dgxilh2078qfrx8dylhi1cqnn9mhwwb0vs7y155h7hp0vl172yn.nar.zst
+Compression: zstd
+FileHash: sha256:0dgxilh2078qfrx8dylhi1cqnn9mhwwb0vs7y155h7hp0vl172yn
+FileSize: 75090
+NarHash: sha256:0zgym7cq7lwqnai3k9s7dsspgk25316970p40zdnhzghzw7n1253
+NarSize: 876024
+References: 
+Deriver: ljr8qj92277w73vw5hn54784pb7z9zg5-cargo-package-io-uring-0.7.15.drv
+Sig: wvhulle.cachix.org-1:fXsRcHdY5fm9cEfsjimAAIiuUBZnB59aP+kK6m2Se5F4Xie3Od4m89fC1Flh9CDPC5/IGjNf2QDqyJ3zW+lzAA==

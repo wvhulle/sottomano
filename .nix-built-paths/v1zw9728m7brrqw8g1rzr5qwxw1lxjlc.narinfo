@@ -1,0 +1,10 @@
+StorePath: /nix/store/v1zw9728m7brrqw8g1rzr5qwxw1lxjlc-cargo-package-tap-1.0.1
+URL: nar/1m3zy4aqjhqnz75k7hbysg8wgs9pcyc0cbma5bkdnya3chfddfgl.nar.zst
+Compression: zstd
+FileHash: sha256:1m3zy4aqjhqnz75k7hbysg8wgs9pcyc0cbma5bkdnya3chfddfgl
+FileSize: 11930
+NarHash: sha256:0jzs7zxg4zb3hys6f9nl5f6acnwra0hlfcwsyc1mzc13hh370zcv
+NarSize: 41640
+References: 
+Deriver: ay250n6az4qpag648935wl5zn0a2pbcq-cargo-package-tap-1.0.1.drv
+Sig: wvhulle.cachix.org-1:Vbg73G1bSFit5ZNuUjWLccIO/NJjj2EpANnSLo+pPKehdQ0kVVdytnsu2F0yeemus9zlsdYxukw/ITqiJdH5Aw==

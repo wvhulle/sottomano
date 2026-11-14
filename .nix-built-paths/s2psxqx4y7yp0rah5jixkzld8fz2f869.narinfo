@@ -1,0 +1,10 @@
+StorePath: /nix/store/s2psxqx4y7yp0rah5jixkzld8fz2f869-cargo-package-wayrs-client-1.3.1
+URL: nar/1vnf9kw559pk123a3523vxcansk8sjaw4hfavh0fj8942z1d7vjy.nar.zst
+Compression: zstd
+FileHash: sha256:1vnf9kw559pk123a3523vxcansk8sjaw4hfavh0fj8942z1d7vjy
+FileSize: 54776
+NarHash: sha256:0icpmvzki37mdkpq6w281xrp493ziyl5fpr8cs0rri2h24s8jrv4
+NarSize: 217600
+References: 
+Deriver: hfwpj9j5qjw8siwyph2b5iw840wchail-cargo-package-wayrs-client-1.3.1.drv
+Sig: wvhulle.cachix.org-1:bevAWSho8k5LBDjGqgz82V23/nFbdrdlXIPvpnQL6ZquWXMKJaEIpb1CDggBfe0WQN7nrfp+6ai3tC0LBcO6BQ==

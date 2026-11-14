@@ -1,0 +1,10 @@
+StorePath: /nix/store/p7mcwsf9zf0kxdzibrg7b7pb3kp1yacq-cargo-package-siphasher-1.0.4
+URL: nar/1l2zxsnwcalpqc244xnd5x1ils6kahh75yfki32kqd5af9v4d7ns.nar.zst
+Compression: zstd
+FileHash: sha256:1l2zxsnwcalpqc244xnd5x1ils6kahh75yfki32kqd5af9v4d7ns
+FileSize: 17043
+NarHash: sha256:0wqcz14vx1gjl2yfbp3fl7l4v2917j3mp0g2d21hxxmx32sj7zmk
+NarSize: 77024
+References: 
+Deriver: 49n3ryzwm1f9357qs0bhpmflva1cxgxn-cargo-package-siphasher-1.0.4.drv
+Sig: wvhulle.cachix.org-1:AH4tv4P3ZpwMlDeCsx7Cbj/TkgAjQCwJQ2Bfp20kvioVQuF2c+/YQdRebfRr7XhFFsMfZBxDXVNRiBAD+G+HBg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/rgz7d714kxp8scc8i773q07m3sj3dsv5-cargo-package-core-foundation-0.9.4
+URL: nar/1c5yx5l2dd44l4hpykfqms6pa1i0dk10jzk3rba0h93cmqvs133g.nar.zst
+Compression: zstd
+FileHash: sha256:1c5yx5l2dd44l4hpykfqms6pa1i0dk10jzk3rba0h93cmqvs133g
+FileSize: 29117
+NarHash: sha256:10jc6qkwd79jrk9igky7ipj2mkgg7inn0xlavf2igzvikyjg8q3a
+NarSize: 137584
+References: 
+Deriver: sd1xpv3bibplgxwqbyda7z8n09x1sz99-cargo-package-core-foundation-0.9.4.drv
+Sig: wvhulle.cachix.org-1:q2MKNcYU1t74JvNTl7uh53ff3zfj7uway+RfPzchK3FgtwV/v8u/ettTtVwy8cy8g2vNb9Z3DM88sAUOtAKgBw==

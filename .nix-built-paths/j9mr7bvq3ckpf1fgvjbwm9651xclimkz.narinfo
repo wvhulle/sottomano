@@ -1,0 +1,10 @@
+StorePath: /nix/store/j9mr7bvq3ckpf1fgvjbwm9651xclimkz-cargo-package-unicode-segmentation-1.13.3
+URL: nar/0qvv18ibn2idmsc860gnizyccilsv7nc7qwpb291qf01drghc5f3.nar.zst
+Compression: zstd
+FileHash: sha256:0qvv18ibn2idmsc860gnizyccilsv7nc7qwpb291qf01drghc5f3
+FileSize: 112817
+NarHash: sha256:1la1j0v9q0vzjvcpfyclrsx9i6y8vapbalmg5sgcsxn101ahbb3l
+NarSize: 679016
+References: 
+Deriver: s78b9q9m3rh43x44pm8lk7ns9k745i7f-cargo-package-unicode-segmentation-1.13.3.drv
+Sig: wvhulle.cachix.org-1:Fup5B+zF5UK6pJ7lVkDoVN4q1ku1Wm2ygpQpwBuqmk6fvHK/xe40HcuP4mF/I7+8Z/xdD4PVQ9HqsYVQepfrDw==

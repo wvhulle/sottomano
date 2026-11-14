@@ -1,0 +1,10 @@
+StorePath: /nix/store/lrscp5a3y8gdjlp53fldykl7r975r1x8-cargo-package-proc-macro2-1.0.107
+URL: nar/0ab9xm3cajrqhs1yw39cna930blfxarzznw3shhxnhcikjabpa8p.nar.zst
+Compression: zstd
+FileHash: sha256:0ab9xm3cajrqhs1yw39cna930blfxarzznw3shhxnhcikjabpa8p
+FileSize: 61503
+NarHash: sha256:0i14nhcg5bm96h40719lsrh23piqpr38ic70rd5ivyf8b8wj6sn7
+NarSize: 277936
+References: 
+Deriver: wg3p59nrsdqyqkv8hmyxsqz43hs2faw9-cargo-package-proc-macro2-1.0.107.drv
+Sig: wvhulle.cachix.org-1:Jof0tApOfdr6YjqlnSWkclpqnFhXMfoUI59cZnVA1GxEeBaKVTlstuWuVVvzJZMKZJo3iLMGc3yNjLV5CI+1Aw==

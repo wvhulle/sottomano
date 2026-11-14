@@ -1,0 +1,10 @@
+StorePath: /nix/store/bk7cww6mvzib8riq798pkj3xywc3wa0a-cargo-package-float_next_after-1.0.0
+URL: nar/0jgwm3pyfdw1avjkvayb0yd8r0mcik5kf1i415xxpkykma4q2max.nar.zst
+Compression: zstd
+FileHash: sha256:0jgwm3pyfdw1avjkvayb0yd8r0mcik5kf1i415xxpkykma4q2max
+FileSize: 7466
+NarHash: sha256:12061zy98mwwjiw59r9zq16w1bnxzx2z0bk08jnxxcwa1h0j1z87
+NarSize: 24688
+References: 
+Deriver: knfvz4b2k0slsam1hs8pc80zgqbylfkl-cargo-package-float_next_after-1.0.0.drv
+Sig: wvhulle.cachix.org-1:Nw47oRPYw9eONtSv5ml4ar8stvCrXGqUqDabsUG1gD1l9wixY3ZTaGax+HBabqGAwbyg9sf9VoZs28e8fhDNBA==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/8q0al8j9mqk2qs6nzaxn5ph8p01b3bpc-cargo-package-icu_properties_data-2.4.0
+URL: nar/14ayb9wmm6ywz4i6grma27is44j6afcjx5mxg5xkd16q3wcssmgr.nar.zst
+Compression: zstd
+FileHash: sha256:14ayb9wmm6ywz4i6grma27is44j6afcjx5mxg5xkd16q3wcssmgr
+FileSize: 153004
+NarHash: sha256:0lrrcbdvs0w4mywmdzv2b5j9srn0ynb6cgxyxj90y5dmxgkwv8f5
+NarSize: 1658440
+References: 
+Deriver: xhy75lz5b2aggqm9cl8hlf4c8v6yb2kh-cargo-package-icu_properties_data-2.4.0.drv
+Sig: wvhulle.cachix.org-1:QxaHsWMfIQWwWzttxhBk7bqTyaSNC130+4Z/a09IBHB4lQ58hvpfNTaXLhRthZ9KOUcndlRCvXJJYrU/V2xoDg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/7ddl31kp8jmpffqbai8lvkykvfs2wkic-cargo-package-defmt-macros-1.2.0
+URL: nar/1s4zp8q8rm164w938jinh6vcjrf7rawqv099rzhqsszcfr0xhkaw.nar.zst
+Compression: zstd
+FileHash: sha256:1s4zp8q8rm164w938jinh6vcjrf7rawqv099rzhqsszcfr0xhkaw
+FileSize: 30090
+NarHash: sha256:1zwn2rmnlrw6y4bi3hik30j5fbszvh30rg58zcvpk46ny0vmryh7
+NarSize: 121096
+References: 
+Deriver: rw11nddzm1pq83mnm5d6rri59m26haxj-cargo-package-defmt-macros-1.2.0.drv
+Sig: wvhulle.cachix.org-1:q5ZtAzBDpHM7koRH9p5MMNFS5TiQgjKhRIq+126KracDT3Y6zmdlRrV7oHwTpagtDV22bXeCA3CSaH7FKO6NCQ==

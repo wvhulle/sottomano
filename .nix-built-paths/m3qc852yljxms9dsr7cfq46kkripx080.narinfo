@@ -1,0 +1,10 @@
+StorePath: /nix/store/m3qc852yljxms9dsr7cfq46kkripx080-cargo-package-radium-0.7.0
+URL: nar/1kv5rb7wsfy5f588xab60zmk8yf36r8l2x2n54j0pakwv07hyki3.nar.zst
+Compression: zstd
+FileHash: sha256:1kv5rb7wsfy5f588xab60zmk8yf36r8l2x2n54j0pakwv07hyki3
+FileSize: 11538
+NarHash: sha256:1ncxpxj54lvwijwrah5l5w2j4svwnv88pd3sd42i7msyr02cy5s1
+NarSize: 52352
+References: 
+Deriver: acff1p6g1kricsnh79z07nch1chi7pj8-cargo-package-radium-0.7.0.drv
+Sig: wvhulle.cachix.org-1:sr+alPU1z2cCwRw5RZBy2b2xCpNlAFyeeQJlPRCVLU8eFtY+VrH6VR74qXfsKs8AnZvvptno3BaYzbb2wEaQDA==

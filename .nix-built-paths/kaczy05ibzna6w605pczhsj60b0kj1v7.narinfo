@@ -1,0 +1,10 @@
+StorePath: /nix/store/kaczy05ibzna6w605pczhsj60b0kj1v7-cargo-package-syn-3.0.9
+URL: nar/0fps685f144shzfj38b65qn43bfibwwgcvdy9a3av583l6zzigvi.nar.zst
+Compression: zstd
+FileHash: sha256:0fps685f144shzfj38b65qn43bfibwwgcvdy9a3av583l6zzigvi
+FileSize: 330794
+NarHash: sha256:12x6a2z1cr3skd1wsnzzi2r62vr676qbh46nfy2iggbqf296c8s8
+NarSize: 2387144
+References: 
+Deriver: 1khb765gnfnf5w9jk8n01mvyjv0wzih3-cargo-package-syn-3.0.9.drv
+Sig: wvhulle.cachix.org-1:9rKsfxMM4Dl2GNOCLzphfCLJ/rZpWOpdDFz4+BBsrSzZ475EdOs/fF4fzPe7TVdyD4h1r0VSKbUSZeDhJ7TGDg==

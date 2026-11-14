@@ -1,0 +1,10 @@
+StorePath: /nix/store/yqbb0rkkgz3g7b8lccp31zy97qw6sp2y-cargo-package-wgpu-core-deps-apple-27.0.0
+URL: nar/07nmmf0ywajvx15074prkcdqqfxmbabsfksvc7132a62lrnwp0zb.nar.zst
+Compression: zstd
+FileHash: sha256:07nmmf0ywajvx15074prkcdqqfxmbabsfksvc7132a62lrnwp0zb
+FileSize: 12141
+NarHash: sha256:0c5037n8bpdx4lizak68fl9xgqwblxl1zzvm5qwf8h608xryb15l
+NarSize: 39616
+References: 
+Deriver: pgaaaixphpn504c7qkpaj1hdpmsjl4nr-cargo-package-wgpu-core-deps-apple-27.0.0.drv
+Sig: wvhulle.cachix.org-1:o43pTSH408P7gzRSyHrG40fIy4Ddo07m0gi5/eWOrd69tVb5q6HYk1tQyH5DIjx/6zQTufSBY46673VqTif2Cw==

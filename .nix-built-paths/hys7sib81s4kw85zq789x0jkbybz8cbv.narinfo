@@ -1,0 +1,10 @@
+StorePath: /nix/store/hys7sib81s4kw85zq789x0jkbybz8cbv-cargo-package-range-alloc-0.1.5
+URL: nar/1aqjk6psqdnvhc7cnd8ki5q5v0rd0rzgmqnd7ml48r62m9z2s3g1.nar.zst
+Compression: zstd
+FileHash: sha256:1aqjk6psqdnvhc7cnd8ki5q5v0rd0rzgmqnd7ml48r62m9z2s3g1
+FileSize: 12128
+NarHash: sha256:14bnbx2nrmsww96033zcna4v8cma2j5ma53gqm1dhllwgbq65j5z
+NarSize: 43592
+References: 
+Deriver: mn18fwk4zn38n7cbnrkljp7pjhxckn3p-cargo-package-range-alloc-0.1.5.drv
+Sig: wvhulle.cachix.org-1:ggUaOKtwIx9egMPCpnLofeVgvd5t17RBdT9KELt1grGWb8ZLUdk52o5p3LgFHaQGxTvxNbUafMChjr0cNkL/Ag==

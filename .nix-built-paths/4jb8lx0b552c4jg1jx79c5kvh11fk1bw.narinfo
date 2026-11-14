@@ -1,0 +1,10 @@
+StorePath: /nix/store/4jb8lx0b552c4jg1jx79c5kvh11fk1bw-cargo-package-winapi-util-0.1.11
+URL: nar/0zv990fxdqiwarilviwjpgkckh3d3m2hhqgxch2fy3pgjh78l5yq.nar.zst
+Compression: zstd
+FileHash: sha256:0zv990fxdqiwarilviwjpgkckh3d3m2hhqgxch2fy3pgjh78l5yq
+FileSize: 14197
+NarHash: sha256:07mbywlpw0idkmggzs6fmqckvw585czsphhdi2vvxmf2d59ic8gi
+NarSize: 49728
+References: 
+Deriver: qv8blfxsi4ckmn4kp175w795lrhqk558-cargo-package-winapi-util-0.1.11.drv
+Sig: cache.nixos.org-1:yAOfoJFK1Fnf/zdpnodb5agKIKG/l8KlFd+bZ7w1gKV1IWgFXvimhPb1RlM+j8yixaNM8gxpvdCP1vufXgMxAg==

@@ -1,0 +1,10 @@
+StorePath: /nix/store/6hv365102396x2b957dki2na9fnkjihi-cargo-package-anstyle-wincon-3.0.11
+URL: nar/1567zpixyaazwj9pyliib9f3qh4a8wjld08kaai3q8hp87vq8xm0.nar.zst
+Compression: zstd
+FileHash: sha256:1567zpixyaazwj9pyliib9f3qh4a8wjld08kaai3q8hp87vq8xm0
+FileSize: 13381
+NarHash: sha256:0vmf2p0bq71kpxky0pmbbanl50blzn72pvycf2xpg6x7whhnnbph
+NarSize: 47824
+References: 
+Deriver: wxvrylimmhnqcrppakqlj420hqqz2s2z-cargo-package-anstyle-wincon-3.0.11.drv
+Sig: wvhulle.cachix.org-1:YUP4pFLle9Qq6PXCo/9bJ+cgVU1y+tmuYttmcAt2IG55PS65EaIj1zTT48zCAgl09v7Y7dkQCwz6ycfUpDTeCA==
