@@ -1,7 +1,10 @@
 use std::collections::BTreeMap;
 
 use corredo::{
-    popovers::{CascadeOrientation, OutsidePress, PopupFraming, PopupRendering, cascade_row},
+    popovers::{
+        CascadeOrientation, OutsidePress, PopupFraming, PopupRendering, cascade_row,
+        dropped_anchor_watch,
+    },
     transitions::ExpansionState,
 };
 use iced::{
@@ -26,7 +29,7 @@ use crate::{
             CardRetention, Departed, DepartedContent, HoverCardTransition, LeaveIntent, Occupant,
             Placement, ShownTarget,
         },
-        laid_out_anchors::{LaidOutAnchors, WidgetLiveness, dropped_widget_watch},
+        laid_out_anchors::{LaidOutAnchors, WidgetLiveness},
     },
     layer_surfaces::{PanelEdge, SurfaceRequest},
     widgets::{
@@ -534,9 +537,12 @@ impl HoverCardHost {
             },
         ))
         .padding(surface_style.float_offset_px);
+        let Some(shown_presence) = shown_presence else {
+            return card.into();
+        };
         stack![
             card,
-            dropped_widget_watch(
+            dropped_anchor_watch(
                 shown_presence,
                 Message::from(PopupMessage::HoverCard(
                     HoverCardMessage::ShownWidgetDropped

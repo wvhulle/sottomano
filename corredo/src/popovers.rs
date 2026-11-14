@@ -38,3 +38,7 @@ pub use nested_menu::{
     BesideRow, NestedMenu, NestedMenuGroup, NestedMenuItem, NestedMenuRow, NestedMenuSatellite,
     NestedMenuSurfaces, RowGesture, SatelliteRole, nested_menu,
 };
+mod anchor_marker;
+pub use anchor_marker::anchor_marker;
+mod dropped_anchor_watch;
+pub use dropped_anchor_watch::dropped_anchor_watch;
