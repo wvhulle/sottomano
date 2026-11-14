@@ -1,9 +1,5 @@
 use corredo::drag_reorder::ListEndCorners;
-use iced::{
-    Alignment, Element,
-    border::Radius,
-    widget::{Column, mouse_area},
-};
+use iced::{Alignment, Element, border::Radius, widget::Column};
 use sottomano_desktop_sources::{
     compositor_window_ipc::niri_kdl_config::ConfiguredWorkspaces,
     desktop_windows_apps::workspace_window_snapshot,
@@ -11,8 +7,8 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::screen_edges::Position;
 
 use super::{
-    EmptyWorkspaceFolding, WorkspacesMessage, dragged, empty_workspaces_toggle, order_restore,
-    shown_workspaces,
+    EmptyWorkspaceFolding, WorkspacesMessage, dragged, empty_workspaces_toggle, focused_by_wheel,
+    order_restore, shown_workspaces,
     workspace_slot::{
         WorkspaceSlot, active_highlight_color, active_workspace_key, workspace_slot_key,
     },
@@ -61,8 +57,8 @@ pub fn vertical_view<'a>(
         .spacing(config.theme.spacing.item_gap)
         .highlight(active_workspace_key(&order), active_highlight_color(&order))
         .frame_corners(frame_corners)
-        .draggable(PanelSlotList::Workspaces, &drag, dragged);
-    let scrolled_output = output.to_owned();
+        .draggable(PanelSlotList::Workspaces, &drag, dragged)
+        .on_wheel_select(focused_by_wheel);
     let workspace_column = Column::new()
         .extend(order_restore(configured, workspaces, output, config))
         .push(pager)
@@ -74,12 +70,5 @@ pub fn vertical_view<'a>(
         ))
         .spacing(config.theme.spacing.item_gap)
         .align_x(Alignment::Center);
-    Some(
-        mouse_area(workspace_column)
-            .on_scroll(move |delta| WorkspacesMessage::Scrolled {
-                output: scrolled_output.clone(),
-                delta,
-            })
-            .into(),
-    )
+    Some(workspace_column.into())
 }

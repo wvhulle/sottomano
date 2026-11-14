@@ -246,7 +246,7 @@ impl From<WorkspacesMessage> for ShowcaseInteraction {
             WorkspacesMessage::Drag(_)
             | WorkspacesMessage::RestoreOrder { .. }
             | WorkspacesMessage::ToggleEmptyWorkspaces
-            | WorkspacesMessage::Scrolled { .. } => ShowcaseInteraction::OutsideShowcase,
+            | WorkspacesMessage::Focus(_) => ShowcaseInteraction::OutsideShowcase,
         }
     }
 }

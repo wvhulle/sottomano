@@ -312,9 +312,9 @@ impl<'s> WorkspaceSlot<'s> {
             label_over_markers,
             self.edge_line(),
         ]
-            .spacing(config.theme.spacing.item_gap)
-            .height(config.desktop_panels.height)
-            .align_y(Alignment::Center);
+        .spacing(config.theme.spacing.item_gap)
+        .height(config.desktop_panels.height)
+        .align_y(Alignment::Center);
         self.hit_area(
             container(label_with_edge)
                 .align_right(Length::Fill)

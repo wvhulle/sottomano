@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use iced::{mouse::ScrollDelta, window::Id};
+use iced::window::Id;
 use iced_exwlshell::{actions::RegionActionCB, to_layer_message};
 use sottomano_desktop_sinks::{
     compositor_window_requests::compositor_requests::CompositorRequestFailure,
@@ -211,10 +211,7 @@ pub enum Message {
     RestoreWorkspaceOrder {
         output: String,
     },
-    ScrollWorkspaces {
-        output: String,
-        delta: ScrollDelta,
-    },
+    FocusWorkspace(u64),
     DesktopBus(Result<DesktopBusEvent, zbus::Error>),
 }
 
@@ -283,9 +280,7 @@ impl From<WorkspacesMessage> for Message {
             WorkspacesMessage::ToggleEmptyWorkspaces => {
                 Message::SidebarSettings(SidebarSettingsMessage::ToggleEmptyWorkspaces)
             }
-            WorkspacesMessage::Scrolled { output, delta } => {
-                Message::ScrollWorkspaces { output, delta }
-            }
+            WorkspacesMessage::Focus(workspace_id) => Message::FocusWorkspace(workspace_id),
         }
     }
 }
