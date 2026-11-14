@@ -112,6 +112,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
                     interactive_sample_vm(clock),
                     nixos_test_vm(clock),
                 ],
+                inactive_domains: vec!["windows-11".to_owned()],
             }),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
         )),

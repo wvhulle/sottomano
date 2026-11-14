@@ -5,8 +5,8 @@ use virt::{
     connect::Connect,
     domain::Domain,
     sys::{
-        VIR_DOMAIN_PAUSED, VIR_DOMAIN_PMSUSPENDED, VIR_DOMAIN_RUNNING, VIR_DOMAIN_SHUTDOWN,
-        virDomainState,
+        VIR_CONNECT_LIST_DOMAINS_INACTIVE, VIR_DOMAIN_PAUSED, VIR_DOMAIN_PMSUSPENDED,
+        VIR_DOMAIN_RUNNING, VIR_DOMAIN_SHUTDOWN, virDomainState,
     },
 };
 
@@ -68,4 +68,41 @@ pub(crate) fn libvirt_run_states(domain_names: &[String]) -> HashMap<String, Gue
 #[must_use]
 pub(crate) fn libvirt_run_states(_domain_names: &[String]) -> HashMap<String, GuestRunState> {
     HashMap::new()
+}
+
+#[cfg(feature = "libvirt-domains")]
+#[must_use]
+pub(crate) fn inactive_libvirt_domains() -> Vec<String> {
+    let listed = with_system_connection(|connection| {
+        connection
+            .list_all_domains(VIR_CONNECT_LIST_DOMAINS_INACTIVE)
+            .map_err(|failure| failure.to_string())
+    })
+    .and_then(|listing| listing);
+    let domains = match listed {
+        Ok(domains) => domains,
+        Err(failure) => {
+            tracing::debug!(%failure, "libvirt inactive domains unreadable");
+            return Vec::new();
+        }
+    };
+    let mut domain_names: Vec<String> = domains
+        .iter()
+        .filter_map(|domain| {
+            domain
+                .get_name()
+                .inspect_err(|name_failure| {
+                    tracing::debug!(%name_failure, "libvirt domain without a readable name");
+                })
+                .ok()
+        })
+        .collect();
+    domain_names.sort();
+    domain_names
+}
+
+#[cfg(not(feature = "libvirt-domains"))]
+#[must_use]
+pub(crate) fn inactive_libvirt_domains() -> Vec<String> {
+    Vec::new()
 }

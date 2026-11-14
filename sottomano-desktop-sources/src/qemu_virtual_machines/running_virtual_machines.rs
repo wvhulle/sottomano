@@ -19,7 +19,9 @@ use crate::{
         triggered_deliveries_with_recheck,
     },
     qemu_virtual_machines::{
-        libvirt_domain_control::{LIBVIRT_DOMAIN_CONTROL_BUILT, libvirt_run_states},
+        libvirt_domain_control::{
+            LIBVIRT_DOMAIN_CONTROL_BUILT, inactive_libvirt_domains, libvirt_run_states,
+        },
         machined_libvirt_machines::libvirt_leader_pids,
         procfs_launch_context::launch_context_of,
         procfs_qemu_processes::{
@@ -72,6 +74,7 @@ pub struct RunningVirtualMachine {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct VirtualMachinesReadout {
     pub machines: Vec<RunningVirtualMachine>,
+    pub inactive_domains: Vec<String>,
 }
 
 fn origin_of(
@@ -194,9 +197,13 @@ impl VirtualMachineSampler {
 
     async fn sample(&mut self) -> VirtualMachinesReadout {
         let scan = blocking("qemu process scan", scanned_qemu_processes).await;
+        let inactive_domains = blocking("libvirt inactive domains", inactive_libvirt_domains).await;
         if scan.qemu_processes.is_empty() {
             self.checkpoints_by_pid.clear();
-            return VirtualMachinesReadout::default();
+            return VirtualMachinesReadout {
+                machines: Vec::new(),
+                inactive_domains,
+            };
         }
         let libvirt_pids = libvirt_leader_pids(&self.system_bus).await;
         let session_uid = self.session_uid;
@@ -280,7 +287,10 @@ impl VirtualMachineSampler {
             })
             .collect();
         machines.sort_by_key(|machine| machine.started_at);
-        VirtualMachinesReadout { machines }
+        VirtualMachinesReadout {
+            machines,
+            inactive_domains,
+        }
     }
 }
 
