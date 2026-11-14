@@ -1,6 +1,6 @@
 use std::mem;
 
-use iced::{Subscription, Task, window::frames};
+use iced::{Subscription, Task, mouse::ScrollDelta, window::frames};
 use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::CompositorRequest;
 use sottomano_desktop_sources::{
     compositor_window_ipc::compositor_connection::{CompositorKind, OverviewSupport},
@@ -10,8 +10,10 @@ use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     background_work::compositor_request,
     desktop_panels::panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick},
+    group_items::slider_control::scroll_direction,
     widget_groups::{
-        sidebar_settings_group::WorkspacesPlacement, workspaces_group::shown_workspaces,
+        sidebar_settings_group::WorkspacesPlacement,
+        workspaces_group::{WheelDirection, scrolled_workspace_id, shown_workspaces},
     },
     widgets::{
         pointer_drag,
@@ -195,6 +197,29 @@ impl DesktopShell {
                 })
             })
             .fold(Task::none(), Task::chain)
+    }
+
+    pub fn scroll_workspaces(&mut self, output: &str, delta: ScrollDelta) -> Task<Message> {
+        let Some(wheel_step) = scroll_direction(&mut self.workspace_scroll_accumulated_px, delta)
+        else {
+            return Task::none();
+        };
+        let wheel_direction = if wheel_step > 0 {
+            WheelDirection::TowardsAbove
+        } else {
+            WheelDirection::TowardsBelow
+        };
+        let Some(workspace_id) = scrolled_workspace_id(
+            &self.window_snapshot,
+            output,
+            self.widget_groups
+                .sidebar_settings_group
+                .empty_workspace_folding(),
+            wheel_direction,
+        ) else {
+            return Task::none();
+        };
+        compositor_request(CompositorRequest::FocusWorkspace(workspace_id))
     }
 
     fn move_window_to_workspace(&mut self, window: u64, workspace: u64) -> Task<Message> {

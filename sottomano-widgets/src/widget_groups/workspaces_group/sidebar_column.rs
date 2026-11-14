@@ -1,4 +1,8 @@
-use iced::{Alignment, Element, border::Radius, widget::Column};
+use iced::{
+    Alignment, Element,
+    border::Radius,
+    widget::{Column, mouse_area},
+};
 use sottomano_desktop_sources::{
     compositor_window_ipc::niri_kdl_config::ConfiguredWorkspaces,
     desktop_windows_apps::workspace_window_snapshot,
@@ -60,18 +64,24 @@ pub fn vertical_view<'a>(
         .highlight(active_workspace_key(&order), active_highlight_color(&order))
         .frame_corners(frame_corners)
         .draggable(PanelSlotList::Workspaces, &drag, dragged);
+    let scrolled_output = output.to_owned();
+    let workspace_column = Column::new()
+        .extend(order_restore(configured, workspaces, output, config))
+        .push(pager)
+        .extend(empty_workspaces_toggle(
+            compositor,
+            output,
+            empty_workspace_folding,
+            config,
+        ))
+        .spacing(config.theme.spacing.item_gap)
+        .align_x(Alignment::Center);
     Some(
-        Column::new()
-            .extend(order_restore(configured, workspaces, output, config))
-            .push(pager)
-            .extend(empty_workspaces_toggle(
-                compositor,
-                output,
-                empty_workspace_folding,
-                config,
-            ))
-            .spacing(config.theme.spacing.item_gap)
-            .align_x(Alignment::Center)
+        mouse_area(workspace_column)
+            .on_scroll(move |delta| WorkspacesMessage::Scrolled {
+                output: scrolled_output.clone(),
+                delta,
+            })
             .into(),
     )
 }

@@ -115,6 +115,7 @@ pub struct DesktopShell {
     pub spring_load: Option<Handle>,
     pub niri_config: NiriConfigFile,
     pub configured_workspaces: Option<ConfiguredWorkspaces>,
+    pub workspace_scroll_accumulated_px: f32,
 }
 
 impl DesktopShell {
@@ -149,6 +150,7 @@ impl DesktopShell {
             spring_load: None,
             niri_config,
             configured_workspaces: None,
+            workspace_scroll_accumulated_px: 0.0,
             theme: configured_theme(&config.theme.palette),
             wayland,
             desktop_buses: None,
@@ -403,6 +405,7 @@ impl DesktopShell {
                 Task::none()
             }
             Message::RestoreWorkspaceOrder { output } => self.restore_workspace_order(&output),
+            Message::ScrollWorkspaces { output, delta } => self.scroll_workspaces(&output, delta),
             Message::CopyText(text) => copy_to_clipboard(text),
             Message::OpenUrl(url) => self.open_url(url),
             Message::RefreshHoveredReading => Task::batch([
