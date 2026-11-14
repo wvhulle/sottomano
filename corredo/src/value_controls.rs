@@ -10,7 +10,7 @@ pub use seek_bar::{PlaybackTimeline, SeekBar, SeekMessage};
 mod synced_value;
 pub use synced_value::{DragWrites, Nudge, SourceTracking, SyncedValue, ValueWrite};
 mod toggle_switch;
-pub use toggle_switch::{TogglePosition, ToggleSwitch, toggle_switch};
+pub use toggle_switch::{SwitchResponse, TogglePosition, ToggleSwitch, toggle_switch};
 #[cfg(feature = "chrono")]
 mod weekday_picker;
 #[cfg(feature = "chrono")]

@@ -175,7 +175,7 @@ impl ContainerFamily for ApptainerFamily {
             .map(|listing| FamilyRow {
                 target: ApptainerContainerTarget::of_runtime(listing.runtime_pid),
                 reading: ApptainerContainerListingRow { listing },
-                power: RowPower::Running(listing.runtime_pid),
+                power: RowPower::Stoppable(listing.runtime_pid),
             })
             .collect()
     }
@@ -189,7 +189,7 @@ impl ContainerFamily for ApptainerFamily {
             .map(|container| FamilyRow {
                 target: ApptainerContainerTarget::of_runtime(container.runtime_pid),
                 reading: ApptainerContainerRow { container },
-                power: RowPower::Running(container.runtime_pid),
+                power: RowPower::Stoppable(container.runtime_pid),
             })
             .collect()
     }

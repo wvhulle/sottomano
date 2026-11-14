@@ -178,9 +178,9 @@ impl ContainerFamily for LxcFamily {
                 )),
                 reading: LxcContainerListingRow { listing },
                 power: if listing.running {
-                    RowPower::Running(listing.container_name.clone())
+                    RowPower::SwitchedOn(listing.container_name.clone())
                 } else {
-                    RowPower::Stopped(listing.container_name.clone())
+                    RowPower::SwitchedOff(listing.container_name.clone())
                 },
             })
             .collect()
@@ -196,9 +196,9 @@ impl ContainerFamily for LxcFamily {
                 )),
                 reading: LxcContainerRow { container },
                 power: if container.running {
-                    RowPower::Running(container.container_name.clone())
+                    RowPower::SwitchedOn(container.container_name.clone())
                 } else {
-                    RowPower::Stopped(container.container_name.clone())
+                    RowPower::SwitchedOff(container.container_name.clone())
                 },
             })
             .collect()

@@ -3,7 +3,10 @@ use iced::{
     widget::{toggler, toggler::Status},
 };
 
-use crate::theming::{background_strong_color, primary_color, text_color};
+use crate::theming::{
+    background_strong_color, background_weak_color, primary_color, primary_weak_color,
+    secondary_text_color, text_color,
+};
 
 const DEFAULT_SWITCH_SIZE_PX: f32 = 16.0;
 
@@ -13,9 +16,16 @@ pub enum TogglePosition {
     Off,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SwitchResponse {
+    Pressable,
+    Inert,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ToggleSwitch {
     toggle_position: TogglePosition,
+    response: SwitchResponse,
     size_px: f32,
     opacity: f32,
 }
@@ -24,6 +34,7 @@ pub struct ToggleSwitch {
 pub fn toggle_switch(toggle_position: TogglePosition) -> ToggleSwitch {
     ToggleSwitch {
         toggle_position,
+        response: SwitchResponse::Pressable,
         size_px: DEFAULT_SWITCH_SIZE_PX,
         opacity: 1.0,
     }
@@ -39,28 +50,43 @@ impl ToggleSwitch {
     pub fn opacity(self, opacity: f32) -> Self {
         Self { opacity, ..self }
     }
+
+    #[must_use]
+    pub fn response(self, response: SwitchResponse) -> Self {
+        Self { response, ..self }
+    }
 }
 
 impl<'a, Message: 'a> From<ToggleSwitch> for Element<'a, Message> {
     fn from(switch: ToggleSwitch) -> Self {
         let ToggleSwitch {
             toggle_position,
+            response,
             size_px,
             opacity,
         } = switch;
         toggler(toggle_position == TogglePosition::On)
             .size(size_px)
-            .style(move |theme, _status| switch_style(theme, toggle_position, opacity))
+            .style(move |theme, _status| switch_style(theme, toggle_position, response, opacity))
             .into()
     }
 }
 
-fn switch_style(theme: &Theme, toggle_position: TogglePosition, opacity: f32) -> toggler::Style {
+fn switch_style(
+    theme: &Theme,
+    toggle_position: TogglePosition,
+    response: SwitchResponse,
+    opacity: f32,
+) -> toggler::Style {
+    let knob_color = match response {
+        SwitchResponse::Pressable => text_color(theme),
+        SwitchResponse::Inert => secondary_text_color(theme),
+    };
     toggler::Style {
-        background: track_color(theme, toggle_position)
+        background: track_color(theme, toggle_position, response)
             .scale_alpha(opacity)
             .into(),
-        foreground: text_color(theme).scale_alpha(opacity).into(),
+        foreground: knob_color.scale_alpha(opacity).into(),
         ..toggler::default(
             theme,
             Status::Active {
@@ -70,10 +96,16 @@ fn switch_style(theme: &Theme, toggle_position: TogglePosition, opacity: f32) ->
     }
 }
 
-fn track_color(theme: &Theme, toggle_position: TogglePosition) -> Color {
-    match toggle_position {
-        TogglePosition::On => primary_color(theme),
-        TogglePosition::Off => background_strong_color(theme),
+fn track_color(theme: &Theme, toggle_position: TogglePosition, response: SwitchResponse) -> Color {
+    match response {
+        SwitchResponse::Pressable => match toggle_position {
+            TogglePosition::On => primary_color(theme),
+            TogglePosition::Off => background_strong_color(theme),
+        },
+        SwitchResponse::Inert => match toggle_position {
+            TogglePosition::On => primary_weak_color(theme),
+            TogglePosition::Off => background_weak_color(theme),
+        },
     }
 }
 
@@ -114,8 +146,16 @@ mod tests {
     #[test]
     fn the_track_differs_between_on_and_off() {
         assert_ne!(
-            track_color(&Theme::Dark, TogglePosition::On),
-            track_color(&Theme::Dark, TogglePosition::Off)
+            track_color(&Theme::Dark, TogglePosition::On, SwitchResponse::Pressable),
+            track_color(&Theme::Dark, TogglePosition::Off, SwitchResponse::Pressable)
+        );
+    }
+
+    #[test]
+    fn an_inert_switch_draws_a_quieter_track_than_a_pressable_one() {
+        assert_ne!(
+            track_color(&Theme::Dark, TogglePosition::On, SwitchResponse::Inert),
+            track_color(&Theme::Dark, TogglePosition::On, SwitchResponse::Pressable)
         );
     }
 }

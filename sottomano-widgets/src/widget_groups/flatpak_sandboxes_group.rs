@@ -185,7 +185,7 @@ impl ContainerFamily for FlatpakFamily {
             .map(|listing| FamilyRow {
                 target: FlatpakSandboxTarget::of_instance(Cow::Owned(listing.instance_id.clone())),
                 reading: FlatpakSandboxListingRow { listing },
-                power: RowPower::Running(listing.instance_id.clone()),
+                power: RowPower::Stoppable(listing.instance_id.clone()),
             })
             .collect()
     }
@@ -197,7 +197,7 @@ impl ContainerFamily for FlatpakFamily {
             .map(|sandbox| FamilyRow {
                 target: FlatpakSandboxTarget::of_instance(Cow::Owned(sandbox.instance_id.clone())),
                 reading: FlatpakSandboxRow { sandbox },
-                power: RowPower::Running(sandbox.instance_id.clone()),
+                power: RowPower::Stoppable(sandbox.instance_id.clone()),
             })
             .collect()
     }

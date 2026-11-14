@@ -1,4 +1,4 @@
-use corredo::value_controls::{TogglePosition, toggle_switch};
+use corredo::value_controls::{SwitchResponse, TogglePosition, toggle_switch};
 use iced::Element;
 use sottomano_toml_config::Config;
 
@@ -8,6 +8,7 @@ use crate::group_items::toggle_control::SwitchPosition;
 pub fn item_toggle_switch<'a, Message: 'a>(
     config: &Config,
     switch_position: SwitchPosition,
+    response: SwitchResponse,
     opacity: f32,
 ) -> Element<'a, Message> {
     toggle_switch(match switch_position {
@@ -15,6 +16,7 @@ pub fn item_toggle_switch<'a, Message: 'a>(
         SwitchPosition::Off => TogglePosition::Off,
     })
     .size(config.theme.font.icon_size_px)
+    .response(response)
     .opacity(opacity)
     .into()
 }
