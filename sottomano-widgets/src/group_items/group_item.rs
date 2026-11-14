@@ -1,7 +1,12 @@
 use std::{borrow::Cow, iter::once, rc::Rc};
 
 use chrono::Locale;
-use corredo::{popovers::NestedMenuOpenTrigger, press_actions::flat_button, theming::text_color};
+use corredo::{
+    popovers::NestedMenuOpenTrigger,
+    press_actions::flat_button,
+    theming::{secondary_text_color, text_color},
+    value_controls::SwitchResponse,
+};
 use iced::{
     Alignment, Element,
     mouse::ScrollDelta,
@@ -34,6 +39,7 @@ use crate::{
         ongoing_toast::{
             OngoingToast, OngoingToastActionButton, alerting_severity_of, quota_pace_alert_severity,
         },
+        phosphor::{Phosphor, Weight},
     },
 };
 
@@ -107,9 +113,11 @@ impl GroupItemIcon {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ItemSwitchIndicator {
+enum ItemPowerControl {
     Absent,
-    Shown(SwitchPosition),
+    Switch(SwitchPosition),
+    InertSwitch(SwitchPosition),
+    StopGlyph,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -238,7 +246,7 @@ pub(crate) struct HandlePreview<'p> {
 pub struct GroupItem<'a, M> {
     kind: GroupItemContent<'a, M>,
     gestures: GroupItemGestures<M>,
-    switch_indicator: ItemSwitchIndicator,
+    power_control: ItemPowerControl,
     handle_announcement: HoverAnnouncement,
     handle_preview: ItemHandlePreview,
     ongoing_toast_action_buttons: Vec<OngoingToastActionButton<M>>,
@@ -350,7 +358,19 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         description: &'static str,
         message: M,
     ) -> Self {
-        self.switch_indicator = ItemSwitchIndicator::Shown(switch_position.into());
+        self.power_control = ItemPowerControl::Switch(switch_position.into());
+        self.on_press(description, message)
+    }
+
+    #[must_use]
+    pub fn inert_switch(mut self, switch_position: impl Into<SwitchPosition>) -> Self {
+        self.power_control = ItemPowerControl::InertSwitch(switch_position.into());
+        self
+    }
+
+    #[must_use]
+    pub fn on_stop_press(mut self, description: &'static str, message: M) -> Self {
+        self.power_control = ItemPowerControl::StopGlyph;
         self.on_press(description, message)
     }
 
@@ -415,7 +435,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         GroupItem {
             kind: self.kind.map(lift),
             gestures: self.gestures.map(lift),
-            switch_indicator: self.switch_indicator,
+            power_control: self.power_control,
             handle_announcement: self.handle_announcement,
             handle_preview: self.handle_preview,
             card_opening_trigger: self.card_opening_trigger,
@@ -604,16 +624,23 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         switched_content: Element<'a, GroupEvent<M>>,
         opacity: f32,
     ) -> Element<'a, GroupEvent<M>> {
-        match self.switch_indicator {
-            ItemSwitchIndicator::Absent => switched_content,
-            ItemSwitchIndicator::Shown(switch_position) => row![
-                switched_content,
-                item_toggle_switch(config, switch_position, opacity)
-            ]
+        let power_indicator = match self.power_control {
+            ItemPowerControl::Absent => return switched_content,
+            ItemPowerControl::Switch(switch_position) => {
+                item_toggle_switch(config, switch_position, SwitchResponse::Pressable, opacity)
+            }
+            ItemPowerControl::InertSwitch(switch_position) => {
+                item_toggle_switch(config, switch_position, SwitchResponse::Inert, opacity)
+            }
+            ItemPowerControl::StopGlyph => IconGlyph::from(Phosphor::Stop(Weight::Fill))
+                .view(config.theme.font.icon_size_px, move |theme| {
+                    secondary_text_color(theme).scale_alpha(opacity)
+                }),
+        };
+        row![switched_content, power_indicator]
             .spacing(config.theme.spacing.item_gap)
             .align_y(Alignment::Center)
-            .into(),
-        }
+            .into()
     }
 
     pub(crate) fn item_row_parts(&self, config: &Config, clock: Clock) -> MenuParts<'a, M>
@@ -763,7 +790,7 @@ impl<'a, M: 'a> From<GroupItemContent<'a, M>> for GroupItem<'a, M> {
         Self {
             kind,
             gestures: GroupItemGestures::inert(),
-            switch_indicator: ItemSwitchIndicator::Absent,
+            power_control: ItemPowerControl::Absent,
             handle_announcement: HoverAnnouncement::default(),
             handle_preview: ItemHandlePreview::Absent,
             ongoing_toast_action_buttons: Vec::new(),
@@ -880,7 +907,7 @@ mod tests {
     #[test]
     fn an_item_with_only_a_press_action_shows_no_switch() {
         let launcher_row = composed_with(whole_item_hover()).on_press("launch", ());
-        assert_eq!(launcher_row.switch_indicator, ItemSwitchIndicator::Absent);
+        assert_eq!(launcher_row.power_control, ItemPowerControl::Absent);
     }
 
     #[test]
@@ -888,15 +915,15 @@ mod tests {
         let indicator_of = |switch_position| {
             let item: GroupItem<'static, ()> =
                 GroupItem::toggle(toggle_in_position(switch_position), SessionTarget::Menu, ());
-            item.switch_indicator
+            item.power_control
         };
         assert_eq!(
             indicator_of(SwitchPosition::On),
-            ItemSwitchIndicator::Shown(SwitchPosition::On)
+            ItemPowerControl::Switch(SwitchPosition::On)
         );
         assert_eq!(
             indicator_of(SwitchPosition::Off),
-            ItemSwitchIndicator::Shown(SwitchPosition::Off)
+            ItemPowerControl::Switch(SwitchPosition::Off)
         );
     }
 
@@ -1025,5 +1052,21 @@ mod tests {
             slider_pin_key(&sunrise_slider, &config),
             slider_pin_key(&sunset_slider, &config)
         );
+    }
+
+    #[test]
+    fn a_stop_press_shows_a_stop_glyph_and_an_inert_switch_has_no_press() {
+        let stoppable = composed_with(whole_item_hover()).on_stop_press("stop the machine", ());
+        assert_eq!(stoppable.power_control, ItemPowerControl::StopGlyph);
+        assert_eq!(
+            stoppable.announcement().press_hints.left,
+            Some("stop the machine")
+        );
+        let uncontrolled = composed_with(whole_item_hover()).inert_switch(SwitchPosition::On);
+        assert_eq!(
+            uncontrolled.power_control,
+            ItemPowerControl::InertSwitch(SwitchPosition::On)
+        );
+        assert_eq!(uncontrolled.announcement().press_hints.left, None);
     }
 }

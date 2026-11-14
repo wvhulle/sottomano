@@ -339,9 +339,13 @@ impl VirtualMachinesGroup {
                 GuestDisplay::Headless => row,
             };
             match &machine.power_control {
-                GuestPowerControl::Unavailable => row,
-                power_control => row.on_switch_press(
+                GuestPowerControl::Unavailable => row.inert_switch(SwitchPosition::On),
+                power_control @ GuestPowerControl::LibvirtDomain(_) => row.on_switch_press(
                     SwitchPosition::On,
+                    POWER_OFF_HINT,
+                    VirtualMachinesInteraction::PowerOff(power_control.clone()),
+                ),
+                power_control @ GuestPowerControl::QmpSocket(_) => row.on_stop_press(
                     POWER_OFF_HINT,
                     VirtualMachinesInteraction::PowerOff(power_control.clone()),
                 ),

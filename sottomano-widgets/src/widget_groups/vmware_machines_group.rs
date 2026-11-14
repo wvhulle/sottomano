@@ -167,7 +167,7 @@ impl ContainerFamily for VmwareFamily {
             .map(|listing| FamilyRow {
                 target: VmwareMachineTarget::of_pid(listing.pid),
                 reading: VmwareMachineListingRow { listing },
-                power: RowPower::Running(listing.configuration_file.clone()),
+                power: RowPower::Stoppable(listing.configuration_file.clone()),
             })
             .collect()
     }
@@ -179,7 +179,7 @@ impl ContainerFamily for VmwareFamily {
             .map(|machine| FamilyRow {
                 target: VmwareMachineTarget::of_pid(machine.pid),
                 reading: VmwareMachineRow { machine },
-                power: RowPower::Running(machine.configuration_file.clone()),
+                power: RowPower::Stoppable(machine.configuration_file.clone()),
             })
             .collect()
     }

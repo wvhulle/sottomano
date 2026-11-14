@@ -33,8 +33,9 @@ use crate::{
 };
 
 pub enum RowPower<PowerRequest> {
-    Running(PowerRequest),
-    Stopped(PowerRequest),
+    SwitchedOn(PowerRequest),
+    SwitchedOff(PowerRequest),
+    Stoppable(PowerRequest),
 }
 
 pub struct FamilyRow<Family: ContainerFamily, Reading> {
@@ -241,16 +242,19 @@ fn switchable_item<'a, Family: ContainerFamily, Reading: GroupItemReading + 'a>(
 ) -> GroupItem<'a, ContainerFamilyInteraction<Family>> {
     let item = GroupItem::reading(row.reading, row.target);
     match row.power {
-        RowPower::Running(request) => item.on_switch_press(
+        RowPower::SwitchedOn(request) => item.on_switch_press(
             SwitchPosition::On,
             Family::STOP_HINT,
             ContainerFamilyInteraction::Stop(request),
         ),
-        RowPower::Stopped(request) => item.on_switch_press(
+        RowPower::SwitchedOff(request) => item.on_switch_press(
             SwitchPosition::Off,
             Family::START_HINT,
             ContainerFamilyInteraction::Start(request),
         ),
+        RowPower::Stoppable(request) => {
+            item.on_stop_press(Family::STOP_HINT, ContainerFamilyInteraction::Stop(request))
+        }
     }
 }
 
@@ -400,10 +404,11 @@ mod tests {
         let presses: Vec<String> = LxcFamily::listing_rows(&listings)
             .into_iter()
             .map(|row| match row.power {
-                RowPower::Running(container_name) => format!("stop {container_name}"),
-                RowPower::Stopped(container_name) => format!("start {container_name}"),
+                RowPower::SwitchedOn(container_name) => format!("switch off {container_name}"),
+                RowPower::SwitchedOff(container_name) => format!("switch on {container_name}"),
+                RowPower::Stoppable(container_name) => format!("stop {container_name}"),
             })
             .collect();
-        assert_eq!(presses, vec!["stop running", "start stopped"]);
+        assert_eq!(presses, vec!["switch off running", "switch on stopped"]);
     }
 }
