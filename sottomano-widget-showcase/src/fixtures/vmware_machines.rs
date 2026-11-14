@@ -18,7 +18,7 @@ pub const HOVERED_MACHINE_PID: i32 = 63_118;
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = VmwareMachinesGroup::default();
     group.update(
-        VmwareMachinesMessage::Machines(SnapshotDelivery::fixture_delivered(
+        VmwareMachinesMessage::Detail(SnapshotDelivery::fixture_delivered(
             Ok(VmwareMachines {
                 machines: vec![VmwareMachine {
                     pid: HOVERED_MACHINE_PID,

@@ -24,7 +24,9 @@ use crate::{
         hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
-        process_usage_cells::approximate_memory_text,
+        process_usage_cells::{
+            approximate_memory_text, running_display_state, running_state_text, uptime_entry,
+        },
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
@@ -34,7 +36,7 @@ use crate::{
         icon_glyph::IconGlyph,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
-        value_cells::{LabeledValue, ValueCell},
+        value_cells::LabeledValue,
     },
 };
 
@@ -55,18 +57,6 @@ impl MicrovmGuestTarget {
 impl From<MicrovmGuestTarget> for HoverTarget {
     fn from(target: MicrovmGuestTarget) -> Self {
         HoverTarget::MicrovmGuest(target)
-    }
-}
-
-fn running_state_text(running: bool) -> &'static str {
-    if running { "running" } else { "stopped" }
-}
-
-fn running_display_state(running: bool) -> ReadingDisplayState {
-    if running {
-        ReadingDisplayState::On
-    } else {
-        ReadingDisplayState::Off
     }
 }
 
@@ -120,9 +110,7 @@ impl MicrovmGuestRow<'_> {
         if let Some(guest_cores) = machine.launch.guest_cores {
             detail_entries.push(LabeledValue::new("Cores", guest_cores.to_string()));
         }
-        if let Ok(uptime) = clock.wall.duration_since(machine.started_at) {
-            detail_entries.push(LabeledValue::new("Uptime", ValueCell::duration(uptime)));
-        }
+        detail_entries.extend(uptime_entry(clock, machine.started_at));
         if let Some(unit_name) = &machine.unit_name {
             detail_entries.push(LabeledValue::new("Unit", unit_name.clone()));
         }

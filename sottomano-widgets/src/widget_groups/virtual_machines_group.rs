@@ -33,7 +33,7 @@ use crate::{
         hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
-        process_usage_cells::{approximate_memory_text, cpu_share_quantity},
+        process_usage_cells::{approximate_memory_text, cpu_share_quantity, uptime_entry},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
@@ -44,7 +44,7 @@ use crate::{
         icon_glyph::IconGlyph,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
-        value_cells::{LabeledValue, ValueCell},
+        value_cells::LabeledValue,
     },
 };
 
@@ -162,9 +162,7 @@ impl VirtualMachineRow<'_> {
             "Power off",
             power_control_text(&machine.power_control),
         ));
-        if let Ok(uptime) = clock.wall.duration_since(machine.started_at) {
-            entries.push(LabeledValue::new("Uptime", ValueCell::duration(uptime)));
-        }
+        entries.extend(uptime_entry(clock, machine.started_at));
         entries
     }
 }

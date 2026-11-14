@@ -24,7 +24,7 @@ use crate::{
         hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
-        process_usage_cells::approximate_memory_text,
+        process_usage_cells::{approximate_memory_text, uptime_entry},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
@@ -34,7 +34,7 @@ use crate::{
         icon_glyph::IconGlyph,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         simple_icons::SimpleIcon,
-        value_cells::{LabeledValue, ValueCell},
+        value_cells::LabeledValue,
     },
 };
 
@@ -135,9 +135,7 @@ impl GroupItemReading for VirtualBoxMachineRow<'_> {
         if let Some(guest_cores) = machine.guest_cores {
             detail_entries.push(LabeledValue::new("Cores", guest_cores.to_string()));
         }
-        if let Ok(uptime) = clock.wall.duration_since(machine.started_at) {
-            detail_entries.push(LabeledValue::new("Uptime", ValueCell::duration(uptime)));
-        }
+        detail_entries.extend(uptime_entry(clock, machine.started_at));
         if let Some(settings_file) = &machine.settings_file {
             detail_entries.push(LabeledValue::new(
                 "Settings",

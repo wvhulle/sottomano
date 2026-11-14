@@ -1,36 +1,25 @@
-use std::{borrow::Cow, convert::identity};
+use std::borrow::Cow;
 
 use chrono::Locale;
-use iced::Subscription;
-use sottomano_desktop_sources::{
-    SnapshotDelivery,
-    lxc_containers::{
-        LxcContainer, LxcContainerListing, LxcContainerListings, LxcContainers, LxcProbe,
-    },
+use sottomano_desktop_sources::lxc_containers::{
+    LxcContainer, LxcContainerListing, LxcContainerListings, LxcContainers, LxcProbe,
 };
 
 use crate::{
-    background_work::snapshot_subscription,
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
-    },
+    hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
     widget_groups::{
-        process_usage_cells::approximate_memory_text,
-        widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+        container_family_group::{
+            ContainerFamily, ContainerFamilyGroup, ContainerFamilyMessage, FamilyRow,
         },
+        process_usage_cells::{approximate_memory_text, running_display_state, running_state_text},
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         icon_glyph::IconGlyph,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -54,7 +43,7 @@ impl From<LxcContainerTarget> for HoverTarget {
     }
 }
 
-struct LxcContainerListingRow<'a> {
+pub struct LxcContainerListingRow<'a> {
     listing: &'a LxcContainerListing,
 }
 
@@ -87,19 +76,7 @@ impl GroupItemReading for LxcContainerListingRow<'_> {
     }
 }
 
-fn running_state_text(running: bool) -> &'static str {
-    if running { "running" } else { "stopped" }
-}
-
-fn running_display_state(running: bool) -> ReadingDisplayState {
-    if running {
-        ReadingDisplayState::On
-    } else {
-        ReadingDisplayState::Off
-    }
-}
-
-struct LxcContainerRow<'a> {
+pub struct LxcContainerRow<'a> {
     container: &'a LxcContainer,
 }
 
@@ -158,161 +135,72 @@ impl GroupItemReading for LxcContainerRow<'_> {
     }
 }
 
-#[derive(Default)]
-pub struct LxcContainersGroup {
-    probe: LatestSnapshot<LxcProbe, HidesFetchFailures>,
-    listings: LatestSnapshot<LxcContainerListings, HidesFetchFailures>,
-    detail: LatestSnapshot<LxcContainers, HidesFetchFailures>,
-    expansion: WidgetGroupExpansion,
-}
-
 #[derive(Debug)]
-pub enum LxcContainersMessage {
-    Probe(SnapshotDelivery<LxcProbe>),
-    Listings(SnapshotDelivery<LxcContainerListings>),
-    Containers(SnapshotDelivery<LxcContainers>),
-    Expansion(WidgetGroupExpansionMessage),
-}
+pub struct LxcFamily;
 
-impl LxcContainersGroup {
-    pub fn collapse(&mut self) {
-        self.expansion.collapse();
-    }
+pub type LxcContainersGroup = ContainerFamilyGroup<LxcFamily>;
+pub type LxcContainersMessage = ContainerFamilyMessage<LxcFamily>;
 
-    pub fn subscription(&self, demand: GroupSourceDemand) -> Subscription<LxcContainersMessage> {
-        let demand = demand.expanded_when(self.expansion.state());
-        Subscription::batch([
-            snapshot_subscription::<LxcProbe>(()).map(LxcContainersMessage::Probe),
-            demand
-                .while_face_shown(snapshot_subscription::<LxcContainerListings>(()))
-                .map(LxcContainersMessage::Listings),
-            demand
-                .while_rows_shown(snapshot_subscription::<LxcContainers>(()))
-                .map(LxcContainersMessage::Containers),
-        ])
-    }
+impl ContainerFamily for LxcFamily {
+    type Probe = LxcProbe;
+    type Listings = LxcContainerListings;
+    type Detail = LxcContainers;
+    type Target = LxcContainerTarget;
+    type ListingRow<'a> = LxcContainerListingRow<'a>;
+    type DetailRow<'a> = LxcContainerRow<'a>;
 
-    pub fn update(&mut self, message: LxcContainersMessage, clock: Clock) {
-        match message {
-            LxcContainersMessage::Probe(delivery) => self.probe.receive(delivery, clock),
-            LxcContainersMessage::Listings(delivery) => self.listings.receive(delivery, clock),
-            LxcContainersMessage::Containers(delivery) => self.detail.receive(delivery, clock),
-            LxcContainersMessage::Expansion(expansion_message) => {
-                self.expansion.update(expansion_message);
-            }
-        }
-    }
+    const FAMILY: WidgetGroupFamily = WidgetGroupFamily::LxcContainers;
+    const GROUP_NAME: &'static str = "LXC containers";
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &LxcContainerTarget, clock: Clock) -> Option<HoverCard> {
-        if let Some(detail) = self.detail.get() {
-            let container = detail
-                .containers
-                .iter()
-                .find(|container| container.container_name == target.container_name)?;
-            return self
-                .detail
-                .hover_card_with(LxcContainerRow { container }.hover_card(clock));
-        }
-        let listing = self
-            .listings
-            .get()?
-            .listings
-            .iter()
-            .find(|listing| listing.container_name == target.container_name)?;
-        self.listings
-            .hover_card_with(LxcContainerListingRow { listing }.hover_card(clock))
-    }
-
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
-        let rows = self.container_rows();
-        WidgetGroupContent::expandable(
-            WidgetGroupFamily::LxcContainers,
-            &self.expansion,
-            identity,
-            rows,
-        )
-        .face(WidgetGroupFace::IconColoredBy {
-            glyph: Phosphor::Package(Weight::Regular).into(),
-            reading: self,
-        })
-    }
-
-    fn container_rows(&self) -> Vec<GroupItem<'_, WidgetGroupExpansionMessage>> {
-        if let Some(detail) = self.detail.get() {
-            return detail
-                .containers
-                .iter()
-                .map(|container| {
-                    GroupItem::reading(
-                        LxcContainerRow { container },
-                        LxcContainerTarget::of_container(Cow::Owned(
-                            container.container_name.clone(),
-                        )),
-                    )
-                })
-                .collect();
-        }
-        self.listings
-            .get()
-            .map(|listings| {
-                listings
-                    .listings
-                    .iter()
-                    .map(|listing| {
-                        GroupItem::reading(
-                            LxcContainerListingRow { listing },
-                            LxcContainerTarget::of_container(Cow::Owned(
-                                listing.container_name.clone(),
-                            )),
-                        )
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-}
-
-impl GroupItemReading for LxcContainersGroup {
-    fn name(&self) -> &'static str {
-        "LXC containers"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        "LXC containers".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
+    fn group_glyph() -> IconGlyph {
         Phosphor::Package(Weight::Regular).into()
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.probe.get().map(|probe| {
-            format!(
-                "{} running, {} configured",
-                probe.running_count, probe.configured_count
-            )
-        })
+    fn running_count(probe: &LxcProbe) -> usize {
+        probe.running_count
     }
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.probe
-            .get()
-            .filter(|probe| probe.running_count > 0)
-            .map_or(ReadingDisplayState::Off, |_| ReadingDisplayState::On)
+    fn listing_rows(
+        listings: &LxcContainerListings,
+    ) -> Vec<FamilyRow<LxcContainerTarget, LxcContainerListingRow<'_>>> {
+        listings
+            .listings
+            .iter()
+            .map(|listing| FamilyRow {
+                target: LxcContainerTarget::of_container(Cow::Owned(
+                    listing.container_name.clone(),
+                )),
+                reading: LxcContainerListingRow { listing },
+            })
+            .collect()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(
-            self.probe
-                .get()
-                .map(|probe| {
-                    vec![
-                        LabeledValue::new("Running", probe.running_count.to_string()),
-                        LabeledValue::new("Configured", probe.configured_count.to_string()),
-                    ]
-                })
-                .unwrap_or_default(),
+    fn detail_rows(
+        detail: &LxcContainers,
+    ) -> Vec<FamilyRow<LxcContainerTarget, LxcContainerRow<'_>>> {
+        detail
+            .containers
+            .iter()
+            .map(|container| FamilyRow {
+                target: LxcContainerTarget::of_container(Cow::Owned(
+                    container.container_name.clone(),
+                )),
+                reading: LxcContainerRow { container },
+            })
+            .collect()
+    }
+
+    fn group_label(probe: &LxcProbe) -> String {
+        format!(
+            "{} running, {} configured",
+            probe.running_count, probe.configured_count
         )
+    }
+
+    fn group_hover_entries(probe: &LxcProbe) -> Vec<LabeledValue> {
+        vec![
+            LabeledValue::new("Running", probe.running_count.to_string()),
+            LabeledValue::new("Configured", probe.configured_count.to_string()),
+        ]
     }
 }
