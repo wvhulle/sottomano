@@ -5,7 +5,7 @@ use corredo::{
     orientation::Axis,
     popovers::{
         BesideRow, CascadeOrientation, NestedMenuGroup, NestedMenuLayout, NestedMenuOpenTrigger,
-        NestedMenuRowEmphasis, nested_menu,
+        NestedMenuRowEmphasis, NestedMenuStyle, nested_menu,
     },
     selection_scroll::{ScrollEdgeFade, ScrollPacing},
     theming::text_color,
@@ -365,16 +365,19 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             move |scrolled_px| M::from(list_scroll_message(scrolled_px)),
             move |scrolled_px| M::from(item_list_scroll_message(scrolled_px)),
         )
-        .frames(list_frame, card.card_appearance.frame_style())
-        .morph(config.overlay_surfaces.surface_morph_duration)
-        .gap_to_parent(config.theme.spacing.item_gap)
-        .submenu_connector(presentation.submenu_connector)
-        .fade_extent(fade_extent_px)
+        .style(NestedMenuStyle {
+            list_frame,
+            beside_frame: card.card_appearance.frame_style(),
+            morph: config.overlay_surfaces.surface_morph_duration,
+            gap_to_parent_px: config.theme.spacing.item_gap,
+            submenu_connector: presentation.submenu_connector,
+            fade_extent_px,
+            item_indent_px: config.theme.font.icon_size_px,
+        })
         .wheel_scrolling(
             config.scrolling.wheel_line_px,
             ScrollPacing::Eased(config.scrolling.wheel_easing),
         )
-        .item_indent(config.theme.font.icon_size_px)
         .scrolled(scrolled_px, group_menus.item_list_scrolled_px(topic))
         .surfaces()
         .map(|surfaces| GroupMenuCascadeSurfaces {

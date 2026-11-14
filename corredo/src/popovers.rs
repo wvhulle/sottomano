@@ -36,7 +36,7 @@ pub use notched_panel::{
 mod nested_menu;
 pub use nested_menu::{
     BesideRow, NestedMenu, NestedMenuGroup, NestedMenuItem, NestedMenuRow, NestedMenuSatellite,
-    NestedMenuSurfaces, RowGesture, SatelliteRole, nested_menu,
+    NestedMenuStyle, NestedMenuSurfaces, RowGesture, SatelliteRole, nested_menu,
 };
 mod anchor_marker;
 pub use anchor_marker::anchor_marker;
