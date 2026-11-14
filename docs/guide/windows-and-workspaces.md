@@ -24,7 +24,7 @@ Every other app is listed under its freedesktop category. A list grows up to the
 
 Neighbouring terminals in one directory share a heading, with the selected window in the accent colour.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/bottom_window_directory_groups.webp" width="804" alt="Terminals grouped under their working directory in the bottom panel">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/bottom_window_directory_groups.webp" width="851" alt="Terminals grouped under their working directory in the bottom panel">
 
 ## Windows: Process inspector
 
