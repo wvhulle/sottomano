@@ -1,5 +1,5 @@
 use corredo::{
-    popovers::{CascadeDirection, CascadeOrientation, PopupGrowth},
+    popovers::{CascadeDirection, CascadeOrientation, PopupGrowth, SubmenuConnector},
     selection_scroll::ScrollEdgeFade,
     theming::FrameStyle,
 };
@@ -12,7 +12,6 @@ use crate::{
         cascading_layout::notched_panel::{
             NotchPlacement, NotchRowAnchor, NotchSide, ResolvedPanelTop, notched_panel,
         },
-        group_menu_presentation::SubmenuConnector,
         menu_rows::menu_row::menu_row_height,
     },
     widgets::shell_layer_appearance::LayerAppearance,

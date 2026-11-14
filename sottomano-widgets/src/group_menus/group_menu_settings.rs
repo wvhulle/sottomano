@@ -1,3 +1,4 @@
+use corredo::popovers::{NestedMenuLayout, NestedMenuPresentation};
 use sottomano_toml_config::Config;
 
 use crate::{
@@ -6,10 +7,7 @@ use crate::{
         group_item::GroupItem,
         toggle_control::{IconToggle, SwitchPresses},
     },
-    group_menus::{
-        group_menu_presentation::{GroupMenuLayout, GroupMenuPresentation},
-        group_menu_state::{GroupMenuMessage, GroupMenuState},
-    },
+    group_menus::group_menu_state::{GroupMenuMessage, GroupMenuState},
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         widget_group_content::{WidgetGroupContent, WidgetGroupFace},
@@ -36,7 +34,7 @@ impl From<GroupMenuSettingsTarget> for HoverTarget {
     }
 }
 
-fn accordion_layout_toggle(presentation: GroupMenuPresentation) -> IconToggle {
+fn accordion_layout_toggle(presentation: NestedMenuPresentation) -> IconToggle {
     IconToggle::new(
         "Accordion menus",
         Phosphor::Rows(Weight::Regular),
@@ -48,7 +46,7 @@ fn accordion_layout_toggle(presentation: GroupMenuPresentation) -> IconToggle {
     )
 }
 
-fn click_to_open_menus_toggle(presentation: GroupMenuPresentation) -> IconToggle {
+fn click_to_open_menus_toggle(presentation: NestedMenuPresentation) -> IconToggle {
     IconToggle::new(
         "Click to open menus",
         Phosphor::CursorClick(Weight::Regular),
@@ -60,7 +58,7 @@ fn click_to_open_menus_toggle(presentation: GroupMenuPresentation) -> IconToggle
     )
 }
 
-fn keep_one_group_open_toggle(presentation: GroupMenuPresentation) -> IconToggle {
+fn keep_one_group_open_toggle(presentation: NestedMenuPresentation) -> IconToggle {
     IconToggle::new(
         "Keep one group open",
         Phosphor::ListDashes(Weight::Regular),
@@ -72,7 +70,7 @@ fn keep_one_group_open_toggle(presentation: GroupMenuPresentation) -> IconToggle
     )
 }
 
-fn submenu_connector_toggle(presentation: GroupMenuPresentation) -> IconToggle {
+fn submenu_connector_toggle(presentation: NestedMenuPresentation) -> IconToggle {
     IconToggle::new(
         "Submenu connector",
         Phosphor::ChatTeardrop(Weight::Regular),
@@ -91,7 +89,7 @@ impl GroupMenuState {
         config: &'a Config,
     ) -> WidgetGroupContent<'a, GroupMenuMessage> {
         let presentation = self.presentation();
-        let accordion_only_item = (presentation.layout == GroupMenuLayout::Accordion).then(|| {
+        let accordion_only_item = (presentation.layout == NestedMenuLayout::Accordion).then(|| {
             GroupItem::toggle(
                 keep_one_group_open_toggle(presentation),
                 GroupMenuSettingsTarget::KeepOneGroupOpen,
@@ -153,8 +151,9 @@ impl GroupMenuState {
 
 #[cfg(test)]
 mod tests {
-    use super::{GroupMenuMessage, GroupMenuPresentation, GroupMenuState};
-    use crate::group_menus::group_menu_presentation::{GroupMenuLayout, OpenGroupLimit};
+    use corredo::popovers::{NestedMenuLayout, OpenGroupLimit};
+
+    use super::{GroupMenuMessage, GroupMenuState, NestedMenuPresentation};
 
     #[test]
     fn switching_presentation_keeps_only_the_first_open_group_at_a_limit_of_one() {
@@ -162,9 +161,9 @@ mod tests {
             group_menus::group_menu_state::GroupMenuTopic,
             widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         };
-        let several_open = GroupMenuPresentation {
-            layout: GroupMenuLayout::Accordion,
-            ..GroupMenuPresentation::default()
+        let several_open = NestedMenuPresentation {
+            layout: NestedMenuLayout::Accordion,
+            ..NestedMenuPresentation::default()
         };
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(GroupMenuMessage::PresentationLoaded(several_open));
@@ -176,7 +175,7 @@ mod tests {
         }
         assert_eq!(group_menus.open_groups(GroupMenuTopic::Hardware).len(), 2);
         let _ = group_menus.update(GroupMenuMessage::PresentationLoaded(
-            GroupMenuPresentation {
+            NestedMenuPresentation {
                 accordion_open_limit: OpenGroupLimit::One,
                 ..several_open
             },
@@ -186,9 +185,9 @@ mod tests {
 
     #[test]
     fn a_loaded_presentation_reads_back_unchanged() {
-        let stored = GroupMenuPresentation {
-            layout: GroupMenuLayout::Accordion,
-            ..GroupMenuPresentation::default()
+        let stored = NestedMenuPresentation {
+            layout: NestedMenuLayout::Accordion,
+            ..NestedMenuPresentation::default()
         };
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(GroupMenuMessage::PresentationLoaded(stored));

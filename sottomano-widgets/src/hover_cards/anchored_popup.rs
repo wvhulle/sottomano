@@ -135,7 +135,7 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
 
 #[cfg(test)]
 mod tests {
-    use corredo::popovers::{CascadeDirection, CascadeOrientation, PopupGrowth};
+    use corredo::popovers::{CascadeDirection, CascadeOrientation, PopupGrowth, SubmenuConnector};
     use iced::{
         Element, Length, Point, Rectangle, Settings, Size,
         mouse::{Button, Event as MouseEvent},
@@ -152,11 +152,8 @@ mod tests {
     };
     use crate::{
         clock::Clock,
-        group_menus::{
-            cascading_layout::{
-                cascade_row::cascade_row, cascade_satellite_panels::CascadeSatellitePanels,
-            },
-            group_menu_presentation::SubmenuConnector,
+        group_menus::cascading_layout::{
+            cascade_row::cascade_row, cascade_satellite_panels::CascadeSatellitePanels,
         },
         hover_cards::{HoverTarget, hover_card_transition::ShownTarget},
         widgets::shell_layer_appearance::ShellLayer,

@@ -1,9 +1,9 @@
+use corredo::popovers::{
+    NestedMenuLayout, NestedMenuOpenTrigger, NestedMenuPresentation, OpenGroupLimit,
+    SubmenuConnector,
+};
 use sottomano_desktop_sources::sqlite_state_store::{
     Columns, StoreError, in_state_store, with_state_store,
-};
-
-use crate::group_menus::group_menu_presentation::{
-    GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit, SubmenuConnector,
 };
 
 const fn submenu_connector_name(submenu_connector: SubmenuConnector) -> &'static str {
@@ -13,17 +13,17 @@ const fn submenu_connector_name(submenu_connector: SubmenuConnector) -> &'static
     }
 }
 
-const fn layout_name(layout: GroupMenuLayout) -> &'static str {
+const fn layout_name(layout: NestedMenuLayout) -> &'static str {
     match layout {
-        GroupMenuLayout::Cascading => "cascading",
-        GroupMenuLayout::Accordion => "accordion",
+        NestedMenuLayout::Cascading => "cascading",
+        NestedMenuLayout::Accordion => "accordion",
     }
 }
 
-const fn open_trigger_name(trigger: GroupMenuOpenTrigger) -> &'static str {
+const fn open_trigger_name(trigger: NestedMenuOpenTrigger) -> &'static str {
     match trigger {
-        GroupMenuOpenTrigger::Hover => "hover",
-        GroupMenuOpenTrigger::Press => "press",
+        NestedMenuOpenTrigger::Hover => "hover",
+        NestedMenuOpenTrigger::Press => "press",
     }
 }
 
@@ -34,19 +34,19 @@ const fn open_limit_name(limit: OpenGroupLimit) -> &'static str {
     }
 }
 
-pub async fn load() -> GroupMenuPresentation {
+pub async fn load() -> NestedMenuPresentation {
     with_state_store("group menu presentation: load failed", read_presentation)
         .await
         .unwrap_or_default()
 }
 
-pub async fn save(presentation: GroupMenuPresentation) -> Result<(), StoreError> {
+pub async fn save(presentation: NestedMenuPresentation) -> Result<(), StoreError> {
     in_state_store(async |connection| write_presentation(connection, presentation).await).await
 }
 
 async fn read_presentation(
     connection: &turso::Connection,
-) -> Result<GroupMenuPresentation, StoreError> {
+) -> Result<NestedMenuPresentation, StoreError> {
     let mut rows = connection
         .query(
             "SELECT layout, cascading_reveal_trigger, accordion_open_limit, submenu_connector
@@ -56,16 +56,16 @@ async fn read_presentation(
         .await?;
     let columns = Columns::of(&rows);
     let Some(row) = rows.next().await? else {
-        return Ok(GroupMenuPresentation::default());
+        return Ok(NestedMenuPresentation::default());
     };
-    Ok(GroupMenuPresentation {
+    Ok(NestedMenuPresentation {
         layout: match columns.text(&row, "layout")?.as_str() {
-            "accordion" => GroupMenuLayout::Accordion,
-            _ => GroupMenuLayout::Cascading,
+            "accordion" => NestedMenuLayout::Accordion,
+            _ => NestedMenuLayout::Cascading,
         },
         open_trigger: match columns.text(&row, "cascading_reveal_trigger")?.as_str() {
-            "press" => GroupMenuOpenTrigger::Press,
-            _ => GroupMenuOpenTrigger::Hover,
+            "press" => NestedMenuOpenTrigger::Press,
+            _ => NestedMenuOpenTrigger::Hover,
         },
         accordion_open_limit: match columns.text(&row, "accordion_open_limit")?.as_str() {
             "one" => OpenGroupLimit::One,
@@ -80,7 +80,7 @@ async fn read_presentation(
 
 async fn write_presentation(
     connection: &turso::Connection,
-    presentation: GroupMenuPresentation,
+    presentation: NestedMenuPresentation,
 ) -> Result<(), StoreError> {
     connection
         .execute(
@@ -102,40 +102,40 @@ async fn write_presentation(
 
 #[cfg(test)]
 mod tests {
+    use corredo::popovers::{
+        NestedMenuLayout, NestedMenuOpenTrigger, NestedMenuPresentation, OpenGroupLimit,
+        SubmenuConnector,
+    };
     use sottomano_desktop_sources::sqlite_state_store::migrated_in_memory_store;
 
     use super::{read_presentation, write_presentation};
-    use crate::group_menus::group_menu_presentation::{
-        GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
-        SubmenuConnector,
-    };
 
     #[tokio::test]
     async fn an_unwritten_presentation_keeps_its_default() {
         let connection = migrated_in_memory_store().await;
         assert_eq!(
             read_presentation(&connection).await.unwrap(),
-            GroupMenuPresentation::default()
+            NestedMenuPresentation::default()
         );
     }
 
     #[tokio::test]
     async fn every_choice_round_trips() {
         let connection = migrated_in_memory_store().await;
-        let chosen = GroupMenuPresentation {
-            layout: GroupMenuLayout::Accordion,
-            open_trigger: GroupMenuOpenTrigger::Press,
+        let chosen = NestedMenuPresentation {
+            layout: NestedMenuLayout::Accordion,
+            open_trigger: NestedMenuOpenTrigger::Press,
             accordion_open_limit: OpenGroupLimit::One,
             submenu_connector: SubmenuConnector::Shown,
         };
         write_presentation(&connection, chosen).await.unwrap();
         assert_eq!(read_presentation(&connection).await.unwrap(), chosen);
-        write_presentation(&connection, GroupMenuPresentation::default())
+        write_presentation(&connection, NestedMenuPresentation::default())
             .await
             .unwrap();
         assert_eq!(
             read_presentation(&connection).await.unwrap(),
-            GroupMenuPresentation::default()
+            NestedMenuPresentation::default()
         );
     }
 

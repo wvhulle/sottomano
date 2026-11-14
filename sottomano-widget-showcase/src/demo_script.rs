@@ -1,18 +1,16 @@
 use std::{borrow::Cow, time::Duration};
 
+use corredo::popovers::{
+    NestedMenuLayout, NestedMenuOpenTrigger, NestedMenuPresentation, OpenGroupLimit,
+    SubmenuConnector,
+};
 use iced::Size;
 use sottomano_desktop_sources::{
     incus_instances::InstanceDaemon, login_session_presence::idle_session_actions::IdleAction,
 };
 use sottomano_widgets::{
     clock::Clock,
-    group_menus::{
-        group_menu_presentation::{
-            GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
-            SubmenuConnector,
-        },
-        group_menu_state::{GroupMenuPin, GroupMenuTopic},
-    },
+    group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic},
     hover_cards::HoverTarget,
     widget_groups::{
         appearance_presets_group::AppearancePresetsTarget,
@@ -69,7 +67,7 @@ pub enum GroupShown {
     InMenu(GroupMenuTopic),
     InMenuPresented {
         menu: GroupMenuTopic,
-        presentation: GroupMenuPresentation,
+        presentation: NestedMenuPresentation,
     },
     PinnedFrom {
         menu: GroupMenuTopic,
@@ -650,9 +648,9 @@ pub const DEMOS: &[Demo] = &[
         backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::InMenuPresented {
             menu: GroupMenuTopic::Hardware,
-            presentation: GroupMenuPresentation {
-                layout: GroupMenuLayout::Accordion,
-                open_trigger: GroupMenuOpenTrigger::Press,
+            presentation: NestedMenuPresentation {
+                layout: NestedMenuLayout::Accordion,
+                open_trigger: NestedMenuOpenTrigger::Press,
                 accordion_open_limit: OpenGroupLimit::Several,
                 submenu_connector: SubmenuConnector::Hidden,
             },

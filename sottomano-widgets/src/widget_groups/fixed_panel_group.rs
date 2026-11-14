@@ -1,12 +1,12 @@
 use std::slice;
 
+use corredo::popovers::NestedMenuOpenTrigger;
 use iced::Element;
 use sottomano_toml_config::{screen_edges::Position, severity::Severity};
 
 use crate::{
     clock::Clock,
     group_items::group_item::GroupItem,
-    group_menus::group_menu_presentation::GroupMenuOpenTrigger,
     hover_cards::{HoverTarget, MenuHandleIndicator},
     widget_groups::widget_group_content::{GroupEvent, fixed_view},
 };
@@ -38,7 +38,7 @@ impl<'a, M: Clone + 'a> FixedPanelGroup<'a, M> {
         self,
         config: &'a sottomano_toml_config::Config,
         panel_position: Position,
-        open_trigger: GroupMenuOpenTrigger,
+        open_trigger: NestedMenuOpenTrigger,
         handle_indicator: MenuHandleIndicator,
         clock: Clock,
     ) -> Option<Element<'a, M>>
