@@ -65,10 +65,10 @@ focus_indicator_duration = "160ms"
 alert_promotion_severity = "warning"
 
 [widget_group_layout]
-expansion_duration = "90ms"
+expansion_duration = "180ms"
 
 [group_items]
-slider_expansion_duration = "90ms"
+slider_expansion_duration = "180ms"
 
 [hover_cards]
 copy_flash_duration = "700ms"

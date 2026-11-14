@@ -15,6 +15,10 @@ use iced::{
     window,
 };
 
+use super::motion_state::eased_animation;
+
+const EXPANSION_EASING: Easing = Easing::EaseInOutCubic;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExpansionState {
     Expanded,
@@ -73,9 +77,11 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ExpandTransition<
 
     fn state(&self) -> tree::State {
         tree::State::new(State {
-            animation: Animation::new(self.expansion_state == ExpansionState::Expanded)
-                .easing(Easing::EaseOutCubic)
-                .duration(self.duration),
+            animation: eased_animation(
+                self.expansion_state == ExpansionState::Expanded,
+                self.duration,
+            )
+            .easing(EXPANSION_EASING),
             at: None,
         })
     }
