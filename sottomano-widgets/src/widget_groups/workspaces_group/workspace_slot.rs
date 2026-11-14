@@ -10,7 +10,7 @@ use corredo::{
 use iced::{
     Alignment, Border, Color, Element, Length, Theme,
     border::Radius,
-    widget::{Text, column, container, progress_bar, row, text},
+    widget::{Space, Text, column, container, progress_bar, row, text},
 };
 use sottomano_desktop_sources::desktop_windows_apps::workspace_window_snapshot;
 use sottomano_toml_config::screen_edges::Position;
@@ -307,7 +307,11 @@ impl<'s> WorkspaceSlot<'s> {
             column![self.label(), self.window_markers(Position::Bottom).view()]
                 .width(Length::Shrink)
                 .align_x(Alignment::Center);
-        let label_with_edge = row![label_over_markers, self.edge_line()]
+        let label_with_edge = row![
+            Space::new().width(ACCENT_STROKE_PX),
+            label_over_markers,
+            self.edge_line(),
+        ]
             .spacing(config.theme.spacing.item_gap)
             .height(config.desktop_panels.height)
             .align_y(Alignment::Center);
