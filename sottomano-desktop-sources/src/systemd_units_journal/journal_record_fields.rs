@@ -8,6 +8,8 @@ use serde::Deserialize;
 use sottomano_toml_config::severity::Severity;
 use systemd::journal::Journal;
 
+use crate::systemd_units_journal::SystemdUnitScope;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(try_from = "String")]
 pub struct MessageId(u128);
@@ -246,6 +248,14 @@ impl OwningUnit {
     pub fn name(&self) -> &str {
         match self {
             OwningUnit::System(name) | OwningUnit::User(name) => name,
+        }
+    }
+
+    #[must_use]
+    pub const fn unit_scope(&self) -> SystemdUnitScope {
+        match self {
+            OwningUnit::System(_) => SystemdUnitScope::SystemWide,
+            OwningUnit::User(_) => SystemdUnitScope::UserSession,
         }
     }
 

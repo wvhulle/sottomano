@@ -12,7 +12,8 @@ use crate::{
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::{
         journal_events_group::{
-            JournalEventsGroup, JournalEventsInteraction, JournalTarget, MESSAGE_CAP,
+            JournalEventsInteraction, JournalScopeGroup, JournalTarget, MESSAGE_CAP,
+            shown_while_alerting,
         },
         terminal_command::TerminalCommand,
     },
@@ -27,7 +28,7 @@ use crate::{
 
 const HOVER_CARD_ROWS: usize = 15;
 
-impl JournalEventsGroup {
+impl JournalScopeGroup {
     pub(super) fn kernel_log_item(
         &self,
         config: &Config,
@@ -117,11 +118,7 @@ impl GroupItemReading for Vec<KernelOccurrence> {
     }
 
     fn panel_visibility(&self) -> PanelVisibility {
-        if self.is_empty() {
-            PanelVisibility::Hidden
-        } else {
-            PanelVisibility::Shown
-        }
+        shown_while_alerting(self.iter().map(|occurrence| occurrence.severity))
     }
 }
 
@@ -136,6 +133,32 @@ mod tests {
 
     use super::*;
     use crate::hover_cards::hover_card_body::SectionBody;
+
+    fn kernel_occurrences_at(severities: &[Severity]) -> Vec<KernelOccurrence> {
+        KernelOccurrence::merged_oldest_first(
+            severities
+                .iter()
+                .enumerate()
+                .map(|(message_index, severity)| KernelEntry {
+                    at: SystemTime::UNIX_EPOCH,
+                    message: format!("message {message_index}"),
+                    severity: *severity,
+                })
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    #[test]
+    fn kernel_log_hidden_until_an_entry_reaches_warning() {
+        assert_eq!(
+            kernel_occurrences_at(&[Severity::Normal, Severity::Low]).panel_visibility(),
+            PanelVisibility::Hidden
+        );
+        assert_eq!(
+            kernel_occurrences_at(&[Severity::Normal, Severity::Warning]).panel_visibility(),
+            PanelVisibility::Shown
+        );
+    }
 
     #[test]
     fn hover_card_lists_latest_messages_oldest_first_after_a_hidden_notice() {

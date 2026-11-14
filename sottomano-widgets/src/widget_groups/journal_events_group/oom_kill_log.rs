@@ -13,7 +13,9 @@ use crate::{
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::{
-        journal_events_group::{JournalEventsGroup, JournalEventsInteraction, JournalTarget},
+        journal_events_group::{
+            JournalEventsInteraction, JournalScopeGroup, JournalTarget, shown_while_alerting,
+        },
         terminal_command::TerminalCommand,
     },
     widgets::{
@@ -42,19 +44,21 @@ impl IntoTableRecord<2> for &OomKillEntry {
     }
 }
 
-impl JournalEventsGroup {
+impl JournalScopeGroup {
     pub(super) fn oom_kill_log_item(
         &self,
         config: &Config,
     ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
         let kills = self.oom_kills.display()?;
-        Some(GroupItem::reading(kills, JournalTarget::OomKills).on_press(
-            TerminalCommand::JOURNAL_PRESS_HINT,
-            JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                config,
-                OomKillEntry::follow_log_args(),
-            )),
-        ))
+        Some(
+            GroupItem::reading(kills, JournalTarget::OomKills(self.unit_scope)).on_press(
+                TerminalCommand::JOURNAL_PRESS_HINT,
+                JournalEventsInteraction::OpenLog(TerminalCommand::journal(
+                    config,
+                    OomKillEntry::follow_log_args(),
+                )),
+            ),
+        )
     }
 }
 
@@ -94,10 +98,6 @@ impl GroupItemReading for Vec<OomKillEntry> {
     }
 
     fn panel_visibility(&self) -> PanelVisibility {
-        if self.is_empty() {
-            PanelVisibility::Hidden
-        } else {
-            PanelVisibility::Shown
-        }
+        shown_while_alerting(self.iter().map(|entry| entry.severity))
     }
 }
