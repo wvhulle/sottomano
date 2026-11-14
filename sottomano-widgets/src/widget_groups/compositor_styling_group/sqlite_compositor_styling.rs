@@ -6,7 +6,7 @@ use sottomano_desktop_sources::{
         AppWindowLayout, CompositorStyling, ShellBlurDepth,
     },
     sqlite_state_store::{
-        Columns, StoreError, in_state_store, real, upsert_column, with_state_store,
+        StoreError, in_state_store, real, singleton_row, upsert_column, with_state_store,
     },
 };
 
@@ -33,36 +33,33 @@ fn stored_pixels(pixels: f64) -> f32 {
 async fn read_layout(
     connection: &turso::Connection,
 ) -> Result<Option<AppWindowLayout>, StoreError> {
-    let mut rows = connection
-        .query(
-            "SELECT corner_radius_px, gaps_px FROM app_window_layout WHERE id = 0",
-            (),
-        )
-        .await?;
-    let columns = Columns::of(&rows);
-    let Some(row) = rows.next().await? else {
-        return Ok(None);
-    };
-    Ok(Some(AppWindowLayout {
-        window_corner_radius_px: stored_pixels(columns.real(&row, "corner_radius_px")?),
-        gaps_px: stored_pixels(columns.real(&row, "gaps_px")?),
-    }))
+    singleton_row(
+        connection,
+        "SELECT corner_radius_px, gaps_px FROM app_window_layout WHERE id = 0",
+        |columns, row| {
+            Ok(AppWindowLayout {
+                window_corner_radius_px: stored_pixels(columns.real(row, "corner_radius_px")?),
+                gaps_px: stored_pixels(columns.real(row, "gaps_px")?),
+            })
+        },
+    )
+    .await
 }
 
 async fn read_blur_depth(
     connection: &turso::Connection,
 ) -> Result<Option<ShellBlurDepth>, StoreError> {
-    let mut rows = connection
-        .query("SELECT depth FROM shell_blur_depth WHERE id = 0", ())
-        .await?;
-    let columns = Columns::of(&rows);
-    let Some(row) = rows.next().await? else {
-        return Ok(None);
-    };
-    Ok(Some(match columns.text(&row, "depth")?.as_str() {
-        WALLPAPER_ONLY => ShellBlurDepth::WallpaperOnly,
-        _ => ShellBlurDepth::WindowsBehind,
-    }))
+    singleton_row(
+        connection,
+        "SELECT depth FROM shell_blur_depth WHERE id = 0",
+        |columns, row| {
+            Ok(match columns.text(row, "depth")?.as_str() {
+                WALLPAPER_ONLY => ShellBlurDepth::WallpaperOnly,
+                _ => ShellBlurDepth::WindowsBehind,
+            })
+        },
+    )
+    .await
 }
 
 async fn read_styling(connection: &turso::Connection) -> Result<StoredStyling, StoreError> {

@@ -1,7 +1,7 @@
 use chrono::TimeDelta;
 use sottomano_desktop_sources::{
     screen_brightness_color::solar_switch_schedule::SunEventOffsets,
-    sqlite_state_store::{Columns, StoreError, flag, in_state_store, with_state_store},
+    sqlite_state_store::{StoreError, flag, in_state_store, singleton_row, with_state_store},
 };
 
 use crate::group_items::{
@@ -68,26 +68,24 @@ pub async fn save(schedule: DarkModeSchedule) -> Result<(), StoreError> {
 }
 
 async fn read_schedule(connection: &turso::Connection) -> Result<DarkModeSchedule, StoreError> {
-    let mut rows = connection
-        .query(
-            "SELECT armed, sunrise_offset, sunset_offset FROM dark_mode_schedule WHERE id = 0",
-            (),
-        )
-        .await?;
-    let columns = Columns::of(&rows);
-    let Some(row) = rows.next().await? else {
-        return Ok(DarkModeSchedule::default());
-    };
-    Ok(DarkModeSchedule {
-        auto_switch_arming: match columns.integer(&row, "armed")? {
-            0 => AutoSwitchArming::Disarmed,
-            _ => AutoSwitchArming::Armed,
+    let stored = singleton_row(
+        connection,
+        "SELECT armed, sunrise_offset, sunset_offset FROM dark_mode_schedule WHERE id = 0",
+        |columns, row| {
+            Ok(DarkModeSchedule {
+                auto_switch_arming: match columns.integer(row, "armed")? {
+                    0 => AutoSwitchArming::Disarmed,
+                    _ => AutoSwitchArming::Armed,
+                },
+                sun_event_offsets: SunEventOffsets {
+                    sunrise_offset: TimeDelta::seconds(columns.integer(row, "sunrise_offset")?),
+                    sunset_offset: TimeDelta::seconds(columns.integer(row, "sunset_offset")?),
+                },
+            })
         },
-        sun_event_offsets: SunEventOffsets {
-            sunrise_offset: TimeDelta::seconds(columns.integer(&row, "sunrise_offset")?),
-            sunset_offset: TimeDelta::seconds(columns.integer(&row, "sunset_offset")?),
-        },
-    })
+    )
+    .await?;
+    Ok(stored.unwrap_or_default())
 }
 
 async fn write_schedule(

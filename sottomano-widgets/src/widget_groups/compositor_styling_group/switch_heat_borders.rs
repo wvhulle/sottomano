@@ -2,20 +2,18 @@ use iced::Task;
 use sottomano_desktop_sinks::compositor_window_requests::compositor_rule_files::{
     CompositorRulesFile, RulesSaveError, SaveStep,
 };
-use sottomano_desktop_sources::{
-    compositor_window_ipc::compositor_styling_model::{
-        CompositorStyling, HeatedWindow, SwitchHeat,
-    },
-    sqlite_state_store::{
-        Columns, StoreError, flag, in_state_store, upsert_column, with_state_store,
-    },
+use sottomano_desktop_sources::compositor_window_ipc::compositor_styling_model::{
+    CompositorStyling, HeatedWindow, SwitchHeat,
 };
 use sottomano_toml_config::theme::palette::Palette;
 
 use crate::{
     background_work::logged_failure_task,
     group_items::toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
-    widget_groups::compositor_styling_group::CompositorStylingMessage,
+    widget_groups::{
+        compositor_styling_group::CompositorStylingMessage,
+        sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
+    },
     widgets::phosphor::{Phosphor, Weight},
 };
 
@@ -24,6 +22,12 @@ pub enum SwitchHeatVisibility {
     #[default]
     Shown,
     Hidden,
+}
+
+impl SingletonFlagState for SwitchHeatVisibility {
+    const STORED_FLAG: SingletonFlag = SingletonFlag::SwitchHeatBorders;
+    const STORED_AS_SET: Self = SwitchHeatVisibility::Shown;
+    const STORED_AS_CLEARED: Self = SwitchHeatVisibility::Hidden;
 }
 
 impl SwitchHeatVisibility {
@@ -52,7 +56,7 @@ pub(super) struct SwitchHeatBorders {
 impl SwitchHeatBorders {
     pub(super) fn load() -> Task<CompositorStylingMessage> {
         Task::perform(
-            load_visibility(),
+            sqlite_singleton_flag::load(SwitchHeatVisibility::default()),
             CompositorStylingMessage::SwitchHeatLoaded,
         )
     }
@@ -74,7 +78,7 @@ impl SwitchHeatBorders {
         self.heat_visibility = self.heat_visibility.toggled();
         logged_failure_task(
             "switch heat borders: save".to_owned(),
-            save_visibility(self.heat_visibility),
+            sqlite_singleton_flag::save(self.heat_visibility),
         )
     }
 
@@ -98,65 +102,5 @@ impl SwitchHeatBorders {
             SwitchHeatVisibility::Hidden => SwitchHeat::Hidden,
         };
         rules_file.reheat(styling, switch_heat)
-    }
-}
-
-async fn load_visibility() -> SwitchHeatVisibility {
-    with_state_store("switch heat borders: load failed", read_visibility)
-        .await
-        .unwrap_or_default()
-}
-
-async fn save_visibility(heat_visibility: SwitchHeatVisibility) -> Result<(), StoreError> {
-    in_state_store(async |connection| {
-        upsert_column(
-            connection,
-            "switch_heat_borders",
-            "shown",
-            flag(heat_visibility == SwitchHeatVisibility::Shown),
-        )
-        .await
-    })
-    .await
-}
-
-async fn read_visibility(
-    connection: &turso::Connection,
-) -> Result<SwitchHeatVisibility, StoreError> {
-    let mut rows = connection
-        .query("SELECT shown FROM switch_heat_borders WHERE id = 0", ())
-        .await?;
-    let columns = Columns::of(&rows);
-    let Some(row) = rows.next().await? else {
-        return Ok(SwitchHeatVisibility::default());
-    };
-    Ok(match columns.optional_integer(&row, "shown") {
-        Some(0) => SwitchHeatVisibility::Hidden,
-        Some(_) | None => SwitchHeatVisibility::Shown,
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use sottomano_desktop_sources::sqlite_state_store::{
-        flag, migrated_in_memory_store, upsert_column,
-    };
-
-    use super::{SwitchHeatVisibility, read_visibility};
-
-    #[tokio::test]
-    async fn borders_show_until_turned_off() {
-        let connection = migrated_in_memory_store().await;
-        assert_eq!(
-            read_visibility(&connection).await.unwrap(),
-            SwitchHeatVisibility::Shown
-        );
-        upsert_column(&connection, "switch_heat_borders", "shown", flag(false))
-            .await
-            .unwrap();
-        assert_eq!(
-            read_visibility(&connection).await.unwrap(),
-            SwitchHeatVisibility::Hidden
-        );
     }
 }

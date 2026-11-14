@@ -1,5 +1,5 @@
 use sottomano_desktop_sources::sqlite_state_store::{
-    Columns, StoreError, flag, in_state_store, with_state_store,
+    StoreError, flag, in_state_store, singleton_row, with_state_store,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -13,6 +13,7 @@ pub enum SingletonFlag {
     FrequentAppsHideOpen,
     CategoryAppsSortedByUsage,
     WindowTitlesCapped,
+    SwitchHeatBorders,
 }
 
 impl SingletonFlag {
@@ -27,6 +28,22 @@ impl SingletonFlag {
             Self::FrequentAppsHideOpen => "frequent_apps_hide_open",
             Self::CategoryAppsSortedByUsage => "category_apps_sorted_by_usage",
             Self::WindowTitlesCapped => "window_titles_capped",
+            Self::SwitchHeatBorders => "switch_heat_borders",
+        }
+    }
+
+    const fn column(self) -> &'static str {
+        match self {
+            Self::SwitchHeatBorders => "shown",
+            Self::NotificationSound
+            | Self::GlobalApplicationMenu
+            | Self::ToastSpatialLayout
+            | Self::WorkspacesInSidebar
+            | Self::AutoCollapseWorkspaces
+            | Self::WindowsGroupedByLocation
+            | Self::FrequentAppsHideOpen
+            | Self::CategoryAppsSortedByUsage
+            | Self::WindowTitlesCapped => "enabled",
         }
     }
 }
@@ -57,20 +74,22 @@ async fn read_flag<State: SingletonFlagState>(
     stored_flag: SingletonFlag,
     fallback: State,
 ) -> Result<State, StoreError> {
-    let mut rows = connection
-        .query(
-            format!("SELECT enabled FROM {} WHERE id = 0", stored_flag.table()),
-            (),
-        )
-        .await?;
-    let columns = Columns::of(&rows);
-    match rows.next().await? {
-        Some(row) => Ok(match columns.integer(&row, "enabled")? {
-            0 => State::STORED_AS_CLEARED,
-            _ => State::STORED_AS_SET,
-        }),
-        None => Ok(fallback),
-    }
+    let stored = singleton_row(
+        connection,
+        &format!(
+            "SELECT {} FROM {} WHERE id = 0",
+            stored_flag.column(),
+            stored_flag.table()
+        ),
+        |columns, row| {
+            Ok(match columns.integer(row, stored_flag.column())? {
+                0 => State::STORED_AS_CLEARED,
+                _ => State::STORED_AS_SET,
+            })
+        },
+    )
+    .await?;
+    Ok(stored.unwrap_or(fallback))
 }
 
 async fn write_flag<State: SingletonFlagState>(
@@ -81,9 +100,10 @@ async fn write_flag<State: SingletonFlagState>(
     connection
         .execute(
             format!(
-                "INSERT INTO {} (id, enabled) VALUES (0, ?1)
-                 ON CONFLICT(id) DO UPDATE SET enabled = ?1",
-                stored_flag.table()
+                "INSERT INTO {table} (id, {column}) VALUES (0, ?1)
+                 ON CONFLICT(id) DO UPDATE SET {column} = ?1",
+                table = stored_flag.table(),
+                column = stored_flag.column()
             ),
             (flag(flag_state == State::STORED_AS_SET),),
         )
@@ -97,7 +117,7 @@ mod tests {
 
     use super::{SingletonFlag, SingletonFlagState, read_flag, write_flag};
 
-    const ALL_FLAGS: [SingletonFlag; 9] = [
+    const ALL_FLAGS: [SingletonFlag; 10] = [
         SingletonFlag::NotificationSound,
         SingletonFlag::GlobalApplicationMenu,
         SingletonFlag::ToastSpatialLayout,
@@ -107,6 +127,7 @@ mod tests {
         SingletonFlag::FrequentAppsHideOpen,
         SingletonFlag::CategoryAppsSortedByUsage,
         SingletonFlag::WindowTitlesCapped,
+        SingletonFlag::SwitchHeatBorders,
     ];
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]

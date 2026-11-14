@@ -132,6 +132,19 @@ fn db_path() -> Option<PathBuf> {
 
 pub struct Columns(HashMap<String, usize>);
 
+pub async fn singleton_row<Read>(
+    connection: &turso::Connection,
+    query: &str,
+    read: impl FnOnce(&Columns, &turso::Row) -> Result<Read, StoreError>,
+) -> Result<Option<Read>, StoreError> {
+    let mut rows = connection.query(query, ()).await?;
+    let columns = Columns::of(&rows);
+    match rows.next().await? {
+        Some(row) => read(&columns, &row).map(Some),
+        None => Ok(None),
+    }
+}
+
 impl Columns {
     pub fn of(rows: &turso::Rows) -> Self {
         Self(
