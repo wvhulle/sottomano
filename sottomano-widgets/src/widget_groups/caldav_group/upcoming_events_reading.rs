@@ -1,13 +1,16 @@
-use std::num::NonZeroUsize;
+use std::{borrow::Cow, num::NonZeroUsize};
 
 use chrono::{DateTime, Local, Locale, NaiveDate};
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::caldav_tasks_events::{
-    agenda_moment_zones::AgendaMoment,
-    caldav_event_query::{EventPhase, UpcomingEvent},
-    caldav_server_provider::CaldavProvider,
-    caldav_upcoming_events::UpcomingEventList,
-    nextcloud_web_links::NextcloudWebRoot,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    caldav_tasks_events::{
+        agenda_moment_zones::AgendaMoment,
+        caldav_event_query::{EventPhase, UpcomingEvent},
+        caldav_server_provider::CaldavProvider,
+        caldav_upcoming_events::UpcomingEventList,
+        nextcloud_web_links::NextcloudWebRoot,
+    },
 };
 
 use crate::{
@@ -134,8 +137,8 @@ fn starts_label(start: AgendaMoment, now: DateTime<Local>, locale: Locale) -> St
 }
 
 impl GroupItemReading for UpcomingEventList {
-    fn name(&self) -> &'static str {
-        "Upcoming events"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

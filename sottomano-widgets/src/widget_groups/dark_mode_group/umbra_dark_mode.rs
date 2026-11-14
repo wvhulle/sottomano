@@ -1,8 +1,13 @@
+use std::borrow::Cow;
+
 use iced::futures::TryFutureExt;
 use sottomano_desktop_sinks::screen_brightness_color::umbra_mode_writes;
-use sottomano_desktop_sources::screen_brightness_color::{
-    solar_switch_schedule::ColorMode,
-    umbra_dark_mode::{DarkMode, DarkModeReadError},
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    screen_brightness_color::{
+        solar_switch_schedule::ColorMode,
+        umbra_dark_mode::{DarkMode, DarkModeReadError},
+    },
 };
 
 use crate::{
@@ -19,8 +24,8 @@ use crate::{
 };
 
 impl GroupItemReading for DarkMode {
-    fn name(&self) -> &'static str {
-        "Dark mode"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

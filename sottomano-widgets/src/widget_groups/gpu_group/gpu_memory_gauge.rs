@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_readings::{
     GpuMemory, GpuProcesses, SharedGpuMemory,
@@ -17,11 +19,11 @@ use crate::{
 };
 
 impl GroupItemReading for GpuMemory {
-    fn name(&self) -> &'static str {
-        match self {
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed(match self {
             GpuMemory::Dedicated(_) => "VRAM",
             GpuMemory::SharedWithSystem { .. } => "GPU memory",
-        }
+        })
     }
 
     fn icon(&self) -> IconGlyph {

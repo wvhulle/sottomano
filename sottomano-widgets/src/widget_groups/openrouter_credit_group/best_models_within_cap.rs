@@ -1,8 +1,9 @@
-use std::num::NonZeroUsize;
+use std::{borrow::Cow, num::NonZeroUsize};
 
 use chrono::Locale;
-use sottomano_desktop_sources::ai_usage_spend::openrouter_model_rankings::{
-    OpenRouterModelRankings, ScoredModel,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    ai_usage_spend::openrouter_model_rankings::{OpenRouterModelRankings, ScoredModel},
 };
 
 use crate::{
@@ -28,8 +29,8 @@ const OPENROUTER_RANKINGS_URL: &str = "https://openrouter.ai/rankings";
 const OPENROUTER_TOOL_MODELS_URL: &str = "https://openrouter.ai/models?supported_parameters=tools";
 
 impl GroupItemReading for OpenRouterModelRankings {
-    fn name(&self) -> &'static str {
-        "Best models within price cap"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

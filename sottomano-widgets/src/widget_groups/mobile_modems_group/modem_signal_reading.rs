@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use sottomano_desktop_sources::network_connectivity::{
     modem_manager_mobile::{Mobile, ModemState},
     network_manager_proxies::{DeviceLinkState, RadioPower},
@@ -46,8 +48,8 @@ pub fn modem_family_address(modem: &Mobile, family: AddressFamily) -> Option<&st
 }
 
 impl GroupItemReading for ModemSignalReading<'_> {
-    fn name(&self) -> &'static str {
-        "Signal"
+    fn name(&self) -> Cow<'static, str> {
+        "Signal".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -113,8 +115,8 @@ impl ModemConnectionSwitch<'_> {
 }
 
 impl GroupItemReading for ModemConnectionSwitch<'_> {
-    fn name(&self) -> &'static str {
-        "Connection"
+    fn name(&self) -> Cow<'static, str> {
+        "Connection".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -147,8 +149,8 @@ impl GroupItemReading for ModemConnectionSwitch<'_> {
 }
 
 impl GroupItemReading for ModemDataReading<'_> {
-    fn name(&self) -> &'static str {
-        "Mobile data"
+    fn name(&self) -> Cow<'static, str> {
+        "Mobile data".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -182,8 +184,8 @@ impl AllMobileRadiosSwitch {
 }
 
 impl GroupItemReading for AllMobileRadiosSwitch {
-    fn name(&self) -> &'static str {
-        "All mobile radios"
+    fn name(&self) -> Cow<'static, str> {
+        "All mobile radios".into()
     }
 
     fn icon(&self) -> IconGlyph {

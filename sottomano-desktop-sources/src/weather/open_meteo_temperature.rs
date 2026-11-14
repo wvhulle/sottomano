@@ -313,7 +313,7 @@ impl SnapshotSource for Temperature {
     type Error = Error;
     type StreamInputs = OnlineSourceInputs<GeoCoordinates>;
 
-    const NAME: &'static str = "Weather temperature";
+    const NAME: &'static str = "Temperature forecast";
 
     fn delivery_stream(
         OnlineSourceInputs {

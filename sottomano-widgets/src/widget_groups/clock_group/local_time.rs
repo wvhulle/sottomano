@@ -1,4 +1,4 @@
-use std::convert::Infallible;
+use std::{borrow::Cow, convert::Infallible};
 
 use chrono::Locale;
 use iced::futures::Stream;
@@ -34,8 +34,8 @@ impl SnapshotSource for LocalTime {
 }
 
 impl GroupItemReading for LocalTime {
-    fn name(&self) -> &'static str {
-        "Local time"
+    fn name(&self) -> Cow<'static, str> {
+        "Local time".into()
     }
 
     fn icon(&self) -> IconGlyph {

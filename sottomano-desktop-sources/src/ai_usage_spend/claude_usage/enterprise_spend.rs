@@ -133,7 +133,7 @@ impl SnapshotSource for ClaudeEnterpriseSpend {
     type Error = Error;
     type StreamInputs = OnlineSourceInputs<ClaudeEnterpriseAccount>;
 
-    const NAME: &'static str = "Claude enterprise spend";
+    const NAME: &'static str = "Enterprise credit spend";
 
     fn delivery_stream(
         OnlineSourceInputs {

@@ -1,5 +1,10 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
-use sottomano_desktop_sources::ai_usage_spend::copilot_usage::{CopilotFree, USER_ENDPOINT};
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    ai_usage_spend::copilot_usage::{CopilotFree, USER_ENDPOINT},
+};
 
 use crate::{
     clock::Clock,
@@ -17,8 +22,8 @@ use crate::{
 };
 
 impl GroupItemReading for CopilotFree {
-    fn name(&self) -> &'static str {
-        "Copilot free quota"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

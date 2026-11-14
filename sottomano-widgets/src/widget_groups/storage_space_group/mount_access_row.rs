@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::mounted_filesystem_usage::{
     FilesystemUsage, MountAccess,
@@ -26,8 +28,8 @@ fn access_text(access: MountAccess) -> &'static str {
 }
 
 impl GroupItemReading for MountAccessRow<'_> {
-    fn name(&self) -> &'static str {
-        "Mount"
+    fn name(&self) -> Cow<'static, str> {
+        "Mount".into()
     }
 
     fn icon(&self) -> IconGlyph {

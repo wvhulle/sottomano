@@ -1,8 +1,13 @@
+use std::borrow::Cow;
+
 use chrono::{DateTime, Locale, Utc};
 use rust_decimal::Decimal;
-use sottomano_desktop_sources::ai_usage_spend::{
-    ccusage_cli_reports::UsageActivity, copilot_usage::CopilotCcusage, spend_money::usd,
-    usage_quota::Quota,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    ai_usage_spend::{
+        ccusage_cli_reports::UsageActivity, copilot_usage::CopilotCcusage, spend_money::usd,
+        usage_quota::Quota,
+    },
 };
 
 use crate::{
@@ -24,8 +29,8 @@ use crate::{
 };
 
 impl GroupItemReading for CopilotCcusage {
-    fn name(&self) -> &'static str {
-        "Copilot CLI spend"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

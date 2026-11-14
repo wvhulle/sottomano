@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::cpu_memory_compute::temperature_thresholds::celsius_text;
 use uom::si::f64::ThermodynamicTemperature;
@@ -20,8 +22,8 @@ pub struct MemoryModuleTemperatureReading {
 }
 
 impl GroupItemReading for MemoryModuleTemperatureReading {
-    fn name(&self) -> &'static str {
-        "Memory module temperature"
+    fn name(&self) -> Cow<'static, str> {
+        format!("Module {}", self.bus_address).into()
     }
 
     fn icon(&self) -> IconGlyph {

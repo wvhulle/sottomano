@@ -174,11 +174,7 @@ struct InactiveDomainRow<'a> {
 }
 
 impl GroupItemReading for InactiveDomainRow<'_> {
-    fn name(&self) -> &'static str {
-        "Virtual machine"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.domain_name.to_owned().into()
     }
 
@@ -206,17 +202,16 @@ impl GroupItemReading for InactiveDomainRow<'_> {
 }
 
 impl GroupItemReading for VirtualMachineRow<'_> {
-    fn name(&self) -> &'static str {
-        "Virtual machine"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        match &self.machine.launch_context {
-            Some(launch_context) => {
-                format!("{} · {launch_context}", self.machine.launch.machine_name).into()
-            }
-            None => self.machine.launch.machine_name.clone().into(),
+    fn name(&self) -> Cow<'static, str> {
+        let machine = self.machine;
+        match &machine.launch_context {
+            Some(launch_context) => format!(
+                "{} from {launch_context} pid {}",
+                machine.launch.machine_name, machine.pid
+            ),
+            None => format!("{} pid {}", machine.launch.machine_name, machine.pid),
         }
+        .into()
     }
 
     fn icon(&self) -> IconGlyph {

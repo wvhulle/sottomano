@@ -75,11 +75,7 @@ struct UnreadableEngineRow<'a> {
 }
 
 impl GroupItemReading for UnreadableEngineRow<'_> {
-    fn name(&self) -> &'static str {
-        "Podman engine"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.engine.owner.to_string().into()
     }
 

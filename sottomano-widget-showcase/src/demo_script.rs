@@ -721,3 +721,30 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
 ];
+
+#[cfg(test)]
+mod tests {
+    use sottomano_toml_config::Config;
+    use sottomano_widgets::clock::Clock;
+
+    use super::DEMOS;
+
+    #[test]
+    fn every_demo_group_names_its_pinnable_items_apart_from_each_other_and_the_group() {
+        let config = Config::default();
+        let clock = Clock::real();
+        let clashes: Vec<(String, Vec<String>)> = DEMOS
+            .iter()
+            .flat_map(|demo| {
+                let showcased_group = (demo.group)(clock);
+                showcased_group
+                    .group_contents(&config, clock)
+                    .iter()
+                    .map(|group| (demo.name.to_owned(), group.clashing_item_names()))
+                    .filter(|(_, clashing_names)| !clashing_names.is_empty())
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        assert_eq!(clashes, Vec::new());
+    }
+}

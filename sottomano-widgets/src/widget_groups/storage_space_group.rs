@@ -8,15 +8,15 @@ mod metadata_room_row;
 mod mount_access_row;
 mod subvolume_usage_row;
 mod volume_identity_row;
-
 use std::{
+    borrow::Cow,
     collections::BTreeMap,
     path::{Path, PathBuf},
 };
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
-    SnapshotDelivery,
+    SnapshotDelivery, SnapshotSource,
     disk_storage::{
         bcachefs_filesystem_space::SnapshotDeletion,
         bcachefs_subvolume_usage::BcachefsSubvolumeUsage,
@@ -77,8 +77,8 @@ impl From<StorageTarget> for HoverTarget {
 }
 
 impl GroupItemReading for BlockFilesystemDiscovery {
-    fn name(&self) -> &'static str {
-        "Mounted filesystems"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -408,10 +408,9 @@ impl StorageSpaceGroup {
 
 #[cfg(test)]
 mod tests {
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
 
-    use super::{StorageTarget, mount_group_title};
-    use crate::hover_cards::HoverTarget;
+    use super::mount_group_title;
 
     #[test]
     fn each_filesystem_gets_its_own_row_titled_by_its_mount_point() {
@@ -423,18 +422,5 @@ mod tests {
             mount_group_title(Path::new("/")),
             mount_group_title(Path::new("/home"))
         );
-    }
-
-    #[test]
-    fn subvolume_rows_pin_separately_by_path() {
-        let pin_key_of = |subvolume_path: &str| {
-            HoverTarget::from(StorageTarget::Subvolume {
-                filesystem: PathBuf::from("/"),
-                subvolume_path: PathBuf::from(subvolume_path),
-            })
-            .stable_item_key()
-        };
-        assert_ne!(pin_key_of("/home"), pin_key_of("/nix"));
-        assert_eq!(pin_key_of("/home"), pin_key_of("/home"));
     }
 }

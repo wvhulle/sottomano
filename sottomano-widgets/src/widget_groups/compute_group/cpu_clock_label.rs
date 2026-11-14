@@ -1,6 +1,9 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
-use sottomano_desktop_sources::cpu_memory_compute::{
-    cpu_clock_frequency::CpuClock, cpu_core_loads::CpuCoreLoads,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    cpu_memory_compute::{cpu_clock_frequency::CpuClock, cpu_core_loads::CpuCoreLoads},
 };
 use uom::{
     fmt::DisplayStyle::Abbreviation,
@@ -28,8 +31,8 @@ fn frequency_text(frequency: Frequency) -> String {
 }
 
 impl GroupItemReading for CpuClock {
-    fn name(&self) -> &'static str {
-        "CPU clock"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

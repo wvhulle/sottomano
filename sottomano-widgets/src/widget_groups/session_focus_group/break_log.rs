@@ -1,4 +1,4 @@
-use std::num::NonZeroUsize;
+use std::{borrow::Cow, num::NonZeroUsize};
 
 use chrono::{DateTime, Local, Locale, Utc};
 use iced::alignment::Horizontal;
@@ -125,8 +125,8 @@ impl BreakLog<'_> {
 }
 
 impl GroupItemReading for BreakLog<'_> {
-    fn name(&self) -> &'static str {
-        "Breaks"
+    fn name(&self) -> Cow<'static, str> {
+        "Breaks".into()
     }
 
     fn icon(&self) -> IconGlyph {

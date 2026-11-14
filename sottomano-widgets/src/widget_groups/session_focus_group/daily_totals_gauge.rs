@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, iter::once};
+use std::{borrow::Cow, cmp::Ordering, iter::once};
 
 use chrono::{DateTime, Locale, TimeDelta, Utc};
 use sottomano_desktop_sources::{
@@ -162,8 +162,8 @@ impl DailyTotalsGauge {
 }
 
 impl GroupItemReading for DailyTotalsGauge {
-    fn name(&self) -> &'static str {
-        "Daily focus budget"
+    fn name(&self) -> Cow<'static, str> {
+        "Daily focus budget".into()
     }
 
     fn icon(&self) -> IconGlyph {

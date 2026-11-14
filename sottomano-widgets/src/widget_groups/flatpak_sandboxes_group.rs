@@ -58,12 +58,12 @@ pub struct FlatpakSandboxListingRow<'a> {
 }
 
 impl GroupItemReading for FlatpakSandboxListingRow<'_> {
-    fn name(&self) -> &'static str {
-        "Flatpak app"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        self.listing.application_id.clone().into()
+    fn name(&self) -> Cow<'static, str> {
+        format!(
+            "{} {}",
+            self.listing.application_id, self.listing.instance_id
+        )
+        .into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -91,12 +91,12 @@ pub struct FlatpakSandboxRow<'a> {
 }
 
 impl GroupItemReading for FlatpakSandboxRow<'_> {
-    fn name(&self) -> &'static str {
-        "Flatpak app"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        self.sandbox.application_id.clone().into()
+    fn name(&self) -> Cow<'static, str> {
+        format!(
+            "{} {}",
+            self.sandbox.application_id, self.sandbox.instance_id
+        )
+        .into()
     }
 
     fn icon(&self) -> IconGlyph {

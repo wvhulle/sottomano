@@ -62,12 +62,12 @@ struct StoppedVirtualBoxMachineRow<'a> {
 }
 
 impl GroupItemReading for StoppedVirtualBoxMachineRow<'_> {
-    fn name(&self) -> &'static str {
-        "VirtualBox machine"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        self.machine.machine_name.clone().into()
+    fn name(&self) -> Cow<'static, str> {
+        format!(
+            "{} {}",
+            self.machine.machine_name, self.machine.machine_uuid
+        )
+        .into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -101,12 +101,8 @@ struct VirtualBoxMachineListingRow<'a> {
 }
 
 impl GroupItemReading for VirtualBoxMachineListingRow<'_> {
-    fn name(&self) -> &'static str {
-        "VirtualBox machine"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        self.listing.machine_name.clone().into()
+    fn name(&self) -> Cow<'static, str> {
+        format!("{} pid {}", self.listing.machine_name, self.listing.pid).into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -135,12 +131,8 @@ struct VirtualBoxMachineRow<'a> {
 }
 
 impl GroupItemReading for VirtualBoxMachineRow<'_> {
-    fn name(&self) -> &'static str {
-        "VirtualBox machine"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        self.machine.machine_name.clone().into()
+    fn name(&self) -> Cow<'static, str> {
+        format!("{} pid {}", self.machine.machine_name, self.machine.pid).into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -403,11 +395,7 @@ impl VirtualBoxMachinesGroup {
 }
 
 impl GroupItemReading for VirtualBoxMachinesGroup {
-    fn name(&self) -> &'static str {
-        "VirtualBox machines"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         "VirtualBox machines".into()
     }
 

@@ -1,10 +1,16 @@
-use std::time::{Duration, Instant};
+use std::{
+    borrow::Cow,
+    time::{Duration, Instant},
+};
 
 use corredo::changing_text::KaraokeColors;
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::media_playback_audio::{
-    lrclib_synced_lyrics::{TimedLyricLine, TrackLyrics},
-    mpris_players::Media,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    media_playback_audio::{
+        lrclib_synced_lyrics::{TimedLyricLine, TrackLyrics},
+        mpris_players::Media,
+    },
 };
 use sottomano_toml_config::Config;
 
@@ -33,8 +39,8 @@ const LINES_BEFORE_CURRENT: usize = 2;
 const LINES_AFTER_CURRENT: usize = 3;
 
 impl GroupItemReading for TrackLyrics {
-    fn name(&self) -> &'static str {
-        "Lyrics"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

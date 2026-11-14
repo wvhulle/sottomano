@@ -1,5 +1,8 @@
-use sottomano_desktop_sources::weather::open_meteo_pollen::{
-    Allergen, AllergenConcentration, Pollen,
+use std::borrow::Cow;
+
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    weather::open_meteo_pollen::{Allergen, AllergenConcentration, Pollen},
 };
 use uom::si::{f64::Ratio, ratio::ratio};
 
@@ -61,8 +64,8 @@ impl ConcentrationThresholds {
 }
 
 impl GroupItemReading for AllergenConcentration {
-    fn name(&self) -> &'static str {
-        "Allergen"
+    fn name(&self) -> Cow<'static, str> {
+        self.allergen.name().into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -120,8 +123,8 @@ fn pollen_threshold(grains_per_cubic_metre: f64) -> Quantity {
 }
 
 impl GroupItemReading for Pollen {
-    fn name(&self) -> &'static str {
-        "Pollen"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

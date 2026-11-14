@@ -389,7 +389,7 @@ impl SnapshotSource for Wireguard {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "WireGuard";
+    const NAME: &'static str = "WireGuard tunnel list";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let signal_connection = buses.system.clone();

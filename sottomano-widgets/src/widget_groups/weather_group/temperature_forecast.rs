@@ -1,6 +1,11 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::weather::open_meteo_temperature::{HourlyTemperature, Temperature};
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    weather::open_meteo_temperature::{HourlyTemperature, Temperature},
+};
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius},
@@ -21,8 +26,8 @@ use crate::{
 };
 
 impl GroupItemReading for Temperature {
-    fn name(&self) -> &'static str {
-        "Temperature forecast"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

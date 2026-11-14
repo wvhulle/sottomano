@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::ext4_sysfs_counters::Ext4Counters;
 
@@ -18,8 +20,8 @@ pub(super) struct Ext4LifetimeWritesRow {
 }
 
 impl GroupItemReading for Ext4LifetimeWritesRow {
-    fn name(&self) -> &'static str {
-        "Writes"
+    fn name(&self) -> Cow<'static, str> {
+        "Writes".into()
     }
 
     fn icon(&self) -> IconGlyph {

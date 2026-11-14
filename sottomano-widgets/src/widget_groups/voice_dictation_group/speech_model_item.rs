@@ -1,5 +1,9 @@
+use std::borrow::Cow;
+
 use notulist_client::{DictationEngine, EngineState, ModelLoadError};
-use sottomano_desktop_sources::voice_dictation_input::notulist_dbus_engine::NotulistEngine;
+use sottomano_desktop_sources::{
+    SnapshotSource, voice_dictation_input::notulist_dbus_engine::NotulistEngine,
+};
 
 use crate::{
     clock::Clock,
@@ -19,8 +23,8 @@ use crate::{
 const HUGGING_FACE_SITE: &str = "https://huggingface.co";
 
 impl GroupItemReading for NotulistEngine {
-    fn name(&self) -> &'static str {
-        "Speech model"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

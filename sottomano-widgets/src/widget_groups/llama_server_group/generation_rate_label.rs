@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use uom::si::{f64::Frequency, frequency::hertz};
 
@@ -13,17 +15,20 @@ use crate::{
     },
 };
 
-pub struct GenerationRate(pub Frequency);
+pub struct GenerationRate<'a> {
+    pub rate: Frequency,
+    pub server: &'a str,
+}
 
-impl GenerationRate {
+impl GenerationRate<'_> {
     fn text(&self) -> String {
-        format!("{:.0} tok/s", self.0.get::<hertz>())
+        format!("{:.0} tok/s", self.rate.get::<hertz>())
     }
 }
 
-impl GroupItemReading for GenerationRate {
-    fn name(&self) -> &'static str {
-        "Generation rate"
+impl GroupItemReading for GenerationRate<'_> {
+    fn name(&self) -> Cow<'static, str> {
+        format!("{} generation rate", self.server).into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -41,7 +46,7 @@ impl GroupItemReading for GenerationRate {
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         HoverCardBody::dictionary([LabeledValue::new(
             "Decoding",
-            Quantity::measured(self.0.get::<hertz>(), DisplayUnit::TokensPerSecond, 0),
+            Quantity::measured(self.rate.get::<hertz>(), DisplayUnit::TokensPerSecond, 0),
         )])
     }
 }

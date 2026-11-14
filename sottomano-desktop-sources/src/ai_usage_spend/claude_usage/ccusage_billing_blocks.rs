@@ -44,7 +44,7 @@ impl SnapshotSource for ClaudeCcusagePeriods {
     type Error = Error;
     type StreamInputs = ClaudeLocalLogs;
 
-    const NAME: &'static str = "Claude Code local usage";
+    const NAME: &'static str = "API-priced spend";
 
     fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         local_log_readings(logs, SubscriptionCoverage::Uncovered, |logs| {
@@ -80,10 +80,10 @@ impl SnapshotSource for ClaudeCcusageBlock {
     type Error = Error;
     type StreamInputs = ClaudeLocalLogs;
 
-    const NAME: &'static str = "Claude Code billing block";
+    const NAME: &'static str = "5-hour block spend";
 
     fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        local_log_readings(logs, SubscriptionCoverage::Covered, |_| {
+        local_log_readings(logs, SubscriptionCoverage::Uncovered, |_| {
             SnapshotDelivery::live_push_deliveries((), |()| {
                 ready(Ok(ccusage_cli_reports::transcript_changes(
                     Agent::ClaudeCode,

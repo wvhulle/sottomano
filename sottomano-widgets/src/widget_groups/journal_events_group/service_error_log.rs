@@ -1,6 +1,9 @@
+use std::borrow::Cow;
+
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::systemd_units_journal::journal_service_errors::{
-    ServiceErrors, UnitErrors,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    systemd_units_journal::journal_service_errors::{ServiceErrors, UnitErrors},
 };
 use sottomano_toml_config::Config;
 
@@ -69,8 +72,8 @@ impl IntoTableRecord<3> for &UnitErrors {
 }
 
 impl GroupItemReading for ServiceErrors {
-    fn name(&self) -> &'static str {
-        "Service errors"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

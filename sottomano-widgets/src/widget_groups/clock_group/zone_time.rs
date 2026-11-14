@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, convert::Infallible};
+use std::{borrow::Cow, cmp::Ordering, convert::Infallible};
 
 use chrono::{DateTime, Locale, Offset, TimeDelta};
 use chrono_tz::Tz;
@@ -63,8 +63,8 @@ impl ZoneTime {
 }
 
 impl GroupItemReading for ZoneTime {
-    fn name(&self) -> &'static str {
-        "Zone time"
+    fn name(&self) -> Cow<'static, str> {
+        city_name(self.zone()).into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -72,11 +72,7 @@ impl GroupItemReading for ZoneTime {
     }
 
     fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
-        Some(format!(
-            "{} {}",
-            city_name(self.zone()),
-            LocalizedTimeFormat::TimeOfDay.format_in_own_zone(&self.there(clock), locale)
-        ))
+        Some(LocalizedTimeFormat::TimeOfDay.format_in_own_zone(&self.there(clock), locale))
     }
 
     fn hover_card(&self, clock: Clock) -> HoverCardBody {

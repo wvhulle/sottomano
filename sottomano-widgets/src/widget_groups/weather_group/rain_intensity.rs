@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     fmt::{Display, Formatter, Result as FmtResult},
     iter,
     sync::LazyLock,
@@ -6,10 +7,13 @@ use std::{
 
 use chrono::{DateTime, Local, Locale, NaiveDate, Timelike, Utc};
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::weather::{
-    buienradar_rain::{Downpour, Rain, RainOutlook, precipitation::millimeter_per_hour},
-    open_meteo_precipitation_model::{ModelQuarterHour, PrecipitationModel},
-    open_meteo_temperature::SkyWetness,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    weather::{
+        buienradar_rain::{Downpour, Rain, RainOutlook, precipitation::millimeter_per_hour},
+        open_meteo_precipitation_model::{ModelQuarterHour, PrecipitationModel},
+        open_meteo_temperature::SkyWetness,
+    },
 };
 use sottomano_toml_config::{severity::Severity, widget_groups::rain_alerts::RainAlertsConfig};
 use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
@@ -390,8 +394,8 @@ impl RainForecast<'_> {
 }
 
 impl GroupItemReading for RainForecast<'_> {
-    fn name(&self) -> &'static str {
-        "Rain"
+    fn name(&self) -> Cow<'static, str> {
+        "Rain".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -542,7 +546,7 @@ impl RadarRainForecast<'_> {
 }
 
 impl GroupItemReading for RadarRainForecast<'_> {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> Cow<'static, str> {
         self.rain.name()
     }
 
@@ -600,8 +604,8 @@ impl GroupItemReading for RadarRainForecast<'_> {
 }
 
 impl GroupItemReading for Rain {
-    fn name(&self) -> &'static str {
-        "Rain"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -638,8 +642,8 @@ impl GroupItemReading for Rain {
 }
 
 impl GroupItemReading for PrecipitationModel {
-    fn name(&self) -> &'static str {
-        "Precipitation model"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

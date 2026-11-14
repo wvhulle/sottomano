@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::{
     login_session_presence::logind_session_facts::SessionIdentity,
@@ -21,8 +23,8 @@ pub struct CompositorFace<'a> {
 }
 
 impl GroupItemReading for CompositorFace<'_> {
-    fn name(&self) -> &'static str {
-        "Compositor"
+    fn name(&self) -> Cow<'static, str> {
+        "Compositor".into()
     }
 
     fn icon(&self) -> IconGlyph {

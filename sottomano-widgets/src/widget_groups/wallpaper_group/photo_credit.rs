@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::wallpaper_place_article::Wallpaper;
 
@@ -21,8 +23,8 @@ pub struct Photo {
 }
 
 impl GroupItemReading for Photo {
-    fn name(&self) -> &'static str {
-        "Wallpaper photo"
+    fn name(&self) -> Cow<'static, str> {
+        "Wallpaper photo".into()
     }
 
     fn icon(&self) -> IconGlyph {

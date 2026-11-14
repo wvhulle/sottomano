@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::{DateTime, Locale, Utc};
 use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
     Accounting, LAST_DAY, LAST_HOUR,
@@ -106,8 +108,8 @@ impl ContextSwitchRate<'_> {
 }
 
 impl GroupItemReading for ContextSwitchRate<'_> {
-    fn name(&self) -> &'static str {
-        "Context switches"
+    fn name(&self) -> Cow<'static, str> {
+        "Context switches".into()
     }
 
     fn icon(&self) -> IconGlyph {

@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+};
 
 use chrono::Locale;
 use iced::alignment::Horizontal;
@@ -50,8 +53,8 @@ impl<'a> OwnNodeRow<'a> {
 }
 
 impl GroupItemReading for OwnNodeRow<'_> {
-    fn name(&self) -> &'static str {
-        "This machine"
+    fn name(&self) -> Cow<'static, str> {
+        "This machine".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -80,8 +83,8 @@ impl GroupItemReading for OwnNodeRow<'_> {
 pub(super) struct InboundAccessRow;
 
 impl GroupItemReading for InboundAccessRow {
-    fn name(&self) -> &'static str {
-        "Reachable from"
+    fn name(&self) -> Cow<'static, str> {
+        "Reachable from".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -96,8 +99,8 @@ impl GroupItemReading for InboundAccessRow {
 pub(super) struct PolicyFileRow;
 
 impl GroupItemReading for PolicyFileRow {
-    fn name(&self) -> &'static str {
-        "Policy file"
+    fn name(&self) -> Cow<'static, str> {
+        "Policy file".into()
     }
 
     fn icon(&self) -> IconGlyph {

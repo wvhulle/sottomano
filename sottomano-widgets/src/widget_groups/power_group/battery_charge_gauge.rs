@@ -1,5 +1,8 @@
-use sottomano_desktop_sources::battery_power_profiles::upower_battery_state::{
-    Battery, ChargeStatus,
+use std::borrow::Cow;
+
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    battery_power_profiles::upower_battery_state::{Battery, ChargeStatus},
 };
 use uom::si::{f64::Ratio, ratio::percent};
 
@@ -18,8 +21,8 @@ use crate::{
 };
 
 impl GroupItemReading for Battery {
-    fn name(&self) -> &'static str {
-        "Battery"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

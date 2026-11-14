@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use sottomano_desktop_sources::network_connectivity::tailscale_status::{
     ExitNodeOffer, ExitOfferControl, Tailnet,
 };
@@ -31,8 +33,8 @@ pub(super) struct ExitOfferRow<'a> {
 }
 
 impl GroupItemReading for ExitOfferRow<'_> {
-    fn name(&self) -> &'static str {
-        "Offer as exit node"
+    fn name(&self) -> Cow<'static, str> {
+        "Offer as exit node".into()
     }
 
     fn icon(&self) -> IconGlyph {

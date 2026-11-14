@@ -17,7 +17,7 @@ pub enum StoredGroupMenuPin {
         menu_topic: String,
         group_family: String,
         group_instance: String,
-        item_key: String,
+        item_in_group_name: String,
     },
 }
 
@@ -61,7 +61,7 @@ async fn read_pins(
             menu_topic: item_columns.text(&row, "menu_topic")?,
             group_family: item_columns.text(&row, "group_family")?,
             group_instance: item_columns.text(&row, "group_instance")?,
-            item_key: item_columns.text(&row, "item_key")?,
+            item_in_group_name: item_columns.text(&row, "item_key")?,
         });
     }
     Ok(pins)
@@ -103,7 +103,7 @@ async fn write_pin(
             menu_topic,
             group_family,
             group_instance,
-            item_key,
+            item_in_group_name,
         } => {
             let statement = match pin_state {
                 MenuPinState::Pinned => {
@@ -122,7 +122,7 @@ async fn write_pin(
                         menu_topic.as_str(),
                         group_family.as_str(),
                         group_instance.as_str(),
-                        item_key.as_str(),
+                        item_in_group_name.as_str(),
                     ),
                 )
                 .await?;
@@ -150,7 +150,7 @@ mod tests {
             menu_topic: "hardware".to_owned(),
             group_family: "gpu".to_owned(),
             group_instance: String::new(),
-            item_key: "gpu_load".to_owned(),
+            item_in_group_name: "gpu_load".to_owned(),
         }
     }
 

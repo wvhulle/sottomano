@@ -91,18 +91,25 @@ pub(crate) fn container_switch_task<Message: Send + 'static>(
     .and_then(move |refusal| Task::done(refused(refusal)))
 }
 
+pub(crate) fn engine_container_name(
+    container_name: &str,
+    owner: &EngineOwner,
+) -> Cow<'static, str> {
+    match owner {
+        EngineOwner::YourUser => container_name.to_owned().into(),
+        EngineOwner::Root => format!("{container_name} as root").into(),
+        EngineOwner::ServiceUser(user_name) => format!("{container_name} as {user_name}").into(),
+    }
+}
+
 pub(crate) struct RunningContainerRow<'a> {
     pub(crate) container: &'a RunningContainer,
     pub(crate) owner: &'a EngineOwner,
 }
 
 impl GroupItemReading for RunningContainerRow<'_> {
-    fn name(&self) -> &'static str {
-        "Container"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        self.container.shown_name.clone().into()
+    fn name(&self) -> Cow<'static, str> {
+        engine_container_name(&self.container.container_name, self.owner)
     }
 
     fn icon(&self) -> IconGlyph {
@@ -145,12 +152,8 @@ pub(crate) struct StoppedContainerRow<'a> {
 }
 
 impl GroupItemReading for StoppedContainerRow<'_> {
-    fn name(&self) -> &'static str {
-        "Container"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        self.container.shown_name.clone().into()
+    fn name(&self) -> Cow<'static, str> {
+        engine_container_name(&self.container.container_name, self.owner)
     }
 
     fn icon(&self) -> IconGlyph {
@@ -181,11 +184,7 @@ pub(crate) struct HiddenContainersRow {
 }
 
 impl GroupItemReading for HiddenContainersRow {
-    fn name(&self) -> &'static str {
-        "More containers"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         format!("{} more", self.hidden_count).into()
     }
 
@@ -341,6 +340,6 @@ mod tests {
     #[test]
     fn the_hidden_row_counts_what_it_replaces() {
         let hidden = HiddenContainersRow { hidden_count: 4 };
-        assert_eq!(hidden.menu_row_name(), "4 more");
+        assert_eq!(hidden.name(), "4 more");
     }
 }

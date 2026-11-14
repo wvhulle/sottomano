@@ -209,7 +209,7 @@ impl SnapshotSource for UpcomingEventList {
     type Error = Error;
     type StreamInputs = OnlineSourceInputs<CaldavAccount>;
 
-    const NAME: &'static str = "CalDAV events";
+    const NAME: &'static str = "Upcoming events";
 
     fn delivery_stream(
         account: Self::StreamInputs,

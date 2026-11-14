@@ -166,7 +166,7 @@ impl SnapshotSource for OpenRouterModelRankings {
     type Error = Error;
     type StreamInputs = OnlineSourceInputs<ModelRankingInputs>;
 
-    const NAME: &'static str = "OpenRouter model rankings";
+    const NAME: &'static str = "Best models within price cap";
 
     fn delivery_stream(
         OnlineSourceInputs {

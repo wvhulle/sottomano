@@ -1,10 +1,12 @@
+use std::borrow::Cow;
+
 use crate::{
     group_items::{toggle_control::SwitchPresses, unit_switch::UnitSwitchFace},
     widgets::phosphor::{Phosphor, Weight},
 };
 
 pub const SUN_FOLLOW: UnitSwitchFace = UnitSwitchFace {
-    name: "Sun follow",
+    name: Cow::Borrowed("Sun follow"),
     icon: Phosphor::SunHorizon(Weight::Regular),
     presses: SwitchPresses {
         turning_on: "warm the screen at sunset and cool it at sunrise again",

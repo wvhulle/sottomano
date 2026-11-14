@@ -7,6 +7,8 @@ mod runtime_configuration_item;
 mod speech_model_item;
 mod speech_runtime_sections;
 
+use std::borrow::Cow;
+
 use iced::{Subscription, Task};
 use notulist_client::{DictationCommand, DictationEngine, DictationPhase, EngineState};
 use sottomano_desktop_sinks::voice_dictation_input::notulist_dictation_commands::send_logged_dictation_command;
@@ -56,7 +58,7 @@ use crate::{
 const DICTATION_UNIT: &str = "notulist.service";
 
 const SPEECH_RUNTIME: UnitSwitchFace = UnitSwitchFace {
-    name: "Speech runtime",
+    name: Cow::Borrowed("Speech runtime"),
     icon: Phosphor::Engine(Weight::Regular),
     presses: SwitchPresses {
         turning_on: "load the speech model and the input method so dictation can start",

@@ -24,7 +24,7 @@ use crate::{
     group_items::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
-        unit_switch::{ServiceReadiness, UnitSwitch, UnitSwitchMessage},
+        unit_switch::{ServiceReadiness, UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
     hover_cards::hover_card_body::{
         HoverCardBody, Section,
@@ -37,15 +37,32 @@ use crate::{
 };
 
 struct ServerReadings {
+    server_label: String,
     discovered: LlamaServerUnit,
     switch: UnitSwitch,
     server: LatestSnapshot<LlamaServer, HidesFetchFailures>,
 }
 
 impl ServerReadings {
-    fn new(discovered: LlamaServerUnit) -> Self {
+    fn new(scope: SystemdUnitScope, discovered: LlamaServerUnit) -> Self {
+        let unit_stem = discovered
+            .unit
+            .unit_name
+            .trim_end_matches(".service")
+            .to_owned();
+        let server_label = match scope {
+            SystemdUnitScope::UserSession => unit_stem,
+            SystemdUnitScope::SystemWide => format!("system {unit_stem}"),
+        };
         Self {
-            switch: UnitSwitch::new(discovered.unit.clone(), SERVER_SWITCH),
+            switch: UnitSwitch::new(
+                discovered.unit.clone(),
+                UnitSwitchFace {
+                    name: server_label.clone().into(),
+                    ..SERVER_SWITCH
+                },
+            ),
+            server_label,
             discovered,
             server: LatestSnapshot::default(),
         }
@@ -122,7 +139,7 @@ impl ScopedLlamaServers {
                 let readings = previous
                     .remove(&discovered.unit.unit_name)
                     .filter(|readings| readings.discovered == discovered)
-                    .unwrap_or_else(|| ServerReadings::new(discovered));
+                    .unwrap_or_else(|| ServerReadings::new(self.scope, discovered));
                 (readings.discovered.unit.unit_name.clone(), readings)
             })
             .collect();
@@ -239,14 +256,24 @@ impl ScopedLlamaServers {
                         .with_groups(model_groups),
                 )
             }
-            LlamaServerReading::GenerationRate => {
-                reading.hover_card_with(GenerationRate(server?.generation_rate?).hover_card(clock))
-            }
-            LlamaServerReading::Slots => {
-                reading.hover_card_with(SlotOccupancy(&server?.slots).hover_card(clock))
-            }
-            LlamaServerReading::ContextFill => reading
-                .hover_card_with(ContextFill::of_busy_slots(&server?.slots)?.hover_card(clock)),
+            LlamaServerReading::GenerationRate => reading.hover_card_with(
+                GenerationRate {
+                    rate: server?.generation_rate?,
+                    server: &readings.server_label,
+                }
+                .hover_card(clock),
+            ),
+            LlamaServerReading::Slots => reading.hover_card_with(
+                SlotOccupancy {
+                    slots: &server?.slots,
+                    server: &readings.server_label,
+                }
+                .hover_card(clock),
+            ),
+            LlamaServerReading::ContextFill => reading.hover_card_with(
+                ContextFill::of_busy_slots(&server?.slots, &readings.server_label)?
+                    .hover_card(clock),
+            ),
         }
     }
 
@@ -256,6 +283,7 @@ impl ScopedLlamaServers {
     ) -> impl Iterator<Item = GroupItem<'a, M>> + 'a {
         self.servers.values().flat_map(move |readings| {
             let unit = &readings.discovered.unit.unit_name;
+            let server_label = readings.server_label.as_str();
             let target = |reading| LlamaServerTarget {
                 bus: self.scope.bus(),
                 unit: unit.clone(),
@@ -269,7 +297,10 @@ impl ScopedLlamaServers {
                 running.map(|server| {
                     let resident = server.resident_model();
                     let model_item = GroupItem::reading(
-                        ServedModel { resident },
+                        ServedModel {
+                            resident,
+                            server: server_label,
+                        },
                         target(LlamaServerReading::Model),
                     );
                     match resident {
@@ -279,7 +310,10 @@ impl ScopedLlamaServers {
                 }),
                 busy.and_then(|server| server.generation_rate).map(|rate| {
                     GroupItem::reading(
-                        GenerationRate(rate),
+                        GenerationRate {
+                            rate,
+                            server: server_label,
+                        },
                         target(LlamaServerReading::GenerationRate),
                     )
                 }),
@@ -287,11 +321,14 @@ impl ScopedLlamaServers {
                     .filter(|server| !server.slots.is_empty())
                     .map(|server| {
                         GroupItem::reading(
-                            SlotOccupancy(&server.slots),
+                            SlotOccupancy {
+                                slots: &server.slots,
+                                server: server_label,
+                            },
                             target(LlamaServerReading::Slots),
                         )
                     }),
-                busy.and_then(|server| ContextFill::of_busy_slots(&server.slots))
+                busy.and_then(|server| ContextFill::of_busy_slots(&server.slots, server_label))
                     .map(|fill| GroupItem::reading(fill, target(LlamaServerReading::ContextFill))),
                 readings.switch.group_item(
                     readings

@@ -27,7 +27,7 @@ use crate::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
-            MenuParts, RowScroll,
+            ItemPinning, MenuParts, RowScroll,
         },
         group_item_gestures::GroupItemGestures,
         group_item_reading::GroupItemReading,
@@ -311,8 +311,8 @@ pub(crate) struct GroupMenuRowParts<'a, M> {
 
 pub(crate) enum GroupItemPin {
     Unpinnable,
-    Unpinned(String),
-    Pinned(String),
+    Unpinned,
+    Pinned,
 }
 
 pub(crate) struct GroupMenuItemRow<'a, M> {
@@ -386,6 +386,18 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         }
     }
 
+    #[must_use]
+    pub fn clashing_item_names(&self) -> Vec<String> {
+        let group_title = self.group_title.to_string();
+        let mut seen_names = BTreeSet::new();
+        self.items
+            .iter()
+            .filter(|item| item.pinning() == ItemPinning::Pinnable)
+            .map(|item| item.item_in_group_name().into_owned())
+            .filter(|item_name| *item_name == group_title || !seen_names.insert(item_name.clone()))
+            .collect()
+    }
+
     pub(crate) fn panel_raises(
         &self,
         menu: GroupMenuTopic,
@@ -395,11 +407,11 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         self.items
             .iter()
             .filter(|item| item.shown_from(promotion_severity, clock))
-            .filter_map(GroupItem::pinnable_key)
-            .map(|item_key| PanelRaise {
+            .filter(|item| item.pinning() == ItemPinning::Pinnable)
+            .map(|item| PanelRaise {
                 menu,
                 group: self.group_identity.clone(),
-                item_key,
+                item_in_group_name: item.item_in_group_name().into_owned(),
             })
             .collect()
     }
@@ -537,10 +549,13 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         items
             .into_iter()
             .filter_map(|item| {
-                let item_key = item.pinnable_key()?;
+                if item.pinning() == ItemPinning::Unpinnable {
+                    return None;
+                }
+                let item_in_group_name = item.item_in_group_name().into_owned();
                 let entry = GroupMenuPin::Item {
                     group: group_identity.clone(),
-                    item_key: item_key.clone(),
+                    item_in_group_name: item_in_group_name.clone(),
                 };
                 let pin_duration = match group_menus.pin_state(menu, entry.clone()) {
                     MenuPinState::Pinned => PanelPinDuration::Permanent,
@@ -560,7 +575,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 .pinned_by(PanelPinOrigin::ItemPinnedFrom {
                     menu,
                     group: Box::new(group_identity.clone()),
-                    item_key,
+                    item_in_group_name,
                     pin_duration,
                 });
                 let item = item.acting_as_handle(pinned_announcement);
@@ -607,12 +622,18 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             .iter()
             .filter(|item| item.alignment() == ItemAlignment::Unaligned)
             .map(|item| GroupMenuItemRow {
-                name: item.menu_name(),
-                pin: match item.pinned_item_key(&group_identity, group_menus, menu) {
-                    Some(pinned_key) => GroupItemPin::Pinned(pinned_key),
-                    None => match item.pinnable_key() {
-                        Some(unpinned_key) => GroupItemPin::Unpinned(unpinned_key),
-                        None => GroupItemPin::Unpinnable,
+                name: item.item_in_group_name(),
+                pin: match item.pinning() {
+                    ItemPinning::Unpinnable => GroupItemPin::Unpinnable,
+                    ItemPinning::Pinnable => match group_menus.pin_state(
+                        menu,
+                        GroupMenuPin::Item {
+                            group: group_identity.clone(),
+                            item_in_group_name: item.item_in_group_name().into_owned(),
+                        },
+                    ) {
+                        MenuPinState::Pinned => GroupItemPin::Pinned,
+                        MenuPinState::Unpinned => GroupItemPin::Unpinned,
                     },
                 },
                 inspected_target: item.inspected_target().clone(),
@@ -885,6 +906,8 @@ fn revealed_content<'a, Message: 'a>(
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
+
     use sottomano_toml_config::severity::Severity;
 
     use super::{WidgetGroupContent, WidgetGroupExpansion};
@@ -906,8 +929,8 @@ mod tests {
     struct ShownStateReading(ReadingDisplayState);
 
     impl GroupItemReading for ShownStateReading {
-        fn name(&self) -> &'static str {
-            "Shown state reading"
+        fn name(&self) -> Cow<'static, str> {
+            "Shown state reading".into()
         }
 
         fn icon(&self) -> IconGlyph {
@@ -947,7 +970,7 @@ mod tests {
             vec![PanelRaise {
                 menu: GroupMenuTopic::Media,
                 group: WidgetGroupIdentity::sole(WidgetGroupFamily::Weather),
-                item_key: HoverTarget::Workspace(7).stable_item_key(),
+                item_in_group_name: "Shown state reading".to_owned(),
             }]
         );
     }

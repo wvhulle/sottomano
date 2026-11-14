@@ -1,5 +1,8 @@
-use sottomano_desktop_sources::disk_storage::disk_io_activity::{
-    DiskActivity, DiskTransfer, DiskTransferDirection,
+use std::borrow::Cow;
+
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    disk_storage::disk_io_activity::{DiskActivity, DiskTransfer, DiskTransferDirection},
 };
 use uom::si::{
     f64::{InformationRate, Ratio},
@@ -30,11 +33,11 @@ fn background_rate() -> InformationRate {
 }
 
 impl GroupItemReading for DiskTransfer {
-    fn name(&self) -> &'static str {
-        match self.direction {
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed(match self.direction {
             DiskTransferDirection::Read => "Disk reads",
             DiskTransferDirection::Write => "Disk writes",
-        }
+        })
     }
 
     fn icon(&self) -> IconGlyph {
@@ -80,8 +83,8 @@ impl GroupItemReading for DiskTransfer {
 }
 
 impl GroupItemReading for DiskActivity {
-    fn name(&self) -> &'static str {
-        "Disk activity"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

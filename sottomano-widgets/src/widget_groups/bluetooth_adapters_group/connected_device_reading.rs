@@ -1,4 +1,4 @@
-use std::iter::once;
+use std::{borrow::Cow, iter::once};
 
 use chrono::Locale;
 use sottomano_desktop_sources::{
@@ -175,8 +175,8 @@ impl ConnectedDeviceReading<'_> {
 }
 
 impl GroupItemReading for ConnectedDeviceReading<'_> {
-    fn name(&self) -> &'static str {
-        "Bluetooth device"
+    fn name(&self) -> Cow<'static, str> {
+        format!("{} {}", self.device.name, self.device.address).into()
     }
 
     fn icon(&self) -> IconGlyph {

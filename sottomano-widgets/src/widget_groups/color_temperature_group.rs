@@ -96,7 +96,7 @@ impl ColorTemperatureGroup {
             .scroll_step(DIM_STEP)
             .readout(|value, _| format!("{}%", as_percent(value))),
             warmth: SliderControl::new(
-                "Color temperature",
+                "Warmth",
                 WARMTH_RANGE,
                 ColorTemperatureTarget::Temperature,
                 Phosphor::ThermometerSimple(Weight::Regular),

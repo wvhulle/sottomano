@@ -5,8 +5,8 @@ mod controller_link_reading;
 mod diagram_anchor_mapping;
 mod sqlite_compositor_driving_controllers;
 mod usb_cable_reading;
-
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     iter::once,
 };
@@ -96,20 +96,6 @@ pub enum GamepadTarget {
     ControllerDiscovery,
 }
 
-impl GamepadTarget {
-    #[must_use]
-    pub const fn stable_item_name(&self) -> &'static str {
-        match self {
-            GamepadTarget::Controller { .. } => "controller",
-            GamepadTarget::Battery { .. } => "battery",
-            GamepadTarget::Link { .. } => "link",
-            GamepadTarget::UsbCable { .. } => "usb_cable",
-            GamepadTarget::CompositorDriving { .. } => "compositor_driving",
-            GamepadTarget::ControllerDiscovery => "controller_discovery",
-        }
-    }
-}
-
 impl From<GamepadTarget> for HoverTarget {
     fn from(target: GamepadTarget) -> Self {
         HoverTarget::Gamepad(target)
@@ -153,8 +139,8 @@ struct ControllerDiscoveryFailureReading<'failure> {
 }
 
 impl GroupItemReading for ControllerDiscoveryFailureReading<'_> {
-    fn name(&self) -> &'static str {
-        "Controller discovery"
+    fn name(&self) -> Cow<'static, str> {
+        "Controller discovery".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -688,7 +674,7 @@ impl GamepadGroup {
         let failure_reading = self.controller_discovery_failure_reading()?;
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::Gamepad, CONTROLLER_DISCOVERY_GROUP),
-            WidgetGroupTitle::Named(failure_reading.name().into()),
+            WidgetGroupTitle::Named(failure_reading.name()),
             &self.controller_discovery_expansion,
             GamepadInteraction::ControllerDiscoveryExpansion,
             [GroupItem::reading(
@@ -1215,13 +1201,5 @@ mod tests {
                 .map(ToString::to_string)
                 .collect();
         assert_eq!(titles, ["DualSense", "Xbox", "DualSense 2"]);
-    }
-
-    #[test]
-    fn a_controller_item_name_ignores_its_slot() {
-        assert_eq!(
-            GamepadTarget::Battery { slot: 0 }.stable_item_name(),
-            GamepadTarget::Battery { slot: 3 }.stable_item_name()
-        );
     }
 }

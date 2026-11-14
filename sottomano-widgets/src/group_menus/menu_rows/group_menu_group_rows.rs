@@ -175,29 +175,21 @@ pub(crate) fn item_entry<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     let emphasis = NestedMenuRowEmphasis::from(
         item.inspection(layout.group_menus.inspected_target(layout.menu.topic)),
     );
-    let pin_button = |pin_weight, pin_color: fn(&iced::Theme) -> iced::Color, item_key| {
+    let pin_button = |pin_weight, pin_color: fn(&iced::Theme) -> iced::Color| {
         glyph_button(
             Phosphor::PushPin(pin_weight),
             layout.config.theme.font.icon_size_px,
             pin_color,
             layout.menu.toggle_pin(GroupMenuPin::Item {
                 group: group.clone(),
-                item_key,
+                item_in_group_name: item.name.to_string(),
             }),
         )
     };
     let item_pin = match item.pin {
         GroupItemPin::Unpinnable => None,
-        GroupItemPin::Unpinned(item_key) => Some(pin_button(
-            Weight::Regular,
-            trailing_glyph_color(emphasis),
-            item_key,
-        )),
-        GroupItemPin::Pinned(item_key) => Some(pin_button(
-            Weight::Fill,
-            pinned_glyph_color(emphasis),
-            item_key,
-        )),
+        GroupItemPin::Unpinned => Some(pin_button(Weight::Regular, trailing_glyph_color(emphasis))),
+        GroupItemPin::Pinned => Some(pin_button(Weight::Fill, pinned_glyph_color(emphasis))),
     };
     let content = menu_row_content(
         layout.config,

@@ -289,7 +289,7 @@ impl SnapshotSource for Tailscale {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "Tailscale";
+    const NAME: &'static str = "Tailnet connection";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(shell_command_output::program_availability("tailscale")).while_available(

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use rust_decimal::{Decimal, prelude::ToPrimitive};
 use sottomano_desktop_sources::ai_usage_spend::{
@@ -126,8 +128,8 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
 pub struct MostUsedModel<'a, const SPANS: usize>(pub ModelSpendRanking<'a, SPANS>);
 
 impl<const SPANS: usize> GroupItemReading for MostUsedModel<'_, SPANS> {
-    fn name(&self) -> &'static str {
-        "Most used model"
+    fn name(&self) -> Cow<'static, str> {
+        "Most used model".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -150,8 +152,8 @@ impl<const SPANS: usize> GroupItemReading for MostUsedModel<'_, SPANS> {
 pub struct MostUsedModelSpend<'a, const SPANS: usize>(pub ModelSpendRanking<'a, SPANS>);
 
 impl<const SPANS: usize> GroupItemReading for MostUsedModelSpend<'_, SPANS> {
-    fn name(&self) -> &'static str {
-        "Most used model spend"
+    fn name(&self) -> Cow<'static, str> {
+        "Most used model spend".into()
     }
 
     fn icon(&self) -> IconGlyph {

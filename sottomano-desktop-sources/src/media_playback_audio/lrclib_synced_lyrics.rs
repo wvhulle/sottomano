@@ -433,7 +433,7 @@ impl SnapshotSource for TrackLyrics {
     type Error = http_json_client::Error;
     type StreamInputs = OnlineSourceInputs<LyricsQuery>;
 
-    const NAME: &'static str = "On LRCLIB";
+    const NAME: &'static str = "Lyrics";
 
     fn delivery_stream(
         OnlineSourceInputs {

@@ -1,6 +1,10 @@
+use std::borrow::Cow;
+
 use bytesize::ByteSize;
 use chrono::Locale;
-use sottomano_desktop_sources::disk_storage::mounted_filesystem_usage::FilesystemUsage;
+use sottomano_desktop_sources::{
+    SnapshotSource, disk_storage::mounted_filesystem_usage::FilesystemUsage,
+};
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 
@@ -41,8 +45,8 @@ fn free_space_severity(usage: &FilesystemUsage) -> Severity {
 }
 
 impl GroupItemReading for FilesystemUsage {
-    fn name(&self) -> &'static str {
-        "Disk usage"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -76,8 +80,8 @@ impl GroupItemReading for FilesystemUsage {
 pub(super) struct SnapshotDeletionRow;
 
 impl GroupItemReading for SnapshotDeletionRow {
-    fn name(&self) -> &'static str {
-        "Snapshot deletion"
+    fn name(&self) -> Cow<'static, str> {
+        "Snapshot deletion".into()
     }
 
     fn icon(&self) -> IconGlyph {

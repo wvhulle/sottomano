@@ -1,7 +1,12 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::systemd_units_journal::journal_previous_shutdown::{
-    JobResult, LastShutdown, StopOutcome, UnitStop,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    systemd_units_journal::journal_previous_shutdown::{
+        JobResult, LastShutdown, StopOutcome, UnitStop,
+    },
 };
 
 use crate::{
@@ -41,8 +46,8 @@ impl IntoTableRecord<2> for &UnitStop {
 }
 
 impl GroupItemReading for LastShutdown {
-    fn name(&self) -> &'static str {
-        "Last shutdown"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

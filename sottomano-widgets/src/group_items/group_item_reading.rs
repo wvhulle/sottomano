@@ -32,11 +32,7 @@ pub enum PanelVisibility {
 }
 
 pub trait GroupItemReading {
-    fn name(&self) -> &'static str;
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        self.name().into()
-    }
+    fn name(&self) -> Cow<'static, str>;
 
     fn icon(&self) -> IconGlyph;
 
@@ -101,11 +97,7 @@ pub fn state_weighted_icon(reading: &(impl GroupItemReading + ?Sized), clock: Cl
 }
 
 impl<ForwardedReading: GroupItemReading + ?Sized> GroupItemReading for &ForwardedReading {
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        (**self).menu_row_name()
-    }
-
-    fn name(&self) -> &'static str {
+    fn name(&self) -> Cow<'static, str> {
         (**self).name()
     }
 
@@ -167,8 +159,8 @@ pub(crate) struct NamedTestReading(pub &'static str);
 
 #[cfg(test)]
 impl GroupItemReading for NamedTestReading {
-    fn name(&self) -> &'static str {
-        self.0
+    fn name(&self) -> Cow<'static, str> {
+        self.0.into()
     }
 
     fn icon(&self) -> IconGlyph {

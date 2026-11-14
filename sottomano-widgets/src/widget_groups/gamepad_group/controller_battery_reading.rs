@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::gamepad_controller_input::evdev_gamepad_devices::GamepadPower;
 use sottomano_toml_config::severity::Severity;
@@ -42,8 +44,8 @@ impl ControllerBatteryReading {
 }
 
 impl GroupItemReading for ControllerBatteryReading {
-    fn name(&self) -> &'static str {
-        "Controller battery"
+    fn name(&self) -> Cow<'static, str> {
+        "Controller battery".into()
     }
 
     fn icon(&self) -> IconGlyph {

@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     fmt::Debug,
     future::{Future, ready},
 };
@@ -259,8 +260,8 @@ fn switchable_item<'a, Family: ContainerFamily, Reading: GroupItemReading + 'a>(
 }
 
 impl<Family: ContainerFamily> GroupItemReading for ContainerFamilyGroup<Family> {
-    fn name(&self) -> &'static str {
-        Family::GROUP_NAME
+    fn name(&self) -> Cow<'static, str> {
+        Family::GROUP_NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

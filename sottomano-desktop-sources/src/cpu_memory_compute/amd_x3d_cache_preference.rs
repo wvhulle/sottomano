@@ -77,7 +77,7 @@ impl SnapshotSource for X3dCachePreference {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "X3D cache preference";
+    const NAME: &'static str = "X3D scheduling preference";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let exposed = async {

@@ -1,5 +1,8 @@
-use sottomano_desktop_sources::media_playback_audio::pipewire_audio::{
-    AudioState, ChannelLevels, MuteState, OutputKind,
+use std::borrow::Cow;
+
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    media_playback_audio::pipewire_audio::{AudioState, ChannelLevels, MuteState, OutputKind},
 };
 
 use super::ControlKind;
@@ -36,8 +39,8 @@ pub(super) fn audio_output_icon(state: &AudioState) -> Phosphor {
 }
 
 impl GroupItemReading for AudioState {
-    fn name(&self) -> &'static str {
-        "Audio"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

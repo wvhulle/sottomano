@@ -1,9 +1,12 @@
-use std::iter::once;
+use std::{borrow::Cow, iter::once};
 
 use chrono::{DateTime, Utc};
-use sottomano_desktop_sources::ai_usage_spend::{
-    claude_usage::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
-    usage_quota::{Pace, Quota},
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    ai_usage_spend::{
+        claude_usage::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
+        usage_quota::{Pace, Quota},
+    },
 };
 use uom::si::{f64::Ratio, ratio::percent};
 
@@ -24,8 +27,8 @@ use crate::{
 };
 
 impl GroupItemReading for ClaudeUsageWindows {
-    fn name(&self) -> &'static str {
-        "Claude usage"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

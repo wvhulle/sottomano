@@ -1,4 +1,7 @@
-use std::time::{Duration, Instant};
+use std::{
+    borrow::Cow,
+    time::{Duration, Instant},
+};
 
 use chrono::Locale;
 use iced::Task;
@@ -210,8 +213,8 @@ pub(super) enum BatteryTime {
 }
 
 impl GroupItemReading for BatteryTime {
-    fn name(&self) -> &'static str {
-        "Battery time"
+    fn name(&self) -> Cow<'static, str> {
+        "Battery time".into()
     }
 
     fn icon(&self) -> IconGlyph {

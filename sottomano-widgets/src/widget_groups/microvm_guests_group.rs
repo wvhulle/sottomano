@@ -46,7 +46,7 @@ use crate::{
 
 const POWER_BUTTON_HINT: &str = "press the guest's power button";
 const MICROVM_SWITCH_FACE: UnitSwitchFace = UnitSwitchFace {
-    name: "MicroVM",
+    name: Cow::Borrowed("MicroVM"),
     icon: Phosphor::Lightning(Weight::Regular),
     presses: SwitchPresses {
         turning_on: "start the microVM",
@@ -73,11 +73,7 @@ struct MicrovmUnitRow<'a> {
 }
 
 impl GroupItemReading for MicrovmUnitRow<'_> {
-    fn name(&self) -> &'static str {
-        "MicroVM"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.unit.instance_name.clone().into()
     }
 
@@ -116,11 +112,7 @@ struct MicrovmGuestListingRow<'a> {
 }
 
 impl GroupItemReading for MicrovmGuestListingRow<'_> {
-    fn name(&self) -> &'static str {
-        "MicroVM"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.listing.machine_name.clone().into()
     }
 
@@ -180,11 +172,7 @@ impl MicrovmGuestRow<'_> {
 }
 
 impl GroupItemReading for MicrovmGuestRow<'_> {
-    fn name(&self) -> &'static str {
-        "MicroVM"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.machine.machine_name.clone().into()
     }
 
@@ -514,11 +502,7 @@ impl MicrovmGuestsGroup {
 }
 
 impl GroupItemReading for MicrovmGuestsGroup {
-    fn name(&self) -> &'static str {
-        "MicroVMs"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         "MicroVMs".into()
     }
 

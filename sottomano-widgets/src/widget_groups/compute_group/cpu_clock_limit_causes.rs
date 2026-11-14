@@ -1,4 +1,4 @@
-use std::cmp::Reverse;
+use std::{borrow::Cow, cmp::Reverse};
 
 use chrono::Locale;
 use sottomano_desktop_sources::cpu_memory_compute::{
@@ -104,8 +104,8 @@ impl ClockLimitCauses<'_> {
 }
 
 impl GroupItemReading for ClockLimitCauses<'_> {
-    fn name(&self) -> &'static str {
-        "CPU clock limits"
+    fn name(&self) -> Cow<'static, str> {
+        "CPU clock limits".into()
     }
 
     fn icon(&self) -> IconGlyph {

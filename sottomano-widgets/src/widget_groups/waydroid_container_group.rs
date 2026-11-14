@@ -47,7 +47,7 @@ const WAYDROID_CONTAINER_UNIT: &str = "waydroid-container.service";
 const START_SESSION_HINT: &str = "start the Android session";
 const STOP_SESSION_HINT: &str = "stop the Android session";
 const CONTAINER_SWITCH_FACE: UnitSwitchFace = UnitSwitchFace {
-    name: "Android container",
+    name: Cow::Borrowed("Android container"),
     icon: Phosphor::Package(Weight::Regular),
     presses: SwitchPresses {
         turning_on: "start the Android container",
@@ -94,11 +94,7 @@ struct WaydroidContainerRow<'a> {
 }
 
 impl GroupItemReading for WaydroidContainerRow<'_> {
-    fn name(&self) -> &'static str {
-        "Android container"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         "Container".into()
     }
 
@@ -145,11 +141,7 @@ struct WaydroidSessionRow<'a> {
 }
 
 impl GroupItemReading for WaydroidSessionRow<'_> {
-    fn name(&self) -> &'static str {
-        "Android session"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         "Session".into()
     }
 
@@ -405,11 +397,7 @@ impl WaydroidContainerGroup {
 }
 
 impl GroupItemReading for WaydroidContainerGroup {
-    fn name(&self) -> &'static str {
-        "Android"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         "Android".into()
     }
 

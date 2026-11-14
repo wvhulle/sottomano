@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::ai_usage_spend::llama_server_slots::{LlamaSlot, SlotTask};
 use uom::si::{f64::Ratio, ratio::ratio};
@@ -22,16 +24,21 @@ fn context_fill(task: &SlotTask, context: u32) -> Ratio {
 pub struct ContextFill<'a> {
     pub slots: &'a [LlamaSlot],
     pub fullest: Ratio,
+    pub server: &'a str,
 }
 
 impl<'a> ContextFill<'a> {
-    pub fn of_busy_slots(slots: &'a [LlamaSlot]) -> Option<Self> {
+    pub fn of_busy_slots(slots: &'a [LlamaSlot], server: &'a str) -> Option<Self> {
         let fullest = slots
             .iter()
             .filter(|slot| slot.processing)
             .filter_map(|slot| Some(context_fill(slot.task.as_ref()?, slot.context)))
             .max_by(|left, right| left.value.total_cmp(&right.value))?;
-        Some(Self { slots, fullest })
+        Some(Self {
+            slots,
+            fullest,
+            server,
+        })
     }
 }
 
@@ -56,8 +63,8 @@ fn slot_record(slot: &LlamaSlot) -> TableRecord<3> {
 }
 
 impl GroupItemReading for ContextFill<'_> {
-    fn name(&self) -> &'static str {
-        "Context fill"
+    fn name(&self) -> Cow<'static, str> {
+        format!("{} context fill", self.server).into()
     }
 
     fn icon(&self) -> IconGlyph {

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::systemd_units_journal::journal_kernel_errors::KernelOccurrence;
 use sottomano_toml_config::{Config, severity::Severity};
@@ -60,8 +62,8 @@ impl IntoTableRecord<2> for &KernelOccurrence {
 }
 
 impl GroupItemReading for Vec<KernelOccurrence> {
-    fn name(&self) -> &'static str {
-        "Kernel log"
+    fn name(&self) -> Cow<'static, str> {
+        "Kernel log".into()
     }
 
     fn icon(&self) -> IconGlyph {

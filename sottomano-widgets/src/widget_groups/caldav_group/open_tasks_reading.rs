@@ -1,12 +1,15 @@
-use std::num::NonZeroUsize;
+use std::{borrow::Cow, num::NonZeroUsize};
 
 use chrono::{DateTime, Local, Locale, NaiveDate};
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::caldav_tasks_events::{
-    caldav_open_tasks::OpenTaskList,
-    caldav_server_provider::CaldavProvider,
-    caldav_task_query::{OpenTask, PriorityBand, TaskDeadline, TaskDueStatus, TaskProgress},
-    nextcloud_web_links::NextcloudWebRoot,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    caldav_tasks_events::{
+        caldav_open_tasks::OpenTaskList,
+        caldav_server_provider::CaldavProvider,
+        caldav_task_query::{OpenTask, PriorityBand, TaskDeadline, TaskDueStatus, TaskProgress},
+        nextcloud_web_links::NextcloudWebRoot,
+    },
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -98,8 +101,8 @@ fn progress_cell(task: &OpenTask) -> ValueCell {
 }
 
 impl GroupItemReading for OpenTaskList {
-    fn name(&self) -> &'static str {
-        "Open tasks"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

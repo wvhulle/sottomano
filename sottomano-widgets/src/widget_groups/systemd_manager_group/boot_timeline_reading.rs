@@ -1,9 +1,10 @@
-use std::{iter::once, time::Duration};
+use std::{borrow::Cow, iter::once, time::Duration};
 
 use chrono::Locale;
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::systemd_units_journal::boot_timeline::{
-    BootTimeline, DurationComparison, RankedActivations,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    systemd_units_journal::boot_timeline::{BootTimeline, DurationComparison, RankedActivations},
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -56,8 +57,8 @@ fn login_record(stage: &str, took: Duration, meaning: &str) -> TableRecord<2> {
 }
 
 impl GroupItemReading for BootTimeline {
-    fn name(&self) -> &'static str {
-        "Boot timeline"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -159,8 +160,8 @@ pub struct StartupUnits<'a> {
 }
 
 impl GroupItemReading for StartupUnits<'_> {
-    fn name(&self) -> &'static str {
-        "Startup units"
+    fn name(&self) -> Cow<'static, str> {
+        "Startup units".into()
     }
 
     fn icon(&self) -> IconGlyph {

@@ -45,7 +45,7 @@ impl SnapshotSource for BcachefsSubvolumeUsage {
     type Error = Error;
     type StreamInputs = FilesystemMount;
 
-    const NAME: &'static str = "Subvolume usage";
+    const NAME: &'static str = "Subvolumes";
 
     fn delivery_stream(
         mount: Self::StreamInputs,

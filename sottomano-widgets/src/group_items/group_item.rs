@@ -26,12 +26,11 @@ use crate::{
         source_reading::{reading_icon, reading_value, source_reading},
         toggle_control::{IconToggle, SwitchPosition},
     },
-    group_menus::group_menu_state::{GroupMenuPin, GroupMenuState, GroupMenuTopic, MenuPinState},
     hover_cards::{
         HoverAnnouncement, HoverOrigin, HoverTarget, PressHints, announcing_hoverable,
         press_toggled_hoverable,
     },
-    widget_groups::{widget_group_content::GroupEvent, widget_group_identity::WidgetGroupIdentity},
+    widget_groups::widget_group_content::GroupEvent,
     widgets::{
         announced_level::LevelReading,
         icon_glyph::IconGlyph,
@@ -241,6 +240,12 @@ impl<'a, M: 'a> GroupItemContent<'a, M> {
 pub(crate) struct HandlePreview<'p> {
     pub widget: &'p dyn GroupItemReading,
     pub target: &'p HoverTarget,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ItemPinning {
+    Pinnable,
+    Unpinnable,
 }
 
 pub struct GroupItem<'a, M> {
@@ -665,40 +670,23 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    pub(crate) fn pinnable_key(&self) -> Option<String> {
+    pub(crate) fn pinning(&self) -> ItemPinning {
         match &self.kind {
-            GroupItemContent::Reading { target, .. }
-            | GroupItemContent::Slider { target, .. }
+            GroupItemContent::Reading { .. }
+            | GroupItemContent::Slider { .. }
             | GroupItemContent::Composed {
-                hover: GroupItemHoverArea::WholeItem(target),
+                hover: GroupItemHoverArea::WholeItem(_),
                 pinning: ComposedItemPinning::PinnableByTarget,
                 ..
-            } => Some(target.stable_item_key()),
-            GroupItemContent::Composed { .. } => None,
+            } => ItemPinning::Pinnable,
+            GroupItemContent::Composed { .. } => ItemPinning::Unpinnable,
         }
     }
 
-    pub(crate) fn pinned_item_key(
-        &self,
-        group: &WidgetGroupIdentity,
-        group_menus: &GroupMenuState,
-        menu: GroupMenuTopic,
-    ) -> Option<String> {
-        self.pinnable_key().filter(|item_key| {
-            group_menus.pin_state(
-                menu,
-                GroupMenuPin::Item {
-                    group: group.clone(),
-                    item_key: item_key.clone(),
-                },
-            ) == MenuPinState::Pinned
-        })
-    }
-
-    pub(crate) fn menu_name(&self) -> Cow<'static, str> {
+    pub(crate) fn item_in_group_name(&self) -> Cow<'static, str> {
         match &self.kind {
-            GroupItemContent::Reading { widget, .. } => widget.menu_row_name(),
-            GroupItemContent::Slider { widget, .. } => widget.name().into(),
+            GroupItemContent::Reading { widget, .. } => widget.name(),
+            GroupItemContent::Slider { widget, .. } => widget.name(),
             GroupItemContent::Composed { identity, .. } => identity.name.clone(),
         }
     }
@@ -812,24 +800,15 @@ mod tests {
     use super::*;
     use crate::{
         group_items::{group_item_reading::NamedTestReading, toggle_control::SwitchPresses},
-        group_menus::group_menu_state::PanelPinDuration,
+        group_menus::group_menu_state::{GroupMenuTopic, PanelPinDuration},
         hover_cards::{HoverCardMessage, PanelPinOrigin},
         widget_groups::{
             dark_mode_group::DarkModeTarget,
             session_power_group::SessionTarget,
-            widget_group_identity::{WidgetGroupFamily, WidgetGroupTitle},
+            widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
         },
         widgets::phosphor::{Phosphor, Weight},
     };
-
-    #[test]
-    fn a_failed_reading_keeps_the_pin_of_its_target() {
-        let healthy: GroupItem<'static, ()> =
-            GroupItem::reading(NamedTestReading("Named reading"), SessionTarget::Menu);
-        let failed: GroupItem<'static, ()> =
-            GroupItem::reading(NamedTestReading("Failed reading"), SessionTarget::Menu);
-        assert_eq!(healthy.pinnable_key(), failed.pinnable_key());
-    }
 
     fn composed_with(hover: GroupItemHoverArea) -> GroupItem<'static, ()> {
         GroupItem::composed(
@@ -849,7 +828,7 @@ mod tests {
     #[test]
     fn composed_item_reports_its_identity_name() {
         assert_eq!(
-            composed_with(whole_item_hover()).menu_name(),
+            composed_with(whole_item_hover()).item_in_group_name(),
             "Composed row"
         );
     }
@@ -877,19 +856,19 @@ mod tests {
     }
 
     #[test]
-    fn a_composed_item_can_share_the_pin_of_the_reading_it_replaces() {
+    fn a_composed_item_shares_the_pin_of_the_reading_it_replaces_under_the_same_name() {
         let reading: GroupItem<'static, ()> =
-            GroupItem::reading(NamedTestReading("Named reading"), SessionTarget::Menu);
+            GroupItem::reading(NamedTestReading("Lyrics"), SessionTarget::Menu);
         let composed: GroupItem<'static, ()> = GroupItem::composed_pinnable(
             ComposedGroupItemFace {
-                name: "Composed row".into(),
+                name: "Lyrics".into(),
                 icon: GroupItemIcon::Absent,
             },
             SessionTarget::Menu,
             GroupItemValue::Nothing,
         );
-        assert!(reading.pinnable_key().is_some());
-        assert_eq!(reading.pinnable_key(), composed.pinnable_key());
+        assert_eq!(composed.pinning(), ItemPinning::Pinnable);
+        assert_eq!(reading.item_in_group_name(), composed.item_in_group_name());
     }
 
     fn toggle_in_position(switch_position: SwitchPosition) -> IconToggle {
@@ -943,28 +922,30 @@ mod tests {
         )
     }
 
-    fn slider_pin_key(slider: &SliderControl, config: &Config) -> Option<String> {
-        GroupItem::slider(slider, config, |_| ()).pinnable_key()
-    }
-
     #[test]
     fn readings_and_sliders_are_pinnable_but_plain_composed_rows_are_not() {
         let config = Config::default();
         let slider = offset_slider_for(DarkModeTarget::SunriseOffset);
         let reading: GroupItem<'static, ()> =
             GroupItem::reading(NamedTestReading("Named reading"), SessionTarget::Menu);
-        assert!(reading.pinnable_key().is_some());
-        assert!(slider_pin_key(&slider, &config).is_some());
-        assert_eq!(composed_with(whole_item_hover()).pinnable_key(), None);
+        assert_eq!(reading.pinning(), ItemPinning::Pinnable);
+        assert_eq!(
+            GroupItem::slider(&slider, &config, |_| ()).pinning(),
+            ItemPinning::Pinnable
+        );
+        assert_eq!(
+            composed_with(whole_item_hover()).pinning(),
+            ItemPinning::Unpinnable
+        );
     }
 
     #[test]
-    fn a_slider_pin_key_comes_from_its_hover_target() {
+    fn a_slider_in_group_name_is_its_shown_name() {
         let config = Config::default();
         let slider = offset_slider_for(DarkModeTarget::SunriseOffset);
         assert_eq!(
-            slider_pin_key(&slider, &config),
-            Some(slider.target().stable_item_key())
+            GroupItem::slider(&slider, &config, |_| ()).item_in_group_name(),
+            slider.name()
         );
     }
 
@@ -976,7 +957,7 @@ mod tests {
         .pinned_by(PanelPinOrigin::ItemPinnedFrom {
             menu: GroupMenuTopic::Media,
             group: Box::new(WidgetGroupIdentity::sole(WidgetGroupFamily::Media)),
-            item_key: "pinned slider".into(),
+            item_in_group_name: "pinned slider".into(),
             pin_duration: PanelPinDuration::Permanent,
         })
         .origin
@@ -1040,17 +1021,6 @@ mod tests {
             events_from_pointing_at_pinned_slider(SliderPointing::Press)
                 .iter()
                 .any(|event| matches!(event, GroupEvent::Group(ControlMessage::Press)))
-        );
-    }
-
-    #[test]
-    fn sliders_with_different_targets_have_different_pin_keys() {
-        let config = Config::default();
-        let sunrise_slider = offset_slider_for(DarkModeTarget::SunriseOffset);
-        let sunset_slider = offset_slider_for(DarkModeTarget::SunsetOffset);
-        assert_ne!(
-            slider_pin_key(&sunrise_slider, &config),
-            slider_pin_key(&sunset_slider, &config)
         );
     }
 

@@ -101,7 +101,7 @@ impl SnapshotSource for InterfaceThroughput {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "Throughput";
+    const NAME: &'static str = "Network throughput";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let uplink_changes = nm_readings(

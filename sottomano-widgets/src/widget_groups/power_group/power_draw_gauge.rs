@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use sottomano_desktop_sources::battery_power_profiles::upower_battery_state::{
     Battery, ChargeStatus, ChargerSupply,
 };
@@ -84,8 +86,8 @@ impl ReadingSections for ChargerSupply {
 }
 
 impl GroupItemReading for PowerDraw {
-    fn name(&self) -> &'static str {
-        "Power draw"
+    fn name(&self) -> Cow<'static, str> {
+        "Power draw".into()
     }
 
     fn icon(&self) -> IconGlyph {

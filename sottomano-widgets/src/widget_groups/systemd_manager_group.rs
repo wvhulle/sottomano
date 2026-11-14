@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use iced::{Subscription, Task};
 
 use crate::{clock::Clock, widget_groups::widget_group_identity::WidgetGroupFamily};
@@ -327,8 +329,8 @@ impl SystemdManagerGroup {
 }
 
 impl GroupItemReading for SystemdManagerGroup {
-    fn name(&self) -> &'static str {
-        "Systemd"
+    fn name(&self) -> Cow<'static, str> {
+        "Systemd".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -349,10 +351,14 @@ impl GroupItemReading for SystemdManagerGroup {
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        let slow_jobs_count =
-            |jobs: &SlowJobs| LabeledValue::new(jobs.name(), Quantity::count(jobs.jobs.len()));
+        let slow_jobs_count = |jobs: &SlowJobs| {
+            LabeledValue::new(jobs.name().into_owned(), Quantity::count(jobs.jobs.len()))
+        };
         let failed_units_count = |failed: &FailedUnits| {
-            LabeledValue::new(failed.name(), Quantity::count(failed.units.len()))
+            LabeledValue::new(
+                failed.name().into_owned(),
+                Quantity::count(failed.units.len()),
+            )
         };
         HoverCardBody::dictionary(
             [

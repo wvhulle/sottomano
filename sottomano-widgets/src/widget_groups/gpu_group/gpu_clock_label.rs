@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_readings::{
     GpuClocks, GpuThrottleReason,
@@ -28,8 +30,8 @@ pub struct GpuClockLabel {
 }
 
 impl GroupItemReading for GpuClockLabel {
-    fn name(&self) -> &'static str {
-        "GPU clock"
+    fn name(&self) -> Cow<'static, str> {
+        "GPU clock".into()
     }
 
     fn icon(&self) -> IconGlyph {

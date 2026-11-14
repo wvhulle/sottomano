@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{borrow::Cow, time::Duration};
 
 use chrono::Locale;
 use sottomano_desktop_sources::{
@@ -132,8 +132,8 @@ impl ControllerLinkReading<'_> {
 }
 
 impl GroupItemReading for ControllerLinkReading<'_> {
-    fn name(&self) -> &'static str {
-        "Controller lag"
+    fn name(&self) -> Cow<'static, str> {
+        "Controller lag".into()
     }
 
     fn icon(&self) -> IconGlyph {

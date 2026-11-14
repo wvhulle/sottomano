@@ -87,7 +87,7 @@ impl SnapshotSource for FilesystemUsage {
     type Error = Error;
     type StreamInputs = FilesystemMount;
 
-    const NAME: &'static str = "Filesystem usage";
+    const NAME: &'static str = "Disk usage";
 
     fn delivery_stream(
         mount: Self::StreamInputs,

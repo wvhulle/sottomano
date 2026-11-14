@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{borrow::Cow, time::Duration};
 
 use notulist_client::DictationEngine;
 
@@ -49,8 +49,8 @@ impl RuntimeConfiguration<'_> {
 }
 
 impl GroupItemReading for RuntimeConfiguration<'_> {
-    fn name(&self) -> &'static str {
-        "Runtime configuration"
+    fn name(&self) -> Cow<'static, str> {
+        "Runtime configuration".into()
     }
 
     fn icon(&self) -> IconGlyph {

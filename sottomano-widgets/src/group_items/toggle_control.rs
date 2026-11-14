@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
@@ -125,8 +127,8 @@ impl IconToggle {
 }
 
 impl GroupItemReading for IconToggle {
-    fn name(&self) -> &'static str {
-        self.name
+    fn name(&self) -> Cow<'static, str> {
+        self.name.into()
     }
 
     fn icon(&self) -> IconGlyph {

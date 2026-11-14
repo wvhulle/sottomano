@@ -1,6 +1,8 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use situo_client::{BeaconDbEstimate, FixOrigin, GeoCoordinates, NearestPlace};
-use sottomano_desktop_sources::weather::situo_location_fix::Location;
+use sottomano_desktop_sources::{SnapshotSource, weather::situo_location_fix::Location};
 use uom::si::length::kilometer;
 
 use crate::{
@@ -58,8 +60,8 @@ impl MapService {
 }
 
 impl GroupItemReading for Location {
-    fn name(&self) -> &'static str {
-        "Location"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

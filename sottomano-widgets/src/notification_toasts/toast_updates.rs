@@ -316,7 +316,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         };
         self.serve_ongoing(
             OngoingToast {
-                widget_name: "Configuration",
+                widget_name: "Configuration".into(),
                 key: OngoingKey::ConfigFile,
                 severity: Severity::Critical,
                 summary_text: Cow::Owned(format!("Invalid configuration in {}", path.display())),
