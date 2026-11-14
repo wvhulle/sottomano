@@ -434,7 +434,11 @@ impl DesktopShell {
                     .map(ShellInteraction::SystemdManager),
                 self.widget_groups
                     .journal_events_group
-                    .group_content(config)
+                    .system_journal_content(config)
+                    .map(ShellInteraction::JournalEvents),
+                self.widget_groups
+                    .journal_events_group
+                    .user_journal_content(config)
                     .map(ShellInteraction::JournalEvents),
                 self.widget_groups
                     .pending_upgrades_group

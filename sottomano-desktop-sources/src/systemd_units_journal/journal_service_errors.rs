@@ -8,8 +8,11 @@ use systemd::journal::Journal;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     system_protocol_clients::journal_follow::{JournalEvent, JournalFollowError, journal_windows},
-    systemd_units_journal::journal_record_fields::{
-        JournalPriority, JournalTransport, LoggingUnit, MessageId, OwningUnit, either_of,
+    systemd_units_journal::{
+        SystemdUnitScope,
+        journal_record_fields::{
+            JournalPriority, JournalTransport, LoggingUnit, MessageId, OwningUnit, either_of,
+        },
     },
 };
 
@@ -113,6 +116,23 @@ impl ServiceErrors {
         self.entry_count == 0
     }
 
+    #[must_use]
+    pub fn owned_by(&self, unit_scope: SystemdUnitScope) -> Self {
+        let by_unit_oldest_first: Vec<UnitErrors> = self
+            .by_unit_oldest_first
+            .iter()
+            .filter(|unit_errors| unit_errors.unit.unit_scope() == unit_scope)
+            .cloned()
+            .collect();
+        Self {
+            entry_count: by_unit_oldest_first
+                .iter()
+                .map(|unit_errors| unit_errors.count)
+                .sum(),
+            by_unit_oldest_first,
+        }
+    }
+
     pub fn follow_log_args(&self) -> Vec<String> {
         ["-b", "-f", "-n", "all", "-p", "err"]
             .map(String::from)
@@ -174,6 +194,37 @@ mod tests {
             ("_SYSTEMD_UNIT", "user@1000.service"),
             ("_SYSTEMD_USER_UNIT", user_unit),
         ])
+    }
+
+    #[test]
+    fn owned_by_keeps_one_scope_and_recounts_its_entries() {
+        let service_error = |unit: OwningUnit| ServiceErrorEntry {
+            at: SystemTime::UNIX_EPOCH,
+            unit,
+            message: "failed".to_owned(),
+            severity: Severity::Critical,
+        };
+        let service_errors = ServiceErrors::from(vec![
+            service_error(OwningUnit::System("sshd.service".to_owned())),
+            service_error(OwningUnit::User("syncthing.service".to_owned())),
+            service_error(OwningUnit::User("syncthing.service".to_owned())),
+        ]);
+        let user_errors = service_errors.owned_by(SystemdUnitScope::UserSession);
+        assert_eq!(user_errors.entry_count, 2);
+        assert_eq!(
+            user_errors
+                .by_unit_oldest_first
+                .iter()
+                .map(|unit_errors| unit_errors.unit.name())
+                .collect::<Vec<_>>(),
+            ["syncthing.service"]
+        );
+        assert_eq!(
+            service_errors
+                .owned_by(SystemdUnitScope::SystemWide)
+                .entry_count,
+            1
+        );
     }
 
     #[test]

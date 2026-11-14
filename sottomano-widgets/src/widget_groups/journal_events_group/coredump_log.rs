@@ -11,7 +11,9 @@ use crate::{
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::{
-        journal_events_group::{JournalEventsGroup, JournalEventsInteraction, JournalTarget},
+        journal_events_group::{
+            JournalEventsInteraction, JournalScopeGroup, JournalTarget, shown_while_alerting,
+        },
         terminal_command::TerminalCommand,
     },
     widgets::{
@@ -43,14 +45,14 @@ impl IntoTableRecord<4> for &CoredumpEntry {
     }
 }
 
-impl JournalEventsGroup {
+impl JournalScopeGroup {
     pub(super) fn coredump_log_item(
         &self,
         config: &Config,
     ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
         let coredumps = self.coredumps.display()?;
         Some(
-            GroupItem::reading(coredumps, JournalTarget::Coredumps).on_press(
+            GroupItem::reading(coredumps, JournalTarget::Coredumps(self.unit_scope)).on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
                 JournalEventsInteraction::OpenLog(TerminalCommand::journal(
                     config,
@@ -99,10 +101,6 @@ impl GroupItemReading for Vec<CoredumpEntry> {
     }
 
     fn panel_visibility(&self) -> PanelVisibility {
-        if self.is_empty() {
-            PanelVisibility::Hidden
-        } else {
-            PanelVisibility::Shown
-        }
+        shown_while_alerting(self.iter().map(|entry| entry.severity))
     }
 }
