@@ -136,7 +136,8 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
 #[cfg(test)]
 mod tests {
     use corredo::popovers::{
-        CascadeDirection, CascadeOrientation, PopupGrowth, SubmenuConnector, cascade_row,
+        CascadeDirection, CascadeOrientation, NotchRowAnchor, PopupGrowth, cascade_row,
+        notched_panel,
     };
     use iced::{
         Element, Length, Point, Rectangle, Settings, Size,
@@ -154,7 +155,6 @@ mod tests {
     };
     use crate::{
         clock::Clock,
-        group_menus::cascading_layout::cascade_satellite_panels::CascadeSatellitePanels,
         hover_cards::{HoverTarget, hover_card_transition::ShownTarget},
         widgets::shell_layer_appearance::ShellLayer,
     };
@@ -214,14 +214,15 @@ mod tests {
 
     fn cascading_popup(config: &Config) -> Element<'_, PressedOutside> {
         let appearance = ShellLayer::Overlays.default_appearance();
-        let satellite_panels = CascadeSatellitePanels::new(
-            &appearance,
-            &appearance,
-            config,
+        let satellite = notched_panel(
+            text("satellite"),
             ORIENTATION,
-            SubmenuConnector::default(),
-        );
-        let satellite = satellite_panels.beside_row(config, text("satellite").into(), 0.0);
+            NotchRowAnchor::FromPrimaryTop(0.0),
+        )
+        .frame(appearance.frame_style())
+        .row_height(config.desktop_panels.height)
+        .gap_to_parent(config.theme.spacing.item_gap)
+        .into();
         anchored_popup(
             vec![
                 PopupRendering::incoming(cascade_row(
