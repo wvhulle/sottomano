@@ -347,7 +347,9 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Waydroid"),
-            Step::Hover(HoverTarget::WaydroidContainer(WaydroidContainerTarget)),
+            Step::Hover(HoverTarget::WaydroidContainer(
+                WaydroidContainerTarget::Session,
+            )),
         ],
     },
     Demo {

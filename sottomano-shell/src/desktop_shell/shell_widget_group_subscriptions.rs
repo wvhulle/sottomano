@@ -93,12 +93,6 @@ impl ShellWidgetGroups {
                 .map(Message::WindowGroup),
             SessionFocusGroup::subscription(&config.widget_groups.session_focus)
                 .map(Message::SessionFocus),
-            self.microvm_guests_group
-                .subscription(
-                    self.group_menus
-                        .source_demand(WidgetGroupFamily::MicrovmGuests),
-                )
-                .map(Message::MicrovmGuests),
             self.incus_instances_group
                 .subscription(
                     self.group_menus
@@ -265,6 +259,13 @@ impl ShellWidgetGroups {
             self.nspawn_containers_group
                 .subscription(buses)
                 .map(Message::NspawnContainers),
+            self.microvm_guests_group
+                .subscription(
+                    self.group_menus
+                        .source_demand(WidgetGroupFamily::MicrovmGuests),
+                    buses,
+                )
+                .map(Message::MicrovmGuests),
         ])
     }
 }

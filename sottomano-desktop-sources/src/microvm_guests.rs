@@ -11,12 +11,13 @@ use futures::Stream;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    delivery_cadence_drivers::PeriodicPolling,
+    delivery_cadence_drivers::{ChangeWatchFailure, PeriodicPolling},
     microvm_guests::hypervisor_command_lines::{
         HypervisorLaunch, MicrovmHypervisor, launched_hypervisor, parsed_launch,
         with_firecracker_config,
     },
     system_protocol_clients::{
+        dbus_desktop_buses::DesktopBuses,
         procfs_process_scan::scan_processes,
         procfs_process_tree::ProcessTable,
         sysfs_attribute_reads::Error,
@@ -24,10 +25,12 @@ use crate::{
             cgroup_directory_of_process, read_cgroup_memory, unit_cgroup_enclosing,
         },
     },
+    systemd_units_journal::template_instance_units::listed_template_instances,
 };
 const MACHINE_POLL_PERIOD: Duration = Duration::from_secs(5);
 const PRESENCE_POLL_PERIOD: Duration = Duration::from_secs(30);
 const MICROVM_UNIT_PREFIX: &str = "microvm@";
+const MICROVM_UNIT_TEMPLATES: [&str; 1] = ["microvm"];
 const SERVICE_UNIT_SUFFIX: &str = ".service";
 const PROC_ROOT: &str = "/proc";
 const COMM_FILE_NAME: &str = "comm";
@@ -280,6 +283,43 @@ fn scanned_machines() -> Result<MicrovmGuests, Error> {
         .collect();
     machines.sort_by(|first, second| first.machine_name.cmp(&second.machine_name));
     Ok(MicrovmGuests { machines })
+}
+
+#[must_use]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MicrovmUnit {
+    pub instance_name: String,
+    pub unit_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MicrovmUnits {
+    pub units: Vec<MicrovmUnit>,
+}
+
+impl SnapshotSource for MicrovmUnits {
+    type Error = ChangeWatchFailure;
+    type StreamInputs = DesktopBuses;
+
+    const NAME: &'static str = "MicroVM units";
+
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        let system_bus = buses.system;
+        PeriodicPolling::every(MACHINE_POLL_PERIOD).poll_deliveries(move || {
+            let system_bus = system_bus.clone();
+            async move {
+                let units = listed_template_instances(&system_bus, &MICROVM_UNIT_TEMPLATES)
+                    .await?
+                    .into_iter()
+                    .map(|template_unit| MicrovmUnit {
+                        instance_name: template_unit.instance_name,
+                        unit_name: template_unit.unit_name,
+                    })
+                    .collect();
+                Ok(MicrovmUnits { units })
+            }
+        })
+    }
 }
 
 #[must_use]

@@ -7,9 +7,17 @@
 }:
 let
   cfg = config.programs.sottomano;
+  containerControllerGroup = "sottomano-containers";
   sottomanoPackage = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
 in
 {
+  imports = [
+    (lib.mkRenamedOptionModule
+      [ "programs" "sottomano" "nspawnContainerControllers" ]
+      [ "programs" "sottomano" "containerControllers" ]
+    )
+  ];
+
   options.programs.sottomano = {
     enable = lib.mkEnableOption ''
       the system-level pieces sottomano widgets depend on: fwupd for the firmware
@@ -79,15 +87,19 @@ in
         default = true;
       };
 
-    nspawnContainerControllers = lib.mkOption {
+    containerControllers = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
       example = [ "alice" ];
       description = ''
-        Users allowed to start, stop and restart systemd-nspawn containers from
-        the bar's container switches. A polkit rule grants them exactly those verbs
-        on `container@*.service` (NixOS containers) and `systemd-nspawn@*.service`
-        units, without a password prompt, and nothing else.
+        Users added to the `sottomano-containers` group, whose members may
+        start, stop and restart containers and microVMs from the bar's
+        switches. A polkit rule grants the group exactly those verbs on
+        `container@*.service` (NixOS containers), `systemd-nspawn@*.service`,
+        `microvm@*.service` and `waydroid-container.service` units, without a
+        password prompt, and nothing else. Any process running as a member can
+        use it, so a member's compromised app could stop these units. Group
+        changes apply at the next login.
       '';
     };
 
@@ -119,25 +131,30 @@ in
         });
       }
 
-      (lib.mkIf (cfg.nspawnContainerControllers != [ ]) {
+      {
+        users.groups.${containerControllerGroup} = { };
+
+        users.users = lib.genAttrs cfg.containerControllers (_: {
+          extraGroups = [ containerControllerGroup ];
+        });
+
         security.polkit = {
           enable = true;
           extraConfig = ''
             polkit.addRule(function (action, subject) {
-              var containerControllers = ${builtins.toJSON cfg.nspawnContainerControllers};
               var managedUnit = action.lookup("unit");
               var requestedVerb = action.lookup("verb");
               if (action.id == "org.freedesktop.systemd1.manage-units"
                   && managedUnit
-                  && /^(container|systemd-nspawn)@[^/]+\.service$/.test(managedUnit)
+                  && /^((container|systemd-nspawn|microvm)@[^/]+|waydroid-container)\.service$/.test(managedUnit)
                   && ["start", "stop", "restart"].indexOf(requestedVerb) >= 0
-                  && containerControllers.indexOf(subject.user) >= 0) {
+                  && subject.isInGroup("${containerControllerGroup}")) {
                 return polkit.Result.YES;
               }
             });
           '';
         };
-      })
+      }
 
       (lib.mkIf cfg.secretMemoryInspection.enable {
         security.wrappers.sottomano-secret-memory-holders = {

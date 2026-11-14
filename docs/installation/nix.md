@@ -63,7 +63,7 @@ itself, as [its page](../compositors/hyprland.md#window-styling-rules) shows.
   programs.sottomano = {
     enable = true;
     journalReaders = [ "alice" ];
-    nspawnContainerControllers = [ "alice" ];
+    containerControllers = [ "alice" ];
     autoBrightness.enable = true;
     cpuPowerReading.enable = true;
     cacheCounters.enable = true;
@@ -74,10 +74,13 @@ itself, as [its page](../compositors/hyprland.md#window-styling-rules) shows.
 
 - `journalReaders` adds users to `systemd-journal` so the systemd and journal
   groups can read the system journal. Members of `wheel` already can.
-- `nspawnContainerControllers` lets users start, stop and restart
-  systemd-nspawn and NixOS containers from the nspawn containers group: a
-  polkit rule allows exactly those verbs on `container@*.service` and
-  `systemd-nspawn@*.service`, and nothing else.
+- `containerControllers` adds users to the `sottomano-containers` group,
+  whose members may start, stop and restart systemd-nspawn and NixOS
+  containers, microVMs and the Waydroid container from their switches: a
+  polkit rule allows exactly those verbs on `container@*.service`,
+  `systemd-nspawn@*.service`, `microvm@*.service` and
+  `waydroid-container.service`, and nothing else. Any app running as a member
+  can use it, and group changes apply at the next login.
 - `autoBrightness` runs clight for webcam-based brightness, which drives the
   monitor group's auto toggle and backlight slider.
 - `cpuPowerReading` (on by default) makes the RAPL energy counters
