@@ -1,3 +1,4 @@
+use corredo::theming::{LINE_HEIGHT, secondary_text_color, text_color};
 use iced::{
     Color, Element, Theme,
     widget::{Column, Row, Text, text, text::Wrapping},
@@ -5,10 +6,7 @@ use iced::{
 use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 use sottomano_toml_config::Config;
 
-use crate::widgets::{
-    configured_theme::{secondary_text_color, text_color},
-    text::{LINE_HEIGHT, font_faces_of},
-};
+use crate::widgets::text::font_faces_of;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum GroupKeyPlacement {

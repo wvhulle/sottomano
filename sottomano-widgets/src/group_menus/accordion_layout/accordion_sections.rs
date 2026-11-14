@@ -1,11 +1,14 @@
 use std::{iter::once, mem::take};
 
+use corredo::{
+    orientation::Axis, popovers::PopupGrowth, selection_scroll::selection_following_scroll,
+    transitions::ExpansionState, width_layout::equal_width_column,
+};
 use iced::Element;
 
 use crate::{
     group_menus::{
         accordion_layout::pointer_held_height::pointer_held_height,
-        cascading_layout::notched_panel::PanelGrowth,
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
         menu_rows::{
             group_menu_group_rows::{GroupMenuGroupRow, GroupMenuRowContext, group_row, item_row},
@@ -13,13 +16,7 @@ use crate::{
         },
     },
     hover_cards::PopupMessage,
-    widget_groups::widget_group_content::{
-        ExpansionState, GroupEvent, GroupMenuItemRow, RowInspection,
-    },
-    widgets::{
-        selection_scroller::{ScrollAxis, selection_scroller},
-        uniform_width_column::uniform_width_column,
-    },
+    widget_groups::widget_group_content::{GroupEvent, GroupMenuItemRow, RowInspection},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,15 +38,15 @@ fn rows_above_item(
     sections: &[AccordionSectionRows],
     section: usize,
     item: usize,
-    growth: PanelGrowth,
+    growth: PopupGrowth,
 ) -> usize {
     let earlier: usize = sections[..section]
         .iter()
         .map(|earlier_section| earlier_section.shown_rows())
         .sum();
     match growth {
-        PanelGrowth::Downward => earlier + 1 + item,
-        PanelGrowth::Upward => earlier + item,
+        PopupGrowth::Downward => earlier + 1 + item,
+        PopupGrowth::Upward => earlier + item,
     }
 }
 
@@ -122,15 +119,15 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
                 row_view
             });
             let rows: Vec<Element<'a, M>> = match growth {
-                PanelGrowth::Downward => once(header).chain(item_views).collect(),
-                PanelGrowth::Upward => item_views.chain(once(header)).collect(),
+                PopupGrowth::Downward => once(header).chain(item_views).collect(),
+                PopupGrowth::Upward => item_views.chain(once(header)).collect(),
             };
-            uniform_width_column(rows).into()
+            equal_width_column(rows).into()
         })
         .collect();
     let scroll_message = layout.menu.scroll_message();
     let rows_scroller =
-        selection_scroller(uniform_width_column(section_views), ScrollAxis::Vertical)
+        selection_following_scroll(equal_width_column(section_views), Axis::Vertical)
             .edge_fade(
                 layout
                     .cascade_satellite_panels
@@ -160,7 +157,7 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
 
 #[cfg(test)]
 mod tests {
-    use super::{AccordionSectionRows, ExpansionState, PanelGrowth, rows_above_item};
+    use super::{AccordionSectionRows, ExpansionState, PopupGrowth, rows_above_item};
 
     const OPEN_THREE: AccordionSectionRows = AccordionSectionRows {
         item_count: 3,
@@ -180,14 +177,14 @@ mod tests {
     #[test]
     fn items_follow_their_header_when_growing_downward() {
         let sections = [CLOSED_FOUR, OPEN_THREE];
-        assert_eq!(rows_above_item(&sections, 1, 0, PanelGrowth::Downward), 2);
-        assert_eq!(rows_above_item(&sections, 1, 2, PanelGrowth::Downward), 4);
+        assert_eq!(rows_above_item(&sections, 1, 0, PopupGrowth::Downward), 2);
+        assert_eq!(rows_above_item(&sections, 1, 2, PopupGrowth::Downward), 4);
     }
 
     #[test]
     fn items_sit_above_their_header_when_growing_upward() {
         let sections = [CLOSED_FOUR, OPEN_THREE];
-        assert_eq!(rows_above_item(&sections, 1, 0, PanelGrowth::Upward), 1);
-        assert_eq!(rows_above_item(&sections, 1, 2, PanelGrowth::Upward), 3);
+        assert_eq!(rows_above_item(&sections, 1, 0, PopupGrowth::Upward), 1);
+        assert_eq!(rows_above_item(&sections, 1, 2, PopupGrowth::Upward), 3);
     }
 }

@@ -3,6 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use corredo::{popovers::CascadeOrientation, theming::text_color};
 use iced::{
     Color, Element, Length, Padding, Rectangle, Settings, Subscription, Task, Theme,
     advanced::widget::operate,
@@ -26,7 +27,7 @@ use sottomano_widgets::{
     desktop_index::DesktopIndex,
     desktop_panels::panel_frame::{outlined_sides_inward_of, panel_frame},
     group_menus::{
-        cascading_layout::cascade_row::{CascadeOrientation, growth_away_from},
+        cascading_layout::cascade_row::growth_away_from,
         group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
         group_menu_view::{GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard},
     },
@@ -49,7 +50,7 @@ use sottomano_widgets::{
     },
     widgets::{
         appearance_presets::ShellAppearance,
-        configured_theme::{configured_theme, text_color},
+        configured_theme::configured_theme,
         favicon::Favicons,
         text::{font_faces_of, point_generic_font_families_at},
         typing_under_cards::CardBackgroundFade,

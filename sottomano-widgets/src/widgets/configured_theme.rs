@@ -1,4 +1,3 @@
-pub use corredo::theme_colors::*;
 use iced::{
     Color, Theme,
     theme::{
@@ -38,6 +37,11 @@ pub fn configured_theme(palette: &Palette) -> Theme {
 
 #[cfg(test)]
 mod tests {
+    use corredo::theming::{
+        background_strong_color, background_weak_color, primary_color, secondary_text_color,
+        text_color,
+    };
+
     use super::*;
 
     #[test]

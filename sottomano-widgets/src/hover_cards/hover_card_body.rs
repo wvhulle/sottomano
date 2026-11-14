@@ -3,7 +3,7 @@ pub mod hover_card_source_delivery;
 
 use std::{fmt::Display, num::NonZeroUsize};
 
-use corredo::record_table::RecordTable;
+use corredo::data_tables::GroupedTable;
 use sottomano_desktop_sources::{
     SnapshotSource, SourceCaption, desktop_windows_apps::process_tree_inspection::Process,
 };
@@ -22,7 +22,7 @@ use crate::{
     },
 };
 
-pub type SectionTable = RecordTable<'static, ValueCell, Severity>;
+pub type SectionTable = GroupedTable<'static, ValueCell, Severity>;
 
 pub trait ReadingSections {
     fn sections(&self, clock: Clock) -> Vec<Section>;
@@ -213,7 +213,7 @@ impl Section {
 
     #[must_use]
     pub fn marked_as_continuing(self) -> Self {
-        self.with_changed_table(RecordTable::marked_as_continuing)
+        self.with_changed_table(GroupedTable::marked_as_continuing)
     }
 
     #[must_use]

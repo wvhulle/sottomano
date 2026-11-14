@@ -1,5 +1,6 @@
+use corredo::drag_reorder::UngroupedHighlightLook;
+
 use super::window_row_presentation::{ArrangedWindowRows, WindowSlotPresentation};
-use crate::widgets::pointer_drag::slot_pager::UngroupedHighlightLook;
 
 pub(super) fn arranged_flat_rows<'a>(window_count: usize) -> ArrangedWindowRows<'a> {
     ArrangedWindowRows {

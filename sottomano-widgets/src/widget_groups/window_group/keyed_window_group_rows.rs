@@ -1,5 +1,9 @@
 use std::ops::Range;
 
+use corredo::{
+    drag_reorder::{SlotGroup, SlotTileInset, UngroupedHighlightLook},
+    theming::{LINE_HEIGHT, background_color, background_weak_color, primary_color},
+};
 use iced::{
     Alignment, Element,
     widget::{Row, text},
@@ -17,14 +21,9 @@ use crate::{
     desktop_panels::panel_slot_drag::PanelSlotContext,
     group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
     widgets::{
-        configured_theme::{background_color, background_weak_color, primary_color},
         icon_handle::IconHandle,
-        pointer_drag::{
-            slot_group::{SlotGroup, SlotTileInset},
-            slot_pager::UngroupedHighlightLook,
-        },
         shared_metrics::ACCENT_STROKE_PX,
-        text::{LINE_HEIGHT, font_faces_of},
+        text::font_faces_of,
         window_icon::{WindowAssets, window_icon},
     },
 };

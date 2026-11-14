@@ -4,6 +4,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
+use corredo::changing_text::MarkupText;
 use iced::{
     Alignment, Border, Color, Element, Length, Shadow, Theme, border,
     theme::palette::{Extended, Pair},
@@ -22,7 +23,6 @@ use uom::si::{f64::Ratio, ratio::ratio};
 use super::{Notification, toast_card_backdrop::ToastCardBackdrop, toast_lifecycle::ToastKind};
 use crate::{
     hover_cards::PointerPresence,
-    notification_toasts::markup_body::MarkupBody,
     toast_messages::{NotificationMessage, ReplyMessage},
     widgets::{
         icon_glyph::IconGlyph,
@@ -313,7 +313,7 @@ impl<Routed> ToastCard<'_, Routed> {
 impl<Routed> ToastCard<'_, Routed> {
     fn body(&self, body: &str) -> Element<'static, NotificationMessage> {
         let font = &self.config.theme.font;
-        MarkupBody::new(body, text_face_of(font), self.urgency_pair().color)
+        MarkupText::new(body, text_face_of(font), self.urgency_pair().color)
             .size(font.small_text_size_px)
             .block_spacing(self.config.theme.spacing.item_gap)
             .column_gap(self.config.theme.spacing.group_gap)

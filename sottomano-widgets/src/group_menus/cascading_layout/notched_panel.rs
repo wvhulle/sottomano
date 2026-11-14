@@ -1,7 +1,11 @@
 use std::{cell::Cell, rc::Rc, slice};
 
-pub use corredo::primitives::popup_cascade::PanelGrowth;
-use corredo::primitives::popup_connector::{ConnectorSide, ConnectorTriangle, FramedSurface};
+use corredo::{
+    orientation::Edge,
+    popovers::{ConnectedSurface, ConnectorTriangle, PopupGrowth, RectangleMorph},
+    theming::FrameStyle,
+    transitions::MotionState,
+};
 use iced::{
     Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{
@@ -18,12 +22,8 @@ use iced::{
 };
 
 use crate::{
-    desktop_panels::{
-        panel_frame::FrameStyle,
-        region_reporter::{BackdropBlur, PointerInput, RegionRoles},
-    },
+    desktop_panels::region_reporter::{BackdropBlur, PointerInput, RegionRoles},
     group_menus::group_menu_presentation::SubmenuConnector,
-    widgets::{motion_state::MotionState, rectangle_morph::RectangleMorph},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,7 +88,7 @@ impl ScreenRoom {
 #[derive(Debug, Clone)]
 pub struct NotchPlacement {
     pub side: NotchSide,
-    pub growth: PanelGrowth,
+    pub growth: PopupGrowth,
     pub row: NotchRowAnchor,
     pub panel_top: ResolvedPanelTop,
     pub row_height: f32,
@@ -144,8 +144,8 @@ impl<Message> NotchedPanel<'_, Message> {
             NotchSide::Right => 0.0,
         };
         let wanted_top = match self.placement.growth {
-            PanelGrowth::Downward => self.row_top,
-            PanelGrowth::Upward => self.row_top + self.placement.row_height - content_size.height,
+            PopupGrowth::Downward => self.row_top,
+            PopupGrowth::Upward => self.row_top + self.placement.row_height - content_size.height,
         };
         let panel_y = screen_room.panel_top_on_screen(wanted_top, content_size.height);
         Rectangle::new(Point::new(panel_x, panel_y), content_size)
@@ -197,8 +197,8 @@ impl<Message> NotchedPanel<'_, Message> {
             NotchSide::Right => panel.x + panel.width + self.placement.gap_to_parent,
         };
         let side = match self.placement.side {
-            NotchSide::Left => ConnectorSide::Left,
-            NotchSide::Right => ConnectorSide::Right,
+            NotchSide::Left => Edge::Left,
+            NotchSide::Right => Edge::Right,
         };
         ConnectorTriangle::between(
             Rectangle::new(Point::new(apex_x, notch_y), Size::ZERO),
@@ -294,7 +294,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
             SubmenuConnector::Shown => self.connector(panel, origin).draw_framed_surface(
                 renderer,
                 theme,
-                FramedSurface {
+                ConnectedSurface {
                     frame: self.frame,
                     bounds: panel,
                     corners: self.panel_corners(),

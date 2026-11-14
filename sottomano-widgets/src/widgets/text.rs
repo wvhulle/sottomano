@@ -1,7 +1,6 @@
-pub use corredo::font_faces::LINE_HEIGHT;
 use corredo::{
-    font_faces::{FontFaces, TextFace},
-    text_effects::{IntroEffect, PlaceholderEffect, ReplaceEffect, TextEffects},
+    changing_text::{IntroEffect, PlaceholderEffect, ReplaceEffect, TextEffects},
+    theming::{FontFaces, LINE_HEIGHT, TextFace},
 };
 use iced::{
     advanced::graphics::text::font_system,
@@ -122,7 +121,7 @@ pub fn text_effects_of(loading: configured_effects::HoverCardLoading) -> TextEff
 
 #[cfg(test)]
 mod tests {
-    use corredo::text_effects::TextEffects;
+    use corredo::changing_text::TextEffects;
     use sottomano_toml_config::hover_cards::HoverCardLoading;
 
     use super::text_effects_of;

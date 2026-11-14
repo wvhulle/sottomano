@@ -1,8 +1,8 @@
 use std::ops::RangeInclusive;
 
 use corredo::{
-    inline_slider::{SliderAccents, inline_slider as themed_inline_slider},
-    theme_colors::{primary_color, text_color},
+    theming::{primary_color, text_color},
+    value_controls::{SliderAccents, inline_slider as themed_inline_slider},
 };
 use iced::{Color, Element, Theme, mouse::ScrollDelta};
 use sottomano_toml_config::{Config, severity::Severity};

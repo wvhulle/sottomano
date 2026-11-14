@@ -20,6 +20,7 @@ workspace = true
 sottomano-toml-config = { path = "../sottomano-toml-config" }
 sottomano-desktop-sources = { path = "../sottomano-desktop-sources" }
 sottomano-desktop-sinks = { path = "../sottomano-desktop-sinks" }
+corredo = { path = "../corredo" }
 sottomano-widgets = { path = "../sottomano-widgets" }
 chrono.workspace = true
 clap.workspace = true

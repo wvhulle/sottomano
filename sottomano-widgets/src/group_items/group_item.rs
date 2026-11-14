@@ -1,6 +1,7 @@
 use std::{borrow::Cow, rc::Rc};
 
 use chrono::Locale;
+use corredo::{press_actions::flat_button, theming::text_color};
 use iced::{
     Alignment, Element,
     widget::{Row, Space, button, mouse_area, row},
@@ -30,8 +31,6 @@ use crate::{
     widget_groups::{widget_group_content::GroupEvent, widget_group_identity::WidgetGroupIdentity},
     widgets::{
         announced_level::LevelReading,
-        configured_theme::text_color,
-        flat_button,
         icon_glyph::IconGlyph,
         icon_handle::IconHandle,
         ongoing_toast::{

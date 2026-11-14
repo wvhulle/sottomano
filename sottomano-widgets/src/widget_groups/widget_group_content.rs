@@ -6,7 +6,12 @@ use std::{
 };
 
 use chrono::Locale;
-use corredo::primitives::expand_animation::expand_animation;
+use corredo::{
+    gauges::activity_line,
+    press_actions::flat_button,
+    theming::{primary_color, secondary_text_color, text_color},
+    transitions::{expand_transition, horizontal_reveal},
+};
 use iced::{
     Alignment, Element, Length, Padding,
     mouse::ScrollDelta,
@@ -40,13 +45,7 @@ use crate::{
         WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle,
     },
     widgets::{
-        activity_line::activity_line,
-        announced_level::LevelReading,
-        configured_theme::{primary_color, secondary_text_color, text_color},
-        flat_button,
-        icon_glyph::IconGlyph,
-        ongoing_toast::OngoingToast,
-        reveal_clip::reveal_x,
+        announced_level::LevelReading, icon_glyph::IconGlyph, ongoing_toast::OngoingToast,
         shared_metrics::ACCENT_STROKE_PX,
     },
 };
@@ -61,7 +60,7 @@ pub enum WidgetGroupExpansionMessage {
     HandleScrolled(ScrollDelta),
 }
 
-pub use corredo::primitives::expand_animation::ExpansionState;
+use corredo::transitions::ExpansionState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExpansionChange {
@@ -751,7 +750,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             expansion_state: expansion.state,
         };
         let expansion_duration = config.widget_group_layout.expansion_duration;
-        let animated = expand_animation(expansion.state, expansion_duration, move |reveal| {
+        let animated = expand_transition(expansion.state, expansion_duration, move |reveal| {
             let handle: Element<'a, GroupEvent<M>> = button(
                 Row::with_children([
                     draw_face(),
@@ -904,7 +903,7 @@ fn collapsing_previewed_value<'a, M: 'a, Message: 'a>(
     else {
         return Row::new().into();
     };
-    reveal_x(
+    horizontal_reveal(
         container(value).padding(Padding::ZERO.left(config.theme.spacing.item_gap)),
         hidden,
     )
@@ -916,7 +915,7 @@ fn revealed_content<'a, Message: 'a>(
     content: Element<'a, Message>,
 ) -> Element<'a, Message> {
     let gap = config.theme.spacing.item_gap;
-    reveal_x(container(content).padding(Padding::ZERO.left(gap)), reveal)
+    horizontal_reveal(container(content).padding(Padding::ZERO.left(gap)), reveal)
 }
 
 #[cfg(test)]

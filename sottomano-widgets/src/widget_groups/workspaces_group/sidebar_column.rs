@@ -1,3 +1,4 @@
+use corredo::drag_reorder::ListEndCorners;
 use iced::{
     Alignment, Element,
     border::Radius,
@@ -18,10 +19,7 @@ use super::{
 };
 use crate::{
     desktop_panels::panel_slot_drag::PanelSlotContext,
-    widgets::{
-        list_end_corners::ListEndCorners,
-        pointer_drag::{PanelSlotList, slot_pager::slot_pager},
-    },
+    widgets::pointer_drag::{PanelSlotList, reorderable_list::reorderable_list},
 };
 
 pub fn vertical_view<'a>(
@@ -59,7 +57,7 @@ pub fn vertical_view<'a>(
                 workspace_slot.sidebar_view(end_corners.radius_at(position_in_panel)),
             )
         });
-    let pager = slot_pager(rows, Position::Left, config)
+    let pager = reorderable_list(rows, Position::Left, config)
         .spacing(config.theme.spacing.item_gap)
         .highlight(active_workspace_key(&order), active_highlight_color(&order))
         .frame_corners(frame_corners)

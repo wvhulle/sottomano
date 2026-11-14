@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+use corredo::changing_text::KaraokeColors;
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::media_playback_audio::{
     lrclib_synced_lyrics::{TimedLyricLine, TrackLyrics},
@@ -17,7 +18,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::media_group::karaoke_lyric_line::{
-        INSTRUMENTAL_BREAK_MARK, KaraokeColors, KaraokeLyricLine, PlaybackPosition,
+        INSTRUMENTAL_BREAK_MARK, KaraokeLyricLine, PlaybackPosition,
     },
     widgets::{
         icon_glyph::IconGlyph,

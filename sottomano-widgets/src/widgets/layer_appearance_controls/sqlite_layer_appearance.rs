@@ -1,12 +1,11 @@
+use corredo::theming::{OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle};
 use sottomano_desktop_sources::sqlite_state_store::{
     Columns, StoreError, flag, in_state_store, real, with_state_store,
 };
 
 use crate::{
     desktop_panels::region_reporter::BackdropBlur,
-    widgets::shell_layer_appearance::{
-        LayerAppearance, OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle, ShellLayer,
-    },
+    widgets::shell_layer_appearance::{LayerAppearance, ShellLayer},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -224,14 +223,13 @@ async fn read_layer_appearance(
 
 #[cfg(test)]
 mod tests {
+    use corredo::theming::{OutlineTracing, ShadowCasting};
     use sottomano_desktop_sources::sqlite_state_store::{flag, migrated_in_memory_store, real};
 
     use super::{AppearanceSetting, read_layer_appearance, write_appearance, write_setting};
     use crate::{
         desktop_panels::region_reporter::BackdropBlur,
-        widgets::shell_layer_appearance::{
-            LayerAppearance, LookComparison, OutlineTracing, ShadowCasting, ShellLayer,
-        },
+        widgets::shell_layer_appearance::{LayerAppearance, LookComparison, ShellLayer},
     };
 
     #[tokio::test]

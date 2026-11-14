@@ -1,5 +1,4 @@
-pub use corredo::karaoke_line::KaraokeColors;
-use corredo::karaoke_line::{KaraokeLine, LineSweep, SweepMotion};
+use corredo::changing_text::{KaraokeColors, KaraokeLine, LineSweep, SweepMotion};
 use iced::{Element, time::Instant};
 use sottomano_desktop_sources::media_playback_audio::{
     lrclib_synced_lyrics::TimedLyricLine,

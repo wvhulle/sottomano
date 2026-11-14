@@ -1,6 +1,5 @@
+use corredo::transitions::ExpansionState;
 use iced::Subscription;
-
-use crate::widget_groups::widget_group_content::ExpansionState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum GroupSurface {

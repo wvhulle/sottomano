@@ -1,5 +1,9 @@
-use corredo::anchored_popup::{AnchoredPopup, PopupArrival, PopupRegions, PopupSide};
-pub use corredo::anchored_popup::{OutsidePress, PopupFraming, PopupRendering};
+use corredo::{
+    orientation::Edge,
+    popovers::{
+        AnchoredPopup, OutsidePress, PopupArrival, PopupFraming, PopupRegions, PopupRendering,
+    },
+};
 use iced::{
     Element, Point, Rectangle, Size, advanced::widget::Operation, border::Radius, time::Duration,
 };
@@ -41,11 +45,11 @@ pub struct PopupMorph {
     pub shown: ShownTarget,
 }
 
-fn popup_side_of(position: Position) -> PopupSide {
+fn popup_side_of(position: Position) -> Edge {
     match position {
-        Position::Top => PopupSide::Below,
-        Position::Bottom => PopupSide::Above,
-        Position::Left => PopupSide::Right,
+        Position::Top => Edge::Bottom,
+        Position::Bottom => Edge::Top,
+        Position::Left => Edge::Right,
     }
 }
 
@@ -131,6 +135,7 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
 
 #[cfg(test)]
 mod tests {
+    use corredo::popovers::{CascadeDirection, CascadeOrientation, PopupGrowth};
     use iced::{
         Element, Length, Point, Rectangle, Settings, Size,
         mouse::{Button, Event as MouseEvent},
@@ -149,9 +154,7 @@ mod tests {
         clock::Clock,
         group_menus::{
             cascading_layout::{
-                cascade_row::{CascadeDirection, CascadeOrientation, cascade_row},
-                cascade_satellite_panels::CascadeSatellitePanels,
-                notched_panel::PanelGrowth,
+                cascade_row::cascade_row, cascade_satellite_panels::CascadeSatellitePanels,
             },
             group_menu_presentation::SubmenuConnector,
         },
@@ -165,7 +168,7 @@ mod tests {
     const CANVAS_SIZE: Size = Size::new(1200.0, 800.0);
     const ORIENTATION: CascadeOrientation = CascadeOrientation {
         direction: CascadeDirection::Rightward,
-        growth: PanelGrowth::Downward,
+        growth: PopupGrowth::Downward,
     };
 
     fn redraw_at(now: Instant) -> iced::Event {

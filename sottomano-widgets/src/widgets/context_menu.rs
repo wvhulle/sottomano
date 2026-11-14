@@ -1,7 +1,4 @@
-pub use corredo::context_menu::{
-    ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing,
-};
-use corredo::context_menu::{ContextMenuMetrics, context_menu as themed_context_menu};
+use corredo::popovers::{ContextMenuLine, ContextMenuMetrics, context_menu as themed_context_menu};
 use iced::{Color, Element, Theme, border::Radius};
 use sottomano_toml_config::Config;
 

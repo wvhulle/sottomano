@@ -5,6 +5,11 @@ use std::{
     time::{Duration, Instant},
 };
 
+use corredo::{
+    press_actions::{ConfirmButton, ConfirmPolicy, ConfirmPress},
+    transitions::ExpansionState,
+    value_controls::SeekMessage,
+};
 use iced::{Element, Subscription, Task, time::every, widget::Row};
 use sottomano_desktop_sinks::media_playback_audio::mpris_player_commands;
 use sottomano_desktop_sources::{
@@ -39,13 +44,9 @@ use crate::{
         hoverable,
     },
     widget_groups::{
-        media_group::{
-            confirm_button::{ConfirmButton, ConfirmPolicy, ConfirmPress},
-            seek_bar::SeekAvailability,
-        },
+        media_group::seek_bar::SeekAvailability,
         widget_group_content::{
-            ExpansionState, GroupEvent, WidgetGroupContent, WidgetGroupExpansion,
-            WidgetGroupExpansionMessage,
+            GroupEvent, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
         widget_group_identity::{
             WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupInstance, WidgetGroupTitle,
@@ -70,7 +71,7 @@ mod track_hover_card;
 mod transport_controls;
 
 use self::{
-    seek_bar::{SeekBar, SeekMessage},
+    seek_bar::SeekBar,
     session_controls::{SessionControls, SessionMessages},
     synced_lyrics_view::{lyrics_item, lyrics_section},
     track_face::{player_item, track_item},

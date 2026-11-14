@@ -1,3 +1,4 @@
+use corredo::press_actions::{ConfirmButton, ConfirmStage};
 use iced::{Alignment, Element, widget::Row};
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{Command, Media, Status};
 use sottomano_toml_config::Config;
@@ -6,8 +7,7 @@ use crate::{
     group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
     hover_cards::{HoverCardMessage, PressHints, hoverable},
     widget_groups::media_group::{
-        MediaTarget, PlayerTarget,
-        confirm_button::{ConfirmButton, ConfirmStage, configured_confirm_button},
+        MediaTarget, PlayerTarget, confirm_button::configured_confirm_button,
     },
     widgets::{
         glyph_button,

@@ -1,3 +1,4 @@
+use corredo::transitions::MotionState;
 use iced::{Element, Rectangle};
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::NotificationData,
@@ -10,10 +11,9 @@ use sottomano_toml_config::{
 };
 
 use crate::{
-    notification_toasts::NotificationSettings,
-    toast_messages::NotificationMessage,
+    notification_toasts::NotificationSettings, toast_messages::NotificationMessage,
     widget_groups::overlay_settings_group::ToastArrangement,
-    widgets::{motion_state::MotionState, typing_under_cards::viewed_window_bounds},
+    widgets::typing_under_cards::viewed_window_bounds,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]

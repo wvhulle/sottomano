@@ -1,7 +1,6 @@
 use std::time::{Duration, Instant};
 
-pub use corredo::seek_bar::SeekMessage;
-use corredo::seek_bar::{PlaybackTimeline, SeekBar as PlaybackSeekBar};
+use corredo::value_controls::{PlaybackTimeline, SeekBar as PlaybackSeekBar, SeekMessage};
 use iced::Element;
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{
     Command, Media, SeekMode, micros,

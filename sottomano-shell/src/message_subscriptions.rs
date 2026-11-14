@@ -1,3 +1,4 @@
+use corredo::transitions::MotionState;
 use iced::{
     Subscription,
     event::listen_with,
@@ -19,9 +20,8 @@ use sottomano_desktop_sources::{
     },
 };
 use sottomano_widgets::{
-    hover_cards::HoverCardMessage,
-    toast_messages::NotificationMessage,
-    widgets::{motion_state::MotionState, typing_under_cards::CardVisibility},
+    hover_cards::HoverCardMessage, toast_messages::NotificationMessage,
+    widgets::typing_under_cards::CardVisibility,
 };
 use wayland_client::Connection;
 

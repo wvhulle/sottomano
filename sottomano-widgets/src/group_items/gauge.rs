@@ -1,4 +1,4 @@
-use corredo::fill_gauge::FillGauge;
+use corredo::gauges::FillGauge;
 use iced::{Element, Theme};
 use uom::{
     fmt::DisplayStyle::Abbreviation,

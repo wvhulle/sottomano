@@ -10,6 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use corredo::transitions::MotionState;
 use iced::{Element, Subscription, Task};
 use sottomano_desktop_sources::{
     compositor_window_ipc::compositor_window_state::CompositorWindowState,
@@ -31,7 +32,7 @@ use crate::{
         hover_card_body::hover_card_source_delivery::{DeliveryTiming, HoverCard},
     },
     widget_groups::widget_group_content::GroupEvent,
-    widgets::{motion_state::MotionState, window_icon::WindowAssets},
+    widgets::window_icon::WindowAssets,
 };
 
 #[derive(Default)]

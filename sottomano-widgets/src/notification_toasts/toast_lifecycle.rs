@@ -1,5 +1,6 @@
 use std::time::SystemTime;
 
+use corredo::transitions::MotionState;
 use iced::{
     Animation,
     animation::Easing,
@@ -20,7 +21,6 @@ use crate::{
     widgets::{
         announced_level::LevelReading,
         icon_glyph::IconGlyph,
-        motion_state::MotionState,
         ongoing_toast::{OngoingKey, OngoingToast},
     },
 };

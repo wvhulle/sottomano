@@ -1,5 +1,9 @@
 use std::{collections::HashMap, convert::identity};
 
+use corredo::{
+    transitions::MotionState,
+    width_layout::{ChildView, ChildViewMut},
+};
 use iced::{
     Animation, Element, Event, Length, Padding, Point, Rectangle, Size, Vector,
     advanced::{
@@ -25,12 +29,7 @@ use super::{
 use crate::{
     desktop_panels::region_reporter::{PointerInput, RegionRoles},
     toast_messages::NotificationMessage,
-    widgets::{
-        child_view::{ChildView, ChildViewMut},
-        motion_state::MotionState,
-        shell_layer_appearance::LayerAppearance,
-        typing_under_cards::CardBackgroundFade,
-    },
+    widgets::{shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade},
 };
 
 impl<'a> WindowAnchoredToasts<'a> {
@@ -449,6 +448,7 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
 
 #[cfg(test)]
 mod tests {
+    use corredo::transitions::MotionState;
     use iced::{
         Event, Padding, Settings, Size,
         time::Duration,
@@ -466,10 +466,7 @@ mod tests {
         clock::Clock,
         notification_toasts::toast_placement::{AnchoredToast, ToastAnchor},
         toast_messages::NotificationMessage,
-        widgets::{
-            motion_state::MotionState, shell_layer_appearance::ShellLayer,
-            typing_under_cards::CardBackgroundFade,
-        },
+        widgets::{shell_layer_appearance::ShellLayer, typing_under_cards::CardBackgroundFade},
     };
 
     #[test]

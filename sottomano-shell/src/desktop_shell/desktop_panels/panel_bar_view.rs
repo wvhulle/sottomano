@@ -1,3 +1,4 @@
+use corredo::theming::OutlinedSides;
 use iced::{
     Alignment, Element, Length,
     alignment::Vertical,
@@ -6,7 +7,7 @@ use iced::{
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     desktop_panels::{
-        panel_frame::{OutlinedSides, outlined_sides_inward_of, panel_frame},
+        panel_frame::{outlined_sides_inward_of, panel_frame},
         region_reporter::{PointerInput, RegionRoles, region_reporter},
     },
     group_menus::group_menu_state::GroupMenuTopic,

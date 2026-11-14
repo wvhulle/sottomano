@@ -19,6 +19,10 @@ use std::{
     sync::Arc,
 };
 
+use corredo::{
+    popovers::{CascadeDirection, CascadeOrientation, PopupGrowth},
+    theming::text_color,
+};
 use iced::{
     Color, Element, Length, Task,
     border::Radius,
@@ -52,10 +56,7 @@ use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
     group_menus::{
-        cascading_layout::{
-            cascade_row::{CascadeDirection, CascadeOrientation, growth_away_from},
-            notched_panel::PanelGrowth,
-        },
+        cascading_layout::cascade_row::growth_away_from,
         group_menu_state::{GroupMenuMessage, GroupMenuTopic, OpenGroupMenu, PanelPinDuration},
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
     },
@@ -69,7 +70,7 @@ use sottomano_widgets::{
         session_power_group,
     },
     widgets::{
-        configured_theme::{configured_theme, text_color},
+        configured_theme::configured_theme,
         favicon::Favicons,
         text::point_generic_font_families_at,
         typing_under_cards::{CardBackgroundFade, TypingUnderCards},
@@ -540,7 +541,7 @@ impl DesktopShell {
         else {
             return CascadeOrientation {
                 direction: CascadeDirection::Rightward,
-                growth: PanelGrowth::Downward,
+                growth: PopupGrowth::Downward,
             };
         };
         let output_width = self

@@ -6,6 +6,7 @@ mod workspace_slot;
 
 use std::collections::HashMap;
 
+use corredo::{press_actions::flat_button, theming::secondary_text_color};
 use iced::{
     Element,
     mouse::ScrollDelta,
@@ -26,8 +27,7 @@ use crate::{
     },
     hover_cards::{HoverCardMessage, HoverTarget, PressHints, hoverable},
     widgets::{
-        configured_theme::secondary_text_color,
-        flat_button, glyph_button,
+        glyph_button,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         text::panel_text,

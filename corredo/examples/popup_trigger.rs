@@ -1,6 +1,6 @@
 use corredo::{
-    anchored_popup::PopupSide,
-    popup_trigger::{PopupVisibility, popup_trigger},
+    orientation::Edge,
+    popovers::{PopupVisibility, popup_trigger},
 };
 use iced::{
     Element, Length,
@@ -37,7 +37,7 @@ impl PopupDemo {
         ];
         container(
             popup_trigger(trigger, content, self.popup_visibility)
-                .side(PopupSide::Below)
+                .side(Edge::Bottom)
                 .on_dismiss(PopupMessage::Dismissed),
         )
         .width(Length::Fill)

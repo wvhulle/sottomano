@@ -1,13 +1,3 @@
-pub use corredo::{
-    content_sized_table, pressable_text,
-    primitives::{
-        child_view, edge_alpha_fade, ellipsis_rule, fair_widths, list_end_corners, motion_state,
-        rectangle_morph, reveal_clip, rounded_quads, steady_label_width, svg_icon,
-        uniform_width_column, workspace_swap,
-    },
-    refresh_dial, selection_scroller, transitioning_text, widest_readout_text,
-};
-
 pub mod activity_line;
 pub mod amount_text;
 pub mod announced_level;
@@ -52,7 +42,7 @@ pub mod window_title;
 
 pub const DISABLED_ALPHA: f32 = 0.4;
 
-pub use corredo::primitives::flat_button::flat_button;
+use corredo::press_actions::flat_button;
 use iced::{Color, Element, Theme, widget::button};
 
 use crate::widgets::icon_glyph::IconGlyph;

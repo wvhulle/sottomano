@@ -1,6 +1,15 @@
 use std::{collections::BTreeSet, time::Duration};
 
 use bytesize::ByteSize;
+use corredo::{
+    changing_text::{TransitionStyle, TransitioningText},
+    data_tables::{AutoWidthColumn, auto_width_column, auto_width_table},
+    press_actions::flash_on_press_text,
+    theming::{
+        danger_color, secondary_text_color, success_color, success_shades, text_color,
+        warning_color,
+    },
+};
 use iced::{
     Alignment, Color, Element, Padding, Theme,
     alignment::{Horizontal, Vertical},
@@ -18,17 +27,10 @@ use crate::{
     hover_cards::PopupMessage,
     widget_groups::window_group::{WindowGroupInteraction, window_list::WindowListInteraction},
     widgets::{
-        configured_theme::{
-            danger_color, secondary_text_color, success_color, success_shades, text_color,
-            warning_color,
-        },
-        content_sized_table::{ContentSizedColumn, content_sized_column, content_sized_table},
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
         phosphor::{self, Phosphor},
-        pressable_text::pressable_text,
         text::{column_heading, font_faces_of, panel_text, text_face_of},
-        transitioning_text::{TransitionStyle, TransitioningText},
     },
 };
 
@@ -176,9 +178,9 @@ impl<'a> ProcessTree<'a> {
         let locale = self.config.calendar.locale;
         let item_gap = self.config.theme.spacing.item_gap;
 
-        content_sized_table(
+        auto_width_table(
             [
-                content_sized_column(self.heading("Binary"), move |branch: Branch| {
+                auto_width_column(self.heading("Binary"), move |branch: Branch| {
                     let is_root = branch.depth == 0;
                     let caret_size = font.text_size_px;
                     let row = match branch.entry {
@@ -204,7 +206,7 @@ impl<'a> ProcessTree<'a> {
                                     severity_tint(level, secondary_text_color),
                                 ))
                                 .push(Element::from(
-                                    pressable_text(cell, listing.name, PopupMessage::CopyText)
+                                    flash_on_press_text(cell, listing.name, PopupMessage::CopyText)
                                         .accent(success_shades)
                                         .hold(copy_flash)
                                         .interaction(Interaction::Copy),
@@ -242,11 +244,11 @@ impl<'a> ProcessTree<'a> {
         &self,
         title: &str,
         field: impl Fn(&Listing) -> String + 'static,
-    ) -> ContentSizedColumn<'static, Branch, PopupMessage> {
+    ) -> AutoWidthColumn<'static, Branch, PopupMessage> {
         let font = self.config.theme.monospace_font.clone();
         let transition = self.transition;
         let copy_flash = self.copy_flash();
-        content_sized_column(self.heading(title), move |branch: Branch| {
+        auto_width_column(self.heading(title), move |branch: Branch| {
             let Entry::Listed(listing) = branch.entry else {
                 return blank(0.0);
             };
@@ -261,7 +263,7 @@ impl<'a> ProcessTree<'a> {
             )
             .identified_by(&listing.pid);
             Element::from(
-                pressable_text(cell, text, PopupMessage::CopyText)
+                flash_on_press_text(cell, text, PopupMessage::CopyText)
                     .accent(success_shades)
                     .hold(copy_flash)
                     .interaction(Interaction::Copy),

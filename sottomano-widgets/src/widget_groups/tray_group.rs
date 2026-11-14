@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use corredo::{gauges::activity_line, theming::primary_color};
 use iced::{
     Alignment, Element, Task,
     border::Radius,
@@ -46,10 +47,8 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        activity_line::activity_line,
         app_window_focus::AppWindowFocus,
         application_menu_lines::ApplicationMenuLines,
-        configured_theme::primary_color,
         context_menu::context_menu,
         icon_glyph::IconGlyph,
         icon_handle::PixmapHandles,
@@ -416,7 +415,7 @@ fn item_view<'a>(
 
 #[cfg(test)]
 mod tests {
-    use corredo::primitives::reveal_clip::reveal_x;
+    use corredo::transitions::horizontal_reveal;
     use iced::{
         Settings, Size,
         widget::{row, text},
@@ -459,7 +458,7 @@ mod tests {
         let config = Config::default();
         let pixmap_handles = PixmapHandles::default();
         let item = item_needing_attention();
-        let revealed = reveal_x(
+        let revealed = horizontal_reveal(
             item_view(
                 &config,
                 &pixmap_handles,

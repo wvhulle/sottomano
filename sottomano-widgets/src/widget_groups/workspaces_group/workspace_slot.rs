@@ -1,4 +1,12 @@
-use corredo::marker_track::{MarkerTrack, TrackAxis};
+use corredo::{
+    drag_reorder::{HoverReorder, draggable_slot},
+    gauges::ColorDotTrack,
+    orientation::Axis,
+    theming::{
+        ThemedColor, background_strong_color, danger_color, primary_color, primary_weak_color,
+        secondary_text_color, text_color,
+    },
+};
 use iced::{
     Alignment, Border, Color, Element, Length, Theme,
     border::Radius,
@@ -18,14 +26,7 @@ use crate::{
     hover_cards::{HoverTarget, PressHints, hoverable},
     widgets::{
         activity_line::edge_activity_line,
-        configured_theme::{
-            ThemedColor, background_strong_color, danger_color, primary_color, primary_weak_color,
-            secondary_text_color, text_color,
-        },
-        pointer_drag::{
-            DraggedPanelSlot,
-            draggable_slot::{HoverReorder, draggable_slot},
-        },
+        pointer_drag::DraggedPanelSlot,
         shared_metrics::{ACCENT_STROKE_PX, pill_corners},
         text::panel_text,
     },
@@ -231,7 +232,7 @@ impl<'s> WorkspaceSlot<'s> {
         )
     }
 
-    fn window_markers(&self, marker_edge: Position) -> MarkerTrack {
+    fn window_markers(&self, marker_edge: Position) -> ColorDotTrack {
         let incoming = match window_arrival_on(&self.slot_context.drag, self.workspace.id) {
             WindowArrival::Awaited => Some(Box::new(primary_color) as ThemedColor<'static>),
             WindowArrival::NotAwaited => None,
@@ -246,13 +247,13 @@ impl<'s> WorkspaceSlot<'s> {
             })
             .chain(incoming)
             .collect();
-        MarkerTrack::new(
+        ColorDotTrack::new(
             colors,
             ACCENT_STROKE_PX,
             if marker_edge == Position::Left {
-                TrackAxis::Vertical
+                Axis::Vertical
             } else {
-                TrackAxis::Horizontal
+                Axis::Horizontal
             },
         )
     }

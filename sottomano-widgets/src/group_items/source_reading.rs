@@ -1,3 +1,4 @@
+use corredo::width_layout::{LabelShape, steady_width_label};
 use iced::{
     Alignment, Element,
     widget::{Row, row, text},
@@ -14,7 +15,6 @@ use crate::{
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        steady_label_width::{LabelShape, steady_label_width},
         text::{font_faces_of, panel_text},
     },
 };
@@ -166,7 +166,7 @@ fn label_text<'a, Message: 'a>(
                 widget_name: widget.name(),
                 character_count: label.chars().count(),
             };
-            steady_label_width(
+            steady_width_label(
                 shape,
                 panel_text(&config.theme.font, label)
                     .style(tint.text_style())

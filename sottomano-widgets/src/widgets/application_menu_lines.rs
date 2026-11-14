@@ -1,11 +1,13 @@
 use std::{collections::HashSet, iter::once};
 
+use corredo::{
+    popovers::{ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing},
+    theming::text_color,
+};
 use sottomano_desktop_sources::desktop_windows_apps::application_menu_nodes::{MenuKind, MenuNode};
 use sottomano_toml_config::Config;
 
 use crate::widgets::{
-    configured_theme::text_color,
-    context_menu::{ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing},
     icon_glyph::IconGlyph,
     icon_handle::PixmapHandles,
     phosphor::{Phosphor, Weight},

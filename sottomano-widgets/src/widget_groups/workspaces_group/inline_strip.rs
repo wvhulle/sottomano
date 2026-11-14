@@ -13,7 +13,7 @@ use super::{
 };
 use crate::{
     desktop_panels::panel_slot_drag::PanelSlotContext,
-    widgets::pointer_drag::{PanelSlotList, slot_pager::slot_pager},
+    widgets::pointer_drag::{PanelSlotList, reorderable_list::reorderable_list},
 };
 
 pub fn inline_view<'a>(
@@ -44,7 +44,7 @@ pub fn inline_view<'a>(
                 WorkspaceSlot::new(workspace, compositor, position_in_panel, slot_context);
             (workspace_slot.key(), workspace_slot.inline_view())
         });
-    let pager = slot_pager(slots, edge, config)
+    let pager = reorderable_list(slots, edge, config)
         .highlight(active_workspace_key(&order), active_highlight_color(&order))
         .draggable(PanelSlotList::Workspaces, &drag, dragged);
     Some(

@@ -1,6 +1,7 @@
 use std::{path::Path, sync::Arc};
 
 use ::image::RgbaImage;
+use corredo::theming::text_color;
 use iced::{
     Color, ContentFit, Element, Length, Theme,
     widget::{image, svg},
@@ -9,8 +10,6 @@ use sottomano_desktop_sources::desktop_windows_apps::{
     firefox_favicon_lookup::FaviconKind, icon_whitespace_trim::TrimmedIcon,
     status_notifier_tray::IconSource,
 };
-
-use crate::widgets::configured_theme::text_color;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IconHandle {

@@ -5,6 +5,11 @@ use std::{
 };
 
 use chrono::{DateTime, Locale, TimeDelta, Utc};
+use corredo::{
+    changing_text::{TextPresence, TransitionStyle, TransitioningText},
+    press_actions::flash_on_press_text,
+    theming::{AccentShades, LINE_HEIGHT},
+};
 use iced::{
     Color, Element, Font, Theme,
     alignment::Vertical,
@@ -18,16 +23,13 @@ use iced::{
 use sottomano_toml_config::{severity::Severity, theme::font::ResolvedFont};
 
 use crate::widgets::{
-    configured_theme::AccentShades,
     icon_glyph::IconGlyph,
     localized_durations::{
         LengthOfTime, duration_text, relative_moment_text, signed_duration_text,
     },
     localized_quantities::Quantity,
     localized_time::LocalizedTimeFormat,
-    pressable_text::pressable_text,
-    text::{LINE_HEIGHT, font_faces_of, panel_text, text_face_of},
-    transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
+    text::{font_faces_of, panel_text, text_face_of},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -342,7 +344,7 @@ impl<Message: 'static> ValueCellView<Message> {
         )
         .identified_by(row);
         Element::from(
-            pressable_text(value, text, self.press_messages.copy_text)
+            flash_on_press_text(value, text, self.press_messages.copy_text)
                 .accent(self.flash)
                 .hold(self.copy_flash)
                 .interaction(Interaction::Copy),
@@ -381,7 +383,7 @@ impl<Message: 'static> ValueCellView<Message> {
 
     fn openable(&self, label: Element<'static, Message>, url: String) -> Element<'static, Message> {
         Element::from(
-            pressable_text(label, url, self.press_messages.open_url)
+            flash_on_press_text(label, url, self.press_messages.open_url)
                 .accent(self.link)
                 .hold(self.copy_flash)
                 .interaction(Interaction::Pointer),
@@ -417,7 +419,7 @@ impl<Message: 'static> ValueCellView<Message> {
             return value;
         }
         Element::from(
-            pressable_text(value, text, self.press_messages.copy_text)
+            flash_on_press_text(value, text, self.press_messages.copy_text)
                 .accent(self.flash)
                 .hold(self.copy_flash)
                 .interaction(Interaction::Copy),

@@ -7,6 +7,7 @@ pub mod weekday_picker;
 use std::{ops::RangeInclusive, time::Duration};
 
 use chrono::{DateTime, Local, Locale, TimeDelta, Utc, Weekday, WeekdaySet};
+use corredo::value_controls::weekday_name;
 use iced::{Function, Subscription, Task, task};
 use sottomano_desktop_sources::{
     login_session_presence::logind_manager,
@@ -40,7 +41,7 @@ use crate::{
     widget_groups::{
         quiet_schedule_group::{
             quiet_window::{QuietPhase, QuietScheduleAdherence, QuietWindow},
-            weekday_picker::{WeekdayPicker, WeekdayPickerMessages, weekday_name},
+            weekday_picker::{WeekdayPicker, WeekdayPickerMessages},
         },
         widget_group_content::{
             ExpansionChange, GroupEvent, WidgetGroupContent, WidgetGroupExpansion,
