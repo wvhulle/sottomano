@@ -1,5 +1,9 @@
+use std::borrow::Cow;
+
 use notulist_client::{DictationError, DictationPhase, MicrophoneOpenError, MicrophoneSilence};
-use sottomano_desktop_sources::voice_dictation_input::notulist_dbus_dictation::NotulistDictation;
+use sottomano_desktop_sources::{
+    SnapshotSource, voice_dictation_input::notulist_dbus_dictation::NotulistDictation,
+};
 
 use super::speech_model_item::model_load_error_rows;
 use crate::{
@@ -50,8 +54,8 @@ impl From<&NotulistDictation> for SwitchPosition {
 }
 
 impl GroupItemReading for NotulistDictation {
-    fn name(&self) -> &'static str {
-        "Dictation"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

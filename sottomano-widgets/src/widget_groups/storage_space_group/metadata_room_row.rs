@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use bytesize::ByteSize;
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::{
@@ -102,8 +104,8 @@ impl MetadataRoomRow<'_> {
 }
 
 impl GroupItemReading for MetadataRoomRow<'_> {
-    fn name(&self) -> &'static str {
-        "Metadata room"
+    fn name(&self) -> Cow<'static, str> {
+        "Metadata room".into()
     }
 
     fn icon(&self) -> IconGlyph {

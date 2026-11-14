@@ -1051,7 +1051,7 @@ mod tests {
             menu: GroupMenuTopic::Media,
             entry: GroupMenuPin::Item {
                 group: WidgetGroupIdentity::sole(WidgetGroupFamily::Media),
-                item_key: target.stable_item_key(),
+                item_in_group_name: "Lyrics".to_owned(),
             },
         });
         let expansion = WidgetGroupExpansion::default();

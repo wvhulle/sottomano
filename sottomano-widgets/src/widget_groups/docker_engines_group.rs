@@ -32,7 +32,8 @@ use crate::{
     widget_groups::{
         engine_container_rows::{
             EngineContainerInteraction, EngineContainerTarget, EngineContainers,
-            container_switch_task, rows_ending_in_hidden_count, with_container_switch,
+            container_switch_task, engine_container_name, rows_ending_in_hidden_count,
+            with_container_switch,
         },
         widget_group_content::{WidgetGroupContent, WidgetGroupExpansion, WidgetGroupFace},
         widget_group_identity::WidgetGroupFamily,
@@ -79,11 +80,7 @@ struct UnreadableEngineRow<'a> {
 }
 
 impl GroupItemReading for UnreadableEngineRow<'_> {
-    fn name(&self) -> &'static str {
-        "Docker engine"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.engine.owner.to_string().into()
     }
 
@@ -119,12 +116,8 @@ struct ListedContainerRow<'a> {
 }
 
 impl GroupItemReading for ListedContainerRow<'_> {
-    fn name(&self) -> &'static str {
-        "Container"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        self.listed.container_name.clone().into()
+    fn name(&self) -> Cow<'static, str> {
+        engine_container_name(&self.listed.container_name, &self.engine.owner)
     }
 
     fn icon(&self) -> IconGlyph {
@@ -414,11 +407,7 @@ impl DockerEnginesGroup {
 }
 
 impl GroupItemReading for DockerEnginesGroup {
-    fn name(&self) -> &'static str {
-        "Docker engines"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         "Docker engines".into()
     }
 

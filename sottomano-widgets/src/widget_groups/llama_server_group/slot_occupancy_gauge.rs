@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::ai_usage_spend::llama_server_slots::LlamaSlot;
 use uom::si::{f64::Ratio, ratio::ratio};
@@ -16,17 +18,20 @@ use crate::{
     },
 };
 
-pub struct SlotOccupancy<'a>(pub &'a [LlamaSlot]);
+pub struct SlotOccupancy<'a> {
+    pub slots: &'a [LlamaSlot],
+    pub server: &'a str,
+}
 
 impl SlotOccupancy<'_> {
     fn busy(&self) -> usize {
-        self.0.iter().filter(|slot| slot.processing).count()
+        self.slots.iter().filter(|slot| slot.processing).count()
     }
 }
 
 impl GroupItemReading for SlotOccupancy<'_> {
-    fn name(&self) -> &'static str {
-        "Busy slots"
+    fn name(&self) -> Cow<'static, str> {
+        format!("{} busy slots", self.server).into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -38,7 +43,7 @@ impl GroupItemReading for SlotOccupancy<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(format!("{}/{}", self.busy(), self.0.len()))
+        Some(format!("{}/{}", self.busy(), self.slots.len()))
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
@@ -52,14 +57,14 @@ impl GroupItemReading for SlotOccupancy<'_> {
     #[allow(clippy::cast_precision_loss)]
     fn gauge(&self) -> Option<Ratio> {
         Some(Ratio::new::<ratio>(
-            self.busy() as f64 / self.0.len() as f64,
+            self.busy() as f64 / self.slots.len() as f64,
         ))
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         HoverCardBody::dictionary([
             LabeledValue::new("Processing", Quantity::count(self.busy())),
-            LabeledValue::new("Slots", Quantity::count(self.0.len())),
+            LabeledValue::new("Slots", Quantity::count(self.slots.len())),
         ])
     }
 }

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::systemd_units_journal::journal_oom_kills::{
     OomKillEntry, OomKiller,
@@ -63,8 +65,8 @@ impl JournalScopeGroup {
 }
 
 impl GroupItemReading for Vec<OomKillEntry> {
-    fn name(&self) -> &'static str {
-        "OOM kills"
+    fn name(&self) -> Cow<'static, str> {
+        "OOM kills".into()
     }
 
     fn icon(&self) -> IconGlyph {

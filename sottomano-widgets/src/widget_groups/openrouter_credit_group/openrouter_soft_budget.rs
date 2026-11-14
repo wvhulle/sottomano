@@ -1,7 +1,12 @@
+use std::borrow::Cow;
+
 use chrono::{DateTime, Locale, Utc};
-use sottomano_desktop_sources::ai_usage_spend::{
-    openrouter_credits::{OpenRouterSpend, SpanSpend},
-    usage_quota::Quota,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    ai_usage_spend::{
+        openrouter_credits::{OpenRouterSpend, SpanSpend},
+        usage_quota::Quota,
+    },
 };
 
 use crate::{
@@ -22,8 +27,8 @@ use crate::{
 };
 
 impl GroupItemReading for OpenRouterSpend {
-    fn name(&self) -> &'static str {
-        "OpenRouter soft budget"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

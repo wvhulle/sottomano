@@ -1,6 +1,9 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
-use sottomano_desktop_sources::cpu_memory_compute::memory_stall_pressure::{
-    MemoryStallPressure, StallAverages,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    cpu_memory_compute::memory_stall_pressure::{MemoryStallPressure, StallAverages},
 };
 use sottomano_toml_config::severity::Severity;
 use uom::si::ratio::percent;
@@ -47,8 +50,8 @@ impl IntoTableRecord<3> for StalledTasksRow {
 }
 
 impl GroupItemReading for MemoryStallPressure {
-    fn name(&self) -> &'static str {
-        "RAM pressure"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

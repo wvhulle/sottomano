@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::{
     host_machine_identity::{
@@ -90,16 +92,16 @@ impl From<&MemorySlotModule> for Section {
 }
 
 impl GroupItemReading for MemorySlotReading {
-    fn name(&self) -> &'static str {
-        "Memory module"
+    fn name(&self) -> Cow<'static, str> {
+        self.slot_module.locator.clone().into()
     }
 
     fn icon(&self) -> IconGlyph {
         Phosphor::Memory(Weight::Regular).into()
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.slot_module.locator.clone())
+    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
+        Some(Quantity::size(self.slot_module.module.size).localized_text(locale))
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {

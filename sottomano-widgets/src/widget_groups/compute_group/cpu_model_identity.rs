@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::host_machine_identity::udev_hardware_identity::CpuModel;
 
@@ -21,8 +23,8 @@ impl GroupItemReading for CpuModel {
         }
     }
 
-    fn name(&self) -> &'static str {
-        "CPU model"
+    fn name(&self) -> Cow<'static, str> {
+        "CPU model".into()
     }
 
     fn icon(&self) -> IconGlyph {

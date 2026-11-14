@@ -1,4 +1,4 @@
-use std::{convert::Infallible, marker::PhantomData, mem::take};
+use std::{borrow::Cow, convert::Infallible, marker::PhantomData, mem::take};
 
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
@@ -24,6 +24,7 @@ use crate::{
 };
 
 pub struct FailedSnapshotFetch<S: SnapshotSource> {
+    name: Cow<'static, str>,
     icon: IconGlyph,
     error: S::Error,
 }
@@ -31,6 +32,7 @@ pub struct FailedSnapshotFetch<S: SnapshotSource> {
 impl<S: SnapshotSource + GroupItemReading> FailedSnapshotFetch<S> {
     pub fn from_fetch_error(error: S::Error) -> Self {
         Self {
+            name: S::NAME.into(),
             icon: S::fallback_icon(),
             error,
         }
@@ -38,8 +40,8 @@ impl<S: SnapshotSource + GroupItemReading> FailedSnapshotFetch<S> {
 }
 
 impl<S: SnapshotSource> GroupItemReading for FailedSnapshotFetch<S> {
-    fn name(&self) -> &'static str {
-        "Failed reading"
+    fn name(&self) -> Cow<'static, str> {
+        self.name.clone()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -56,7 +58,7 @@ impl<S: SnapshotSource> GroupItemReading for FailedSnapshotFetch<S> {
 }
 
 impl GroupItemReading for Infallible {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> Cow<'static, str> {
         match *self {}
     }
 
@@ -122,19 +124,28 @@ impl<S: SnapshotSource + GroupItemReading> FetchFailurePolicy<S> for ShowsFetchF
         error: S::Error,
         delivery_timing: DeliveryTiming,
     ) -> LatestSnapshot<S, Self> {
-        let icon = match &latest {
+        let fetch_failure = match latest {
             LatestSnapshot::SnapshotHeld { held_snapshot, .. }
             | LatestSnapshot::SnapshotHeldOffline {
                 offline_snapshot: OfflineSnapshot { held_snapshot, .. },
                 ..
-            } => held_snapshot.icon(),
-            LatestSnapshot::SnapshotFetchFailed { fetch_failure, .. } => fetch_failure.icon,
+            } => FailedSnapshotFetch {
+                name: held_snapshot.name(),
+                icon: held_snapshot.icon(),
+                error,
+            },
+            LatestSnapshot::SnapshotFetchFailed { fetch_failure, .. } => FailedSnapshotFetch {
+                error,
+                ..fetch_failure
+            },
             LatestSnapshot::AwaitingFirstSnapshot
             | LatestSnapshot::SourceUnavailable
-            | LatestSnapshot::OfflineBeforeSnapshot { .. } => S::fallback_icon(),
+            | LatestSnapshot::OfflineBeforeSnapshot { .. } => {
+                FailedSnapshotFetch::from_fetch_error(error)
+            }
         };
         LatestSnapshot::SnapshotFetchFailed {
-            fetch_failure: FailedSnapshotFetch { icon, error },
+            fetch_failure,
             delivery_timing,
         }
     }
@@ -163,8 +174,8 @@ impl<S: SnapshotSource + GroupItemReading> FetchFailurePolicy<S> for HidesFailur
             LatestSnapshot::SnapshotFetchFailed { fetch_failure, .. } => {
                 LatestSnapshot::SnapshotFetchFailed {
                     fetch_failure: FailedSnapshotFetch {
-                        icon: fetch_failure.icon,
                         error,
+                        ..fetch_failure
                     },
                     delivery_timing,
                 }
@@ -172,10 +183,7 @@ impl<S: SnapshotSource + GroupItemReading> FetchFailurePolicy<S> for HidesFailur
             LatestSnapshot::AwaitingFirstSnapshot
             | LatestSnapshot::SourceUnavailable
             | LatestSnapshot::OfflineBeforeSnapshot { .. } => LatestSnapshot::SnapshotFetchFailed {
-                fetch_failure: FailedSnapshotFetch {
-                    icon: S::fallback_icon(),
-                    error,
-                },
+                fetch_failure: FailedSnapshotFetch::from_fetch_error(error),
                 delivery_timing,
             },
         }
@@ -520,8 +528,8 @@ mod tests {
     }
 
     impl GroupItemReading for CountedSnapshot {
-        fn name(&self) -> &'static str {
-            "Counted"
+        fn name(&self) -> Cow<'static, str> {
+            "Counted".into()
         }
 
         fn icon(&self) -> IconGlyph {

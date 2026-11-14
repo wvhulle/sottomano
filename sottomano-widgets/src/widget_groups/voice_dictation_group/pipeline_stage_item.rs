@@ -1,7 +1,9 @@
-use std::time::Duration;
+use std::{borrow::Cow, time::Duration};
 
 use notulist_client::{GateVerdict, PipelineActivity, PipelineStage};
-use sottomano_desktop_sources::voice_dictation_input::notulist_dbus_pipeline_activity::NotulistPipeline;
+use sottomano_desktop_sources::{
+    SnapshotSource, voice_dictation_input::notulist_dbus_pipeline_activity::NotulistPipeline,
+};
 
 use crate::{
     clock::Clock,
@@ -39,8 +41,8 @@ fn stage_rows(activity: &PipelineActivity) -> impl Iterator<Item = LabeledValue>
 }
 
 impl GroupItemReading for NotulistPipeline {
-    fn name(&self) -> &'static str {
-        "Pipeline"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

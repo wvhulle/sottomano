@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use sottomano_desktop_sources::network_connectivity::{
     network_manager_proxies::{DeviceLinkState, RadioPower},
     wifi_connection::{WifiAdapter, WifiAdapterDetails},
@@ -34,8 +36,8 @@ pub struct AllWifiRadiosSwitch {
 }
 
 impl GroupItemReading for AdapterSignalReading<'_> {
-    fn name(&self) -> &'static str {
-        "Signal"
+    fn name(&self) -> Cow<'static, str> {
+        "Signal".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -102,8 +104,8 @@ impl AdapterConnectionSwitch<'_> {
 }
 
 impl GroupItemReading for AdapterConnectionSwitch<'_> {
-    fn name(&self) -> &'static str {
-        "Connection"
+    fn name(&self) -> Cow<'static, str> {
+        "Connection".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -137,8 +139,8 @@ impl AllWifiRadiosSwitch {
 }
 
 impl GroupItemReading for AllWifiRadiosSwitch {
-    fn name(&self) -> &'static str {
-        "All Wi-Fi radios"
+    fn name(&self) -> Cow<'static, str> {
+        "All Wi-Fi radios".into()
     }
 
     fn icon(&self) -> IconGlyph {

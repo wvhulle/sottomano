@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use sottomano_desktop_sources::network_connectivity::{
     ethernet_connection::{Link, Port, PortState},
     interface_bus_attachment::InterfaceAttachment,
@@ -41,8 +43,8 @@ fn attachment_description(attachment: InterfaceAttachment) -> &'static str {
 }
 
 impl GroupItemReading for PortLinkReading<'_> {
-    fn name(&self) -> &'static str {
-        "Link"
+    fn name(&self) -> Cow<'static, str> {
+        "Link".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -87,8 +89,8 @@ impl PortConnectionSwitch<'_> {
 }
 
 impl GroupItemReading for PortConnectionSwitch<'_> {
-    fn name(&self) -> &'static str {
-        "Connection"
+    fn name(&self) -> Cow<'static, str> {
+        "Connection".into()
     }
 
     fn icon(&self) -> IconGlyph {

@@ -1,10 +1,13 @@
-use std::time::Duration;
+use std::{borrow::Cow, time::Duration};
 
 use chrono::{DateTime, Locale, Utc};
 use quick_xml::escape::escape;
-use sottomano_desktop_sources::cpu_memory_compute::{
-    cpu_temperature::{CoreTemperature, CpuCoreTemperatures, Temperature, cpu_thresholds},
-    temperature_thresholds::celsius_text,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    cpu_memory_compute::{
+        cpu_temperature::{CoreTemperature, CpuCoreTemperatures, Temperature, cpu_thresholds},
+        temperature_thresholds::celsius_text,
+    },
 };
 use sottomano_toml_config::severity::Severity;
 use uom::si::{
@@ -55,8 +58,8 @@ impl PerCoreReading for CoreTemperature {
 }
 
 impl GroupItemReading for Temperature {
-    fn name(&self) -> &'static str {
-        "CPU temperature"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

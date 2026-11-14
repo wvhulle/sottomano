@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use sottomano_desktop_sources::systemd_units_journal::{
     SystemdUnitScope, journal_coredumps::CoredumpEntry, journal_kernel_errors::KernelOccurrence,
     journal_oom_kills::OomKillEntry, journal_service_errors::ServiceErrors,
@@ -78,8 +80,8 @@ impl JournalScopeGroup {
 }
 
 impl GroupItemReading for JournalScopeGroup {
-    fn name(&self) -> &'static str {
-        self.family().title()
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed(self.family().title())
     }
 
     fn icon(&self) -> IconGlyph {

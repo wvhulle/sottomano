@@ -57,12 +57,12 @@ pub struct ApptainerContainerListingRow<'a> {
 }
 
 impl GroupItemReading for ApptainerContainerListingRow<'_> {
-    fn name(&self) -> &'static str {
-        "Apptainer container"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        self.listing.container_name.clone().into()
+    fn name(&self) -> Cow<'static, str> {
+        format!(
+            "{} pid {}",
+            self.listing.container_name, self.listing.runtime_pid
+        )
+        .into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -90,12 +90,13 @@ pub struct ApptainerContainerRow<'a> {
 }
 
 impl GroupItemReading for ApptainerContainerRow<'_> {
-    fn name(&self) -> &'static str {
-        "Apptainer container"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        self.container.shown_name().into()
+    fn name(&self) -> Cow<'static, str> {
+        format!(
+            "{} pid {}",
+            self.container.shown_name(),
+            self.container.runtime_pid
+        )
+        .into()
     }
 
     fn icon(&self) -> IconGlyph {

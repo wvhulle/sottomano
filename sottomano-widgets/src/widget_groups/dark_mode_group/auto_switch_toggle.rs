@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::{DateTime, Locale, Utc};
 use situo_client::GeoCoordinates;
 use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::{
@@ -125,8 +127,8 @@ impl AutoSwitchToggle {
 }
 
 impl GroupItemReading for AutoSwitchToggle {
-    fn name(&self) -> &'static str {
-        "Dark mode auto-switch"
+    fn name(&self) -> Cow<'static, str> {
+        "Dark mode auto-switch".into()
     }
 
     fn icon(&self) -> IconGlyph {

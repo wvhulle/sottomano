@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use sottomano_desktop_sources::systemd_units_journal::graphical_session_target::GraphicalSessionTarget;
 
 use crate::{
@@ -15,8 +17,8 @@ use crate::{
 pub struct DesktopServicesFace;
 
 impl GroupItemReading for DesktopServicesFace {
-    fn name(&self) -> &'static str {
-        "Desktop services"
+    fn name(&self) -> Cow<'static, str> {
+        "Desktop services".into()
     }
 
     fn icon(&self) -> IconGlyph {

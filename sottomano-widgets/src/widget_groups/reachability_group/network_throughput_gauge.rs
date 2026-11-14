@@ -1,5 +1,10 @@
-use sottomano_desktop_sources::network_connectivity::interface_throughput::{
-    InterfaceThroughput, LinkUsage, NetworkTrafficDirection, SCALE_END_MB_PER_S, Throughput,
+use std::borrow::Cow;
+
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    network_connectivity::interface_throughput::{
+        InterfaceThroughput, LinkUsage, NetworkTrafficDirection, SCALE_END_MB_PER_S, Throughput,
+    },
 };
 use sottomano_toml_config::severity::Severity;
 use uom::si::{
@@ -43,11 +48,11 @@ fn severity(throughput: &Throughput) -> Severity {
 }
 
 impl GroupItemReading for Throughput {
-    fn name(&self) -> &'static str {
-        match self.direction {
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed(match self.direction {
             NetworkTrafficDirection::Upload => "Upload",
             NetworkTrafficDirection::Download => "Download",
-        }
+        })
     }
 
     fn icon(&self) -> IconGlyph {
@@ -103,8 +108,8 @@ impl GroupItemReading for Throughput {
 }
 
 impl GroupItemReading for InterfaceThroughput {
-    fn name(&self) -> &'static str {
-        "Network throughput"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

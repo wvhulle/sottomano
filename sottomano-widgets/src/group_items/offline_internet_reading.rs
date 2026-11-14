@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{borrow::Cow, marker::PhantomData};
 
 use chrono::{DateTime, Locale, Utc};
 use sottomano_desktop_sources::{
@@ -45,7 +45,7 @@ impl<S> OfflineSnapshot<S> {
 }
 
 impl<S: GroupItemReading> GroupItemReading for OfflineSnapshot<S> {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> Cow<'static, str> {
         self.held_snapshot.name()
     }
 
@@ -102,8 +102,8 @@ pub struct SnapshotPlaceholder<S> {
 }
 
 impl<S: SnapshotSource + GroupItemReading> GroupItemReading for SnapshotPlaceholder<S> {
-    fn name(&self) -> &'static str {
-        S::NAME
+    fn name(&self) -> Cow<'static, str> {
+        S::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

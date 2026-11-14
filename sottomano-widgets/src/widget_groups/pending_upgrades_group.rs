@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use iced::{Subscription, Task};
 
 use crate::{widget_groups::widget_group_identity::WidgetGroupFamily, widgets::phosphor::Weight};
@@ -135,8 +137,8 @@ impl PendingUpgradesGroup {
 }
 
 impl GroupItemReading for PendingUpgradesGroup {
-    fn name(&self) -> &'static str {
-        "Pending upgrades"
+    fn name(&self) -> Cow<'static, str> {
+        "Available upgrades".into()
     }
 
     fn icon(&self) -> IconGlyph {

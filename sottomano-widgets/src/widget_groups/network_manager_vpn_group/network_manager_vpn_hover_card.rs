@@ -1,5 +1,10 @@
-use sottomano_desktop_sources::network_connectivity::network_manager_vpn_connections::{
-    NetworkManagerVpns, VpnActivity, VpnConnection, VpnState,
+use std::borrow::Cow;
+
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    network_connectivity::network_manager_vpn_connections::{
+        NetworkManagerVpns, VpnActivity, VpnConnection, VpnState,
+    },
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -17,8 +22,8 @@ use crate::{
 };
 
 impl GroupItemReading for NetworkManagerVpns {
-    fn name(&self) -> &'static str {
-        "NetworkManager VPNs"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -31,8 +36,8 @@ impl GroupItemReading for NetworkManagerVpns {
 }
 
 impl GroupItemReading for VpnConnection {
-    fn name(&self) -> &'static str {
-        "VPN connection"
+    fn name(&self) -> Cow<'static, str> {
+        self.name.clone().into()
     }
 
     fn icon(&self) -> IconGlyph {

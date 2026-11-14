@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::{DateTime, Locale, TimeDelta, Utc};
 use quick_xml::escape::escape;
 use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
@@ -162,8 +164,8 @@ impl SessionFace<'_> {
 }
 
 impl GroupItemReading for SessionFace<'_> {
-    fn name(&self) -> &'static str {
-        "Focus session"
+    fn name(&self) -> Cow<'static, str> {
+        "Current focus".into()
     }
 
     fn icon(&self) -> IconGlyph {

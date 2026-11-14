@@ -72,7 +72,7 @@ impl SnapshotSource for OpenTaskList {
     type Error = Error;
     type StreamInputs = OnlineSourceInputs<CaldavAccount>;
 
-    const NAME: &'static str = "CalDAV tasks";
+    const NAME: &'static str = "Open tasks";
 
     fn delivery_stream(
         account: Self::StreamInputs,

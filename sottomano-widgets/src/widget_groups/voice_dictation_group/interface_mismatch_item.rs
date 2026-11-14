@@ -1,4 +1,9 @@
-use sottomano_desktop_sources::voice_dictation_input::notulist_dbus_interface_mismatch::NotulistInterfaceMismatch;
+use std::borrow::Cow;
+
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    voice_dictation_input::notulist_dbus_interface_mismatch::NotulistInterfaceMismatch,
+};
 
 use crate::{
     clock::Clock,
@@ -17,8 +22,8 @@ const MISMATCH_REMEDY: &str =
     "build sottomano and notulist against the same notulist-client revision";
 
 impl GroupItemReading for NotulistInterfaceMismatch {
-    fn name(&self) -> &'static str {
-        "Interface mismatch"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

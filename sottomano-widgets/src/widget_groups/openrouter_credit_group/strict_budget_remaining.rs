@@ -1,7 +1,12 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
-use sottomano_desktop_sources::ai_usage_spend::{
-    openrouter_credits::{CreditStanding, KeyLimit, LimitReset, OpenRouterStrictBudget},
-    spend_money::Money,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    ai_usage_spend::{
+        openrouter_credits::{CreditStanding, KeyLimit, LimitReset, OpenRouterStrictBudget},
+        spend_money::Money,
+    },
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -22,8 +27,8 @@ use crate::{
 };
 
 impl GroupItemReading for OpenRouterStrictBudget {
-    fn name(&self) -> &'static str {
-        "OpenRouter strict budget"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

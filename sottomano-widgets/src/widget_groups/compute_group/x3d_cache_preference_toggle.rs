@@ -1,6 +1,9 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sinks::cpu_memory_compute::amd_x3d_mode_writes::write_x3d_cache_preference;
 use sottomano_desktop_sources::{
+    SnapshotSource,
     cpu_memory_compute::{
         amd_x3d_cache_preference::X3dCachePreference,
         cpu_topology::{CoreRole, CpuTopology},
@@ -24,8 +27,8 @@ use crate::{
 };
 
 impl GroupItemReading for X3dCachePreference {
-    fn name(&self) -> &'static str {
-        "X3D scheduling preference"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

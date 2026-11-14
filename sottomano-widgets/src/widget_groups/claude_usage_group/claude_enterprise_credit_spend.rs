@@ -1,7 +1,12 @@
+use std::borrow::Cow;
+
 use chrono::{DateTime, Locale, Utc};
-use sottomano_desktop_sources::ai_usage_spend::{
-    claude_usage::{ClaudeEnterpriseSpend, ClaudeOrganization, ExtraStatus},
-    usage_quota::Quota,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    ai_usage_spend::{
+        claude_usage::{ClaudeEnterpriseSpend, ClaudeOrganization, ExtraStatus},
+        usage_quota::Quota,
+    },
 };
 use uom::si::f64::Ratio;
 
@@ -23,8 +28,8 @@ use crate::{
 };
 
 impl GroupItemReading for ClaudeEnterpriseSpend {
-    fn name(&self) -> &'static str {
-        "Claude Enterprise spend"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

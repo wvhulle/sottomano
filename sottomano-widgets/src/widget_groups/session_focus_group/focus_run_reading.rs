@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::{DateTime, Locale, Utc};
 use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
     Accounting, FocusUnit, LAST_DAY,
@@ -88,8 +90,8 @@ impl FocusRunReading<'_> {
 }
 
 impl GroupItemReading for FocusRunReading<'_> {
-    fn name(&self) -> &'static str {
-        "Focus run"
+    fn name(&self) -> Cow<'static, str> {
+        "Focus run".into()
     }
 
     fn icon(&self) -> IconGlyph {

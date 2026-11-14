@@ -64,7 +64,7 @@ impl SnapshotSource for AutoBrightness {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "Clight auto brightness";
+    const NAME: &'static str = "Auto-brightness";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         name_owned(buses.session.clone(), CLIGHT_SERVICE).while_available(

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::wallpaper_place_article::{Position, Wallpaper};
 
@@ -20,8 +22,8 @@ pub struct Place {
 }
 
 impl GroupItemReading for Place {
-    fn name(&self) -> &'static str {
-        "Wallpaper place"
+    fn name(&self) -> Cow<'static, str> {
+        "Wallpaper place".into()
     }
 
     fn icon(&self) -> IconGlyph {

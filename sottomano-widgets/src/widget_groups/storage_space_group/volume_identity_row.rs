@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::{
     mounted_filesystem_usage::FilesystemUsage, udev_volume_identity::VolumePropertyKind,
@@ -28,8 +30,8 @@ fn property_title(kind: VolumePropertyKind) -> &'static str {
 }
 
 impl GroupItemReading for VolumeIdentityRow<'_> {
-    fn name(&self) -> &'static str {
-        "Volume"
+    fn name(&self) -> Cow<'static, str> {
+        "Volume".into()
     }
 
     fn icon(&self) -> IconGlyph {

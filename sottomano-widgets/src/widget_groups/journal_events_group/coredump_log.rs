@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::systemd_units_journal::journal_coredumps::CoredumpEntry;
 use sottomano_toml_config::Config;
@@ -64,8 +66,8 @@ impl JournalScopeGroup {
 }
 
 impl GroupItemReading for Vec<CoredumpEntry> {
-    fn name(&self) -> &'static str {
-        "Coredumps"
+    fn name(&self) -> Cow<'static, str> {
+        "Coredumps".into()
     }
 
     fn icon(&self) -> IconGlyph {

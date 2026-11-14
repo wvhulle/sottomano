@@ -1,7 +1,12 @@
+use std::borrow::Cow;
+
 use chrono::{DateTime, Utc};
-use sottomano_desktop_sources::ai_usage_spend::{
-    copilot_usage::{CopilotMetered, USER_ENDPOINT},
-    usage_quota::Quota,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    ai_usage_spend::{
+        copilot_usage::{CopilotMetered, USER_ENDPOINT},
+        usage_quota::Quota,
+    },
 };
 use uom::si::f64::Ratio;
 
@@ -23,8 +28,8 @@ use crate::{
 };
 
 impl GroupItemReading for CopilotMetered {
-    fn name(&self) -> &'static str {
-        "Copilot quota"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

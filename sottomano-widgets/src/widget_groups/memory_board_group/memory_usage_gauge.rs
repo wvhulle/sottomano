@@ -1,10 +1,13 @@
-use std::num::NonZeroUsize;
+use std::{borrow::Cow, num::NonZeroUsize};
 
 use bytesize::ByteSize;
 use chrono::Locale;
-use sottomano_desktop_sources::cpu_memory_compute::{
-    memory_module_temperatures::MemoryModuleTemperatures,
-    memory_usage::{Memory, MemoryProcesses},
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    cpu_memory_compute::{
+        memory_module_temperatures::MemoryModuleTemperatures,
+        memory_usage::{Memory, MemoryProcesses},
+    },
 };
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
@@ -53,8 +56,8 @@ impl ReadingSections for MemoryProcesses {
 }
 
 impl GroupItemReading for Memory {
-    fn name(&self) -> &'static str {
-        "RAM"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

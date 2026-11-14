@@ -1,4 +1,4 @@
-use std::{iter::once, path::Path};
+use std::{borrow::Cow, iter::once, path::Path};
 
 use chrono::Locale;
 use sottomano_desktop_sources::gamepad_controller_input::{
@@ -271,8 +271,8 @@ impl ConnectedControllerReading<'_> {
 }
 
 impl GroupItemReading for ConnectedControllerReading<'_> {
-    fn name(&self) -> &'static str {
-        "Game controller"
+    fn name(&self) -> Cow<'static, str> {
+        "Game controller".into()
     }
 
     fn icon(&self) -> IconGlyph {

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::bcachefs_filesystem_space::BcachefsDeviceSpace;
 use sottomano_toml_config::severity::Severity;
@@ -45,8 +47,8 @@ impl BcachefsMemberRow<'_> {
 }
 
 impl GroupItemReading for BcachefsMemberRow<'_> {
-    fn name(&self) -> &'static str {
-        "bcachefs"
+    fn name(&self) -> Cow<'static, str> {
+        self.device.partition.clone().into()
     }
 
     fn icon(&self) -> IconGlyph {

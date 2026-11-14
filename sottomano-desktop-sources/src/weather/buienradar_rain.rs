@@ -134,7 +134,7 @@ impl SnapshotSource for Rain {
     type Error = Error;
     type StreamInputs = OnlineSourceInputs<GeoCoordinates>;
 
-    const NAME: &'static str = "Rain radar";
+    const NAME: &'static str = "Rain";
 
     fn delivery_stream(
         OnlineSourceInputs {

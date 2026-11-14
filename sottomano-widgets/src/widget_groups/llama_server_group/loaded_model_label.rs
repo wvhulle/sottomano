@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::ai_usage_spend::llama_server_slots::{
     LlamaModel, LlamaModelProps, LlamaModelStatus,
@@ -31,8 +33,8 @@ impl From<LlamaModelStatus> for ValueCell {
 }
 
 impl GroupItemReading for LlamaModel {
-    fn name(&self) -> &'static str {
-        "Loaded model"
+    fn name(&self) -> Cow<'static, str> {
+        "Loaded model".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -66,11 +68,12 @@ impl GroupItemReading for LlamaModel {
 
 pub struct ServedModel<'a> {
     pub resident: Option<&'a LlamaModel>,
+    pub server: &'a str,
 }
 
 impl GroupItemReading for ServedModel<'_> {
-    fn name(&self) -> &'static str {
-        "Loaded model"
+    fn name(&self) -> Cow<'static, str> {
+        format!("{} loaded model", self.server).into()
     }
 
     fn icon(&self) -> IconGlyph {

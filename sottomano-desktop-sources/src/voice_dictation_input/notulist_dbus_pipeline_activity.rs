@@ -16,7 +16,7 @@ impl SnapshotSource for NotulistPipeline {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "Notulist pipeline";
+    const NAME: &'static str = "Pipeline";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         notulist_followed_deliveries(

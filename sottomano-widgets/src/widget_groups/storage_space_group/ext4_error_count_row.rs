@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::ext4_sysfs_counters::RecordedErrors;
 use sottomano_toml_config::severity::Severity;
@@ -23,8 +25,8 @@ pub(super) struct Ext4ErrorCountRow {
 }
 
 impl GroupItemReading for Ext4ErrorCountRow {
-    fn name(&self) -> &'static str {
-        "Recorded errors"
+    fn name(&self) -> Cow<'static, str> {
+        "Recorded errors".into()
     }
 
     fn icon(&self) -> IconGlyph {

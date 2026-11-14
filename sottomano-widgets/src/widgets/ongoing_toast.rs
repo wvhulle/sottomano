@@ -116,7 +116,7 @@ pub enum OngoingKey {
 
 #[derive(Debug, Clone)]
 pub struct OngoingToast<Message> {
-    pub widget_name: &'static str,
+    pub widget_name: Cow<'static, str>,
     pub key: OngoingKey,
     pub severity: Severity,
     pub summary_text: Cow<'static, str>,
@@ -267,7 +267,7 @@ impl<Message> OngoingToast<Message> {
                 .collect(),
             severity: self.severity,
             expire_timeout: ExpireTimeout::Never,
-            app_name: Some(self.widget_name.to_owned()),
+            app_name: Some(self.widget_name.to_string()),
             ..NotificationData::from_shell(toast_id, self.summary_text.clone())
         }
     }
@@ -294,8 +294,8 @@ mod tests {
     }
 
     impl GroupItemReading for FixedReading {
-        fn name(&self) -> &'static str {
-            "Fixed reading"
+        fn name(&self) -> Cow<'static, str> {
+            "Fixed reading".into()
         }
 
         fn icon(&self) -> IconGlyph {

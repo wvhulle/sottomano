@@ -1,12 +1,15 @@
 use std::borrow::Cow;
 
 use chrono::Locale;
-use sottomano_desktop_sources::network_connectivity::{
-    tailscale_exit_nodes::{
-        ExitNodeChoices, ExitNodeControl, ExitNodeLanAccess, ExitNodeOption, ExitNodeReachability,
-        TailscaleExitNodes,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    network_connectivity::{
+        tailscale_exit_nodes::{
+            ExitNodeChoices, ExitNodeControl, ExitNodeLanAccess, ExitNodeOption,
+            ExitNodeReachability, TailscaleExitNodes,
+        },
+        tailscale_status::ExitNodeUse,
     },
-    tailscale_status::ExitNodeUse,
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -36,8 +39,8 @@ fn lan_access_entry(exit_node_choices: &ExitNodeChoices) -> LabeledValue {
 }
 
 impl GroupItemReading for TailscaleExitNodes {
-    fn name(&self) -> &'static str {
-        "Tailscale exit nodes"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -55,11 +58,7 @@ pub(super) struct ExitNodeChoiceRow<'a> {
 }
 
 impl GroupItemReading for ExitNodeChoiceRow<'_> {
-    fn name(&self) -> &'static str {
-        "Tailscale exit node"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         format!("Exit via {}", self.exit_node_option.name).into()
     }
 
@@ -121,8 +120,8 @@ pub(super) struct ExitNodeLanAccessRow<'a> {
 }
 
 impl GroupItemReading for ExitNodeLanAccessRow<'_> {
-    fn name(&self) -> &'static str {
-        "LAN while exiting"
+    fn name(&self) -> Cow<'static, str> {
+        "LAN while exiting".into()
     }
 
     fn icon(&self) -> IconGlyph {

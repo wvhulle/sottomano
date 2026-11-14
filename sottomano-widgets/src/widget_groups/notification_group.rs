@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use iced::Task;
 
 use crate::{
@@ -211,8 +213,8 @@ pub struct NotificationStatus {
 }
 
 impl GroupItemReading for NotificationStatus {
-    fn name(&self) -> &'static str {
-        "Notifications"
+    fn name(&self) -> Cow<'static, str> {
+        "Pending notifications".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -252,8 +254,8 @@ struct DoNotDisturbStatus {
 }
 
 impl GroupItemReading for DoNotDisturbStatus {
-    fn name(&self) -> &'static str {
-        "Do not disturb"
+    fn name(&self) -> Cow<'static, str> {
+        "Do not disturb".into()
     }
 
     fn icon(&self) -> IconGlyph {

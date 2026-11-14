@@ -1,9 +1,10 @@
-use std::num::NonZeroUsize;
+use std::{borrow::Cow, num::NonZeroUsize};
 
 use bytesize::ByteSize;
 use chrono::Locale;
-use sottomano_desktop_sources::cpu_memory_compute::swap_paging_activity::{
-    Swap, SwapActivity, SwappedProcesses,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    cpu_memory_compute::swap_paging_activity::{Swap, SwapActivity, SwappedProcesses},
 };
 use sottomano_toml_config::severity::Severity;
 use uom::si::{
@@ -58,8 +59,8 @@ impl ReadingSections for SwappedProcesses {
 }
 
 impl GroupItemReading for SwapActivity {
-    fn name(&self) -> &'static str {
-        "Swap"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

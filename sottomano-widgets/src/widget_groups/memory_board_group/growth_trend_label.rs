@@ -1,9 +1,10 @@
-use std::time::Duration;
+use std::{borrow::Cow, time::Duration};
 
 use chrono::Locale;
 use quick_xml::escape::escape;
-use sottomano_desktop_sources::cpu_memory_compute::memory_growth_trend::{
-    GrowingMemoryProcess, MemoryGrowth,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    cpu_memory_compute::memory_growth_trend::{GrowingMemoryProcess, MemoryGrowth},
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -45,8 +46,8 @@ fn growing_process_row(process: &GrowingMemoryProcess, locale: Locale) -> (Strin
 }
 
 impl GroupItemReading for MemoryGrowth {
-    fn name(&self) -> &'static str {
-        "RAM growth"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

@@ -107,18 +107,33 @@ fn instance_power_switch<'a>(
     )
 }
 
+fn daemon_instance_name(
+    instance_daemon: InstanceDaemon,
+    project_name: &str,
+    instance_name: &str,
+) -> Cow<'static, str> {
+    let in_project = match project_name {
+        "default" => instance_name.to_owned(),
+        _ => format!("{instance_name} in {project_name}"),
+    };
+    match instance_daemon {
+        InstanceDaemon::Incus => in_project.into(),
+        InstanceDaemon::Lxd => format!("{in_project} on LXD").into(),
+    }
+}
+
 struct IncusInstanceRow<'a> {
     instance_daemon: InstanceDaemon,
     instance: &'a DaemonInstance,
 }
 
 impl GroupItemReading for IncusInstanceRow<'_> {
-    fn name(&self) -> &'static str {
-        "Instance"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        self.instance.instance_name.clone().into()
+    fn name(&self) -> Cow<'static, str> {
+        daemon_instance_name(
+            self.instance_daemon,
+            &self.instance.project_name,
+            &self.instance.instance_name,
+        )
     }
 
     fn icon(&self) -> IconGlyph {
@@ -177,12 +192,12 @@ struct IncusInstanceListingRow<'a> {
 }
 
 impl GroupItemReading for IncusInstanceListingRow<'_> {
-    fn name(&self) -> &'static str {
-        "Instance"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        self.listing.instance_name.clone().into()
+    fn name(&self) -> Cow<'static, str> {
+        daemon_instance_name(
+            self.instance_daemon,
+            &self.listing.project_name,
+            &self.listing.instance_name,
+        )
     }
 
     fn icon(&self) -> IconGlyph {
@@ -217,11 +232,7 @@ struct UnreadableDaemonRow {
 }
 
 impl GroupItemReading for UnreadableDaemonRow {
-    fn name(&self) -> &'static str {
-        "Instance daemon"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.instance_daemon.product_name().into()
     }
 
@@ -517,11 +528,7 @@ impl IncusInstancesGroup {
 }
 
 impl GroupItemReading for IncusInstancesGroup {
-    fn name(&self) -> &'static str {
-        "Incus instances"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         "Incus instances".into()
     }
 

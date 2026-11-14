@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use bytesize::ByteSize;
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::{
@@ -58,8 +60,8 @@ fn compression_ratio(space: &BcachefsSpace) -> Option<f64> {
 }
 
 impl GroupItemReading for CompressionSettingRow<'_> {
-    fn name(&self) -> &'static str {
-        "Compression"
+    fn name(&self) -> Cow<'static, str> {
+        "Compression".into()
     }
 
     fn icon(&self) -> IconGlyph {

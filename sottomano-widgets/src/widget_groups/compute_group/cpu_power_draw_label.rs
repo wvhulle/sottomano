@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::cpu_memory_compute::cpu_power_draw::CpuPower;
 use uom::{
@@ -39,8 +41,8 @@ impl GroupItemReading for CpuPower {
         }
     }
 
-    fn name(&self) -> &'static str {
-        "CPU power draw"
+    fn name(&self) -> Cow<'static, str> {
+        "CPU power draw".into()
     }
 
     fn icon(&self) -> IconGlyph {

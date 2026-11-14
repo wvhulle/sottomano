@@ -186,7 +186,7 @@ impl SnapshotSource for NetworkManagerVpns {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "NetworkManager VPN connections";
+    const NAME: &'static str = "NetworkManager VPNs";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;

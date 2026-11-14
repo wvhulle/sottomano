@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::cpu_memory_compute::{
     pci_gpu_readings::GpuTemperatureLimits, temperature_thresholds::celsius_text,
@@ -26,8 +28,8 @@ pub struct GpuTemperatureLabel {
 }
 
 impl GroupItemReading for GpuTemperatureLabel {
-    fn name(&self) -> &'static str {
-        "GPU temperature"
+    fn name(&self) -> Cow<'static, str> {
+        "GPU temperature".into()
     }
 
     fn icon(&self) -> IconGlyph {

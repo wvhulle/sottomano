@@ -40,7 +40,7 @@ impl SnapshotSource for CpuUsage {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "CPU usage";
+    const NAME: &'static str = "CPU load";
 
     fn delivery_stream(
         (): Self::StreamInputs,

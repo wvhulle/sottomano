@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::host_machine_identity::hostname1_os_identity::{
     Chassis, OperatingSystemIdentity,
@@ -21,8 +23,8 @@ pub struct KernelFace<'a> {
 }
 
 impl GroupItemReading for KernelFace<'_> {
-    fn name(&self) -> &'static str {
-        "Kernel"
+    fn name(&self) -> Cow<'static, str> {
+        "Kernel".into()
     }
 
     fn icon(&self) -> IconGlyph {

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use sottomano_desktop_sources::systemd_units_journal::user_service_manager::UserServiceManager;
 
 use crate::{
@@ -16,8 +18,8 @@ use crate::{
 pub struct ServiceManagerFace;
 
 impl GroupItemReading for ServiceManagerFace {
-    fn name(&self) -> &'static str {
-        "Service manager"
+    fn name(&self) -> Cow<'static, str> {
+        "Service manager".into()
     }
 
     fn icon(&self) -> IconGlyph {

@@ -268,7 +268,7 @@ impl SnapshotSource for GpuSnapshot {
     type Error = Error;
     type StreamInputs = GpuHandle;
 
-    const NAME: &'static str = "GPU";
+    const NAME: &'static str = "GPU load";
 
     fn delivery_stream(
         inputs: Self::StreamInputs,

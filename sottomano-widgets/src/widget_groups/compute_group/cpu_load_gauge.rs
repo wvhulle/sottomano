@@ -1,8 +1,11 @@
-use std::num::NonZeroUsize;
+use std::{borrow::Cow, num::NonZeroUsize};
 
-use sottomano_desktop_sources::cpu_memory_compute::{
-    cpu_busy_processes::CpuBusyProcesses,
-    cpu_core_loads::{CpuCoreLoads, CpuUsage, LoadSplit},
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    cpu_memory_compute::{
+        cpu_busy_processes::CpuBusyProcesses,
+        cpu_core_loads::{CpuCoreLoads, CpuUsage, LoadSplit},
+    },
 };
 use sottomano_toml_config::severity::Severity;
 use uom::si::{f64::Ratio, ratio::percent};
@@ -112,8 +115,8 @@ impl PerCoreReading for CoreReading {
 }
 
 impl GroupItemReading for CpuUsage {
-    fn name(&self) -> &'static str {
-        "CPU load"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

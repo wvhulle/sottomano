@@ -5,6 +5,8 @@ mod loaded_model_label;
 mod scoped_servers;
 mod slot_occupancy_gauge;
 
+use std::borrow::Cow;
+
 use iced::{Subscription, Task};
 use scoped_servers::{ScopedLlamaServers, ScopedServersInteraction, ScopedServersMessage};
 use sottomano_desktop_sources::{
@@ -33,7 +35,7 @@ use crate::{
 };
 
 const SERVER_SWITCH: UnitSwitchFace = UnitSwitchFace {
-    name: "llama-server",
+    name: Cow::Borrowed("llama-server"),
     icon: Phosphor::PlugsConnected(Weight::Regular),
     presses: SwitchPresses {
         turning_on: "start llama-server; models load on their first request",

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -47,14 +49,14 @@ pub enum ServiceReadiness {
     NotYetServing,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct UnitSwitchFace {
-    pub name: &'static str,
+    pub name: Cow<'static, str>,
     pub icon: Phosphor,
     pub presses: SwitchPresses,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct UnitSwitchReading {
     face: UnitSwitchFace,
     shown_glyph: IconGlyph,
@@ -62,14 +64,14 @@ struct UnitSwitchReading {
 }
 
 impl UnitSwitchReading {
-    fn press_does(self) -> &'static str {
+    fn press_does(&self) -> &'static str {
         match self.activity.press_change() {
             UnitChange::Start => self.face.presses.turning_on,
             UnitChange::Stop => self.face.presses.turning_off,
         }
     }
 
-    fn switch_position(self) -> SwitchPosition {
+    fn switch_position(&self) -> SwitchPosition {
         match self.activity.press_change() {
             UnitChange::Start => SwitchPosition::Off,
             UnitChange::Stop => SwitchPosition::On,
@@ -78,8 +80,8 @@ impl UnitSwitchReading {
 }
 
 impl GroupItemReading for UnitSwitchReading {
-    fn name(&self) -> &'static str {
-        self.face.name
+    fn name(&self) -> Cow<'static, str> {
+        self.face.name.clone()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -202,7 +204,7 @@ impl UnitSwitch {
             (activity, _) => activity,
         };
         Some(UnitSwitchReading {
-            face: self.face,
+            face: self.face.clone(),
             shown_glyph: self.face.icon.with_weight(Weight::Regular).into(),
             activity,
         })
@@ -257,9 +259,11 @@ impl UnitSwitch {
             shown_glyph,
             ..self.reading(service_readiness)?
         };
+        let switch_position = reading.switch_position();
+        let press_does = reading.press_does();
         Some(GroupItem::reading(reading, target).on_switch_press(
-            reading.switch_position(),
-            reading.press_does(),
+            switch_position,
+            press_does,
             pressed,
         ))
     }

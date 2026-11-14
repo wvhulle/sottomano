@@ -1,8 +1,13 @@
+use std::borrow::Cow;
+
 use bytesize::ByteSize;
 use chrono::{DateTime, TimeDelta, Utc};
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::network_connectivity::tailscale_status::{
-    ADMIN_CONSOLE_URL, KeyExpiry, Peer, PeerPath, Tailscale,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    network_connectivity::tailscale_status::{
+        ADMIN_CONSOLE_URL, KeyExpiry, Peer, PeerPath, Tailscale,
+    },
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -92,8 +97,8 @@ impl IntoTableRecord<7> for &Peer {
 }
 
 impl GroupItemReading for Tailscale {
-    fn name(&self) -> &'static str {
-        "Tailscale"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

@@ -195,11 +195,11 @@ impl GroupItemReading for FailedUnits {
         }
     }
 
-    fn name(&self) -> &'static str {
-        match self.scope {
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed(match self.scope {
             SystemdUnitScope::UserSession => "Failed user units",
             SystemdUnitScope::SystemWide => "Failed system units",
-        }
+        })
     }
 
     fn icon(&self) -> IconGlyph {

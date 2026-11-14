@@ -1,4 +1,5 @@
 pub mod top_menu_glyphs;
+use std::borrow::Cow;
 
 use chrono::Locale;
 use iced::{
@@ -128,8 +129,8 @@ struct MenuLookupFailureReading<'failure> {
 }
 
 impl GroupItemReading for MenuLookupFailureReading<'_> {
-    fn name(&self) -> &'static str {
-        "Menu lookup"
+    fn name(&self) -> Cow<'static, str> {
+        "Menu lookup".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -622,8 +623,8 @@ impl GlobalMenuGroup {
 }
 
 impl GroupItemReading for GlobalMenuGroup {
-    fn name(&self) -> &'static str {
-        "Global application menu"
+    fn name(&self) -> Cow<'static, str> {
+        "Global application menu".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -815,19 +816,6 @@ mod tests {
             panic!("the quit entry activates a gtk action");
         };
         assert_eq!(activation.action_name, "quit");
-    }
-
-    #[test]
-    fn entry_pin_keys_follow_labels_not_menu_ids() {
-        let entry_target = |label_path: &str| {
-            HoverTarget::from(GlobalMenuTarget::Entry {
-                app_id: "org.example.Editor".to_owned(),
-                label_path: label_path.to_owned(),
-            })
-            .stable_item_key()
-        };
-        assert_eq!(entry_target("File › Quit"), entry_target("File › Quit"));
-        assert_ne!(entry_target("File › Quit"), entry_target("File › Print"));
     }
 
     #[test]

@@ -133,11 +133,7 @@ pub(super) fn pause_title(pause: IdleAction) -> &'static str {
 }
 
 impl GroupItemReading for PauseBlocker {
-    fn name(&self) -> &'static str {
-        "Pause blocker"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.holder.clone().into()
     }
 
@@ -201,11 +197,7 @@ pub(super) struct NextSleepStateRow {
 }
 
 impl GroupItemReading for NextSleepStateRow {
-    fn name(&self) -> &'static str {
-        "Sleep type that runs"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.state.title().into()
     }
 
@@ -227,11 +219,7 @@ pub(super) struct ScheduledShutdownRow<'a> {
 }
 
 impl GroupItemReading for ScheduledShutdownRow<'_> {
-    fn name(&self) -> &'static str {
-        "Scheduled shutdown"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         match self.shutdown.kind.as_str() {
             "poweroff" | "dry-poweroff" => "Power off scheduled",
             "reboot" | "dry-reboot" => "Reboot scheduled",
@@ -395,7 +383,32 @@ pub(super) fn pause_blockers(facts: &PauseFacts<'_>) -> Vec<PauseBlocker> {
             facts.idle_inhibitors,
             facts.armed_triggers,
         ))
-        .collect()
+        .fold(Vec::new(), merge_blocker_of_same_holder)
+}
+
+fn merge_blocker_of_same_holder(
+    mut merged_blockers: Vec<PauseBlocker>,
+    blocker: PauseBlocker,
+) -> Vec<PauseBlocker> {
+    let Some(same_holder) = merged_blockers
+        .iter_mut()
+        .find(|merged| merged.pause == blocker.pause && merged.holder == blocker.holder)
+    else {
+        merged_blockers.push(blocker);
+        return merged_blockers;
+    };
+    if !same_holder
+        .why
+        .split("; ")
+        .any(|reason| reason == blocker.why)
+    {
+        same_holder.why = format!("{}; {}", same_holder.why, blocker.why);
+    }
+    if blocker.action_blocking == IdleActionBlocking::StopsArmedAction {
+        same_holder.action_blocking = IdleActionBlocking::StopsArmedAction;
+    }
+    same_holder.holder_process = same_holder.holder_process.or(blocker.holder_process);
+    merged_blockers
 }
 
 fn hibernate_blockers(

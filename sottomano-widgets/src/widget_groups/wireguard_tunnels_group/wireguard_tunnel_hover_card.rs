@@ -1,9 +1,12 @@
 use std::borrow::Cow;
 
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::network_connectivity::wireguard_tunnels::{
-    Peer, PeerEndpoint, PeerLink, PeerTraffic, RouteScope, StatisticsAccess, Tunnel, TunnelAddress,
-    TunnelPhase, TunnelRole, Wireguard, WireguardSwitch,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    network_connectivity::wireguard_tunnels::{
+        Peer, PeerEndpoint, PeerLink, PeerTraffic, RouteScope, StatisticsAccess, Tunnel,
+        TunnelAddress, TunnelPhase, TunnelRole, Wireguard, WireguardSwitch,
+    },
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -49,8 +52,8 @@ pub(super) fn wireguard_tunnel_item<Message: Clone + 'static>(
 }
 
 impl GroupItemReading for Wireguard {
-    fn name(&self) -> &'static str {
-        "WireGuard"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -248,11 +251,7 @@ fn server_state(tunnel: &Tunnel) -> ReadingDisplayState {
 }
 
 impl GroupItemReading for Tunnel {
-    fn name(&self) -> &'static str {
-        "WireGuard tunnel"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.name.clone().into()
     }
 

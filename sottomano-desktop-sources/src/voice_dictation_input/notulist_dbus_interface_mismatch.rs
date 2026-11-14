@@ -17,7 +17,7 @@ impl SnapshotSource for NotulistInterfaceMismatch {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "Notulist interface version";
+    const NAME: &'static str = "Interface mismatch";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         notulist_interface_offers(buses.session)

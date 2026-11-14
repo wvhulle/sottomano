@@ -103,11 +103,11 @@ impl GroupItemReading for SlowJobs {
         }
     }
 
-    fn name(&self) -> &'static str {
-        match self.scope {
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed(match self.scope {
             SystemdUnitScope::UserSession => "Slow user jobs",
             SystemdUnitScope::SystemWide => "Slow system jobs",
-        }
+        })
     }
 
     fn icon(&self) -> IconGlyph {

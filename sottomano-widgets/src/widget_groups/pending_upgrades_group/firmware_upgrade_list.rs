@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::ActionTint,
@@ -54,8 +56,8 @@ impl PendingUpgradesGroup {
 }
 
 impl GroupItemReading for Vec<FirmwareUpgrade> {
-    fn name(&self) -> &'static str {
-        "Firmware upgrades"
+    fn name(&self) -> Cow<'static, str> {
+        "Firmware upgrades".into()
     }
 
     fn icon(&self) -> IconGlyph {

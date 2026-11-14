@@ -86,11 +86,7 @@ pub(super) struct CiRunnerFailureRow<'a> {
 }
 
 impl GroupItemReading for CiRunnerFailureRow<'_> {
-    fn name(&self) -> &'static str {
-        "CI runner"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.watched.runner_label.to_owned().into()
     }
 
@@ -165,11 +161,7 @@ pub(super) struct CiTaskRow<'a> {
 }
 
 impl GroupItemReading for CiTaskRow<'_> {
-    fn name(&self) -> &'static str {
-        "CI task"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         task_row_name(self.task).into()
     }
 

@@ -112,11 +112,7 @@ impl LimitedCgroupRow<'_> {
 }
 
 impl GroupItemReading for LimitedCgroupRow<'_> {
-    fn name(&self) -> &'static str {
-        "Memory limit"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.cgroup.unit_name.clone().into()
     }
 
@@ -278,8 +274,8 @@ impl CgroupMemoryLimitsGroup {
 }
 
 impl GroupItemReading for CgroupMemoryLimitsGroup {
-    fn name(&self) -> &'static str {
-        "Memory limits"
+    fn name(&self) -> Cow<'static, str> {
+        "Memory limits".into()
     }
 
     fn icon(&self) -> IconGlyph {

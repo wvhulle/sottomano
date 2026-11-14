@@ -1,4 +1,4 @@
-use std::num::NonZeroU32;
+use std::{borrow::Cow, num::NonZeroU32};
 
 use chrono::Locale;
 
@@ -20,8 +20,8 @@ pub struct SeatFace<'a> {
 }
 
 impl GroupItemReading for SeatFace<'_> {
-    fn name(&self) -> &'static str {
-        "Seat"
+    fn name(&self) -> Cow<'static, str> {
+        "Seat".into()
     }
 
     fn icon(&self) -> IconGlyph {

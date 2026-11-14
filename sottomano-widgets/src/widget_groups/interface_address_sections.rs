@@ -1,4 +1,4 @@
-use std::net::IpAddr;
+use std::{borrow::Cow, net::IpAddr};
 
 use sottomano_desktop_sources::network_connectivity::{
     icmp_gateway_latency::GatewayLatencies, network_manager_proxies::AddressBlock,
@@ -50,8 +50,8 @@ pub struct InterfaceAddressReading {
 }
 
 impl GroupItemReading for InterfaceAddressReading {
-    fn name(&self) -> &'static str {
-        self.family.title()
+    fn name(&self) -> Cow<'static, str> {
+        self.family.title().into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -69,8 +69,8 @@ impl GroupItemReading for InterfaceAddressReading {
 pub struct InterfaceDnsReading;
 
 impl GroupItemReading for InterfaceDnsReading {
-    fn name(&self) -> &'static str {
-        "DNS"
+    fn name(&self) -> Cow<'static, str> {
+        "DNS".into()
     }
 
     fn icon(&self) -> IconGlyph {

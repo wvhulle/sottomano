@@ -1,8 +1,13 @@
+use std::borrow::Cow;
+
 use bytesize::ByteSize;
 use chrono::Locale;
-use sottomano_desktop_sources::disk_storage::{
-    bcachefs_subvolume_usage::{BcachefsSubvolume, BcachefsSubvolumeUsage, SubvolumeMount},
-    mounted_filesystem_usage::MountAccess,
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    disk_storage::{
+        bcachefs_subvolume_usage::{BcachefsSubvolume, BcachefsSubvolumeUsage, SubvolumeMount},
+        mounted_filesystem_usage::MountAccess,
+    },
 };
 use uom::si::f64::Ratio;
 
@@ -38,8 +43,8 @@ impl SubvolumeUsageRow<'_> {
 }
 
 impl GroupItemReading for SubvolumeUsageRow<'_> {
-    fn name(&self) -> &'static str {
-        "Subvolume"
+    fn name(&self) -> Cow<'static, str> {
+        self.subvolume.path.display().to_string().into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -47,11 +52,7 @@ impl GroupItemReading for SubvolumeUsageRow<'_> {
     }
 
     fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        Some(format!(
-            "{}  {}",
-            self.subvolume.path.display(),
-            Quantity::size(self.subvolume.used).localized_text(locale)
-        ))
+        Some(Quantity::size(self.subvolume.used).localized_text(locale))
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
@@ -95,8 +96,8 @@ fn mount_description(mount: &SubvolumeMount) -> String {
 }
 
 impl GroupItemReading for BcachefsSubvolumeUsage {
-    fn name(&self) -> &'static str {
-        "Subvolumes"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

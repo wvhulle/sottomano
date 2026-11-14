@@ -38,7 +38,7 @@ use crate::{
 };
 
 const CONTAINER_SWITCH_FACE: UnitSwitchFace = UnitSwitchFace {
-    name: "Container",
+    name: Cow::Borrowed("Container"),
     icon: Phosphor::ShippingContainer(Weight::Regular),
     presses: SwitchPresses {
         turning_on: "start the container",
@@ -130,11 +130,7 @@ impl NspawnContainerRow<'_> {
 }
 
 impl GroupItemReading for NspawnContainerRow<'_> {
-    fn name(&self) -> &'static str {
-        "Container"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.container.machine_name.clone().into()
     }
 

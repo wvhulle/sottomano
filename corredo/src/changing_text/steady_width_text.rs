@@ -1,4 +1,4 @@
-use std::{ops::RangeInclusive, slice::from_ref};
+use std::{borrow::Cow, ops::RangeInclusive, slice::from_ref};
 
 use iced::{
     Element, Event, Font, Length, Rectangle, Size, Vector,
@@ -30,9 +30,9 @@ pub trait WidthSource: Clone + PartialEq + 'static {
     fn content_growth(&self) -> ContentGrowth;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LabelShape {
-    pub widget_name: &'static str,
+    pub widget_name: Cow<'static, str>,
     pub character_count: usize,
 }
 
@@ -365,7 +365,7 @@ mod tests {
     #[test]
     fn a_label_grows_with_its_content_and_a_readout_stays_fixed() {
         let shape = LabelShape {
-            widget_name: "battery",
+            widget_name: "battery".into(),
             character_count: 3,
         };
         assert_eq!(shape.content_growth(), ContentGrowth::WidestSeen);

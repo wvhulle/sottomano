@@ -1,5 +1,10 @@
-use sottomano_desktop_sources::network_connectivity::{
-    network_manager_proxies::Connectivity, nm_uplink_connectivity::UplinkConnectivity,
+use std::borrow::Cow;
+
+use sottomano_desktop_sources::{
+    SnapshotSource,
+    network_connectivity::{
+        network_manager_proxies::Connectivity, nm_uplink_connectivity::UplinkConnectivity,
+    },
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -25,8 +30,8 @@ fn severity(connectivity: Connectivity) -> Severity {
 }
 
 impl GroupItemReading for UplinkConnectivity {
-    fn name(&self) -> &'static str {
-        "Connectivity"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

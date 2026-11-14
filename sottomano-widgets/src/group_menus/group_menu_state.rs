@@ -133,7 +133,7 @@ pub enum GroupMenuPin {
     Group(WidgetGroupIdentity),
     Item {
         group: WidgetGroupIdentity,
-        item_key: String,
+        item_in_group_name: String,
     },
 }
 
@@ -146,11 +146,14 @@ impl GroupMenuPin {
                 group_family: group.family.stored_name().to_owned(),
                 group_instance: group.instance.stored_name().to_owned(),
             },
-            GroupMenuPin::Item { group, item_key } => StoredGroupMenuPin::Item {
+            GroupMenuPin::Item {
+                group,
+                item_in_group_name,
+            } => StoredGroupMenuPin::Item {
                 menu_topic,
                 group_family: group.family.stored_name().to_owned(),
                 group_instance: group.instance.stored_name().to_owned(),
-                item_key,
+                item_in_group_name,
             },
         }
     }
@@ -219,7 +222,7 @@ pub enum GroupMenuMessage {
 pub struct PanelRaise {
     pub menu: GroupMenuTopic,
     pub group: WidgetGroupIdentity,
-    pub item_key: String,
+    pub item_in_group_name: String,
 }
 
 impl PanelRaise {
@@ -227,9 +230,13 @@ impl PanelRaise {
         let PanelRaise {
             menu,
             group,
-            item_key,
+            item_in_group_name,
         } = self;
-        GroupMenuPin::Item { group, item_key }.stored_in(menu)
+        GroupMenuPin::Item {
+            group,
+            item_in_group_name,
+        }
+        .stored_in(menu)
     }
 }
 
@@ -575,7 +582,7 @@ mod tests {
     fn gpu_load_item() -> GroupMenuPin {
         GroupMenuPin::Item {
             group: GPU_GROUP,
-            item_key: "gpu_load".to_owned(),
+            item_in_group_name: "gpu_load".to_owned(),
         }
     }
 
@@ -660,14 +667,14 @@ mod tests {
         PanelRaise {
             menu: GroupMenuTopic::Hardware,
             group: GPU_GROUP,
-            item_key: "hot gpu".to_owned(),
+            item_in_group_name: "hot gpu".to_owned(),
         }
     }
 
     fn alerting_gpu_pin() -> GroupMenuPin {
         GroupMenuPin::Item {
             group: GPU_GROUP,
-            item_key: "hot gpu".to_owned(),
+            item_in_group_name: "hot gpu".to_owned(),
         }
     }
 
@@ -704,9 +711,9 @@ mod tests {
 
     #[test]
     fn pinning_one_sibling_item_leaves_the_other() {
-        let sibling_item = |item_key: &str| GroupMenuPin::Item {
+        let sibling_item = |item_in_group_name: &str| GroupMenuPin::Item {
             group: GPU_GROUP,
-            item_key: item_key.to_owned(),
+            item_in_group_name: item_in_group_name.to_owned(),
         };
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(toggle_in_hardware(sibling_item(

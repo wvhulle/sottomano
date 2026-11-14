@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_toml_config::severity::Severity;
 
@@ -25,8 +27,8 @@ pub struct UsbCableReading {
 }
 
 impl GroupItemReading for UsbCableReading {
-    fn name(&self) -> &'static str {
-        "USB cable"
+    fn name(&self) -> Cow<'static, str> {
+        "USB cable".into()
     }
 
     fn icon(&self) -> IconGlyph {

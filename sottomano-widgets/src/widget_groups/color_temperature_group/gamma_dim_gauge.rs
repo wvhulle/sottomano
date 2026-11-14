@@ -1,4 +1,8 @@
-use sottomano_desktop_sources::screen_brightness_color::gammarelay_color_temperature::ColorTemperature;
+use std::borrow::Cow;
+
+use sottomano_desktop_sources::{
+    SnapshotSource, screen_brightness_color::gammarelay_color_temperature::ColorTemperature,
+};
 use uom::si::f64::Ratio;
 
 use crate::{
@@ -14,8 +18,8 @@ use crate::{
 };
 
 impl GroupItemReading for ColorTemperature {
-    fn name(&self) -> &'static str {
-        "Screen dimming"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

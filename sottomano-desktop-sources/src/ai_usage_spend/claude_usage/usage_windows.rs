@@ -150,7 +150,7 @@ impl SnapshotSource for ClaudeUsageWindows {
     type Error = Error;
     type StreamInputs = OnlineSourceInputs<PathBuf>;
 
-    const NAME: &'static str = "Claude usage windows";
+    const NAME: &'static str = "Subscription windows";
 
     fn delivery_stream(
         inputs: Self::StreamInputs,

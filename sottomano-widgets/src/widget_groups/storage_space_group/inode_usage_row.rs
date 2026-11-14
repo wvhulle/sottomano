@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::mounted_filesystem_usage::InodeCount;
 use sottomano_toml_config::severity::Severity;
@@ -51,8 +53,8 @@ impl InodeUsageRow {
 }
 
 impl GroupItemReading for InodeUsageRow {
-    fn name(&self) -> &'static str {
-        "Inodes"
+    fn name(&self) -> Cow<'static, str> {
+        "Inodes".into()
     }
 
     fn icon(&self) -> IconGlyph {

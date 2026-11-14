@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_readings::GpuPowerDraw;
 use uom::{
@@ -22,8 +24,8 @@ fn watt_text(power: Power) -> String {
 }
 
 impl GroupItemReading for GpuPowerDraw {
-    fn name(&self) -> &'static str {
-        "GPU power"
+    fn name(&self) -> Cow<'static, str> {
+        "GPU power".into()
     }
 
     fn icon(&self) -> IconGlyph {

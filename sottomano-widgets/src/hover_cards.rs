@@ -176,17 +176,6 @@ impl PressHints {
     }
 }
 
-impl HoverTarget {
-    #[must_use]
-    pub fn stable_item_key(&self) -> String {
-        match self {
-            HoverTarget::Media(player) => format!("Media({:?})", player.control),
-            HoverTarget::Gamepad(target) => format!("Gamepad({})", target.stable_item_name()),
-            durable_target => format!("{durable_target:?}"),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PauseBlockerTarget {
     pub pause: IdleAction,
@@ -245,7 +234,7 @@ pub enum HoverOrigin {
     #[default]
     Reading,
     GroupHandle {
-        group_title: Box<WidgetGroupTitle>,
+        item_group_name: Box<WidgetGroupTitle>,
         panel_pin: PanelPinOrigin,
     },
 }
@@ -261,7 +250,7 @@ pub enum PanelPinOrigin {
     ItemPinnedFrom {
         menu: GroupMenuTopic,
         group: Box<WidgetGroupIdentity>,
-        item_key: String,
+        item_in_group_name: String,
         pin_duration: PanelPinDuration,
     },
 }
@@ -282,11 +271,11 @@ impl HoverAnnouncement {
     }
 
     #[must_use]
-    pub fn from_group_handle(group_title: WidgetGroupTitle, press_hints: PressHints) -> Self {
+    pub fn from_group_handle(item_group_name: WidgetGroupTitle, press_hints: PressHints) -> Self {
         HoverAnnouncement {
             press_hints,
             origin: HoverOrigin::GroupHandle {
-                group_title: Box::new(group_title),
+                item_group_name: Box::new(item_group_name),
                 panel_pin: PanelPinOrigin::Unpinned,
             },
         }
@@ -295,9 +284,11 @@ impl HoverAnnouncement {
     #[must_use]
     pub fn pinned_by(self, panel_pin: PanelPinOrigin) -> Self {
         match self.origin {
-            HoverOrigin::GroupHandle { group_title, .. } => HoverAnnouncement {
+            HoverOrigin::GroupHandle {
+                item_group_name, ..
+            } => HoverAnnouncement {
                 origin: HoverOrigin::GroupHandle {
-                    group_title,
+                    item_group_name,
                     panel_pin,
                 },
                 ..self
@@ -395,36 +386,6 @@ pub enum PopupMessage {
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::Cow;
-
-    use super::HoverTarget;
-    use crate::widget_groups::{
-        media_group::{MediaTarget, PlayerTarget},
-        wireguard_tunnels_group::WireguardTunnelTarget,
-    };
-
-    #[test]
-    fn sibling_targets_have_their_own_item_keys() {
-        let tunnel = |interface: &'static str| {
-            HoverTarget::from(WireguardTunnelTarget {
-                interface: Cow::Borrowed(interface),
-            })
-        };
-        assert_ne!(
-            tunnel("wg0").stable_item_key(),
-            tunnel("wg1").stable_item_key()
-        );
-    }
-
-    #[test]
-    fn a_player_item_key_ignores_its_session_bus() {
-        let on_bus = |bus: &str| HoverTarget::from(PlayerTarget::of(bus, MediaTarget::Track));
-        assert_eq!(
-            on_bus(":1.40").stable_item_key(),
-            on_bus(":1.41").stable_item_key()
-        );
-    }
-
     use super::*;
 
     #[test]

@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     fmt::{Display, Formatter, Result as FmtResult},
     path::PathBuf,
 };
@@ -118,8 +119,8 @@ fn displayed_lookups(
 }
 
 impl GroupItemReading for Lookup {
-    fn name(&self) -> &'static str {
-        "Wallpaper lookup"
+    fn name(&self) -> Cow<'static, str> {
+        "Wallpaper lookup".into()
     }
 
     fn icon(&self) -> IconGlyph {

@@ -140,7 +140,7 @@ impl SnapshotSource for OpenRouterSpend {
     type Error = Error;
     type StreamInputs = OnlineSourceInputs<OpenRouterAccount>;
 
-    const NAME: &'static str = "OpenRouter spend";
+    const NAME: &'static str = "OpenRouter soft budget";
 
     fn delivery_stream(
         OnlineSourceInputs {

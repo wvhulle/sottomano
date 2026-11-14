@@ -50,11 +50,7 @@ pub struct VmwareMachineListingRow<'a> {
 }
 
 impl GroupItemReading for VmwareMachineListingRow<'_> {
-    fn name(&self) -> &'static str {
-        "VMware machine"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.listing.machine_name.clone().into()
     }
 
@@ -83,11 +79,7 @@ pub struct VmwareMachineRow<'a> {
 }
 
 impl GroupItemReading for VmwareMachineRow<'_> {
-    fn name(&self) -> &'static str {
-        "VMware machine"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.machine.machine_name.clone().into()
     }
 

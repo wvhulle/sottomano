@@ -14,5 +14,5 @@ These open from the same group as the usage windows.
 
 | Reading | What it shows |
 |---|---|
-| Billing block | The current five-hour block: spend so far, burn rate and where it will end. |
-| Periods | Spend today, this week and this month against the monthly budget. |
+| 5-hour block spend | The current five-hour block: spend so far, burn rate and where it will end. Shown only when Claude Code is not logged in with a subscription. |
+| API-priced spend | Spend today, this week and this month against the monthly budget. Shown only when Claude Code is not logged in with a subscription. |

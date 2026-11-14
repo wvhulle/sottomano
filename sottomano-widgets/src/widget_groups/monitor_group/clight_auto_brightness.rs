@@ -1,5 +1,8 @@
+use std::borrow::Cow;
+
 use sottomano_desktop_sinks::screen_brightness_color::clight_calibration_writes;
 use sottomano_desktop_sources::{
+    SnapshotSource,
     screen_brightness_color::clight_auto_brightness::{AutoBrightness, BrightnessCalibration},
     system_protocol_clients::dbus_desktop_buses,
 };
@@ -19,8 +22,8 @@ use crate::{
 };
 
 impl GroupItemReading for AutoBrightness {
-    fn name(&self) -> &'static str {
-        "Auto-brightness"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

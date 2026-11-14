@@ -1,4 +1,4 @@
-use std::iter::once;
+use std::{borrow::Cow, iter::once};
 
 use chrono::Locale;
 use sottomano_desktop_sources::{
@@ -73,8 +73,8 @@ impl AdapterRadioReading<'_> {
 }
 
 impl GroupItemReading for AdapterRadioReading<'_> {
-    fn name(&self) -> &'static str {
-        "Bluetooth"
+    fn name(&self) -> Cow<'static, str> {
+        "Bluetooth adapter".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -143,8 +143,8 @@ impl From<&AdapterPower> for SwitchPosition {
 }
 
 impl GroupItemReading for AdapterPowerSwitch<'_> {
-    fn name(&self) -> &'static str {
-        "Bluetooth power"
+    fn name(&self) -> Cow<'static, str> {
+        "Bluetooth power".into()
     }
 
     fn icon(&self) -> IconGlyph {

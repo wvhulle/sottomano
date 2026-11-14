@@ -1,5 +1,7 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
-use sottomano_desktop_sources::ai_usage_spend::claude_usage::ClaudeCcusageBlock;
+use sottomano_desktop_sources::{SnapshotSource, ai_usage_spend::claude_usage::ClaudeCcusageBlock};
 
 use crate::{
     clock::Clock,
@@ -19,8 +21,8 @@ use crate::{
 };
 
 impl GroupItemReading for ClaudeCcusageBlock {
-    fn name(&self) -> &'static str {
-        "Claude Code billing block"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

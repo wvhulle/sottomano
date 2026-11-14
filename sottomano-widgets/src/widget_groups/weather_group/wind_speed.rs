@@ -1,5 +1,7 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
-use sottomano_desktop_sources::weather::open_meteo_wind::Wind;
+use sottomano_desktop_sources::{SnapshotSource, weather::open_meteo_wind::Wind};
 
 use crate::{
     clock::Clock,
@@ -14,8 +16,8 @@ use crate::{
 };
 
 impl GroupItemReading for Wind {
-    fn name(&self) -> &'static str {
-        "Wind"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

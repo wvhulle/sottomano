@@ -1,4 +1,8 @@
-use sottomano_desktop_sources::disk_storage::whole_disk_space_occupancy::DiskSpaceOccupancy;
+use std::borrow::Cow;
+
+use sottomano_desktop_sources::{
+    SnapshotSource, disk_storage::whole_disk_space_occupancy::DiskSpaceOccupancy,
+};
 use uom::si::f64::Ratio;
 
 use crate::{
@@ -25,8 +29,8 @@ pub struct MarkedDiskSpace<'a> {
 }
 
 impl GroupItemReading for DiskSpaceOccupancy {
-    fn name(&self) -> &'static str {
-        "Disk space"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -56,7 +60,7 @@ impl GroupItemReading for DiskSpaceOccupancy {
 }
 
 impl GroupItemReading for MarkedDiskSpace<'_> {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> Cow<'static, str> {
         self.occupancy.name()
     }
 

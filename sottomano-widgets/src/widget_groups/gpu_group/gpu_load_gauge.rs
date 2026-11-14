@@ -1,4 +1,8 @@
-use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_readings::GpuSnapshot;
+use std::borrow::Cow;
+
+use sottomano_desktop_sources::{
+    SnapshotSource, cpu_memory_compute::pci_gpu_readings::GpuSnapshot,
+};
 use uom::si::f64::Ratio;
 
 use crate::{
@@ -15,8 +19,8 @@ use crate::{
 };
 
 impl GroupItemReading for GpuSnapshot {
-    fn name(&self) -> &'static str {
-        "GPU load"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

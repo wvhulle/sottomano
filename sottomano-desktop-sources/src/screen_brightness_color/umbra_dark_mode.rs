@@ -30,7 +30,7 @@ impl SnapshotSource for DarkMode {
     type Error = DarkModeReadError;
     type StreamInputs = ();
 
-    const NAME: &'static str = "Dark mode";
+    const NAME: &'static str = "Color scheme";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(shell_command_output::program_availability("umbra")).while_available(

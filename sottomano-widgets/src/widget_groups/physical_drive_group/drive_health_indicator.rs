@@ -1,5 +1,8 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 use sottomano_desktop_sources::{
+    SnapshotSource,
     cpu_memory_compute::temperature_thresholds::celsius_text,
     disk_storage::{
         drive_temperature_health::{DriveHealth, DriveTemperature, MissingSensor},
@@ -24,8 +27,8 @@ use crate::{
 };
 
 impl GroupItemReading for DriveHealth {
-    fn name(&self) -> &'static str {
-        "Drive health"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

@@ -53,11 +53,7 @@ pub struct LxcContainerListingRow<'a> {
 }
 
 impl GroupItemReading for LxcContainerListingRow<'_> {
-    fn name(&self) -> &'static str {
-        "LXC container"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.listing.container_name.clone().into()
     }
 
@@ -83,11 +79,7 @@ pub struct LxcContainerRow<'a> {
 }
 
 impl GroupItemReading for LxcContainerRow<'_> {
-    fn name(&self) -> &'static str {
-        "LXC container"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         self.container.container_name.clone().into()
     }
 

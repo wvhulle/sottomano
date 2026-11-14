@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     error::Error,
     fmt::{self, Display, Formatter},
     ops::RangeInclusive,
@@ -61,7 +62,7 @@ pub enum SeverityDirection {
 }
 
 pub struct SliderControl {
-    name: &'static str,
+    name: Cow<'static, str>,
     pub(crate) expanding_slider: ExpandingSlider,
     slider_activity: SliderActivity,
     live: f32,
@@ -178,13 +179,13 @@ pub enum Action {
 
 impl SliderControl {
     pub fn new(
-        name: &'static str,
+        name: impl Into<Cow<'static, str>>,
         range: RangeInclusive<f32>,
         target: impl Into<HoverTarget>,
         icon: impl Into<IconGlyph>,
     ) -> Self {
         Self {
-            name,
+            name: name.into(),
             expanding_slider: ExpandingSlider::new(range),
             slider_activity: SliderActivity::Active,
             live: 1.0,
@@ -552,8 +553,8 @@ fn write_outcome_of(write_outcome: &Result<(), ControlWriteFailure>) -> WriteOut
 }
 
 impl GroupItemReading for SliderControl {
-    fn name(&self) -> &'static str {
-        self.name
+    fn name(&self) -> Cow<'static, str> {
+        self.name.clone()
     }
 
     fn icon(&self) -> IconGlyph {

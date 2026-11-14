@@ -1,6 +1,8 @@
-use std::time::Duration;
+use std::{borrow::Cow, time::Duration};
 
-use sottomano_desktop_sources::network_connectivity::icmp_internet_latency::InternetLatency;
+use sottomano_desktop_sources::{
+    SnapshotSource, network_connectivity::icmp_internet_latency::InternetLatency,
+};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
@@ -26,8 +28,8 @@ fn fraction_of_scale(round_trip: Duration) -> f64 {
 }
 
 impl GroupItemReading for InternetLatency {
-    fn name(&self) -> &'static str {
-        "Internet latency"
+    fn name(&self) -> Cow<'static, str> {
+        Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {

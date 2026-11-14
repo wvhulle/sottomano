@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use notulist_client::DictationEngine;
 
 use super::speech_model_item::non_empty;
@@ -58,8 +60,8 @@ impl InferenceHardware<'_> {
 }
 
 impl GroupItemReading for InferenceHardware<'_> {
-    fn name(&self) -> &'static str {
-        "Inference hardware"
+    fn name(&self) -> Cow<'static, str> {
+        "Inference hardware".into()
     }
 
     fn icon(&self) -> IconGlyph {

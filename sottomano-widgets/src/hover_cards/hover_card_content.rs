@@ -123,7 +123,7 @@ impl<'a> HoverCardContent<'a> {
             let element: Element<'panel, PopupMessage> = element;
             element.map(Message::from)
         };
-        let group_title = self.group_title_row().map(lift);
+        let title_rows = self.group_title_row().map(lift);
         let groups: Vec<&SourcedSections> = self.hover_card.filled_groups().collect();
         let Some((closing_group, leading_groups)) = groups.split_last() else {
             let content = equal_width_column(
@@ -132,7 +132,7 @@ impl<'a> HoverCardContent<'a> {
                     .chain(self.closing_row(None).map(lift)),
             )
             .into();
-            return self.shell_below_title(group_title, content);
+            return self.shell_below_title(title_rows, content);
         };
         let leading = leading_groups.iter().map(|group| {
             lift(
@@ -156,16 +156,16 @@ impl<'a> HoverCardContent<'a> {
         let content = equal_width_column(leading.chain(once(closing)))
             .spacing(self.config.theme.spacing.group_gap)
             .into();
-        self.shell_below_title(group_title, content)
+        self.shell_below_title(title_rows, content)
     }
 
     fn shell_below_title<'panel, Message: 'panel>(
         &self,
-        group_title: Option<Element<'panel, Message>>,
+        title_rows: Option<Element<'panel, Message>>,
         content: Element<'panel, Message>,
     ) -> Element<'panel, Message> {
         container(
-            equal_width_column(group_title.into_iter().chain(once(content)))
+            equal_width_column(title_rows.into_iter().chain(once(content)))
                 .spacing(self.config.theme.spacing.item_gap),
         )
         .padding(self.shell_padding())
@@ -175,15 +175,29 @@ impl<'a> HoverCardContent<'a> {
     fn group_title_row(&self) -> Option<Element<'static, PopupMessage>> {
         match &self.hover_card.announcement.origin {
             HoverOrigin::GroupHandle {
-                group_title,
+                item_group_name,
                 panel_pin,
             } => {
                 let title: Element<'static, PopupMessage> = container(
-                    container(self.small_dim_text(group_title.to_string()))
+                    container(self.small_dim_text(item_group_name.to_string()))
                         .padding(self.title_padding()),
                 )
                 .padding(self.edge_row_padding())
                 .into();
+                let pinned_item_title = match panel_pin {
+                    PanelPinOrigin::ItemPinnedFrom {
+                        item_in_group_name, ..
+                    } => {
+                        let item_title: Element<'static, PopupMessage> = container(
+                            container(self.bold_title(item_in_group_name))
+                                .padding(self.title_padding()),
+                        )
+                        .padding(self.edge_row_padding())
+                        .into();
+                        Some(item_title)
+                    }
+                    PanelPinOrigin::Unpinned | PanelPinOrigin::GroupPinnedFrom { .. } => None,
+                };
                 let unpin = match panel_pin {
                     PanelPinOrigin::Unpinned => None,
                     PanelPinOrigin::GroupPinnedFrom { menu, group } => {
@@ -196,19 +210,19 @@ impl<'a> HoverCardContent<'a> {
                     PanelPinOrigin::ItemPinnedFrom {
                         menu,
                         group,
-                        item_key,
+                        item_in_group_name,
                         pin_duration,
                     } => Some(self.release_action_row(
                         *menu,
                         GroupMenuPin::Item {
                             group: (**group).clone(),
-                            item_key: item_key.clone(),
+                            item_in_group_name: item_in_group_name.clone(),
                         },
                         *pin_duration,
                     )),
                 };
                 Some(
-                    Column::with_children(once(title).chain(unpin))
+                    Column::with_children(once(title).chain(pinned_item_title).chain(unpin))
                         .spacing(self.config.theme.spacing.item_gap)
                         .into(),
                 )
