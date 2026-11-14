@@ -2,11 +2,10 @@ use std::convert::identity;
 
 use iced::{
     Animation,
-    animation::Easing,
     time::{Duration, Instant},
 };
 
-use crate::transitions::MotionState;
+use crate::transitions::{MotionState, eased_animation, motion_of};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScrollPacing {
@@ -24,9 +23,7 @@ impl ScrollPacing {
 }
 
 fn travel_resting_at(offset: f32, pacing: ScrollPacing) -> Animation<f32> {
-    Animation::new(offset)
-        .easing(Easing::EaseOutCubic)
-        .duration(pacing.travel_duration())
+    eased_animation(offset, pacing.travel_duration())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,11 +87,7 @@ impl ScrollMotion {
     }
 
     pub(super) fn travel_state(&self, now: Instant) -> MotionState {
-        if self.travel.is_animating(now) {
-            MotionState::Moving
-        } else {
-            MotionState::Settled
-        }
+        motion_of([&self.travel], now)
     }
 
     pub(super) fn hover_drift(&self) -> f32 {

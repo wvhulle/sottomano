@@ -9,14 +9,13 @@ use iced::{
 
 use super::{
     edge_band_geometry::{band_clear_of_corners, edge_backdrop, edge_band},
-    sliding_row::eased_motion,
     slot_underlay::{PaintedRow, SlotPainter},
 };
 use crate::{
     drag_reorder::slot_group::{SlotTileInset, TileNeighbours},
     orientation::{Axis, Edge},
     theming::{ThemedColor, style_metrics::pill_corners},
-    transitions::MotionState,
+    transitions::{MotionState, eased_animation, motion_of},
 };
 
 const BACKDROP_TINT_ALPHA: f32 = 0.3;
@@ -59,8 +58,8 @@ struct SpanTravel {
 impl SpanTravel {
     fn resting_at(span: TravelledSpan, duration: Duration) -> Self {
         Self {
-            start: eased_motion(span.start, duration),
-            extent: eased_motion(span.extent, duration),
+            start: eased_animation(span.start, duration),
+            extent: eased_animation(span.extent, duration),
         }
     }
 
@@ -70,11 +69,7 @@ impl SpanTravel {
     }
 
     fn motion_state(&self, now: Instant) -> MotionState {
-        if self.start.is_animating(now) || self.extent.is_animating(now) {
-            MotionState::Moving
-        } else {
-            MotionState::Settled
-        }
+        motion_of([&self.start, &self.extent], now)
     }
 
     fn travelled(&self, now: Instant) -> TravelledSpan {

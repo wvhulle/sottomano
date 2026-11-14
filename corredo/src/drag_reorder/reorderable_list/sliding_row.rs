@@ -8,19 +8,15 @@ use iced::{
         mouse, overlay, renderer,
         widget::{Operation, Tree, tree},
     },
-    animation::Easing,
     mouse::Cursor,
     time::{Duration, Instant},
     window,
 };
 
-use crate::{orientation::Axis, transitions::MotionState};
-
-pub(super) fn eased_motion(value: f32, duration: Duration) -> Animation<f32> {
-    Animation::new(value)
-        .easing(Easing::EaseOutCubic)
-        .duration(duration)
-}
+use crate::{
+    orientation::Axis,
+    transitions::{MotionState, eased_animation, motion_of},
+};
 
 pub(super) struct SlidingRow<'a, Message, RowKey> {
     keys: Vec<RowKey>,
@@ -135,15 +131,7 @@ struct SlidingRowState<RowKey> {
 
 impl<RowKey: Copy + Eq + Hash> SlidingRowState<RowKey> {
     fn slide_motion(&self, now: Instant) -> MotionState {
-        if self
-            .child_starts
-            .values()
-            .any(|start| start.is_animating(now))
-        {
-            MotionState::Moving
-        } else {
-            MotionState::Settled
-        }
+        motion_of(self.child_starts.values(), now)
     }
 
     fn sliding_start(&mut self, key: RowKey, target: f32, slide_duration: Duration) -> f32 {
@@ -153,7 +141,7 @@ impl<RowKey: Copy + Eq + Hash> SlidingRowState<RowKey> {
         let start = self
             .child_starts
             .entry(key)
-            .or_insert_with(|| eased_motion(target, slide_duration));
+            .or_insert_with(|| eased_animation(target, slide_duration));
         if (start.value() - target).abs() > f32::EPSILON {
             start.go_mut(target, now);
         }
