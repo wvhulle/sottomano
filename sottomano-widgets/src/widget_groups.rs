@@ -11,6 +11,7 @@ pub mod clock_group;
 pub mod color_temperature_group;
 pub mod compositor_styling_group;
 pub mod compute_group;
+pub mod container_family_group;
 pub mod copilot_usage_group;
 pub mod dark_mode_group;
 pub mod docker_engines_group;

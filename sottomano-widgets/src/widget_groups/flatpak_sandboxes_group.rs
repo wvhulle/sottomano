@@ -1,37 +1,25 @@
-use std::{borrow::Cow, convert::identity};
+use std::borrow::Cow;
 
 use chrono::Locale;
-use iced::Subscription;
-use sottomano_desktop_sources::{
-    SnapshotDelivery,
-    flatpak_sandboxes::{
-        FlatpakProbe, FlatpakSandbox, FlatpakSandboxListing, FlatpakSandboxListings,
-        FlatpakSandboxes,
-    },
+use sottomano_desktop_sources::flatpak_sandboxes::{
+    FlatpakProbe, FlatpakSandbox, FlatpakSandboxListing, FlatpakSandboxListings, FlatpakSandboxes,
 };
 
 use crate::{
-    background_work::snapshot_subscription,
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
-    },
+    hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
     widget_groups::{
-        process_usage_cells::approximate_memory_text,
-        widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+        container_family_group::{
+            ContainerFamily, ContainerFamilyGroup, ContainerFamilyMessage, FamilyRow,
         },
+        process_usage_cells::{approximate_memory_text, running_state_text},
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         icon_glyph::IconGlyph,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
     },
@@ -59,11 +47,7 @@ fn sandbox_icon() -> IconGlyph {
     IconGlyph::SimpleIcon(SimpleIcon::Flatpak)
 }
 
-fn running_state_text(running: bool) -> &'static str {
-    if running { "running" } else { "stopped" }
-}
-
-struct FlatpakSandboxListingRow<'a> {
+pub struct FlatpakSandboxListingRow<'a> {
     listing: &'a FlatpakSandboxListing,
 }
 
@@ -100,7 +84,7 @@ impl GroupItemReading for FlatpakSandboxListingRow<'_> {
     }
 }
 
-struct FlatpakSandboxRow<'a> {
+pub struct FlatpakSandboxRow<'a> {
     sandbox: &'a FlatpakSandbox,
 }
 
@@ -162,163 +146,61 @@ impl GroupItemReading for FlatpakSandboxRow<'_> {
     }
 }
 
-#[derive(Default)]
-pub struct FlatpakSandboxesGroup {
-    probe: LatestSnapshot<FlatpakProbe, HidesFetchFailures>,
-    listings: LatestSnapshot<FlatpakSandboxListings, HidesFetchFailures>,
-    detail: LatestSnapshot<FlatpakSandboxes, HidesFetchFailures>,
-    expansion: WidgetGroupExpansion,
-}
-
 #[derive(Debug)]
-pub enum FlatpakSandboxesMessage {
-    Probe(SnapshotDelivery<FlatpakProbe>),
-    Listings(SnapshotDelivery<FlatpakSandboxListings>),
-    Sandboxes(SnapshotDelivery<FlatpakSandboxes>),
-    Expansion(WidgetGroupExpansionMessage),
-}
+pub struct FlatpakFamily;
 
-impl FlatpakSandboxesGroup {
-    pub fn collapse(&mut self) {
-        self.expansion.collapse();
-    }
+pub type FlatpakSandboxesGroup = ContainerFamilyGroup<FlatpakFamily>;
+pub type FlatpakSandboxesMessage = ContainerFamilyMessage<FlatpakFamily>;
 
-    pub fn subscription(&self, demand: GroupSourceDemand) -> Subscription<FlatpakSandboxesMessage> {
-        let demand = demand.expanded_when(self.expansion.state());
-        Subscription::batch([
-            snapshot_subscription::<FlatpakProbe>(()).map(FlatpakSandboxesMessage::Probe),
-            demand
-                .while_face_shown(snapshot_subscription::<FlatpakSandboxListings>(()))
-                .map(FlatpakSandboxesMessage::Listings),
-            demand
-                .while_rows_shown(snapshot_subscription::<FlatpakSandboxes>(()))
-                .map(FlatpakSandboxesMessage::Sandboxes),
-        ])
-    }
+impl ContainerFamily for FlatpakFamily {
+    type Probe = FlatpakProbe;
+    type Listings = FlatpakSandboxListings;
+    type Detail = FlatpakSandboxes;
+    type Target = FlatpakSandboxTarget;
+    type ListingRow<'a> = FlatpakSandboxListingRow<'a>;
+    type DetailRow<'a> = FlatpakSandboxRow<'a>;
 
-    pub fn update(&mut self, message: FlatpakSandboxesMessage, clock: Clock) {
-        match message {
-            FlatpakSandboxesMessage::Probe(delivery) => self.probe.receive(delivery, clock),
-            FlatpakSandboxesMessage::Listings(delivery) => self.listings.receive(delivery, clock),
-            FlatpakSandboxesMessage::Sandboxes(delivery) => {
-                self.detail.receive(delivery, clock);
-            }
-            FlatpakSandboxesMessage::Expansion(expansion_message) => {
-                self.expansion.update(expansion_message);
-            }
-        }
-    }
+    const FAMILY: WidgetGroupFamily = WidgetGroupFamily::FlatpakSandboxes;
+    const GROUP_NAME: &'static str = "Flatpak apps";
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &FlatpakSandboxTarget, clock: Clock) -> Option<HoverCard> {
-        if let Some(detail) = self.detail.get() {
-            let sandbox = detail
-                .sandboxes
-                .iter()
-                .find(|sandbox| sandbox.instance_id == target.instance_id)?;
-            return self
-                .detail
-                .hover_card_with(FlatpakSandboxRow { sandbox }.hover_card(clock));
-        }
-        let listing = self
-            .listings
-            .get()?
-            .listings
-            .iter()
-            .find(|listing| listing.instance_id == target.instance_id)?;
-        self.listings
-            .hover_card_with(FlatpakSandboxListingRow { listing }.hover_card(clock))
-    }
-
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
-        let rows = self.sandbox_rows();
-        WidgetGroupContent::expandable(
-            WidgetGroupFamily::FlatpakSandboxes,
-            &self.expansion,
-            identity,
-            rows,
-        )
-        .face(WidgetGroupFace::IconColoredBy {
-            glyph: sandbox_icon(),
-            reading: self,
-        })
-    }
-
-    fn sandbox_rows(&self) -> Vec<GroupItem<'_, WidgetGroupExpansionMessage>> {
-        if let Some(detail) = self.detail.get() {
-            return detail
-                .sandboxes
-                .iter()
-                .map(|sandbox| {
-                    GroupItem::reading(
-                        FlatpakSandboxRow { sandbox },
-                        FlatpakSandboxTarget::of_instance(Cow::Owned(sandbox.instance_id.clone())),
-                    )
-                })
-                .collect();
-        }
-        self.listings
-            .get()
-            .map(|listings| {
-                listings
-                    .listings
-                    .iter()
-                    .map(|listing| {
-                        GroupItem::reading(
-                            FlatpakSandboxListingRow { listing },
-                            FlatpakSandboxTarget::of_instance(Cow::Owned(
-                                listing.instance_id.clone(),
-                            )),
-                        )
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-}
-
-impl GroupItemReading for FlatpakSandboxesGroup {
-    fn name(&self) -> &'static str {
-        "Flatpak apps"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        "Flatpak apps".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
+    fn group_glyph() -> IconGlyph {
         sandbox_icon()
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.probe
-            .get()
-            .map(|probe| format!("{} running", probe.running_instance_count))
+    fn running_count(probe: &FlatpakProbe) -> usize {
+        probe.running_instance_count
     }
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self
-            .probe
-            .get()
-            .is_some_and(|probe| probe.running_instance_count > 0)
-        {
-            ReadingDisplayState::On
-        } else {
-            ReadingDisplayState::Off
-        }
+    fn listing_rows(
+        listings: &FlatpakSandboxListings,
+    ) -> Vec<FamilyRow<FlatpakSandboxTarget, FlatpakSandboxListingRow<'_>>> {
+        listings
+            .listings
+            .iter()
+            .map(|listing| FamilyRow {
+                target: FlatpakSandboxTarget::of_instance(Cow::Owned(listing.instance_id.clone())),
+                reading: FlatpakSandboxListingRow { listing },
+            })
+            .collect()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(
-            self.probe
-                .get()
-                .map(|probe| {
-                    vec![LabeledValue::new(
-                        "Running apps",
-                        probe.running_instance_count.to_string(),
-                    )]
-                })
-                .unwrap_or_default(),
-        )
+    fn detail_rows(
+        detail: &FlatpakSandboxes,
+    ) -> Vec<FamilyRow<FlatpakSandboxTarget, FlatpakSandboxRow<'_>>> {
+        detail
+            .sandboxes
+            .iter()
+            .map(|sandbox| FamilyRow {
+                target: FlatpakSandboxTarget::of_instance(Cow::Owned(sandbox.instance_id.clone())),
+                reading: FlatpakSandboxRow { sandbox },
+            })
+            .collect()
+    }
+
+    fn group_hover_entries(probe: &FlatpakProbe) -> Vec<LabeledValue> {
+        vec![LabeledValue::new(
+            "Running apps",
+            probe.running_instance_count.to_string(),
+        )]
     }
 }

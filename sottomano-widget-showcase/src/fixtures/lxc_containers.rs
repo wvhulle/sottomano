@@ -18,7 +18,7 @@ pub const HOVERED_CONTAINER_NAME: &str = "media";
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = LxcContainersGroup::default();
     group.update(
-        LxcContainersMessage::Containers(SnapshotDelivery::fixture_delivered(
+        LxcContainersMessage::Detail(SnapshotDelivery::fixture_delivered(
             Ok(LxcContainers {
                 containers: vec![
                     LxcContainer {

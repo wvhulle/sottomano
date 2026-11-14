@@ -1,39 +1,27 @@
-use std::{borrow::Cow, convert::identity};
+use std::borrow::Cow;
 
 use chrono::Locale;
-use iced::Subscription;
-use sottomano_desktop_sources::{
-    SnapshotDelivery,
-    vmware_machines::{
-        VmwareMachine, VmwareMachineListing, VmwareMachineListings, VmwareMachineProbe,
-        VmwareMachines,
-    },
+use sottomano_desktop_sources::vmware_machines::{
+    VmwareMachine, VmwareMachineListing, VmwareMachineListings, VmwareMachineProbe, VmwareMachines,
 };
 
 use crate::{
-    background_work::snapshot_subscription,
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
-    },
+    hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
     widget_groups::{
-        process_usage_cells::approximate_memory_text,
-        widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+        container_family_group::{
+            ContainerFamily, ContainerFamilyGroup, ContainerFamilyMessage, FamilyRow,
         },
+        process_usage_cells::{approximate_memory_text, uptime_entry},
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         icon_glyph::IconGlyph,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
-        value_cells::{LabeledValue, ValueCell},
+        value_cells::LabeledValue,
     },
 };
 
@@ -55,7 +43,7 @@ impl From<VmwareMachineTarget> for HoverTarget {
     }
 }
 
-struct VmwareMachineListingRow<'a> {
+pub struct VmwareMachineListingRow<'a> {
     listing: &'a VmwareMachineListing,
 }
 
@@ -88,7 +76,7 @@ impl GroupItemReading for VmwareMachineListingRow<'_> {
     }
 }
 
-struct VmwareMachineRow<'a> {
+pub struct VmwareMachineRow<'a> {
     machine: &'a VmwareMachine,
 }
 
@@ -128,9 +116,7 @@ impl GroupItemReading for VmwareMachineRow<'_> {
         if let Some(guest_cores) = machine.guest_cores {
             detail_entries.push(LabeledValue::new("Cores", guest_cores.to_string()));
         }
-        if let Ok(uptime) = clock.wall.duration_since(machine.started_at) {
-            detail_entries.push(LabeledValue::new("Uptime", ValueCell::duration(uptime)));
-        }
+        detail_entries.extend(uptime_entry(clock, machine.started_at));
         detail_entries.extend([
             LabeledValue::new(
                 "Configuration",
@@ -142,154 +128,54 @@ impl GroupItemReading for VmwareMachineRow<'_> {
     }
 }
 
-#[derive(Default)]
-pub struct VmwareMachinesGroup {
-    probe: LatestSnapshot<VmwareMachineProbe, HidesFetchFailures>,
-    listings: LatestSnapshot<VmwareMachineListings, HidesFetchFailures>,
-    detail: LatestSnapshot<VmwareMachines, HidesFetchFailures>,
-    expansion: WidgetGroupExpansion,
-}
-
 #[derive(Debug)]
-pub enum VmwareMachinesMessage {
-    Probe(SnapshotDelivery<VmwareMachineProbe>),
-    Listings(SnapshotDelivery<VmwareMachineListings>),
-    Machines(SnapshotDelivery<VmwareMachines>),
-    Expansion(WidgetGroupExpansionMessage),
-}
+pub struct VmwareFamily;
 
-impl VmwareMachinesGroup {
-    pub fn collapse(&mut self) {
-        self.expansion.collapse();
-    }
+pub type VmwareMachinesGroup = ContainerFamilyGroup<VmwareFamily>;
+pub type VmwareMachinesMessage = ContainerFamilyMessage<VmwareFamily>;
 
-    pub fn subscription(&self, demand: GroupSourceDemand) -> Subscription<VmwareMachinesMessage> {
-        let demand = demand.expanded_when(self.expansion.state());
-        Subscription::batch([
-            snapshot_subscription::<VmwareMachineProbe>(()).map(VmwareMachinesMessage::Probe),
-            demand
-                .while_face_shown(snapshot_subscription::<VmwareMachineListings>(()))
-                .map(VmwareMachinesMessage::Listings),
-            demand
-                .while_rows_shown(snapshot_subscription::<VmwareMachines>(()))
-                .map(VmwareMachinesMessage::Machines),
-        ])
-    }
+impl ContainerFamily for VmwareFamily {
+    type Probe = VmwareMachineProbe;
+    type Listings = VmwareMachineListings;
+    type Detail = VmwareMachines;
+    type Target = VmwareMachineTarget;
+    type ListingRow<'a> = VmwareMachineListingRow<'a>;
+    type DetailRow<'a> = VmwareMachineRow<'a>;
 
-    pub fn update(&mut self, message: VmwareMachinesMessage, clock: Clock) {
-        match message {
-            VmwareMachinesMessage::Probe(delivery) => self.probe.receive(delivery, clock),
-            VmwareMachinesMessage::Listings(delivery) => self.listings.receive(delivery, clock),
-            VmwareMachinesMessage::Machines(delivery) => self.detail.receive(delivery, clock),
-            VmwareMachinesMessage::Expansion(expansion_message) => {
-                self.expansion.update(expansion_message);
-            }
-        }
-    }
+    const FAMILY: WidgetGroupFamily = WidgetGroupFamily::VmwareMachines;
+    const GROUP_NAME: &'static str = "VMware machines";
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &VmwareMachineTarget, clock: Clock) -> Option<HoverCard> {
-        if let Some(detail) = self.detail.get() {
-            let machine = detail
-                .machines
-                .iter()
-                .find(|machine| machine.pid == target.pid)?;
-            return self
-                .detail
-                .hover_card_with(VmwareMachineRow { machine }.hover_card(clock));
-        }
-        let listing = self
-            .listings
-            .get()?
-            .listings
-            .iter()
-            .find(|listing| listing.pid == target.pid)?;
-        self.listings
-            .hover_card_with(VmwareMachineListingRow { listing }.hover_card(clock))
-    }
-
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
-        let rows = self.machine_rows();
-        WidgetGroupContent::expandable(
-            WidgetGroupFamily::VmwareMachines,
-            &self.expansion,
-            identity,
-            rows,
-        )
-        .face(WidgetGroupFace::IconColoredBy {
-            glyph: Phosphor::Desktop(Weight::Regular).into(),
-            reading: self,
-        })
-    }
-
-    fn machine_rows(&self) -> Vec<GroupItem<'_, WidgetGroupExpansionMessage>> {
-        if let Some(detail) = self.detail.get() {
-            return detail
-                .machines
-                .iter()
-                .map(|machine| {
-                    GroupItem::reading(
-                        VmwareMachineRow { machine },
-                        VmwareMachineTarget::of_pid(machine.pid),
-                    )
-                })
-                .collect();
-        }
-        self.listings
-            .get()
-            .map(|listings| {
-                listings
-                    .listings
-                    .iter()
-                    .map(|listing| {
-                        GroupItem::reading(
-                            VmwareMachineListingRow { listing },
-                            VmwareMachineTarget::of_pid(listing.pid),
-                        )
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-}
-
-impl GroupItemReading for VmwareMachinesGroup {
-    fn name(&self) -> &'static str {
-        "VMware machines"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        "VMware machines".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
+    fn group_glyph() -> IconGlyph {
         Phosphor::Desktop(Weight::Regular).into()
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.probe
-            .get()
-            .map(|probe| format!("{} running", probe.running_count))
+    fn running_count(probe: &VmwareMachineProbe) -> usize {
+        probe.running_count
     }
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.probe
-            .get()
-            .filter(|probe| probe.running_count > 0)
-            .map_or(ReadingDisplayState::Off, |_| ReadingDisplayState::On)
+    fn listing_rows(
+        listings: &VmwareMachineListings,
+    ) -> Vec<FamilyRow<VmwareMachineTarget, VmwareMachineListingRow<'_>>> {
+        listings
+            .listings
+            .iter()
+            .map(|listing| FamilyRow {
+                target: VmwareMachineTarget::of_pid(listing.pid),
+                reading: VmwareMachineListingRow { listing },
+            })
+            .collect()
     }
 
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary(
-            self.probe
-                .get()
-                .map(|probe| {
-                    vec![LabeledValue::new(
-                        "Running",
-                        probe.running_count.to_string(),
-                    )]
-                })
-                .unwrap_or_default(),
-        )
+    fn detail_rows(
+        detail: &VmwareMachines,
+    ) -> Vec<FamilyRow<VmwareMachineTarget, VmwareMachineRow<'_>>> {
+        detail
+            .machines
+            .iter()
+            .map(|machine| FamilyRow {
+                target: VmwareMachineTarget::of_pid(machine.pid),
+                reading: VmwareMachineRow { machine },
+            })
+            .collect()
     }
 }
