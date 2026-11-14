@@ -13,6 +13,7 @@ use corredo::{
     selection_scroll::wheel_step_direction,
     theming::text_color,
     transitions::{ExpansionState, expand_transition, reveal},
+    value_controls::{Nudge, SourceTracking, SyncedValue, ValueWrite},
 };
 use iced::{
     Alignment, Element, Length, Padding, Task,
@@ -26,7 +27,6 @@ use uom::si::{f64::Ratio, ratio};
 use crate::{
     clock::Clock,
     group_items::{
-        device_setting::{DeviceSetting, DeviceTracking, Nudge, Write},
         group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
         source_reading::{labeled_reading, source_reading},
@@ -65,7 +65,7 @@ pub struct SliderControl {
     name: &'static str,
     expansion_state: ExpansionState,
     accum: f32,
-    pub(crate) device_setting: DeviceSetting,
+    pub(crate) synced_value: SyncedValue,
     slider_activity: SliderActivity,
     live: f32,
     range: RangeInclusive<f32>,
@@ -194,7 +194,7 @@ impl SliderControl {
             name,
             expansion_state: ExpansionState::Collapsed,
             accum: 0.0,
-            device_setting: DeviceSetting::default(),
+            synced_value: SyncedValue::default(),
             slider_activity: SliderActivity::Active,
             live: 1.0,
             range,
@@ -291,7 +291,7 @@ impl SliderControl {
 
     fn fraction_of_range(&self) -> f32 {
         let span = self.range.end() - self.range.start();
-        ((self.device_setting.wanted_value() - self.range.start()) / span).clamp(0.0, 1.0)
+        ((self.synced_value.shown_value() - self.range.start()) / span).clamp(0.0, 1.0)
     }
 
     fn range_fill(&self) -> Ratio {
@@ -313,13 +313,13 @@ impl SliderControl {
 
     #[must_use]
     pub fn readout_text(&self, locale: Locale) -> String {
-        (self.readout)(self.device_setting.wanted_value(), locale)
+        (self.readout)(self.synced_value.shown_value(), locale)
     }
 
     #[must_use]
     pub fn readout_cell(&self) -> ValueCell {
         ValueCell::Readout(SliderReadout::new(
-            self.device_setting.wanted_value(),
+            self.synced_value.shown_value(),
             self.readout,
         ))
     }
@@ -335,13 +335,13 @@ impl SliderControl {
         self.thresholds
             .as_ref()
             .map_or(Severity::Normal, |thresholds| {
-                thresholds.level(self.device_setting.wanted_value())
+                thresholds.level(self.synced_value.shown_value())
             })
     }
 
     fn effective_icon(&self) -> IconGlyph {
         self.glyph.map_or(self.icon, |glyph| {
-            glyph(self.device_setting.wanted_value(), self.slider_activity).into()
+            glyph(self.synced_value.shown_value(), self.slider_activity).into()
         })
     }
 
@@ -363,25 +363,25 @@ impl SliderControl {
                     return Action::None;
                 };
                 #[allow(clippy::cast_precision_loss)]
-                let target = (self.device_setting.wanted_value() + step as f32 * self.scroll_step)
+                let target = (self.synced_value.shown_value() + step as f32 * self.scroll_step)
                     .clamp(*self.range.start(), *self.range.end());
                 if self.relative_scroll {
                     let nudge = Nudge {
-                        step_delta: target - self.device_setting.wanted_value(),
+                        step_delta: target - self.synced_value.shown_value(),
                         resulting_value: target,
                     };
-                    into_action(self.device_setting.nudged_by(nudge))
+                    into_action(self.synced_value.nudged_by(nudge))
                 } else {
-                    into_action(self.device_setting.scrolled_to(target))
+                    into_action(self.synced_value.scrolled_to(target))
                 }
             }
-            ControlMessage::Set(pos) => into_action(self.device_setting.drag_moved_to(pos)),
-            ControlMessage::Release => into_action(self.device_setting.drag_ended()),
+            ControlMessage::Set(pos) => into_action(self.synced_value.drag_moved_to(pos)),
+            ControlMessage::Release => into_action(self.synced_value.drag_ended()),
             ControlMessage::DeviceAccepted {
                 value,
                 write_outcome,
             } => into_action(
-                self.device_setting
+                self.synced_value
                     .absolute_write_finished(value, &write_outcome),
             ),
             ControlMessage::Persisted {
@@ -389,31 +389,30 @@ impl SliderControl {
                 write_outcome,
             } => {
                 let follow_up = self
-                    .device_setting
+                    .synced_value
                     .absolute_write_finished(value, &write_outcome);
                 match write_outcome {
-                    Ok(()) => self.device_setting.device_reported(value, self.slider_step),
+                    Ok(()) => self.synced_value.source_reported(value, self.slider_step),
                     Err(store_failure) => tracing::warn!("slider value not saved: {store_failure}"),
                 }
                 into_action(follow_up)
             }
             ControlMessage::Adjusted(value) => {
-                into_action(self.device_setting.relative_write_resolved(value))
+                into_action(self.synced_value.relative_write_resolved(value))
             }
             ControlMessage::AdjustFailed => {
-                self.device_setting.relative_write_failed();
+                self.synced_value.relative_write_failed();
                 Action::None
             }
             ControlMessage::Reading(reading) => {
-                let tracking_before = self.device_setting.device_tracking();
-                let shown_before = self.device_setting.wanted_value();
-                self.device_setting
-                    .device_reported(reading, self.slider_step);
-                let moved = (self.device_setting.wanted_value() - shown_before).abs()
+                let tracking_before = self.synced_value.source_tracking();
+                let shown_before = self.synced_value.shown_value();
+                self.synced_value.source_reported(reading, self.slider_step);
+                let moved = (self.synced_value.shown_value() - shown_before).abs()
                     >= self.slider_step / 2.0;
                 let change_origin = match tracking_before {
-                    DeviceTracking::FollowingDevice if moved => LevelChangeOrigin::OutsidePanel,
-                    DeviceTracking::FollowingDevice | DeviceTracking::Diverging => {
+                    SourceTracking::FollowingSource if moved => LevelChangeOrigin::OutsidePanel,
+                    SourceTracking::FollowingSource | SourceTracking::Diverging => {
                         LevelChangeOrigin::FromPanel
                     }
                 };
@@ -550,8 +549,8 @@ impl SliderControl {
         inline_slider(
             config,
             self.range.clone(),
-            self.device_setting.wanted_value(),
-            self.device_setting.lagging_device_value(self.slider_step),
+            self.synced_value.shown_value(),
+            self.synced_value.lagging_reported_value(self.slider_step),
             self.slider_step,
             self.severity(),
             ControlMessage::Set,
@@ -647,7 +646,7 @@ impl GroupItemReading for SliderControl {
 
     fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
         self.label
-            .and_then(|format| format(self.device_setting.wanted_value(), locale))
+            .and_then(|format| format(self.synced_value.shown_value(), locale))
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
@@ -682,10 +681,10 @@ impl GroupItemReading for SliderControl {
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn into_action(write: Option<Write>) -> Action {
+fn into_action(write: Option<ValueWrite>) -> Action {
     match write {
-        Some(Write::Absolute(value)) => Action::Commit(value),
-        Some(Write::Relative(delta)) => Action::Adjust(delta),
+        Some(ValueWrite::Absolute(value)) => Action::Commit(value),
+        Some(ValueWrite::Relative(delta)) => Action::Adjust(delta),
         None => Action::None,
     }
 }

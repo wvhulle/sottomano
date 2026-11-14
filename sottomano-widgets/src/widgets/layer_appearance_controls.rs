@@ -189,17 +189,17 @@ impl LayerAppearanceControls {
     pub fn appearance(&self) -> LayerAppearance {
         LayerAppearance {
             background: self.layer.default_appearance().background,
-            opacity: self.opacity.device_setting.reported_value() / 100.0,
-            corner_radius_px: self.corner_radius.device_setting.reported_value(),
+            opacity: self.opacity.synced_value.reported_value() / 100.0,
+            corner_radius_px: self.corner_radius.synced_value.reported_value(),
             backdrop_blur: self.backdrop_blur,
             shadow: ShadowStyle {
                 casting: self.shadow_casting,
-                softness_px: self.shadow_softness.device_setting.reported_value(),
-                opacity: self.shadow_opacity.device_setting.reported_value() / 100.0,
+                softness_px: self.shadow_softness.synced_value.reported_value(),
+                opacity: self.shadow_opacity.synced_value.reported_value() / 100.0,
             },
             outline: OutlineStyle {
                 tracing: self.outline_tracing,
-                opacity: self.outline_opacity.device_setting.reported_value() / 100.0,
+                opacity: self.outline_opacity.synced_value.reported_value() / 100.0,
             },
         }
     }

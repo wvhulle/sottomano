@@ -2,6 +2,8 @@ mod inline_slider;
 pub use inline_slider::{InlineSlider, SliderAccents, inline_slider};
 mod seek_bar;
 pub use seek_bar::{PlaybackTimeline, SeekBar, SeekMessage};
+mod synced_value;
+pub use synced_value::{DragWrites, Nudge, SourceTracking, SyncedValue, ValueWrite};
 mod toggle_switch;
 pub use toggle_switch::{TogglePosition, ToggleSwitch, toggle_switch};
 #[cfg(feature = "chrono")]

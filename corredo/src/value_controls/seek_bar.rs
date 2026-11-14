@@ -2,11 +2,18 @@ use std::time::Duration;
 
 use iced::{Element, mouse::ScrollDelta};
 
-use crate::{selection_scroll::wheel_step_direction, value_controls::inline_slider};
+use crate::{
+    selection_scroll::wheel_step_direction,
+    value_controls::{
+        inline_slider,
+        synced_value::{SyncedValue, ValueWrite},
+    },
+};
 
 const SCROLL_SEEK_STEP: Duration = Duration::from_secs(5);
 const DRAG_STEP_SECONDS: f32 = 1.0;
 const ARRIVAL_TOLERANCE: Duration = Duration::from_secs(1);
+const ARRIVAL_STEP_SECONDS: f32 = 2.0;
 
 #[derive(Debug, Clone, Copy)]
 pub enum SeekMessage {
@@ -24,60 +31,24 @@ pub struct PlaybackTimeline<PlaybackSession> {
     pub accepts_seek: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SeekArrival {
-    Arrived,
-    Pending,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Arrival<PlaybackSession> {
-    position: Duration,
-    session: PlaybackSession,
-}
-
-impl<PlaybackSession: PartialEq> Arrival<PlaybackSession> {
-    fn arrival_state(&self, timeline: &PlaybackTimeline<PlaybackSession>) -> SeekArrival {
-        if self.session != timeline.session
-            || timeline
-                .played
-                .is_none_or(|played| played.abs_diff(self.position) <= ARRIVAL_TOLERANCE)
-        {
-            SeekArrival::Arrived
-        } else {
-            SeekArrival::Pending
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum UserRequest<PlaybackSession> {
-    FollowingPlayer,
-    DraggingTo(Duration),
-    AwaitingArrival(Arrival<PlaybackSession>),
-}
-
-impl<PlaybackSession> UserRequest<PlaybackSession> {
-    fn requested_position(&self) -> Option<Duration> {
-        match self {
-            Self::FollowingPlayer => None,
-            Self::DraggingTo(position) | Self::AwaitingArrival(Arrival { position, .. }) => {
-                Some(*position)
-            }
-        }
-    }
+enum SeekSession<PlaybackSession> {
+    NoSeek,
+    SeekingIn(PlaybackSession),
 }
 
 #[derive(Debug)]
 pub struct SeekBar<PlaybackSession> {
-    request: UserRequest<PlaybackSession>,
+    synced_position: SyncedValue,
+    seek_session: SeekSession<PlaybackSession>,
     scroll_accumulated: f32,
 }
 
 impl<PlaybackSession> Default for SeekBar<PlaybackSession> {
     fn default() -> Self {
         Self {
-            request: UserRequest::FollowingPlayer,
+            synced_position: SyncedValue::writing_on_release(),
+            seek_session: SeekSession::NoSeek,
             scroll_accumulated: 0.0,
         }
     }
@@ -91,31 +62,32 @@ impl<PlaybackSession: Clone + PartialEq> SeekBar<PlaybackSession> {
     ) -> Option<Duration> {
         match message {
             SeekMessage::Drag(seconds) => {
-                self.request = UserRequest::DraggingTo(Duration::from_secs_f32(seconds.max(0.0)));
+                let _no_write_while_dragging = self.synced_position.drag_moved_to(seconds.max(0.0));
                 None
             }
-            SeekMessage::Release => self.released(timeline),
+            SeekMessage::Release => {
+                let release_write = self.synced_position.drag_ended();
+                self.seek_with(release_write, timeline)
+            }
             SeekMessage::Scroll(delta) => self.scrolled(delta, timeline),
             SeekMessage::Rejected => {
-                self.request = UserRequest::FollowingPlayer;
+                self.follow_player();
                 None
             }
         }
     }
 
     pub fn player_reported(&mut self, timeline: &PlaybackTimeline<PlaybackSession>) {
-        if let UserRequest::AwaitingArrival(arrival) = &self.request
-            && arrival.arrival_state(timeline) == SeekArrival::Arrived
-        {
-            self.request = UserRequest::FollowingPlayer;
-        }
-    }
-
-    fn released(&mut self, timeline: &PlaybackTimeline<PlaybackSession>) -> Option<Duration> {
-        let UserRequest::DraggingTo(position) = self.request else {
-            return None;
+        let left_session = match &self.seek_session {
+            SeekSession::SeekingIn(session) => *session != timeline.session,
+            SeekSession::NoSeek => false,
         };
-        self.request_arrival(timeline, position)
+        match timeline.played {
+            Some(played) if !left_session => self
+                .synced_position
+                .source_reported(played.as_secs_f32(), ARRIVAL_STEP_SECONDS),
+            Some(_) | None => self.follow_player(),
+        }
     }
 
     fn scrolled(
@@ -126,32 +98,47 @@ impl<PlaybackSession: Clone + PartialEq> SeekBar<PlaybackSession> {
         let steps = wheel_step_direction(&mut self.scroll_accumulated, delta)?;
         let length = timeline.length?;
         let shown = self.shown_position(timeline)?;
-        self.request_arrival(timeline, scrolled_position(shown, steps, length))
+        let target = scrolled_position(shown, steps, length);
+        let scroll_write = self.synced_position.scrolled_to(target.as_secs_f32());
+        self.seek_with(scroll_write, timeline)
     }
 
-    fn request_arrival(
+    fn seek_with(
         &mut self,
+        position_write: Option<ValueWrite>,
         timeline: &PlaybackTimeline<PlaybackSession>,
-        position: Duration,
     ) -> Option<Duration> {
-        self.request = UserRequest::FollowingPlayer;
+        let Some(ValueWrite::Absolute(seconds)) = position_write else {
+            return None;
+        };
         if !timeline.accepts_seek {
+            self.follow_player();
             return None;
         }
-        self.request = UserRequest::AwaitingArrival(Arrival {
-            position,
-            session: timeline.session.clone(),
-        });
-        Some(position)
+        let _seek_sent_without_confirmation = self
+            .synced_position
+            .absolute_write_finished(seconds, &Ok::<(), ()>(()));
+        self.seek_session = SeekSession::SeekingIn(timeline.session.clone());
+        Some(Duration::from_secs_f32(seconds))
+    }
+
+    fn follow_player(&mut self) {
+        self.synced_position.follow_source();
+        self.seek_session = SeekSession::NoSeek;
+    }
+
+    fn requested_position(&self) -> Option<Duration> {
+        self.synced_position
+            .requested_value()
+            .map(Duration::from_secs_f32)
     }
 
     fn shown_position(&self, timeline: &PlaybackTimeline<PlaybackSession>) -> Option<Duration> {
-        self.request.requested_position().or(timeline.played)
+        self.requested_position().or(timeline.played)
     }
 
     fn lagging_position(&self, played: Duration) -> Option<Duration> {
-        self.request
-            .requested_position()
+        self.requested_position()
             .filter(|&requested| played.abs_diff(requested) > ARRIVAL_TOLERANCE)
             .map(|_| played)
     }
@@ -163,7 +150,7 @@ impl<PlaybackSession: Clone + PartialEq> SeekBar<PlaybackSession> {
     ) -> Option<Element<'a, SeekMessage>> {
         let length = timeline.length?;
         let played = timeline.played?;
-        let shown = self.request.requested_position().unwrap_or(played);
+        let shown = self.requested_position().unwrap_or(played);
         Some(
             inline_slider(
                 0.0..=length.as_secs_f32(),
@@ -234,10 +221,10 @@ mod tests {
         );
 
         bar.player_reported(&before);
-        assert_eq!(bar.request.requested_position(), Some(target));
+        assert_eq!(bar.requested_position(), Some(target));
 
         bar.player_reported(&timeline_at(target, FIRST_TRACK));
-        assert_eq!(bar.request, UserRequest::FollowingPlayer);
+        assert_eq!(bar.requested_position(), None);
     }
 
     #[test]
@@ -245,7 +232,7 @@ mod tests {
         let before = timeline_at(Duration::from_secs(10), FIRST_TRACK);
         let mut bar = released_at(Duration::from_secs(120), &before);
         bar.player_reported(&timeline_at(Duration::ZERO, SECOND_TRACK));
-        assert_eq!(bar.request, UserRequest::FollowingPlayer);
+        assert_eq!(bar.requested_position(), None);
     }
 
     #[test]
@@ -253,7 +240,7 @@ mod tests {
         let before = timeline_at(Duration::from_secs(10), FIRST_TRACK);
         let mut bar = released_at(Duration::from_secs(120), &before);
         bar.update(SeekMessage::Rejected, &before);
-        assert_eq!(bar.request, UserRequest::FollowingPlayer);
+        assert_eq!(bar.requested_position(), None);
     }
 
     #[test]
@@ -265,7 +252,7 @@ mod tests {
         let mut bar = SeekBar::default();
         bar.update(SeekMessage::Drag(120.0), &refusing);
         assert_eq!(bar.update(SeekMessage::Release, &refusing), None);
-        assert_eq!(bar.request, UserRequest::FollowingPlayer);
+        assert_eq!(bar.requested_position(), None);
     }
 
     #[test]
@@ -275,10 +262,7 @@ mod tests {
         let forward = ScrollDelta::Lines { x: 0.0, y: 1.0 };
         bar.update(SeekMessage::Scroll(forward), &timeline);
         bar.update(SeekMessage::Scroll(forward), &timeline);
-        assert_eq!(
-            bar.request.requested_position(),
-            Some(Duration::from_secs(20))
-        );
+        assert_eq!(bar.requested_position(), Some(Duration::from_secs(20)));
     }
 
     #[test]
