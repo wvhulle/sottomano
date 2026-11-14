@@ -300,7 +300,7 @@ mod tests {
 
     type GroupMenuInspection = NestedMenuInspection<MenuTopic, &'static str, u32>;
 
-    fn inspected_workspace_row() -> u32 {
+    fn inspected_item_row() -> u32 {
         7
     }
 
@@ -308,11 +308,11 @@ mod tests {
     fn reentering_the_open_member_keeps_its_inspected_row() {
         let inspection = GroupMenuInspection::Closed
             .revealing_group(MenuTopic::Hardware, GPU_GROUP)
-            .inspecting_row(&MenuTopic::Hardware, inspected_workspace_row())
+            .inspecting_row(&MenuTopic::Hardware, inspected_item_row())
             .revealing_group(MenuTopic::Hardware, GPU_GROUP);
         assert_eq!(
             inspection.inspected_target(&MenuTopic::Hardware),
-            Some(&inspected_workspace_row())
+            Some(&inspected_item_row())
         );
     }
 
@@ -320,7 +320,7 @@ mod tests {
     fn opening_another_member_clears_the_inspected_row() {
         let inspection = GroupMenuInspection::Closed
             .revealing_group(MenuTopic::Hardware, GPU_GROUP)
-            .inspecting_row(&MenuTopic::Hardware, inspected_workspace_row())
+            .inspecting_row(&MenuTopic::Hardware, inspected_item_row())
             .revealing_group(MenuTopic::Hardware, COMPUTE_GROUP);
         assert_eq!(
             inspection.open_groups(&MenuTopic::Hardware),
@@ -338,8 +338,8 @@ mod tests {
 
     #[test]
     fn a_row_without_an_open_member_is_ignored() {
-        let inspection = GroupMenuInspection::Closed
-            .inspecting_row(&MenuTopic::Hardware, inspected_workspace_row());
+        let inspection =
+            GroupMenuInspection::Closed.inspecting_row(&MenuTopic::Hardware, inspected_item_row());
         assert_eq!(inspection, GroupMenuInspection::Closed);
     }
 
@@ -369,7 +369,7 @@ mod tests {
     fn collapsing_a_group_clears_its_inspected_row() {
         let inspection = GroupMenuInspection::Closed
             .toggling_group(MenuTopic::Hardware, GPU_GROUP, OpenGroupLimit::Several)
-            .inspecting_row(&MenuTopic::Hardware, inspected_workspace_row())
+            .inspecting_row(&MenuTopic::Hardware, inspected_item_row())
             .toggling_group(MenuTopic::Hardware, GPU_GROUP, OpenGroupLimit::Several);
         assert!(inspection.open_groups(&MenuTopic::Hardware).is_empty());
         assert_eq!(inspection.inspected_target(&MenuTopic::Hardware), None);
@@ -388,7 +388,7 @@ mod tests {
     fn opening_another_group_resets_the_item_list_scroll() {
         let scrolled = GroupMenuInspection::Closed
             .revealing_group(MenuTopic::Hardware, GPU_GROUP)
-            .inspecting_row(&MenuTopic::Hardware, inspected_workspace_row())
+            .inspecting_row(&MenuTopic::Hardware, inspected_item_row())
             .item_list_scrolled_to(&MenuTopic::Hardware, 40.0);
         assert_eq!(scrolled.inspected_target(&MenuTopic::Hardware), None);
         assert!((scrolled.item_list_scrolled_px(&MenuTopic::Hardware) - 40.0).abs() < f32::EPSILON);

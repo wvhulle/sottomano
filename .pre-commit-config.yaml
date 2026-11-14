@@ -8,6 +8,6 @@ repos:
         pass_filenames: false
       - id: ast-grep-rules
         name: ast-grep design rules
-        entry: sh -c 'ast-grep test --skip-snapshot-tests && ast-grep scan --error sottomano-desktop-sources/src sottomano-widgets/src sottomano-shell/src sottomano-widget-showcase/src sottomano-desktop-sinks/src sottomano-toml-config/src'
+        entry: sh -c 'ast-grep test --skip-snapshot-tests && ast-grep scan --error corredo/src corredo/examples corredo/tests sottomano-desktop-sources/src sottomano-widgets/src sottomano-shell/src sottomano-widget-showcase/src sottomano-desktop-sinks/src sottomano-toml-config/src'
         language: system
         pass_filenames: false

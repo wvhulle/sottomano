@@ -1,0 +1,7 @@
+id: corredo-operation-callbacks
+valid:
+  - "fn operate(&mut self, operation: &mut dyn Operation) { operation.custom(None, bounds, &mut regions); }"
+  - "struct Slider { on_drag: Box<dyn Fn(f32) -> Message> }"
+invalid:
+  - "struct Popup { report: Box<dyn Fn(PopupRegions, &mut dyn Operation)> }"
+  - "fn report_regions(self, report: impl Fn(Regions, &mut dyn Operation) + 'static) -> Self { self }"

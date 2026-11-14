@@ -3,6 +3,19 @@ disallowed-methods = [
   { path = "iced_widget::helpers::scrollable", reason = "scrollable translates content only while drawing, so anchors inside it are off by the scroll offset" },
   { path = "std::time::Instant::now", reason = "widgets receive the time as an argument from the program that renders them" },
   { path = "std::time::SystemTime::now", reason = "widgets receive the time as an argument from the program that renders them" },
+  { path = "std::fs::read", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::fs::read_to_string", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::fs::write", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::fs::read_dir", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::fs::create_dir_all", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::fs::remove_file", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::env::var", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::env::var_os", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::env::vars", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::env::current_dir", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::thread::spawn", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::thread::sleep", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::process::exit", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
   { path = "u8::saturating_add", reason = "saturating hides an overflow or underflow behind a clamped value; use checked_* and pass the error on or expect, or #[expect] it with the reason clamping is the meaning", replacement = "checked_add" },
   { path = "u8::saturating_sub", reason = "saturating hides an overflow or underflow behind a clamped value; use checked_* and pass the error on or expect, or #[expect] it with the reason clamping is the meaning", replacement = "checked_sub" },
   { path = "u8::saturating_mul", reason = "saturating hides an overflow or underflow behind a clamped value; use checked_* and pass the error on or expect, or #[expect] it with the reason clamping is the meaning", replacement = "checked_mul" },
@@ -166,6 +179,13 @@ disallowed-methods = [
 ]
 
 disallowed-types = [
+  { path = "std::fs::File", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::fs::OpenOptions", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::process::Command", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::process::Child", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::net::TcpStream", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::net::TcpListener", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
+  { path = "std::net::UdpSocket", reason = "corredo widgets are pure views; let the program perform this effect and pass the result in as widget data" },
   { path = "core::num::Saturating", reason = "saturating arithmetic hides an overflow or underflow behind a clamped value; use checked_* and pass the error on or expect" },
   { path = "core::num::Wrapping", reason = "wrapping arithmetic hides an overflow behind a wrapped value; use checked_* and pass the error on or expect" },
 ]
