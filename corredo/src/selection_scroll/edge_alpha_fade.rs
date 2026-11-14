@@ -2,27 +2,21 @@ use std::f32::consts::{FRAC_PI_2, PI};
 
 use iced::{
     Border, Color, Radians, Rectangle, Theme,
-    advanced::{Renderer as _, graphics::color, renderer},
+    advanced::{Renderer as _, renderer},
     border::Radius,
     gradient::Linear,
-    wgpu,
-    widget::shader::{Pipeline, Primitive, Viewport},
 };
 use iced_wgpu::primitive::Renderer as _;
 
-use crate::{orientation::Edge, theming::FrameStyle};
+use crate::{
+    alpha_fade_shaders::{FadeShader, ReplacingFade},
+    orientation::Edge,
+    theming::FrameStyle,
+};
 
 const OVERFLOW_TOLERANCE_PX: f32 = 0.5;
 const RADIUS_FRACTION_SCALE: f32 = 65535.0;
 const EDGE_INDEX_BITS: u32 = 2;
-
-const EDGE_ALPHA_FADE_SHADER: &str = include_str!("edge_alpha_fade.wgsl");
-
-const REPLACE_PIXELS_WITH_BLEND_CONSTANT: wgpu::BlendComponent = wgpu::BlendComponent {
-    src_factor: wgpu::BlendFactor::Constant,
-    dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-    operation: wgpu::BlendOperation::Add,
-};
 
 impl Edge {
     fn shader_index(self) -> u32 {
@@ -164,12 +158,12 @@ impl ScrollEdgeFade {
         if matches!(renderer, iced::Renderer::Primary(_)) {
             renderer.draw_primitive(
                 band,
-                EdgeAlphaFade {
-                    packed_band_shape: faded_edge.packed_with_radius_fraction(
+                ReplacingFade::<EdgeFadeShader>::new(
+                    faded_edge.packed_with_radius_fraction(
                         self.corner_radius_px / faded_edge.along_extent(band),
                     ),
                     restored_fill,
-                },
+                ),
             );
         } else {
             self.draw_gradient_band(faded_edge, renderer, band, restored_fill);
@@ -223,112 +217,22 @@ impl HiddenScrollEdges {
     }
 }
 
-#[derive(Debug)]
-struct EdgeAlphaFade {
-    packed_band_shape: u32,
-    restored_fill: Color,
-}
+struct EdgeFadeShader;
 
-impl Primitive for EdgeAlphaFade {
-    type Pipeline = EdgeAlphaFadePipeline;
-
-    fn prepare(
-        &self,
-        _pipeline: &mut EdgeAlphaFadePipeline,
-        _device: &wgpu::Device,
-        _queue: &wgpu::Queue,
-        _bounds: &Rectangle,
-        _viewport: &Viewport,
-    ) {
-    }
-
-    fn draw(
-        &self,
-        pipeline: &EdgeAlphaFadePipeline,
-        render_pass: &mut wgpu::RenderPass<'_>,
-    ) -> bool {
-        render_pass.set_pipeline(&pipeline.fade_pipeline);
-        render_pass.set_blend_constant(premultiplied_blend_constant(self.restored_fill));
-        render_pass.draw(0..3, self.packed_band_shape..self.packed_band_shape + 1);
-        true
-    }
-}
-
-pub(crate) fn premultiplied_blend_constant(fill: Color) -> wgpu::Color {
-    let [red, green, blue, alpha] = color::pack(fill).components();
-    wgpu::Color {
-        r: f64::from(red * alpha),
-        g: f64::from(green * alpha),
-        b: f64::from(blue * alpha),
-        a: f64::from(alpha),
-    }
-}
-
-struct EdgeAlphaFadePipeline {
-    fade_pipeline: wgpu::RenderPipeline,
-}
-
-pub(crate) fn replacing_fade_pipeline(
-    device: &wgpu::Device,
-    format: wgpu::TextureFormat,
-    shader_label: &str,
-    shader_source: &str,
-    fragment_entry: &str,
-) -> wgpu::RenderPipeline {
-    let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some(shader_label),
-        source: wgpu::ShaderSource::Wgsl(shader_source.into()),
-    });
-    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some(shader_label),
-        layout: None,
-        vertex: wgpu::VertexState {
-            module: &shader_module,
-            entry_point: Some("covering_triangle"),
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-            buffers: &[],
-        },
-        primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
-        fragment: Some(wgpu::FragmentState {
-            module: &shader_module,
-            entry_point: Some(fragment_entry),
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-            targets: &[Some(wgpu::ColorTargetState {
-                format,
-                blend: Some(wgpu::BlendState {
-                    color: REPLACE_PIXELS_WITH_BLEND_CONSTANT,
-                    alpha: REPLACE_PIXELS_WITH_BLEND_CONSTANT,
-                }),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-        }),
-        multiview: None,
-        cache: None,
-    })
-}
-
-impl Pipeline for EdgeAlphaFadePipeline {
-    fn new(device: &wgpu::Device, _queue: &wgpu::Queue, format: wgpu::TextureFormat) -> Self {
-        Self {
-            fade_pipeline: replacing_fade_pipeline(
-                device,
-                format,
-                "edge alpha fade",
-                EDGE_ALPHA_FADE_SHADER,
-                "fade_strength",
-            ),
-        }
-    }
+impl FadeShader for EdgeFadeShader {
+    const LABEL: &'static str = "edge alpha fade";
+    const SOURCE: &'static str = include_str!("edge_alpha_fade.wgsl");
+    const FRAGMENT_ENTRY: &'static str = "fade_strength";
 }
 
 #[cfg(test)]
 mod tests {
     use iced::{Color, Rectangle, Size};
 
-    use super::{HiddenScrollEdges, ScrollEdgeFade, premultiplied_blend_constant};
-    use crate::{orientation::Edge, theming::FrameStyle};
+    use super::{HiddenScrollEdges, ScrollEdgeFade};
+    use crate::{
+        alpha_fade_shaders::premultiplied_blend_constant, orientation::Edge, theming::FrameStyle,
+    };
 
     #[test]
     fn restored_fill_is_premultiplied_by_its_alpha() {

@@ -2,11 +2,10 @@ use std::mem::replace;
 
 use iced::{
     Animation, Rectangle,
-    animation::Easing,
     time::{Duration, Instant},
 };
 
-use crate::transitions::MotionState;
+use crate::transitions::{MotionState, eased_animation};
 
 enum MorphPhase {
     Settled,
@@ -47,10 +46,7 @@ impl RectangleMorph {
         self.phase = match replace(&mut self.phase, MorphPhase::Settled) {
             MorphPhase::Settled => MorphPhase::Settled,
             MorphPhase::AwaitingFrame => MorphPhase::Running {
-                animation: Animation::new(false)
-                    .easing(Easing::EaseOutCubic)
-                    .duration(duration)
-                    .go(true, now),
+                animation: eased_animation(false, duration).go(true, now),
                 now,
             },
             MorphPhase::Running { animation, .. } => MorphPhase::Running { animation, now },

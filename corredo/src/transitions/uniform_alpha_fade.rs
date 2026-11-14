@@ -1,16 +1,10 @@
 use iced::{
     Color, Rectangle,
     advanced::{Renderer as _, renderer},
-    wgpu,
-    widget::shader::{Pipeline, Primitive, Viewport},
 };
 use iced_wgpu::primitive::Renderer as _;
 
-use crate::selection_scroll::edge_alpha_fade::{
-    premultiplied_blend_constant, replacing_fade_pipeline,
-};
-
-const UNIFORM_ALPHA_FADE_SHADER: &str = include_str!("uniform_alpha_fade.wgsl");
+use crate::alpha_fade_shaders::{FadeShader, ReplacingFade};
 
 const STRENGTH_SCALE: f32 = 65535.0;
 
@@ -27,10 +21,10 @@ pub(crate) fn fade_toward_color(
     if matches!(renderer, iced::Renderer::Primary(_)) {
         renderer.draw_primitive(
             bounds,
-            UniformAlphaFade {
-                packed_strength: (fade_strength * STRENGTH_SCALE).round() as u32,
+            ReplacingFade::<UniformFadeShader>::new(
+                (fade_strength * STRENGTH_SCALE).round() as u32,
                 restored_fill,
-            },
+            ),
         );
     } else {
         renderer.fill_quad(
@@ -43,51 +37,10 @@ pub(crate) fn fade_toward_color(
     }
 }
 
-#[derive(Debug)]
-struct UniformAlphaFade {
-    packed_strength: u32,
-    restored_fill: Color,
-}
+struct UniformFadeShader;
 
-impl Primitive for UniformAlphaFade {
-    type Pipeline = UniformAlphaFadePipeline;
-
-    fn prepare(
-        &self,
-        _pipeline: &mut UniformAlphaFadePipeline,
-        _device: &wgpu::Device,
-        _queue: &wgpu::Queue,
-        _bounds: &Rectangle,
-        _viewport: &Viewport,
-    ) {
-    }
-
-    fn draw(
-        &self,
-        pipeline: &UniformAlphaFadePipeline,
-        render_pass: &mut wgpu::RenderPass<'_>,
-    ) -> bool {
-        render_pass.set_pipeline(&pipeline.fade_pipeline);
-        render_pass.set_blend_constant(premultiplied_blend_constant(self.restored_fill));
-        render_pass.draw(0..3, self.packed_strength..self.packed_strength + 1);
-        true
-    }
-}
-
-struct UniformAlphaFadePipeline {
-    fade_pipeline: wgpu::RenderPipeline,
-}
-
-impl Pipeline for UniformAlphaFadePipeline {
-    fn new(device: &wgpu::Device, _queue: &wgpu::Queue, format: wgpu::TextureFormat) -> Self {
-        Self {
-            fade_pipeline: replacing_fade_pipeline(
-                device,
-                format,
-                "uniform alpha fade",
-                UNIFORM_ALPHA_FADE_SHADER,
-                "uniform_strength",
-            ),
-        }
-    }
+impl FadeShader for UniformFadeShader {
+    const LABEL: &'static str = "uniform alpha fade";
+    const SOURCE: &'static str = include_str!("uniform_alpha_fade.wgsl");
+    const FRAGMENT_ENTRY: &'static str = "uniform_strength";
 }

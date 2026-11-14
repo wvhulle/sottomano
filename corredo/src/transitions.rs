@@ -10,3 +10,4 @@ pub use sliding_pane_swap::{
 };
 mod motion_state;
 pub use motion_state::MotionState;
+pub(crate) use motion_state::{eased_animation, motion_of};
