@@ -1,5 +1,7 @@
 use std::num::NonZeroUsize;
 
+use bytesize::ByteSize;
+use chrono::Locale;
 use sottomano_desktop_sources::cpu_memory_compute::{
     memory_module_temperatures::MemoryModuleTemperatures,
     memory_usage::{Memory, MemoryProcesses},
@@ -18,6 +20,7 @@ use crate::{
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
+        ongoing_toast::definition_list,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -74,6 +77,21 @@ impl GroupItemReading for Memory {
         }
     }
 
+    fn ongoing_toast_body(&self, _clock: Clock, locale: Locale) -> Option<String> {
+        let available_bytes = self
+            .total
+            .as_u64()
+            .checked_sub(self.used.as_u64())
+            .expect("used memory is derived as MemTotal minus MemAvailable");
+        Some(definition_list([
+            ("Used", Quantity::size(self.used).localized_text(locale)),
+            (
+                "Available",
+                Quantity::size(ByteSize::b(available_bytes)).localized_text(locale),
+            ),
+        ]))
+    }
+
     fn gauge(&self) -> Option<Ratio> {
         Some(percent_fill(self.percent()))
     }
@@ -89,8 +107,6 @@ impl GroupItemReading for Memory {
 
 #[cfg(test)]
 mod tests {
-    use bytesize::ByteSize;
-
     use super::*;
     use crate::widgets::ongoing_toast::reading_display_state_alert_severity;
 
@@ -126,6 +142,22 @@ mod tests {
         assert_eq!(
             reading_display_state_alert_severity(&memory_at(95), Clock::real()),
             Some(Severity::Critical)
+        );
+    }
+
+    #[test]
+    fn ram_toast_lists_used_and_available_memory() {
+        let toast_body = memory_at(95)
+            .ongoing_toast_body(Clock::real(), Locale::en_US)
+            .unwrap();
+        let used_text = Quantity::size(ByteSize::gib(95)).localized_text(Locale::en_US);
+        let available_text = Quantity::size(ByteSize::gib(5)).localized_text(Locale::en_US);
+        assert_eq!(
+            toast_body,
+            format!(
+                "<dl><dt>Used</dt><dd>{used_text}</dd><dt>Available</dt><dd>{available_text}</\
+                 dd></dl>"
+            )
         );
     }
 }
