@@ -7,7 +7,7 @@ use std::{
 
 use chrono::Locale;
 use corredo::{
-    changing_text::{ReadoutLabels, steady_width_readout},
+    changing_text::{MeasuredReadout, ReadoutLabels, steady_width_text},
     transitions::ExpansionState,
     value_controls::{
         ExpandingSlider, ExpandingSliderParts, ScrollWrites, SecondaryPress, SliderEffect,
@@ -510,15 +510,17 @@ impl SliderControl {
     }
 
     fn readout_view<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {
-        steady_width_readout(
-            ReadoutLabels {
-                owner: self.target.clone(),
-                range: self.expanding_slider.range(),
-                step: self.expanding_slider.slider_step_size(),
-                format: self.readout,
-                context: config.calendar.locale,
-            },
-            text_face_of(&config.theme.font),
+        steady_width_text(
+            MeasuredReadout::new(
+                ReadoutLabels {
+                    owner: self.target.clone(),
+                    range: self.expanding_slider.range(),
+                    step: self.expanding_slider.slider_step_size(),
+                    format: self.readout,
+                    context: config.calendar.locale,
+                },
+                text_face_of(&config.theme.font),
+            ),
             panel_text(
                 &config.theme.font,
                 self.readout_text(config.calendar.locale),

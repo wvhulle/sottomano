@@ -2,8 +2,11 @@ mod animated_text;
 pub use animated_text::{
     AnimatedText, TextPresence, TransitionStyle, TransitioningText, animated_text,
 };
-mod steady_width_readout;
-pub use steady_width_readout::{ReadoutLabels, SteadyWidthReadout, steady_width_readout};
+mod steady_width_text;
+pub use steady_width_text::{
+    ContentGrowth, LabelShape, MeasuredReadout, ReadoutLabels, SteadyWidthText, WidthSource,
+    steady_width_text,
+};
 #[cfg(feature = "karaoke")]
 mod karaoke_line;
 #[cfg(feature = "karaoke")]

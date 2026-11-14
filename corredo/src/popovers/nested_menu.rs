@@ -96,16 +96,39 @@ struct MenuChrome {
     layout: NestedMenuLayout,
     orientation: CascadeOrientation,
     metrics: NestedMenuMetrics,
-    list_frame: FrameStyle,
-    beside_frame: FrameStyle,
-    frame_corners: Radius,
-    morph: Duration,
-    gap_to_parent_px: f32,
-    submenu_connector: SubmenuConnector,
-    fade_extent_px: f32,
+    style: NestedMenuStyle,
     wheel_line_px: f32,
     pacing: ScrollPacing,
-    item_indent_px: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct NestedMenuStyle {
+    pub list_frame: FrameStyle,
+    pub beside_frame: FrameStyle,
+    pub morph: Duration,
+    pub gap_to_parent_px: f32,
+    pub submenu_connector: SubmenuConnector,
+    pub fade_extent_px: f32,
+    pub item_indent_px: f32,
+}
+
+impl NestedMenuStyle {
+    #[must_use]
+    pub fn for_metrics(metrics: NestedMenuMetrics) -> Self {
+        Self {
+            list_frame: FrameStyle::default(),
+            beside_frame: FrameStyle::default(),
+            morph: DEFAULT_MORPH,
+            gap_to_parent_px: 0.0,
+            submenu_connector: SubmenuConnector::default(),
+            fade_extent_px: metrics.row_height_px,
+            item_indent_px: metrics.icon_slot_px,
+        }
+    }
+
+    fn frame_corners(self) -> Radius {
+        Radius::from(self.list_frame.corner_radius().top_left)
+    }
 }
 
 pub fn nested_menu<'a, RowKey, Message: 'a>(
@@ -122,16 +145,9 @@ pub fn nested_menu<'a, RowKey, Message: 'a>(
             layout,
             orientation,
             metrics,
-            list_frame: FrameStyle::default(),
-            beside_frame: FrameStyle::default(),
-            frame_corners: Radius::default(),
-            morph: DEFAULT_MORPH,
-            gap_to_parent_px: 0.0,
-            submenu_connector: SubmenuConnector::default(),
-            fade_extent_px: metrics.row_height_px,
+            style: NestedMenuStyle::for_metrics(metrics),
             wheel_line_px: DEFAULT_WHEEL_LINE_PX,
             pacing: ScrollPacing::Instant,
-            item_indent_px: metrics.icon_slot_px,
         },
         list_scroll: ControlledScroll {
             offset_px: 0.0,
@@ -150,47 +166,9 @@ impl<RowKey, Message> NestedMenu<'_, RowKey, Message> {
     }
 
     #[must_use]
-    pub fn frames(self, list_frame: FrameStyle, beside_frame: FrameStyle) -> Self {
+    pub fn style(self, style: NestedMenuStyle) -> Self {
         let chrome = MenuChrome {
-            frame_corners: Radius::from(list_frame.corner_radius().top_left),
-            list_frame,
-            beside_frame,
-            ..self.chrome
-        };
-        self.with_chrome(chrome)
-    }
-
-    #[must_use]
-    pub fn morph(self, morph: Duration) -> Self {
-        let chrome = MenuChrome {
-            morph,
-            ..self.chrome
-        };
-        self.with_chrome(chrome)
-    }
-
-    #[must_use]
-    pub fn gap_to_parent(self, gap_to_parent_px: f32) -> Self {
-        let chrome = MenuChrome {
-            gap_to_parent_px,
-            ..self.chrome
-        };
-        self.with_chrome(chrome)
-    }
-
-    #[must_use]
-    pub fn submenu_connector(self, submenu_connector: SubmenuConnector) -> Self {
-        let chrome = MenuChrome {
-            submenu_connector,
-            ..self.chrome
-        };
-        self.with_chrome(chrome)
-    }
-
-    #[must_use]
-    pub fn fade_extent(self, fade_extent_px: f32) -> Self {
-        let chrome = MenuChrome {
-            fade_extent_px,
+            style,
             ..self.chrome
         };
         self.with_chrome(chrome)
@@ -201,15 +179,6 @@ impl<RowKey, Message> NestedMenu<'_, RowKey, Message> {
         let chrome = MenuChrome {
             wheel_line_px,
             pacing,
-            ..self.chrome
-        };
-        self.with_chrome(chrome)
-    }
-
-    #[must_use]
-    pub fn item_indent(self, item_indent_px: f32) -> Self {
-        let chrome = MenuChrome {
-            item_indent_px,
             ..self.chrome
         };
         self.with_chrome(chrome)
@@ -268,8 +237,8 @@ impl MenuChrome {
             .wheel_line_travel(self.wheel_line_px)
             .paced(self.pacing)
             .edge_fade(ScrollEdgeFade::within_frame(
-                self.list_frame,
-                self.fade_extent_px,
+                self.style.list_frame,
+                self.style.fade_extent_px,
             ))
             .controlled(offset_px, on_scroll)
             .into()
@@ -283,17 +252,17 @@ impl MenuChrome {
         panel_top: ResolvedPanelTop,
     ) -> NestedMenuSatellite<'a, Message> {
         let frame = match role {
-            SatelliteRole::ItemList => self.list_frame,
-            SatelliteRole::Beside => self.beside_frame,
+            SatelliteRole::ItemList => self.style.list_frame,
+            SatelliteRole::Beside => self.style.beside_frame,
         };
         NestedMenuSatellite {
             role,
             element: notched_panel(content, self.orientation, row)
                 .frame(frame)
                 .row_height(self.metrics.row_height_px)
-                .gap_to_parent(self.gap_to_parent_px)
-                .submenu_connector(self.submenu_connector)
-                .morph(self.morph)
+                .gap_to_parent(self.style.gap_to_parent_px)
+                .submenu_connector(self.style.submenu_connector)
+                .morph(self.style.morph)
                 .publishes_top(panel_top)
                 .into(),
         }
@@ -317,7 +286,7 @@ impl MenuChrome {
         let open_position = groups
             .iter()
             .position(|group| group.expansion_state == ExpansionState::Expanded);
-        let header_corners = ListEndCorners::new(groups.len(), self.frame_corners);
+        let header_corners = ListEndCorners::new(groups.len(), self.style.frame_corners());
         let mut open_items = Vec::new();
         let headers: Vec<Element<'a, Message>> = groups
             .into_iter()
@@ -355,7 +324,7 @@ impl MenuChrome {
         open_row_top: f32,
         item_list_scroll: ControlledScroll<'a, Message>,
     ) -> Vec<NestedMenuSatellite<'a, Message>> {
-        let item_corners = ListEndCorners::new(items.len(), self.frame_corners);
+        let item_corners = ListEndCorners::new(items.len(), self.style.frame_corners());
         let mut beside_card = None;
         let rows: Vec<Element<'a, Message>> = items
             .into_iter()
@@ -407,7 +376,7 @@ impl MenuChrome {
             .collect();
         let row_corners = ListEndCorners::new(
             sections.iter().map(|section| section.shown_rows()).sum(),
-            self.frame_corners,
+            self.style.frame_corners(),
         );
         let mut beside_card = None;
         let rows: Vec<Element<'a, Message>> = groups
@@ -442,7 +411,7 @@ impl MenuChrome {
                             .row
                             .content
                             .leading
-                            .insert(0, Space::new().width(self.item_indent_px).into());
+                            .insert(0, Space::new().width(self.style.item_indent_px).into());
                         let corners = row_corners.radius_at(rows_above);
                         section_row(
                             anchor_marker(

@@ -16,9 +16,7 @@ use iced::{
 use iced_exwlshell::BlurRegions;
 use sottomano_toml_config::screen_edges::Position;
 
-use crate::desktop_panels::region_reporter::{
-    BackdropBlur, replacing_blur_regions, rounded_blur_rows,
-};
+use crate::desktop_panels::region_reporter::{BackdropBlur, PointerInput, RegionRoles};
 
 #[must_use]
 pub fn outlined_sides_inward_of(panel_position: Position) -> OutlinedSides {
@@ -67,12 +65,12 @@ impl<Message> PanelFrame<'_, Message> {
     }
 
     fn blur_regions(&self, bounds: Rectangle) -> BlurRegions {
-        match self.backdrop_blur {
-            BackdropBlur::Blurred => {
-                replacing_blur_regions(rounded_blur_rows(bounds, self.drawn_radius()))
-            }
-            BackdropBlur::Clear => replacing_blur_regions(Vec::new()),
+        RegionRoles {
+            pointer_input: PointerInput::default(),
+            backdrop_blur: self.backdrop_blur,
+            corner_radius: self.drawn_radius(),
         }
+        .blur_rows(&[bounds])
     }
 
     fn draw_fill(

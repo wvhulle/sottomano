@@ -29,10 +29,10 @@ types directly, as in `corredo::popovers::popup_trigger`.
 | `value_controls` | `expanding_slider`: a face that opens into a slider and readout, adjustable by wheel; `inline_slider`: slider that fits inside a row; `seek_bar`: seek bar that holds its target until playback arrives; `toggle_switch`; `weekday_picker`: localized weekday picker; `SyncedValue`: the value a control shows while writes to its source are in flight | `chrono` for `weekday_picker` |
 | `press_actions` | `confirm_button`: button that asks for confirmation; `flash_on_press_text`: text that copies or acts on press, with a brief flash; `flat_button` | |
 | `data_tables` | `grouped_table`: table with headings, groups, totals and truncation; `auto_width_table`: table and grid sized to their content | |
-| `changing_text` | `animated_text`: text with placeholder, intro and replace effects; `steady_width_readout`: text that keeps the width of its widest value; `markup_text`: text body from a small markup language; `karaoke_line`: line of text swept over time | `markup`, `karaoke` |
+| `changing_text` | `animated_text`: text with placeholder, intro and replace effects; `steady_width_text`: text that keeps a steady width, measured over its value range or grown to the widest seen; `markup_text`: text body from a small markup language; `karaoke_line`: line of text swept over time | `markup`, `karaoke` |
 | `gauges` | `fill_gauge`, `countdown_dial`, `color_dot_track`, `activity_line` | |
 | `transitions` | `expand_transition`, `reveal` (clips content to a fraction along an `Axis`), `sliding_pane_swap`: slide and fade between two panes | |
-| `width_layout` | `equal_width_column`, `steady_width_label`, `fair_column_widths` | |
+| `width_layout` | `equal_width_column`, `fair_column_widths` | |
 | `orientation` | `Axis` and `Edge`, the orientation vocabulary every directional widget takes | |
 | `theming` | theme colour accessors, `FrameStyle`, font faces, `dotted_rule`, `tinted_svg_icon` | |
 

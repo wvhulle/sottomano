@@ -80,7 +80,7 @@ impl RegionRoles {
         )
     }
 
-    fn blur_rows(self, rects: &[Rectangle]) -> BlurRegions {
+    pub(crate) fn blur_rows(self, rects: &[Rectangle]) -> BlurRegions {
         match self.backdrop_blur {
             BackdropBlur::Blurred => replacing_blur_regions(
                 rects

@@ -1,4 +1,4 @@
-use corredo::width_layout::{LabelShape, steady_width_label};
+use corredo::changing_text::{LabelShape, steady_width_text};
 use iced::{
     Alignment, Element,
     widget::{Row, row, text},
@@ -166,12 +166,11 @@ fn label_text<'a, Message: 'a>(
                 widget_name: widget.name(),
                 character_count: label.chars().count(),
             };
-            steady_width_label(
+            steady_width_text(
                 shape,
-                panel_text(&config.theme.font, label)
-                    .style(tint.text_style())
-                    .into(),
+                panel_text(&config.theme.font, label).style(tint.text_style()),
             )
+            .into()
         })
 }
 
