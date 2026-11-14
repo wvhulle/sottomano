@@ -365,14 +365,14 @@ impl ShellWidgetGroups {
                 .incus_instances_group
                 .update(group_message, clock)
                 .map(Message::IncusInstances),
-            Message::LxcContainers(group_message) => {
-                self.lxc_containers_group.update(group_message, clock);
-                Task::none()
-            }
-            Message::FlatpakSandboxes(group_message) => {
-                self.flatpak_sandboxes_group.update(group_message, clock);
-                Task::none()
-            }
+            Message::LxcContainers(group_message) => self
+                .lxc_containers_group
+                .update(group_message, clock)
+                .map(Message::LxcContainers),
+            Message::FlatpakSandboxes(group_message) => self
+                .flatpak_sandboxes_group
+                .update(group_message, clock)
+                .map(Message::FlatpakSandboxes),
             Message::WaydroidContainer(group_message) => self
                 .waydroid_container_group
                 .update(group_message, clock)
@@ -381,14 +381,14 @@ impl ShellWidgetGroups {
                 .virtualbox_machines_group
                 .update(group_message, clock)
                 .map(Message::VirtualBoxMachines),
-            Message::VmwareMachines(group_message) => {
-                self.vmware_machines_group.update(group_message, clock);
-                Task::none()
-            }
-            Message::ApptainerContainers(group_message) => {
-                self.apptainer_containers_group.update(group_message, clock);
-                Task::none()
-            }
+            Message::VmwareMachines(group_message) => self
+                .vmware_machines_group
+                .update(group_message, clock)
+                .map(Message::VmwareMachines),
+            Message::ApptainerContainers(group_message) => self
+                .apptainer_containers_group
+                .update(group_message, clock)
+                .map(Message::ApptainerContainers),
             Message::DockerEngines(docker_message) => {
                 self.docker_engines_group.update(docker_message, clock);
                 Task::none()

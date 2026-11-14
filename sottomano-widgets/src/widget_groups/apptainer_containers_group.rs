@@ -1,6 +1,10 @@
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    future::{Future, ready},
+};
 
 use chrono::Locale;
+use sottomano_desktop_sinks::apptainer_containers::stop_apptainer_container;
 use sottomano_desktop_sources::apptainer_containers::{
     ApptainerContainer, ApptainerContainerListing, ApptainerContainerListings, ApptainerContainers,
     ApptainerProbe,
@@ -14,7 +18,8 @@ use crate::{
     hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
     widget_groups::{
         container_family_group::{
-            ContainerFamily, ContainerFamilyGroup, ContainerFamilyMessage, FamilyRow,
+            ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
+            ContainerFamilyMessage, FamilyRow, RowPower,
         },
         process_usage_cells::{
             approximate_memory_text, running_display_state, running_state_text, uptime_entry,
@@ -133,21 +138,24 @@ impl GroupItemReading for ApptainerContainerRow<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ApptainerFamily;
 
 pub type ApptainerContainersGroup = ContainerFamilyGroup<ApptainerFamily>;
 pub type ApptainerContainersMessage = ContainerFamilyMessage<ApptainerFamily>;
+pub type ApptainerContainersInteraction = ContainerFamilyInteraction<ApptainerFamily>;
 
 impl ContainerFamily for ApptainerFamily {
     type Probe = ApptainerProbe;
     type Listings = ApptainerContainerListings;
     type Detail = ApptainerContainers;
     type Target = ApptainerContainerTarget;
+    type PowerRequest = i32;
     type ListingRow<'a> = ApptainerContainerListingRow<'a>;
     type DetailRow<'a> = ApptainerContainerRow<'a>;
 
     const FAMILY: WidgetGroupFamily = WidgetGroupFamily::ApptainerContainers;
+    const STOP_HINT: &'static str = "stop the container";
     const GROUP_NAME: &'static str = "Apptainer containers";
 
     fn group_glyph() -> IconGlyph {
@@ -160,27 +168,33 @@ impl ContainerFamily for ApptainerFamily {
 
     fn listing_rows(
         listings: &ApptainerContainerListings,
-    ) -> Vec<FamilyRow<ApptainerContainerTarget, ApptainerContainerListingRow<'_>>> {
+    ) -> Vec<FamilyRow<Self, ApptainerContainerListingRow<'_>>> {
         listings
             .listings
             .iter()
             .map(|listing| FamilyRow {
                 target: ApptainerContainerTarget::of_runtime(listing.runtime_pid),
                 reading: ApptainerContainerListingRow { listing },
+                power: RowPower::Running(listing.runtime_pid),
             })
             .collect()
     }
 
     fn detail_rows(
         detail: &ApptainerContainers,
-    ) -> Vec<FamilyRow<ApptainerContainerTarget, ApptainerContainerRow<'_>>> {
+    ) -> Vec<FamilyRow<Self, ApptainerContainerRow<'_>>> {
         detail
             .containers
             .iter()
             .map(|container| FamilyRow {
                 target: ApptainerContainerTarget::of_runtime(container.runtime_pid),
                 reading: ApptainerContainerRow { container },
+                power: RowPower::Running(container.runtime_pid),
             })
             .collect()
+    }
+
+    fn stop(runtime_pid: i32) -> impl Future<Output = Result<(), String>> + Send + 'static {
+        ready(stop_apptainer_container(runtime_pid))
     }
 }

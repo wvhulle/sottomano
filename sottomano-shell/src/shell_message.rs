@@ -31,7 +31,7 @@ use sottomano_widgets::{
     widget_groups::{
         app_launcher_group::AppLauncherMessage,
         appearance_presets_group::AppearancePresetsMessage,
-        apptainer_containers_group::ApptainerContainersMessage,
+        apptainer_containers_group::{ApptainerContainersInteraction, ApptainerContainersMessage},
         audio_group::AudioMessage,
         bluetooth_adapters_group::{BluetoothInteraction, BluetoothMessage},
         caldav_group::CaldavMessage,
@@ -46,7 +46,7 @@ use sottomano_widgets::{
         dark_mode_group::{DarkModeInteraction, DarkModeMessage},
         docker_engines_group::DockerEnginesMessage,
         ethernet_ports_group::{EthernetPortsInteraction, EthernetPortsMessage},
-        flatpak_sandboxes_group::FlatpakSandboxesMessage,
+        flatpak_sandboxes_group::{FlatpakSandboxesInteraction, FlatpakSandboxesMessage},
         gamepad_group::{GamepadInteraction, GamepadMessage},
         global_menu_group::{GlobalMenuInteraction, GlobalMenuMessage},
         gpu_group::{GpuInteraction, GpuMessage},
@@ -55,7 +55,7 @@ use sottomano_widgets::{
         journal_events_group::{JournalEventsInteraction, JournalEventsMessage},
         llama_server_group::{LlamaServerInteraction, LlamaServerMessage},
         login_session_group::LoginSessionMessage,
-        lxc_containers_group::LxcContainersMessage,
+        lxc_containers_group::{LxcContainersInteraction, LxcContainersMessage},
         media_group::{MediaInteraction, MediaMessage},
         memory_board_group::MemoryBoardMessage,
         microvm_guests_group::{MicrovmGuestsInteraction, MicrovmGuestsMessage},
@@ -82,7 +82,7 @@ use sottomano_widgets::{
         tray_group::TrayMessage,
         virtual_machines_group::{VirtualMachinesInteraction, VirtualMachinesMessage},
         virtualbox_machines_group::{VirtualBoxMachinesInteraction, VirtualBoxMachinesMessage},
-        vmware_machines_group::VmwareMachinesMessage,
+        vmware_machines_group::{VmwareMachinesInteraction, VmwareMachinesMessage},
         voice_dictation_group::{VoiceDictationInteraction, VoiceDictationMessage},
         wallpaper_group::WallpaperMessage,
         waydroid_container_group::{WaydroidContainerInteraction, WaydroidContainerMessage},
@@ -336,12 +336,12 @@ pub enum ShellInteraction {
     NspawnContainers(NspawnContainersInteraction),
     CgroupMemoryLimits(CgroupMemoryLimitsInteraction),
     DockerEngines(WidgetGroupExpansionMessage),
-    ApptainerContainers(WidgetGroupExpansionMessage),
-    VmwareMachines(WidgetGroupExpansionMessage),
+    ApptainerContainers(ApptainerContainersInteraction),
+    VmwareMachines(VmwareMachinesInteraction),
     VirtualBoxMachines(VirtualBoxMachinesInteraction),
     WaydroidContainer(WaydroidContainerInteraction),
-    FlatpakSandboxes(WidgetGroupExpansionMessage),
-    LxcContainers(WidgetGroupExpansionMessage),
+    FlatpakSandboxes(FlatpakSandboxesInteraction),
+    LxcContainers(LxcContainersInteraction),
     IncusInstances(IncusInstancesInteraction),
     MicrovmGuests(MicrovmGuestsInteraction),
     CiRuns(CiRunsInteraction),
@@ -498,11 +498,11 @@ impl From<ShellInteraction> for Message {
             ShellInteraction::DockerEngines(expansion) => {
                 Message::DockerEngines(DockerEnginesMessage::Expansion(expansion))
             }
-            ShellInteraction::ApptainerContainers(expansion) => {
-                Message::ApptainerContainers(ApptainerContainersMessage::Expansion(expansion))
+            ShellInteraction::ApptainerContainers(interaction) => {
+                Message::ApptainerContainers(ApptainerContainersMessage::Interaction(interaction))
             }
-            ShellInteraction::VmwareMachines(expansion) => {
-                Message::VmwareMachines(VmwareMachinesMessage::Expansion(expansion))
+            ShellInteraction::VmwareMachines(interaction) => {
+                Message::VmwareMachines(VmwareMachinesMessage::Interaction(interaction))
             }
             ShellInteraction::VirtualBoxMachines(interaction) => {
                 Message::VirtualBoxMachines(VirtualBoxMachinesMessage::Interaction(interaction))
@@ -510,11 +510,11 @@ impl From<ShellInteraction> for Message {
             ShellInteraction::WaydroidContainer(interaction) => {
                 Message::WaydroidContainer(WaydroidContainerMessage::Interaction(interaction))
             }
-            ShellInteraction::FlatpakSandboxes(expansion) => {
-                Message::FlatpakSandboxes(FlatpakSandboxesMessage::Expansion(expansion))
+            ShellInteraction::FlatpakSandboxes(interaction) => {
+                Message::FlatpakSandboxes(FlatpakSandboxesMessage::Interaction(interaction))
             }
-            ShellInteraction::LxcContainers(expansion) => {
-                Message::LxcContainers(LxcContainersMessage::Expansion(expansion))
+            ShellInteraction::LxcContainers(interaction) => {
+                Message::LxcContainers(LxcContainersMessage::Interaction(interaction))
             }
             ShellInteraction::IncusInstances(interaction) => {
                 Message::IncusInstances(IncusInstancesMessage::Interaction(interaction))

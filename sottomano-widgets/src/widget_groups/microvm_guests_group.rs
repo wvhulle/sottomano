@@ -16,7 +16,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
@@ -281,7 +281,8 @@ impl MicrovmGuestsGroup {
                         MicrovmGuestTarget::of_pid(machine.pid),
                     );
                     match api_socket_of(machine) {
-                        Some(api_socket) => row.on_right_press(
+                        Some(api_socket) => row.on_switch_press(
+                            SwitchPosition::On,
                             POWER_BUTTON_HINT,
                             MicrovmGuestsInteraction::PressPowerButton(
                                 machine.hypervisor,

@@ -15,7 +15,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
@@ -305,7 +305,11 @@ impl WaydroidContainerGroup {
         if let Some(readout) = self.shown_readout() {
             let row = GroupItem::reading(WaydroidContainerRow { readout }, WaydroidContainerTarget);
             let row = if readout.container_running {
-                row.on_right_press(STOP_HINT, WaydroidContainerInteraction::StopContainer)
+                row.on_switch_press(
+                    SwitchPosition::On,
+                    STOP_HINT,
+                    WaydroidContainerInteraction::StopContainer,
+                )
             } else {
                 row
             };

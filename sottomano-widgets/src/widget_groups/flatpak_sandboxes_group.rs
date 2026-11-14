@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use chrono::Locale;
+use sottomano_desktop_sinks::flatpak_sandboxes::stop_flatpak_instance;
 use sottomano_desktop_sources::flatpak_sandboxes::{
     FlatpakProbe, FlatpakSandbox, FlatpakSandboxListing, FlatpakSandboxListings, FlatpakSandboxes,
 };
@@ -13,7 +14,8 @@ use crate::{
     hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
     widget_groups::{
         container_family_group::{
-            ContainerFamily, ContainerFamilyGroup, ContainerFamilyMessage, FamilyRow,
+            ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
+            ContainerFamilyMessage, FamilyRow, RowPower,
         },
         process_usage_cells::{approximate_memory_text, running_state_text},
         widget_group_identity::WidgetGroupFamily,
@@ -146,21 +148,24 @@ impl GroupItemReading for FlatpakSandboxRow<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FlatpakFamily;
 
 pub type FlatpakSandboxesGroup = ContainerFamilyGroup<FlatpakFamily>;
 pub type FlatpakSandboxesMessage = ContainerFamilyMessage<FlatpakFamily>;
+pub type FlatpakSandboxesInteraction = ContainerFamilyInteraction<FlatpakFamily>;
 
 impl ContainerFamily for FlatpakFamily {
     type Probe = FlatpakProbe;
     type Listings = FlatpakSandboxListings;
     type Detail = FlatpakSandboxes;
     type Target = FlatpakSandboxTarget;
+    type PowerRequest = String;
     type ListingRow<'a> = FlatpakSandboxListingRow<'a>;
     type DetailRow<'a> = FlatpakSandboxRow<'a>;
 
     const FAMILY: WidgetGroupFamily = WidgetGroupFamily::FlatpakSandboxes;
+    const STOP_HINT: &'static str = "quit the app";
     const GROUP_NAME: &'static str = "Flatpak apps";
 
     fn group_glyph() -> IconGlyph {
@@ -173,26 +178,26 @@ impl ContainerFamily for FlatpakFamily {
 
     fn listing_rows(
         listings: &FlatpakSandboxListings,
-    ) -> Vec<FamilyRow<FlatpakSandboxTarget, FlatpakSandboxListingRow<'_>>> {
+    ) -> Vec<FamilyRow<Self, FlatpakSandboxListingRow<'_>>> {
         listings
             .listings
             .iter()
             .map(|listing| FamilyRow {
                 target: FlatpakSandboxTarget::of_instance(Cow::Owned(listing.instance_id.clone())),
                 reading: FlatpakSandboxListingRow { listing },
+                power: RowPower::Running(listing.instance_id.clone()),
             })
             .collect()
     }
 
-    fn detail_rows(
-        detail: &FlatpakSandboxes,
-    ) -> Vec<FamilyRow<FlatpakSandboxTarget, FlatpakSandboxRow<'_>>> {
+    fn detail_rows(detail: &FlatpakSandboxes) -> Vec<FamilyRow<Self, FlatpakSandboxRow<'_>>> {
         detail
             .sandboxes
             .iter()
             .map(|sandbox| FamilyRow {
                 target: FlatpakSandboxTarget::of_instance(Cow::Owned(sandbox.instance_id.clone())),
                 reading: FlatpakSandboxRow { sandbox },
+                power: RowPower::Running(sandbox.instance_id.clone()),
             })
             .collect()
     }
@@ -202,5 +207,9 @@ impl ContainerFamily for FlatpakFamily {
             "Running apps",
             probe.running_instance_count.to_string(),
         )]
+    }
+
+    async fn stop(instance_id: String) -> Result<(), String> {
+        stop_flatpak_instance(&instance_id).await
     }
 }

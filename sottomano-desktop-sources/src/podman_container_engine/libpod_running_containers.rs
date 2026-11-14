@@ -27,6 +27,7 @@ use crate::{
         procfs_process_tree::{
             CpuTickCheckpoints, ProcessTable, ProcessTreeCpuLoad, ProcessTreeTotals, total_cpu_load,
         },
+        sysfs_cgroup_memory::unit_working_set_of_process,
     },
 };
 
@@ -207,6 +208,7 @@ async fn listed_containers_with_one_retry(
 pub(crate) struct HostProcesses {
     process_table: ProcessTable,
     conmon_sessions: ConmonSessions,
+    cgroup_memory_of: fn(u32) -> Option<ByteSize>,
 }
 
 impl HostProcesses {
@@ -216,7 +218,18 @@ impl HostProcesses {
         Some(Self {
             process_table,
             conmon_sessions,
+            cgroup_memory_of: unit_working_set_of_process,
         })
+    }
+
+    fn container_memory(&self, container: &ListedContainer, totals: ProcessTreeTotals) -> ByteSize {
+        u32::try_from(container.pid)
+            .inspect_err(|conversion_failure| {
+                tracing::debug!(pid = container.pid, %conversion_failure, "container pid is not a process id");
+            })
+            .ok()
+            .and_then(self.cgroup_memory_of)
+            .unwrap_or(ByteSize::b(totals.resident_bytes))
     }
 
     fn container_totals(&self, container: &ListedContainer) -> ProcessTreeTotals {
@@ -328,7 +341,7 @@ impl EngineSampler {
                     ContainerCiIdentity::WoodpeckerStep(identity.clone())
                 }),
             cpu_load,
-            resident_memory: ByteSize::b(totals.resident_bytes),
+            resident_memory: host_processes.container_memory(container, totals),
         }
     }
 }
@@ -408,6 +421,7 @@ mod tests {
         HostProcesses {
             process_table: ProcessTable::from_samples(samples),
             conmon_sessions: ConmonSessions::default(),
+            cgroup_memory_of: |_| None,
         }
     }
 
@@ -490,6 +504,7 @@ mod tests {
             resident_bytes,
         };
         let host_processes = HostProcesses {
+            cgroup_memory_of: |_| None,
             process_table: ProcessTable::from_samples([
                 process(9, 1, 100),
                 process(10, 9, 140),

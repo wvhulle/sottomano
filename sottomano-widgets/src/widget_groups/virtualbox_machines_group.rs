@@ -16,7 +16,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
@@ -283,7 +283,8 @@ impl VirtualBoxMachinesGroup {
                         VirtualBoxMachineRow { machine },
                         VirtualBoxMachineTarget::of_pid(machine.pid),
                     )
-                    .on_right_press(
+                    .on_switch_press(
+                        SwitchPosition::On,
                         POWER_BUTTON_HINT,
                         VirtualBoxMachinesInteraction::PressPowerButton(
                             machine.machine_reference.clone(),
@@ -303,7 +304,8 @@ impl VirtualBoxMachinesGroup {
                             VirtualBoxMachineListingRow { listing },
                             VirtualBoxMachineTarget::of_pid(listing.pid),
                         )
-                        .on_right_press(
+                        .on_switch_press(
+                            SwitchPosition::On,
                             POWER_BUTTON_HINT,
                             VirtualBoxMachinesInteraction::PressPowerButton(
                                 listing.machine_reference.clone(),

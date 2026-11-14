@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use chrono::Locale;
+use sottomano_desktop_sinks::lxc_containers::{start_lxc_container, stop_lxc_container};
 use sottomano_desktop_sources::lxc_containers::{
     LxcContainer, LxcContainerListing, LxcContainerListings, LxcContainers, LxcProbe,
 };
@@ -13,7 +14,8 @@ use crate::{
     hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
     widget_groups::{
         container_family_group::{
-            ContainerFamily, ContainerFamilyGroup, ContainerFamilyMessage, FamilyRow,
+            ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
+            ContainerFamilyMessage, FamilyRow, RowPower,
         },
         process_usage_cells::{approximate_memory_text, running_display_state, running_state_text},
         widget_group_identity::WidgetGroupFamily,
@@ -135,21 +137,25 @@ impl GroupItemReading for LxcContainerRow<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LxcFamily;
 
 pub type LxcContainersGroup = ContainerFamilyGroup<LxcFamily>;
 pub type LxcContainersMessage = ContainerFamilyMessage<LxcFamily>;
+pub type LxcContainersInteraction = ContainerFamilyInteraction<LxcFamily>;
 
 impl ContainerFamily for LxcFamily {
     type Probe = LxcProbe;
     type Listings = LxcContainerListings;
     type Detail = LxcContainers;
     type Target = LxcContainerTarget;
+    type PowerRequest = String;
     type ListingRow<'a> = LxcContainerListingRow<'a>;
     type DetailRow<'a> = LxcContainerRow<'a>;
 
     const FAMILY: WidgetGroupFamily = WidgetGroupFamily::LxcContainers;
+    const STOP_HINT: &'static str = "stop the container";
+    const START_HINT: &'static str = "start the container";
     const GROUP_NAME: &'static str = "LXC containers";
 
     fn group_glyph() -> IconGlyph {
@@ -162,7 +168,7 @@ impl ContainerFamily for LxcFamily {
 
     fn listing_rows(
         listings: &LxcContainerListings,
-    ) -> Vec<FamilyRow<LxcContainerTarget, LxcContainerListingRow<'_>>> {
+    ) -> Vec<FamilyRow<Self, LxcContainerListingRow<'_>>> {
         listings
             .listings
             .iter()
@@ -171,13 +177,16 @@ impl ContainerFamily for LxcFamily {
                     listing.container_name.clone(),
                 )),
                 reading: LxcContainerListingRow { listing },
+                power: if listing.running {
+                    RowPower::Running(listing.container_name.clone())
+                } else {
+                    RowPower::Stopped(listing.container_name.clone())
+                },
             })
             .collect()
     }
 
-    fn detail_rows(
-        detail: &LxcContainers,
-    ) -> Vec<FamilyRow<LxcContainerTarget, LxcContainerRow<'_>>> {
+    fn detail_rows(detail: &LxcContainers) -> Vec<FamilyRow<Self, LxcContainerRow<'_>>> {
         detail
             .containers
             .iter()
@@ -186,6 +195,11 @@ impl ContainerFamily for LxcFamily {
                     container.container_name.clone(),
                 )),
                 reading: LxcContainerRow { container },
+                power: if container.running {
+                    RowPower::Running(container.container_name.clone())
+                } else {
+                    RowPower::Stopped(container.container_name.clone())
+                },
             })
             .collect()
     }
@@ -202,5 +216,13 @@ impl ContainerFamily for LxcFamily {
             LabeledValue::new("Running", probe.running_count.to_string()),
             LabeledValue::new("Configured", probe.configured_count.to_string()),
         ]
+    }
+
+    async fn stop(container_name: String) -> Result<(), String> {
+        stop_lxc_container(&container_name).await
+    }
+
+    async fn start(container_name: String) -> Result<(), String> {
+        start_lxc_container(&container_name).await
     }
 }

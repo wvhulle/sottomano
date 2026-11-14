@@ -717,13 +717,13 @@ impl ShowcasedGroup {
                 ShowcasedGroup::ApptainerContainers(group),
                 ShowcaseMessage::ApptainerContainers(group_message),
             ) => {
-                group.update(group_message, clock);
+                let _ = group.update(group_message, clock);
             }
             (
                 ShowcasedGroup::VmwareMachines(group),
                 ShowcaseMessage::VmwareMachines(group_message),
             ) => {
-                group.update(group_message, clock);
+                let _ = group.update(group_message, clock);
             }
             (
                 ShowcasedGroup::VirtualBoxMachines(group),
@@ -741,13 +741,13 @@ impl ShowcasedGroup {
                 ShowcasedGroup::FlatpakSandboxes(group),
                 ShowcaseMessage::FlatpakSandboxes(group_message),
             ) => {
-                group.update(group_message, clock);
+                let _ = group.update(group_message, clock);
             }
             (
                 ShowcasedGroup::LxcContainers(group),
                 ShowcaseMessage::LxcContainers(group_message),
             ) => {
-                group.update(group_message, clock);
+                let _ = group.update(group_message, clock);
             }
             (
                 ShowcasedGroup::IncusInstances(group),

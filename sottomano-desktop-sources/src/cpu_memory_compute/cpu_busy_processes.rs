@@ -85,7 +85,7 @@ fn spent_ticks_by_process() -> Result<HashMap<ProcessIncarnation, u64>, Error> {
 }
 
 fn read_cpu_busy_processes() -> Result<CpuBusyProcesses, Error> {
-    let capacity = CpuCapacity::current();
+    let capacity = CpuCapacity::one_core();
     let earlier = spent_ticks_by_process()?;
     thread::sleep(SAMPLE_GAP);
     let mut processes: Vec<CpuBusyProcess> = all_processes()

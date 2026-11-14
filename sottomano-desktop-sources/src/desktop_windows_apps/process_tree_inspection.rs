@@ -9,7 +9,7 @@ use std::{
 use bytesize::ByteSize;
 use futures::{Stream, StreamExt, stream};
 use procfs::{
-    Current, CurrentSI, KernelStats, Uptime, WithCurrentSystemInfo,
+    Current, Uptime, WithCurrentSystemInfo,
     process::{Process as Proc, Stat, all_processes},
     ticks_per_second,
 };
@@ -168,9 +168,8 @@ pub(crate) struct CpuCapacity {
 }
 
 impl CpuCapacity {
-    pub(crate) fn current() -> Self {
-        let cores = KernelStats::current().map_or(1, |stats| stats.cpu_time.len().max(1));
-        Self::from(cores as u64)
+    pub(crate) fn one_core() -> Self {
+        Self::from(1)
     }
 
     #[allow(clippy::cast_precision_loss)]
@@ -298,7 +297,7 @@ impl SnapshotSource for Process {
 impl Process {
     async fn poll(watched: Watched) -> Result<Self, Error> {
         let pid = watched.pid;
-        let capacity = CpuCapacity::current();
+        let capacity = CpuCapacity::one_core();
         let scan = |samples: CpuSamples| spawn_blocking(move || sample(&samples, capacity));
         let first = scan(CpuSamples::none_yet())
             .await
@@ -538,32 +537,26 @@ mod tests {
         assert_eq!(shape(&grown(7, [leaf(7, 5), leaf(8, 7)])), vec![7, 8]);
     }
 
-    fn eight_cores() -> CpuCapacity {
-        CpuCapacity {
-            ticks_per_second: 8 * 100,
-        }
-    }
-
     #[test]
-    fn one_saturated_core_of_eight_is_an_eighth_of_the_machine() {
+    fn one_saturated_core_is_a_whole_share() {
         assert_eq!(
-            eight_cores().busy_fraction(50, Duration::from_millis(500)),
-            Ratio::new::<percent>(12.5)
+            CpuCapacity::one_core().busy_fraction(50, Duration::from_millis(500)),
+            Ratio::new::<ratio>(1.0)
         );
     }
 
     #[test]
-    fn all_cores_saturated_is_the_whole_machine() {
+    fn four_saturated_cores_exceed_a_whole_share() {
         assert_eq!(
-            eight_cores().busy_fraction(400, Duration::from_millis(500)),
-            Ratio::new::<ratio>(1.0)
+            CpuCapacity::one_core().busy_fraction(200, Duration::from_millis(500)),
+            Ratio::new::<percent>(400.0)
         );
     }
 
     #[test]
     fn no_elapsed_time_is_idle() {
         assert_eq!(
-            eight_cores().busy_fraction(50, Duration::ZERO),
+            CpuCapacity::one_core().busy_fraction(50, Duration::ZERO),
             Ratio::new::<ratio>(0.0)
         );
     }

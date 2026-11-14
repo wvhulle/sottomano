@@ -19,7 +19,7 @@ pub const HOVERED_RUNTIME_PID: i32 = 70_215;
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = ApptainerContainersGroup::default();
-    group.update(
+    let _ = group.update(
         ApptainerContainersMessage::Detail(SnapshotDelivery::fixture_delivered(
             Ok(ApptainerContainers {
                 containers: vec![ApptainerContainer {
