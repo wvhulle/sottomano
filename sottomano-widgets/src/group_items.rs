@@ -1,5 +1,4 @@
 pub mod aligned_quantity;
-pub mod device_setting;
 pub mod gauge;
 pub mod group_item;
 pub mod group_item_gestures;

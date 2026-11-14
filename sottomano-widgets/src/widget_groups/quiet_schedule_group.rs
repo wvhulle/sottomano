@@ -205,18 +205,18 @@ impl QuietScheduleGroup {
     pub fn schedule(&self) -> QuietHoursSchedule {
         QuietHoursSchedule {
             schedule_adherence: self.schedule_adherence,
-            start: clock_at(self.start_slider.device_setting.reported_value()),
-            end: clock_at(self.end_slider.device_setting.reported_value()),
-            screen_off: timeout_at(self.screen_off_slider.device_setting.reported_value()),
+            start: clock_at(self.start_slider.synced_value.reported_value()),
+            end: clock_at(self.end_slider.synced_value.reported_value()),
+            screen_off: timeout_at(self.screen_off_slider.synced_value.reported_value()),
         }
     }
 
     fn requested_schedule(&self) -> QuietHoursSchedule {
         QuietHoursSchedule {
             schedule_adherence: self.schedule_adherence,
-            start: clock_at(self.start_slider.device_setting.wanted_value()),
-            end: clock_at(self.end_slider.device_setting.wanted_value()),
-            screen_off: timeout_at(self.screen_off_slider.device_setting.wanted_value()),
+            start: clock_at(self.start_slider.synced_value.shown_value()),
+            end: clock_at(self.end_slider.synced_value.shown_value()),
+            screen_off: timeout_at(self.screen_off_slider.synced_value.shown_value()),
         }
     }
 
