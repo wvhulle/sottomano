@@ -56,7 +56,7 @@ use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
     group_menus::{
-        cascading_layout::cascade_row::growth_away_from,
+        cascading_layout::popup_growth::growth_away_from,
         group_menu_state::{GroupMenuMessage, GroupMenuTopic, OpenGroupMenu, PanelPinDuration},
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
     },

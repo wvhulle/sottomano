@@ -27,3 +27,9 @@ pub use nested_menu_row::{
     NestedMenuRowPress, RowHoverReaction, SatelliteReach, nested_menu_row,
     nested_menu_row_text_color,
 };
+mod cascade_row;
+pub use cascade_row::{CascadeRow, cascade_row};
+mod notched_panel;
+pub use notched_panel::{
+    NotchPlacement, NotchRowAnchor, NotchSide, NotchedPanelRegions, ResolvedPanelTop, notched_panel,
+};

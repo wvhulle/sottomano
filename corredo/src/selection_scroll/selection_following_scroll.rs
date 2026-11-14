@@ -31,9 +31,9 @@ const NEGLIGIBLE_SCROLL_PX: f32 = 0.5;
 const DEFAULT_FADE_EXTENT_PX: f32 = 20.0;
 
 impl Axis {
-    fn wheel_travel(self, delta: mouse::ScrollDelta) -> f32 {
+    fn wheel_travel(self, delta: mouse::ScrollDelta, line_travel_px: f32) -> f32 {
         let (horizontal, vertical, step) = match delta {
-            mouse::ScrollDelta::Lines { x, y } => (x, y, SCROLL_LINE_STEP_PX),
+            mouse::ScrollDelta::Lines { x, y } => (x, y, line_travel_px),
             mouse::ScrollDelta::Pixels { x, y } => (x, y, 1.0),
         };
         let along_axis = match self {
@@ -75,6 +75,7 @@ pub struct SelectionFollowingScroll<'a, Message> {
     axis: Axis,
     edge_fade: ScrollEdgeFade,
     pacing: ScrollPacing,
+    wheel_line_travel_px: f32,
     ownership: ScrollOwnership<'a, Message>,
     selected_position: Option<usize>,
     content_identity: u64,
@@ -89,6 +90,7 @@ pub fn selection_following_scroll<'a, Message: 'a>(
         axis,
         edge_fade: ScrollEdgeFade::away_from_frame(FrameStyle::default(), DEFAULT_FADE_EXTENT_PX),
         pacing: ScrollPacing::Instant,
+        wheel_line_travel_px: SCROLL_LINE_STEP_PX,
         ownership: ScrollOwnership::SelfOwned,
         selected_position: None,
         content_identity: 0,
@@ -99,6 +101,14 @@ impl<'a, Message: 'a> SelectionFollowingScroll<'a, Message> {
     #[must_use]
     pub fn edge_fade(self, edge_fade: ScrollEdgeFade) -> Self {
         Self { edge_fade, ..self }
+    }
+
+    #[must_use]
+    pub fn wheel_line_travel(self, wheel_line_travel_px: f32) -> Self {
+        Self {
+            wheel_line_travel_px,
+            ..self
+        }
     }
 
     #[must_use]
@@ -253,7 +263,8 @@ impl<Message> SelectionFollowingScroll<'_, Message> {
         shell: &mut Shell<'_, Message>,
     ) {
         let current = state.scroll_motion.target_offset();
-        let next = (current - self.axis.wheel_travel(delta)).clamp(0.0, self.max_offset(layout));
+        let next = (current - self.axis.wheel_travel(delta, self.wheel_line_travel_px))
+            .clamp(0.0, self.max_offset(layout));
         if (next - current).abs() <= f32::EPSILON {
             return;
         }
@@ -347,7 +358,15 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer>
             return;
         };
         let state = tree.state.downcast_ref::<ScrollerState>();
-        renderer.with_layer(content_clip, |renderer| {
+        let hidden_edges = HiddenScrollEdges::of(
+            state.scroll_motion.drawn_offset(),
+            self.axis.span_of(content_layout(layout).bounds().size()),
+            self.axis.span_of(bounds.size()),
+        );
+        let rows_clip = self
+            .edge_fade
+            .clear_of_outline(content_clip, self.axis, hidden_edges);
+        renderer.with_layer(rows_clip, |renderer| {
             self.content.as_widget().draw(
                 &tree.children[0],
                 renderer,
@@ -355,14 +374,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer>
                 style,
                 content_layout(layout),
                 state.content_cursor(self.axis, clip_cursor(cursor, bounds)),
-                &content_clip,
+                &rows_clip,
             );
         });
-        let hidden_edges = HiddenScrollEdges::of(
-            state.scroll_motion.drawn_offset(),
-            self.axis.span_of(content_layout(layout).bounds().size()),
-            self.axis.span_of(bounds.size()),
-        );
         renderer.with_layer(content_clip, |renderer| {
             if hidden_edges.start {
                 self.edge_fade
@@ -543,6 +557,18 @@ mod tests {
             Event::Window(window::Event::RedrawRequested(now)),
             Event::Window(window::Event::RedrawRequested(now + Duration::from_secs(1))),
         ]);
+    }
+
+    #[test]
+    fn a_longer_wheel_line_travels_further() {
+        let travelled = |line_travel_px: f32| {
+            let scroller = scroller_over(Axis::Vertical).wheel_line_travel(line_travel_px);
+            let mut simulator = Simulator::with_size(Settings::default(), VISIBLE_SIZE, scroller);
+            let before = first_entry_position(&mut simulator, Axis::Vertical);
+            wheel_down(&mut simulator, ScrollDelta::Lines { x: 0.0, y: -1.0 });
+            before - first_entry_position(&mut simulator, Axis::Vertical)
+        };
+        assert!(travelled(60.0) > travelled(20.0));
     }
 
     #[test]

@@ -10,8 +10,9 @@ use iced::{
 use sottomano_toml_config::{Config, screen_edges::Position};
 
 use crate::{
-    desktop_panels::region_reporter::{
-        BackdropBlur, PointerInput, RegionRoles, report_input_across_except,
+    desktop_panels::{
+        region_reporter::{BackdropBlur, PointerInput, RegionRoles, report_input_across_except},
+        region_translation::translated_regions,
     },
     hover_cards::hover_card_transition::ShownTarget,
     widgets::{shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade},
@@ -116,7 +117,7 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
         ShownTarget::Nothing => None,
         target @ ShownTarget::Target(_) => Some(target),
     };
-    AnchoredPopup::with_renderings(renderings, anchor)
+    let popup = AnchoredPopup::with_renderings(renderings, anchor)
         .side(popup_side_of(position))
         .gap(config.theme.spacing.item_gap)
         .leading_alignment(
@@ -125,17 +126,18 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
         .morph_duration(morph.duration)
         .frame_over(move |popup| appearance_over(popup).frame_style())
         .outside_press(outside_press)
-        .report_regions(move |regions, operation| {
-            let backdrop_blur = appearance_over(regions.popup_bounds).backdrop_blur;
-            report_shell_regions(&regions, backdrop_blur, &catch_area_holes, operation);
-        })
-        .identified_by(shown)
-        .into()
+        .identified_by(shown);
+    translated_regions(popup, move |regions: &PopupRegions, operation| {
+        let backdrop_blur = appearance_over(regions.popup_bounds).backdrop_blur;
+        report_shell_regions(regions, backdrop_blur, &catch_area_holes, operation);
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use corredo::popovers::{CascadeDirection, CascadeOrientation, PopupGrowth, SubmenuConnector};
+    use corredo::popovers::{
+        CascadeDirection, CascadeOrientation, PopupGrowth, SubmenuConnector, cascade_row,
+    };
     use iced::{
         Element, Length, Point, Rectangle, Settings, Size,
         mouse::{Button, Event as MouseEvent},
@@ -152,9 +154,7 @@ mod tests {
     };
     use crate::{
         clock::Clock,
-        group_menus::cascading_layout::{
-            cascade_row::cascade_row, cascade_satellite_panels::CascadeSatellitePanels,
-        },
+        group_menus::cascading_layout::cascade_satellite_panels::CascadeSatellitePanels,
         hover_cards::{HoverTarget, hover_card_transition::ShownTarget},
         widgets::shell_layer_appearance::ShellLayer,
     };

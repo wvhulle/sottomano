@@ -10,7 +10,7 @@ use iced_wgpu::primitive::Renderer as _;
 
 use crate::{
     alpha_fade_shaders::{FadeShader, ReplacingFade},
-    orientation::Edge,
+    orientation::{Axis, Edge},
     theming::FrameStyle,
 };
 
@@ -109,6 +109,29 @@ impl ScrollEdgeFade {
     #[must_use]
     pub fn extent_within(self, viewport_span: f32) -> f32 {
         self.extent_px.min(viewport_span / 2.0)
+    }
+
+    pub(crate) fn clear_of_outline(
+        self,
+        clip: Rectangle,
+        axis: Axis,
+        hidden_edges: HiddenScrollEdges,
+    ) -> Rectangle {
+        let inset = |hidden: bool| if hidden { self.outline_inset_px } else { 0.0 };
+        let start_inset = inset(hidden_edges.start);
+        let end_inset = inset(hidden_edges.end);
+        match axis {
+            Axis::Horizontal => Rectangle {
+                x: clip.x + start_inset,
+                width: (clip.width - start_inset - end_inset).max(0.0),
+                ..clip
+            },
+            Axis::Vertical => Rectangle {
+                y: clip.y + start_inset,
+                height: (clip.height - start_inset - end_inset).max(0.0),
+                ..clip
+            },
+        }
     }
 
     fn band_along(self, faded_edge: Edge, bounds: Rectangle) -> Rectangle {
@@ -231,7 +254,9 @@ mod tests {
 
     use super::{HiddenScrollEdges, ScrollEdgeFade};
     use crate::{
-        alpha_fade_shaders::premultiplied_blend_constant, orientation::Edge, theming::FrameStyle,
+        alpha_fade_shaders::premultiplied_blend_constant,
+        orientation::{Axis, Edge},
+        theming::FrameStyle,
     };
 
     #[test]
@@ -277,6 +302,25 @@ mod tests {
         assert!((band.y + band.height - (300.0 - outline)).abs() < f32::EPSILON);
         assert!((band.x - outline).abs() < f32::EPSILON);
         assert!((band.height - 28.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn rows_stay_clear_of_the_outline_only_at_faded_edges() {
+        let frame = FrameStyle::default();
+        let outline = frame.outline_width();
+        let clip = Rectangle::with_size(Size::new(200.0, 300.0));
+        let hidden_below = HiddenScrollEdges {
+            start: false,
+            end: true,
+        };
+        let rows_clip = ScrollEdgeFade::within_frame(frame, 28.0).clear_of_outline(
+            clip,
+            Axis::Vertical,
+            hidden_below,
+        );
+        assert!(rows_clip.y.abs() < f32::EPSILON);
+        assert!((rows_clip.height - (300.0 - outline)).abs() < f32::EPSILON);
+        assert!((rows_clip.width - 200.0).abs() < f32::EPSILON);
     }
 
     #[test]

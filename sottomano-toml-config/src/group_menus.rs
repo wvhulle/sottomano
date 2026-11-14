@@ -6,12 +6,14 @@ use crate::severity::Severity;
 #[serde(default, deny_unknown_fields)]
 pub struct GroupMenusConfig {
     pub alert_promotion_severity: Severity,
+    pub scroll_fade_rows: f32,
 }
 
 impl Default for GroupMenusConfig {
     fn default() -> Self {
         Self {
             alert_promotion_severity: Severity::Warning,
+            scroll_fade_rows: 1.5,
         }
     }
 }

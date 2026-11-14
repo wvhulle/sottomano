@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use corredo::{
-    popovers::{CascadeOrientation, OutsidePress, PopupFraming, PopupRendering},
+    popovers::{CascadeOrientation, OutsidePress, PopupFraming, PopupRendering, cascade_row},
     transitions::ExpansionState,
 };
 use iced::{
@@ -16,7 +16,6 @@ use tokio::time::sleep;
 
 use crate::{
     clock::Clock,
-    group_menus::cascading_layout::cascade_row::cascade_row,
     hover_cards::{
         HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator, PointerPresence,
         PopupMessage, WidgetAnchor,

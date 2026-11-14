@@ -113,8 +113,6 @@ pub enum OutsidePress<Message> {
     },
 }
 
-type RegionReporter<'a> = Box<dyn Fn(PopupRegions, &mut dyn Operation) + 'a>;
-
 pub struct AnchoredPopup<'a, Message, ShownIdentity = ()> {
     renderings: Vec<PopupRendering<'a, Message>>,
     anchor: Rectangle,
@@ -126,7 +124,6 @@ pub struct AnchoredPopup<'a, Message, ShownIdentity = ()> {
     outside_press: OutsidePress<Message>,
     frame_over: Box<dyn Fn(Rectangle) -> FrameStyle + 'a>,
     corner_radius_px: f32,
-    report_regions: RegionReporter<'a>,
 }
 
 struct MorphState<ShownIdentity> {
@@ -161,7 +158,6 @@ impl<'a, Message: 'a> AnchoredPopup<'a, Message> {
             outside_press: OutsidePress::PassesThrough,
             frame_over: Box::new(move |_| frame),
             corner_radius_px: frame.corner_radius_px,
-            report_regions: Box::new(|_, _| {}),
         }
     }
 }
@@ -236,17 +232,6 @@ impl<'a, Message: 'a, ShownIdentity> AnchoredPopup<'a, Message, ShownIdentity> {
     }
 
     #[must_use]
-    pub fn report_regions(
-        self,
-        report_regions: impl Fn(PopupRegions, &mut dyn Operation) + 'a,
-    ) -> Self {
-        Self {
-            report_regions: Box::new(report_regions),
-            ..self
-        }
-    }
-
-    #[must_use]
     pub fn identified_by<OtherIdentity>(
         self,
         shown: Option<OtherIdentity>,
@@ -262,7 +247,6 @@ impl<'a, Message: 'a, ShownIdentity> AnchoredPopup<'a, Message, ShownIdentity> {
             outside_press: self.outside_press,
             frame_over: self.frame_over,
             corner_radius_px: self.corner_radius_px,
-            report_regions: self.report_regions,
         }
     }
 }
@@ -661,8 +645,10 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
         let state: &MorphState<ShownIdentity> = tree.state.downcast_ref();
         let frame = self.popup_frame(state, layout);
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
-        (self.report_regions)(
-            PopupRegions {
+        operation.custom(
+            None,
+            layout.bounds(),
+            &mut PopupRegions {
                 surface_rows: frame.surface_rows,
                 popup_bounds: state.morph.current() + origin,
                 bounds: layout.bounds(),
@@ -670,7 +656,6 @@ impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
                 captures_outside_presses: state.morph.motion_state() == MotionState::Settled
                     && matches!(self.outside_press, OutsidePress::Dismisses { .. }),
             },
-            operation,
         );
         self.views_mut(tree, layout).for_each(|rendering| {
             rendering.widget.as_widget_mut().operate(

@@ -7,7 +7,7 @@ use corredo::{
     drag_reorder::{HoverReorder, ListDeparture, SlotAlarm, draggable_slot},
     gauges::activity_line,
     orientation::Axis,
-    selection_scroll::{ScrollEdgeFade, ScrollPacing, selection_following_scroll},
+    selection_scroll::ScrollEdgeFade,
     theming::{
         background_color, background_strong_color, danger_color, primary_color, warning_color,
     },
@@ -64,6 +64,7 @@ use crate::{
     },
     widgets::{
         DISABLED_ALPHA,
+        configured_scroll::configured_scroll,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -576,13 +577,10 @@ impl WindowList {
             .alarms(alarms)
             .groups(groups)
             .draggable(PanelSlotList::Windows, &drag, dragged);
-        selection_following_scroll(pager, Axis::Horizontal)
+        configured_scroll(pager, Axis::Horizontal, config)
             .edge_fade(ScrollEdgeFade::away_from_frame(
                 slot_context.panel_frame_style,
                 maximum_window_title_width_px(config),
-            ))
-            .paced(ScrollPacing::Eased(
-                config.desktop_panels.slot_drag.focus_indicator_duration,
             ))
             .selected(focused_position)
             .showing(workspace)

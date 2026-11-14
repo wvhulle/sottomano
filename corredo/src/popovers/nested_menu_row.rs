@@ -26,6 +26,7 @@ const AIM_SLOPE: f32 = 2.0;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NestedMenuRowEmphasis {
     Plain,
+    Opened,
     Selected,
 }
 
@@ -59,7 +60,7 @@ pub enum NestedMenuRowPress<Message> {
 #[must_use]
 pub fn nested_menu_row_text_color(emphasis: NestedMenuRowEmphasis) -> fn(&Theme) -> Color {
     match emphasis {
-        NestedMenuRowEmphasis::Plain => text_color,
+        NestedMenuRowEmphasis::Plain | NestedMenuRowEmphasis::Opened => text_color,
         NestedMenuRowEmphasis::Selected => primary_weak_text_color,
     }
 }
@@ -71,7 +72,8 @@ fn nested_menu_row_background(
 ) -> Option<Color> {
     match (emphasis, pointer_presence) {
         (NestedMenuRowEmphasis::Selected, _) => Some(primary_weak_color(theme)),
-        (NestedMenuRowEmphasis::Plain, RowPointerPresence::PointedAt) => {
+        (NestedMenuRowEmphasis::Opened, _)
+        | (NestedMenuRowEmphasis::Plain, RowPointerPresence::PointedAt) => {
             Some(background_strong_color(theme))
         }
         (NestedMenuRowEmphasis::Plain, RowPointerPresence::NotPointedAt) => None,
@@ -299,15 +301,15 @@ impl<Message: Clone> Widget<Message, Theme, iced::Renderer> for PointerTrackedRo
         else {
             return;
         };
-        let gesture = match (pointer_presence, cursor.position()) {
-            (RowPointerPresence::PointedAt, Some(position)) => {
-                match state.trail.aim_at(position, *satellite_reach) {
+        let gesture = match pointer_presence {
+            RowPointerPresence::NotPointedAt => cancel_reveal,
+            RowPointerPresence::PointedAt => match cursor.position() {
+                Some(position) => match state.trail.aim_at(position, *satellite_reach) {
                     PointerAim::TowardSatellite => defer_reveal,
                     PointerAim::Elsewhere => reveal,
-                }
-            }
-            (RowPointerPresence::PointedAt, None) => reveal,
-            (RowPointerPresence::NotPointedAt, _) => cancel_reveal,
+                },
+                None => reveal,
+            },
         };
         shell.publish(gesture.clone());
     }
@@ -473,6 +475,23 @@ mod tests {
                 selected_color
             );
         });
+    }
+
+    #[test]
+    fn an_opened_header_keeps_a_neutral_background_apart_from_the_selection() {
+        let theme = Theme::Light;
+        assert_eq!(
+            nested_menu_row_background(
+                &theme,
+                NestedMenuRowEmphasis::Opened,
+                RowPointerPresence::NotPointedAt
+            ),
+            Some(background_strong_color(&theme))
+        );
+        assert_ne!(
+            Some(background_strong_color(&theme)),
+            Some(primary_weak_color(&theme))
+        );
     }
 
     #[test]
