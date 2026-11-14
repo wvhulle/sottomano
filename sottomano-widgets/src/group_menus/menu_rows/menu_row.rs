@@ -1,9 +1,6 @@
 use std::borrow::Cow;
 
-use corredo::popovers::{
-    NestedMenuMetrics, NestedMenuRowContent, NestedMenuRowEmphasis, NestedMenuRowLook,
-    NestedMenuRowPress, RowHoverReaction, nested_menu_row,
-};
+use corredo::popovers::{NestedMenuMetrics, NestedMenuRowContent, NestedMenuRowEmphasis};
 use iced::{Element, widget::text::Wrapping};
 use sottomano_toml_config::Config;
 
@@ -42,32 +39,23 @@ pub(crate) fn menu_row_height(config: &Config) -> f32 {
     menu_metrics(config).row_height_px
 }
 
-pub(crate) fn menu_row<'a, Message: Clone + 'a>(
-    config: &'a Config,
-    content: MenuRowContent<'a, Message>,
-    look: NestedMenuRowLook,
-    press: NestedMenuRowPress<GroupEvent<Message>>,
-    hover_reaction: RowHoverReaction<GroupEvent<Message>>,
-) -> Element<'a, GroupEvent<Message>> {
+pub(crate) fn menu_row_content<'a, M: From<GroupEvent<M>> + 'a>(
+    config: &Config,
+    content: MenuRowContent<'a, M>,
+) -> NestedMenuRowContent<'a, M> {
     let MenuRowContent {
         leading,
         parts,
         name,
         trailing,
     } = content;
-    nested_menu_row(
-        menu_metrics(config),
-        NestedMenuRowContent {
-            leading,
-            icon: parts.icon,
-            label: panel_text(&config.theme.font, name)
-                .wrapping(Wrapping::None)
-                .into(),
-            value: parts.value,
-            trailing,
-        },
-        look,
-        press,
-        hover_reaction,
-    )
+    let lifted = |element: Element<'a, GroupEvent<M>>| element.map(M::from);
+    NestedMenuRowContent {
+        leading: leading.into_iter().map(lifted).collect(),
+        icon: lifted(parts.icon),
+        label: Element::from(panel_text(&config.theme.font, name).wrapping(Wrapping::None))
+            .map(M::from),
+        value: lifted(parts.value),
+        trailing: trailing.into_iter().map(lifted).collect(),
+    }
 }

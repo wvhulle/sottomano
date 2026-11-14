@@ -31,5 +31,10 @@ mod cascade_row;
 pub use cascade_row::{CascadeRow, cascade_row};
 mod notched_panel;
 pub use notched_panel::{
-    NotchPlacement, NotchRowAnchor, NotchSide, NotchedPanelRegions, ResolvedPanelTop, notched_panel,
+    NotchRowAnchor, NotchedPanel, NotchedPanelRegions, ResolvedPanelTop, notched_panel,
+};
+mod nested_menu;
+pub use nested_menu::{
+    BesideRow, NestedMenu, NestedMenuGroup, NestedMenuItem, NestedMenuRow, NestedMenuSatellite,
+    NestedMenuSurfaces, RowGesture, SatelliteRole, nested_menu,
 };

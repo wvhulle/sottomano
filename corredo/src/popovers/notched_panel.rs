@@ -18,14 +18,15 @@ use iced::{
 use crate::{
     orientation::Edge,
     popovers::{
-        ConnectedSurface, ConnectorTriangle, PopupGrowth, RectangleMorph, SubmenuConnector,
+        CascadeDirection, CascadeOrientation, ConnectedSurface, ConnectorTriangle, PopupGrowth,
+        RectangleMorph, SubmenuConnector,
     },
     theming::FrameStyle,
     transitions::MotionState,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NotchSide {
+enum NotchSide {
     Left,
     Right,
 }
@@ -83,15 +84,17 @@ impl ScreenRoom {
     }
 }
 
+const DEFAULT_MORPH: Duration = Duration::from_millis(160);
+
 #[derive(Debug, Clone)]
-pub struct NotchPlacement {
-    pub side: NotchSide,
-    pub growth: PopupGrowth,
-    pub row: NotchRowAnchor,
-    pub panel_top: ResolvedPanelTop,
-    pub row_height: f32,
-    pub gap_to_parent: f32,
-    pub submenu_connector: SubmenuConnector,
+struct NotchPlacement {
+    side: NotchSide,
+    growth: PopupGrowth,
+    row: NotchRowAnchor,
+    panel_top: ResolvedPanelTop,
+    row_height: f32,
+    gap_to_parent: f32,
+    submenu_connector: SubmenuConnector,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -102,7 +105,7 @@ pub struct NotchedPanelRegions {
     pub bounds: Rectangle,
 }
 
-struct NotchedPanel<'a, Message> {
+pub struct NotchedPanel<'a, Message> {
     content: Element<'a, Message>,
     frame: FrameStyle,
     corner_radius: f32,
@@ -113,19 +116,96 @@ struct NotchedPanel<'a, Message> {
 
 #[must_use]
 pub fn notched_panel<'a, Message: 'a>(
-    content: Element<'a, Message>,
-    frame: FrameStyle,
-    placement: NotchPlacement,
-    morph: Duration,
-) -> Element<'a, Message> {
-    Element::new(NotchedPanel {
-        content,
+    content: impl Into<Element<'a, Message>>,
+    orientation: CascadeOrientation,
+    row: NotchRowAnchor,
+) -> NotchedPanel<'a, Message> {
+    let frame = FrameStyle::default();
+    NotchedPanel {
+        content: content.into(),
         corner_radius: frame.corner_radius().top_left,
         frame,
-        row_top: placement.row.row_top(),
-        placement,
-        morph,
-    })
+        row_top: row.row_top(),
+        placement: NotchPlacement {
+            side: match orientation.direction {
+                CascadeDirection::Rightward => NotchSide::Left,
+                CascadeDirection::Leftward => NotchSide::Right,
+            },
+            growth: orientation.growth,
+            row,
+            panel_top: ResolvedPanelTop::default(),
+            row_height: 0.0,
+            gap_to_parent: 0.0,
+            submenu_connector: SubmenuConnector::default(),
+        },
+        morph: DEFAULT_MORPH,
+    }
+}
+
+impl<'a, Message: 'a> NotchedPanel<'a, Message> {
+    #[must_use]
+    pub fn frame(self, frame: FrameStyle) -> Self {
+        Self {
+            corner_radius: frame.corner_radius().top_left,
+            frame,
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn row_height(self, row_height: f32) -> Self {
+        Self {
+            placement: NotchPlacement {
+                row_height,
+                ..self.placement
+            },
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn gap_to_parent(self, gap_to_parent: f32) -> Self {
+        Self {
+            placement: NotchPlacement {
+                gap_to_parent,
+                ..self.placement
+            },
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn submenu_connector(self, submenu_connector: SubmenuConnector) -> Self {
+        Self {
+            placement: NotchPlacement {
+                submenu_connector,
+                ..self.placement
+            },
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn morph(self, morph: Duration) -> Self {
+        Self { morph, ..self }
+    }
+
+    #[must_use]
+    pub fn publishes_top(self, panel_top: ResolvedPanelTop) -> Self {
+        Self {
+            placement: NotchPlacement {
+                panel_top,
+                ..self.placement
+            },
+            ..self
+        }
+    }
+}
+
+impl<'a, Message: 'a> From<NotchedPanel<'a, Message>> for Element<'a, Message> {
+    fn from(notched_panel: NotchedPanel<'a, Message>) -> Self {
+        Element::new(notched_panel)
+    }
 }
 
 #[derive(Default)]

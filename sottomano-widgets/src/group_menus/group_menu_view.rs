@@ -3,8 +3,13 @@ use std::iter::once;
 use chrono::Locale;
 use corredo::{
     orientation::Axis,
-    popovers::{CascadeOrientation, NestedMenuLayout, NestedMenuOpenTrigger},
+    popovers::{
+        BesideRow, CascadeOrientation, NestedMenuGroup, NestedMenuLayout, NestedMenuOpenTrigger,
+        NestedMenuRowEmphasis, nested_menu,
+    },
+    selection_scroll::{ScrollEdgeFade, ScrollPacing},
     theming::text_color,
+    transitions::ExpansionState,
 };
 use iced::{Element, widget::Column};
 use sottomano_toml_config::{Config, screen_edges::Position, severity::Severity};
@@ -13,16 +18,17 @@ use crate::{
     clock::Clock,
     desktop_panels::panel_slot::PanelSlot,
     group_menus::{
-        accordion_layout::accordion_sections::accordion_sections,
-        cascading_layout::{
-            cascade_satellite_panels::CascadeSatellitePanels, cascading_columns::cascading_columns,
-        },
+        cascading_layout::menu_satellite_regions::{SatelliteBlur, satellite_with_regions},
         group_menu_state::{
             GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic, MenuPinState,
             OpenGroupMenu, PanelRaise,
         },
         menu_rows::{
-            group_menu_group_rows::{GroupMenuGroupRow, GroupMenuRowContext, one_row_per_identity},
+            group_menu_group_rows::{
+                GroupMenuGroupRow, GroupMenuRowContext, group_header, item_entry,
+                one_row_per_identity,
+            },
+            menu_row::{menu_metrics, menu_row_height},
             quantity_table::{QuantityTableColumn, quantity_table},
         },
     },
@@ -34,7 +40,7 @@ use crate::{
     widget_groups::{
         widget_group_content::{
             EdgeIndicator, GroupEvent, GroupMenuRowParts, GroupToastRequests, PanelPromotion,
-            WidgetGroupContent,
+            RowInspection, WidgetGroupContent,
         },
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
     },
@@ -338,38 +344,63 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             })
             .fold(MenuSections::empty(), MenuSections::with_member);
         let table = quantity_table(table_columns, config).map(|table| table.map(M::from));
-        let cascade_satellite_panels = CascadeSatellitePanels::new(
-            appearance,
-            &card.card_appearance,
-            config,
-            orientation,
-            group_menus.presentation().submenu_connector,
-        );
-        let table_edge_fade = cascade_satellite_panels.rows_edge_fade(config);
+        let topic = messenger.topic;
+        let presentation = group_menus.presentation();
         let row_context = GroupMenuRowContext {
             config,
             direction: orientation.direction,
-            presentation: group_menus.presentation(),
+            presentation,
             menu: &messenger,
             group_menus,
-            cascade_satellite_panels: &cascade_satellite_panels,
         };
-        let group_rows = one_row_per_identity(group_rows);
-        let scrolled_px = group_menus.scrolled_px(messenger.topic);
-        let scroll_message = messenger.scroll_message();
-        let cascade = match row_context.presentation.layout {
-            NestedMenuLayout::Cascading => cascading_columns(group_rows, &row_context, card),
-            NestedMenuLayout::Accordion => accordion_sections(group_rows, &row_context, card),
+        let menu_groups = nested_menu_groups(&row_context, group_rows, card);
+        let list_frame = appearance.frame_style();
+        let fade_extent_px = config.group_menus.scroll_fade_rows * menu_row_height(config);
+        let scrolled_px = group_menus.scrolled_px(topic);
+        let list_scroll_message = messenger.scroll_message();
+        let item_list_scroll_message = messenger.item_list_scroll_message();
+        let satellite_blur = SatelliteBlur {
+            item_list: appearance.backdrop_blur,
+            beside: card.card_appearance.backdrop_blur,
         };
+        let cascade = nested_menu(
+            menu_groups,
+            presentation.layout,
+            orientation,
+            menu_metrics(config),
+            move |scrolled_px| M::from(list_scroll_message(scrolled_px)),
+            move |scrolled_px| M::from(item_list_scroll_message(scrolled_px)),
+        )
+        .frames(list_frame, card.card_appearance.frame_style())
+        .morph(config.overlay_surfaces.surface_morph_duration)
+        .gap_to_parent(config.theme.spacing.item_gap)
+        .submenu_connector(presentation.submenu_connector)
+        .fade_extent(fade_extent_px)
+        .wheel_scrolling(
+            config.scrolling.wheel_line_px,
+            ScrollPacing::Eased(config.scrolling.wheel_easing),
+        )
+        .item_indent(config.theme.font.icon_size_px)
+        .scrolled(scrolled_px, group_menus.item_list_scrolled_px(topic))
+        .surfaces()
+        .map(|surfaces| GroupMenuCascadeSurfaces {
+            primary: surfaces.primary,
+            satellites: surfaces
+                .satellites
+                .into_iter()
+                .map(|satellite| satellite_with_regions(satellite, satellite_blur))
+                .collect(),
+        });
         let Some(table) = table else {
             return cascade;
         };
         let Some(cascade) = cascade else {
+            let table_scroll_message = messenger.scroll_message();
             return Some(GroupMenuCascadeSurfaces {
                 primary: configured_scroll(table, Axis::Vertical, config)
-                    .edge_fade(table_edge_fade)
+                    .edge_fade(ScrollEdgeFade::within_frame(list_frame, fade_extent_px))
                     .controlled(scrolled_px, move |scrolled_px| {
-                        M::from(scroll_message(scrolled_px))
+                        M::from(table_scroll_message(scrolled_px))
                     })
                     .into(),
                 satellites: Vec::new(),
@@ -380,6 +411,62 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             satellites: cascade.satellites,
         })
     }
+}
+
+fn nested_menu_groups<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 'a>(
+    row_context: &GroupMenuRowContext<'_, M>,
+    group_rows: Vec<GroupMenuGroupRow<'a, M>>,
+    card: &InspectionCard<'_, 'a>,
+) -> Vec<NestedMenuGroup<'a, HoverTarget, M>> {
+    let topic = row_context.menu.topic;
+    let open_groups = row_context.group_menus.open_groups(topic);
+    let inspected_target = row_context.group_menus.inspected_target(topic);
+    one_row_per_identity(group_rows)
+        .into_iter()
+        .map(|entry| {
+            let expansion_state = if open_groups.contains(&entry.group_identity) {
+                ExpansionState::Expanded
+            } else {
+                ExpansionState::Collapsed
+            };
+            let emphasis = match (row_context.presentation.layout, expansion_state) {
+                (NestedMenuLayout::Cascading, ExpansionState::Expanded) => {
+                    NestedMenuRowEmphasis::Selected
+                }
+                (NestedMenuLayout::Accordion, ExpansionState::Expanded) => {
+                    NestedMenuRowEmphasis::Opened
+                }
+                (_, ExpansionState::Collapsed) => NestedMenuRowEmphasis::Plain,
+            };
+            let header = group_header(
+                row_context,
+                &entry.group_identity,
+                &entry.group_title,
+                entry.face,
+                emphasis,
+            );
+            let items = entry
+                .items
+                .into_iter()
+                .map(|item| {
+                    let beside = match item.inspection(inspected_target) {
+                        RowInspection::Inspected => card
+                            .view(row_context.config)
+                            .map_or(BesideRow::Nothing, |card_view| {
+                                BesideRow::Card(card_view.map(M::from))
+                            }),
+                        RowInspection::Uninspected => BesideRow::Nothing,
+                    };
+                    item_entry(row_context, &entry.group_identity, item, beside)
+                })
+                .collect();
+            NestedMenuGroup {
+                header,
+                expansion_state,
+                items,
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
