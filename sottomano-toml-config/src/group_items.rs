@@ -12,7 +12,7 @@ pub struct GroupItemsConfig {
 impl Default for GroupItemsConfig {
     fn default() -> Self {
         Self {
-            slider_expansion_duration: Duration::from_millis(90),
+            slider_expansion_duration: Duration::from_millis(180),
         }
     }
 }

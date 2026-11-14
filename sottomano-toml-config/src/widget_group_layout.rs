@@ -12,7 +12,7 @@ pub struct WidgetGroupLayoutConfig {
 impl Default for WidgetGroupLayoutConfig {
     fn default() -> Self {
         Self {
-            expansion_duration: Duration::from_millis(90),
+            expansion_duration: Duration::from_millis(180),
         }
     }
 }
