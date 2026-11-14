@@ -1,19 +1,3 @@
-use sottomano_widgets::notification_toasts::toast_updates::StoppedChangeWatch;
-mod compositor_update_handling;
-mod config_adoption;
-pub mod desktop_panels;
-mod group_actions;
-pub mod hover_card_updates;
-pub mod monitor_layout;
-pub mod monitor_surfaces;
-pub mod notification_updates;
-pub mod pointer_drag;
-mod shell_widget_group_readings;
-mod shell_widget_group_subscriptions;
-pub mod shell_widget_groups;
-mod sqlite_app_launches;
-pub mod workspace_sidebar;
-
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
@@ -64,7 +48,9 @@ use sottomano_widgets::{
         HoverCardHost, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
         hover_card_surfaces::HoverContent, hover_card_transition::CardRetention,
     },
-    notification_toasts::{NotificationLayer, ToastSurfaceStyle},
+    notification_toasts::{
+        NotificationLayer, ToastSurfaceStyle, toast_updates::StoppedChangeWatch,
+    },
     widget_groups::{
         appearance_presets_group::AppearancePresetsMessage, idle_pause_groups::IdlePauseMessage,
         session_power_group,
@@ -78,17 +64,14 @@ use sottomano_widgets::{
     },
 };
 
-use self::notification_updates::{AlertRescanNeed, GroupAlertScan, alert_rescan_need};
 use crate::{
-    desktop_shell::{
-        compositor_update_handling::{
-            SwitchHeatEffect, report_missing_compositor, switch_heat_effect,
-        },
-        monitor_surfaces::{Surface, SurfaceRole, query_outputs},
-        pointer_drag::ShellDrag,
-        shell_widget_groups::ShellWidgetGroups,
-    },
+    compositor_updates::{SwitchHeatEffect, report_missing_compositor, switch_heat_effect},
+    monitors::monitor_surfaces::{Surface, SurfaceRole, query_outputs},
+    notification_updates::{AlertRescanNeed, GroupAlertScan, alert_rescan_need},
+    pointer_drag::ShellDrag,
     shell_message::{Message, ShellInteraction},
+    sqlite_app_launches,
+    widget_groups::ShellWidgetGroups,
 };
 
 pub struct DesktopShell {
@@ -509,7 +492,7 @@ impl DesktopShell {
         }
     }
 
-    pub(super) fn hover_content(
+    pub(crate) fn hover_content(
         &self,
         target: &HoverTarget,
     ) -> Option<HoverContent<'_, ShellInteraction>> {
@@ -551,7 +534,7 @@ impl DesktopShell {
         CascadeOrientation::toward_room(anchor, growth_away_from(placement.position), output_width)
     }
 
-    pub(super) fn hovered_output(&self) -> &str {
+    pub(crate) fn hovered_output(&self) -> &str {
         self.hover_card
             .placement()
             .map_or("", |placement| placement.output.as_str())
@@ -655,7 +638,7 @@ impl DesktopShell {
         )
     }
 
-    fn hover_card_layer<'a>(&'a self, output: &str) -> Element<'a, ShellInteraction> {
+    pub(crate) fn hover_card_layer<'a>(&'a self, output: &str) -> Element<'a, ShellInteraction> {
         self.hover_card.view(
             output,
             &self.config,

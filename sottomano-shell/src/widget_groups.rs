@@ -1,3 +1,8 @@
+mod group_actions;
+mod group_hover_cards;
+mod group_readings;
+mod group_subscriptions;
+
 use iced::Task;
 use sottomano_desktop_sinks::compositor_window_requests::compositor_rule_files::CompositorRulesFile;
 use sottomano_desktop_sources::{

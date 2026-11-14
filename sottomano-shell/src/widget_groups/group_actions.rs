@@ -34,7 +34,7 @@ use sottomano_widgets::{
 use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 impl DesktopShell {
-    pub(super) fn open_url(&mut self, url: String) -> Task<Message> {
+    pub(crate) fn open_url(&mut self, url: String) -> Task<Message> {
         Task::batch([
             self.dismiss_hover_card(),
             Task::future(blocking("open url", move || {
@@ -46,7 +46,7 @@ impl DesktopShell {
         ])
     }
 
-    pub(super) fn update_overlay_settings(&mut self, msg: OverlaySettingsMessage) -> Task<Message> {
+    pub(crate) fn update_overlay_settings(&mut self, msg: OverlaySettingsMessage) -> Task<Message> {
         match self.widget_groups.overlay_settings_group.update(msg) {
             overlay_settings_group::Action::Run(task) => task.map(Message::OverlaySettings),
             overlay_settings_group::Action::ReflowToasts(task) => {
@@ -55,12 +55,12 @@ impl DesktopShell {
         }
     }
 
-    pub(super) fn load_launch_tracker(&mut self, launches: Vec<Launch>) -> Task<Message> {
+    pub(crate) fn load_launch_tracker(&mut self, launches: Vec<Launch>) -> Task<Message> {
         self.launch_tracker.load_from(launches);
         self.refresh_app_launcher()
     }
 
-    pub(super) fn load_desktop_entries(&mut self, entries: Arc<DesktopEntries>) -> Task<Message> {
+    pub(crate) fn load_desktop_entries(&mut self, entries: Arc<DesktopEntries>) -> Task<Message> {
         let launcher = &mut self.widget_groups.app_launcher_group;
         launcher.adopt_catalog(entries.launchable_apps());
         self.desktop_entries.set(entries);
@@ -71,7 +71,7 @@ impl DesktopShell {
         Task::batch([self.refresh_app_launcher(), catalog_icons])
     }
 
-    pub(super) fn update_app_launcher(
+    pub(crate) fn update_app_launcher(
         &mut self,
         launcher_message: AppLauncherMessage,
     ) -> Task<Message> {
@@ -87,7 +87,7 @@ impl DesktopShell {
         }
     }
 
-    pub(super) fn adopt_outputs(
+    pub(crate) fn adopt_outputs(
         &mut self,
         outputs: HashMap<String, compositor_output_facts::OutputInfo>,
     ) -> Task<Message> {
@@ -95,7 +95,7 @@ impl DesktopShell {
         self.reflow_toasts()
     }
 
-    pub(super) fn reflow_toasts(&mut self) -> Task<Message> {
+    pub(crate) fn reflow_toasts(&mut self) -> Task<Message> {
         let placement = window_edge_placement::Placement::derive(&self.compositor);
         self.notifications
             .on_compositor_changed(
@@ -107,7 +107,7 @@ impl DesktopShell {
             .map(Message::from)
     }
 
-    pub(super) fn refocus_session(&mut self) -> Task<Message> {
+    pub(crate) fn refocus_session(&mut self) -> Task<Message> {
         self.widget_groups
             .session_focus_group
             .refocus(
@@ -117,7 +117,7 @@ impl DesktopShell {
             .map(Message::SessionFocus)
     }
 
-    pub(super) fn update_window_group(
+    pub(crate) fn update_window_group(
         &mut self,
         window_message: WindowGroupMessage,
     ) -> Task<Message> {
@@ -143,14 +143,14 @@ impl DesktopShell {
         Task::batch([handled, self.refocus_session()])
     }
 
-    pub(super) fn update_gamepad(&mut self, msg: GamepadMessage) -> Task<Message> {
+    pub(crate) fn update_gamepad(&mut self, msg: GamepadMessage) -> Task<Message> {
         self.widget_groups
             .gamepad_group
             .update(msg, &self.config.widget_groups.gamepad)
             .into_task()
     }
 
-    pub(super) fn update_media(&mut self, msg: MediaMessage) -> Task<Message> {
+    pub(crate) fn update_media(&mut self, msg: MediaMessage) -> Task<Message> {
         match self.widget_groups.media_group.update(msg, self.clock) {
             media_group::Action::Run(task) => task.map(Message::Media),
             media_group::Action::FocusAppWindow(focus) => {
@@ -159,7 +159,7 @@ impl DesktopShell {
         }
     }
 
-    pub(super) fn update_session(&mut self, msg: SessionMessage) -> Task<Message> {
+    pub(crate) fn update_session(&mut self, msg: SessionMessage) -> Task<Message> {
         match self.widget_groups.session_power_group.update(msg) {
             session_power_group::Action::Run(task) => task.map(Message::Session),
             session_power_group::Action::Performed(task) => {
@@ -168,7 +168,7 @@ impl DesktopShell {
         }
     }
 
-    pub(super) fn update_tray(&mut self, msg: TrayMessage) -> Task<Message> {
+    pub(crate) fn update_tray(&mut self, msg: TrayMessage) -> Task<Message> {
         match self.widget_groups.tray_group.update(msg, self.clock) {
             tray_group::Action::None => Task::none(),
             tray_group::Action::Run(task) => task.map(Message::Tray),
@@ -185,7 +185,7 @@ impl DesktopShell {
         }
     }
 
-    pub(super) fn update_global_menu(&mut self, msg: GlobalMenuMessage) -> Task<Message> {
+    pub(crate) fn update_global_menu(&mut self, msg: GlobalMenuMessage) -> Task<Message> {
         match self.widget_groups.global_menu_group.update(msg) {
             global_menu_group::Action::None => Task::none(),
             global_menu_group::Action::Run(task) => task.map(Message::GlobalMenu),
@@ -226,7 +226,7 @@ impl DesktopShell {
         ])
     }
 
-    pub(super) fn update_virtual_machines(&mut self, msg: VirtualMachinesMessage) -> Task<Message> {
+    pub(crate) fn update_virtual_machines(&mut self, msg: VirtualMachinesMessage) -> Task<Message> {
         match self
             .widget_groups
             .virtual_machines_group
@@ -239,7 +239,7 @@ impl DesktopShell {
         }
     }
 
-    pub(super) fn focus_app_window<M: Send + 'static>(
+    pub(crate) fn focus_app_window<M: Send + 'static>(
         &self,
         focus: AppWindowFocus<M>,
         lift: fn(M) -> Message,
@@ -252,7 +252,7 @@ impl DesktopShell {
         compositor_request(CompositorRequest::FocusWindow(window))
     }
 
-    pub(super) fn update_panel_settings(&mut self, msg: PanelSettingsMessage) -> Task<Message> {
+    pub(crate) fn update_panel_settings(&mut self, msg: PanelSettingsMessage) -> Task<Message> {
         match self.widget_groups.panel_settings_group.update(msg) {
             panel_settings_group::Action::Run(task) => task.map(Message::PanelSettings),
             panel_settings_group::Action::Reflow(task) => {

@@ -19,15 +19,13 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    desktop_shell::{
-        DesktopShell,
-        desktop_panels::panel_bar_composition::{PanelBarComposition, PanelZone, PanelZoneEntry},
-    },
+    desktop_shell::DesktopShell,
+    panels::{PanelBarComposition, PanelZone, PanelZoneEntry},
     shell_message::ShellInteraction,
 };
 
 impl DesktopShell {
-    pub(in crate::desktop_shell) fn panel_bar_view<'a>(
+    pub(crate) fn panel_bar_view<'a>(
         &'a self,
         composition: &PanelBarComposition,
         output: &'a str,

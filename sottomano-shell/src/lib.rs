@@ -1,9 +1,19 @@
 mod command_line;
 mod compact_tokio_executor;
+mod compositor_updates;
+mod config_adoption;
 mod desktop_shell;
+mod hover_card_updates;
+mod menus;
 mod message_subscriptions;
+mod monitors;
+mod notification_updates;
+mod panels;
+mod pointer_drag;
 mod process_memory_report;
 mod shell_message;
+mod sqlite_app_launches;
+mod widget_groups;
 
 use std::{
     env::{self, VarError},
