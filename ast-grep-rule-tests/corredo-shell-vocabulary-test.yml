@@ -1,0 +1,9 @@
+id: corredo-shell-vocabulary
+valid:
+  - "fn sliding_pane_swap(pane: SwapPane) {}"
+  - "struct ReorderableList { slot_order: u8 }"
+invalid:
+  - "fn workspace_swap() {}"
+  - "struct Pane { workspace_order: u8 }"
+  - "fn show(target: HoverTarget) {}"
+  - "fn anchor(card: HoverCard) {}"

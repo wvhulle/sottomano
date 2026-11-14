@@ -1,0 +1,15 @@
+id: corredo-shell-vocabulary
+language: rust
+severity: error
+message: corredo is a generic iced widget library; this name belongs to the desktop shell that uses it.
+note: Name the widget after what it shows or does (a pane, a list slot, a popup row). Shell concepts such as workspaces, compositors, D-Bus services or hover cards stay in sottomano-widgets, which fills corredo widgets with them.
+files:
+  - corredo/src/**/*.rs
+  - corredo/examples/**/*.rs
+  - corredo/tests/**/*.rs
+rule:
+  any:
+    - kind: identifier
+    - kind: type_identifier
+    - kind: field_identifier
+  regex: '(?i)(workspace|niri|sway|hyprland|wayland|sottomano|dbus|systemd|mpris|pipewire|tailscale|hover_?card|hover_?target|group_?event|tray)'

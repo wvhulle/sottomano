@@ -1,0 +1,10 @@
+id: corredo-operation-callbacks
+language: rust
+severity: error
+message: A closure that receives an Operation hands widget internals to the program through a callback.
+note: Publish the geometry from Widget::operate with operation.custom(None, bounds, &mut payload), using a public payload type. Programs read it in their own Operation, as iced intends.
+files:
+  - corredo/src/**/*.rs
+rule:
+  kind: function_type
+  regex: 'Operation'

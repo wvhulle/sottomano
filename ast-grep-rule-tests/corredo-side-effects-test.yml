@@ -1,0 +1,10 @@
+id: corredo-side-effects
+valid:
+  - "use iced::time::Instant;"
+  - "fn width(text: &str) -> usize { text.len() }"
+invalid:
+  - "fn load() -> String { std::fs::read_to_string(PATH).unwrap() }"
+  - "use std::process::Command;"
+  - "fn home() -> Option<String> { std::env::var(KEY).ok() }"
+  - "use tokio::time::sleep;"
+  - "fn later() { thread::spawn(work); }"
