@@ -1,13 +1,21 @@
-use sottomano_desktop_sources::waydroid_container::WaydroidContainerManagerProxy;
+use crate::finished_commands::run_to_success;
 
-pub async fn stop_waydroid_container() -> Result<(), String> {
-    let stopped = async {
-        WaydroidContainerManagerProxy::new(&zbus::Connection::system().await?)
-            .await?
-            .stop(false)
-            .await
-    };
-    stopped
-        .await
-        .map_err(|failure: zbus::Error| format!("waydroid: {failure}"))
+pub async fn start_waydroid_session() -> Result<(), String> {
+    run_to_success(
+        "systemd-run",
+        [
+            "--user",
+            "--collect",
+            "--quiet",
+            "--",
+            "waydroid",
+            "session",
+            "start",
+        ],
+    )
+    .await
+}
+
+pub async fn stop_waydroid_session() -> Result<(), String> {
+    run_to_success("waydroid", ["session", "stop"]).await
 }

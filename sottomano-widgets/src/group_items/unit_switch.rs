@@ -31,6 +31,16 @@ use crate::{
     },
 };
 
+#[must_use]
+pub(crate) fn activity_text(activity: UnitActivity) -> &'static str {
+    match activity {
+        UnitActivity::Running => "running",
+        UnitActivity::Starting => "starting",
+        UnitActivity::Stopping => "stopping",
+        UnitActivity::Stopped => "stopped",
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServiceReadiness {
     Serving,
@@ -85,15 +95,7 @@ impl GroupItemReading for UnitSwitchReading {
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([LabeledValue::new(
-            "Service",
-            match self.activity {
-                UnitActivity::Running => "running",
-                UnitActivity::Starting => "starting",
-                UnitActivity::Stopping => "stopping",
-                UnitActivity::Stopped => "stopped",
-            },
-        )])
+        HoverCardBody::dictionary([LabeledValue::new("Service", activity_text(self.activity))])
     }
 }
 

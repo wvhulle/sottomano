@@ -1,12 +1,13 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, future::Future};
 
 use chrono::Locale;
 use iced::{Subscription, Task};
-use sottomano_desktop_sinks::waydroid_container::stop_waydroid_container;
+use sottomano_desktop_sinks::waydroid_container::{start_waydroid_session, stop_waydroid_session};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     backing_service_availability::Availability,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope},
     waydroid_container::{WaydroidListing, WaydroidProbe, WaydroidReadout, WaydroidState},
 };
 
@@ -14,8 +15,11 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
+        group_item::GroupItem,
+        group_item_reading::GroupItemReading,
+        reading_display_state::ReadingDisplayState,
+        toggle_control::{SwitchPosition, SwitchPresses},
+        unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
@@ -32,15 +36,29 @@ use crate::{
     widgets::{
         icon_glyph::IconGlyph,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         value_cells::LabeledValue,
     },
 };
 
-const STOP_HINT: &str = "stop the Android container";
+const WAYDROID_CONTAINER_UNIT: &str = "waydroid-container.service";
+const START_SESSION_HINT: &str = "start the Android session";
+const STOP_SESSION_HINT: &str = "stop the Android session";
+const CONTAINER_SWITCH_FACE: UnitSwitchFace = UnitSwitchFace {
+    name: "Android container",
+    icon: Phosphor::Package(Weight::Regular),
+    presses: SwitchPresses {
+        turning_on: "start the Android container",
+        turning_off: "stop the Android container",
+    },
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct WaydroidContainerTarget;
+pub enum WaydroidContainerTarget {
+    Container,
+    Session,
+}
 
 impl From<WaydroidContainerTarget> for HoverTarget {
     fn from(target: WaydroidContainerTarget) -> Self {
@@ -48,85 +66,105 @@ impl From<WaydroidContainerTarget> for HoverTarget {
     }
 }
 
-struct WaydroidListingRow<'a> {
-    listing: &'a WaydroidListing,
+#[derive(Clone, Copy)]
+enum ShownWaydroid<'a> {
+    Detailed(&'a WaydroidReadout),
+    Listed(&'a WaydroidListing),
 }
 
-impl GroupItemReading for WaydroidListingRow<'_> {
-    fn name(&self) -> &'static str {
-        "Android"
-    }
-
-    fn menu_row_name(&self) -> Cow<'static, str> {
-        "Android".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        IconGlyph::SimpleIcon(SimpleIcon::Android)
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(waydroid_state_text(&self.listing.state))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        waydroid_state_display(&self.listing.state)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        let mut detail_entries = vec![LabeledValue::new(
-            "Container",
-            if self.listing.container_running {
-                "running"
-            } else {
-                "stopped"
-            },
-        )];
-        if let WaydroidState::Session {
-            session_state,
-            user_name,
-            lcd_density,
-        } = &self.listing.state
-        {
-            detail_entries.push(LabeledValue::new("Session", session_state.clone()));
-            if let Some(user_name) = user_name {
-                detail_entries.push(LabeledValue::new("User", user_name.clone()));
-            }
-            if let Some(lcd_density) = lcd_density {
-                detail_entries.push(LabeledValue::new("Screen density", lcd_density.clone()));
-            }
+impl<'a> ShownWaydroid<'a> {
+    fn state(self) -> &'a WaydroidState {
+        match self {
+            ShownWaydroid::Detailed(readout) => &readout.state,
+            ShownWaydroid::Listed(listing) => &listing.state,
         }
-        HoverCardBody::dictionary(detail_entries)
+    }
+
+    fn container_running(self) -> bool {
+        match self {
+            ShownWaydroid::Detailed(readout) => readout.container_running,
+            ShownWaydroid::Listed(listing) => listing.container_running,
+        }
     }
 }
 
-fn waydroid_state_text(state: &WaydroidState) -> String {
-    match state {
-        WaydroidState::Session { session_state, .. } => session_state.to_lowercase(),
-        WaydroidState::ContainerOnly => "no session".to_owned(),
-        WaydroidState::Absent => "stopped".to_owned(),
-    }
-}
-
-fn waydroid_state_display(state: &WaydroidState) -> ReadingDisplayState {
-    match state {
-        WaydroidState::Session { .. } => ReadingDisplayState::On,
-        WaydroidState::ContainerOnly => ReadingDisplayState::Idle,
-        WaydroidState::Absent => ReadingDisplayState::Off,
+fn container_state_text(container_running: bool) -> &'static str {
+    if container_running {
+        "running"
+    } else {
+        "stopped"
     }
 }
 
 struct WaydroidContainerRow<'a> {
-    readout: &'a WaydroidReadout,
+    shown: ShownWaydroid<'a>,
 }
 
 impl GroupItemReading for WaydroidContainerRow<'_> {
     fn name(&self) -> &'static str {
-        "Android"
+        "Android container"
     }
 
     fn menu_row_name(&self) -> Cow<'static, str> {
-        "Android".into()
+        "Container".into()
+    }
+
+    fn icon(&self) -> IconGlyph {
+        Phosphor::Package(Weight::Regular).into()
+    }
+
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
+        match self.shown {
+            ShownWaydroid::Detailed(WaydroidReadout {
+                memory_in_use: Some(memory_in_use),
+                container_running: true,
+                ..
+            }) => Some(approximate_memory_text(*memory_in_use)),
+            _ => Some(container_state_text(self.shown.container_running()).to_owned()),
+        }
+    }
+
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        if self.shown.container_running() {
+            ReadingDisplayState::On
+        } else {
+            ReadingDisplayState::Off
+        }
+    }
+
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        let mut detail_entries = vec![
+            LabeledValue::new(
+                "State",
+                container_state_text(self.shown.container_running()),
+            ),
+            LabeledValue::new("Unit", WAYDROID_CONTAINER_UNIT),
+        ];
+        if let ShownWaydroid::Detailed(WaydroidReadout {
+            memory_in_use: Some(memory_in_use),
+            ..
+        }) = self.shown
+        {
+            detail_entries.push(LabeledValue::new(
+                "Memory use",
+                approximate_memory_text(*memory_in_use),
+            ));
+        }
+        HoverCardBody::dictionary(detail_entries)
+    }
+}
+
+struct WaydroidSessionRow<'a> {
+    state: &'a WaydroidState,
+}
+
+impl GroupItemReading for WaydroidSessionRow<'_> {
+    fn name(&self) -> &'static str {
+        "Android session"
+    }
+
+    fn menu_row_name(&self) -> Cow<'static, str> {
+        "Session".into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -134,60 +172,63 @@ impl GroupItemReading for WaydroidContainerRow<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(match &self.readout.state {
+        Some(match self.state {
             WaydroidState::Session { session_state, .. } => session_state.to_lowercase(),
-            WaydroidState::ContainerOnly => "no session".to_owned(),
-            WaydroidState::Absent => "stopped".to_owned(),
+            WaydroidState::ContainerOnly | WaydroidState::Absent => "no session".to_owned(),
         })
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match &self.readout.state {
+        match self.state {
             WaydroidState::Session { .. } => ReadingDisplayState::On,
-            WaydroidState::ContainerOnly => ReadingDisplayState::Idle,
-            WaydroidState::Absent => ReadingDisplayState::Off,
+            WaydroidState::ContainerOnly | WaydroidState::Absent => ReadingDisplayState::Off,
         }
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        let mut detail_entries = vec![LabeledValue::new(
-            "Container",
-            if self.readout.container_running {
-                "running"
-            } else {
-                "stopped"
-            },
-        )];
-        if let Some(memory_in_use) = self.readout.memory_in_use {
-            detail_entries.push(LabeledValue::new(
-                "Memory use",
-                approximate_memory_text(memory_in_use),
-            ));
-        }
-        if let WaydroidState::Session {
+        let WaydroidState::Session {
             session_state,
             user_name,
             lcd_density,
-        } = &self.readout.state
-        {
-            detail_entries.push(LabeledValue::new("Session", session_state.clone()));
-            if let Some(user_name) = user_name {
-                detail_entries.push(LabeledValue::new("User", user_name.clone()));
-            }
-            if let Some(lcd_density) = lcd_density {
-                detail_entries.push(LabeledValue::new("Screen density", lcd_density.clone()));
-            }
+        } = self.state
+        else {
+            return HoverCardBody::dictionary([LabeledValue::new("Session", "none")]);
+        };
+        let mut detail_entries = vec![LabeledValue::new("Session", session_state.clone())];
+        if let Some(user_name) = user_name {
+            detail_entries.push(LabeledValue::new("User", user_name.clone()));
+        }
+        if let Some(lcd_density) = lcd_density {
+            detail_entries.push(LabeledValue::new("Screen density", lcd_density.clone()));
         }
         HoverCardBody::dictionary(detail_entries)
     }
 }
 
-#[derive(Default)]
 pub struct WaydroidContainerGroup {
     probe: LatestSnapshot<WaydroidProbe, HidesFetchFailures>,
     listing: LatestSnapshot<WaydroidListing, HidesFetchFailures>,
     detail: LatestSnapshot<WaydroidReadout, HidesFetchFailures>,
+    container_switch: UnitSwitch,
     expansion: WidgetGroupExpansion,
+}
+
+impl Default for WaydroidContainerGroup {
+    fn default() -> Self {
+        Self {
+            probe: LatestSnapshot::default(),
+            listing: LatestSnapshot::default(),
+            detail: LatestSnapshot::default(),
+            container_switch: UnitSwitch::new(
+                ScopedSystemdUnit {
+                    scope: SystemdUnitScope::SystemWide,
+                    unit_name: WAYDROID_CONTAINER_UNIT.to_owned(),
+                },
+                CONTAINER_SWITCH_FACE,
+            ),
+            expansion: WidgetGroupExpansion::default(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -195,14 +236,24 @@ pub enum WaydroidContainerMessage {
     Probe(SnapshotDelivery<WaydroidProbe>),
     Listing(SnapshotDelivery<WaydroidListing>),
     Readout(SnapshotDelivery<WaydroidReadout>),
-    StopRefused(String),
+    ContainerSwitch(UnitSwitchMessage),
+    SessionChangeRefused(String),
     Interaction(WaydroidContainerInteraction),
 }
 
 #[derive(Debug, Clone)]
 pub enum WaydroidContainerInteraction {
-    StopContainer,
+    ContainerSwitchPressed,
+    StartSession,
+    StopSession,
     Expansion(WidgetGroupExpansionMessage),
+}
+
+fn refused_session_change(
+    session_change: impl Future<Output = Result<(), String>> + Send + 'static,
+) -> Task<WaydroidContainerMessage> {
+    Task::future(async move { session_change.await.err() })
+        .and_then(|refusal| Task::done(WaydroidContainerMessage::SessionChangeRefused(refusal)))
 }
 
 impl WaydroidContainerGroup {
@@ -224,6 +275,9 @@ impl WaydroidContainerGroup {
             demand
                 .while_rows_shown(snapshot_subscription::<WaydroidReadout>(buses.clone()))
                 .map(WaydroidContainerMessage::Readout),
+            demand
+                .while_rows_shown(self.container_switch.subscription(buses))
+                .map(WaydroidContainerMessage::ContainerSwitch),
         ])
     }
 
@@ -245,13 +299,25 @@ impl WaydroidContainerGroup {
                 self.detail.receive(delivery, clock);
                 Task::none()
             }
-            WaydroidContainerMessage::StopRefused(refusal) => {
-                tracing::warn!("{refusal}");
+            WaydroidContainerMessage::ContainerSwitch(switch_message) => self
+                .container_switch
+                .update(switch_message, clock)
+                .map(WaydroidContainerMessage::ContainerSwitch),
+            WaydroidContainerMessage::SessionChangeRefused(refusal) => {
+                tracing::warn!(%refusal, "waydroid session change refused");
                 Task::none()
             }
-            WaydroidContainerMessage::Interaction(WaydroidContainerInteraction::StopContainer) => {
-                Task::future(async { stop_waydroid_container().await.err() })
-                    .and_then(|refusal| Task::done(WaydroidContainerMessage::StopRefused(refusal)))
+            WaydroidContainerMessage::Interaction(
+                WaydroidContainerInteraction::ContainerSwitchPressed,
+            ) => self
+                .container_switch
+                .press()
+                .map(WaydroidContainerMessage::ContainerSwitch),
+            WaydroidContainerMessage::Interaction(WaydroidContainerInteraction::StartSession) => {
+                refused_session_change(start_waydroid_session())
+            }
+            WaydroidContainerMessage::Interaction(WaydroidContainerInteraction::StopSession) => {
+                refused_session_change(stop_waydroid_session())
             }
             WaydroidContainerMessage::Interaction(WaydroidContainerInteraction::Expansion(
                 expansion_message,
@@ -262,33 +328,35 @@ impl WaydroidContainerGroup {
         }
     }
 
-    fn shown_readout(&self) -> Option<&WaydroidReadout> {
-        self.detail
-            .get()
-            .filter(|readout| readout.state != WaydroidState::Absent)
+    fn shown_waydroid(&self) -> Option<ShownWaydroid<'_>> {
+        if let Some(readout) = self.detail.get() {
+            return Some(ShownWaydroid::Detailed(readout));
+        }
+        self.listing.get().map(ShownWaydroid::Listed)
     }
 
     #[must_use]
     pub fn hover_card_for(
         &self,
-        _target: &WaydroidContainerTarget,
+        target: &WaydroidContainerTarget,
         clock: Clock,
     ) -> Option<HoverCard> {
-        if let Some(readout) = self.shown_readout() {
-            return self
-                .detail
-                .hover_card_with(WaydroidContainerRow { readout }.hover_card(clock));
+        let shown = self.shown_waydroid()?;
+        let body = match target {
+            WaydroidContainerTarget::Container => WaydroidContainerRow { shown }.hover_card(clock),
+            WaydroidContainerTarget::Session => WaydroidSessionRow {
+                state: shown.state(),
+            }
+            .hover_card(clock),
+        };
+        match shown {
+            ShownWaydroid::Detailed(_) => self.detail.hover_card_with(body),
+            ShownWaydroid::Listed(_) => self.listing.hover_card_with(body),
         }
-        let listing = self
-            .listing
-            .get()
-            .filter(|listing| listing.state != WaydroidState::Absent)?;
-        self.listing
-            .hover_card_with(WaydroidListingRow { listing }.hover_card(clock))
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, WaydroidContainerInteraction> {
-        let rows = self.container_rows();
+        let rows = self.waydroid_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::WaydroidContainer,
             &self.expansion,
@@ -301,31 +369,50 @@ impl WaydroidContainerGroup {
         })
     }
 
-    fn container_rows(&self) -> Vec<GroupItem<'_, WaydroidContainerInteraction>> {
-        if let Some(readout) = self.shown_readout() {
-            let row = GroupItem::reading(WaydroidContainerRow { readout }, WaydroidContainerTarget);
-            let row = if readout.container_running {
-                row.on_switch_press(
-                    SwitchPosition::On,
-                    STOP_HINT,
-                    WaydroidContainerInteraction::StopContainer,
-                )
-            } else {
-                row
-            };
-            return vec![row];
+    fn container_row<'a>(
+        &'a self,
+        shown: ShownWaydroid<'a>,
+    ) -> GroupItem<'a, WaydroidContainerInteraction> {
+        let row = GroupItem::reading(
+            WaydroidContainerRow { shown },
+            WaydroidContainerTarget::Container,
+        );
+        match self.container_switch.activity() {
+            Some(_) => self
+                .container_switch
+                .attach_switch_press(row, WaydroidContainerInteraction::ContainerSwitchPressed),
+            None if shown.container_running() => row.inert_switch(SwitchPosition::On),
+            None => row.inert_switch(SwitchPosition::Off),
         }
-        if let Some(listing) = self
-            .listing
-            .get()
-            .filter(|listing| listing.container_running)
-        {
-            return vec![GroupItem::reading(
-                WaydroidListingRow { listing },
-                WaydroidContainerTarget,
-            )];
+    }
+
+    fn waydroid_rows(&self) -> Vec<GroupItem<'_, WaydroidContainerInteraction>> {
+        let Some(shown) = self.shown_waydroid() else {
+            return Vec::new();
+        };
+        let container_row = self.container_row(shown);
+        if !shown.container_running() {
+            return vec![container_row];
         }
-        Vec::new()
+        let session_row = GroupItem::reading(
+            WaydroidSessionRow {
+                state: shown.state(),
+            },
+            WaydroidContainerTarget::Session,
+        );
+        let session_row = match shown.state() {
+            WaydroidState::Session { .. } => session_row.on_switch_press(
+                SwitchPosition::On,
+                STOP_SESSION_HINT,
+                WaydroidContainerInteraction::StopSession,
+            ),
+            WaydroidState::ContainerOnly | WaydroidState::Absent => session_row.on_switch_press(
+                SwitchPosition::Off,
+                START_SESSION_HINT,
+                WaydroidContainerInteraction::StartSession,
+            ),
+        };
+        vec![container_row, session_row]
     }
 }
 

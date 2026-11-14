@@ -17,7 +17,7 @@ use crate::{
         group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
         toggle_control::SwitchPresses,
-        unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
+        unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage, activity_text},
     },
     hover_cards::{
         HoverTarget,
@@ -61,15 +61,6 @@ impl NspawnContainerTarget {
 impl From<NspawnContainerTarget> for HoverTarget {
     fn from(target: NspawnContainerTarget) -> Self {
         HoverTarget::NspawnContainer(target)
-    }
-}
-
-fn activity_text(activity: UnitActivity) -> &'static str {
-    match activity {
-        UnitActivity::Running => "running",
-        UnitActivity::Starting => "starting",
-        UnitActivity::Stopping => "stopping",
-        UnitActivity::Stopped => "stopped",
     }
 }
 
