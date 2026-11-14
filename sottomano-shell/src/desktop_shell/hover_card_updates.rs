@@ -406,7 +406,7 @@ impl DesktopShell {
                 .widget_groups
                 .voice_dictation_group
                 .hover_card_for(*target, self.clock),
-            HoverTarget::IdleTimeout(kind) => Some(
+            HoverTarget::IdleTimeout(kind) | HoverTarget::IdleOutcome(kind) => Some(
                 self.widget_groups
                     .idle_pause_groups
                     .hover_card_for(*kind, self.clock),
