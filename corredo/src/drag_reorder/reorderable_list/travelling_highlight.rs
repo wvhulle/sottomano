@@ -123,14 +123,22 @@ impl TravellingHighlight<'_> {
         let resting_slot = *painted_row
             .child_bounds
             .get(highlighted_slot.slot_position)?;
-        let travel_state = painted_row.painter_state;
-        let travelled = match (&travel_state.span_travel, travel_state.frame) {
-            (Some(span_travel), Some(frame)) => {
-                self.slot_spanning(resting_slot, span_travel.travelled(frame))
-            }
-            _ => resting_slot,
-        };
+        let travelled = self.slot_along_travel(resting_slot, painted_row.painter_state);
         Some((highlighted_slot, travelled))
+    }
+
+    fn slot_along_travel(
+        &self,
+        resting_slot: Rectangle,
+        travel_state: &HighlightTravelState,
+    ) -> Rectangle {
+        let Some(span_travel) = &travel_state.span_travel else {
+            return resting_slot;
+        };
+        let Some(frame) = travel_state.frame else {
+            return resting_slot;
+        };
+        self.slot_spanning(resting_slot, span_travel.travelled(frame))
     }
 }
 

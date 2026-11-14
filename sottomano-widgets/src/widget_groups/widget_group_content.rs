@@ -662,13 +662,12 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             .filter(|item| item.alignment() == ItemAlignment::Unaligned)
             .map(|item| GroupMenuItemRow {
                 name: item.menu_name(),
-                pin: match (
-                    item.pinned_item_key(&group_identity, group_menus, menu),
-                    item.pinnable_key(),
-                ) {
-                    (Some(pinned_key), _) => GroupItemPin::Pinned(pinned_key),
-                    (None, Some(unpinned_key)) => GroupItemPin::Unpinned(unpinned_key),
-                    (None, None) => GroupItemPin::Unpinnable,
+                pin: match item.pinned_item_key(&group_identity, group_menus, menu) {
+                    Some(pinned_key) => GroupItemPin::Pinned(pinned_key),
+                    None => match item.pinnable_key() {
+                        Some(unpinned_key) => GroupItemPin::Unpinned(unpinned_key),
+                        None => GroupItemPin::Unpinnable,
+                    },
                 },
                 inspected_target: item.inspected_target().clone(),
                 gestures: item.gestures(),

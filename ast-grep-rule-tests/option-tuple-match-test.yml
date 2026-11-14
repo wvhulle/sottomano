@@ -1,0 +1,7 @@
+id: option-tuple-match
+valid:
+  - "fn elapsed(now: Option<u32>, since: Option<u32>) -> u32 { let Some(now) = now else { return 0 }; let Some(since) = since else { return 0 }; now - since }"
+  - "fn joined(side: Side, growth: Growth) -> u8 { match (side, growth) { (Side::Left, Growth::Up) => 1, _ => 0 } }"
+invalid:
+  - "fn elapsed(now: Option<u32>, since: Option<u32>) -> u32 { match (now, since) { (Some(now), Some(since)) => now - since, _ => 0 } }"
+  - "fn pin(pinned: Option<u8>, pinnable: Option<u8>) -> u8 { match (pinned, pinnable) { (None, None) => 0, _ => 1 } }"
