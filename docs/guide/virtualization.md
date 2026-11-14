@@ -64,7 +64,7 @@ Pressing the switch on a running container stops it with `lxc-stop`, and on a st
 
 ## Virtualization: Podman containers
 
-Every container in the Podman engines that systemd services on this computer serve, one row each: the running ones first, with their memory use, then the stopped ones, most recently stopped first. A list longer than twelve rows ends in a row that counts the rest. A container's memory is what its systemd scope uses minus the file cache it could drop, as `podman stats` counts it. The card lists its state, image, CPU and memory use, uptime, name and engine owner. A Woodpecker step is shown by its step name.
+Every container in the Podman engines that systemd services on this computer serve, one row each: the running ones first, with their memory use, then the stopped ones that can be started again, most recently stopped first. Containers that Woodpecker or Forgejo runners left behind after a finished step are not listed. A list longer than twelve rows ends in a row that counts the rest. A container's memory is what its systemd scope uses minus the file cache it could drop, as `podman stats` counts it. The card lists its state, image, CPU and memory use, uptime, name and engine owner. A Woodpecker step is shown by its step name.
 
 Pressing the switch on a running container stops it, giving it ten seconds to exit, and on a stopped one starts it. An engine whose socket this user may not open gets one row with a warning, and its card says why and lists the engine's unit and socket.
 
@@ -72,7 +72,7 @@ Pressing the switch on a running container stops it, giving it ten seconds to ex
 
 ## Virtualization: Docker containers
 
-Every container in the Docker engines on this computer, one row each: the system engine at `/run/docker.sock` and a rootless engine in your runtime directory. An engine that is not installed or not running adds nothing. Running containers come first, with their memory use, then the stopped ones, newest first. A list longer than twelve rows ends in a row that counts the rest. A container's memory is what its systemd scope uses minus the file cache it could drop, as `docker stats` counts it. The card lists its state, image, CPU and memory use, uptime, name and engine. A Woodpecker step is shown by its step name.
+Every container in the Docker engines on this computer, one row each: the system engine at `/run/docker.sock` and a rootless engine in your runtime directory. An engine that is not installed or not running adds nothing. Running containers come first, with their memory use, then the stopped ones that can be started again, newest first. Containers that Woodpecker or Forgejo runners left behind after a finished step are not listed. A list longer than twelve rows ends in a row that counts the rest. A container's memory is what its systemd scope uses minus the file cache it could drop, as `docker stats` counts it. The card lists its state, image, CPU and memory use, uptime, name and engine. A Woodpecker step is shown by its step name.
 
 Pressing the switch on a running container stops it, giving it ten seconds to exit, and on a stopped one starts it. An engine whose socket this user may not open gets one row with a warning.
 

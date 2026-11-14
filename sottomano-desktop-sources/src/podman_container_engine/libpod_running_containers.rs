@@ -17,6 +17,7 @@ use tokio::{net::UnixStream, sync::Mutex};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::{Panicked, blocking_poll},
+    ci_runner_tasks::forgejo_runner_container_names::parse_forgejo_container_name,
     delivery_cadence_drivers::SamplingNeed,
     podman_container_engine::{
         libpod_inspect_ci_identity::{WoodpeckerStepIdentity, fetch_woodpecker_step_identity},
@@ -36,6 +37,7 @@ use crate::{
 pub const LIBPOD_API_ROOT: &str = "http://podman/v5.0.0/libpod";
 pub(crate) const ENGINE_POLL_PERIOD: Duration = Duration::from_secs(5);
 const WOODPECKER_STEP_LABEL: &str = "wp_step";
+const WOODPECKER_LABELS: [&str; 2] = ["wp_uuid", WOODPECKER_STEP_LABEL];
 const RUNNING_STATE: &str = "running";
 const STOPPED_STATES: [&str; 4] = ["created", "configured", "exited", "stopped"];
 
@@ -130,8 +132,17 @@ impl ContainerSelection {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ContainerPhase {
     Running,
-    Stopped,
+    Reusable,
+    CiLeftover,
     Transitional,
+}
+
+pub(crate) fn created_by_ci_runner<'a>(
+    mut label_keys: impl Iterator<Item = &'a str>,
+    container_name: &str,
+) -> bool {
+    label_keys.any(|label_key| WOODPECKER_LABELS.contains(&label_key))
+        || parse_forgejo_container_name(container_name).is_some()
 }
 
 pub(crate) struct PhasedContainers<Listed> {
@@ -152,8 +163,8 @@ pub(crate) fn phased_containers<Listed>(
         |mut phased, container| {
             match phase_of(&container) {
                 ContainerPhase::Running => phased.running.push(container),
-                ContainerPhase::Stopped => phased.stopped.push(stopped_of(&container)),
-                ContainerPhase::Transitional => {}
+                ContainerPhase::Reusable => phased.stopped.push(stopped_of(&container)),
+                ContainerPhase::CiLeftover | ContainerPhase::Transitional => {}
             }
             phased
         },
@@ -221,7 +232,17 @@ impl ListedContainer {
         if self.state == RUNNING_STATE && self.pid > 0 {
             ContainerPhase::Running
         } else if STOPPED_STATES.contains(&self.state.as_str()) {
-            ContainerPhase::Stopped
+            if created_by_ci_runner(
+                self.labels
+                    .iter()
+                    .flatten()
+                    .map(|(label_key, _)| label_key.as_str()),
+                &self.container_name(),
+            ) {
+                ContainerPhase::CiLeftover
+            } else {
+                ContainerPhase::Reusable
+            }
         } else {
             ContainerPhase::Transitional
         }
@@ -608,8 +629,8 @@ mod tests {
         assert_eq!(
             phases,
             [
-                ContainerPhase::Stopped,
-                ContainerPhase::Stopped,
+                ContainerPhase::Reusable,
+                ContainerPhase::Reusable,
                 ContainerPhase::Running
             ]
         );
@@ -624,11 +645,68 @@ mod tests {
     }
 
     #[test]
+    fn stopped_ci_steps_are_leftovers_and_other_stopped_containers_are_reusable() {
+        let listed: Vec<ListedContainer> = serde_json::from_value(json!([
+            {
+                "Id": "woodpecker-step",
+                "Names": ["wp_01M6PKMTW4MKS1F72D614QEZZF"],
+                "State": "exited",
+                "Pid": 0,
+                "Labels": {"wp_step": "clone", "wp_uuid": "01M6PKMTW4MKS1F72D614QEZZF"}
+            },
+            {
+                "Id": "forgejo-job",
+                "Names": ["FORGEJO-ACTIONS-TASK-11624854_WORKFLOW-67d7596b_JOB-vm-tests"],
+                "State": "exited",
+                "Pid": 0,
+                "Labels": {"org.opencontainers.image.title": "nix"}
+            },
+            {
+                "Id": "database",
+                "Names": ["postgres"],
+                "State": "exited",
+                "Pid": 0
+            },
+            {
+                "Id": "running-step",
+                "Names": ["wp_01M7B11VPDF6YZMANFK7VF5SGW"],
+                "State": "running",
+                "Pid": 4242,
+                "Labels": {"wp_step": "test", "wp_uuid": "01M7B11VPDF6YZMANFK7VF5SGW"}
+            }
+        ]))
+        .expect("listing decodes");
+        let listed_phases: Vec<ContainerPhase> =
+            listed.iter().map(ListedContainer::phase).collect();
+        assert_eq!(
+            listed_phases,
+            [
+                ContainerPhase::CiLeftover,
+                ContainerPhase::CiLeftover,
+                ContainerPhase::Reusable,
+                ContainerPhase::Running
+            ]
+        );
+        let phased = phased_containers(
+            listed,
+            ListedContainer::phase,
+            ListedContainer::stopped_container,
+        );
+        assert_eq!(phased.running.len(), 1);
+        let stopped_ids: Vec<&str> = phased
+            .stopped
+            .iter()
+            .map(|stopped| stopped.id.as_str())
+            .collect();
+        assert_eq!(stopped_ids, ["database"]);
+    }
+
+    #[test]
     fn exited_and_pidless_containers_are_not_measured() {
         let exited: ListedContainer =
             serde_json::from_value(json!({"Id": "abc", "State": "exited", "Pid": 0}))
                 .expect("listing decodes");
-        assert_eq!(exited.phase(), ContainerPhase::Stopped);
+        assert_eq!(exited.phase(), ContainerPhase::Reusable);
         assert_eq!(listed_step_container().phase(), ContainerPhase::Running);
     }
 

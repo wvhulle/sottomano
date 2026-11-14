@@ -2,18 +2,18 @@ const TASK_PREFIX: &str = "FORGEJO-ACTIONS-TASK-";
 const JOB_PREFIX: &str = "JOB-";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum ForgejoJobName {
+pub(crate) enum ForgejoJobName {
     Named(String),
     NotInContainerName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct ForgejoContainerName {
+pub(crate) struct ForgejoContainerName {
     pub task_id: u64,
     pub job_name: ForgejoJobName,
 }
 
-pub(super) fn parse_forgejo_container_name(container_name: &str) -> Option<ForgejoContainerName> {
+pub(crate) fn parse_forgejo_container_name(container_name: &str) -> Option<ForgejoContainerName> {
     let mut parts = container_name.strip_prefix(TASK_PREFIX)?.split('_');
     let task_id_text = parts.next()?;
     let task_id = task_id_text

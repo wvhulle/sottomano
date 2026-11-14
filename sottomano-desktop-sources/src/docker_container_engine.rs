@@ -26,7 +26,7 @@ use crate::{
         libpod_running_containers::{
             ContainerCiIdentity, ContainerPhase, EngineContainers, EngineListing, EngineReadError,
             EngineReadout, RunningContainer, StoppedContainer, classified_engine_failure,
-            parsed_engine_timestamp, phased_containers,
+            created_by_ci_runner, parsed_engine_timestamp, phased_containers,
         },
         systemd_service_engine_discovery::EngineOwner,
     },
@@ -100,7 +100,17 @@ impl ListedDockerContainer {
         if self.state.is_empty() || self.state == DOCKER_RUNNING_STATE {
             ContainerPhase::Running
         } else if DOCKER_STOPPED_STATES.contains(&self.state.as_str()) {
-            ContainerPhase::Stopped
+            if created_by_ci_runner(
+                self.labels
+                    .iter()
+                    .flatten()
+                    .map(|(label_key, _)| label_key.as_str()),
+                &self.container_name(),
+            ) {
+                ContainerPhase::CiLeftover
+            } else {
+                ContainerPhase::Reusable
+            }
         } else {
             ContainerPhase::Transitional
         }
@@ -369,8 +379,8 @@ async fn listed_docker_names(socket_path: &Path) -> Result<DockerEngineListing, 
                 .filter_map(|container| {
                     let run_state = match container.phase() {
                         ContainerPhase::Running => ContainerRunState::Running,
-                        ContainerPhase::Stopped => ContainerRunState::Stopped,
-                        ContainerPhase::Transitional => return None,
+                        ContainerPhase::Reusable => ContainerRunState::Stopped,
+                        ContainerPhase::CiLeftover | ContainerPhase::Transitional => return None,
                     };
                     Some(DockerContainerListing {
                         id: container.id.clone(),
