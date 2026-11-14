@@ -25,6 +25,7 @@ use crate::{
     drag_reorder::{
         DragEvent, DragView, ListEndCorners,
         slot_group::{SlotGroup, SlotTileInset},
+        wheel_stepper::{WheelStep, WheelStepper},
     },
     theming::{ThemedColor, style_metrics::ACCENT_STROKE_PX},
 };
@@ -57,6 +58,7 @@ pub fn reorderable_list<'a, Message: 'a, SlotKey: Copy + Eq + Hash + 'static>(
         group_gap: DEFAULT_GROUP_GAP_PX,
         frame_corners: Radius::default(),
         left_list_message: None,
+        wheel_select: WheelSelect::Ignored,
     }
 }
 
@@ -84,6 +86,12 @@ pub struct ReorderableList<'a, Message, SlotKey> {
     group_gap: f32,
     frame_corners: Radius,
     left_list_message: Option<Message>,
+    wheel_select: WheelSelect<'a, SlotKey, Message>,
+}
+
+enum WheelSelect<'a, SlotKey, Message> {
+    Ignored,
+    Selects(Box<dyn Fn(SlotKey) -> Message + 'a>),
 }
 
 impl<'a, Message, SlotKey> ReorderableList<'a, Message, SlotKey> {
@@ -141,6 +149,14 @@ impl<'a, Message, SlotKey> ReorderableList<'a, Message, SlotKey> {
     }
 
     #[must_use]
+    pub fn on_wheel_select(self, select: impl Fn(SlotKey) -> Message + 'a) -> Self {
+        Self {
+            wheel_select: WheelSelect::Selects(Box::new(select)),
+            ..self
+        }
+    }
+
+    #[must_use]
     pub fn draggable<SlotId: Copy + PartialEq, ListId, ClickPayload>(
         mut self,
         list: ListId,
@@ -176,6 +192,7 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
             group_gap,
             frame_corners,
             left_list_message,
+            wheel_select,
         } = self;
         let pager_axis = edge.running_axis();
         let slot_count = keys.len();
@@ -255,11 +272,32 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
             },
         }
         .painted_under(sliding_row);
-        match left_list_message {
+        let departing_row = match left_list_message {
             Some(left_list_message) => mouse_area(painted_row).on_exit(left_list_message).into(),
             None => painted_row,
-        }
+        };
+        wheel_selecting(departing_row, wheel_select, keys, highlighted_position)
     }
+}
+
+fn wheel_selecting<'a, Message: 'a, SlotKey: Copy + 'static>(
+    row: Element<'a, Message>,
+    wheel_select: WheelSelect<'a, SlotKey, Message>,
+    keys: Vec<SlotKey>,
+    highlighted_position: Option<usize>,
+) -> Element<'a, Message> {
+    let WheelSelect::Selects(select) = wheel_select else {
+        return row;
+    };
+    WheelStepper::new(row, move |step| {
+        let position = highlighted_position?;
+        let neighbour = match step {
+            WheelStep::Backward => position.checked_sub(1)?,
+            WheelStep::Forward => position.checked_add(1)?,
+        };
+        keys.get(neighbour).map(|key| select(*key))
+    })
+    .into()
 }
 
 struct RowPainters<'a> {
@@ -328,5 +366,57 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
 {
     fn from(reorderable_list: ReorderableList<'a, Message, SlotKey>) -> Self {
         reorderable_list.composed()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iced::{
+        Color, Element, Event, Point, Settings, Size,
+        mouse::{Event as MouseEvent, ScrollDelta},
+        widget::text,
+    };
+    use iced_test::Simulator;
+
+    use super::reorderable_list;
+    use crate::orientation::Edge;
+
+    const SLOT_KEYS: [u8; 3] = [10, 20, 30];
+    const WHEEL_UP: ScrollDelta = ScrollDelta::Lines { x: 0.0, y: 1.0 };
+    const WHEEL_DOWN: ScrollDelta = ScrollDelta::Lines { x: 0.0, y: -1.0 };
+
+    fn selected_after_wheel(highlighted: u8, delta: ScrollDelta) -> Vec<u8> {
+        let slots = SLOT_KEYS
+            .into_iter()
+            .map(|key| -> (u8, Element<'_, u8>) { (key, text(format!("slot {key}")).into()) });
+        let list: Element<'_, u8> = reorderable_list(slots, Edge::Left)
+            .highlight(Some(highlighted), |_| Color::WHITE)
+            .on_wheel_select(|key| key)
+            .into();
+        let mut simulator =
+            Simulator::with_size(Settings::default(), Size::new(200.0, 200.0), list);
+        let pointer = simulator
+            .find("slot 20")
+            .expect("the middle slot is laid out")
+            .bounds()
+            .center();
+        simulator.point_at(pointer);
+        let _moved = simulator.simulate([Event::Mouse(MouseEvent::CursorMoved {
+            position: Point::new(pointer.x, pointer.y),
+        })]);
+        let _wheeled = simulator.simulate([Event::Mouse(MouseEvent::WheelScrolled { delta })]);
+        simulator.into_messages().collect()
+    }
+
+    #[test]
+    fn the_wheel_selects_the_neighbour_of_the_highlighted_slot() {
+        assert_eq!(selected_after_wheel(20, WHEEL_UP), [10]);
+        assert_eq!(selected_after_wheel(20, WHEEL_DOWN), [30]);
+    }
+
+    #[test]
+    fn the_wheel_stops_at_either_end() {
+        assert!(selected_after_wheel(10, WHEEL_UP).is_empty());
+        assert!(selected_after_wheel(30, WHEEL_DOWN).is_empty());
     }
 }

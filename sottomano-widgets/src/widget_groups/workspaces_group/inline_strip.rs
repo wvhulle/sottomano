@@ -5,8 +5,8 @@ use sottomano_desktop_sources::{
 };
 
 use super::{
-    EmptyWorkspaceFolding, WorkspacesMessage, dragged, empty_workspaces_toggle, order_restore,
-    shown_workspaces,
+    EmptyWorkspaceFolding, WorkspacesMessage, dragged, empty_workspaces_toggle, focused_by_wheel,
+    order_restore, shown_workspaces,
     workspace_slot::{
         WorkspaceSlot, active_highlight_color, active_workspace_key, workspace_slot_key,
     },
@@ -46,7 +46,8 @@ pub fn inline_view<'a>(
         });
     let pager = reorderable_list(slots, edge, config)
         .highlight(active_workspace_key(&order), active_highlight_color(&order))
-        .draggable(PanelSlotList::Workspaces, &drag, dragged);
+        .draggable(PanelSlotList::Workspaces, &drag, dragged)
+        .on_wheel_select(focused_by_wheel);
     Some(
         Row::new()
             .push(pager)

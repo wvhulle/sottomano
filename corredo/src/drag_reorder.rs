@@ -3,6 +3,7 @@ mod draggable_slot;
 mod list_end_corners;
 mod reorderable_list;
 mod slot_group;
+mod wheel_stepper;
 
 pub use drag_ghost::{GhostPlacement, drag_ghost};
 pub use draggable_slot::{HoverReorder, draggable_slot};

@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use corredo::{press_actions::flat_button, theming::secondary_text_color};
 use iced::{
     Element,
-    mouse::ScrollDelta,
     widget::{button, text},
 };
 use sottomano_desktop_sources::{
@@ -30,6 +29,7 @@ use crate::{
         glyph_button,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
+        pointer_drag::DraggedPanelSlot,
         text::panel_text,
     },
 };
@@ -40,7 +40,7 @@ pub enum WorkspacesMessage {
     Drag(DragMessage),
     RestoreOrder { output: String },
     ToggleEmptyWorkspaces,
-    Scrolled { output: String, delta: ScrollDelta },
+    Focus(u64),
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -252,26 +252,14 @@ pub fn shown_workspaces<'s>(
         .collect()
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WheelDirection {
-    TowardsAbove,
-    TowardsBelow,
-}
-
-#[must_use]
-pub fn scrolled_workspace_id(
-    compositor: &workspace_window_snapshot::Snapshot,
-    output: &str,
-    folding: &EmptyWorkspaceFolding,
-    wheel_direction: WheelDirection,
-) -> Option<u64> {
-    let shown = shown_workspaces(compositor, output, folding);
-    let active_position = shown.iter().position(|workspace| workspace.is_active)?;
-    let target_position = match wheel_direction {
-        WheelDirection::TowardsAbove => active_position.checked_sub(1)?,
-        WheelDirection::TowardsBelow => active_position.checked_add(1)?,
-    };
-    shown.get(target_position).map(|workspace| workspace.id)
+fn focused_by_wheel(slot: DraggedPanelSlot) -> WorkspacesMessage {
+    match slot {
+        DraggedPanelSlot::Workspace(workspace_id)
+        | DraggedPanelSlot::Window {
+            workspace: workspace_id,
+            ..
+        } => WorkspacesMessage::Focus(workspace_id),
+    }
 }
 
 fn empty_workspaces_toggle<'a>(
@@ -386,61 +374,11 @@ enum WorkspaceVisibility {
 #[cfg(test)]
 mod tests {
     use super::{
-        EmptyWorkspaceFolding, EmptyWorkspaces, RevealFoldTimer, WheelDirection, WorkspaceSwitch,
-        classify_switch, scrolled_workspace_id,
+        EmptyWorkspaceFolding, EmptyWorkspaces, RevealFoldTimer, WorkspaceSwitch, classify_switch,
     };
     use crate::desktop_panels::panel_slot_drag::pager_drag_simulation::{
         SIMULATED_OUTPUT, SIMULATED_WORKSPACE_IDS, three_workspaces_three_windows,
-        three_workspaces_three_windows_on,
     };
-
-    fn scrolled_from(active_workspace_id: u64, wheel_direction: WheelDirection) -> Option<u64> {
-        scrolled_workspace_id(
-            &three_workspaces_three_windows_on(active_workspace_id),
-            SIMULATED_OUTPUT,
-            &EmptyWorkspaceFolding::new(EmptyWorkspaces::Shown),
-            wheel_direction,
-        )
-    }
-
-    #[test]
-    fn wheel_up_focuses_the_workspace_above() {
-        let [first, second, _] = SIMULATED_WORKSPACE_IDS;
-        assert_eq!(
-            scrolled_from(second, WheelDirection::TowardsAbove),
-            Some(first)
-        );
-    }
-
-    #[test]
-    fn wheel_down_focuses_the_workspace_below() {
-        let [_, second, third] = SIMULATED_WORKSPACE_IDS;
-        assert_eq!(
-            scrolled_from(second, WheelDirection::TowardsBelow),
-            Some(third)
-        );
-    }
-
-    #[test]
-    fn wheel_stops_at_the_ends() {
-        let [first, _, third] = SIMULATED_WORKSPACE_IDS;
-        assert_eq!(scrolled_from(first, WheelDirection::TowardsAbove), None);
-        assert_eq!(scrolled_from(third, WheelDirection::TowardsBelow), None);
-    }
-
-    #[test]
-    fn wheel_skips_folded_empty_workspaces() {
-        let [first, _, _] = SIMULATED_WORKSPACE_IDS;
-        assert_eq!(
-            scrolled_workspace_id(
-                &three_workspaces_three_windows_on(first),
-                SIMULATED_OUTPUT,
-                &EmptyWorkspaceFolding::default(),
-                WheelDirection::TowardsBelow,
-            ),
-            None
-        );
-    }
 
     fn switch_between(previous_workspace_id: Option<u64>, workspace_id: u64) -> WorkspaceSwitch {
         classify_switch(
