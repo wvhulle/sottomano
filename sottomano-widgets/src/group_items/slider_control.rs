@@ -8,18 +8,17 @@ use std::{
 use chrono::Locale;
 use corredo::{
     changing_text::{ReadoutLabels, steady_width_readout},
-    orientation::Axis,
-    press_actions::flat_button,
-    selection_scroll::wheel_step_direction,
-    theming::text_color,
-    transitions::{ExpansionState, expand_transition, reveal},
-    value_controls::{Nudge, SourceTracking, SyncedValue, ValueWrite},
+    transitions::ExpansionState,
+    value_controls::{
+        ExpandingSlider, ExpandingSliderParts, ScrollWrites, SecondaryPress, SliderEffect,
+        SliderGesture, SliderMessage, SourceTracking, ValueWrite, WriteOutcome,
+    },
 };
 use iced::{
-    Alignment, Element, Length, Padding, Task,
+    Alignment, Element, Length, Task,
     alignment::Horizontal,
     mouse::ScrollDelta,
-    widget::{Row, button, container, mouse_area, text, text::Wrapping},
+    widget::{Row, mouse_area, text, text::Wrapping},
 };
 use sottomano_toml_config::{Config, severity::Severity};
 use uom::si::{f64::Ratio, ratio};
@@ -42,8 +41,8 @@ use crate::{
     widgets::{
         announced_level::{AnnouncedLevel, LevelAnnouncement, LevelChangeOrigin},
         icon_glyph::IconGlyph,
-        inline_slider::inline_slider,
         phosphor::Phosphor,
+        slider_look::slider_look,
         text::{panel_text, text_face_of},
         value_cells::{LabeledValue, SliderReadout, ValueCell},
     },
@@ -63,14 +62,9 @@ pub enum SeverityDirection {
 
 pub struct SliderControl {
     name: &'static str,
-    expansion_state: ExpansionState,
-    accum: f32,
-    pub(crate) synced_value: SyncedValue,
+    pub(crate) expanding_slider: ExpandingSlider,
     slider_activity: SliderActivity,
     live: f32,
-    range: RangeInclusive<f32>,
-    scroll_step: f32,
-    slider_step: f32,
     readout: fn(f32, Locale) -> String,
     gauge: bool,
     label: Option<fn(f32, Locale) -> Option<String>>,
@@ -79,7 +73,6 @@ pub struct SliderControl {
     thresholds: Option<SeverityThresholds>,
     target: HoverTarget,
     right_click: Option<&'static str>,
-    relative_scroll: bool,
     level_announcement: Option<LevelAnnouncement>,
 }
 
@@ -192,14 +185,9 @@ impl SliderControl {
     ) -> Self {
         Self {
             name,
-            expansion_state: ExpansionState::Collapsed,
-            accum: 0.0,
-            synced_value: SyncedValue::default(),
+            expanding_slider: ExpandingSlider::new(range),
             slider_activity: SliderActivity::Active,
             live: 1.0,
-            range,
-            scroll_step: 1.0,
-            slider_step: 1.0,
             readout: |value, _| format!("{value:.0}"),
             gauge: true,
             label: None,
@@ -208,7 +196,6 @@ impl SliderControl {
             thresholds: None,
             target: target.into(),
             right_click: None,
-            relative_scroll: false,
             level_announcement: None,
         }
     }
@@ -220,15 +207,19 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn scroll_step(mut self, step: f32) -> Self {
-        self.scroll_step = step;
-        self
+    pub fn scroll_step(self, step: f32) -> Self {
+        Self {
+            expanding_slider: self.expanding_slider.scroll_step(step),
+            ..self
+        }
     }
 
     #[must_use]
-    pub fn slider_step(mut self, step: f32) -> Self {
-        self.slider_step = step;
-        self
+    pub fn slider_step(self, step: f32) -> Self {
+        Self {
+            expanding_slider: self.expanding_slider.slider_step(step),
+            ..self
+        }
     }
 
     #[must_use]
@@ -272,15 +263,22 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn right_click(mut self, does: &'static str) -> Self {
-        self.right_click = Some(does);
-        self
+    pub fn right_click(self, does: &'static str) -> Self {
+        Self {
+            right_click: Some(does),
+            expanding_slider: self
+                .expanding_slider
+                .secondary_press(SecondaryPress::Reported),
+            ..self
+        }
     }
 
     #[must_use]
-    pub fn relative_scroll(mut self) -> Self {
-        self.relative_scroll = true;
-        self
+    pub fn relative_scroll(self) -> Self {
+        Self {
+            expanding_slider: self.expanding_slider.scroll_writes(ScrollWrites::Relative),
+            ..self
+        }
     }
 
     #[must_use]
@@ -289,17 +287,12 @@ impl SliderControl {
         self
     }
 
-    fn fraction_of_range(&self) -> f32 {
-        let span = self.range.end() - self.range.start();
-        ((self.synced_value.shown_value() - self.range.start()) / span).clamp(0.0, 1.0)
-    }
-
     fn range_fill(&self) -> Ratio {
-        Ratio::new::<ratio::ratio>(f64::from(self.fraction_of_range()))
+        Ratio::new::<ratio::ratio>(f64::from(self.expanding_slider.fraction_of_range()))
     }
 
     pub fn close(&mut self) {
-        self.expansion_state = ExpansionState::Collapsed;
+        self.expanding_slider.close();
     }
 
     #[must_use]
@@ -313,13 +306,13 @@ impl SliderControl {
 
     #[must_use]
     pub fn readout_text(&self, locale: Locale) -> String {
-        (self.readout)(self.synced_value.shown_value(), locale)
+        (self.readout)(self.expanding_slider.shown_value(), locale)
     }
 
     #[must_use]
     pub fn readout_cell(&self) -> ValueCell {
         ValueCell::Readout(SliderReadout::new(
-            self.synced_value.shown_value(),
+            self.expanding_slider.shown_value(),
             self.readout,
         ))
     }
@@ -335,81 +328,67 @@ impl SliderControl {
         self.thresholds
             .as_ref()
             .map_or(Severity::Normal, |thresholds| {
-                thresholds.level(self.synced_value.shown_value())
+                thresholds.level(self.expanding_slider.shown_value())
             })
     }
 
     fn effective_icon(&self) -> IconGlyph {
         self.glyph.map_or(self.icon, |glyph| {
-            glyph(self.synced_value.shown_value(), self.slider_activity).into()
+            glyph(self.expanding_slider.shown_value(), self.slider_activity).into()
         })
     }
 
     #[allow(clippy::needless_pass_by_value)]
     pub fn update(&mut self, msg: ControlMessage) -> Action {
         match msg {
-            ControlMessage::Press => match self.expansion_state {
-                ExpansionState::Collapsed => {
-                    self.expansion_state = ExpansionState::Expanded;
-                    Action::Opened
-                }
-                ExpansionState::Expanded => {
-                    self.expansion_state = ExpansionState::Collapsed;
-                    Action::None
-                }
-            },
-            ControlMessage::Scroll(delta) => {
-                let Some(step) = wheel_step_direction(&mut self.accum, delta) else {
-                    return Action::None;
-                };
-                #[allow(clippy::cast_precision_loss)]
-                let target = (self.synced_value.shown_value() + step as f32 * self.scroll_step)
-                    .clamp(*self.range.start(), *self.range.end());
-                if self.relative_scroll {
-                    let nudge = Nudge {
-                        step_delta: target - self.synced_value.shown_value(),
-                        resulting_value: target,
-                    };
-                    into_action(self.synced_value.nudged_by(nudge))
-                } else {
-                    into_action(self.synced_value.scrolled_to(target))
-                }
-            }
-            ControlMessage::Set(pos) => into_action(self.synced_value.drag_moved_to(pos)),
-            ControlMessage::Release => into_action(self.synced_value.drag_ended()),
+            ControlMessage::Press => self.gestured(SliderGesture::Toggle),
+            ControlMessage::Scroll(delta) => self.gestured(SliderGesture::Scroll(delta)),
+            ControlMessage::Set(position) => self.gestured(SliderGesture::Drag(position)),
+            ControlMessage::Release => self.gestured(SliderGesture::Release),
             ControlMessage::DeviceAccepted {
                 value,
                 write_outcome,
             } => into_action(
-                self.synced_value
-                    .absolute_write_finished(value, &write_outcome),
+                self.expanding_slider
+                    .update(SliderMessage::AbsoluteWritten {
+                        value,
+                        outcome: write_outcome_of(&write_outcome),
+                    }),
             ),
             ControlMessage::Persisted {
                 value,
                 write_outcome,
             } => {
                 let follow_up = self
-                    .synced_value
-                    .absolute_write_finished(value, &write_outcome);
+                    .expanding_slider
+                    .update(SliderMessage::AbsoluteWritten {
+                        value,
+                        outcome: write_outcome_of(&write_outcome),
+                    });
                 match write_outcome {
-                    Ok(()) => self.synced_value.source_reported(value, self.slider_step),
+                    Ok(()) => {
+                        self.expanding_slider
+                            .update(SliderMessage::SourceReported(value));
+                    }
                     Err(store_failure) => tracing::warn!("slider value not saved: {store_failure}"),
                 }
                 into_action(follow_up)
             }
-            ControlMessage::Adjusted(value) => {
-                into_action(self.synced_value.relative_write_resolved(value))
-            }
+            ControlMessage::Adjusted(value) => into_action(
+                self.expanding_slider
+                    .update(SliderMessage::RelativeWritten(value)),
+            ),
             ControlMessage::AdjustFailed => {
-                self.synced_value.relative_write_failed();
+                self.expanding_slider.update(SliderMessage::RelativeFailed);
                 Action::None
             }
             ControlMessage::Reading(reading) => {
-                let tracking_before = self.synced_value.source_tracking();
-                let shown_before = self.synced_value.shown_value();
-                self.synced_value.source_reported(reading, self.slider_step);
-                let moved = (self.synced_value.shown_value() - shown_before).abs()
-                    >= self.slider_step / 2.0;
+                let tracking_before = self.expanding_slider.source_tracking();
+                let shown_before = self.expanding_slider.shown_value();
+                self.expanding_slider
+                    .update(SliderMessage::SourceReported(reading));
+                let moved = (self.expanding_slider.shown_value() - shown_before).abs()
+                    >= self.expanding_slider.slider_step_size() / 2.0;
                 let change_origin = match tracking_before {
                     SourceTracking::FollowingSource if moved => LevelChangeOrigin::OutsidePanel,
                     SourceTracking::FollowingSource | SourceTracking::Diverging => {
@@ -442,6 +421,13 @@ impl SliderControl {
         }
     }
 
+    fn gestured(&mut self, gesture: SliderGesture) -> Action {
+        into_action(
+            self.expanding_slider
+                .update(SliderMessage::Gesture(gesture)),
+        )
+    }
+
     #[must_use]
     pub fn view<'a>(
         &'a self,
@@ -450,15 +436,42 @@ impl SliderControl {
         clock: Clock,
         hover_origin: &HoverOrigin,
     ) -> Element<'a, ControlMessage> {
-        let expansion = config.group_items.slider_expansion_duration;
         let hover_origin = hover_origin.clone();
-        expand_transition(self.expansion_state, expansion, move |expand| {
-            if expand > 0.0 {
-                self.expanded_view(config, expand, clock, hover_origin.clone())
-            } else {
-                self.collapsed_view(config, reveal, clock, hover_origin.clone())
-            }
-        })
+        let right_click = self.right_click;
+        self.expanding_slider.view(
+            ExpandingSliderParts {
+                collapsed: Box::new(move || match self.label {
+                    Some(_) => labeled_reading(config, self, reveal, clock),
+                    None => source_reading(config, self, reveal, clock),
+                }),
+                face: Box::new(move || self.state_glyph(config, clock)),
+                readout: Box::new(move || self.readout_view(config)),
+                look: Box::new(move || slider_look(config, self.severity())),
+                decorate: Box::new(move |content, expansion_state| {
+                    let left = match expansion_state {
+                        ExpansionState::Collapsed => "open the slider",
+                        ExpansionState::Expanded => "close the slider",
+                    };
+                    announcing_hoverable(
+                        content,
+                        self.target.clone(),
+                        HoverAnnouncement {
+                            press_hints: PressHints {
+                                left: Some(left),
+                                right: right_click,
+                                scroll: Some("adjust"),
+                                ..PressHints::default()
+                            },
+                            origin: hover_origin.clone(),
+                        },
+                        ControlMessage::HoverCard,
+                    )
+                }),
+                gap_px: config.theme.spacing.item_gap,
+                expansion_duration: config.group_items.slider_expansion_duration,
+            },
+            control_message_of,
+        )
     }
 
     #[must_use]
@@ -467,13 +480,9 @@ impl SliderControl {
         config: &Config,
         clock: Clock,
     ) -> Element<'a, ControlMessage> {
-        let opened = Row::with_children([
-            self.state_glyph(config, clock),
-            self.inline_slider_view(config),
-            self.readout_view(config),
-        ])
-        .spacing(config.theme.spacing.item_gap)
-        .align_y(Alignment::Center);
+        let opened = Row::with_children([self.state_glyph(config, clock), self.menu_view(config)])
+            .spacing(config.theme.spacing.item_gap)
+            .align_y(Alignment::Center);
         let mut area = mouse_area(opened).on_scroll(ControlMessage::Scroll);
         if self.right_click.is_some() {
             area = area.on_right_press(ControlMessage::Right);
@@ -483,56 +492,11 @@ impl SliderControl {
 
     #[must_use]
     pub fn menu_view<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {
-        let opened =
-            Row::with_children([self.inline_slider_view(config), self.readout_view(config)])
-                .spacing(config.theme.spacing.item_gap)
-                .align_y(Alignment::Center);
-        mouse_area(opened).on_scroll(ControlMessage::Scroll).into()
-    }
-
-    fn expanded_view<'a>(
-        &self,
-        config: &Config,
-        expand: f32,
-        clock: Clock,
-        hover_origin: HoverOrigin,
-    ) -> Element<'a, ControlMessage> {
-        let closing_button = |content: Element<'a, ControlMessage>| -> Element<'a, ControlMessage> {
-            button(content)
-                .padding(0)
-                .style(flat_button(text_color))
-                .on_press(ControlMessage::Press)
-                .into()
-        };
-        let gap = config.theme.spacing.item_gap;
-        let revealed = Row::with_children([
-            self.inline_slider_view(config),
-            closing_button(self.readout_view(config)),
-        ])
-        .spacing(gap)
-        .align_y(Alignment::Center);
-        let opened = Row::with_children([
-            closing_button(self.state_glyph(config, clock)),
-            reveal(
-                container(revealed).padding(Padding::ZERO.left(gap)),
-                expand,
-                Axis::Horizontal,
-            )
-            .into(),
-        ])
-        .align_y(Alignment::Center);
-        let press_hints = PressHints {
-            left: Some("close the slider"),
-            right: self.right_click,
-            scroll: Some("adjust"),
-            ..PressHints::default()
-        };
-        self.scrollable_hover_area(
-            opened.into(),
-            HoverAnnouncement {
-                press_hints,
-                origin: hover_origin,
-            },
+        self.expanding_slider.open_row(
+            slider_look(config, self.severity()),
+            self.readout_view(config),
+            config.theme.spacing.item_gap,
+            control_message_of,
         )
     }
 
@@ -545,26 +509,12 @@ impl SliderControl {
             })
     }
 
-    fn inline_slider_view<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {
-        inline_slider(
-            config,
-            self.range.clone(),
-            self.synced_value.shown_value(),
-            self.synced_value.lagging_reported_value(self.slider_step),
-            self.slider_step,
-            self.severity(),
-            ControlMessage::Set,
-            ControlMessage::Release,
-            ControlMessage::Scroll,
-        )
-    }
-
     fn readout_view<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {
         steady_width_readout(
             ReadoutLabels {
                 owner: self.target.clone(),
-                range: self.range.clone(),
-                step: self.slider_step,
+                range: self.expanding_slider.range(),
+                step: self.expanding_slider.slider_step_size(),
                 format: self.readout,
                 context: config.calendar.locale,
             },
@@ -580,58 +530,22 @@ impl SliderControl {
         )
         .into()
     }
+}
 
-    fn scrollable_hover_area<'a>(
-        &self,
-        content: Element<'a, ControlMessage>,
-        announcement: HoverAnnouncement,
-    ) -> Element<'a, ControlMessage> {
-        let hover = announcing_hoverable(
-            content,
-            self.target.clone(),
-            announcement,
-            ControlMessage::HoverCard,
-        );
-        let mut area = mouse_area(hover).on_scroll(ControlMessage::Scroll);
-        if self.right_click.is_some() {
-            area = area.on_right_press(ControlMessage::Right);
-        }
-        area.into()
+fn control_message_of(gesture: SliderGesture) -> ControlMessage {
+    match gesture {
+        SliderGesture::Toggle => ControlMessage::Press,
+        SliderGesture::Scroll(delta) => ControlMessage::Scroll(delta),
+        SliderGesture::Drag(position) => ControlMessage::Set(position),
+        SliderGesture::Release => ControlMessage::Release,
+        SliderGesture::SecondaryPress => ControlMessage::Right,
     }
+}
 
-    fn collapsed_view<'a>(
-        &self,
-        config: &Config,
-        reveal: f32,
-        clock: Clock,
-        hover_origin: HoverOrigin,
-    ) -> Element<'a, ControlMessage> {
-        let reading = match self.label {
-            Some(_) => labeled_reading(config, self, reveal, clock),
-            None => source_reading(config, self, reveal, clock),
-        };
-        let press_hints = PressHints {
-            left: Some("open the slider"),
-            right: self.right_click,
-            scroll: Some("adjust"),
-            ..PressHints::default()
-        };
-        let hover = announcing_hoverable(
-            reading,
-            self.target.clone(),
-            HoverAnnouncement {
-                press_hints,
-                origin: hover_origin,
-            },
-            ControlMessage::HoverCard,
-        );
-        let mut area = mouse_area(hover)
-            .on_press(ControlMessage::Press)
-            .on_scroll(ControlMessage::Scroll);
-        if self.right_click.is_some() {
-            area = area.on_right_press(ControlMessage::Right);
-        }
-        area.into()
+fn write_outcome_of(write_outcome: &Result<(), ControlWriteFailure>) -> WriteOutcome {
+    match write_outcome {
+        Ok(()) => WriteOutcome::Accepted,
+        Err(_) => WriteOutcome::Rejected,
     }
 }
 
@@ -646,7 +560,7 @@ impl GroupItemReading for SliderControl {
 
     fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
         self.label
-            .and_then(|format| format(self.synced_value.shown_value(), locale))
+            .and_then(|format| format(self.expanding_slider.shown_value(), locale))
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
@@ -680,12 +594,13 @@ impl GroupItemReading for SliderControl {
     }
 }
 
-#[allow(clippy::needless_pass_by_value)]
-fn into_action(write: Option<ValueWrite>) -> Action {
-    match write {
-        Some(ValueWrite::Absolute(value)) => Action::Commit(value),
-        Some(ValueWrite::Relative(delta)) => Action::Adjust(delta),
-        None => Action::None,
+fn into_action(slider_effect: SliderEffect) -> Action {
+    match slider_effect {
+        SliderEffect::Write(ValueWrite::Absolute(value)) => Action::Commit(value),
+        SliderEffect::Write(ValueWrite::Relative(delta)) => Action::Adjust(delta),
+        SliderEffect::Opened => Action::Opened,
+        SliderEffect::SecondaryPressed => Action::Right,
+        SliderEffect::Closed | SliderEffect::Unchanged => Action::None,
     }
 }
 

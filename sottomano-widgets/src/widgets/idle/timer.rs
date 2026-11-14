@@ -133,7 +133,7 @@ impl IdleTimer {
     #[must_use]
     pub fn hover_card(&self, clock: Clock) -> HoverCard {
         self.hover_card_of(
-            timeout_at(self.control.synced_value.shown_value()),
+            timeout_at(self.control.expanding_slider.shown_value()),
             None,
             clock,
         )

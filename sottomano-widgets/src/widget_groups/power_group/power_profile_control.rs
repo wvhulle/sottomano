@@ -297,7 +297,7 @@ impl PowerProfileControl {
     }
 
     fn battery_life_section(&self) -> Section {
-        let active_profile = Profile::from_position(self.control.synced_value.shown_value());
+        let active_profile = Profile::from_position(self.control.expanding_slider.shown_value());
         let lives = Profile::ALL.map(|profile| ProfileLife {
             profile,
             active: profile == active_profile,
