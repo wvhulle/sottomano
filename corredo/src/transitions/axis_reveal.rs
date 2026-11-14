@@ -11,40 +11,38 @@ use iced::{
 
 use crate::orientation::Axis;
 
-pub fn horizontal_reveal<'a, Message: 'a>(
-    content: impl Into<Element<'a, Message>>,
-    fraction: f32,
-) -> Element<'a, Message> {
-    reveal(content, fraction, Axis::Horizontal, 1.0)
-}
-
-pub fn vertical_reveal<'a, Message: 'a>(
-    content: impl Into<Element<'a, Message>>,
-    fraction: f32,
-    scale: f32,
-) -> Element<'a, Message> {
-    reveal(content, fraction, Axis::Vertical, scale)
-}
-
-fn reveal<'a, Message: 'a>(
+#[must_use]
+pub fn reveal<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     fraction: f32,
     axis: Axis,
-    scale: f32,
-) -> Element<'a, Message> {
-    Element::new(Reveal {
+) -> Reveal<'a, Message> {
+    Reveal {
         content: content.into(),
         fraction: fraction.clamp(0.0, 1.0),
         axis,
-        scale,
-    })
+        scale: 1.0,
+    }
 }
 
-struct Reveal<'a, Message> {
+pub struct Reveal<'a, Message> {
     content: Element<'a, Message>,
     fraction: f32,
     axis: Axis,
     scale: f32,
+}
+
+impl<Message> Reveal<'_, Message> {
+    #[must_use]
+    pub fn scale(self, scale: f32) -> Self {
+        Self { scale, ..self }
+    }
+}
+
+impl<'a, Message: 'a> From<Reveal<'a, Message>> for Element<'a, Message> {
+    fn from(reveal: Reveal<'a, Message>) -> Self {
+        Element::new(reveal)
+    }
 }
 
 impl<Message> Reveal<'_, Message> {
@@ -276,14 +274,15 @@ mod tests {
     };
     use iced_test::Simulator;
 
-    use super::horizontal_reveal;
+    use super::reveal;
+    use crate::orientation::Axis;
 
     const ROW_WIDTH: f32 = 400.0;
     const MARKER_AFTER_REVEAL: &str = "marker after the reveal";
 
     #[test]
     fn revealing_fill_width_content_keeps_a_finite_width() {
-        let revealed: Element<'_, ()> = horizontal_reveal(rule::horizontal(2.0), 1.0);
+        let revealed: Element<'_, ()> = reveal(rule::horizontal(2.0), 1.0, Axis::Horizontal).into();
         let mut simulator = Simulator::with_size(
             Settings::default(),
             Size::new(ROW_WIDTH, 40.0),

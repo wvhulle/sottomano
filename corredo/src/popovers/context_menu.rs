@@ -8,6 +8,7 @@ use iced::{
 use crate::{
     drag_reorder::ListEndCorners,
     gauges::activity_line,
+    orientation::Axis,
     theming::{
         TextFace, background_strong_color, background_weak_color, secondary_text_color,
         style_metrics::OUTLINE_WIDTH_PX, text_color,
@@ -223,7 +224,12 @@ fn button_style(
 }
 
 fn divider<'a, Message: 'a>() -> Element<'a, Message> {
-    activity_line(background_weak_color, 1.0, OUTLINE_WIDTH_PX)
+    activity_line(
+        Axis::Horizontal,
+        background_weak_color,
+        1.0,
+        OUTLINE_WIDTH_PX,
+    )
 }
 
 fn without_redundant_dividers<Message>(

@@ -1,6 +1,6 @@
 use corredo::{
     drag_reorder::{HoverReorder, draggable_slot},
-    gauges::ColorDotTrack,
+    gauges::{ColorDotTrack, activity_line},
     orientation::Axis,
     theming::{
         ThemedColor, background_strong_color, danger_color, primary_color, primary_weak_color,
@@ -25,8 +25,8 @@ use crate::{
     },
     hover_cards::{HoverTarget, PressHints, hoverable},
     widgets::{
-        activity_line::edge_activity_line,
         pointer_drag::DraggedPanelSlot,
+        screen_edge::screen_edge_of,
         shared_metrics::{ACCENT_STROKE_PX, pill_corners},
         text::panel_text,
     },
@@ -224,8 +224,8 @@ impl<'s> WorkspaceSlot<'s> {
 
     fn urgency_line<'a>(&self) -> Element<'a, WorkspacesMessage> {
         let opacity = if self.workspace.is_urgent { 1.0 } else { 0.0 };
-        edge_activity_line(
-            self.slot_context.edge,
+        activity_line(
+            screen_edge_of(self.slot_context.edge).running_axis(),
             self.tone.tint(danger_color),
             opacity,
             ACCENT_STROKE_PX,

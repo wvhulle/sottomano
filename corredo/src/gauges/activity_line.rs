@@ -3,26 +3,20 @@ use iced::{
     widget::rule::{self, FillMode},
 };
 
-#[must_use]
-pub fn activity_line<'a, Message: 'a>(
-    color: impl Fn(&Theme) -> Color + 'a,
-    opacity: f32,
-    thickness: f32,
-) -> Element<'a, Message> {
-    rule::horizontal(thickness)
-        .style(line_style(color, opacity, thickness))
-        .into()
-}
+use crate::orientation::Axis;
 
 #[must_use]
-pub fn vertical_activity_line<'a, Message: 'a>(
+pub fn activity_line<'a, Message: 'a>(
+    axis: Axis,
     color: impl Fn(&Theme) -> Color + 'a,
     opacity: f32,
     thickness: f32,
 ) -> Element<'a, Message> {
-    rule::vertical(thickness)
-        .style(line_style(color, opacity, thickness))
-        .into()
+    let line_style = line_style(color, opacity, thickness);
+    match axis {
+        Axis::Horizontal => rule::horizontal(thickness).style(line_style).into(),
+        Axis::Vertical => rule::vertical(thickness).style(line_style).into(),
+    }
 }
 
 fn line_style<'a>(

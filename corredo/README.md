@@ -31,7 +31,7 @@ types directly, as in `corredo::popovers::popup_trigger`.
 | `data_tables` | `grouped_table`: table with headings, groups, totals and truncation; `auto_width_table`: table and grid sized to their content | |
 | `changing_text` | `animated_text`: text with placeholder, intro and replace effects; `steady_width_readout`: text that keeps the width of its widest value; `markup_text`: text body from a small markup language; `karaoke_line`: line of text swept over time | `markup`, `karaoke` |
 | `gauges` | `fill_gauge`, `countdown_dial`, `color_dot_track`, `activity_line` | |
-| `transitions` | `expand_transition`, `horizontal_reveal` / `vertical_reveal`, `sliding_pane_swap`: slide and fade between two panes | |
+| `transitions` | `expand_transition`, `reveal` (clips content to a fraction along an `Axis`), `sliding_pane_swap`: slide and fade between two panes | |
 | `width_layout` | `equal_width_column`, `steady_width_label`, `fair_column_widths` | |
 | `orientation` | `Axis` and `Edge`, the orientation vocabulary every directional widget takes | |
 | `theming` | theme colour accessors, `FrameStyle`, font faces, `dotted_rule`, `tinted_svg_icon` | |

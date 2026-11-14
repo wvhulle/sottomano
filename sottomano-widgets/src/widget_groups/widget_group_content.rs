@@ -8,9 +8,10 @@ use std::{
 use chrono::Locale;
 use corredo::{
     gauges::activity_line,
+    orientation::Axis,
     press_actions::flat_button,
     theming::{primary_color, secondary_text_color, text_color},
-    transitions::{expand_transition, horizontal_reveal},
+    transitions::{expand_transition, reveal},
 };
 use iced::{
     Alignment, Element, Length, Padding,
@@ -845,12 +846,17 @@ impl EdgeIndicator {
             Severity::Low | Severity::Normal
                 if self.expansion_state == ExpansionState::Expanded =>
             {
-                activity_line(primary_color, revealing_opacity, thickness)
+                activity_line(
+                    Axis::Horizontal,
+                    primary_color,
+                    revealing_opacity,
+                    thickness,
+                )
             }
             Severity::Low | Severity::Normal
                 if self.cursor_pointing == PointerPresence::PointedAt =>
             {
-                activity_line(secondary_text_color, 1.0, thickness)
+                activity_line(Axis::Horizontal, secondary_text_color, 1.0, thickness)
             }
             Severity::Low | Severity::Normal => Space::new()
                 .width(Length::Fill)
@@ -861,7 +867,12 @@ impl EdgeIndicator {
                     state: ReadingDisplayState::from(severity),
                     opacity: revealing_opacity,
                 };
-                activity_line(move |theme| tint.color(theme), 1.0, thickness)
+                activity_line(
+                    Axis::Horizontal,
+                    move |theme| tint.color(theme),
+                    1.0,
+                    thickness,
+                )
             }
         }
     }
@@ -882,10 +893,10 @@ fn items_row<'a, M: Clone + 'a>(
 fn collapsing_previewed_value<'a, M: 'a, Message: 'a>(
     config: &Config,
     items: &[GroupItem<'a, M>],
-    reveal: f32,
+    reveal_fraction: f32,
     clock: Clock,
 ) -> Element<'a, Message> {
-    let hidden = 1.0 - reveal;
+    let hidden = 1.0 - reveal_fraction;
     let previewed_widget = items
         .iter()
         .find_map(GroupItem::handle_preview)
@@ -903,19 +914,26 @@ fn collapsing_previewed_value<'a, M: 'a, Message: 'a>(
     else {
         return Row::new().into();
     };
-    horizontal_reveal(
+    reveal(
         container(value).padding(Padding::ZERO.left(config.theme.spacing.item_gap)),
         hidden,
+        Axis::Horizontal,
     )
+    .into()
 }
 
 fn revealed_content<'a, Message: 'a>(
     config: &Config,
-    reveal: f32,
+    reveal_fraction: f32,
     content: Element<'a, Message>,
 ) -> Element<'a, Message> {
     let gap = config.theme.spacing.item_gap;
-    horizontal_reveal(container(content).padding(Padding::ZERO.left(gap)), reveal)
+    reveal(
+        container(content).padding(Padding::ZERO.left(gap)),
+        reveal_fraction,
+        Axis::Horizontal,
+    )
+    .into()
 }
 
 #[cfg(test)]

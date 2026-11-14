@@ -913,7 +913,12 @@ impl WindowSlot<'_> {
             UrgencyMarking::Line => 1.0,
             UrgencyMarking::Tile | UrgencyMarking::Unmarked => 0.0,
         };
-        activity_line(danger_color, severity * self.opacity, ACCENT_STROKE_PX)
+        activity_line(
+            Axis::Horizontal,
+            danger_color,
+            severity * self.opacity,
+            ACCENT_STROKE_PX,
+        )
     }
 
     fn progress_ticks<'a>(&self) -> Option<Element<'a, WindowListInteraction>> {
