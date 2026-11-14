@@ -1,8 +1,11 @@
 use std::{iter::once, mem::take};
 
 use corredo::{
-    orientation::Axis, popovers::PopupGrowth, selection_scroll::selection_following_scroll,
-    transitions::ExpansionState, width_layout::equal_width_column,
+    orientation::Axis,
+    popovers::{NestedMenuRowEmphasis, NestedMenuRowLook, PopupGrowth},
+    selection_scroll::selection_following_scroll,
+    transitions::ExpansionState,
+    width_layout::equal_width_column,
 };
 use iced::Element;
 
@@ -12,7 +15,7 @@ use crate::{
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
         menu_rows::{
             group_menu_group_rows::{GroupMenuGroupRow, GroupMenuRowContext, group_row, item_row},
-            menu_row::{MenuRowEmphasis, MenuRowLook, menu_row_height},
+            menu_row::menu_row_height,
         },
     },
     hover_cards::PopupMessage,
@@ -91,10 +94,10 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
                 ExpansionState::Expanded => take(&mut entry.items),
                 ExpansionState::Collapsed => Vec::new(),
             };
-            let header_look = MenuRowLook {
+            let header_look = NestedMenuRowLook {
                 emphasis: match expansion_state {
-                    ExpansionState::Expanded => MenuRowEmphasis::Selected,
-                    ExpansionState::Collapsed => MenuRowEmphasis::Plain,
+                    ExpansionState::Expanded => NestedMenuRowEmphasis::Selected,
+                    ExpansionState::Collapsed => NestedMenuRowEmphasis::Plain,
                 },
                 frame_corners,
             };
@@ -102,8 +105,8 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
             let item_views = items.into_iter().enumerate().map(|(item, row)| {
                 let rows_above = rows_above_item(&sections, section, item, growth);
                 let row_inspection = row.inspection(inspected_target);
-                let look = MenuRowLook {
-                    emphasis: MenuRowEmphasis::from(row_inspection),
+                let look = NestedMenuRowLook {
+                    emphasis: NestedMenuRowEmphasis::from(row_inspection),
                     frame_corners,
                 };
                 let row_view: Element<'a, M> = item_row(layout, &group, row, look).map(M::from);

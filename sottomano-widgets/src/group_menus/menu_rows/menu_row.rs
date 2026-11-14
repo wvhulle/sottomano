@@ -1,20 +1,14 @@
 use std::borrow::Cow;
 
-use corredo::{
-    press_actions::flat_button,
-    theming::{background_strong_color, primary_weak_color, primary_weak_text_color, text_color},
+use corredo::popovers::{
+    NestedMenuMetrics, NestedMenuRowContent, NestedMenuRowEmphasis, NestedMenuRowLook,
+    NestedMenuRowPress, RowHoverReaction, nested_menu_row,
 };
-use iced::{
-    Alignment, Color, Element, Length, Padding, Theme,
-    border::Radius,
-    widget::{Row, button, container, text::Wrapping},
-};
+use iced::{Element, widget::text::Wrapping};
 use sottomano_toml_config::Config;
 
 use crate::{
     group_items::group_item::MenuParts,
-    group_menus::menu_rows::pointer_tracked_row::{PointerTrackedRow, RowHoverReaction},
-    hover_cards::PointerPresence,
     widget_groups::widget_group_content::{GroupEvent, RowInspection},
     widgets::text::panel_text,
 };
@@ -26,164 +20,54 @@ pub(crate) struct MenuRowContent<'a, M> {
     pub trailing: Vec<Element<'a, GroupEvent<M>>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum MenuRowEmphasis {
-    Plain,
-    Selected,
-}
-
-impl From<RowInspection> for MenuRowEmphasis {
+impl From<RowInspection> for NestedMenuRowEmphasis {
     fn from(row_inspection: RowInspection) -> Self {
         match row_inspection {
-            RowInspection::Inspected => MenuRowEmphasis::Selected,
-            RowInspection::Uninspected => MenuRowEmphasis::Plain,
+            RowInspection::Inspected => NestedMenuRowEmphasis::Selected,
+            RowInspection::Uninspected => NestedMenuRowEmphasis::Plain,
         }
     }
 }
 
-#[derive(Clone, Copy)]
-pub(crate) struct MenuRowLook {
-    pub emphasis: MenuRowEmphasis,
-    pub frame_corners: Radius,
-}
-
-pub(crate) fn row_text_color(emphasis: MenuRowEmphasis) -> fn(&Theme) -> Color {
-    match emphasis {
-        MenuRowEmphasis::Plain => text_color,
-        MenuRowEmphasis::Selected => primary_weak_text_color,
+pub(crate) fn menu_metrics(config: &Config) -> NestedMenuMetrics {
+    NestedMenuMetrics {
+        row_height_px: config.desktop_panels.height + config.theme.spacing.item_gap,
+        icon_slot_px: config.desktop_panels.height,
+        item_spacing_px: config.theme.spacing.group_gap,
+        side_inset_px: config.theme.spacing.surface_inset,
     }
 }
 
 pub(crate) fn menu_row_height(config: &Config) -> f32 {
-    config.desktop_panels.height + config.theme.spacing.item_gap
-}
-
-pub(crate) enum MenuRowPress<Message> {
-    Inert,
-    Performs(GroupEvent<Message>),
+    menu_metrics(config).row_height_px
 }
 
 pub(crate) fn menu_row<'a, Message: Clone + 'a>(
     config: &'a Config,
     content: MenuRowContent<'a, Message>,
-    look: MenuRowLook,
-    press: MenuRowPress<Message>,
+    look: NestedMenuRowLook,
+    press: NestedMenuRowPress<GroupEvent<Message>>,
     hover_reaction: RowHoverReaction<GroupEvent<Message>>,
 ) -> Element<'a, GroupEvent<Message>> {
-    let line = menu_line(config, content);
-    let body: Element<'a, GroupEvent<Message>> = match press {
-        MenuRowPress::Inert => container(line)
-            .width(Length::Fill)
-            .height(menu_row_height(config))
-            .padding(menu_row_padding(config))
-            .into(),
-        MenuRowPress::Performs(press_event) => button(line)
-            .width(Length::Fill)
-            .height(menu_row_height(config))
-            .padding(menu_row_padding(config))
-            .style(flat_button(row_text_color(look.emphasis)))
-            .on_press(press_event)
-            .into(),
-    };
-    PointerTrackedRow::new(body, look, hover_reaction).into()
-}
-
-fn menu_line<'a, M: 'a>(
-    config: &'a Config,
-    content: MenuRowContent<'a, M>,
-) -> Row<'a, GroupEvent<M>> {
     let MenuRowContent {
         leading,
         parts,
         name,
         trailing,
     } = content;
-    Row::new()
-        .extend(leading)
-        .push(leading_icon_slot(config, parts.icon))
-        .push(
-            container(panel_text(&config.theme.font, name).wrapping(Wrapping::None))
-                .width(Length::Fill)
-                .clip(true),
-        )
-        .push(parts.value)
-        .extend(trailing)
-        .spacing(config.theme.spacing.group_gap)
-        .height(Length::Fill)
-        .align_y(Alignment::Center)
-}
-
-fn leading_icon_slot<'a, M: 'a>(
-    config: &Config,
-    icon: Element<'a, GroupEvent<M>>,
-) -> Element<'a, GroupEvent<M>> {
-    container(icon)
-        .center_x(config.desktop_panels.height)
-        .into()
-}
-
-fn menu_row_padding(config: &Config) -> Padding {
-    Padding::ZERO.horizontal(config.theme.spacing.surface_inset)
-}
-
-pub(crate) fn menu_row_background(
-    theme: &Theme,
-    emphasis: MenuRowEmphasis,
-    pointer_presence: PointerPresence,
-) -> Option<Color> {
-    match (emphasis, pointer_presence) {
-        (MenuRowEmphasis::Selected, _) => Some(primary_weak_color(theme)),
-        (MenuRowEmphasis::Plain, PointerPresence::PointedAt) => {
-            Some(background_strong_color(theme))
-        }
-        (MenuRowEmphasis::Plain, PointerPresence::NotPointedAt) => None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use corredo::theming::{background_strong_color, primary_weak_color};
-    use sottomano_toml_config::theme::palette::Palette;
-
-    use super::{MenuRowEmphasis, menu_row_background};
-    use crate::{hover_cards::PointerPresence, widgets::configured_theme::configured_theme};
-
-    #[test]
-    fn a_selected_row_keeps_its_background_whether_or_not_the_pointer_is_over_it() {
-        let theme = configured_theme(&Palette::default());
-        let selected_color = Some(primary_weak_color(&theme));
-        assert_eq!(
-            menu_row_background(
-                &theme,
-                MenuRowEmphasis::Selected,
-                PointerPresence::NotPointedAt
-            ),
-            selected_color
-        );
-        assert_eq!(
-            menu_row_background(
-                &theme,
-                MenuRowEmphasis::Selected,
-                PointerPresence::PointedAt
-            ),
-            selected_color
-        );
-    }
-
-    #[test]
-    fn a_plain_row_lights_up_only_under_the_pointer() {
-        let theme = configured_theme(&Palette::default());
-        assert_eq!(
-            menu_row_background(&theme, MenuRowEmphasis::Plain, PointerPresence::PointedAt),
-            Some(background_strong_color(&theme))
-        );
-        assert_eq!(
-            menu_row_background(
-                &theme,
-                MenuRowEmphasis::Plain,
-                PointerPresence::NotPointedAt
-            ),
-            None
-        );
-    }
+    nested_menu_row(
+        menu_metrics(config),
+        NestedMenuRowContent {
+            leading,
+            icon: parts.icon,
+            label: panel_text(&config.theme.font, name)
+                .wrapping(Wrapping::None)
+                .into(),
+            value: parts.value,
+            trailing,
+        },
+        look,
+        press,
+        hover_reaction,
+    )
 }
