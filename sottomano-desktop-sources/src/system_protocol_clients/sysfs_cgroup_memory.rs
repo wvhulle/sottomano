@@ -206,6 +206,30 @@ pub fn unit_memory_of_process(pid: u32) -> Option<ByteSize> {
     read_cgroup_memory(unit_cgroup).map(|reading| reading.current)
 }
 
+#[must_use]
+pub fn unit_working_set_of_process(pid: u32) -> Option<ByteSize> {
+    let process_cgroup = cgroup_directory_of_process(pid)?;
+    let unit_cgroup = unit_cgroup_enclosing(&process_cgroup)?;
+    let current = read_cgroup_memory(unit_cgroup)?.current;
+    let inactive_file = read_text(unit_cgroup, "memory.stat")
+        .as_deref()
+        .and_then(inactive_file_bytes)
+        .unwrap_or_default();
+    Some(
+        current
+            .as_u64()
+            .checked_sub(inactive_file)
+            .map_or(current, ByteSize::b),
+    )
+}
+
+fn inactive_file_bytes(memory_stat_text: &str) -> Option<u64> {
+    memory_stat_text.lines().find_map(|stat_line| {
+        parsed_byte_count(stat_line.strip_prefix("inactive_file ")?, "inactive_file")
+            .map(|inactive_file| inactive_file.as_u64())
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use std::{env, fs, path::Path, process};
@@ -213,9 +237,18 @@ mod tests {
     use bytesize::ByteSize;
 
     use super::{
-        MemoryBound, MemoryEventCounts, parsed_some_average_ten_seconds, read_cgroup_memory,
-        unified_cgroup_path, unit_cgroup_enclosing,
+        MemoryBound, MemoryEventCounts, inactive_file_bytes, parsed_some_average_ten_seconds,
+        read_cgroup_memory, unified_cgroup_path, unit_cgroup_enclosing,
     };
+
+    #[test]
+    fn the_working_set_leaves_out_inactive_file_cache() {
+        assert_eq!(
+            inactive_file_bytes("anon 4096\nfile 8192\ninactive_file 6144\nactive_file 2048\n"),
+            Some(6144)
+        );
+        assert_eq!(inactive_file_bytes("anon 4096\n"), None);
+    }
 
     #[test]
     fn a_bound_reads_max_as_unbounded() {

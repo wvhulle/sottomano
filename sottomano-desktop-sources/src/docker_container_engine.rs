@@ -33,6 +33,7 @@ use crate::{
         http_json_client,
         inotify_file_presence::path_present,
         procfs_process_tree::{CpuTickCheckpoints, ProcessTable},
+        sysfs_cgroup_memory::unit_working_set_of_process,
     },
 };
 
@@ -250,7 +251,16 @@ impl DockerEngineSampler {
                 .unwrap_or(UNIX_EPOCH + Duration::from_secs(container.created_unix_seconds)),
             ci_identity: ContainerCiIdentity::NotWoodpecker,
             cpu_load,
-            resident_memory: ByteSize::b(totals.resident_bytes),
+            resident_memory: process_start
+                .and_then(|process_start| {
+                    u32::try_from(process_start.pid)
+                        .inspect_err(|conversion_failure| {
+                            tracing::debug!(pid = process_start.pid, %conversion_failure, "container pid is not a process id");
+                        })
+                        .ok()
+                })
+                .and_then(unit_working_set_of_process)
+                .unwrap_or(ByteSize::b(totals.resident_bytes)),
         }
     }
 }

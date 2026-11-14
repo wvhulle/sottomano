@@ -8,7 +8,7 @@ use sottomano_widgets::{
     toast_messages::NotificationMessage,
     widget_groups::{
         appearance_presets_group::AppearancePresetsMessage,
-        apptainer_containers_group::ApptainerContainersMessage,
+        apptainer_containers_group::{ApptainerContainersInteraction, ApptainerContainersMessage},
         audio_group::AudioMessage,
         caldav_group::CaldavMessage,
         cgroup_memory_limits_group::{CgroupMemoryLimitsInteraction, CgroupMemoryLimitsMessage},
@@ -16,12 +16,12 @@ use sottomano_widgets::{
         claude_usage_group::ClaudeUsageMessage,
         compute_group::{ComputeInteraction, ComputeMessage},
         docker_engines_group::DockerEnginesMessage,
-        flatpak_sandboxes_group::FlatpakSandboxesMessage,
+        flatpak_sandboxes_group::{FlatpakSandboxesInteraction, FlatpakSandboxesMessage},
         gamepad_group::{GamepadInteraction, GamepadMessage},
         idle_pause_groups::{IdlePauseInteraction, IdlePauseMessage},
         incus_instances_group::{IncusInstancesInteraction, IncusInstancesMessage},
         login_session_group::LoginSessionMessage,
-        lxc_containers_group::LxcContainersMessage,
+        lxc_containers_group::{LxcContainersInteraction, LxcContainersMessage},
         media_group::{MediaInteraction, MediaMessage},
         memory_board_group::MemoryBoardMessage,
         microvm_guests_group::{MicrovmGuestsInteraction, MicrovmGuestsMessage},
@@ -30,7 +30,7 @@ use sottomano_widgets::{
         tailnet_group::{TailnetInteraction, TailnetMessage},
         virtual_machines_group::{VirtualMachinesInteraction, VirtualMachinesMessage},
         virtualbox_machines_group::{VirtualBoxMachinesInteraction, VirtualBoxMachinesMessage},
-        vmware_machines_group::VmwareMachinesMessage,
+        vmware_machines_group::{VmwareMachinesInteraction, VmwareMachinesMessage},
         voice_dictation_group::{VoiceDictationInteraction, VoiceDictationMessage},
         wallpaper_group::WallpaperMessage,
         waydroid_container_group::{WaydroidContainerInteraction, WaydroidContainerMessage},
@@ -101,12 +101,12 @@ pub enum ShowcaseInteraction {
     NspawnContainers(NspawnContainersInteraction),
     CgroupMemoryLimits(CgroupMemoryLimitsInteraction),
     DockerEngines(WidgetGroupExpansionMessage),
-    ApptainerContainers(WidgetGroupExpansionMessage),
-    VmwareMachines(WidgetGroupExpansionMessage),
+    ApptainerContainers(ApptainerContainersInteraction),
+    VmwareMachines(VmwareMachinesInteraction),
     VirtualBoxMachines(VirtualBoxMachinesInteraction),
     WaydroidContainer(WaydroidContainerInteraction),
-    FlatpakSandboxes(WidgetGroupExpansionMessage),
-    LxcContainers(WidgetGroupExpansionMessage),
+    FlatpakSandboxes(FlatpakSandboxesInteraction),
+    LxcContainers(LxcContainersInteraction),
     IncusInstances(IncusInstancesInteraction),
     MicrovmGuests(MicrovmGuestsInteraction),
     CiRuns(CiRunsInteraction),
@@ -172,13 +172,13 @@ impl From<ShowcaseInteraction> for ShowcaseMessage {
             ShowcaseInteraction::DockerEngines(expansion) => {
                 ShowcaseMessage::DockerEngines(DockerEnginesMessage::Expansion(expansion))
             }
-            ShowcaseInteraction::ApptainerContainers(expansion) => {
-                ShowcaseMessage::ApptainerContainers(ApptainerContainersMessage::Expansion(
-                    expansion,
+            ShowcaseInteraction::ApptainerContainers(interaction) => {
+                ShowcaseMessage::ApptainerContainers(ApptainerContainersMessage::Interaction(
+                    interaction,
                 ))
             }
-            ShowcaseInteraction::VmwareMachines(expansion) => {
-                ShowcaseMessage::VmwareMachines(VmwareMachinesMessage::Expansion(expansion))
+            ShowcaseInteraction::VmwareMachines(interaction) => {
+                ShowcaseMessage::VmwareMachines(VmwareMachinesMessage::Interaction(interaction))
             }
             ShowcaseInteraction::VirtualBoxMachines(interaction) => {
                 ShowcaseMessage::VirtualBoxMachines(VirtualBoxMachinesMessage::Interaction(
@@ -190,11 +190,11 @@ impl From<ShowcaseInteraction> for ShowcaseMessage {
                     interaction,
                 ))
             }
-            ShowcaseInteraction::FlatpakSandboxes(expansion) => {
-                ShowcaseMessage::FlatpakSandboxes(FlatpakSandboxesMessage::Expansion(expansion))
+            ShowcaseInteraction::FlatpakSandboxes(interaction) => {
+                ShowcaseMessage::FlatpakSandboxes(FlatpakSandboxesMessage::Interaction(interaction))
             }
-            ShowcaseInteraction::LxcContainers(expansion) => {
-                ShowcaseMessage::LxcContainers(LxcContainersMessage::Expansion(expansion))
+            ShowcaseInteraction::LxcContainers(interaction) => {
+                ShowcaseMessage::LxcContainers(LxcContainersMessage::Interaction(interaction))
             }
             ShowcaseInteraction::IncusInstances(interaction) => {
                 ShowcaseMessage::IncusInstances(IncusInstancesMessage::Interaction(interaction))

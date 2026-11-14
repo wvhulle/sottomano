@@ -36,7 +36,7 @@ fn flatpak_sandbox(
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = FlatpakSandboxesGroup::default();
-    group.update(
+    let _ = group.update(
         FlatpakSandboxesMessage::Detail(SnapshotDelivery::fixture_delivered(
             Ok(FlatpakSandboxes {
                 sandboxes: vec![

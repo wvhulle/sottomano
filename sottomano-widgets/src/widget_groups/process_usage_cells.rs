@@ -2,12 +2,13 @@ use std::time::SystemTime;
 
 use bytesize::ByteSize;
 use sottomano_desktop_sources::system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad;
+use uom::si::ratio::percent;
 
 use crate::{
     clock::Clock,
     group_items::reading_display_state::ReadingDisplayState,
     widgets::{
-        localized_quantities::Quantity,
+        localized_quantities::{DisplayUnit, Quantity},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -16,7 +17,15 @@ use crate::{
 pub(crate) fn cpu_share_quantity(cpu_load: ProcessTreeCpuLoad) -> Option<Quantity> {
     match cpu_load {
         ProcessTreeCpuLoad::AwaitingSecondSample => None,
-        ProcessTreeCpuLoad::BusyShare(share) => Some(Quantity::share(share)),
+        ProcessTreeCpuLoad::BusyShare(share) => {
+            let percent_of_core = share.get::<percent>();
+            let decimals = u8::from(percent_of_core < 10.0);
+            Some(Quantity::measured(
+                percent_of_core,
+                DisplayUnit::Percent,
+                decimals,
+            ))
+        }
     }
 }
 

@@ -26,7 +26,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
     },
     hover_cards::{
         HoverTarget,
@@ -332,7 +332,7 @@ impl VirtualMachinesGroup {
                 VirtualMachineTarget::of_pid(machine.pid),
             );
             let row = match machine.launch.display {
-                GuestDisplay::Windowed => row.on_press(
+                GuestDisplay::Windowed => row.on_right_press(
                     FOCUS_WINDOW_HINT,
                     VirtualMachinesInteraction::FocusWindow(machine.pid),
                 ),
@@ -340,7 +340,8 @@ impl VirtualMachinesGroup {
             };
             match &machine.power_control {
                 GuestPowerControl::Unavailable => row,
-                power_control => row.on_right_press(
+                power_control => row.on_switch_press(
+                    SwitchPosition::On,
                     POWER_OFF_HINT,
                     VirtualMachinesInteraction::PowerOff(power_control.clone()),
                 ),

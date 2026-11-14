@@ -165,7 +165,7 @@ pub(crate) struct CpuTickCheckpoints<CheckpointKey> {
 
 impl<CheckpointKey> Default for CpuTickCheckpoints<CheckpointKey> {
     fn default() -> Self {
-        Self::with_capacity(CpuCapacity::current())
+        Self::with_capacity(CpuCapacity::one_core())
     }
 }
 

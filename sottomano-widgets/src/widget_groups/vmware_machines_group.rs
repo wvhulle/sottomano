@@ -1,6 +1,7 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, path::PathBuf};
 
 use chrono::Locale;
+use sottomano_desktop_sinks::vmware_machines::stop_vmware_machine;
 use sottomano_desktop_sources::vmware_machines::{
     VmwareMachine, VmwareMachineListing, VmwareMachineListings, VmwareMachineProbe, VmwareMachines,
 };
@@ -13,7 +14,8 @@ use crate::{
     hover_cards::{HoverTarget, hover_card_body::HoverCardBody},
     widget_groups::{
         container_family_group::{
-            ContainerFamily, ContainerFamilyGroup, ContainerFamilyMessage, FamilyRow,
+            ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
+            ContainerFamilyMessage, FamilyRow, RowPower,
         },
         process_usage_cells::{approximate_memory_text, uptime_entry},
         widget_group_identity::WidgetGroupFamily,
@@ -128,21 +130,24 @@ impl GroupItemReading for VmwareMachineRow<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VmwareFamily;
 
 pub type VmwareMachinesGroup = ContainerFamilyGroup<VmwareFamily>;
 pub type VmwareMachinesMessage = ContainerFamilyMessage<VmwareFamily>;
+pub type VmwareMachinesInteraction = ContainerFamilyInteraction<VmwareFamily>;
 
 impl ContainerFamily for VmwareFamily {
     type Probe = VmwareMachineProbe;
     type Listings = VmwareMachineListings;
     type Detail = VmwareMachines;
     type Target = VmwareMachineTarget;
+    type PowerRequest = PathBuf;
     type ListingRow<'a> = VmwareMachineListingRow<'a>;
     type DetailRow<'a> = VmwareMachineRow<'a>;
 
     const FAMILY: WidgetGroupFamily = WidgetGroupFamily::VmwareMachines;
+    const STOP_HINT: &'static str = "shut the machine down";
     const GROUP_NAME: &'static str = "VMware machines";
 
     fn group_glyph() -> IconGlyph {
@@ -155,27 +160,31 @@ impl ContainerFamily for VmwareFamily {
 
     fn listing_rows(
         listings: &VmwareMachineListings,
-    ) -> Vec<FamilyRow<VmwareMachineTarget, VmwareMachineListingRow<'_>>> {
+    ) -> Vec<FamilyRow<Self, VmwareMachineListingRow<'_>>> {
         listings
             .listings
             .iter()
             .map(|listing| FamilyRow {
                 target: VmwareMachineTarget::of_pid(listing.pid),
                 reading: VmwareMachineListingRow { listing },
+                power: RowPower::Running(listing.configuration_file.clone()),
             })
             .collect()
     }
 
-    fn detail_rows(
-        detail: &VmwareMachines,
-    ) -> Vec<FamilyRow<VmwareMachineTarget, VmwareMachineRow<'_>>> {
+    fn detail_rows(detail: &VmwareMachines) -> Vec<FamilyRow<Self, VmwareMachineRow<'_>>> {
         detail
             .machines
             .iter()
             .map(|machine| FamilyRow {
                 target: VmwareMachineTarget::of_pid(machine.pid),
                 reading: VmwareMachineRow { machine },
+                power: RowPower::Running(machine.configuration_file.clone()),
             })
             .collect()
+    }
+
+    async fn stop(configuration_file: PathBuf) -> Result<(), String> {
+        stop_vmware_machine(&configuration_file).await
     }
 }

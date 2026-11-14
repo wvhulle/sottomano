@@ -20,7 +20,7 @@ use crate::{
 };
 
 const CONTAINER_POLL_PERIOD: Duration = Duration::from_secs(5);
-const DEFAULT_LXC_PATH: &str = "/var/lib/lxc";
+pub const DEFAULT_LXC_PATH: &str = "/var/lib/lxc";
 const PAYLOAD_CGROUP_PREFIX: &str = "lxc.payload.";
 const CONFIG_FILE_NAME: &str = "config";
 const ADDRESS_KEY_SUFFIX: &str = ".ipv4.address";

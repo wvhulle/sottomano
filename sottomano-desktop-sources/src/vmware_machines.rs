@@ -61,6 +61,7 @@ fn probed_machines() -> Result<VmwareMachineProbe, Error> {
 pub struct VmwareMachineListing {
     pub pid: i32,
     pub machine_name: String,
+    pub configuration_file: PathBuf,
     pub running: bool,
 }
 
@@ -94,6 +95,7 @@ fn named_machines() -> Result<VmwareMachineListings, Error> {
             Some(VmwareMachineListing {
                 pid: scanned.pid,
                 machine_name: file_stem_text(&configuration_file),
+                configuration_file,
                 running: true,
             })
         })

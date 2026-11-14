@@ -18,7 +18,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
@@ -83,39 +83,28 @@ fn instance_icon(kind: InstanceKind) -> IconGlyph {
     }
 }
 
-fn instance_start_press<'a>(
+fn instance_power_switch<'a>(
     row: GroupItem<'a, IncusInstancesInteraction>,
     instance_daemon: InstanceDaemon,
     project_name: &str,
     instance_name: &str,
     running: bool,
 ) -> GroupItem<'a, IncusInstancesInteraction> {
-    let state_change = if running {
-        InstanceStateChange::Stop
+    let (switch_position, hint, state_change) = if running {
+        (SwitchPosition::On, STOP_HINT, InstanceStateChange::Stop)
     } else {
-        InstanceStateChange::Start
+        (SwitchPosition::Off, START_HINT, InstanceStateChange::Start)
     };
-    if running {
-        row.on_right_press(
-            STOP_HINT,
-            IncusInstancesInteraction::ChangeState {
-                instance_daemon,
-                project_name: project_name.to_owned(),
-                instance_name: instance_name.to_owned(),
-                state_change,
-            },
-        )
-    } else {
-        row.on_press(
-            START_HINT,
-            IncusInstancesInteraction::ChangeState {
-                instance_daemon,
-                project_name: project_name.to_owned(),
-                instance_name: instance_name.to_owned(),
-                state_change,
-            },
-        )
-    }
+    row.on_switch_press(
+        switch_position,
+        hint,
+        IncusInstancesInteraction::ChangeState {
+            instance_daemon,
+            project_name: project_name.to_owned(),
+            instance_name: instance_name.to_owned(),
+            state_change,
+        },
+    )
 }
 
 struct IncusInstanceRow<'a> {
@@ -472,7 +461,7 @@ impl IncusInstancesGroup {
                             Cow::Owned(instance.instance_name.clone()),
                         ),
                     );
-                    instance_start_press(
+                    instance_power_switch(
                         row,
                         instance_daemon,
                         &instance.project_name,
@@ -503,7 +492,7 @@ impl IncusInstancesGroup {
                             Cow::Owned(listing.instance_name.clone()),
                         ),
                     );
-                    instance_start_press(
+                    instance_power_switch(
                         row,
                         instance_daemon,
                         &listing.project_name,
