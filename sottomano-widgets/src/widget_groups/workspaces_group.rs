@@ -204,13 +204,12 @@ fn classify_switch(
     let Some(previous_workspace_id) = previous_workspace_id else {
         return WorkspaceSwitch::Jump;
     };
-    let is_step = match (
-        position_of(previous_workspace_id),
-        position_of(workspace_id),
-    ) {
-        (Some(previous_position), Some(position)) => previous_position.abs_diff(position) == 1,
-        (None, Some(_)) => true,
-        _ => false,
+    let Some(position) = position_of(workspace_id) else {
+        return WorkspaceSwitch::Jump;
+    };
+    let is_step = match position_of(previous_workspace_id) {
+        Some(previous_position) => previous_position.abs_diff(position) == 1,
+        None => true,
     };
     if is_step {
         WorkspaceSwitch::Step {

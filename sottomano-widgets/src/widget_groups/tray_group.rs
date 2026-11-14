@@ -109,10 +109,12 @@ impl TrayItemWindow {
         item: &TrayItem,
         window_matches: &dyn Fn(&WindowOwner) -> bool,
     ) -> Self {
-        let owner = match (&rule.window_app_id, item.owner) {
-            (Some(window_app_id), _) => WindowOwner::App(window_app_id.clone()),
-            (None, OwnerProcess::Identified(pid)) => WindowOwner::Process(pid),
-            (None, OwnerProcess::Unidentified) => return Self::NotOpen,
+        let owner = match &rule.window_app_id {
+            Some(window_app_id) => WindowOwner::App(window_app_id.clone()),
+            None => match item.owner {
+                OwnerProcess::Identified(pid) => WindowOwner::Process(pid),
+                OwnerProcess::Unidentified => return Self::NotOpen,
+            },
         };
         if window_matches(&owner) {
             Self::Open(owner)

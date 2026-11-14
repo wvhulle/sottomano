@@ -277,12 +277,14 @@ impl State {
     }
 
     fn placeholder_elapsed(&self) -> Duration {
-        match (self.now, self.placeholder_since) {
-            (Some(now), Some(since)) => now
-                .checked_duration_since(since)
-                .expect("the placeholder appeared at or before the latest redraw"),
-            _ => Duration::ZERO,
-        }
+        let Some(now) = self.now else {
+            return Duration::ZERO;
+        };
+        let Some(since) = self.placeholder_since else {
+            return Duration::ZERO;
+        };
+        now.checked_duration_since(since)
+            .expect("the placeholder appeared at or before the latest redraw")
     }
 }
 
@@ -315,9 +317,12 @@ impl<Message> TransitioningText<'_, Message> {
     }
 
     fn text_motion(&self, state: &State) -> MotionState {
-        match (&state.shown, self.running(state)) {
-            (ShownText::Placeholder, _) | (ShownText::Text { .. }, Some(_)) => MotionState::Moving,
-            (ShownText::Text { .. }, None) => MotionState::Settled,
+        match &state.shown {
+            ShownText::Placeholder => MotionState::Moving,
+            ShownText::Text { .. } => match self.running(state) {
+                Some(_) => MotionState::Moving,
+                None => MotionState::Settled,
+            },
         }
     }
 

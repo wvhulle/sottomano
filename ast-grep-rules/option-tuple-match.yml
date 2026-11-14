@@ -1,0 +1,27 @@
+id: option-tuple-match
+language: rust
+severity: error
+message: Matching on a tuple of Options mixes independent absences into one table of cases.
+note: Bail out of each Option on its own with let-else, or match one Option and nest the next; when the combination is a real state, produce an enum for it where the values are read.
+files:
+  - corredo/src/**/*.rs
+rule:
+  kind: match_expression
+  all:
+    - has:
+        field: value
+        kind: tuple_expression
+    - has:
+        field: body
+        has:
+          kind: match_arm
+          has:
+            field: pattern
+            has:
+              kind: tuple_pattern
+              has:
+                any:
+                  - kind: tuple_struct_pattern
+                    regex: '^Some\('
+                  - kind: identifier
+                    regex: '^None$'

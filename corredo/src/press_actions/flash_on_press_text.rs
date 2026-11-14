@@ -93,16 +93,19 @@ struct CellState {
 
 impl CellState {
     fn hold_phase(&self, hold: Duration) -> HoldPhase {
-        match (&self.press, self.frame) {
-            (Press::Held { since }, Some(frame))
-                if frame
-                    .checked_duration_since(*since)
-                    .expect("a press is held from an earlier redraw frame")
-                    < hold =>
-            {
-                HoldPhase::Holding
-            }
-            _ => HoldPhase::Released,
+        let Press::Held { since } = &self.press else {
+            return HoldPhase::Released;
+        };
+        let Some(frame) = self.frame else {
+            return HoldPhase::Released;
+        };
+        let held_for = frame
+            .checked_duration_since(*since)
+            .expect("a press is held from an earlier redraw frame");
+        if held_for < hold {
+            HoldPhase::Holding
+        } else {
+            HoldPhase::Released
         }
     }
 }
