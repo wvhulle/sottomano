@@ -1,32 +1,131 @@
 use core::{mem::take, slice};
 
-use corredo::popovers::CascadeDirection;
 use iced::{
-    Border, Element, Event, Length, Point, Rectangle, Size, Theme, Vector,
+    Alignment, Border, Color, Element, Event, Length, Padding, Point, Rectangle, Size, Theme,
+    Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
         overlay, renderer,
         widget::{Operation, Tree, tree},
     },
+    border::Radius,
     mouse::{Cursor, Interaction},
+    widget::{Row, button, container},
 };
 
 use crate::{
-    group_menus::menu_rows::menu_row::{MenuRowLook, menu_row_background, row_text_color},
-    hover_cards::PointerPresence,
+    popovers::CascadeDirection,
+    press_actions::flat_button,
+    theming::{background_strong_color, primary_weak_color, primary_weak_text_color, text_color},
 };
 
 const TRAIL_STEP_PX: f32 = 4.0;
 const AIM_SLOPE: f32 = 2.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SatelliteReach {
+pub enum NestedMenuRowEmphasis {
+    Plain,
+    Selected,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct NestedMenuRowLook {
+    pub emphasis: NestedMenuRowEmphasis,
+    pub frame_corners: Radius,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct NestedMenuMetrics {
+    pub row_height_px: f32,
+    pub icon_slot_px: f32,
+    pub item_spacing_px: f32,
+    pub side_inset_px: f32,
+}
+
+pub struct NestedMenuRowContent<'a, Message> {
+    pub leading: Vec<Element<'a, Message>>,
+    pub icon: Element<'a, Message>,
+    pub label: Element<'a, Message>,
+    pub value: Element<'a, Message>,
+    pub trailing: Vec<Element<'a, Message>>,
+}
+
+pub enum NestedMenuRowPress<Message> {
+    Inert,
+    Performs(Message),
+}
+
+#[must_use]
+pub fn nested_menu_row_text_color(emphasis: NestedMenuRowEmphasis) -> fn(&Theme) -> Color {
+    match emphasis {
+        NestedMenuRowEmphasis::Plain => text_color,
+        NestedMenuRowEmphasis::Selected => primary_weak_text_color,
+    }
+}
+
+fn nested_menu_row_background(
+    theme: &Theme,
+    emphasis: NestedMenuRowEmphasis,
+    pointer_presence: RowPointerPresence,
+) -> Option<Color> {
+    match (emphasis, pointer_presence) {
+        (NestedMenuRowEmphasis::Selected, _) => Some(primary_weak_color(theme)),
+        (NestedMenuRowEmphasis::Plain, RowPointerPresence::PointedAt) => {
+            Some(background_strong_color(theme))
+        }
+        (NestedMenuRowEmphasis::Plain, RowPointerPresence::NotPointedAt) => None,
+    }
+}
+
+pub fn nested_menu_row<'a, Message: Clone + 'a>(
+    metrics: NestedMenuMetrics,
+    content: NestedMenuRowContent<'a, Message>,
+    look: NestedMenuRowLook,
+    press: NestedMenuRowPress<Message>,
+    hover_reaction: RowHoverReaction<Message>,
+) -> Element<'a, Message> {
+    let NestedMenuRowContent {
+        leading,
+        icon,
+        label,
+        value,
+        trailing,
+    } = content;
+    let line = Row::new()
+        .extend(leading)
+        .push(container(icon).center_x(metrics.icon_slot_px))
+        .push(container(label).width(Length::Fill).clip(true))
+        .push(value)
+        .extend(trailing)
+        .spacing(metrics.item_spacing_px)
+        .height(Length::Fill)
+        .align_y(Alignment::Center);
+    let padding = Padding::ZERO.horizontal(metrics.side_inset_px);
+    let body: Element<'a, Message> = match press {
+        NestedMenuRowPress::Inert => container(line)
+            .width(Length::Fill)
+            .height(metrics.row_height_px)
+            .padding(padding)
+            .into(),
+        NestedMenuRowPress::Performs(press_message) => button(line)
+            .width(Length::Fill)
+            .height(metrics.row_height_px)
+            .padding(padding)
+            .style(flat_button(nested_menu_row_text_color(look.emphasis)))
+            .on_press(press_message)
+            .into(),
+    };
+    PointerTrackedRow::new(body, look, hover_reaction).into()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SatelliteReach {
     Open(CascadeDirection),
     Closed,
 }
 
-pub(crate) enum RowHoverReaction<Message> {
+pub enum RowHoverReaction<Message> {
     Highlights,
     Reveals {
         reveal: Message,
@@ -36,16 +135,16 @@ pub(crate) enum RowHoverReaction<Message> {
     },
 }
 
-pub(crate) struct PointerTrackedRow<'a, Message> {
+struct PointerTrackedRow<'a, Message> {
     body: Element<'a, Message>,
-    look: MenuRowLook,
+    look: NestedMenuRowLook,
     hover_reaction: RowHoverReaction<Message>,
 }
 
 impl<'a, Message: 'a> PointerTrackedRow<'a, Message> {
-    pub(crate) fn new(
+    fn new(
         body: impl Into<Element<'a, Message>>,
-        look: MenuRowLook,
+        look: NestedMenuRowLook,
         hover_reaction: RowHoverReaction<Message>,
     ) -> Self {
         Self {
@@ -114,9 +213,16 @@ impl PointerTrail {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum RowPointerPresence {
+    PointedAt,
+    #[default]
+    NotPointedAt,
+}
+
 #[derive(Default)]
 struct RowPointerState {
-    pointer_presence: PointerPresence,
+    pointer_presence: RowPointerPresence,
     trail: PointerTrail,
 }
 
@@ -171,9 +277,9 @@ impl<Message: Clone> Widget<Message, Theme, iced::Renderer> for PointerTrackedRo
             viewport,
         );
         let pointer_presence = if cursor.is_over(layout.bounds()) {
-            PointerPresence::PointedAt
+            RowPointerPresence::PointedAt
         } else {
-            PointerPresence::NotPointedAt
+            RowPointerPresence::NotPointedAt
         };
         let state = tree.state.downcast_mut::<RowPointerState>();
         if let Some(position) = cursor.position() {
@@ -194,14 +300,14 @@ impl<Message: Clone> Widget<Message, Theme, iced::Renderer> for PointerTrackedRo
             return;
         };
         let gesture = match (pointer_presence, cursor.position()) {
-            (PointerPresence::PointedAt, Some(position)) => {
+            (RowPointerPresence::PointedAt, Some(position)) => {
                 match state.trail.aim_at(position, *satellite_reach) {
                     PointerAim::TowardSatellite => defer_reveal,
                     PointerAim::Elsewhere => reveal,
                 }
             }
-            (PointerPresence::PointedAt, None) => reveal,
-            (PointerPresence::NotPointedAt, _) => cancel_reveal,
+            (RowPointerPresence::PointedAt, None) => reveal,
+            (RowPointerPresence::NotPointedAt, _) => cancel_reveal,
         };
         shell.publish(gesture.clone());
     }
@@ -218,7 +324,7 @@ impl<Message: Clone> Widget<Message, Theme, iced::Renderer> for PointerTrackedRo
     ) {
         let state = tree.state.downcast_ref::<RowPointerState>();
         if let Some(background) =
-            menu_row_background(theme, self.look.emphasis, state.pointer_presence)
+            nested_menu_row_background(theme, self.look.emphasis, state.pointer_presence)
         {
             renderer.fill_quad(
                 renderer::Quad {
@@ -237,7 +343,7 @@ impl<Message: Clone> Widget<Message, Theme, iced::Renderer> for PointerTrackedRo
             renderer,
             theme,
             &renderer::Style {
-                text_color: row_text_color(self.look.emphasis)(theme),
+                text_color: nested_menu_row_text_color(self.look.emphasis)(theme),
             },
             layout.children().next().unwrap(),
             cursor,
@@ -297,10 +403,16 @@ impl<Message: Clone> Widget<Message, Theme, iced::Renderer> for PointerTrackedRo
 
 #[cfg(test)]
 mod tests {
-    use corredo::popovers::CascadeDirection;
-    use iced::Point;
+    use iced::{Point, Theme};
 
-    use super::{PointerAim, PointerTrail, SatelliteReach};
+    use super::{
+        NestedMenuRowEmphasis, PointerAim, PointerTrail, RowPointerPresence, SatelliteReach,
+        nested_menu_row_background,
+    };
+    use crate::{
+        popovers::CascadeDirection,
+        theming::{background_strong_color, primary_weak_color},
+    };
 
     const ENTERED_LEFT: Point = Point::new(20.0, 40.0);
     const ENTERED_RIGHT: Point = Point::new(80.0, 40.0);
@@ -339,6 +451,48 @@ mod tests {
                 SatelliteReach::Open(CascadeDirection::Leftward)
             ),
             PointerAim::TowardSatellite
+        );
+    }
+
+    #[test]
+    fn a_selected_row_keeps_its_background_whether_or_not_the_pointer_is_over_it() {
+        let theme = Theme::Light;
+        let selected_color = Some(primary_weak_color(&theme));
+        [
+            RowPointerPresence::NotPointedAt,
+            RowPointerPresence::PointedAt,
+        ]
+        .into_iter()
+        .for_each(|pointer_presence| {
+            assert_eq!(
+                nested_menu_row_background(
+                    &theme,
+                    NestedMenuRowEmphasis::Selected,
+                    pointer_presence
+                ),
+                selected_color
+            );
+        });
+    }
+
+    #[test]
+    fn a_plain_row_lights_up_only_under_the_pointer() {
+        let theme = Theme::Light;
+        assert_eq!(
+            nested_menu_row_background(
+                &theme,
+                NestedMenuRowEmphasis::Plain,
+                RowPointerPresence::PointedAt
+            ),
+            Some(background_strong_color(&theme))
+        );
+        assert_eq!(
+            nested_menu_row_background(
+                &theme,
+                NestedMenuRowEmphasis::Plain,
+                RowPointerPresence::NotPointedAt
+            ),
+            None
         );
     }
 }

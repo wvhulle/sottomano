@@ -1,7 +1,9 @@
 use std::mem::take;
 
 use corredo::{
-    orientation::Axis, selection_scroll::selection_following_scroll,
+    orientation::Axis,
+    popovers::{NestedMenuRowEmphasis, NestedMenuRowLook},
+    selection_scroll::selection_following_scroll,
     width_layout::equal_width_column,
 };
 use iced::Element;
@@ -13,7 +15,7 @@ use crate::{
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
         menu_rows::{
             group_menu_group_rows::{GroupMenuGroupRow, GroupMenuRowContext, group_row, item_menu},
-            menu_row::{MenuRowEmphasis, MenuRowLook, menu_row_height},
+            menu_row::menu_row_height,
         },
     },
     hover_cards::PopupMessage,
@@ -54,11 +56,11 @@ pub(crate) fn cascading_columns<'a, M: Clone + From<GroupEvent<M>> + From<PopupM
     let open_position = open_group.as_ref().map(|open| open.position);
     let frame_corners = layout.cascade_satellite_panels.frame_corners;
     let group_rows = entries.into_iter().enumerate().map(|(position, entry)| {
-        let look = MenuRowLook {
+        let look = NestedMenuRowLook {
             emphasis: if open_position == Some(position) {
-                MenuRowEmphasis::Selected
+                NestedMenuRowEmphasis::Selected
             } else {
-                MenuRowEmphasis::Plain
+                NestedMenuRowEmphasis::Plain
             },
             frame_corners,
         };

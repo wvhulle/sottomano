@@ -1,5 +1,8 @@
 use corredo::{
-    popovers::{CascadeDirection, NestedMenuLayout, NestedMenuPresentation, PopupGrowth},
+    popovers::{
+        CascadeDirection, NestedMenuLayout, NestedMenuPresentation, NestedMenuRowEmphasis,
+        NestedMenuRowLook, NestedMenuRowPress, PopupGrowth, RowHoverReaction, SatelliteReach,
+    },
     theming::{primary_weak_text_color, secondary_text_color, text_color},
     width_layout::equal_width_column,
 };
@@ -19,10 +22,7 @@ use crate::{
         cascading_layout::cascade_satellite_panels::CascadeSatellitePanels,
         group_menu_state::{GroupMenuPin, GroupMenuState},
         group_menu_view::GroupMenuMessenger,
-        menu_rows::{
-            menu_row::{MenuRowContent, MenuRowEmphasis, MenuRowLook, MenuRowPress, menu_row},
-            pointer_tracked_row::{RowHoverReaction, SatelliteReach},
-        },
+        menu_rows::menu_row::{MenuRowContent, menu_row},
     },
     hover_cards::{HoverTarget, marked_by_hover_target, marked_by_menu_pin},
     widget_groups::{
@@ -68,32 +68,36 @@ pub(crate) struct GroupMenuRowContext<'p, 'a, M> {
     pub cascade_satellite_panels: &'p CascadeSatellitePanels,
 }
 
-const fn accordion_caret(emphasis: MenuRowEmphasis, growth: PopupGrowth) -> Phosphor {
+const fn accordion_caret(emphasis: NestedMenuRowEmphasis, growth: PopupGrowth) -> Phosphor {
     match (emphasis, growth) {
-        (MenuRowEmphasis::Plain, _) => Phosphor::CaretRight(Weight::Regular),
-        (MenuRowEmphasis::Selected, PopupGrowth::Downward) => Phosphor::CaretDown(Weight::Regular),
-        (MenuRowEmphasis::Selected, PopupGrowth::Upward) => Phosphor::CaretUp(Weight::Regular),
+        (NestedMenuRowEmphasis::Plain, _) => Phosphor::CaretRight(Weight::Regular),
+        (NestedMenuRowEmphasis::Selected, PopupGrowth::Downward) => {
+            Phosphor::CaretDown(Weight::Regular)
+        }
+        (NestedMenuRowEmphasis::Selected, PopupGrowth::Upward) => {
+            Phosphor::CaretUp(Weight::Regular)
+        }
     }
 }
 
-fn trailing_glyph_color(emphasis: MenuRowEmphasis) -> fn(&iced::Theme) -> iced::Color {
+fn trailing_glyph_color(emphasis: NestedMenuRowEmphasis) -> fn(&iced::Theme) -> iced::Color {
     match emphasis {
-        MenuRowEmphasis::Plain => secondary_text_color,
-        MenuRowEmphasis::Selected => primary_weak_text_color,
+        NestedMenuRowEmphasis::Plain => secondary_text_color,
+        NestedMenuRowEmphasis::Selected => primary_weak_text_color,
     }
 }
 
-fn pinned_glyph_color(emphasis: MenuRowEmphasis) -> fn(&iced::Theme) -> iced::Color {
+fn pinned_glyph_color(emphasis: NestedMenuRowEmphasis) -> fn(&iced::Theme) -> iced::Color {
     match emphasis {
-        MenuRowEmphasis::Plain => text_color,
-        MenuRowEmphasis::Selected => primary_weak_text_color,
+        NestedMenuRowEmphasis::Plain => text_color,
+        NestedMenuRowEmphasis::Selected => primary_weak_text_color,
     }
 }
 
 pub(crate) fn group_row<'a, M: Clone + 'a>(
     layout: &GroupMenuRowContext<'_, 'a, M>,
     entry: GroupMenuGroupRow<'a, M>,
-    look: MenuRowLook,
+    look: NestedMenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
     let icon_size = layout.config.theme.font.icon_size_px;
     let group_title = entry.group_title;
@@ -164,7 +168,7 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
         layout.config,
         content,
         look,
-        MenuRowPress::Performs(press_event),
+        NestedMenuRowPress::Performs(press_event),
         hover_reaction,
     )
 }
@@ -179,8 +183,8 @@ pub(crate) fn item_menu<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     let rows: Vec<Element<'a, M>> = items
         .into_iter()
         .map(|item| {
-            let look = MenuRowLook {
-                emphasis: MenuRowEmphasis::from(item.inspection(inspected_target)),
+            let look = NestedMenuRowLook {
+                emphasis: NestedMenuRowEmphasis::from(item.inspection(inspected_target)),
                 frame_corners: panel_corners,
             };
             item_row(layout, group, item, look).map(M::from)
@@ -193,7 +197,7 @@ pub(crate) fn item_row<'a, M: Clone + 'a>(
     layout: &GroupMenuRowContext<'_, 'a, M>,
     group: &WidgetGroupIdentity,
     item: GroupMenuItemRow<'a, M>,
-    look: MenuRowLook,
+    look: NestedMenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
     let pin_button = |pin_weight, pin_color: fn(&iced::Theme) -> iced::Color, item_key| {
         glyph_button(
@@ -239,9 +243,9 @@ pub(crate) fn item_row<'a, M: Clone + 'a>(
     };
     let press = match item.gestures.left {
         GroupItemGesture::Performs { message, .. } => {
-            MenuRowPress::Performs(GroupEvent::Group(message))
+            NestedMenuRowPress::Performs(GroupEvent::Group(message))
         }
-        GroupItemGesture::Inert => MenuRowPress::Inert,
+        GroupItemGesture::Inert => NestedMenuRowPress::Inert,
     };
     let row = menu_row(
         layout.config,
