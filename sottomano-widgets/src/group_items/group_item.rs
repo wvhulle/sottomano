@@ -1,4 +1,4 @@
-use std::{borrow::Cow, rc::Rc};
+use std::{borrow::Cow, iter::once, rc::Rc};
 
 use chrono::Locale;
 use corredo::{popovers::NestedMenuOpenTrigger, press_actions::flat_button, theming::text_color};
@@ -32,8 +32,7 @@ use crate::{
         icon_glyph::IconGlyph,
         icon_handle::IconHandle,
         ongoing_toast::{
-            OngoingToast, OngoingToastActionButton, quota_pace_alert_severity,
-            reading_display_state_alert_severity,
+            OngoingToast, OngoingToastActionButton, alerting_severity_of, quota_pace_alert_severity,
         },
     },
 };
@@ -510,18 +509,33 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             .chain(self.ongoing_toasts.iter().cloned())
     }
 
-    pub(crate) fn ongoing_alert_severity(&self, clock: Clock) -> Option<Severity> {
-        let alerting_widget = self.kind.announcing_widget();
-        alerting_widget
-            .and_then(|widget| reading_display_state_alert_severity(widget, clock))
-            .into_iter()
-            .chain(alerting_widget.and_then(|widget| quota_pace_alert_severity(widget, clock)))
+    pub(crate) fn shown_alert_severity(&self, clock: Clock) -> Option<Severity> {
+        let shown_state_severity = match &self.kind {
+            GroupItemContent::Reading { widget, .. } => alerting_severity_of(widget.state(clock)),
+            GroupItemContent::Slider { widget, .. } => alerting_severity_of(widget.state(clock)),
+            GroupItemContent::Composed {
+                identity:
+                    ComposedGroupItemFace {
+                        icon: GroupItemIcon::IconGlyph { state, .. },
+                        ..
+                    },
+                ..
+            } => alerting_severity_of(*state),
+            GroupItemContent::Composed { .. } => Severity::Normal,
+        };
+        let quota_severity = self
+            .kind
+            .announcing_widget()
+            .and_then(|widget| quota_pace_alert_severity(widget, clock));
+        once(shown_state_severity)
+            .chain(quota_severity)
             .chain(self.ongoing_toasts.iter().map(|toast| toast.severity))
             .max()
+            .filter(|severity| *severity > Severity::Normal)
     }
 
-    pub(crate) fn alerts_from(&self, promotion_severity: Severity, clock: Clock) -> bool {
-        self.ongoing_alert_severity(clock)
+    pub(crate) fn shown_from(&self, promotion_severity: Severity, clock: Clock) -> bool {
+        self.shown_alert_severity(clock)
             .is_some_and(|alert_severity| alert_severity >= promotion_severity)
     }
 

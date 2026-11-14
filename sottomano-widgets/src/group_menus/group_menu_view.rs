@@ -39,8 +39,8 @@ use crate::{
     },
     widget_groups::{
         widget_group_content::{
-            EdgeIndicator, GroupEvent, GroupMenuRowParts, GroupToastRequests, PanelPromotion,
-            RowInspection, WidgetGroupContent,
+            EdgeIndicator, GroupEvent, GroupMenuRowParts, GroupToastRequests, RowInspection,
+            WidgetGroupContent,
         },
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
     },
@@ -299,12 +299,6 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             if group_menus.pin_state(topic, group_entry) == MenuPinState::Pinned {
                 return member
                     .pinned_from(topic)
-                    .view(config, panel_position, clock)
-                    .into_iter()
-                    .collect();
-            }
-            if member.whole_group_promotion() == PanelPromotion::RisesToPanel {
-                return member
                     .view(config, panel_position, clock)
                     .into_iter()
                     .collect();

@@ -99,6 +99,5 @@ impl AppearancePresetsGroup {
                 .into_iter()
                 .map(|preset| preset_group_item(preset, current)),
         )
-        .staying_in_menu_during_alerts()
     }
 }

@@ -19,7 +19,6 @@ use crate::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{HoverCardBody, Section},
-    widget_groups::widget_group_content::PanelPromotion,
     widgets::{
         icon_glyph::IconGlyph,
         idle::ActionTrigger,
@@ -88,13 +87,19 @@ impl BlockerCause {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum IdleActionBlocking {
+    StopsArmedAction,
+    LeavesActionRunning,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct PauseBlocker {
     pub pause: IdleAction,
     pub holder: String,
     pub why: String,
     pub cause: BlockerCause,
-    pub panel_promotion: PanelPromotion,
+    pub action_blocking: IdleActionBlocking,
     pub holder_process: Option<HolderProcess>,
 }
 
@@ -145,13 +150,13 @@ impl GroupItemReading for PauseBlocker {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if matches!(
-            self.cause,
-            BlockerCause::LogindIdleLock | BlockerCause::ScreenSaverHold
-        ) {
-            ReadingDisplayState::Idle
-        } else {
-            ReadingDisplayState::Warning
+        match (self.action_blocking, self.cause) {
+            (IdleActionBlocking::StopsArmedAction, _) => ReadingDisplayState::Critical,
+            (
+                IdleActionBlocking::LeavesActionRunning,
+                BlockerCause::LogindIdleLock | BlockerCause::ScreenSaverHold,
+            ) => ReadingDisplayState::Idle,
+            (IdleActionBlocking::LeavesActionRunning, _) => ReadingDisplayState::Warning,
         }
     }
 
@@ -406,16 +411,18 @@ fn hibernate_blockers(
     if hibernate_available || explained_by_sleep_lock {
         return Vec::new();
     }
-    let panel_promotion = match (obstacles.resume_device, hibernate_timer) {
-        (ResumeDevice::Unset, TimerArming::Unarmed) => PanelPromotion::StaysInMenu,
-        (ResumeDevice::Configured, _) | (_, TimerArming::Armed) => PanelPromotion::RisesToPanel,
+    let action_blocking = match (obstacles.resume_device, hibernate_timer) {
+        (ResumeDevice::Unset, TimerArming::Unarmed) => IdleActionBlocking::LeavesActionRunning,
+        (ResumeDevice::Configured, _) | (_, TimerArming::Armed) => {
+            IdleActionBlocking::StopsArmedAction
+        }
     };
     let blocker = |holder: String, why: String, cause: BlockerCause| PauseBlocker {
         pause: IdleAction::Hibernate,
         holder,
         why,
         cause,
-        panel_promotion,
+        action_blocking,
         holder_process: None,
     };
     let refusal = kernel_refusal_text(&obstacles.kernel_hibernation);
@@ -473,15 +480,18 @@ fn lock_blockers(obstacles: &SleepObstacles) -> impl Iterator<Item = PauseBlocke
             .flat_map(move |inhibitor| {
                 let why = stated_reason(&inhibitor.reason, "holds a sleep lock");
                 [
-                    (IdleAction::Sleep, PanelPromotion::RisesToPanel),
-                    (IdleAction::Hibernate, PanelPromotion::StaysInMenu),
+                    (IdleAction::Sleep, IdleActionBlocking::StopsArmedAction),
+                    (
+                        IdleAction::Hibernate,
+                        IdleActionBlocking::LeavesActionRunning,
+                    ),
                 ]
-                .map(|(pause, panel_promotion)| PauseBlocker {
+                .map(|(pause, action_blocking)| PauseBlocker {
                     pause,
                     holder: inhibitor.holder.clone(),
                     why: why.clone(),
                     cause: BlockerCause::SleepLock,
-                    panel_promotion,
+                    action_blocking,
                     holder_process: None,
                 })
             });
@@ -493,7 +503,7 @@ fn lock_blockers(obstacles: &SleepObstacles) -> impl Iterator<Item = PauseBlocke
                 holder: inhibitor.holder.clone(),
                 why: stated_reason(&inhibitor.reason, "holds a shutdown lock"),
                 cause: BlockerCause::ShutdownLock,
-                panel_promotion: PanelPromotion::RisesToPanel,
+                action_blocking: IdleActionBlocking::StopsArmedAction,
                 holder_process: None,
             });
     let idle_locks = obstacles
@@ -503,9 +513,9 @@ fn lock_blockers(obstacles: &SleepObstacles) -> impl Iterator<Item = PauseBlocke
             holder: inhibitor.holder.clone(),
             why: stated_reason(&inhibitor.reason, "holds an idle lock"),
             cause: BlockerCause::LogindIdleLock,
-            panel_promotion: match obstacles.idle_action_setting {
-                IdleActionSetting::Acting => PanelPromotion::RisesToPanel,
-                IdleActionSetting::Ignored => PanelPromotion::StaysInMenu,
+            action_blocking: match obstacles.idle_action_setting {
+                IdleActionSetting::Acting => IdleActionBlocking::StopsArmedAction,
+                IdleActionSetting::Ignored => IdleActionBlocking::LeavesActionRunning,
             },
             holder_process: None,
         });
@@ -522,7 +532,7 @@ fn no_sleep_state_blocker(obstacles: &SleepObstacles) -> Option<PauseBlocker> {
         holder: "logind".to_owned(),
         why: "no configured sleep state is available".to_owned(),
         cause: BlockerCause::LogindRefusal,
-        panel_promotion: PanelPromotion::RisesToPanel,
+        action_blocking: IdleActionBlocking::StopsArmedAction,
         holder_process: None,
     })
 }
@@ -544,10 +554,10 @@ fn screensaver_blockers<'a>(
                 .clone()
                 .unwrap_or_else(|| "asked the compositor to hold idle timers".to_owned()),
             cause: BlockerCause::ScreenSaverHold,
-            panel_promotion: if Some(trigger.tag) == first_to_fire {
-                PanelPromotion::RisesToPanel
+            action_blocking: if Some(trigger.tag) == first_to_fire {
+                IdleActionBlocking::StopsArmedAction
             } else {
-                PanelPromotion::StaysInMenu
+                IdleActionBlocking::LeavesActionRunning
             },
             holder_process: None,
         })
@@ -578,10 +588,11 @@ mod tests {
         BlockerCause, HolderProcess, PauseBlocker, PauseFacts, pause_blockers, sleep_state_answer,
     };
     use crate::{
-        widget_groups::{
-            idle_pause_groups::pause_blocker_rows::TimerArming,
-            widget_group_content::PanelPromotion,
+        clock::Clock,
+        group_items::{
+            group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
         },
+        widget_groups::idle_pause_groups::pause_blocker_rows::{IdleActionBlocking, TimerArming},
         widgets::idle::ActionTrigger,
     };
 
@@ -661,7 +672,10 @@ mod tests {
                 window_ownership: WindowOwnership::Windowless,
             })
         );
-        assert_eq!(blockers[0].panel_promotion, PanelPromotion::RisesToPanel);
+        assert_eq!(
+            blockers[0].action_blocking,
+            IdleActionBlocking::StopsArmedAction
+        );
     }
 
     #[test]
@@ -682,12 +696,12 @@ mod tests {
             ..secret_memory_obstacles()
         };
         assert_eq!(
-            blockers_of(&obstacles, TimerArming::Unarmed)[0].panel_promotion,
-            PanelPromotion::StaysInMenu
+            blockers_of(&obstacles, TimerArming::Unarmed)[0].action_blocking,
+            IdleActionBlocking::LeavesActionRunning
         );
         assert_eq!(
-            blockers_of(&obstacles, TimerArming::Armed)[0].panel_promotion,
-            PanelPromotion::RisesToPanel
+            blockers_of(&obstacles, TimerArming::Armed)[0].action_blocking,
+            IdleActionBlocking::StopsArmedAction
         );
     }
 
@@ -700,7 +714,7 @@ mod tests {
         let blockers = blockers_of(&obstacles, TimerArming::Unarmed);
         let rising: Vec<IdleAction> = blockers
             .iter()
-            .filter(|blocker| blocker.panel_promotion == PanelPromotion::RisesToPanel)
+            .filter(|blocker| blocker.state(Clock::real()) == ReadingDisplayState::Critical)
             .map(|blocker| blocker.pause)
             .collect();
         assert_eq!(rising, vec![IdleAction::Sleep]);
@@ -720,7 +734,10 @@ mod tests {
         };
         let blockers = blockers_of(&obstacles, TimerArming::Unarmed);
         assert_eq!(blockers[0].pause, IdleAction::PowerOff);
-        assert_eq!(blockers[0].panel_promotion, PanelPromotion::RisesToPanel);
+        assert_eq!(
+            blockers[0].action_blocking,
+            IdleActionBlocking::StopsArmedAction
+        );
     }
 
     #[test]
@@ -734,12 +751,12 @@ mod tests {
             ..without_action.clone()
         };
         assert_eq!(
-            blockers_of(&without_action, TimerArming::Unarmed)[0].panel_promotion,
-            PanelPromotion::StaysInMenu
+            blockers_of(&without_action, TimerArming::Unarmed)[0].action_blocking,
+            IdleActionBlocking::LeavesActionRunning
         );
         assert_eq!(
-            blockers_of(&with_action, TimerArming::Unarmed)[0].panel_promotion,
-            PanelPromotion::RisesToPanel
+            blockers_of(&with_action, TimerArming::Unarmed)[0].action_blocking,
+            IdleActionBlocking::StopsArmedAction
         );
     }
 
@@ -768,7 +785,7 @@ mod tests {
         assert_eq!(blockers.len(), 2);
         let rising: Vec<IdleAction> = blockers
             .iter()
-            .filter(|blocker| blocker.panel_promotion == PanelPromotion::RisesToPanel)
+            .filter(|blocker| blocker.action_blocking == IdleActionBlocking::StopsArmedAction)
             .map(|blocker| blocker.pause)
             .collect();
         assert_eq!(rising, vec![IdleAction::Lock]);

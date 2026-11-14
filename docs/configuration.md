@@ -62,7 +62,7 @@ spring_load_delay = "600ms"
 focus_indicator_duration = "160ms"
 
 [group_menus]
-alert_promotion_severity = "warning"
+alert_promotion_severity = "critical"
 scroll_fade_rows = 1.5
 
 [widget_group_layout]

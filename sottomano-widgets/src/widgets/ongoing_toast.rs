@@ -127,7 +127,7 @@ pub struct OngoingToast<Message> {
     pub action_buttons: Vec<OngoingToastActionButton<Message>>,
 }
 
-const fn alerting_severity_of(state: ReadingDisplayState) -> Severity {
+pub(crate) const fn alerting_severity_of(state: ReadingDisplayState) -> Severity {
     match state {
         ReadingDisplayState::Warning => Severity::Warning,
         ReadingDisplayState::Critical => Severity::Critical,

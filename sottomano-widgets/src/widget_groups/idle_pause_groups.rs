@@ -37,8 +37,8 @@ use crate::{
     widget_groups::{
         idle_pause_groups::pause_blocker_rows::TimerArming,
         widget_group_content::{
-            ExpansionChange, PanelPromotion, WidgetGroupContent, WidgetGroupExpansion,
-            WidgetGroupExpansionMessage, WidgetGroupFace,
+            ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
         },
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
@@ -377,14 +377,6 @@ impl IdlePauseGroups {
         config: &'a Config,
     ) -> WidgetGroupContent<'a, IdlePauseInteraction> {
         let first_blocker = self.blockers_of(pause).next();
-        let panel_promotion = if self
-            .blockers_of(pause)
-            .any(|blocker| blocker.panel_promotion == PanelPromotion::RisesToPanel)
-        {
-            PanelPromotion::RisesToPanel
-        } else {
-            PanelPromotion::StaysInMenu
-        };
         let timeout_slider =
             GroupItem::slider(self.pause(pause).timer.slider(), config, move |message| {
                 IdlePauseInteraction::Timer(pause, message)
@@ -450,6 +442,5 @@ impl IdlePauseGroups {
                 .chain(scheduled_shutdown),
         )
         .face(face)
-        .with_panel_promotion(panel_promotion)
     }
 }
