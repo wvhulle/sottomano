@@ -7,6 +7,7 @@ pub mod caldav_tasks_events;
 pub mod cgroup_memory_limits;
 pub mod ci_runner_tasks;
 pub mod compositor_window_ipc;
+pub mod container_run_state;
 pub mod cpu_memory_compute;
 pub mod delivery_cadence_drivers;
 pub mod desktop_notifications;

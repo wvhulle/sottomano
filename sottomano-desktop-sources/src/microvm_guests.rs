@@ -111,7 +111,6 @@ fn counted_hypervisor_processes(proc_root: &Path) -> usize {
 pub struct MicrovmGuestListing {
     pub pid: i32,
     pub machine_name: String,
-    pub running: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -146,7 +145,6 @@ fn listed_machines() -> Result<MicrovmGuestListings, Error> {
                 machine_name: parsed_launch(hypervisor, &scanned.command_line)
                     .named_machine
                     .unwrap_or_else(|| format!("{} {}", hypervisor.product_name(), scanned.pid)),
-                running: true,
             })
         })
         .collect();

@@ -2,6 +2,7 @@ pub mod apptainer_containers;
 pub mod battery_power_profiles;
 pub mod ci_runner_tasks;
 pub mod compositor_window_requests;
+pub mod container_power;
 pub mod cpu_memory_compute;
 pub mod desktop_notifications;
 pub mod desktop_windows_apps;

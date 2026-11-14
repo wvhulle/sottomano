@@ -1,18 +1,18 @@
 use std::{
     borrow::Cow,
     collections::BTreeMap,
-    convert::identity,
     path::{Path, PathBuf},
 };
 
 use chrono::Locale;
-use iced::Subscription;
+use iced::{Subscription, Task};
+use sottomano_desktop_sinks::container_power::ContainerEngineApi;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     backing_service_availability::Availability,
     docker_container_engine::{
-        DockerEngineListing, DockerEngineProbe, DockerEngineReadout, DockerEngineSocket,
-        candidate_docker_sockets,
+        DockerContainerListing, DockerEngineListing, DockerEngineProbe, DockerEngineReadout,
+        DockerEngineSocket, candidate_docker_sockets,
     },
     podman_container_engine::libpod_running_containers::{EngineReadError, EngineReadout},
 };
@@ -30,10 +30,11 @@ use crate::{
         hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
-        podman_engines_group::{containers_section, running_summary},
-        widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+        engine_container_rows::{
+            EngineContainerInteraction, EngineContainerTarget, EngineContainers,
+            container_switch_task, rows_ending_in_hidden_count, with_container_switch,
         },
+        widget_group_content::{WidgetGroupContent, WidgetGroupExpansion, WidgetGroupFace},
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
@@ -45,18 +46,20 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DockerEngineTarget {
-    socket_path: Cow<'static, str>,
+pub enum DockerEngineTarget {
+    Engine { socket_path: Cow<'static, str> },
+    Container(EngineContainerTarget),
+    HiddenContainers,
 }
 
 impl DockerEngineTarget {
     #[must_use]
     pub const fn of_socket(socket_path: Cow<'static, str>) -> Self {
-        Self { socket_path }
+        Self::Engine { socket_path }
     }
 
-    fn names_socket(&self, socket_path: &Path) -> bool {
-        Path::new(self.socket_path.as_ref()) == socket_path
+    fn of_engine(engine: &DockerEngineSocket) -> Self {
+        Self::of_socket(Cow::Owned(engine.socket_path.display().to_string()))
     }
 }
 
@@ -66,12 +69,16 @@ impl From<DockerEngineTarget> for HoverTarget {
     }
 }
 
-struct DockerEngineRow<'a> {
-    engine: &'a DockerEngineSocket,
-    readout: &'a EngineReadout,
+fn container_hover_target(target: EngineContainerTarget) -> HoverTarget {
+    DockerEngineTarget::Container(target).into()
 }
 
-impl GroupItemReading for DockerEngineRow<'_> {
+struct UnreadableEngineRow<'a> {
+    engine: &'a DockerEngineSocket,
+    failure: &'a EngineReadError,
+}
+
+impl GroupItemReading for UnreadableEngineRow<'_> {
     fn name(&self) -> &'static str {
         "Docker engine"
     }
@@ -85,32 +92,19 @@ impl GroupItemReading for DockerEngineRow<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(match self.readout {
-            EngineReadout::Containers(engine) => running_summary(engine),
-            EngineReadout::Unreadable(EngineReadError::SocketDenied) => {
-                "no access: socket denied".to_owned()
-            }
-            EngineReadout::Unreadable(_) => "unreadable".to_owned(),
+        Some(match self.failure {
+            EngineReadError::SocketDenied => "no access: socket denied".to_owned(),
+            _ => "unreadable".to_owned(),
         })
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.readout {
-            EngineReadout::Containers(_) => ReadingDisplayState::Idle,
-            EngineReadout::Unreadable(_) => ReadingDisplayState::Failed,
-        }
+        ReadingDisplayState::Failed
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        let readout_section = match self.readout {
-            EngineReadout::Containers(engine) if engine.containers.is_empty() => {
-                Section::note("No running containers")
-            }
-            EngineReadout::Containers(engine) => containers_section(engine),
-            EngineReadout::Unreadable(failure) => Section::error(failure),
-        };
         HoverCardBody::sections([
-            readout_section,
+            Section::error(self.failure),
             Section::dictionary([LabeledValue::new(
                 "Socket",
                 self.engine.socket_path.display().to_string(),
@@ -119,18 +113,18 @@ impl GroupItemReading for DockerEngineRow<'_> {
     }
 }
 
-struct DockerEngineListingRow<'a> {
+struct ListedContainerRow<'a> {
     engine: &'a DockerEngineSocket,
-    listing: &'a DockerEngineListing,
+    listed: &'a DockerContainerListing,
 }
 
-impl GroupItemReading for DockerEngineListingRow<'_> {
+impl GroupItemReading for ListedContainerRow<'_> {
     fn name(&self) -> &'static str {
-        "Docker engine"
+        "Container"
     }
 
     fn menu_row_name(&self) -> Cow<'static, str> {
-        self.engine.owner.to_string().into()
+        self.listed.container_name.clone().into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -138,33 +132,18 @@ impl GroupItemReading for DockerEngineListingRow<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(format!("{} running", self.listing.running_count()))
+        Some(self.listed.run_state.label().to_owned())
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.listing.running_count() > 0 {
-            ReadingDisplayState::On
-        } else {
-            ReadingDisplayState::Idle
-        }
+        self.listed.run_state.into()
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        let mut detail_entries = vec![LabeledValue::new(
-            "Running",
-            self.listing.running_count().to_string(),
-        )];
-        detail_entries.extend(
-            self.listing
-                .listings
-                .iter()
-                .map(|listed| LabeledValue::new("Container", listed.container_name.clone())),
-        );
-        detail_entries.push(LabeledValue::new(
-            "Socket",
-            self.engine.socket_path.display().to_string(),
-        ));
-        HoverCardBody::dictionary(detail_entries)
+        HoverCardBody::dictionary([
+            LabeledValue::new("State", self.listed.run_state.label()),
+            LabeledValue::new("Engine", self.engine.owner.to_string()),
+        ])
     }
 }
 
@@ -187,8 +166,11 @@ pub enum DockerEnginesMessage {
     Probe(PathBuf, SnapshotDelivery<DockerEngineProbe>),
     Listing(PathBuf, SnapshotDelivery<DockerEngineListing>),
     Engine(PathBuf, SnapshotDelivery<DockerEngineReadout>),
-    Expansion(WidgetGroupExpansionMessage),
+    PowerChangeRefused(String),
+    Interaction(DockerEnginesInteraction),
 }
+
+pub type DockerEnginesInteraction = EngineContainerInteraction;
 
 impl DockerEnginesGroup {
     #[must_use]
@@ -236,7 +218,11 @@ impl DockerEnginesGroup {
         }))
     }
 
-    pub fn update(&mut self, message: DockerEnginesMessage, clock: Clock) {
+    pub fn update(
+        &mut self,
+        message: DockerEnginesMessage,
+        clock: Clock,
+    ) -> Task<DockerEnginesMessage> {
         match message {
             DockerEnginesMessage::Probe(socket_path, delivery) => {
                 self.probes
@@ -256,10 +242,25 @@ impl DockerEnginesGroup {
                     .or_default()
                     .receive(delivery, clock);
             }
-            DockerEnginesMessage::Expansion(expansion_message) => {
+            DockerEnginesMessage::PowerChangeRefused(refusal) => {
+                tracing::warn!(%refusal, "docker container power change refused");
+            }
+            DockerEnginesMessage::Interaction(EngineContainerInteraction::SwitchContainer(
+                request,
+            )) => {
+                return container_switch_task(
+                    ContainerEngineApi::Docker,
+                    request,
+                    DockerEnginesMessage::PowerChangeRefused,
+                );
+            }
+            DockerEnginesMessage::Interaction(EngineContainerInteraction::Expansion(
+                expansion_message,
+            )) => {
                 self.expansion.update(expansion_message);
             }
         }
+        Task::none()
     }
 
     fn probe_presence_count(&self) -> Option<usize> {
@@ -289,31 +290,58 @@ impl DockerEnginesGroup {
         self.listings.get(&engine.socket_path)?.get()
     }
 
-    #[must_use]
-    pub fn hover_card_for(&self, target: &DockerEngineTarget, clock: Clock) -> Option<HoverCard> {
-        let engine = self
-            .engines
+    fn engine_named(&self, socket_path: &Path) -> Option<&DockerEngineSocket> {
+        self.engines
             .iter()
-            .find(|engine| target.names_socket(&engine.socket_path))?;
-        if let Some(readout) = self.readout_of(engine) {
-            return self
-                .readouts
-                .get(&engine.socket_path)?
-                .hover_card_with(DockerEngineRow { engine, readout }.hover_card(clock));
-        }
-        let listing = self.listing_of(engine)?;
-        self.listings
-            .get(&engine.socket_path)?
-            .hover_card_with(DockerEngineListingRow { engine, listing }.hover_card(clock))
+            .find(|engine| engine.socket_path == socket_path)
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
-        let rows = self.engine_rows();
+    #[must_use]
+    pub fn hover_card_for(&self, target: &DockerEngineTarget, clock: Clock) -> Option<HoverCard> {
+        match target {
+            DockerEngineTarget::Engine { socket_path } => {
+                let engine = self.engine_named(Path::new(socket_path.as_ref()))?;
+                let EngineReadout::Unreadable(failure) = self.readout_of(engine)? else {
+                    return None;
+                };
+                self.readouts
+                    .get(&engine.socket_path)?
+                    .hover_card_with(UnreadableEngineRow { engine, failure }.hover_card(clock))
+            }
+            DockerEngineTarget::Container(container_target) => {
+                let engine = self
+                    .engines
+                    .iter()
+                    .find(|engine| container_target.names_socket(&engine.socket_path))?;
+                if let Some(EngineReadout::Containers(listing)) = self.readout_of(engine) {
+                    let engine_containers = EngineContainers {
+                        socket_path: &engine.socket_path,
+                        owner: &engine.owner,
+                        listing,
+                    };
+                    return self.readouts.get(&engine.socket_path)?.hover_card_with(
+                        engine_containers.hover_body_of(&container_target.container_id, clock)?,
+                    );
+                }
+                let listed = self
+                    .listing_of(engine)?
+                    .listings
+                    .iter()
+                    .find(|listed| listed.id == container_target.container_id.as_ref())?;
+                self.listings
+                    .get(&engine.socket_path)?
+                    .hover_card_with(ListedContainerRow { engine, listed }.hover_card(clock))
+            }
+            DockerEngineTarget::HiddenContainers => None,
+        }
+    }
+
+    pub fn group_content(&self) -> WidgetGroupContent<'_, DockerEnginesInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::DockerEngines,
             &self.expansion,
-            identity,
-            rows,
+            EngineContainerInteraction::Expansion,
+            self.container_rows(),
         )
         .face(WidgetGroupFace::IconColoredBy {
             glyph: IconGlyph::SimpleIcon(SimpleIcon::Docker),
@@ -321,41 +349,67 @@ impl DockerEnginesGroup {
         })
     }
 
-    fn engine_rows(&self) -> Vec<GroupItem<'_, WidgetGroupExpansionMessage>> {
-        let mut detailed_engines = 0;
-        let mut rows = Vec::new();
-        for engine in &self.engines {
-            if let Some(readout) = self.readout_of(engine) {
-                let socket_missing = matches!(
-                    readout,
-                    EngineReadout::Unreadable(EngineReadError::SocketMissing)
-                );
-                if !socket_missing {
-                    rows.push(GroupItem::reading(
-                        DockerEngineRow { engine, readout },
-                        DockerEngineTarget::of_socket(Cow::Owned(
-                            engine.socket_path.display().to_string(),
-                        )),
-                    ));
-                }
-                detailed_engines += 1;
-            }
-        }
-        if detailed_engines > 0 {
-            return rows;
-        }
-        self.engines
+    fn listed_rows<'a>(
+        &'a self,
+        engine: &'a DockerEngineSocket,
+    ) -> Vec<GroupItem<'a, DockerEnginesInteraction>> {
+        self.listing_of(engine)
+            .map(|listing| listing.listings.as_slice())
+            .unwrap_or_default()
             .iter()
-            .filter_map(|engine| {
-                let listing = self.listing_of(engine)?;
-                Some(GroupItem::reading(
-                    DockerEngineListingRow { engine, listing },
-                    DockerEngineTarget::of_socket(Cow::Owned(
-                        engine.socket_path.display().to_string(),
-                    )),
-                ))
+            .map(|listed| {
+                let target = EngineContainerTarget {
+                    socket_path: Cow::Owned(engine.socket_path.display().to_string()),
+                    container_id: Cow::Owned(listed.id.clone()),
+                };
+                with_container_switch(
+                    GroupItem::reading(
+                        ListedContainerRow { engine, listed },
+                        container_hover_target(target.clone()),
+                    ),
+                    listed.run_state,
+                    target,
+                    EngineContainerInteraction::SwitchContainer,
+                )
             })
             .collect()
+    }
+
+    fn container_rows(&self) -> Vec<GroupItem<'_, DockerEnginesInteraction>> {
+        let mut failure_rows = Vec::new();
+        let mut running_rows = Vec::new();
+        let mut stopped_rows = Vec::new();
+        for engine in &self.engines {
+            match self.readout_of(engine) {
+                Some(EngineReadout::Containers(listing)) => {
+                    let engine_containers = EngineContainers {
+                        socket_path: &engine.socket_path,
+                        owner: &engine.owner,
+                        listing,
+                    };
+                    running_rows.extend(engine_containers.running_rows(
+                        container_hover_target,
+                        EngineContainerInteraction::SwitchContainer,
+                    ));
+                    stopped_rows.extend(engine_containers.stopped_rows(
+                        container_hover_target,
+                        EngineContainerInteraction::SwitchContainer,
+                    ));
+                }
+                Some(EngineReadout::Unreadable(EngineReadError::SocketMissing)) => {}
+                Some(EngineReadout::Unreadable(failure)) => failure_rows.push(GroupItem::reading(
+                    UnreadableEngineRow { engine, failure },
+                    DockerEngineTarget::of_engine(engine),
+                )),
+                None => running_rows.extend(self.listed_rows(engine)),
+            }
+        }
+        running_rows.extend(stopped_rows);
+        failure_rows.extend(rows_ending_in_hidden_count(
+            running_rows,
+            DockerEngineTarget::HiddenContainers.into(),
+        ));
+        failure_rows
     }
 }
 
@@ -405,12 +459,12 @@ impl GroupItemReading for DockerEnginesGroup {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::time::{Duration, UNIX_EPOCH};
 
     use sottomano_desktop_sources::{
         delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
         podman_container_engine::{
-            libpod_running_containers::EngineContainers,
+            libpod_running_containers::{EngineContainers, EngineListing, StoppedContainer},
             systemd_service_engine_discovery::EngineOwner,
         },
     };
@@ -431,7 +485,7 @@ mod tests {
             owner: EngineOwner::Root,
             socket_path: rootful_socket.clone(),
         }]);
-        group.update(
+        let _ = group.update(
             DockerEnginesMessage::Engine(
                 rootful_socket.clone(),
                 delivered(EngineReadout::Unreadable(EngineReadError::SocketMissing)),
@@ -439,11 +493,20 @@ mod tests {
             Clock::real(),
         );
         assert!(group.group_content().is_empty());
-        group.update(
+        let _ = group.update(
             DockerEnginesMessage::Engine(
                 rootful_socket,
-                delivered(EngineReadout::Containers(EngineContainers {
-                    containers: Vec::new(),
+                delivered(EngineReadout::Containers(EngineListing {
+                    running: EngineContainers {
+                        containers: Vec::new(),
+                    },
+                    stopped: vec![StoppedContainer {
+                        id: "exited".to_owned(),
+                        container_name: "exited".to_owned(),
+                        shown_name: "exited".to_owned(),
+                        image: "alpine".to_owned(),
+                        stopped_at: UNIX_EPOCH,
+                    }],
                 })),
             ),
             Clock::real(),

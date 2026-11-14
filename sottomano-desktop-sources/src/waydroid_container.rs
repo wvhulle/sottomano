@@ -13,6 +13,7 @@ use zbus::proxy;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::Availability,
+    container_run_state::ContainerRunState,
     delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses,
@@ -74,7 +75,7 @@ fn waydroid_payload_cgroup() -> PathBuf {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WaydroidListing {
     pub state: WaydroidState,
-    pub container_running: bool,
+    pub container: ContainerRunState,
 }
 
 impl SnapshotSource for WaydroidListing {
@@ -103,27 +104,33 @@ async fn waydroid_session(system_bus: &zbus::Connection) -> HashMap<String, Stri
 }
 
 async fn read_waydroid_listing(system_bus: &zbus::Connection) -> WaydroidListing {
-    let container_running = waydroid_payload_cgroup().exists();
+    let container = if waydroid_payload_cgroup().exists() {
+        ContainerRunState::Running
+    } else {
+        ContainerRunState::Stopped
+    };
     let session = waydroid_session(system_bus).await;
     WaydroidListing {
-        state: state_of_session(&session, container_running),
-        container_running,
+        state: state_of_session(&session, container),
+        container,
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WaydroidReadout {
     pub state: WaydroidState,
-    pub container_running: bool,
+    pub container: ContainerRunState,
     pub memory_in_use: Option<ByteSize>,
 }
 
-fn state_of_session(session: &HashMap<String, String>, container_running: bool) -> WaydroidState {
+fn state_of_session(
+    session: &HashMap<String, String>,
+    container: ContainerRunState,
+) -> WaydroidState {
     if session.is_empty() {
-        return if container_running {
-            WaydroidState::ContainerOnly
-        } else {
-            WaydroidState::Absent
+        return match container {
+            ContainerRunState::Running => WaydroidState::ContainerOnly,
+            ContainerRunState::Stopped => WaydroidState::Absent,
         };
     }
     WaydroidState::Session {
@@ -139,11 +146,14 @@ fn state_of_session(session: &HashMap<String, String>, container_running: bool) 
 async fn read_waydroid(system_bus: &zbus::Connection) -> WaydroidReadout {
     let payload_cgroup = waydroid_payload_cgroup();
     let container_memory = read_cgroup_memory(&payload_cgroup);
-    let container_running = container_memory.is_some();
+    let container = match container_memory {
+        Some(_) => ContainerRunState::Running,
+        None => ContainerRunState::Stopped,
+    };
     let session = waydroid_session(system_bus).await;
     WaydroidReadout {
-        state: state_of_session(&session, container_running),
-        container_running,
+        state: state_of_session(&session, container),
+        container,
         memory_in_use: container_memory.map(|reading| reading.current),
     }
 }
@@ -167,15 +177,16 @@ mod tests {
     use std::collections::HashMap;
 
     use super::{WaydroidState, state_of_session};
+    use crate::container_run_state::ContainerRunState;
 
     #[test]
     fn no_session_and_no_container_means_waydroid_is_absent() {
         assert_eq!(
-            state_of_session(&HashMap::new(), false),
+            state_of_session(&HashMap::new(), ContainerRunState::Stopped),
             WaydroidState::Absent
         );
         assert_eq!(
-            state_of_session(&HashMap::new(), true),
+            state_of_session(&HashMap::new(), ContainerRunState::Running),
             WaydroidState::ContainerOnly
         );
     }
@@ -187,7 +198,7 @@ mod tests {
             ("user_name".to_owned(), "wvhulle".to_owned()),
         ]);
         assert_eq!(
-            state_of_session(&session, true),
+            state_of_session(&session, ContainerRunState::Running),
             WaydroidState::Session {
                 session_state: "FROZEN".to_owned(),
                 user_name: Some("wvhulle".to_owned()),

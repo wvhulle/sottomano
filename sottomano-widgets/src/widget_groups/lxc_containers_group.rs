@@ -2,8 +2,11 @@ use std::borrow::Cow;
 
 use chrono::Locale;
 use sottomano_desktop_sinks::lxc_containers::{start_lxc_container, stop_lxc_container};
-use sottomano_desktop_sources::lxc_containers::{
-    LxcContainer, LxcContainerListing, LxcContainerListings, LxcContainers, LxcProbe,
+use sottomano_desktop_sources::{
+    container_run_state::ContainerRunState,
+    lxc_containers::{
+        LxcContainer, LxcContainerListing, LxcContainerListings, LxcContainers, LxcProbe,
+    },
 };
 
 use crate::{
@@ -17,7 +20,7 @@ use crate::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
             ContainerFamilyMessage, FamilyRow, RowPower,
         },
-        process_usage_cells::{approximate_memory_text, running_display_state, running_state_text},
+        process_usage_cells::approximate_memory_text,
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
@@ -63,18 +66,15 @@ impl GroupItemReading for LxcContainerListingRow<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(running_state_text(self.listing.running).to_owned())
+        Some(self.listing.run_state.label().to_owned())
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        running_display_state(self.listing.running)
+        self.listing.run_state.into()
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        HoverCardBody::dictionary([LabeledValue::new(
-            "State",
-            running_state_text(self.listing.running),
-        )])
+        HoverCardBody::dictionary([LabeledValue::new("State", self.listing.run_state.label())])
     }
 }
 
@@ -96,25 +96,23 @@ impl GroupItemReading for LxcContainerRow<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        if !self.container.running {
-            return Some("stopped".to_owned());
+        match self.container.run_state {
+            ContainerRunState::Stopped => Some(ContainerRunState::Stopped.label().to_owned()),
+            ContainerRunState::Running => self
+                .container
+                .memory_in_use
+                .map(approximate_memory_text)
+                .or_else(|| Some(ContainerRunState::Running.label().to_owned())),
         }
-        self.container
-            .memory_in_use
-            .map(approximate_memory_text)
-            .or_else(|| Some("running".to_owned()))
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        running_display_state(self.container.running)
+        self.container.run_state.into()
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let container = self.container;
-        let mut detail_entries = vec![LabeledValue::new(
-            "State",
-            running_state_text(container.running),
-        )];
+        let mut detail_entries = vec![LabeledValue::new("State", container.run_state.label())];
         if let Some(memory_in_use) = container.memory_in_use {
             detail_entries.push(LabeledValue::new(
                 "Memory use",
@@ -177,10 +175,13 @@ impl ContainerFamily for LxcFamily {
                     listing.container_name.clone(),
                 )),
                 reading: LxcContainerListingRow { listing },
-                power: if listing.running {
-                    RowPower::SwitchedOn(listing.container_name.clone())
-                } else {
-                    RowPower::SwitchedOff(listing.container_name.clone())
+                power: match listing.run_state {
+                    ContainerRunState::Running => {
+                        RowPower::SwitchedOn(listing.container_name.clone())
+                    }
+                    ContainerRunState::Stopped => {
+                        RowPower::SwitchedOff(listing.container_name.clone())
+                    }
                 },
             })
             .collect()
@@ -195,10 +196,13 @@ impl ContainerFamily for LxcFamily {
                     container.container_name.clone(),
                 )),
                 reading: LxcContainerRow { container },
-                power: if container.running {
-                    RowPower::SwitchedOn(container.container_name.clone())
-                } else {
-                    RowPower::SwitchedOff(container.container_name.clone())
+                power: match container.run_state {
+                    ContainerRunState::Running => {
+                        RowPower::SwitchedOn(container.container_name.clone())
+                    }
+                    ContainerRunState::Stopped => {
+                        RowPower::SwitchedOff(container.container_name.clone())
+                    }
                 },
             })
             .collect()

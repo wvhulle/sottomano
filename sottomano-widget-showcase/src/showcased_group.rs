@@ -696,7 +696,7 @@ impl ShowcasedGroup {
     ) -> Result<(), ShowcaseMessage> {
         match (self, message) {
             (ShowcasedGroup::PodmanEngines(group), ShowcaseMessage::PodmanEngines(message)) => {
-                group.update(message, clock);
+                let _ = group.update(message, clock);
             }
             (ShowcasedGroup::VirtualMachines(group), ShowcaseMessage::VirtualMachines(message)) => {
                 let _ = group.update(message, clock);
@@ -711,7 +711,7 @@ impl ShowcasedGroup {
                 let _ = group.update(message, clock);
             }
             (ShowcasedGroup::DockerEngines(group), ShowcaseMessage::DockerEngines(message)) => {
-                group.update(message, clock);
+                let _ = group.update(message, clock);
             }
             (
                 ShowcasedGroup::ApptainerContainers(group),

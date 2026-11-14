@@ -44,7 +44,7 @@ use sottomano_widgets::{
         compute_group::{ComputeInteraction, ComputeMessage},
         copilot_usage_group::CopilotUsageMessage,
         dark_mode_group::{DarkModeInteraction, DarkModeMessage},
-        docker_engines_group::DockerEnginesMessage,
+        docker_engines_group::{DockerEnginesInteraction, DockerEnginesMessage},
         ethernet_ports_group::{EthernetPortsInteraction, EthernetPortsMessage},
         flatpak_sandboxes_group::{FlatpakSandboxesInteraction, FlatpakSandboxesMessage},
         gamepad_group::{GamepadInteraction, GamepadMessage},
@@ -69,7 +69,7 @@ use sottomano_widgets::{
         panel_settings_group::PanelSettingsMessage,
         pending_upgrades_group::{PendingUpgradesInteraction, PendingUpgradesMessage},
         physical_drive_group::{DriveInteraction, DriveMessage},
-        podman_engines_group::PodmanEnginesMessage,
+        podman_engines_group::{PodmanEnginesInteraction, PodmanEnginesMessage},
         power_group::{PowerInteraction, PowerMessage},
         quiet_schedule_group::QuietScheduleMessage,
         reachability_group::ReachabilityMessage,
@@ -331,11 +331,11 @@ pub enum ShellInteraction {
     CopilotUsage(WidgetGroupExpansionMessage),
     OpenRouterCredit(WidgetGroupExpansionMessage),
     LlamaServer(LlamaServerInteraction),
-    PodmanEngines(WidgetGroupExpansionMessage),
+    PodmanEngines(PodmanEnginesInteraction),
     VirtualMachines(VirtualMachinesInteraction),
     NspawnContainers(NspawnContainersInteraction),
     CgroupMemoryLimits(CgroupMemoryLimitsInteraction),
-    DockerEngines(WidgetGroupExpansionMessage),
+    DockerEngines(DockerEnginesInteraction),
     ApptainerContainers(ApptainerContainersInteraction),
     VmwareMachines(VmwareMachinesInteraction),
     VirtualBoxMachines(VirtualBoxMachinesInteraction),
@@ -483,8 +483,8 @@ impl From<ShellInteraction> for Message {
             ShellInteraction::LlamaServer(interaction) => {
                 Message::LlamaServer(LlamaServerMessage::Interaction(interaction))
             }
-            ShellInteraction::PodmanEngines(expansion) => {
-                Message::PodmanEngines(PodmanEnginesMessage::Expansion(expansion))
+            ShellInteraction::PodmanEngines(interaction) => {
+                Message::PodmanEngines(PodmanEnginesMessage::Interaction(interaction))
             }
             ShellInteraction::VirtualMachines(interaction) => {
                 Message::VirtualMachines(VirtualMachinesMessage::Interaction(interaction))
@@ -495,8 +495,8 @@ impl From<ShellInteraction> for Message {
             ShellInteraction::CgroupMemoryLimits(interaction) => {
                 Message::CgroupMemoryLimits(CgroupMemoryLimitsMessage::Interaction(interaction))
             }
-            ShellInteraction::DockerEngines(expansion) => {
-                Message::DockerEngines(DockerEnginesMessage::Expansion(expansion))
+            ShellInteraction::DockerEngines(interaction) => {
+                Message::DockerEngines(DockerEnginesMessage::Interaction(interaction))
             }
             ShellInteraction::ApptainerContainers(interaction) => {
                 Message::ApptainerContainers(ApptainerContainersMessage::Interaction(interaction))

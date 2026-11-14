@@ -295,6 +295,7 @@ mod tests {
     use bytesize::ByteSize;
     use sottomano_desktop_sources::{
         SnapshotDelivery, SnapshotSource,
+        container_run_state::ContainerRunState,
         delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
         lxc_containers::{LxcContainerListing, LxcContainerListings},
         vmware_machines::{
@@ -331,7 +332,6 @@ mod tests {
                     pid: LISTED_PID,
                     machine_name: "listed".to_owned(),
                     configuration_file: PathBuf::from("/vm/listed.vmx"),
-                    running: true,
                 }],
             })),
             clock,
@@ -393,11 +393,11 @@ mod tests {
             listings: vec![
                 LxcContainerListing {
                     container_name: "running".to_owned(),
-                    running: true,
+                    run_state: ContainerRunState::Running,
                 },
                 LxcContainerListing {
                     container_name: "stopped".to_owned(),
-                    running: false,
+                    run_state: ContainerRunState::Stopped,
                 },
             ],
         };

@@ -3,6 +3,7 @@ use std::time::Duration;
 use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    container_run_state::ContainerRunState,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     waydroid_container::{WaydroidReadout, WaydroidState},
 };
@@ -23,7 +24,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
                     user_name: Some("wvhulle".to_owned()),
                     lcd_density: Some("180".to_owned()),
                 },
-                container_running: true,
+                container: ContainerRunState::Running,
                 memory_in_use: Some(ByteSize::mib(1_420)),
             }),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),

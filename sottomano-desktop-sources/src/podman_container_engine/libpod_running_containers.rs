@@ -1,4 +1,5 @@
 use std::{
+    cmp::Reverse,
     collections::{HashMap, HashSet},
     fmt::{Display, Formatter, Result as FmtResult},
     io::ErrorKind,
@@ -35,6 +36,7 @@ pub const LIBPOD_API_ROOT: &str = "http://podman/v5.0.0/libpod";
 pub(crate) const ENGINE_POLL_PERIOD: Duration = Duration::from_secs(5);
 const WOODPECKER_STEP_LABEL: &str = "wp_step";
 const RUNNING_STATE: &str = "running";
+const STOPPED_STATES: [&str; 4] = ["created", "configured", "exited", "stopped"];
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EngineReadError {
@@ -94,6 +96,73 @@ pub struct EngineContainers {
     pub containers: Vec<RunningContainer>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoppedContainer {
+    pub id: String,
+    pub container_name: String,
+    pub shown_name: String,
+    pub image: String,
+    pub stopped_at: SystemTime,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EngineListing {
+    pub running: EngineContainers,
+    pub stopped: Vec<StoppedContainer>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ContainerSelection {
+    Running,
+    All,
+}
+
+impl ContainerSelection {
+    pub(crate) fn list_query(self) -> &'static str {
+        match self {
+            ContainerSelection::Running => "",
+            ContainerSelection::All => "?all=true",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ContainerPhase {
+    Running,
+    Stopped,
+    Transitional,
+}
+
+pub(crate) struct PhasedContainers<Listed> {
+    pub(crate) running: Vec<Listed>,
+    pub(crate) stopped: Vec<StoppedContainer>,
+}
+
+pub(crate) fn phased_containers<Listed>(
+    listed: Vec<Listed>,
+    phase_of: impl Fn(&Listed) -> ContainerPhase,
+    stopped_of: impl Fn(&Listed) -> StoppedContainer,
+) -> PhasedContainers<Listed> {
+    let mut phased = listed.into_iter().fold(
+        PhasedContainers {
+            running: Vec::new(),
+            stopped: Vec::new(),
+        },
+        |mut phased, container| {
+            match phase_of(&container) {
+                ContainerPhase::Running => phased.running.push(container),
+                ContainerPhase::Stopped => phased.stopped.push(stopped_of(&container)),
+                ContainerPhase::Transitional => {}
+            }
+            phased
+        },
+    );
+    phased
+        .stopped
+        .sort_by_key(|stopped| Reverse(stopped.stopped_at));
+    phased
+}
+
 impl EngineContainers {
     #[must_use]
     pub fn total_resident_memory(&self) -> ByteSize {
@@ -124,6 +193,10 @@ struct ListedContainer {
     pid: i32,
     #[serde(rename = "StartedAt", default)]
     started_at_unix_seconds: u64,
+    #[serde(rename = "ExitedAt", default)]
+    exited_at_unix_seconds: i64,
+    #[serde(rename = "Created", default)]
+    created_unix_seconds: i64,
     #[serde(rename = "Labels", default)]
     labels: Option<HashMap<String, String>>,
 }
@@ -143,19 +216,31 @@ impl ListedContainer {
             .unwrap_or_else(|| self.id.clone())
     }
 
-    fn process_state(&self) -> ContainerProcessState {
+    fn phase(&self) -> ContainerPhase {
         if self.state == RUNNING_STATE && self.pid > 0 {
-            ContainerProcessState::RunningProcess
+            ContainerPhase::Running
+        } else if STOPPED_STATES.contains(&self.state.as_str()) {
+            ContainerPhase::Stopped
         } else {
-            ContainerProcessState::NoProcess
+            ContainerPhase::Transitional
         }
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ContainerProcessState {
-    RunningProcess,
-    NoProcess,
+    fn shown_name(&self) -> String {
+        self.step_label()
+            .map_or_else(|| self.container_name(), str::to_owned)
+    }
+
+    fn stopped_container(&self) -> StoppedContainer {
+        let stopped_unix_seconds = self.exited_at_unix_seconds.max(self.created_unix_seconds);
+        StoppedContainer {
+            id: self.id.clone(),
+            container_name: self.container_name(),
+            shown_name: self.shown_name(),
+            image: self.image.clone(),
+            stopped_at: UNIX_EPOCH + Duration::from_secs(stopped_unix_seconds.unsigned_abs()),
+        }
+    }
 }
 
 pub(crate) async fn classified_engine_failure(
@@ -174,29 +259,34 @@ pub(crate) async fn classified_engine_failure(
 
 async fn listed_containers(
     socket_path: &Path,
+    selection: ContainerSelection,
 ) -> Result<Vec<ListedContainer>, http_json_client::Error> {
     http_json_client::get_json_over_unix_socket(
         socket_path,
-        &format!("{LIBPOD_API_ROOT}/containers/json"),
+        &format!(
+            "{LIBPOD_API_ROOT}/containers/json{}",
+            selection.list_query()
+        ),
     )
     .await
 }
 
 async fn listed_containers_with_one_retry(
     socket_path: &Path,
+    selection: ContainerSelection,
 ) -> Result<Vec<ListedContainer>, EngineReadError> {
-    let attempt = match listed_containers(socket_path).await {
+    let attempt = match listed_containers(socket_path, selection).await {
         Err(http_json_client::Error::Status { status, .. })
             if status == http_json_client::TOO_MANY_REQUESTS_STATUS
                 || status >= http_json_client::SERVER_ERROR_STATUS =>
         {
-            listed_containers(socket_path).await
+            listed_containers(socket_path, selection).await
         }
         Err(
             http_json_client::Error::HostNotResolved { .. }
             | http_json_client::Error::TimedOut { .. }
             | http_json_client::Error::Unreachable { .. },
-        ) => listed_containers(socket_path).await,
+        ) => listed_containers(socket_path, selection).await,
         first_attempt => first_attempt,
     };
     match attempt {
@@ -272,11 +362,31 @@ impl EngineSampler {
     }
 
     pub(crate) async fn sample(&mut self) -> Result<EngineContainers, EngineReadError> {
-        let listed: Vec<ListedContainer> = listed_containers_with_one_retry(&self.socket_path)
-            .await?
-            .into_iter()
-            .filter(|listed| listed.process_state() == ContainerProcessState::RunningProcess)
-            .collect();
+        let listed: Vec<ListedContainer> =
+            listed_containers_with_one_retry(&self.socket_path, ContainerSelection::Running)
+                .await?
+                .into_iter()
+                .filter(|listed| listed.phase() == ContainerPhase::Running)
+                .collect();
+        self.measured_running(listed).await
+    }
+
+    async fn sample_listing(&mut self) -> Result<EngineListing, EngineReadError> {
+        let phased = phased_containers(
+            listed_containers_with_one_retry(&self.socket_path, ContainerSelection::All).await?,
+            ListedContainer::phase,
+            ListedContainer::stopped_container,
+        );
+        Ok(EngineListing {
+            running: self.measured_running(phased.running).await?,
+            stopped: phased.stopped,
+        })
+    }
+
+    async fn measured_running(
+        &mut self,
+        listed: Vec<ListedContainer>,
+    ) -> Result<EngineContainers, EngineReadError> {
         if listed.is_empty() {
             self.identities_by_id.clear();
             self.checkpoints_by_id.clear();
@@ -325,13 +435,10 @@ impl EngineSampler {
             totals.spent_ticks,
             taken_at,
         );
-        let container_name = container.container_name();
         RunningContainer {
             id: container.id.clone(),
-            shown_name: container
-                .step_label()
-                .map_or_else(|| container_name.clone(), str::to_owned),
-            container_name,
+            shown_name: container.shown_name(),
+            container_name: container.container_name(),
             image: container.image.clone(),
             started_at: UNIX_EPOCH + Duration::from_secs(container.started_at_unix_seconds),
             ci_identity: self
@@ -352,12 +459,12 @@ pub(crate) fn shared_engine_sampler(socket_path: PathBuf) -> Arc<Mutex<EngineSam
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EngineReadout {
-    Containers(EngineContainers),
+    Containers(EngineListing),
     Unreadable(EngineReadError),
 }
 
-impl From<Result<EngineContainers, EngineReadError>> for EngineReadout {
-    fn from(engine_read: Result<EngineContainers, EngineReadError>) -> Self {
+impl From<Result<EngineListing, EngineReadError>> for EngineReadout {
+    fn from(engine_read: Result<EngineListing, EngineReadError>) -> Self {
         match engine_read {
             Ok(engine) => EngineReadout::Containers(engine),
             Err(failure) => EngineReadout::Unreadable(failure),
@@ -368,7 +475,7 @@ impl From<Result<EngineContainers, EngineReadError>> for EngineReadout {
 impl EngineReadout {
     pub(crate) fn sampling_need(&self) -> SamplingNeed {
         match self {
-            EngineReadout::Containers(engine) if engine.containers.is_empty() => {
+            EngineReadout::Containers(engine) if engine.running.containers.is_empty() => {
                 SamplingNeed::Settled
             }
             EngineReadout::Containers(_) | EngineReadout::Unreadable(_) => {
@@ -389,7 +496,7 @@ impl SnapshotSource for EngineReadout {
         deliveries_on_running_set_changes(
             move || {
                 let sampler = sampler.clone();
-                async move { Ok(sampler.lock().await.sample().await.into()) }
+                async move { Ok(sampler.lock().await.sample_listing().await.into()) }
             },
             |delivered| {
                 delivered
@@ -443,11 +550,8 @@ mod tests {
         let exited: ListedContainer =
             serde_json::from_value(json!({"Id": "abc", "State": "exited", "Pid": 0}))
                 .expect("listing decodes");
-        assert_eq!(exited.process_state(), ContainerProcessState::NoProcess);
-        assert_eq!(
-            listed_step_container().process_state(),
-            ContainerProcessState::RunningProcess
-        );
+        assert_eq!(exited.phase(), ContainerPhase::Stopped);
+        assert_eq!(listed_step_container().phase(), ContainerPhase::Running);
     }
 
     #[test]
@@ -567,8 +671,17 @@ mod tests {
 
     #[test]
     fn only_a_readable_empty_engine_stops_usage_sampling() {
-        let empty = EngineReadout::Containers(EngineContainers {
-            containers: Vec::new(),
+        let empty = EngineReadout::Containers(EngineListing {
+            running: EngineContainers {
+                containers: Vec::new(),
+            },
+            stopped: vec![StoppedContainer {
+                id: "def".to_owned(),
+                container_name: "exited".to_owned(),
+                shown_name: "exited".to_owned(),
+                image: "alpine".to_owned(),
+                stopped_at: UNIX_EPOCH,
+            }],
         });
         assert_eq!(empty.sampling_need(), SamplingNeed::Settled);
         assert_eq!(
@@ -590,9 +703,12 @@ mod tests {
     #[tokio::test]
     async fn a_missing_socket_is_distinct_from_a_denied_one() {
         assert_eq!(
-            listed_containers_with_one_retry(Path::new("/nonexistent/podman.sock"))
-                .await
-                .err(),
+            listed_containers_with_one_retry(
+                Path::new("/nonexistent/podman.sock"),
+                ContainerSelection::Running,
+            )
+            .await
+            .err(),
             Some(EngineReadError::SocketMissing)
         );
     }
@@ -618,7 +734,7 @@ mod tests {
                 .await
                 .expect("response writes");
         });
-        let listed = listed_containers_with_one_retry(&socket_path)
+        let listed = listed_containers_with_one_retry(&socket_path, ContainerSelection::All)
             .await
             .expect("the retry is answered");
         assert!(listed.is_empty());

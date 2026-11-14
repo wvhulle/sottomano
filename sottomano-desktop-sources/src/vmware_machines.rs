@@ -62,7 +62,6 @@ pub struct VmwareMachineListing {
     pub pid: i32,
     pub machine_name: String,
     pub configuration_file: PathBuf,
-    pub running: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,7 +95,6 @@ fn named_machines() -> Result<VmwareMachineListings, Error> {
                 pid: scanned.pid,
                 machine_name: file_stem_text(&configuration_file),
                 configuration_file,
-                running: true,
             })
         })
         .collect();

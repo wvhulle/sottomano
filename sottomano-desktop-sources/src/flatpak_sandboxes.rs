@@ -80,7 +80,6 @@ fn counted_running_instances() -> Result<FlatpakProbe, Error> {
 pub struct FlatpakSandboxListing {
     pub instance_id: String,
     pub application_id: String,
-    pub running: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -131,7 +130,6 @@ fn listed_sandboxes_in(instances_directory: &Path, proc_root: &Path) -> FlatpakS
             process_directory.exists().then_some(FlatpakSandboxListing {
                 instance_id,
                 application_id: instance_info.application_id?,
-                running: true,
             })
         })
         .collect();
