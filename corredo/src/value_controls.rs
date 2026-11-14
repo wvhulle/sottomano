@@ -1,3 +1,8 @@
+mod expanding_slider;
+pub use expanding_slider::{
+    ExpandingSlider, ExpandingSliderParts, ScrollWrites, SecondaryPress, SliderEffect,
+    SliderGesture, SliderLook, SliderMessage, WriteOutcome,
+};
 mod inline_slider;
 pub use inline_slider::{InlineSlider, SliderAccents, inline_slider};
 mod seek_bar;
