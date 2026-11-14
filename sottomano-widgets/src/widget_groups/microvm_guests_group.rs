@@ -46,7 +46,7 @@ use crate::{
 
 const POWER_BUTTON_HINT: &str = "press the guest's power button";
 const MICROVM_SWITCH_FACE: UnitSwitchFace = UnitSwitchFace {
-    name: Cow::Borrowed("MicroVM"),
+    name: Cow::Borrowed("microvm.nix guest"),
     icon: Phosphor::Lightning(Weight::Regular),
     presses: SwitchPresses {
         turning_on: "start the microVM",
@@ -503,7 +503,7 @@ impl MicrovmGuestsGroup {
 
 impl GroupItemReading for MicrovmGuestsGroup {
     fn name(&self) -> Cow<'static, str> {
-        "MicroVMs".into()
+        "microvm.nix guests".into()
     }
 
     fn icon(&self) -> IconGlyph {

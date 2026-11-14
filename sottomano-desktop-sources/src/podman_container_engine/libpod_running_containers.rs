@@ -9,6 +9,7 @@ use std::{
 };
 
 use bytesize::ByteSize;
+use chrono::DateTime;
 use futures::Stream;
 use serde::Deserialize;
 use tokio::{net::UnixStream, sync::Mutex};
@@ -192,11 +193,11 @@ struct ListedContainer {
     #[serde(rename = "Pid", default)]
     pid: i32,
     #[serde(rename = "StartedAt", default)]
-    started_at_unix_seconds: u64,
+    started_at_unix_seconds: i64,
     #[serde(rename = "ExitedAt", default)]
     exited_at_unix_seconds: i64,
     #[serde(rename = "Created", default)]
-    created_unix_seconds: i64,
+    created: String,
     #[serde(rename = "Labels", default)]
     labels: Option<HashMap<String, String>>,
 }
@@ -231,16 +232,45 @@ impl ListedContainer {
             .map_or_else(|| self.container_name(), str::to_owned)
     }
 
+    fn started_at(&self) -> SystemTime {
+        engine_unix_time(self.started_at_unix_seconds).unwrap_or(UNIX_EPOCH)
+    }
+
     fn stopped_container(&self) -> StoppedContainer {
-        let stopped_unix_seconds = self.exited_at_unix_seconds.max(self.created_unix_seconds);
+        let stopped_at = engine_unix_time(self.exited_at_unix_seconds)
+            .into_iter()
+            .chain(parsed_engine_timestamp(&self.created))
+            .max()
+            .unwrap_or(UNIX_EPOCH);
         StoppedContainer {
             id: self.id.clone(),
             container_name: self.container_name(),
             shown_name: self.shown_name(),
             image: self.image.clone(),
-            stopped_at: UNIX_EPOCH + Duration::from_secs(stopped_unix_seconds.unsigned_abs()),
+            stopped_at,
         }
     }
+}
+
+fn engine_unix_time(unix_seconds: i64) -> Option<SystemTime> {
+    match u64::try_from(unix_seconds) {
+        Ok(positive_seconds) if positive_seconds > 0 => {
+            Some(UNIX_EPOCH + Duration::from_secs(positive_seconds))
+        }
+        Ok(_) | Err(_) => None,
+    }
+}
+
+pub(crate) fn parsed_engine_timestamp(timestamp_text: &str) -> Option<SystemTime> {
+    if timestamp_text.is_empty() {
+        return None;
+    }
+    DateTime::parse_from_rfc3339(timestamp_text)
+        .inspect_err(|parse_failure| {
+            tracing::debug!(%timestamp_text, %parse_failure, "container engine timestamp is malformed");
+        })
+        .ok()
+        .map(SystemTime::from)
 }
 
 pub(crate) async fn classified_engine_failure(
@@ -440,7 +470,7 @@ impl EngineSampler {
             shown_name: container.shown_name(),
             container_name: container.container_name(),
             image: container.image.clone(),
-            started_at: UNIX_EPOCH + Duration::from_secs(container.started_at_unix_seconds),
+            started_at: container.started_at(),
             ci_identity: self
                 .identities_by_id
                 .get(&container.id)
@@ -543,6 +573,54 @@ mod tests {
             "Labels": {"wp_step": "clone", "wp_uuid": "01M6"},
         }))
         .expect("listing decodes")
+    }
+
+    #[test]
+    fn a_libpod_listing_with_text_creation_times_decodes() {
+        let listed: Vec<ListedContainer> = serde_json::from_value(json!([
+            {
+                "Id": "exited",
+                "State": "exited",
+                "Pid": 0,
+                "Created": "2026-11-05T20:52:02.775637078+01:00",
+                "ExitedAt": 1_793_908_371,
+                "StartedAt": 1_793_908_323
+            },
+            {
+                "Id": "never-run",
+                "State": "created",
+                "Pid": 0,
+                "Created": "2026-11-05T20:53:38.531269808+01:00",
+                "ExitedAt": -62_135_596_800_i64,
+                "StartedAt": -62_135_596_800_i64
+            },
+            {
+                "Id": "running",
+                "State": "running",
+                "Pid": 4242,
+                "Created": "2026-11-05T20:53:38.531269818+01:00",
+                "ExitedAt": 0,
+                "StartedAt": 1_793_908_420
+            }
+        ]))
+        .expect("a real libpod listing decodes");
+        let phases: Vec<ContainerPhase> = listed.iter().map(ListedContainer::phase).collect();
+        assert_eq!(
+            phases,
+            [
+                ContainerPhase::Stopped,
+                ContainerPhase::Stopped,
+                ContainerPhase::Running
+            ]
+        );
+        assert_eq!(
+            listed[0].stopped_container().stopped_at,
+            UNIX_EPOCH + Duration::from_secs(1_793_908_371)
+        );
+        assert_eq!(
+            listed[1].stopped_container().stopped_at,
+            parsed_engine_timestamp("2026-11-05T20:53:38.531269808+01:00").expect("time parses")
+        );
     }
 
     #[test]

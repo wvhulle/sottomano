@@ -10,13 +10,13 @@ Each guest's row shows what pressing it does:
 
 A press that the guest's manager refuses is written to Sottomano's log, and the row keeps its state. CPU use counts like `top`: 100 % is one fully busy core.
 
-## Virtualization: Virtual machines
+## Virtualization: QEMU machines
 
 Every running QEMU virtual machine on this computer, one row each, with its CPU and memory use: the ones you start yourself, NixOS tests running inside a nix build, and libvirt domains. Shut-off libvirt domains on `qemu:///system` are listed after them. A paused or shutting-down machine says so in its row. The card lists its cores, memory, disks, forwarded ports and, for NixOS, the system it boots.
 
 A libvirt domain has a switch: pressing it shuts a running domain down or starts a shut-off one. Any other machine with a QMP socket this user can open has a stop square, which powers it off the way the power button would. A machine with neither gets a muted switch, and its card says power control is unavailable. Right-pressing a machine that has its own window focuses that window.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/virtual_machines.webp" width="1096" alt="Opening the virtual machines group from the Virtualization menu and hovering a machine started from a terminal">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/virtual_machines.webp" width="1096" alt="Opening the QEMU machines group from the Virtualization menu and hovering a machine started from a terminal">
 
 ## Virtualization: VirtualBox machines
 
@@ -32,13 +32,13 @@ Every running VMware machine on this computer, one row each, with its memory use
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/vmware_machines_workstation.webp" width="952" alt="Opening the VMware machines group from the Virtualization menu and hovering a machine">
 
-## Virtualization: MicroVMs
+## Virtualization: microvm.nix guests
 
 Every guest running under a lightweight hypervisor on this computer, one row each, with its memory use: Cloud Hypervisor, Firecracker, crosvm and kvmtool, as started by microvm.nix or by hand. Every installed `microvm@` service has a row, running or stopped, named after the service's instance; a running one's memory is that service's. Any other guest is named after its `--id` or `--name`, or its hypervisor and process. The card lists the hypervisor, guest memory and cores, uptime, service, kernel and API socket.
 
 Pressing the switch on a microvm.nix guest starts or stops its service, which needs your user in the system module's `containerControllers`. A guest started by hand has a stop square when it is a Cloud Hypervisor or Firecracker guest with an API socket this user can open, which presses its power button, and a muted switch otherwise.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/microvm_guests_cloud_hypervisor.webp" width="897" alt="Opening the MicroVMs group from the Virtualization menu and hovering a Cloud Hypervisor guest">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/microvm_guests_cloud_hypervisor.webp" width="897" alt="Opening the microvm.nix guests group from the Virtualization menu and hovering a Cloud Hypervisor guest">
 
 ## Virtualization: Incus instances
 
