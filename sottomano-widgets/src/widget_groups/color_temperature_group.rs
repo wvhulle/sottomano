@@ -1,5 +1,4 @@
 use crate::group_items::reading_display_state::ReadingDisplayState;
-mod gamma_dim_gauge;
 mod sun_follow_toggle;
 
 use std::ops::RangeInclusive;

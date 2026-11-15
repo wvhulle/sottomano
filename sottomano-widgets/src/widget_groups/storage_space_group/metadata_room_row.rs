@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use bytesize::ByteSize;
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::{
@@ -9,15 +7,14 @@ use sottomano_desktop_sources::disk_storage::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
-        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
+        ongoing_toast::{ReadingAlerts, StateToast, ToastBody, ToastProgress},
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -103,31 +100,34 @@ impl MetadataRoomRow<'_> {
     }
 }
 
-impl GroupItemReading for MetadataRoomRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Metadata room".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::TreeStructure(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.pressure().severity().into()
-    }
-
-    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
-        OngoingToastThreshold::NotifyFromSeverity {
-            minimum_severity: Severity::Critical,
-            summary_text: "No room left for metadata",
+impl<'a> MetadataRoomRow<'a> {
+    pub(super) fn reading_row(self, locale: Locale) -> ReadingRow<'a> {
+        let label = Quantity::size(self.room()).localized_text(locale);
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(label.clone()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            alerts: ReadingAlerts {
+                state_toast: StateToast::NotifyFromSeverity {
+                    minimum_severity: Severity::Critical,
+                    summary_text: "No room left for metadata",
+                    body: ToastBody::Text(label),
+                    progress: ToastProgress::Unmeasured,
+                },
+                ..ReadingAlerts::default()
+            },
+            ..ReadingRow::glyph_only(
+                "Metadata room",
+                Phosphor::TreeStructure(Weight::Regular).into(),
+                self.pressure().severity().into(),
+                Box::new(move |_| self.hover_card()),
+            )
         }
     }
 
-    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        Some(Quantity::size(self.room()).localized_text(locale))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self) -> Vec<Section> {
         let pressure = self.pressure();
         match self {
             MetadataRoomRow::Btrfs(space) => {

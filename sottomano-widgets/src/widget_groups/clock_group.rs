@@ -1,6 +1,6 @@
 use chrono::Locale;
 
-use crate::{group_items::reading_row::ReadingRow, widgets::icon_glyph::IconGlyph};
+use crate::widgets::icon_glyph::IconGlyph;
 mod local_date;
 mod local_time;
 mod zone_time;
@@ -16,7 +16,6 @@ use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::reading_row::reading_hover_card,
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
@@ -134,14 +133,14 @@ impl ClockGroup {
         match target {
             ClockTarget::LocalTime => self
                 .time
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|_| LocalTime::hover_card(clock)),
             ClockTarget::LocalDate => self
                 .date
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|_| LocalDate::hover_card(clock)),
             ClockTarget::ZoneTime(zone) => self
                 .zone_time(*zone)
                 .map(|zone_time| {
-                    zone_time.sections_described_by(|snapshot| reading_hover_card(snapshot, clock))
+                    zone_time.sections_described_by(|snapshot| snapshot.hover_card(clock))
                 })
                 .unwrap_or_default(),
         }
@@ -159,13 +158,13 @@ impl ClockGroup {
             [
                 self.time.group_item(
                     IconGlyph::default(),
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |_| LocalTime::reading_row(clock, locale),
                     ClockTarget::LocalTime,
                     clock,
                 ),
                 self.date.group_item(
                     IconGlyph::default(),
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |_| LocalDate::reading_row(clock, locale),
                     ClockTarget::LocalDate,
                     clock,
                 ),
@@ -174,7 +173,7 @@ impl ClockGroup {
             .chain(self.zone_times.iter().map(|(zone, zone_time)| {
                 zone_time.group_item(
                     IconGlyph::default(),
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| snapshot.reading_row(clock, locale),
                     ClockTarget::ZoneTime(*zone),
                     clock,
                 )

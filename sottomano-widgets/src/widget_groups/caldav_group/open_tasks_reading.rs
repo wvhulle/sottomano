@@ -1,4 +1,4 @@
-use std::{borrow::Cow, num::NonZeroUsize};
+use std::num::NonZeroUsize;
 
 use chrono::{DateTime, Local, Locale, NaiveDate};
 use iced::alignment::Horizontal;
@@ -16,15 +16,15 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-        reading_row::PanelVisibility,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_grouped_table},
     widget_groups::caldav_group::upcoming_events_reading::{
         event_date_cell, event_time_cell, linked_title, nextcloud_app_link,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -100,92 +100,94 @@ fn progress_cell(task: &OpenTask) -> ValueCell {
     }
 }
 
-impl GroupItemReading for OpenTaskList {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::ListChecks(Weight::Regular).into()
-    }
-
-    fn label(&self, clock: Clock, _locale: Locale) -> Option<String> {
-        let overdue_count = self.overdue_task_count(clock.local());
-        (overdue_count > 0).then(|| overdue_count.to_string())
-    }
-
-    fn state(&self, clock: Clock) -> ReadingDisplayState {
-        if self.overdue_task_count(clock.local()) > 0 {
-            ReadingDisplayState::Warning
-        } else {
-            ReadingDisplayState::Idle
-        }
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        if self.tasks.is_empty() {
+pub(crate) fn open_tasks_reading_row(
+    open_tasks: &OpenTaskList,
+    clock: Clock,
+    _locale: Locale,
+) -> ReadingRow<'_> {
+    let overdue_count = open_tasks.overdue_task_count(clock.local());
+    let (label, state) = if overdue_count > 0 {
+        (
+            ReadoutLabel::Labeled(overdue_count.to_string()),
+            ReadingDisplayState::Warning,
+        )
+    } else {
+        (ReadoutLabel::Unlabeled, ReadingDisplayState::Idle)
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        panel_visibility: if open_tasks.tasks.is_empty() {
             PanelVisibility::Hidden
         } else {
             PanelVisibility::Shown
-        }
+        },
+        ..ReadingRow::glyph_only(
+            OpenTaskList::NAME,
+            Phosphor::ListChecks(Weight::Regular).into(),
+            state,
+            Box::new(move |card_clock| open_tasks_hover_card(open_tasks, card_clock)),
+        )
     }
+}
 
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
-        let now = clock.local();
-        let provider = &self.provider;
-        let with_deadline: Vec<&OpenTask> = self
-            .tasks
-            .iter()
-            .filter(|task| matches!(task.deadline, TaskDeadline::Due(_)))
-            .collect();
-        let without_deadline = self.tasks.len() - with_deadline.len();
-        let rows: Vec<_> = with_deadline
-            .into_iter()
-            .map(|task| TaskRow {
-                task,
-                now,
-                provider,
-            })
-            .collect();
-        vec![
-            Section::new(
-                SectionTitle::captioned(
-                    "Deadlines",
-                    format!(
-                        "Open tasks with a deadline from all lists, earliest first. Overdue in \
-                         red, high priority in yellow, low priority dimmed; {} task lists over \
-                         CalDAV.",
-                        self.task_list_count
-                    ),
-                ),
-                headed_grouped_table(
-                    [
-                        ColumnHeading::titled("Day"),
-                        ColumnHeading::titled("Time"),
-                        ColumnHeading::titled("Priority"),
-                        ColumnHeading::titled("Progress"),
-                        ColumnHeading::titled("List").align_x(Horizontal::Left),
-                    ],
-                    rows.chunk_by(|earlier, later| earlier.due_on() == later.due_on()),
-                )
-                .truncated_to(LISTED_TASKS)
-                .without_blank_columns(ValueCell::is_blank),
-            ),
-            Section::new(
-                "Other tasks",
-                dictionary_table(
-                    (without_deadline > 0)
-                        .then(|| {
-                            LabeledValue::new("Without deadline", Quantity::count(without_deadline))
-                        })
-                        .into_iter()
-                        .chain(nextcloud_app_link(
-                            "open Tasks",
-                            provider,
-                            NextcloudWebRoot::tasks_app,
-                        )),
+pub(crate) fn open_tasks_hover_card(open_tasks: &OpenTaskList, clock: Clock) -> Vec<Section> {
+    let now = clock.local();
+    let provider = &open_tasks.provider;
+    let with_deadline: Vec<&OpenTask> = open_tasks
+        .tasks
+        .iter()
+        .filter(|task| matches!(task.deadline, TaskDeadline::Due(_)))
+        .collect();
+    let without_deadline = open_tasks.tasks.len() - with_deadline.len();
+    let rows: Vec<_> = with_deadline
+        .into_iter()
+        .map(|task| TaskRow {
+            task,
+            now,
+            provider,
+        })
+        .collect();
+    vec![
+        Section::new(
+            SectionTitle::captioned(
+                "Deadlines",
+                format!(
+                    "Open tasks with a deadline from all lists, earliest first. Overdue in red, \
+                     high priority in yellow, low priority dimmed; {} task lists over CalDAV.",
+                    open_tasks.task_list_count
                 ),
             ),
-        ]
-    }
+            headed_grouped_table(
+                [
+                    ColumnHeading::titled("Day"),
+                    ColumnHeading::titled("Time"),
+                    ColumnHeading::titled("Priority"),
+                    ColumnHeading::titled("Progress"),
+                    ColumnHeading::titled("List").align_x(Horizontal::Left),
+                ],
+                rows.chunk_by(|earlier, later| earlier.due_on() == later.due_on()),
+            )
+            .truncated_to(LISTED_TASKS)
+            .without_blank_columns(ValueCell::is_blank),
+        ),
+        Section::new(
+            "Other tasks",
+            dictionary_table(
+                (without_deadline > 0)
+                    .then(|| {
+                        LabeledValue::new("Without deadline", Quantity::count(without_deadline))
+                    })
+                    .into_iter()
+                    .chain(nextcloud_app_link(
+                        "open Tasks",
+                        provider,
+                        NextcloudWebRoot::tasks_app,
+                    )),
+            ),
+        ),
+    ]
 }

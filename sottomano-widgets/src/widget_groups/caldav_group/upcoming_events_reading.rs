@@ -1,4 +1,4 @@
-use std::{borrow::Cow, num::NonZeroUsize};
+use std::num::NonZeroUsize;
 
 use chrono::{DateTime, Local, Locale, NaiveDate};
 use iced::alignment::Horizontal;
@@ -16,7 +16,9 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{
         Section, SectionTitle, SectionWidget, dictionary_table, headed_grouped_table,
@@ -141,55 +143,64 @@ fn starts_label(start: AgendaMoment, now: DateTime<Local>, locale: Locale) -> St
 pub(crate) const UPCOMING_EVENT_LIST_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::CalendarDots(Weight::Regular));
 
-impl GroupItemReading for UpcomingEventList {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        UPCOMING_EVENT_LIST_FALLBACK_GLYPH
-    }
-
-    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
-        let now = clock.local();
-        let Some(event) = self.next_event(now) else {
-            return Some(empty_agenda_label(&self.failed_subscription_names));
-        };
-        let summary: String = event.summary.chars().take(LABEL_CHARACTERS).collect();
-        Some(format!(
-            "{}: {summary}",
-            starts_label(event.start, now, locale)
-        ))
-    }
-
-    fn state(&self, clock: Clock) -> ReadingDisplayState {
-        let now = clock.local();
-        if self
-            .events
-            .iter()
-            .any(|event| event.phase(now) == EventPhase::Ongoing)
-        {
-            ReadingDisplayState::On
-        } else if self.failed_subscription_names.is_empty() {
-            ReadingDisplayState::Idle
-        } else {
-            ReadingDisplayState::Warning
+pub(crate) fn upcoming_events_reading_row(
+    upcoming_events: &UpcomingEventList,
+    clock: Clock,
+    locale: Locale,
+) -> ReadingRow<'_> {
+    let now = clock.local();
+    let label = match upcoming_events.next_event(now) {
+        Some(event) => {
+            let summary: String = event.summary.chars().take(LABEL_CHARACTERS).collect();
+            format!("{}: {summary}", starts_label(event.start, now, locale))
         }
+        None => empty_agenda_label(&upcoming_events.failed_subscription_names),
+    };
+    let state = if upcoming_events
+        .events
+        .iter()
+        .any(|event| event.phase(now) == EventPhase::Ongoing)
+    {
+        ReadingDisplayState::On
+    } else if upcoming_events.failed_subscription_names.is_empty() {
+        ReadingDisplayState::Idle
+    } else {
+        ReadingDisplayState::Warning
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Labeled(label),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        ..ReadingRow::glyph_only(
+            UpcomingEventList::NAME,
+            UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
+            state,
+            Box::new(move |card_clock| upcoming_events_hover_card(upcoming_events, card_clock)),
+        )
     }
+}
 
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
-        let now = clock.local();
-        let rows: Vec<_> = self
-            .events
+pub(crate) fn upcoming_events_hover_card(
+    upcoming_events: &UpcomingEventList,
+    clock: Clock,
+) -> Vec<Section> {
+    let now = clock.local();
+    let rows: Vec<_> = upcoming_events
+        .events
+        .iter()
+        .filter(|event| event.phase(now) != EventPhase::Ended)
+        .map(|event| EventRow {
+            event,
+            provider: &upcoming_events.provider,
+        })
+        .collect();
+    let failed_subscription_sections =
+        upcoming_events
+            .failed_subscription_names
             .iter()
-            .filter(|event| event.phase(now) != EventPhase::Ended)
-            .map(|event| EventRow {
-                event,
-                provider: &self.provider,
-            })
-            .collect();
-        let failed_subscription_sections =
-            self.failed_subscription_names.iter().map(|calendar_name| {
+            .map(|calendar_name| {
                 Section::new(
                     "Error",
                     SectionWidget::paragraph(format!(
@@ -197,32 +208,34 @@ impl GroupItemReading for UpcomingEventList {
                     )),
                 )
             });
-        failed_subscription_sections
-            .chain([
-                Section::new(
-                    SectionTitle::captioned("Agenda", calendar_count_caption(self.calendar_count)),
-                    headed_grouped_table(
-                        [
-                            ColumnHeading::titled("Date"),
-                            ColumnHeading::titled("Time"),
-                            ColumnHeading::titled("Calendar").align_x(Horizontal::Left),
-                            ColumnHeading::titled("Location").align_x(Horizontal::Left),
-                        ],
-                        rows.chunk_by(|earlier, later| earlier.starts_on() == later.starts_on()),
-                    )
-                    .truncated_to(LISTED_EVENTS),
+    failed_subscription_sections
+        .chain([
+            Section::new(
+                SectionTitle::captioned(
+                    "Agenda",
+                    calendar_count_caption(upcoming_events.calendar_count),
                 ),
-                Section::new(
-                    "Links",
-                    dictionary_table(nextcloud_app_link(
-                        "open Calendar",
-                        &self.provider,
-                        NextcloudWebRoot::calendar_app,
-                    )),
-                ),
-            ])
-            .collect()
-    }
+                headed_grouped_table(
+                    [
+                        ColumnHeading::titled("Date"),
+                        ColumnHeading::titled("Time"),
+                        ColumnHeading::titled("Calendar").align_x(Horizontal::Left),
+                        ColumnHeading::titled("Location").align_x(Horizontal::Left),
+                    ],
+                    rows.chunk_by(|earlier, later| earlier.starts_on() == later.starts_on()),
+                )
+                .truncated_to(LISTED_EVENTS),
+            ),
+            Section::new(
+                "Links",
+                dictionary_table(nextcloud_app_link(
+                    "open Calendar",
+                    &upcoming_events.provider,
+                    NextcloudWebRoot::calendar_app,
+                )),
+            ),
+        ])
+        .collect()
 }
 
 #[cfg(test)]
@@ -239,14 +252,15 @@ mod tests {
     use crate::{
         clock::Clock,
         group_items::{
-            group_item_reading::GroupItemReading,
             offline_internet_reading::{PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble},
             reading_display_state::ReadingDisplayState,
-            reading_row::ReadingRow,
             source_reading::ReadoutLabel,
         },
         widget_groups::caldav_group::{
-            CaldavTarget, upcoming_events_reading::UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
+            CaldavTarget,
+            upcoming_events_reading::{
+                UPCOMING_EVENT_LIST_FALLBACK_GLYPH, upcoming_events_reading_row,
+            },
         },
         widgets::subscribed_snapshot::SubscribedSnapshot,
     };
@@ -268,7 +282,11 @@ mod tests {
             pending_events
                 .group_item_while_pending::<()>(
                     UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
-                    |snapshot| ReadingRow::evaluated(snapshot, Clock::real(), Locale::default()),
+                    |snapshot| upcoming_events_reading_row(
+                        snapshot,
+                        Clock::real(),
+                        Locale::default()
+                    ),
                     CaldavTarget::UpcomingEvents,
                     Clock::real(),
                 )
@@ -309,23 +327,22 @@ mod tests {
     #[test]
     fn a_free_agenda_keeps_a_visible_reading() {
         let event_list = event_list_without_events(Vec::new());
+        let row = upcoming_events_reading_row(&event_list, Clock::real(), Locale::en_US);
         assert_eq!(
-            event_list.label(Clock::real(), Locale::en_US).as_deref(),
-            Some("No upcoming events"),
+            row.readout.label,
+            ReadoutLabel::Labeled("No upcoming events".to_owned()),
         );
-        assert_eq!(event_list.state(Clock::real()), ReadingDisplayState::Idle);
+        assert_eq!(row.shown_state(), ReadingDisplayState::Idle);
     }
 
     #[test]
     fn a_failed_subscription_is_not_reported_as_a_free_agenda() {
         let event_list = event_list_without_events(vec!["Proton".to_owned()]);
+        let row = upcoming_events_reading_row(&event_list, Clock::real(), Locale::en_US);
         assert_eq!(
-            event_list.label(Clock::real(), Locale::en_US).as_deref(),
-            Some("Proton unavailable"),
+            row.readout.label,
+            ReadoutLabel::Labeled("Proton unavailable".to_owned()),
         );
-        assert_eq!(
-            event_list.state(Clock::real()),
-            ReadingDisplayState::Warning
-        );
+        assert_eq!(row.shown_state(), ReadingDisplayState::Warning);
     }
 }

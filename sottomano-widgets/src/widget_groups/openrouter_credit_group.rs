@@ -1,15 +1,20 @@
 use chrono::Locale;
 
 use crate::{
-    group_items::{
-        group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
-        reading_row::{ReadingRow, reading_hover_card},
-    },
+    group_items::reading_display_state::ReadingDisplayState,
     widget_groups::openrouter_credit_group::{
-        best_models_within_cap::OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH,
-        openrouter_soft_budget::OPEN_ROUTER_SPEND_FALLBACK_GLYPH,
-        strict_budget_remaining::OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH,
+        best_models_within_cap::{
+            OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH, best_models_hover_card,
+            best_models_reading_row,
+        },
+        openrouter_soft_budget::{
+            OPEN_ROUTER_SPEND_FALLBACK_GLYPH, spend_hover_card, spend_panel_visibility,
+            spend_reading_row,
+        },
+        strict_budget_remaining::{
+            OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH, strict_budget_hover_card,
+            strict_budget_reading_row,
+        },
     },
 };
 mod best_models_within_cap;
@@ -42,7 +47,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
+        most_used_model::{ModelSpendRanking, RankedSpan},
         simple_icons::SimpleIcon,
         subscribed_snapshot::SubscribedSnapshot,
     },
@@ -179,9 +184,7 @@ impl OpenRouterCreditGroup {
     }
 
     fn model_ranking(&self) -> Option<ModelSpendRanking<'_, 3>> {
-        let spend = self
-            .spend
-            .visible_reading(GroupItemReading::panel_visibility)?;
+        let spend = self.spend.visible_reading(spend_panel_visibility)?;
         ModelSpendRanking::new(
             "OpenRouter analytics, per local calendar span",
             [
@@ -206,26 +209,24 @@ impl OpenRouterCreditGroup {
         match target {
             OpenRouterCreditTarget::SoftBudget => self
                 .spend
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| spend_hover_card(snapshot, clock)),
             OpenRouterCreditTarget::StrictBudget => self
                 .strict_budget
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| strict_budget_hover_card(snapshot, clock)),
             OpenRouterCreditTarget::BestModelsWithinCap => self
                 .model_rankings
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| best_models_hover_card(snapshot, clock)),
             OpenRouterCreditTarget::MostUsedModel => {
                 let Some(ranking) = self.model_ranking() else {
                     return Vec::new();
                 };
-                self.spend
-                    .hover_card_with(reading_hover_card(MostUsedModel(ranking), clock))
+                self.spend.hover_card_with(ranking.hover_card())
             }
             OpenRouterCreditTarget::MostUsedModelSpend => {
                 let Some(ranking) = self.model_ranking() else {
                     return Vec::new();
                 };
-                self.spend
-                    .hover_card_with(reading_hover_card(MostUsedModelSpend(ranking), clock))
+                self.spend.hover_card_with(ranking.top_model_share())
             }
         }
     }
@@ -243,20 +244,20 @@ impl OpenRouterCreditGroup {
                 self.spend
                     .group_item(
                         OPEN_ROUTER_SPEND_FALLBACK_GLYPH,
-                        |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                        |snapshot| spend_reading_row(snapshot, clock, locale),
                         OpenRouterCreditTarget::SoftBudget,
                         clock,
                     )
                     .map(GroupItem::previewed_on_handle),
                 self.strict_budget.group_item(
                     OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH,
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| strict_budget_reading_row(snapshot, clock, locale),
                     OpenRouterCreditTarget::StrictBudget,
                     clock,
                 ),
                 self.model_rankings.group_item(
                     OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH,
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| best_models_reading_row(snapshot, clock, locale),
                     OpenRouterCreditTarget::BestModelsWithinCap,
                     clock,
                 ),
@@ -266,11 +267,11 @@ impl OpenRouterCreditGroup {
             .chain(self.model_ranking().into_iter().flat_map(|ranking| {
                 [
                     GroupItem::reading(
-                        ReadingRow::evaluated(MostUsedModel(ranking), clock, locale),
+                        ranking.most_used_model_row(),
                         OpenRouterCreditTarget::MostUsedModel,
                     ),
                     GroupItem::reading(
-                        ReadingRow::evaluated(MostUsedModelSpend(ranking), clock, locale),
+                        ranking.most_used_spend_row(),
                         OpenRouterCreditTarget::MostUsedModelSpend,
                     ),
                 ]

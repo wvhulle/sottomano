@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use chrono::{DateTime, Locale, TimeDelta, Utc};
 use quick_xml::escape::escape;
 use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
@@ -10,16 +8,17 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
-        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widget_groups::session_focus_group::WarningSnooze,
     widgets::{
-        icon_glyph::IconGlyph,
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
-        ongoing_toast::{definition_list, moment_text},
+        ongoing_toast::{
+            ReadingAlerts, StateToast, ToastBody, ToastProgress, definition_list, moment_text,
+        },
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
@@ -168,38 +167,45 @@ impl SessionFace<'_> {
     }
 }
 
-impl GroupItemReading for SessionFace<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Current focus".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::UserFocus(Weight::Regular).into()
-    }
-
-    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
-        self.run_length(clock.utc())
+impl<'a> SessionFace<'a> {
+    pub fn reading_row(self, clock: Clock, locale: Locale) -> ReadingRow<'a> {
+        let label = self
+            .run_length(clock.utc())
             .map(|run_length| TimeDelta::minutes(run_length.num_minutes()))
             .filter(|whole_minutes| !whole_minutes.is_zero())
-            .map(|whole_minutes| duration_text(whole_minutes, locale))
-    }
-
-    fn state(&self, clock: Clock) -> ReadingDisplayState {
-        self.severity(clock.utc()).into()
-    }
-
-    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
-        OngoingToastThreshold::NotifyFromSeverity {
-            minimum_severity: Severity::Warning,
-            summary_text: "Long focus session",
+            .map(|whole_minutes| duration_text(whole_minutes, locale));
+        let body = match self.screen_run_summary(clock.utc(), locale) {
+            Some(summary) => ToastBody::Text(summary),
+            None => ToastBody::Bodiless,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label: match label {
+                    Some(text) if !text.is_empty() => ReadoutLabel::Labeled(text),
+                    Some(_) | None => ReadoutLabel::Unlabeled,
+                },
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            alerts: ReadingAlerts {
+                state_toast: StateToast::NotifyFromSeverity {
+                    minimum_severity: Severity::Warning,
+                    summary_text: "Long focus session",
+                    body,
+                    progress: ToastProgress::Unmeasured,
+                },
+                ..ReadingAlerts::default()
+            },
+            ..ReadingRow::glyph_only(
+                "Current focus",
+                Phosphor::UserFocus(Weight::Regular).into(),
+                self.severity(clock.utc()).into(),
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
         }
     }
 
-    fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> Option<String> {
-        self.screen_run_summary(clock.utc(), locale)
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
         self.sections(clock.utc()).into_iter().collect::<Vec<_>>()
     }
 }

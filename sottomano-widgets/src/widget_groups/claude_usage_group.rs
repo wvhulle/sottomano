@@ -48,7 +48,7 @@ use crate::{
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
-        most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
+        most_used_model::{ModelSpendRanking, RankedSpan},
         simple_icons::SimpleIcon,
         subscribed_snapshot::SubscribedSnapshot,
     },
@@ -282,15 +282,14 @@ impl ClaudeUsageGroup {
                 let Some(ranking) = self.model_ranking() else {
                     return Vec::new();
                 };
-                self.ccusage_models
-                    .hover_card_with(reading_hover_card(MostUsedModel(ranking), clock))
+                self.ccusage_models.hover_card_with(ranking.hover_card())
             }
             ClaudeUsageTarget::MostUsedModelSpend => {
                 let Some(ranking) = self.billed_model_ranking() else {
                     return Vec::new();
                 };
                 self.ccusage_models
-                    .hover_card_with(reading_hover_card(MostUsedModelSpend(ranking), clock))
+                    .hover_card_with(ranking.top_model_share())
             }
         }
     }
@@ -364,13 +363,13 @@ impl ClaudeUsageGroup {
             .flatten()
             .chain(self.model_ranking().map(|ranking| {
                 GroupItem::reading(
-                    ReadingRow::evaluated(MostUsedModel(ranking), clock, locale),
+                    ranking.most_used_model_row(),
                     ClaudeUsageTarget::MostUsedModel,
                 )
             }))
             .chain(self.billed_model_ranking().map(|ranking| {
                 GroupItem::reading(
-                    ReadingRow::evaluated(MostUsedModelSpend(ranking), clock, locale),
+                    ranking.most_used_spend_row(),
                     ClaudeUsageTarget::MostUsedModelSpend,
                 )
             })),

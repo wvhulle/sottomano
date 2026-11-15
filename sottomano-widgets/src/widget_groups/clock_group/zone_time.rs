@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cmp::Ordering, convert::Infallible};
+use std::{cmp::Ordering, convert::Infallible};
 
 use chrono::{DateTime, Locale, Offset, TimeDelta};
 use chrono_tz::Tz;
@@ -9,11 +9,14 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::clock_group::TICK,
     widgets::{
-        icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
@@ -62,20 +65,26 @@ impl ZoneTime {
     }
 }
 
-impl GroupItemReading for ZoneTime {
-    fn name(&self) -> Cow<'static, str> {
-        city_name(self.zone()).into()
+impl ZoneTime {
+    pub(super) fn reading_row(&self, clock: Clock, locale: Locale) -> ReadingRow<'_> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(
+                    LocalizedTimeFormat::TimeOfDay.format_in_own_zone(&self.there(clock), locale),
+                ),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                city_name(self.zone()),
+                Phosphor::GlobeHemisphereWest(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::GlobeHemisphereWest(Weight::Regular).into()
-    }
-
-    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
-        Some(LocalizedTimeFormat::TimeOfDay.format_in_own_zone(&self.there(clock), locale))
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(self, clock: Clock) -> Vec<Section> {
         let there = self.there(clock);
         vec![Section::new(
             "Time zone",

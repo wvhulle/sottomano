@@ -1,18 +1,15 @@
-use std::borrow::Cow;
-
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::bcachefs_filesystem_space::BcachefsDeviceSpace;
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    clock::Clock,
     group_items::{
-        gauge::percent_fill, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
+        gauge::percent_fill,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -46,27 +43,27 @@ impl BcachefsMemberRow<'_> {
     }
 }
 
-impl GroupItemReading for BcachefsMemberRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.device.partition.clone().into()
+impl<'a> BcachefsMemberRow<'a> {
+    pub(super) fn reading_row(self, locale: Locale) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(format!(
+                    "{} free",
+                    Quantity::size(self.device.free).localized_text(locale)
+                )),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                self.device.partition.clone(),
+                Phosphor::HardDrives(Weight::Regular).into(),
+                self.writable_severity().into(),
+                Box::new(move |_| self.hover_card()),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::HardDrives(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.writable_severity().into()
-    }
-
-    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        Some(format!(
-            "{} free",
-            Quantity::size(self.device.free).localized_text(locale)
-        ))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self) -> Vec<Section> {
         let metadata_text = if self.device.holds_metadata {
             "data and metadata"
         } else {

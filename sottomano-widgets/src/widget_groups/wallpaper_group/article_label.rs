@@ -1,14 +1,15 @@
-use std::borrow::Cow;
-
 use chrono::Locale;
 use sottomano_desktop_sources::wallpaper_place_article::WikipediaArticle;
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
     },
@@ -21,20 +22,27 @@ pub struct Article {
     summary: Option<String>,
 }
 
-impl GroupItemReading for Article {
-    fn name(&self) -> Cow<'static, str> {
-        "Wallpaper article".into()
+impl Article {
+    pub(super) fn reading_row(&self, _clock: Clock, _locale: Locale) -> ReadingRow<'_> {
+        ReadingRow {
+            readout: RowReadout {
+                label: match Some(&self.title) {
+                    Some(text) if !text.is_empty() => ReadoutLabel::Labeled(text.clone()),
+                    Some(_) | None => ReadoutLabel::Unlabeled,
+                },
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Wallpaper article",
+                SimpleIcon::Wikipedia.into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |_| self.hover_card()),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        SimpleIcon::Wikipedia.into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.title.clone())
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self) -> Vec<Section> {
         vec![
             Section::new(
                 "Wikipedia",

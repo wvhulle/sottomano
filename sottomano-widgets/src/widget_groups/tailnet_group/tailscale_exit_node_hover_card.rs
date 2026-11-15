@@ -1,27 +1,22 @@
-use std::borrow::Cow;
-
 use chrono::Locale;
-use sottomano_desktop_sources::{
-    SnapshotSource,
-    network_connectivity::{
-        tailscale_exit_nodes::{
-            ExitNodeChoices, ExitNodeControl, ExitNodeLanAccess, ExitNodeOption,
-            ExitNodeReachability, TailscaleExitNodes,
-        },
-        tailscale_status::ExitNodeUse,
+use sottomano_desktop_sources::network_connectivity::{
+    tailscale_exit_nodes::{
+        ExitNodeChoices, ExitNodeControl, ExitNodeLanAccess, ExitNodeOption, ExitNodeReachability,
     },
+    tailscale_status::ExitNodeUse,
 };
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
@@ -39,50 +34,37 @@ fn lan_access_entry(exit_node_choices: &ExitNodeChoices) -> LabeledValue {
     )
 }
 
-impl GroupItemReading for TailscaleExitNodes {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::SignOut(Weight::Regular).into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![]
-    }
-}
-
 pub(super) struct ExitNodeChoiceRow<'a> {
     pub(super) exit_node_option: &'a ExitNodeOption,
     pub(super) exit_node_choices: &'a ExitNodeChoices,
 }
 
-impl GroupItemReading for ExitNodeChoiceRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        format!("Exit via {}", self.exit_node_option.name).into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::SignOut(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(SwitchPosition::from(self.exit_node_option.node_use))
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        match self
+impl<'a> ExitNodeChoiceRow<'a> {
+    pub(super) fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        let label = match self
             .exit_node_choices
             .control_for_option(self.exit_node_option)
         {
-            ExitNodeControl::Switchable(_) => None,
-            ExitNodeControl::BlockedByOffering => Some("blocked".to_owned()),
-            ExitNodeControl::Offline => Some("offline".to_owned()),
+            ExitNodeControl::Switchable(_) => ReadoutLabel::Unlabeled,
+            ExitNodeControl::BlockedByOffering => ReadoutLabel::Labeled("blocked".to_owned()),
+            ExitNodeControl::Offline => ReadoutLabel::Labeled("offline".to_owned()),
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                format!("Exit via {}", self.exit_node_option.name),
+                Phosphor::SignOut(Weight::Regular).into(),
+                ReadingDisplayState::from(SwitchPosition::from(self.exit_node_option.node_use)),
+                Box::new(move |_| self.hover_card()),
+            )
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self) -> Vec<Section> {
         let reachability_entry = match self.exit_node_option.reachability {
             ExitNodeReachability::Online => LabeledValue::new("State", "online"),
             ExitNodeReachability::OfflineSince(last_seen) => {
@@ -123,20 +105,17 @@ pub(super) struct ExitNodeLanAccessRow<'a> {
     pub(super) exit_node_choices: &'a ExitNodeChoices,
 }
 
-impl GroupItemReading for ExitNodeLanAccessRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "LAN while exiting".into()
+impl<'a> ExitNodeLanAccessRow<'a> {
+    pub(super) fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        ReadingRow::glyph_only(
+            "LAN while exiting",
+            Phosphor::HouseLine(Weight::Regular).into(),
+            ReadingDisplayState::from(SwitchPosition::from(self.exit_node_choices.lan_access)),
+            Box::new(move |_| self.hover_card()),
+        )
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::HouseLine(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(SwitchPosition::from(self.exit_node_choices.lan_access))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             "Status",
             dictionary_table([lan_access_entry(self.exit_node_choices)]),

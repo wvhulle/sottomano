@@ -1,14 +1,15 @@
-use std::borrow::Cow;
-
 use chrono::Locale;
 use sottomano_desktop_sources::wallpaper_place_article::{Position, Wallpaper};
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -21,20 +22,27 @@ pub struct Place {
     position: Option<Position>,
 }
 
-impl GroupItemReading for Place {
-    fn name(&self) -> Cow<'static, str> {
-        "Wallpaper place".into()
+impl Place {
+    pub(super) fn reading_row(&self, _clock: Clock, _locale: Locale) -> ReadingRow<'_> {
+        ReadingRow {
+            readout: RowReadout {
+                label: match Some(&self.name) {
+                    Some(text) if !text.is_empty() => ReadoutLabel::Labeled(text.clone()),
+                    Some(_) | None => ReadoutLabel::Unlabeled,
+                },
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Wallpaper place",
+                Phosphor::MapPin(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |_| self.hover_card()),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::MapPin(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.name.clone())
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self) -> Vec<Section> {
         let coordinates = self.position.into_iter().flat_map(|position| {
             [
                 LabeledValue::new("Latitude", Quantity::angle(position.latitude).decimals(5)),

@@ -22,9 +22,9 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
         reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::{SwitchPosition, SwitchPresses},
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage, activity_text},
     },
@@ -41,7 +41,6 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
@@ -69,24 +68,25 @@ struct MicrovmUnitRow<'a> {
     activity: UnitActivity,
 }
 
-impl GroupItemReading for MicrovmUnitRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.unit.instance_name.clone().into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Lightning(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(activity_text(self.activity).to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.activity {
+impl<'a> MicrovmUnitRow<'a> {
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        let state = match self.activity {
             UnitActivity::Running => ReadingDisplayState::On,
             UnitActivity::Starting | UnitActivity::Stopping => ReadingDisplayState::Pending,
             UnitActivity::Stopped => ReadingDisplayState::Off,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(activity_text(self.activity).to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                self.unit.instance_name.clone(),
+                Phosphor::Lightning(Weight::Regular).into(),
+                state,
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
         }
     }
 
@@ -111,24 +111,24 @@ struct MicrovmGuestListingRow<'a> {
     listing: &'a MicrovmGuestListing,
 }
 
-impl GroupItemReading for MicrovmGuestListingRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.listing.machine_name.clone().into()
+impl<'a> MicrovmGuestListingRow<'a> {
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(ContainerRunState::Running.label().to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                self.listing.machine_name.clone(),
+                Phosphor::Lightning(Weight::Regular).into(),
+                ContainerRunState::Running.into(),
+                Box::new(|_| Self::hover_card()),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Lightning(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(ContainerRunState::Running.label().to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ContainerRunState::Running.into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    fn hover_card() -> Vec<Section> {
         vec![Section::new(
             "Status",
             dictionary_table([LabeledValue::new(
@@ -174,21 +174,21 @@ impl MicrovmGuestRow<'_> {
     }
 }
 
-impl GroupItemReading for MicrovmGuestRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.machine.listing.machine_name.clone().into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Lightning(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(approximate_memory_text(self.machine.memory_in_use))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::On
+impl<'a> MicrovmGuestRow<'a> {
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(approximate_memory_text(self.machine.memory_in_use)),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                self.machine.listing.machine_name.clone(),
+                Phosphor::Lightning(Weight::Regular).into(),
+                ReadingDisplayState::On,
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
     fn hover_card(&self, clock: Clock) -> Vec<Section> {
@@ -403,16 +403,17 @@ impl MicrovmGuestsGroup {
                 })
                 .unwrap_or_default();
         }
-        let Some(listing) = self.listings.get().and_then(|guest_listings| {
+        let is_listed = self.listings.get().is_some_and(|guest_listings| {
             guest_listings
                 .listings
                 .iter()
-                .find(|listing| listing.pid == pid)
-        }) else {
+                .any(|listing| listing.pid == pid)
+        });
+        if !is_listed {
             return Vec::new();
-        };
+        }
         self.listings
-            .hover_card_with(MicrovmGuestListingRow { listing }.hover_card(clock))
+            .hover_card_with(MicrovmGuestListingRow::hover_card())
     }
 
     pub fn group_content(
@@ -429,7 +430,7 @@ impl MicrovmGuestsGroup {
         )
         .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::Lightning(Weight::Regular).into(),
-            state: self.state(clock),
+            state: self.shown_state(),
         })
     }
 
@@ -455,20 +456,17 @@ impl MicrovmGuestsGroup {
     ) -> GroupItem<'a, MicrovmGuestsInteraction> {
         let row = match self.running_guest_of(unit) {
             Some(machine) => GroupItem::reading(
-                ReadingRow::evaluated(MicrovmGuestRow { machine }, clock, locale),
+                MicrovmGuestRow { machine }.reading_row(clock, locale),
                 MicrovmGuestTarget::RunningProcess {
                     pid: machine.listing.pid,
                 },
             ),
             None => GroupItem::reading(
-                ReadingRow::evaluated(
-                    MicrovmUnitRow {
-                        unit,
-                        activity: self.unit_activity(unit),
-                    },
-                    clock,
-                    locale,
-                ),
+                MicrovmUnitRow {
+                    unit,
+                    activity: self.unit_activity(unit),
+                }
+                .reading_row(clock, locale),
                 MicrovmGuestTarget::Unit {
                     instance_name: Cow::Owned(unit.instance_name.clone()),
                 },
@@ -501,7 +499,7 @@ impl MicrovmGuestsGroup {
                 .filter(|machine| !managed_by_unit(machine.unit_name.as_deref()))
                 .map(|machine| {
                     let row = GroupItem::reading(
-                        ReadingRow::evaluated(MicrovmGuestRow { machine }, clock, locale),
+                        MicrovmGuestRow { machine }.reading_row(clock, locale),
                         MicrovmGuestTarget::RunningProcess {
                             pid: machine.listing.pid,
                         },
@@ -532,11 +530,7 @@ impl MicrovmGuestsGroup {
                     })
                     .map(|listing| {
                         GroupItem::reading(
-                            ReadingRow::evaluated(
-                                MicrovmGuestListingRow { listing },
-                                clock,
-                                locale,
-                            ),
+                            MicrovmGuestListingRow { listing }.reading_row(clock, locale),
                             MicrovmGuestTarget::RunningProcess { pid: listing.pid },
                         )
                     })
@@ -546,22 +540,8 @@ impl MicrovmGuestsGroup {
     }
 }
 
-impl GroupItemReading for MicrovmGuestsGroup {
-    fn name(&self) -> Cow<'static, str> {
-        "microvm.nix guests".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Lightning(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.probe
-            .get()
-            .map(|probe| format!("{} running", probe.running_count))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+impl MicrovmGuestsGroup {
+    fn shown_state(&self) -> ReadingDisplayState {
         if self
             .probe
             .get()
@@ -571,22 +551,5 @@ impl GroupItemReading for MicrovmGuestsGroup {
         } else {
             ReadingDisplayState::Off
         }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Counts",
-            dictionary_table(
-                self.probe
-                    .get()
-                    .map(|probe| {
-                        vec![LabeledValue::new(
-                            "Running guests",
-                            probe.running_count.to_string(),
-                        )]
-                    })
-                    .unwrap_or_default(),
-            ),
-        )]
     }
 }

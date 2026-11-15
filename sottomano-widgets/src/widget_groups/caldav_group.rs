@@ -1,11 +1,14 @@
 use chrono::Locale;
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
-        reading_row::{ReadingRow, reading_hover_card},
+    group_items::reading_display_state::ReadingDisplayState,
+    widget_groups::caldav_group::{
+        open_tasks_reading::{open_tasks_hover_card, open_tasks_reading_row},
+        upcoming_events_reading::{
+            UPCOMING_EVENT_LIST_FALLBACK_GLYPH, upcoming_events_hover_card,
+            upcoming_events_reading_row,
+        },
     },
-    widget_groups::caldav_group::upcoming_events_reading::UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
 };
 mod open_tasks_reading;
 mod upcoming_events_reading;
@@ -141,13 +144,13 @@ impl CaldavGroup {
         match target {
             CaldavTarget::UpcomingEvents if self.account(config).is_some() => self
                 .upcoming_events
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| upcoming_events_hover_card(snapshot, clock)),
             CaldavTarget::UpcomingEvents => self
                 .upcoming_events
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| upcoming_events_hover_card(snapshot, clock)),
             CaldavTarget::OpenTasks => self
                 .open_tasks
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| open_tasks_hover_card(snapshot, clock)),
         }
     }
 
@@ -176,14 +179,14 @@ impl CaldavGroup {
         let upcoming_events_item = if self.account(config).is_some() {
             self.upcoming_events.group_item_while_pending(
                 UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
-                |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                |snapshot| upcoming_events_reading_row(snapshot, clock, locale),
                 CaldavTarget::UpcomingEvents,
                 clock,
             )
         } else {
             self.upcoming_events.group_item(
                 UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
-                |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                |snapshot| upcoming_events_reading_row(snapshot, clock, locale),
                 CaldavTarget::UpcomingEvents,
                 clock,
             )
@@ -196,7 +199,7 @@ impl CaldavGroup {
                 upcoming_events_item.map(GroupItem::previewed_on_handle),
                 self.open_tasks.group_item(
                     IconGlyph::default(),
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| open_tasks_reading_row(snapshot, clock, locale),
                     CaldavTarget::OpenTasks,
                     clock,
                 ),

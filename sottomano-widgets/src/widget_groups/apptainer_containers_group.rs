@@ -1,7 +1,4 @@
-use std::{
-    borrow::Cow,
-    future::{Future, ready},
-};
+use std::future::{Future, ready};
 
 use chrono::Locale;
 use sottomano_desktop_sinks::{
@@ -16,8 +13,9 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
         reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::{
         HoverTarget,
@@ -53,35 +51,33 @@ pub struct ApptainerContainerListingRow<'a> {
     listing: &'a ApptainerContainerListing,
 }
 
-impl GroupItemReading for ApptainerContainerListingRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        format!(
+impl<'a> ApptainerContainerListingRow<'a> {
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        let name = format!(
             "{} pid {}",
             self.listing.container_name, self.listing.runtime_pid
-        )
-        .into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Flask(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(ContainerRunState::Running.label().to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ContainerRunState::Running.into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Status",
-            dictionary_table([LabeledValue::new(
-                "State",
-                ContainerRunState::Running.label(),
-            )]),
-        )]
+        );
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(ContainerRunState::Running.label().to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                name,
+                Phosphor::Flask(Weight::Regular).into(),
+                ContainerRunState::Running.into(),
+                Box::new(|_| {
+                    vec![Section::new(
+                        "Status",
+                        dictionary_table([LabeledValue::new(
+                            "State",
+                            ContainerRunState::Running.label(),
+                        )]),
+                    )]
+                }),
+            )
+        }
     }
 }
 
@@ -89,29 +85,29 @@ pub struct ApptainerContainerRow<'a> {
     container: &'a ApptainerContainer,
 }
 
-impl GroupItemReading for ApptainerContainerRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        format!(
-            "{} pid {}",
-            self.container.listing.container_name, self.container.listing.runtime_pid
-        )
-        .into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Flask(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(approximate_memory_text(self.container.memory_in_use))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::On
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+impl<'a> ApptainerContainerRow<'a> {
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
         let container = self.container;
+        let name = format!(
+            "{} pid {}",
+            container.listing.container_name, container.listing.runtime_pid
+        );
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(approximate_memory_text(container.memory_in_use)),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                name,
+                Phosphor::Flask(Weight::Regular).into(),
+                ReadingDisplayState::On,
+                Box::new(move |clock| Self::hover_card(container, clock)),
+            )
+        }
+    }
+
+    fn hover_card(container: &ApptainerContainer, clock: Clock) -> Vec<Section> {
         let mut detail_entries = Vec::new();
         if let Some(image_file) = &container.image_file {
             detail_entries.push(LabeledValue::new("Image", image_file.display().to_string()));
@@ -177,11 +173,7 @@ impl ContainerFamily for ApptainerFamily {
                 target: ApptainerContainerTarget {
                     runtime_pid: listing.runtime_pid,
                 },
-                reading: ReadingRow::evaluated(
-                    ApptainerContainerListingRow { listing },
-                    clock,
-                    locale,
-                ),
+                reading: ApptainerContainerListingRow { listing }.reading_row(clock, locale),
                 power: RowPower::Stoppable(listing.runtime_pid),
             })
             .collect()
@@ -199,7 +191,7 @@ impl ContainerFamily for ApptainerFamily {
                 target: ApptainerContainerTarget {
                     runtime_pid: container.listing.runtime_pid,
                 },
-                reading: ReadingRow::evaluated(ApptainerContainerRow { container }, clock, locale),
+                reading: ApptainerContainerRow { container }.reading_row(clock, locale),
                 power: RowPower::Stoppable(container.listing.runtime_pid),
             })
             .collect()

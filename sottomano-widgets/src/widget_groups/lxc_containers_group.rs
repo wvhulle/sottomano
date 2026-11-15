@@ -13,8 +13,8 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
         reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::{
         HoverTarget,
@@ -50,28 +50,27 @@ pub struct LxcContainerListingRow<'a> {
     listing: &'a LxcContainerListing,
 }
 
-impl GroupItemReading for LxcContainerListingRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.listing.container_name.clone().into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Package(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.listing.run_state.label().to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.listing.run_state.into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Status",
-            dictionary_table([LabeledValue::new("State", self.listing.run_state.label())]),
-        )]
+impl<'a> LxcContainerListingRow<'a> {
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        let listing = self.listing;
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(listing.run_state.label().to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                listing.container_name.clone(),
+                Phosphor::Package(Weight::Regular).into(),
+                listing.run_state.into(),
+                Box::new(move |_| {
+                    vec![Section::new(
+                        "Status",
+                        dictionary_table([LabeledValue::new("State", listing.run_state.label())]),
+                    )]
+                }),
+            )
+        }
     }
 }
 
@@ -79,32 +78,32 @@ pub struct LxcContainerRow<'a> {
     container: &'a LxcContainer,
 }
 
-impl GroupItemReading for LxcContainerRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.container.listing.container_name.clone().into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Package(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        match self.container.listing.run_state {
-            ContainerRunState::Stopped => Some(ContainerRunState::Stopped.label().to_owned()),
-            ContainerRunState::Running => self
-                .container
-                .memory_in_use
-                .map(approximate_memory_text)
-                .or_else(|| Some(ContainerRunState::Running.label().to_owned())),
+impl<'a> LxcContainerRow<'a> {
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        let container = self.container;
+        let label = match container.listing.run_state {
+            ContainerRunState::Stopped => ContainerRunState::Stopped.label().to_owned(),
+            ContainerRunState::Running => container.memory_in_use.map_or_else(
+                || ContainerRunState::Running.label().to_owned(),
+                approximate_memory_text,
+            ),
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(label),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                container.listing.container_name.clone(),
+                Phosphor::Package(Weight::Regular).into(),
+                container.listing.run_state.into(),
+                Box::new(move |_| Self::hover_card(container)),
+            )
         }
     }
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.container.listing.run_state.into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        let container = self.container;
+    fn hover_card(container: &LxcContainer) -> Vec<Section> {
         let mut detail_entries = vec![LabeledValue::new(
             "State",
             container.listing.run_state.label(),
@@ -170,7 +169,7 @@ impl ContainerFamily for LxcFamily {
                 target: LxcContainerTarget {
                     container_name: Cow::Owned(listing.container_name.clone()),
                 },
-                reading: ReadingRow::evaluated(LxcContainerListingRow { listing }, clock, locale),
+                reading: LxcContainerListingRow { listing }.reading_row(clock, locale),
                 power: container_power(listing),
             })
             .collect()
@@ -188,7 +187,7 @@ impl ContainerFamily for LxcFamily {
                 target: LxcContainerTarget {
                     container_name: Cow::Owned(container.listing.container_name.clone()),
                 },
-                reading: ReadingRow::evaluated(LxcContainerRow { container }, clock, locale),
+                reading: LxcContainerRow { container }.reading_row(clock, locale),
                 power: container_power(&container.listing),
             })
             .collect()

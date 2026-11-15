@@ -1,24 +1,21 @@
-use std::borrow::Cow;
-
 use bytesize::ByteSize;
-use chrono::Locale;
 use sottomano_desktop_sources::{
     SnapshotSource, disk_storage::mounted_filesystem_usage::FilesystemUsage,
 };
 use sottomano_toml_config::severity::Severity;
-use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
     group_items::{
         gauge::percent_fill,
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
+        ongoing_toast::{StateToast, ToastBody, ToastProgress},
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -44,59 +41,55 @@ fn free_space_severity(usage: &FilesystemUsage) -> Severity {
     }
 }
 
-impl GroupItemReading for FilesystemUsage {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
+pub(crate) fn filesystem_usage_reading_row(usage: &FilesystemUsage) -> ReadingRow<'_> {
+    let fill = percent_fill(usage.used_pct());
+    let mut row = ReadingRow::glyph_only(
+        FilesystemUsage::NAME,
+        Phosphor::Folders(Weight::Regular).into(),
+        free_space_severity(usage).into(),
+        Box::new(move |card_clock| filesystem_usage_hover_card(usage, card_clock)),
+    );
+    row.readout.gauge = ReadoutGauge::Gauged { fill, live: fill };
+    row.alerts.state_toast = StateToast::NotifyFromSeverity {
+        minimum_severity: Severity::Critical,
+        summary_text: "Disk almost full",
+        body: ToastBody::Bodiless,
+        progress: ToastProgress::Measured(fill),
+    };
+    row
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Folders(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        free_space_severity(self).into()
-    }
-
-    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
-        OngoingToastThreshold::NotifyFromSeverity {
-            minimum_severity: Severity::Critical,
-            summary_text: "Disk almost full",
-        }
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        Some(percent_fill(self.used_pct()))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Space",
-            dictionary_table([
-                LabeledValue::new("Used", Quantity::share(percent_fill(self.used_pct()))),
-                LabeledValue::new("Free", Quantity::size(self.free))
-                    .level(free_space_severity(self)),
-                LabeledValue::new("Total", Quantity::size(self.total)),
-            ]),
-        )]
-    }
+pub(crate) fn filesystem_usage_hover_card(usage: &FilesystemUsage, _clock: Clock) -> Vec<Section> {
+    vec![Section::new(
+        "Space",
+        dictionary_table([
+            LabeledValue::new("Used", Quantity::share(percent_fill(usage.used_pct()))),
+            LabeledValue::new("Free", Quantity::size(usage.free)).level(free_space_severity(usage)),
+            LabeledValue::new("Total", Quantity::size(usage.total)),
+        ]),
+    )]
 }
 
 pub(super) struct SnapshotDeletionRow;
 
-impl GroupItemReading for SnapshotDeletionRow {
-    fn name(&self) -> Cow<'static, str> {
-        "Snapshot deletion".into()
+impl SnapshotDeletionRow {
+    pub(super) fn reading_row() -> ReadingRow<'static> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled("in progress".to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Snapshot deletion",
+                Phosphor::Trash(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(|_| Self::hover_card()),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Trash(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some("in progress".to_owned())
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card() -> Vec<Section> {
         vec![Section::new(
             "Status",
             dictionary_table([

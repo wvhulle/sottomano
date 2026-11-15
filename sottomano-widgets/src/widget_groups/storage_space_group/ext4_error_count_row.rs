@@ -1,17 +1,14 @@
-use std::borrow::Cow;
-
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::ext4_sysfs_counters::RecordedErrors;
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -24,41 +21,39 @@ pub(super) struct Ext4ErrorCountRow {
     pub recorded_errors: RecordedErrors,
 }
 
-impl GroupItemReading for Ext4ErrorCountRow {
-    fn name(&self) -> Cow<'static, str> {
-        "Recorded errors".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::WarningCircle(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.recorded_errors {
+impl Ext4ErrorCountRow {
+    pub(super) fn reading_row(self, locale: Locale) -> ReadingRow<'static> {
+        let state = match self.recorded_errors {
             RecordedErrors::Clean => Severity::Normal,
             RecordedErrors::Recorded { .. } => Severity::Warning,
-        }
-        .into()
-    }
-
-    fn badge(&self) -> Option<usize> {
-        match self.recorded_errors {
-            RecordedErrors::Clean => None,
-            RecordedErrors::Recorded { count, .. } => Some(
+        };
+        let badge = match self.recorded_errors {
+            RecordedErrors::Clean => ReadoutBadge::Unbadged,
+            RecordedErrors::Recorded { count, .. } => ReadoutBadge::Counted(
                 usize::try_from(count)
                     .expect("usize holds every u64 on the 64-bit targets we build"),
             ),
+        };
+        let label = match self.recorded_errors {
+            RecordedErrors::Clean => "none".to_owned(),
+            RecordedErrors::Recorded { count, .. } => Quantity::count(count).localized_text(locale),
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(label),
+                gauge: ReadoutGauge::Ungauged,
+                badge,
+            },
+            ..ReadingRow::glyph_only(
+                "Recorded errors",
+                Phosphor::WarningCircle(Weight::Regular).into(),
+                state.into(),
+                Box::new(move |_| self.hover_card()),
+            )
         }
     }
 
-    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        Some(match self.recorded_errors {
-            RecordedErrors::Clean => "none".to_owned(),
-            RecordedErrors::Recorded { count, .. } => Quantity::count(count).localized_text(locale),
-        })
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self) -> Vec<Section> {
         match self.recorded_errors {
             RecordedErrors::Clean => {
                 vec![Section::new(

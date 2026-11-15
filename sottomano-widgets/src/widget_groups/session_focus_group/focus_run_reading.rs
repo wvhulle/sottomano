@@ -1,16 +1,17 @@
-use std::borrow::Cow;
-
-use chrono::{DateTime, Locale, Utc};
+use chrono::{DateTime, Utc};
 use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
     Accounting, FocusUnit, LAST_DAY,
 };
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
@@ -91,22 +92,28 @@ impl FocusRunReading<'_> {
     }
 }
 
-impl GroupItemReading for FocusRunReading<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Focus run".into()
+impl<'a> FocusRunReading<'a> {
+    pub fn reading_row(self, clock: Clock) -> ReadingRow<'a> {
+        let label = match self.accounting.dominant_run(clock.utc()) {
+            Some(run) => ReadoutLabel::Labeled(run.unit.label().into_owned()),
+            None => ReadoutLabel::Unlabeled,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Focus run",
+                Phosphor::Target(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Target(Weight::Regular).into()
-    }
-
-    fn label(&self, clock: Clock, _locale: Locale) -> Option<String> {
-        self.accounting
-            .dominant_run(clock.utc())
-            .map(|run| run.unit.label().into_owned())
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
         self.sections(clock.utc()).into_iter().collect::<Vec<_>>()
     }
 }

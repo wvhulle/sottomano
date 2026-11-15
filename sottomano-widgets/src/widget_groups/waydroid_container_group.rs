@@ -20,9 +20,9 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
         reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::{SwitchPosition, SwitchPresses},
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
@@ -94,29 +94,32 @@ struct WaydroidContainerRow<'a> {
     shown: ShownWaydroid<'a>,
 }
 
-impl GroupItemReading for WaydroidContainerRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Container".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Package(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        if let ShownWaydroid::Detailed(WaydroidReadout {
-            memory_in_use: Some(memory_in_use),
-            ..
-        }) = self.shown
-            && self.shown.container() == ContainerRunState::Running
-        {
-            return Some(approximate_memory_text(*memory_in_use));
+impl<'a> WaydroidContainerRow<'a> {
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        let label = match self.shown {
+            ShownWaydroid::Detailed(WaydroidReadout {
+                memory_in_use: Some(memory_in_use),
+                ..
+            }) if self.shown.container() == ContainerRunState::Running => {
+                approximate_memory_text(*memory_in_use)
+            }
+            ShownWaydroid::Detailed(_) | ShownWaydroid::Listed(_) => {
+                self.shown.container().label().to_owned()
+            }
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(label),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Container",
+                Phosphor::Package(Weight::Regular).into(),
+                self.shown.container().into(),
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
         }
-        Some(self.shown.container().label().to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.shown.container().into()
     }
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
@@ -142,26 +145,28 @@ struct WaydroidSessionRow<'a> {
     state: &'a WaydroidState,
 }
 
-impl GroupItemReading for WaydroidSessionRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Session".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        IconGlyph::SimpleIcon(SimpleIcon::Android)
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(match self.state {
+impl<'a> WaydroidSessionRow<'a> {
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        let label = match self.state {
             WaydroidState::Session { session_state, .. } => session_state.to_lowercase(),
             WaydroidState::ContainerOnly | WaydroidState::Absent => "no session".to_owned(),
-        })
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.state {
+        };
+        let state = match self.state {
             WaydroidState::Session { .. } => ReadingDisplayState::On,
             WaydroidState::ContainerOnly | WaydroidState::Absent => ReadingDisplayState::Off,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(label),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Session",
+                IconGlyph::SimpleIcon(SimpleIcon::Android),
+                state,
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
         }
     }
 
@@ -350,7 +355,7 @@ impl WaydroidContainerGroup {
         )
         .face(WidgetGroupFace::Glyph {
             glyph: IconGlyph::SimpleIcon(SimpleIcon::Android),
-            state: self.state(clock),
+            state: self.shown_state(),
         })
     }
 
@@ -361,7 +366,7 @@ impl WaydroidContainerGroup {
         locale: Locale,
     ) -> GroupItem<'a, WaydroidContainerInteraction> {
         let row = GroupItem::reading(
-            ReadingRow::evaluated(WaydroidContainerRow { shown }, clock, locale),
+            WaydroidContainerRow { shown }.reading_row(clock, locale),
             WaydroidContainerTarget::Container,
         );
         match self.container_switch.activity() {
@@ -388,13 +393,10 @@ impl WaydroidContainerGroup {
             return vec![container_row];
         }
         let session_row = GroupItem::reading(
-            ReadingRow::evaluated(
-                WaydroidSessionRow {
-                    state: shown.state(),
-                },
-                clock,
-                locale,
-            ),
+            WaydroidSessionRow {
+                state: shown.state(),
+            }
+            .reading_row(clock, locale),
             WaydroidContainerTarget::Session,
         );
         let session_row = match shown.state() {
@@ -413,22 +415,8 @@ impl WaydroidContainerGroup {
     }
 }
 
-impl GroupItemReading for WaydroidContainerGroup {
-    fn name(&self) -> Cow<'static, str> {
-        "Android".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        IconGlyph::SimpleIcon(SimpleIcon::Android)
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.probe
-            .get()
-            .map(|probe| presence_text(probe.0).to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+impl WaydroidContainerGroup {
+    fn shown_state(&self) -> ReadingDisplayState {
         if self
             .probe
             .get()
@@ -438,29 +426,5 @@ impl GroupItemReading for WaydroidContainerGroup {
         } else {
             ReadingDisplayState::Off
         }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Presence",
-            dictionary_table(
-                self.probe
-                    .get()
-                    .map(|probe| {
-                        vec![LabeledValue::new(
-                            "Present",
-                            presence_text(probe.0).to_owned(),
-                        )]
-                    })
-                    .unwrap_or_default(),
-            ),
-        )]
-    }
-}
-
-fn presence_text(presence: Availability) -> &'static str {
-    match presence {
-        Availability::Available => "present",
-        Availability::Unavailable => "stopped",
     }
 }

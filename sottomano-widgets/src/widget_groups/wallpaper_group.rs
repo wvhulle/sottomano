@@ -19,10 +19,7 @@ use self::wallpaper_lookup::Lookup;
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_row::{ReadingRow, reading_hover_card},
-    },
+    group_items::group_item::GroupItem,
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
@@ -98,36 +95,25 @@ impl WallpaperGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: WallpaperTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: WallpaperTarget, _clock: Clock) -> Vec<Section> {
         match target {
-            WallpaperTarget::Lookup => self
-                .lookup
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            WallpaperTarget::Lookup => self.lookup.sections_described_by(Lookup::hover_card),
             WallpaperTarget::Place => self
                 .lookup
                 .get()
                 .and_then(|lookup| lookup.place.as_ref())
-                .map(|place| {
-                    self.lookup
-                        .hover_card_with(reading_hover_card(place, clock))
-                })
+                .map(|place| self.lookup.hover_card_with(place.hover_card()))
                 .unwrap_or_default(),
             WallpaperTarget::Article => self
                 .lookup
                 .get()
                 .and_then(|lookup| lookup.article.as_ref())
-                .map(|article| {
-                    self.lookup
-                        .hover_card_with(reading_hover_card(article, clock))
-                })
+                .map(|article| self.lookup.hover_card_with(article.hover_card()))
                 .unwrap_or_default(),
             WallpaperTarget::Photo => self
                 .lookup
                 .get()
-                .map(|lookup| {
-                    self.lookup
-                        .hover_card_with(reading_hover_card(&lookup.photo, clock))
-                })
+                .map(|lookup| self.lookup.hover_card_with(lookup.photo.hover_card()))
                 .unwrap_or_default(),
         }
     }
@@ -145,29 +131,26 @@ impl WallpaperGroup {
             [
                 self.lookup.group_item(
                     IconGlyph::default(),
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| snapshot.reading_row(clock, locale),
                     WallpaperTarget::Lookup,
                     clock,
                 ),
                 lookup
                     .and_then(|lookup| lookup.place.as_ref())
                     .map(|place| {
-                        GroupItem::reading(
-                            ReadingRow::evaluated(place, clock, locale),
-                            WallpaperTarget::Place,
-                        )
+                        GroupItem::reading(place.reading_row(clock, locale), WallpaperTarget::Place)
                     }),
                 lookup
                     .and_then(|lookup| lookup.article.as_ref())
                     .map(|article| {
                         GroupItem::reading(
-                            ReadingRow::evaluated(article, clock, locale),
+                            article.reading_row(clock, locale),
                             WallpaperTarget::Article,
                         )
                     }),
                 lookup.map(|lookup| {
                     GroupItem::reading(
-                        ReadingRow::evaluated(&lookup.photo, clock, locale),
+                        lookup.photo.reading_row(clock, locale),
                         WallpaperTarget::Photo,
                     )
                 }),

@@ -1,7 +1,4 @@
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, BTreeSet},
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::Locale;
 use iced::alignment::Horizontal;
@@ -18,13 +15,14 @@ use sottomano_desktop_sources::network_connectivity::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{
         ReadingSections, Section, SectionWidget, dictionary_table, headed_table,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
@@ -54,24 +52,24 @@ impl<'a> OwnNodeRow<'a> {
     }
 }
 
-impl GroupItemReading for OwnNodeRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "This machine".into()
+impl<'a> OwnNodeRow<'a> {
+    pub(super) fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(self.own_tags_text()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "This machine",
+                Phosphor::IdentificationBadge(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |_| self.hover_card()),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::IdentificationBadge(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.own_tags_text())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Idle
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self) -> Vec<Section> {
         vec![
             Section::new(
                 "Identity",
@@ -90,33 +88,27 @@ impl GroupItemReading for OwnNodeRow<'_> {
 
 pub(super) struct InboundAccessRow;
 
-impl GroupItemReading for InboundAccessRow {
-    fn name(&self) -> Cow<'static, str> {
-        "Reachable from".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::ArrowsInSimple(Weight::Regular).into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![]
+impl InboundAccessRow {
+    pub(super) fn reading_row(_clock: Clock, _locale: Locale) -> ReadingRow<'static> {
+        ReadingRow::glyph_only(
+            "Reachable from",
+            Phosphor::ArrowsInSimple(Weight::Regular).into(),
+            ReadingDisplayState::Idle,
+            Box::new(|_| Vec::new()),
+        )
     }
 }
 
 pub(super) struct PolicyFileRow;
 
-impl GroupItemReading for PolicyFileRow {
-    fn name(&self) -> Cow<'static, str> {
-        "Policy file".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Scroll(Weight::Regular).into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![]
+impl PolicyFileRow {
+    pub(super) fn reading_row(_clock: Clock, _locale: Locale) -> ReadingRow<'static> {
+        ReadingRow::glyph_only(
+            "Policy file",
+            Phosphor::Scroll(Weight::Regular).into(),
+            ReadingDisplayState::Idle,
+            Box::new(|_| Vec::new()),
+        )
     }
 }
 

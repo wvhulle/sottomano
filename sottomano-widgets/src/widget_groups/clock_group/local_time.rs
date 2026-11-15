@@ -1,4 +1,4 @@
-use std::{borrow::Cow, convert::Infallible};
+use std::convert::Infallible;
 
 use chrono::Locale;
 use iced::futures::Stream;
@@ -8,11 +8,14 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::clock_group::TICK,
     widgets::{
-        icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -33,20 +36,26 @@ impl SnapshotSource for LocalTime {
     }
 }
 
-impl GroupItemReading for LocalTime {
-    fn name(&self) -> Cow<'static, str> {
-        "Local time".into()
+impl LocalTime {
+    pub(super) fn reading_row(clock: Clock, locale: Locale) -> ReadingRow<'static> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(
+                    LocalizedTimeFormat::TimeOfDay.format(&clock.local(), locale),
+                ),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                Self::NAME,
+                Phosphor::Clock(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(Self::hover_card),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Clock(Weight::Regular).into()
-    }
-
-    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
-        Some(LocalizedTimeFormat::TimeOfDay.format(&clock.local(), locale))
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(clock: Clock) -> Vec<Section> {
         let local = clock.local();
         vec![Section::new(
             "Relative to UTC",

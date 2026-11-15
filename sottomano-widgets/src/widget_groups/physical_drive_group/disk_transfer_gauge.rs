@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use sottomano_desktop_sources::{
     SnapshotSource,
     disk_storage::disk_io_activity::{DiskActivity, DiskTransfer, DiskTransferDirection},
@@ -11,10 +9,10 @@ use uom::si::{
 };
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-        reading_row::PanelVisibility,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+        source_reading::ReadoutGauge,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -32,73 +30,69 @@ fn background_rate() -> InformationRate {
     InformationRate::new::<kibibyte_per_second>(BACKGROUND_TRANSFER_KIB_PER_S)
 }
 
-impl GroupItemReading for DiskTransfer {
-    fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed(match self.direction {
-            DiskTransferDirection::Read => "Disk reads",
-            DiskTransferDirection::Write => "Disk writes",
-        })
-    }
+fn transfer_icon(transfer: &DiskTransfer) -> IconGlyph {
+    let direction_icon = match transfer.direction {
+        DiskTransferDirection::Read => Phosphor::TrayArrowUp(Weight::Regular),
+        DiskTransferDirection::Write => Phosphor::TrayArrowDown(Weight::Regular),
+    };
+    direction_icon.with_weight(Weight::Regular).into()
+}
 
-    fn icon(&self) -> IconGlyph {
-        let direction_icon = match self.direction {
-            DiskTransferDirection::Read => Phosphor::TrayArrowUp(Weight::Regular),
-            DiskTransferDirection::Write => Phosphor::TrayArrowDown(Weight::Regular),
-        };
-        direction_icon.with_weight(Weight::Regular).into()
+fn transfer_fill(transfer: &DiskTransfer) -> Ratio {
+    let scale_start = background_rate();
+    let scale_end = InformationRate::new::<gibibyte_per_second>(SCALE_END_GIB_PER_S);
+    if transfer.rate <= scale_start {
+        return Ratio::new::<ratio>(0.0);
     }
+    let scale_width = (scale_end / scale_start).get::<ratio>().ln();
+    let position = (transfer.rate / scale_start).get::<ratio>().ln();
+    Ratio::new::<ratio>((position / scale_width).clamp(0.0, 1.0))
+}
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.rate <= background_rate() {
-            ReadingDisplayState::Off
-        } else {
-            ReadingDisplayState::Idle
-        }
-    }
+pub(crate) fn disk_transfer_reading_row(transfer: &DiskTransfer) -> ReadingRow<'_> {
+    let name = match transfer.direction {
+        DiskTransferDirection::Read => "Disk reads",
+        DiskTransferDirection::Write => "Disk writes",
+    };
+    let state = if transfer.rate <= background_rate() {
+        ReadingDisplayState::Off
+    } else {
+        ReadingDisplayState::Idle
+    };
+    let fill = transfer_fill(transfer);
+    let mut row = ReadingRow::glyph_only(
+        name,
+        transfer_icon(transfer),
+        state,
+        Box::new(move |_| disk_transfer_hover_card(transfer)),
+    );
+    row.readout.gauge = ReadoutGauge::Gauged { fill, live: fill };
+    row
+}
 
-    fn gauge(&self) -> Option<Ratio> {
-        let scale_start = background_rate();
-        let scale_end = InformationRate::new::<gibibyte_per_second>(SCALE_END_GIB_PER_S);
-        if self.rate <= scale_start {
-            return Some(Ratio::new::<ratio>(0.0));
-        }
-        let scale_width = (scale_end / scale_start).get::<ratio>().ln();
-        let position = (self.rate / scale_start).get::<ratio>().ln();
-        Some(Ratio::new::<ratio>(
-            (position / scale_width).clamp(0.0, 1.0),
-        ))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        let rate_label = match self.direction {
-            DiskTransferDirection::Read => "Read",
-            DiskTransferDirection::Write => "Write",
-        };
-        vec![Section::new(
-            "Throughput",
-            dictionary_table([
-                LabeledValue::new("Disk", self.disk.clone()),
-                LabeledValue::new(rate_label, Quantity::transfer_rate(self.rate)),
-                LabeledValue::new("Disk busy", Quantity::share(self.disk_busy)),
-            ]),
-        )]
+pub(crate) fn disk_activity_reading_row(activity: &DiskActivity) -> ReadingRow<'_> {
+    ReadingRow {
+        panel_visibility: PanelVisibility::Hidden,
+        ..ReadingRow::glyph_only(
+            DiskActivity::NAME,
+            transfer_icon(&activity.read),
+            ReadingDisplayState::Idle,
+            Box::new(move |_| disk_transfer_hover_card(&activity.read)),
+        )
     }
 }
 
-impl GroupItemReading for DiskActivity {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        self.read.icon()
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        PanelVisibility::Hidden
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
-        self.read.hover_card(clock)
-    }
+pub(crate) fn disk_transfer_hover_card(transfer: &DiskTransfer) -> Vec<Section> {
+    let rate_label = match transfer.direction {
+        DiskTransferDirection::Read => "Read",
+        DiskTransferDirection::Write => "Write",
+    };
+    vec![Section::new(
+        "Throughput",
+        dictionary_table([
+            LabeledValue::new("Disk", transfer.disk.clone()),
+            LabeledValue::new(rate_label, Quantity::transfer_rate(transfer.rate)),
+            LabeledValue::new("Disk busy", Quantity::share(transfer.disk_busy)),
+        ]),
+    )]
 }

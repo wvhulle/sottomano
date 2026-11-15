@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use chrono::Locale;
 use sottomano_desktop_sources::{
     SnapshotSource,
@@ -13,8 +11,9 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-        reading_row::PanelVisibility,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
@@ -29,46 +28,56 @@ use crate::{
 pub(crate) const OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Wallet(Weight::Regular));
 
-impl GroupItemReading for OpenRouterStrictBudget {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub(crate) fn strict_budget_panel_visibility(budget: &OpenRouterStrictBudget) -> PanelVisibility {
+    if budget.credits.total.is_positive() || !budget.key_limits.is_empty() {
+        PanelVisibility::Shown
+    } else {
+        PanelVisibility::Hidden
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Wallet(Weight::Regular).into()
+pub(crate) fn strict_budget_reading_row(
+    budget: &OpenRouterStrictBudget,
+    _clock: Clock,
+    _locale: Locale,
+) -> ReadingRow<'_> {
+    let state = match budget.credit_standing() {
+        CreditStanding::Exhausted => ReadingDisplayState::Critical,
+        CreditStanding::Remaining => ReadingDisplayState::Idle,
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Labeled(format!(
+                "{} left",
+                spend_text(&budget.tightest_remaining())
+            )),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        panel_visibility: strict_budget_panel_visibility(budget),
+        ..ReadingRow::glyph_only(
+            OpenRouterStrictBudget::NAME,
+            Phosphor::Wallet(Weight::Regular).into(),
+            state,
+            Box::new(move |card_clock| strict_budget_hover_card(budget, card_clock)),
+        )
     }
+}
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(format!("{} left", spend_text(&self.tightest_remaining())))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.credit_standing() {
-            CreditStanding::Exhausted => ReadingDisplayState::Critical,
-            CreditStanding::Remaining => ReadingDisplayState::Idle,
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        [Section::new(
-            "Credits",
-            dictionary_table([
-                remaining_entry(self.credits.remaining()),
-                LabeledValue::new("Lifetime Purchased", Quantity::spend(self.credits.total)),
-            ]),
-        )]
-        .into_iter()
-        .chain(self.key_limits.iter().map(Section::from))
-        .collect::<Vec<_>>()
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        if self.credits.total.is_positive() || !self.key_limits.is_empty() {
-            PanelVisibility::Shown
-        } else {
-            PanelVisibility::Hidden
-        }
-    }
+pub(crate) fn strict_budget_hover_card(
+    budget: &OpenRouterStrictBudget,
+    _clock: Clock,
+) -> Vec<Section> {
+    [Section::new(
+        "Credits",
+        dictionary_table([
+            remaining_entry(budget.credits.remaining()),
+            LabeledValue::new("Lifetime Purchased", Quantity::spend(budget.credits.total)),
+        ]),
+    )]
+    .into_iter()
+    .chain(budget.key_limits.iter().map(Section::from))
+    .collect::<Vec<_>>()
 }
 
 impl From<&KeyLimit> for Section {

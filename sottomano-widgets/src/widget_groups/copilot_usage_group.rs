@@ -42,7 +42,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
+        most_used_model::{ModelSpendRanking, RankedSpan},
         simple_icons::SimpleIcon,
         subscribed_snapshot::SubscribedSnapshot,
     },
@@ -176,15 +176,13 @@ impl CopilotUsageGroup {
                 let Some(ranking) = self.model_ranking() else {
                     return Vec::new();
                 };
-                self.cli
-                    .hover_card_with(reading_hover_card(MostUsedModel(ranking), clock))
+                self.cli.hover_card_with(ranking.hover_card())
             }
             CopilotUsageTarget::MostUsedModelSpend => {
                 let Some(ranking) = self.model_ranking() else {
                     return Vec::new();
                 };
-                self.cli
-                    .hover_card_with(reading_hover_card(MostUsedModelSpend(ranking), clock))
+                self.cli.hover_card_with(ranking.top_model_share())
             }
         }
     }
@@ -238,11 +236,11 @@ impl CopilotUsageGroup {
             .chain(self.model_ranking().into_iter().flat_map(|ranking| {
                 [
                     GroupItem::reading(
-                        ReadingRow::evaluated(MostUsedModel(ranking), clock, locale),
+                        ranking.most_used_model_row(),
                         CopilotUsageTarget::MostUsedModel,
                     ),
                     GroupItem::reading(
-                        ReadingRow::evaluated(MostUsedModelSpend(ranking), clock, locale),
+                        ranking.most_used_spend_row(),
                         CopilotUsageTarget::MostUsedModelSpend,
                     ),
                 ]

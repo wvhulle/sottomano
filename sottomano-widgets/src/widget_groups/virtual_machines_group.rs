@@ -27,8 +27,10 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
+        group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::SwitchPosition,
     },
     hover_cards::{
@@ -44,7 +46,6 @@ use crate::{
     },
     widgets::{
         app_window_focus::AppWindowFocus,
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
@@ -169,24 +170,24 @@ struct InactiveDomainRow<'a> {
     domain_name: &'a str,
 }
 
-impl GroupItemReading for InactiveDomainRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.domain_name.to_owned().into()
+impl<'a> InactiveDomainRow<'a> {
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled("shut off".to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                self.domain_name.to_owned(),
+                Phosphor::DesktopTower(Weight::Regular).into(),
+                ReadingDisplayState::Off,
+                Box::new(|_| Self::hover_card()),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::DesktopTower(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some("shut off".to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Off
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    fn hover_card() -> Vec<Section> {
         vec![Section::new(
             "Machine",
             dictionary_table([
@@ -200,32 +201,37 @@ impl GroupItemReading for InactiveDomainRow<'_> {
     }
 }
 
-impl GroupItemReading for VirtualMachineRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
+impl<'a> VirtualMachineRow<'a> {
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
         let machine = self.machine;
-        match &machine.launch_context {
+        let name = match &machine.launch_context {
             Some(launch_context) => format!(
                 "{} from {launch_context} pid {}",
                 machine.launch.machine_name, machine.pid
             ),
             None => format!("{} pid {}", machine.launch.machine_name, machine.pid),
-        }
-        .into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::DesktopTower(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        run_state_text(self.machine.run_state).map(str::to_owned)
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.machine.run_state {
+        };
+        let label = match run_state_text(machine.run_state) {
+            Some(text) => ReadoutLabel::Labeled(text.to_owned()),
+            None => ReadoutLabel::Unlabeled,
+        };
+        let state = match machine.run_state {
             GuestRunState::Running | GuestRunState::Unreported => ReadingDisplayState::Idle,
             GuestRunState::Paused => ReadingDisplayState::Off,
             GuestRunState::ShuttingDown => ReadingDisplayState::Pending,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                name,
+                Phosphor::DesktopTower(Weight::Regular).into(),
+                state,
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
         }
     }
 
@@ -376,16 +382,17 @@ impl VirtualMachinesGroup {
                     .hover_card_with(VirtualMachineRow { machine }.hover_card(clock))
             }
             VirtualMachineTarget::InactiveDomain { domain_name } => {
-                let Some(domain_name) = self.readout.get().and_then(|readout| {
+                let is_inactive = self.readout.get().is_some_and(|readout| {
                     readout
                         .inactive_domains
                         .iter()
-                        .find(|inactive| inactive.as_str() == domain_name.as_ref())
-                }) else {
+                        .any(|inactive| inactive.as_str() == domain_name.as_ref())
+                });
+                if !is_inactive {
                     return Vec::new();
-                };
+                }
                 self.readout
-                    .hover_card_with(InactiveDomainRow { domain_name }.hover_card(clock))
+                    .hover_card_with(InactiveDomainRow::hover_card())
             }
         }
     }
@@ -402,7 +409,7 @@ impl VirtualMachinesGroup {
             .unwrap_or_default();
         let rows = machines.iter().map(|machine| {
             let row = GroupItem::reading(
-                ReadingRow::evaluated(VirtualMachineRow { machine }, clock, locale),
+                VirtualMachineRow { machine }.reading_row(clock, locale),
                 VirtualMachineTarget::RunningProcess { pid: machine.pid },
             );
             let row = match machine.launch.display {
@@ -432,7 +439,7 @@ impl VirtualMachinesGroup {
             .unwrap_or_default();
         let inactive_rows = inactive_domains.iter().map(|domain_name| {
             GroupItem::reading(
-                ReadingRow::evaluated(InactiveDomainRow { domain_name }, clock, locale),
+                InactiveDomainRow { domain_name }.reading_row(clock, locale),
                 VirtualMachineTarget::InactiveDomain {
                     domain_name: Cow::Owned(domain_name.clone()),
                 },

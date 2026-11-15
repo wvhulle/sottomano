@@ -29,9 +29,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
-        reading_row::{ReadingRow, reading_hover_card},
+        group_item::GroupItem, reading_display_state::ReadingDisplayState,
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -41,6 +39,7 @@ use crate::{
             tailscale_access_hover_card::{InboundAccessRow, OwnNodeRow, PolicyFileRow},
             tailscale_exit_node_hover_card::{ExitNodeChoiceRow, ExitNodeLanAccessRow},
             tailscale_exit_offer_hover_card::ExitOfferRow,
+            tailscale_mesh_hover_card::{tailscale_hover_card, tailscale_reading_row},
         },
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -281,13 +280,13 @@ impl TailnetGroup {
         match target {
             TailnetTarget::Membership => self
                 .tailscale
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| tailscale_hover_card(snapshot, clock)),
             TailnetTarget::ExitOffer => {
                 let Some(tailnet) = self.running_tailnet() else {
                     return Vec::new();
                 };
                 self.tailscale
-                    .hover_card_with(reading_hover_card(ExitOfferRow { tailnet }, clock))
+                    .hover_card_with(ExitOfferRow { tailnet }.hover_card())
             }
             TailnetTarget::OwnNode => {
                 let Some(own_node_row) =
@@ -295,8 +294,7 @@ impl TailnetGroup {
                 else {
                     return Vec::new();
                 };
-                self.tailscale
-                    .hover_card_with(reading_hover_card(own_node_row, clock))
+                self.tailscale.hover_card_with(own_node_row.hover_card())
             }
             TailnetTarget::InboundAccess => self.inbound_access.sections(clock),
             TailnetTarget::PolicyFile => self.policy_file_access.sections(clock),
@@ -311,28 +309,24 @@ impl TailnetGroup {
                 else {
                     return Vec::new();
                 };
-                self.tailscale_exit_nodes
-                    .hover_card_with(reading_hover_card(
-                        ExitNodeChoiceRow {
-                            exit_node_option,
-                            exit_node_choices,
-                        },
-                        clock,
-                    ))
+                self.tailscale_exit_nodes.hover_card_with(
+                    ExitNodeChoiceRow {
+                        exit_node_option,
+                        exit_node_choices,
+                    }
+                    .hover_card(),
+                )
             }
             TailnetTarget::ExitNodeLanAccess => {
                 let Some(exit_node_choices) = self.running_exit_node_choices() else {
                     return Vec::new();
                 };
                 self.tailscale_exit_nodes
-                    .hover_card_with(reading_hover_card(
-                        ExitNodeLanAccessRow { exit_node_choices },
-                        clock,
-                    ))
+                    .hover_card_with(ExitNodeLanAccessRow { exit_node_choices }.hover_card())
             }
             TailnetTarget::ExitNodeListFailure => self
                 .tailscale_exit_nodes
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|_| Vec::new()),
         }
     }
 
@@ -343,7 +337,7 @@ impl TailnetGroup {
     ) -> Option<GroupItem<'_, TailnetInteraction>> {
         let membership_row = self.tailscale.reading_row(
             IconGlyph::default(),
-            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+            |snapshot| tailscale_reading_row(snapshot, clock, locale),
             clock,
         )?;
         let item = GroupItem::reading(membership_row, TailnetTarget::Membership).on_right_press(
@@ -381,7 +375,7 @@ impl TailnetGroup {
         match self.policy_file_access {
             PolicyFileAccess::NoApiToken => None,
             PolicyFileAccess::ApiToken { .. } => Some(GroupItem::reading(
-                ReadingRow::evaluated(PolicyFileRow, clock, locale),
+                PolicyFileRow::reading_row(clock, locale),
                 TailnetTarget::PolicyFile,
             )),
         }
@@ -393,7 +387,7 @@ impl TailnetGroup {
         locale: Locale,
     ) -> GroupItem<'_, TailnetInteraction> {
         let item = GroupItem::reading(
-            ReadingRow::evaluated(ExitOfferRow { tailnet }, clock, locale),
+            ExitOfferRow { tailnet }.reading_row(clock, locale),
             TailnetTarget::ExitOffer,
         );
         match tailnet.offer_control() {
@@ -428,14 +422,11 @@ impl TailnetGroup {
         locale: Locale,
     ) -> GroupItem<'a, TailnetInteraction> {
         let exit_node_item = GroupItem::reading(
-            ReadingRow::evaluated(
-                ExitNodeChoiceRow {
-                    exit_node_option,
-                    exit_node_choices,
-                },
-                clock,
-                locale,
-            ),
+            ExitNodeChoiceRow {
+                exit_node_option,
+                exit_node_choices,
+            }
+            .reading_row(clock, locale),
             TailnetTarget::ExitNodeChoice {
                 exit_node_ip: Cow::Owned(exit_node_option.ip.clone()),
             },
@@ -463,7 +454,7 @@ impl TailnetGroup {
         locale: Locale,
     ) -> GroupItem<'_, TailnetInteraction> {
         GroupItem::reading(
-            ReadingRow::evaluated(ExitNodeLanAccessRow { exit_node_choices }, clock, locale),
+            ExitNodeLanAccessRow { exit_node_choices }.reading_row(clock, locale),
             TailnetTarget::ExitNodeLanAccess,
         )
         .on_switch_press(
@@ -508,13 +499,13 @@ impl TailnetGroup {
             .and_then(OwnNodeRow::running_own_node)
             .map(|own_node_row| {
                 GroupItem::reading(
-                    ReadingRow::evaluated(own_node_row, clock, locale),
+                    own_node_row.reading_row(clock, locale),
                     TailnetTarget::OwnNode,
                 )
             });
         let inbound_access_item = self.running_tailnet().map(|_| {
             GroupItem::reading(
-                ReadingRow::evaluated(InboundAccessRow, clock, locale),
+                InboundAccessRow::reading_row(clock, locale),
                 TailnetTarget::InboundAccess,
             )
         });

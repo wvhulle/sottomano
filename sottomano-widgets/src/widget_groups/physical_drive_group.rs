@@ -10,7 +10,11 @@ use std::collections::BTreeMap;
 
 use bcachefs_member_row::BcachefsMemberRow;
 use corredo::transitions::ExpansionState;
-use disk_space_gauge::{DiskMarking, MarkedDiskSpace};
+use disk_space_gauge::{DiskMarking, disk_space_hover_card, disk_space_reading_row};
+use disk_transfer_gauge::{
+    disk_activity_reading_row, disk_transfer_hover_card, disk_transfer_reading_row,
+};
+use drive_health_indicator::{drive_health_hover_card, drive_health_reading_row};
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -26,13 +30,13 @@ use sottomano_toml_config::widget_groups::temperature_sensors::SensorConfig;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_row::{ReadingRow, reading_hover_card},
-    },
+    group_items::group_item::GroupItem,
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
+        storage_space_group::{
+            block_filesystem_discovery_hover_card, block_filesystem_discovery_reading_row,
+        },
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -252,19 +256,12 @@ impl PhysicalDriveGroup {
         let space_target = DriveTarget::Space(disk.name.clone());
         let space_item = match readings.space.get() {
             Some(occupancy) => Some(GroupItem::reading(
-                ReadingRow::evaluated(
-                    MarkedDiskSpace {
-                        occupancy,
-                        marking: self.disk_marking(disk),
-                    },
-                    clock,
-                    locale,
-                ),
+                disk_space_reading_row(occupancy, self.disk_marking(disk)),
                 space_target,
             )),
             None => readings.space.group_item(
                 IconGlyph::default(),
-                |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                |snapshot| disk_space_reading_row(snapshot, DiskMarking::OnlyDisk),
                 space_target,
                 clock,
             ),
@@ -276,11 +273,11 @@ impl PhysicalDriveGroup {
             .flat_map(move |activity| {
                 [
                     GroupItem::reading(
-                        ReadingRow::evaluated(&activity.read, clock, locale),
+                        disk_transfer_reading_row(&activity.read),
                         DriveTarget::Read(disk.name.clone()),
                     ),
                     GroupItem::reading(
-                        ReadingRow::evaluated(&activity.write, clock, locale),
+                        disk_transfer_reading_row(&activity.write),
                         DriveTarget::Write(disk.name.clone()),
                     ),
                 ]
@@ -293,7 +290,7 @@ impl PhysicalDriveGroup {
             .flat_map(|share| &share.bcachefs_members)
             .map(|device| {
                 GroupItem::reading(
-                    ReadingRow::evaluated(BcachefsMemberRow { device }, clock, locale),
+                    BcachefsMemberRow { device }.reading_row(locale),
                     DriveTarget::BcachefsMember {
                         disk: disk.name.clone(),
                         partition: device.partition.clone(),
@@ -305,13 +302,13 @@ impl PhysicalDriveGroup {
             .chain(member_items)
             .chain(readings.drive_health.group_item(
                 IconGlyph::default(),
-                |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                |snapshot| drive_health_reading_row(snapshot, clock, locale),
                 DriveTarget::DriveHealth(disk.name.clone()),
                 clock,
             ))
             .chain(readings.activity.group_item(
                 IconGlyph::default(),
-                |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                |snapshot| disk_activity_reading_row(snapshot),
                 DriveTarget::Read(disk.name.clone()),
                 clock,
             ))
@@ -340,7 +337,7 @@ impl PhysicalDriveGroup {
             DriveInteraction::DiscoveryExpansion,
             self.discovery.group_item(
                 IconGlyph::default(),
-                |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                |snapshot| block_filesystem_discovery_reading_row(snapshot),
                 DriveTarget::MountDiscovery,
                 clock,
             ),
@@ -364,14 +361,14 @@ impl PhysicalDriveGroup {
                 .map(|(_, readings)| readings)
         };
         match target {
-            DriveTarget::MountDiscovery => self
-                .discovery
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            DriveTarget::MountDiscovery => self.discovery.sections_described_by(|snapshot| {
+                block_filesystem_discovery_hover_card(snapshot, clock)
+            }),
             DriveTarget::Space(name) => readings_of(name)
                 .map(|readings| {
                     readings
                         .space
-                        .sections_described_by(|snapshot| reading_hover_card(snapshot, clock))
+                        .sections_described_by(|snapshot| disk_space_hover_card(snapshot, clock))
                 })
                 .unwrap_or_default(),
             DriveTarget::Read(name) => {
@@ -381,10 +378,10 @@ impl PhysicalDriveGroup {
                 match readings.activity.get() {
                     Some(activity) => readings
                         .activity
-                        .hover_card_with(reading_hover_card(&activity.read, clock)),
+                        .hover_card_with(disk_transfer_hover_card(&activity.read)),
                     None => readings
                         .activity
-                        .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                        .sections_described_by(|snapshot| disk_transfer_hover_card(&snapshot.read)),
                 }
             }
             DriveTarget::Write(name) => {
@@ -396,13 +393,13 @@ impl PhysicalDriveGroup {
                 };
                 readings
                     .activity
-                    .hover_card_with(reading_hover_card(&activity.write, clock))
+                    .hover_card_with(disk_transfer_hover_card(&activity.write))
             }
             DriveTarget::DriveHealth(name) => readings_of(name)
                 .map(|readings| {
                     readings
                         .drive_health
-                        .sections_described_by(|snapshot| reading_hover_card(snapshot, clock))
+                        .sections_described_by(|snapshot| drive_health_hover_card(snapshot, clock))
                 })
                 .unwrap_or_default(),
             DriveTarget::BcachefsMember { disk, partition } => {
@@ -420,7 +417,7 @@ impl PhysicalDriveGroup {
                 };
                 readings
                     .space
-                    .hover_card_with(reading_hover_card(BcachefsMemberRow { device }, clock))
+                    .hover_card_with(BcachefsMemberRow { device }.hover_card())
             }
         }
     }

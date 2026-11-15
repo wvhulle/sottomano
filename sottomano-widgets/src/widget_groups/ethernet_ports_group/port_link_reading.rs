@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use sottomano_desktop_sources::network_connectivity::{
     ethernet_connection::{Link, Port, PortState},
     interface_bus_attachment::InterfaceAttachment,
@@ -9,12 +7,12 @@ use sottomano_desktop_sources::network_connectivity::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
+        source_reading::IdentityOrdinal,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::interface_address_sections::link_stats_section,
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -42,30 +40,29 @@ fn attachment_description(attachment: InterfaceAttachment) -> &'static str {
     }
 }
 
-impl GroupItemReading for PortLinkReading<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Link".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        match self.port_state.attachment {
+impl<'a> PortLinkReading<'a> {
+    #[must_use]
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        let icon = match self.port_state.attachment {
             InterfaceAttachment::BuiltIn => Phosphor::Network(Weight::Regular).into(),
             InterfaceAttachment::Usb => Phosphor::Usb(Weight::Regular).into(),
-        }
+        };
+        let ordinal = match self.marking {
+            PortMarking::UniqueAttachment => IdentityOrdinal::Unnumbered,
+            PortMarking::SharedAttachment { ordinal } => IdentityOrdinal::Numbered(ordinal),
+        };
+        let mut row = ReadingRow::glyph_only(
+            "Link",
+            icon,
+            ReadingDisplayState::from(self.port_state.link_state),
+            Box::new(move |clock| self.hover_card(clock)),
+        );
+        row.face.ordinal = ordinal;
+        row
     }
 
-    fn identity_ordinal(&self) -> Option<u8> {
-        match self.marking {
-            PortMarking::UniqueAttachment => None,
-            PortMarking::SharedAttachment { ordinal } => Some(ordinal),
-        }
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(self.port_state.link_state)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    #[must_use]
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::new(
             "Port",
             dictionary_table([
@@ -91,24 +88,24 @@ impl PortConnectionSwitch<'_> {
     }
 }
 
-impl GroupItemReading for PortConnectionSwitch<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Connection".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        if self.port_state.link_state == LinkPhase::Up {
+impl<'a> PortConnectionSwitch<'a> {
+    #[must_use]
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        let icon = if self.port_state.link_state == LinkPhase::Up {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {
             Phosphor::ToggleLeft(Weight::Regular).into()
-        }
+        };
+        ReadingRow::glyph_only(
+            "Connection",
+            icon,
+            ReadingDisplayState::from(self.port_state.link_state),
+            Box::new(move |clock| self.hover_card(clock)),
+        )
     }
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(self.port_state.link_state)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    #[must_use]
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::new(
             "Port",
             dictionary_table([

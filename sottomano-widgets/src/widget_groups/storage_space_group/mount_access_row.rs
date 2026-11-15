@@ -1,16 +1,15 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::mounted_filesystem_usage::{
     FilesystemUsage, MountAccess,
 };
 
 use crate::{
-    clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -27,20 +26,24 @@ fn access_text(access: MountAccess) -> &'static str {
     }
 }
 
-impl GroupItemReading for MountAccessRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Mount".into()
+impl<'a> MountAccessRow<'a> {
+    pub(super) fn reading_row(self) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(access_text(self.usage.access).to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Mount",
+                Phosphor::HardDrive(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |_| self.hover_card()),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::HardDrive(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(access_text(self.usage.access).to_owned())
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self) -> Vec<Section> {
         let joined = |parts: Vec<String>| parts.join("  ");
         vec![Section::new(
             "Mounting",

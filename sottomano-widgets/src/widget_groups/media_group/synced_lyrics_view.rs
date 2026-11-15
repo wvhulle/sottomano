@@ -1,7 +1,4 @@
-use std::{
-    borrow::Cow,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use corredo::changing_text::KaraokeColors;
 use iced::alignment::Horizontal;
@@ -19,7 +16,6 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::{GroupItem, GroupItemValue},
-        group_item_reading::GroupItemReading,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         reading_row::ReadingRow,
         source_reading::GroupItemIcon,
@@ -43,32 +39,22 @@ const LINES_AFTER_CURRENT: usize = 3;
 pub(crate) const TRACK_LYRICS_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::MicrophoneSlash(Weight::Regular));
 
-impl GroupItemReading for TrackLyrics {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        match self {
-            TrackLyrics::Synced(_) => Phosphor::MicrophoneStage(Weight::Regular).into(),
-            TrackLyrics::PlainOnly(_) | TrackLyrics::Instrumental | TrackLyrics::Missing => {
-                TRACK_LYRICS_FALLBACK_GLYPH
-            }
+fn track_lyrics_reading_row(track_lyrics: &TrackLyrics) -> ReadingRow<'_> {
+    let (icon, state) = match track_lyrics {
+        TrackLyrics::Synced(_) => (
+            Phosphor::MicrophoneStage(Weight::Regular).into(),
+            ReadingDisplayState::Idle,
+        ),
+        TrackLyrics::PlainOnly(_) | TrackLyrics::Instrumental | TrackLyrics::Missing => {
+            (TRACK_LYRICS_FALLBACK_GLYPH, ReadingDisplayState::Off)
         }
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self {
-            TrackLyrics::Synced(_) => ReadingDisplayState::Idle,
-            TrackLyrics::PlainOnly(_) | TrackLyrics::Instrumental | TrackLyrics::Missing => {
-                ReadingDisplayState::Off
-            }
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![lyrics_section(self, Duration::ZERO)]
-    }
+    };
+    ReadingRow::glyph_only(
+        TrackLyrics::NAME,
+        icon,
+        state,
+        Box::new(move |_| vec![lyrics_section(track_lyrics, Duration::ZERO)]),
+    )
 }
 
 fn sung_text(timed_line: &TimedLyricLine) -> &str {
@@ -154,11 +140,10 @@ pub(super) fn lyrics_item<'a>(
     sampled_at: Instant,
     clock: Clock,
 ) -> Option<GroupItem<'a, MediaInteraction>> {
-    let locale = config.calendar.locale;
     let Some(timed_line) = singing_line(lyrics_snapshot, media, sampled_at) else {
         return lyrics_snapshot.group_item(
             TRACK_LYRICS_FALLBACK_GLYPH,
-            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+            track_lyrics_reading_row,
             PlayerTarget {
                 bus: media.bus.clone().into(),
                 control: MediaTarget::Lyrics,

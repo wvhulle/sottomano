@@ -23,8 +23,10 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
+        group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
@@ -76,21 +78,21 @@ struct UnreadableEngineRow<'a> {
     read_failure: &'a EngineReadError,
 }
 
-impl GroupItemReading for UnreadableEngineRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.engine.owner.to_string().into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        IconGlyph::SimpleIcon(SimpleIcon::Docker)
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(engine_failure_label(self.read_failure).to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Failed
+impl<'a> UnreadableEngineRow<'a> {
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(engine_failure_label(self.read_failure).to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                self.engine.owner.to_string(),
+                IconGlyph::SimpleIcon(SimpleIcon::Docker),
+                ReadingDisplayState::Failed,
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
@@ -115,21 +117,21 @@ struct ListedContainerRow<'a> {
     listed: &'a DockerContainerListing,
 }
 
-impl GroupItemReading for ListedContainerRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        engine_container_name(&self.listed.container_name, &self.engine.owner)
-    }
-
-    fn icon(&self) -> IconGlyph {
-        IconGlyph::SimpleIcon(SimpleIcon::Docker)
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.listed.run_state.label().to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.listed.run_state.into()
+impl<'a> ListedContainerRow<'a> {
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(self.listed.run_state.label().to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                engine_container_name(&self.listed.container_name, &self.engine.owner),
+                IconGlyph::SimpleIcon(SimpleIcon::Docker),
+                self.listed.run_state.into(),
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
@@ -367,7 +369,7 @@ impl DockerEnginesGroup {
         )
         .face(WidgetGroupFace::Glyph {
             glyph: IconGlyph::SimpleIcon(SimpleIcon::Docker),
-            state: self.state(clock),
+            state: self.shown_state(),
         })
     }
 
@@ -388,7 +390,7 @@ impl DockerEnginesGroup {
                 };
                 with_container_switch(
                     GroupItem::reading(
-                        ReadingRow::evaluated(ListedContainerRow { engine, listed }, clock, locale),
+                        ListedContainerRow { engine, listed }.reading_row(clock, locale),
                         container_hover_target(target.clone()),
                     ),
                     listed.run_state,
@@ -428,14 +430,11 @@ impl DockerEnginesGroup {
                 ));
             } else if let Some(read_failure) = self.readout_failure(engine) {
                 failure_rows.push(GroupItem::reading(
-                    ReadingRow::evaluated(
-                        UnreadableEngineRow {
-                            engine,
-                            read_failure,
-                        },
-                        clock,
-                        locale,
-                    ),
+                    UnreadableEngineRow {
+                        engine,
+                        read_failure,
+                    }
+                    .reading_row(clock, locale),
                     DockerEngineTarget::from(engine),
                 ));
             } else {
@@ -453,22 +452,8 @@ impl DockerEnginesGroup {
     }
 }
 
-impl GroupItemReading for DockerEnginesGroup {
-    fn name(&self) -> Cow<'static, str> {
-        "Docker engines".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        IconGlyph::SimpleIcon(SimpleIcon::Docker)
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.probe_presence_count().map(|presence_count| {
-            format!("{presence_count} of {} engines present", self.engines.len())
-        })
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+impl DockerEnginesGroup {
+    fn shown_state(&self) -> ReadingDisplayState {
         let any_engine_present = self
             .probe_presence_count()
             .is_some_and(|presence_count| presence_count > 0);
@@ -477,22 +462,6 @@ impl GroupItemReading for DockerEnginesGroup {
         } else {
             ReadingDisplayState::Off
         }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Presence",
-            dictionary_table(
-                self.probe_presence_count()
-                    .map(|presence_count| {
-                        vec![
-                            LabeledValue::new("Present", presence_count.to_string()),
-                            LabeledValue::new("Engines", self.engines.len().to_string()),
-                        ]
-                    })
-                    .unwrap_or_default(),
-            ),
-        )]
     }
 }
 

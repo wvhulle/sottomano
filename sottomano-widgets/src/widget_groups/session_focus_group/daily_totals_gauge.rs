@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cmp::Ordering, iter::once};
+use std::{cmp::Ordering, iter::once};
 
 use chrono::{DateTime, Locale, TimeDelta, Utc};
 use sottomano_desktop_sources::{
@@ -8,18 +8,17 @@ use sottomano_desktop_sources::{
     },
 };
 use sottomano_toml_config::severity::Severity;
-use uom::si::f64::Ratio;
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::duration_text,
+        ongoing_toast::ReadingAlerts,
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
@@ -169,39 +168,43 @@ impl DailyTotalsGauge {
     }
 }
 
-impl GroupItemReading for DailyTotalsGauge {
-    fn name(&self) -> Cow<'static, str> {
-        "Daily focus budget".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::HourglassMedium(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
+impl DailyTotalsGauge {
+    pub fn reading_row(&self, locale: Locale) -> ReadingRow<'_> {
         let coarse = |length| duration_text(length, locale);
         let spent = coarse(self.screen_spent);
-        Some(match &self.screen_budget {
+        let label = match &self.screen_budget {
             Some(status) => format!("{spent} / {}", coarse(status.budget)),
             None => spent,
-        })
+        };
+        let gauge = match self.worst() {
+            Some(quota) => ReadoutGauge::Gauged {
+                fill: quota.used,
+                live: quota.used,
+            },
+            None => ReadoutGauge::Ungauged,
+        };
+        let quotas = self.quotas();
+        let state = Quota::worst_severity(&quotas).unwrap_or_default().into();
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(label),
+                gauge,
+                badge: ReadoutBadge::Unbadged,
+            },
+            alerts: ReadingAlerts {
+                quota_windows: quotas,
+                ..ReadingAlerts::default()
+            },
+            ..ReadingRow::glyph_only(
+                "Daily focus budget",
+                Phosphor::HourglassMedium(Weight::Regular).into(),
+                state,
+                Box::new(move |_| self.hover_card()),
+            )
+        }
     }
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        Quota::worst_severity(&self.quotas())
-            .unwrap_or_default()
-            .into()
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        self.worst().map(|quota| quota.used)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self) -> Vec<Section> {
         self.sections().into_iter().collect::<Vec<_>>()
-    }
-
-    fn quota_windows(&self, _now: DateTime<Utc>) -> Vec<Quota> {
-        self.quotas()
     }
 }

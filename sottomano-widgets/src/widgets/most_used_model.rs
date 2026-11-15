@@ -1,6 +1,3 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use rust_decimal::{Decimal, prelude::ToPrimitive};
 use sottomano_desktop_sources::ai_usage_spend::{
     model_spend_ranking::{ModelRanking, ModelSpend},
@@ -9,14 +6,14 @@ use sottomano_desktop_sources::ai_usage_spend::{
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
         amount_text::{percent_text, spend_text},
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -66,7 +63,8 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
             })
     }
 
-    fn hover_card(&self) -> Vec<Section> {
+    #[must_use]
+    pub fn hover_card(&self) -> Vec<Section> {
         let ranked = self.ranked_models();
         let listed = &ranked[..ranked.len().min(LISTED_MODELS)];
         let other = TableRecord::with_cells(
@@ -106,7 +104,8 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
         )]
     }
 
-    fn top_model_share(&self) -> Vec<Section> {
+    #[must_use]
+    pub fn top_model_share(&self) -> Vec<Section> {
         let top = self
             .top()
             .map(|spend| spend.model.clone())
@@ -128,52 +127,46 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
             dictionary_table(span_shares),
         )]
     }
-}
 
-pub struct MostUsedModel<'a, const SPANS: usize>(pub ModelSpendRanking<'a, SPANS>);
-
-impl<const SPANS: usize> GroupItemReading for MostUsedModel<'_, SPANS> {
-    fn name(&self) -> Cow<'static, str> {
-        "Most used model".into()
+    #[must_use]
+    pub fn most_used_model_row(self) -> ReadingRow<'a> {
+        let label = match self.top() {
+            Some(spend) => ReadoutLabel::Labeled(spend.model.clone()),
+            None => ReadoutLabel::Unlabeled,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Most used model",
+                Phosphor::Sparkle(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |_| self.hover_card()),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Sparkle(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.0.top()?.model.clone())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Idle
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        self.0.hover_card()
-    }
-}
-
-pub struct MostUsedModelSpend<'a, const SPANS: usize>(pub ModelSpendRanking<'a, SPANS>);
-
-impl<const SPANS: usize> GroupItemReading for MostUsedModelSpend<'_, SPANS> {
-    fn name(&self) -> Cow<'static, str> {
-        "Most used model spend".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Coins(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(spend_text(&self.0.top()?.cost))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Idle
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        self.0.top_model_share()
+    #[must_use]
+    pub fn most_used_spend_row(self) -> ReadingRow<'a> {
+        let label = match self.top() {
+            Some(spend) => ReadoutLabel::Labeled(spend_text(&spend.cost)),
+            None => ReadoutLabel::Unlabeled,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Most used model spend",
+                Phosphor::Coins(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |_| self.top_model_share()),
+            )
+        }
     }
 }

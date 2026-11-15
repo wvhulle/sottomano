@@ -1,21 +1,17 @@
-use std::borrow::Cow;
-
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::mounted_filesystem_usage::InodeCount;
 use sottomano_toml_config::severity::Severity;
-use uom::si::f64::Ratio;
 
 use crate::{
-    clock::Clock,
     group_items::{
         gauge::percent_fill,
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
-        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
+        ongoing_toast::{ReadingAlerts, StateToast, ToastBody, ToastProgress},
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -52,38 +48,38 @@ impl InodeUsageRow {
     }
 }
 
-impl GroupItemReading for InodeUsageRow {
-    fn name(&self) -> Cow<'static, str> {
-        "Inodes".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Files(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.severity().into()
-    }
-
-    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
-        OngoingToastThreshold::NotifyFromSeverity {
-            minimum_severity: Severity::Critical,
-            summary_text: "Running out of inodes",
+impl InodeUsageRow {
+    pub(super) fn reading_row(self, locale: Locale) -> ReadingRow<'static> {
+        let label = format!(
+            "{} free",
+            Quantity::compact_count(self.inodes.free).localized_text(locale)
+        );
+        let fill = percent_fill(self.used_percent());
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(label.clone()),
+                gauge: ReadoutGauge::Gauged { fill, live: fill },
+                badge: ReadoutBadge::Unbadged,
+            },
+            alerts: ReadingAlerts {
+                state_toast: StateToast::NotifyFromSeverity {
+                    minimum_severity: Severity::Critical,
+                    summary_text: "Running out of inodes",
+                    body: ToastBody::Text(label),
+                    progress: ToastProgress::Measured(fill),
+                },
+                ..ReadingAlerts::default()
+            },
+            ..ReadingRow::glyph_only(
+                "Inodes",
+                Phosphor::Files(Weight::Regular).into(),
+                self.severity().into(),
+                Box::new(move |_| self.hover_card()),
+            )
         }
     }
 
-    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        Some(format!(
-            "{} free",
-            Quantity::compact_count(self.inodes.free).localized_text(locale)
-        ))
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        Some(percent_fill(self.used_percent()))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             "Usage",
             dictionary_table([

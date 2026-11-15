@@ -1,7 +1,5 @@
-use std::borrow::Cow;
-
 use bytesize::ByteSize;
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Locale, TimeDelta, Utc};
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::{
     SnapshotSource,
@@ -14,11 +12,12 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         simple_icons::SimpleIcon,
@@ -96,99 +95,105 @@ impl IntoTableRecord<7> for &Peer {
     }
 }
 
-impl GroupItemReading for Tailscale {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        SimpleIcon::Tailscale.into()
-    }
-
-    fn state(&self, clock: Clock) -> ReadingDisplayState {
-        match self {
-            Tailscale::Stopped => ReadingDisplayState::Off,
-            Tailscale::Starting => ReadingDisplayState::Pending,
-            Tailscale::Running(tailnet)
-                if !tailnet.health_warnings.is_empty()
-                    || key_expiry_urgency(tailnet.key_expiry, clock.utc())
-                        == KeyExpiryUrgency::ExpiresSoon =>
-            {
-                ReadingDisplayState::Warning
-            }
-            Tailscale::Running(_) => ReadingDisplayState::On,
+pub(super) fn tailscale_reading_row(
+    tailscale: &Tailscale,
+    clock: Clock,
+    _locale: Locale,
+) -> ReadingRow<'_> {
+    let state = match tailscale {
+        Tailscale::Stopped => ReadingDisplayState::Off,
+        Tailscale::Starting => ReadingDisplayState::Pending,
+        Tailscale::Running(tailnet)
+            if !tailnet.health_warnings.is_empty()
+                || key_expiry_urgency(tailnet.key_expiry, clock.utc())
+                    == KeyExpiryUrgency::ExpiresSoon =>
+        {
+            ReadingDisplayState::Warning
         }
+        Tailscale::Running(_) => ReadingDisplayState::On,
+    };
+    let badge = match tailscale {
+        Tailscale::Running(tailnet) if !tailnet.online.is_empty() => {
+            ReadoutBadge::Counted(tailnet.online.len())
+        }
+        Tailscale::Running(_) | Tailscale::Stopped | Tailscale::Starting => ReadoutBadge::Unbadged,
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Unlabeled,
+            gauge: ReadoutGauge::Ungauged,
+            badge,
+        },
+        ..ReadingRow::glyph_only(
+            Tailscale::NAME,
+            SimpleIcon::Tailscale.into(),
+            state,
+            Box::new(move |card_clock| tailscale_hover_card(tailscale, card_clock)),
+        )
     }
+}
 
-    fn badge(&self) -> Option<usize> {
-        let Tailscale::Running(tailnet) = self else {
-            return None;
-        };
-        Some(tailnet.online.len()).filter(|count| *count > 0)
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
-        let tailnet = match self {
-            Tailscale::Running(tailnet) => tailnet,
-            Tailscale::Starting => {
-                return vec![Section::new(
-                    "Status",
-                    dictionary_table([LabeledValue::new("Tailscale", "starting")]),
-                )];
-            }
-            Tailscale::Stopped => {
-                return vec![Section::new(
-                    "Status",
-                    dictionary_table([LabeledValue::new("Tailscale", "disconnected")]),
-                )];
-            }
-        };
-        let health_entries = tailnet
-            .health_warnings
-            .iter()
-            .map(|warning| LabeledValue::new("Health", warning.as_str()).level(Severity::Warning));
-        let summary_section = Section::new(
-            "Status",
-            dictionary_table(
-                [
-                    LabeledValue::new("Tailscale", "connected"),
-                    LabeledValue::new("Tailnet", tailnet.tailnet_name.as_str()),
-                    LabeledValue::new(
-                        "Dashboard",
-                        ValueCell::BrandedLink {
-                            label: "Admin console".to_owned(),
-                            url: ADMIN_CONSOLE_URL.to_owned(),
-                            glyph: SimpleIcon::Tailscale.into(),
-                        },
-                    ),
-                    LabeledValue::new("Self", tailnet.own_node.name.as_str()),
-                    LabeledValue::new("IP", tailnet.own_node.ip.as_str()),
-                    LabeledValue::new(
-                        "Peers",
-                        format!("{}/{} online", tailnet.online.len(), tailnet.total_peers),
-                    ),
-                ]
-                .into_iter()
-                .chain([key_expiry_entry(tailnet.key_expiry, clock.utc())])
-                .chain(health_entries),
-            ),
-        );
-        let peer_table = Section::new(
-            "Online peers",
-            headed_table(
-                [
-                    ColumnHeading::titled("IP").align_x(Horizontal::Left),
-                    ColumnHeading::titled("OS").align_x(Horizontal::Left),
-                    ColumnHeading::titled("Tags").align_x(Horizontal::Left),
-                    ColumnHeading::titled("Path").align_x(Horizontal::Left),
-                    ColumnHeading::titled("Relay").align_x(Horizontal::Left),
-                    ColumnHeading::titled("Received"),
-                    ColumnHeading::titled("Sent"),
-                ],
-                &tailnet.online,
-            )
-            .without_blank_columns(ValueCell::is_blank),
-        );
-        vec![summary_section, peer_table]
-    }
+pub(super) fn tailscale_hover_card(tailscale: &Tailscale, clock: Clock) -> Vec<Section> {
+    let tailnet = match tailscale {
+        Tailscale::Running(tailnet) => tailnet,
+        Tailscale::Starting => {
+            return vec![Section::new(
+                "Status",
+                dictionary_table([LabeledValue::new("Tailscale", "starting")]),
+            )];
+        }
+        Tailscale::Stopped => {
+            return vec![Section::new(
+                "Status",
+                dictionary_table([LabeledValue::new("Tailscale", "disconnected")]),
+            )];
+        }
+    };
+    let health_entries = tailnet
+        .health_warnings
+        .iter()
+        .map(|warning| LabeledValue::new("Health", warning.as_str()).level(Severity::Warning));
+    let summary_section = Section::new(
+        "Status",
+        dictionary_table(
+            [
+                LabeledValue::new("Tailscale", "connected"),
+                LabeledValue::new("Tailnet", tailnet.tailnet_name.as_str()),
+                LabeledValue::new(
+                    "Dashboard",
+                    ValueCell::BrandedLink {
+                        label: "Admin console".to_owned(),
+                        url: ADMIN_CONSOLE_URL.to_owned(),
+                        glyph: SimpleIcon::Tailscale.into(),
+                    },
+                ),
+                LabeledValue::new("Self", tailnet.own_node.name.as_str()),
+                LabeledValue::new("IP", tailnet.own_node.ip.as_str()),
+                LabeledValue::new(
+                    "Peers",
+                    format!("{}/{} online", tailnet.online.len(), tailnet.total_peers),
+                ),
+            ]
+            .into_iter()
+            .chain([key_expiry_entry(tailnet.key_expiry, clock.utc())])
+            .chain(health_entries),
+        ),
+    );
+    let peer_table = Section::new(
+        "Online peers",
+        headed_table(
+            [
+                ColumnHeading::titled("IP").align_x(Horizontal::Left),
+                ColumnHeading::titled("OS").align_x(Horizontal::Left),
+                ColumnHeading::titled("Tags").align_x(Horizontal::Left),
+                ColumnHeading::titled("Path").align_x(Horizontal::Left),
+                ColumnHeading::titled("Relay").align_x(Horizontal::Left),
+                ColumnHeading::titled("Received"),
+                ColumnHeading::titled("Sent"),
+            ],
+            &tailnet.online,
+        )
+        .without_blank_columns(ValueCell::is_blank),
+    );
+    vec![summary_section, peer_table]
 }

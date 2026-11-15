@@ -1,24 +1,21 @@
-use std::borrow::Cow;
-
 use bytesize::ByteSize;
 use chrono::Locale;
-use sottomano_desktop_sources::{
-    SnapshotSource,
-    disk_storage::{
-        bcachefs_subvolume_usage::{BcachefsSubvolume, BcachefsSubvolumeUsage, SubvolumeMount},
-        mounted_filesystem_usage::MountAccess,
-    },
+use sottomano_desktop_sources::disk_storage::{
+    bcachefs_subvolume_usage::{BcachefsSubvolume, BcachefsSubvolumeUsage, SubvolumeMount},
+    mounted_filesystem_usage::MountAccess,
 };
 use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
     group_items::{
-        gauge::percent_fill, group_item_reading::GroupItemReading, reading_row::PanelVisibility,
+        gauge::percent_fill,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -41,20 +38,26 @@ impl SubvolumeUsageRow<'_> {
     }
 }
 
-impl GroupItemReading for SubvolumeUsageRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.subvolume.path.display().to_string().into()
+impl<'a> SubvolumeUsageRow<'a> {
+    pub(super) fn reading_row(self, locale: Locale) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(
+                    Quantity::size(self.subvolume.used).localized_text(locale),
+                ),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                self.subvolume.path.display().to_string(),
+                Phosphor::FolderSimple(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |_| self.hover_card()),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::FolderSimple(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        Some(Quantity::size(self.subvolume.used).localized_text(locale))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self) -> Vec<Section> {
         let mounted_at = self
             .subvolume
             .mounts
@@ -97,30 +100,19 @@ fn mount_description(mount: &SubvolumeMount) -> String {
     }
 }
 
-impl GroupItemReading for BcachefsSubvolumeUsage {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::FolderSimple(Weight::Regular).into()
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        PanelVisibility::Hidden
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Usage",
-            dictionary_table(self.subvolumes.iter().map(|subvolume| {
-                LabeledValue::new(
-                    subvolume.path.display().to_string(),
-                    Quantity::size(subvolume.used),
-                )
-            })),
-        )]
-    }
+pub(crate) fn subvolume_usage_hover_card(
+    usage: &BcachefsSubvolumeUsage,
+    _clock: Clock,
+) -> Vec<Section> {
+    vec![Section::new(
+        "Usage",
+        dictionary_table(usage.subvolumes.iter().map(|subvolume| {
+            LabeledValue::new(
+                subvolume.path.display().to_string(),
+                Quantity::size(subvolume.used),
+            )
+        })),
+    )]
 }
 
 #[cfg(test)]
@@ -144,7 +136,10 @@ mod tests {
             subvolume: &subvolume,
             pool_total: ByteSize::gib(4),
         };
-        assert!(row.gauge().is_none());
+        assert_eq!(
+            row.reading_row(Locale::en_US).readout.gauge,
+            ReadoutGauge::Ungauged
+        );
     }
 
     fn row_share(used: ByteSize, pool_total: ByteSize) -> i64 {

@@ -1,6 +1,5 @@
 use chrono::Locale;
 
-use crate::group_items::reading_row::reading_hover_card;
 mod port_link_reading;
 
 use iced::{Subscription, Task};
@@ -249,7 +248,7 @@ impl EthernetPortsGroup {
                 };
                 let mut sections = self
                     .ethernet
-                    .hover_card_with(reading_hover_card(link_reading, clock));
+                    .hover_card_with(link_reading.hover_card(clock));
                 sections.extend(self.port_detail_sections(port_name, port_identity_sections));
                 sections
             }
@@ -260,10 +259,9 @@ impl EthernetPortsGroup {
                         .map(link_detail_sections)
                         .unwrap_or_default()
                 });
-                let mut sections = self.ethernet.hover_card_with(reading_hover_card(
-                    PortConnectionSwitch { port_state },
-                    clock,
-                ));
+                let mut sections = self
+                    .ethernet
+                    .hover_card_with(PortConnectionSwitch { port_state }.hover_card(clock));
                 sections.extend(link_details);
                 sections
             }
@@ -299,14 +297,11 @@ impl EthernetPortsGroup {
     ) -> Option<WidgetGroupContent<'a, EthernetPortsInteraction>> {
         let expansion = self.expansions.get(&port_state.name)?;
         let link_item = GroupItem::reading(
-            ReadingRow::evaluated(
-                PortLinkReading {
-                    port_state,
-                    marking: self.port_marking(port_state),
-                },
-                clock,
-                locale,
-            ),
+            PortLinkReading {
+                port_state,
+                marking: self.port_marking(port_state),
+            }
+            .reading_row(),
             EthernetPortTarget::Link {
                 port_name: port_state.name.clone(),
             },
@@ -314,7 +309,7 @@ impl EthernetPortsGroup {
         let connection_switch = PortConnectionSwitch { port_state };
         let connection_press_does = connection_switch.press_does();
         let connection_item = GroupItem::reading(
-            ReadingRow::evaluated(connection_switch, clock, locale),
+            connection_switch.reading_row(),
             EthernetPortTarget::Connection {
                 port_name: port_state.name.clone(),
             },

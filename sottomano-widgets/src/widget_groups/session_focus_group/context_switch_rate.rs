@@ -1,6 +1,4 @@
-use std::borrow::Cow;
-
-use chrono::{DateTime, Locale, Utc};
+use chrono::{DateTime, Utc};
 use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
     Accounting, LAST_DAY, LAST_HOUR,
 };
@@ -9,11 +7,11 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
@@ -111,24 +109,24 @@ impl ContextSwitchRate<'_> {
     }
 }
 
-impl GroupItemReading for ContextSwitchRate<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Context switches".into()
+impl<'a> ContextSwitchRate<'a> {
+    pub fn reading_row(self, clock: Clock) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(format!("{}/h", self.per_hour(clock.utc()))),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Context switches",
+                Phosphor::Shuffle(Weight::Regular).into(),
+                self.severity(clock.utc()).into(),
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Shuffle(Weight::Regular).into()
-    }
-
-    fn label(&self, clock: Clock, _locale: Locale) -> Option<String> {
-        Some(format!("{}/h", self.per_hour(clock.utc())))
-    }
-
-    fn state(&self, clock: Clock) -> ReadingDisplayState {
-        self.severity(clock.utc()).into()
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
         self.sections(clock.utc()).into_iter().collect::<Vec<_>>()
     }
 }

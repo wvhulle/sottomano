@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use chrono::Locale;
 use sottomano_desktop_sources::{
     SnapshotSource,
@@ -14,87 +12,96 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
-        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
+        ongoing_toast::{ReadingAlerts, StateToast, ToastBody, ToastProgress},
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
 };
 
-impl GroupItemReading for DriveHealth {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub(crate) fn drive_health_reading_row(
+    health: &DriveHealth,
+    _clock: Clock,
+    _locale: Locale,
+) -> ReadingRow<'_> {
+    let error_level = if health.errors.iter().any(|errors| errors.total() > 0) {
+        Severity::Critical
+    } else {
+        Severity::Normal
+    };
+    let temperature_text = health.temperature.current().map(celsius_text);
+    let (label, body) = match temperature_text {
+        Some(text) => (ReadoutLabel::Labeled(text.clone()), ToastBody::Text(text)),
+        None => (ReadoutLabel::Unlabeled, ToastBody::Bodiless),
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        alerts: ReadingAlerts {
+            state_toast: StateToast::NotifyFromSeverity {
+                minimum_severity: Severity::Critical,
+                summary_text: "Drive needs attention",
+                body,
+                progress: ToastProgress::Unmeasured,
+            },
+            ..ReadingAlerts::default()
+        },
+        ..ReadingRow::glyph_only(
+            DriveHealth::NAME,
+            Phosphor::Thermometer(Weight::Regular).into(),
+            health.temperature_level().max(error_level).into(),
+            Box::new(move |card_clock| drive_health_hover_card(health, card_clock)),
+        )
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Thermometer(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        let error_level = if self.errors.iter().any(|errors| errors.total() > 0) {
-            Severity::Critical
-        } else {
-            Severity::Normal
-        };
-        self.temperature_level().max(error_level).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.temperature.current().map(celsius_text)
-    }
-
-    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
-        OngoingToastThreshold::NotifyFromSeverity {
-            minimum_severity: Severity::Critical,
-            summary_text: "Drive needs attention",
+pub(crate) fn drive_health_hover_card(health: &DriveHealth, _clock: Clock) -> Vec<Section> {
+    let thresholds = health
+        .temperature
+        .current()
+        .map(|_| health.temperature_thresholds());
+    let temperature_cell = match health.temperature {
+        DriveTemperature::Reported { current, .. } => Quantity::temperature(current).into(),
+        DriveTemperature::Unreported(MissingSensor::DrivetempNotLoaded) => {
+            ValueCell::from("load the drivetemp kernel module")
         }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        let thresholds = self
-            .temperature
-            .current()
-            .map(|_| self.temperature_thresholds());
-        let temperature_cell = match self.temperature {
-            DriveTemperature::Reported { current, .. } => Quantity::temperature(current).into(),
-            DriveTemperature::Unreported(MissingSensor::DrivetempNotLoaded) => {
-                ValueCell::from("load the drivetemp kernel module")
-            }
-            DriveTemperature::Unreported(MissingSensor::NotExposed) => {
-                ValueCell::from("not reported by the drive")
-            }
-        };
-        let summary = Section::new(
-            "Temperature",
-            dictionary_table([
-                LabeledValue::new("Drive", self.device_name.as_str()),
-                LabeledValue::new("Temperature", temperature_cell),
-            ]),
-        );
-        let threshold_section = Section::new(
-            "Thresholds",
-            dictionary_table(thresholds.into_iter().flat_map(|thresholds| {
-                [
-                    LabeledValue::new("Warns above", Quantity::temperature(thresholds.warning)),
-                    LabeledValue::new("Critical above", thresholds.critical_text()),
-                ]
-            })),
-        );
-        [summary, threshold_section, Section::from(self)]
-            .into_iter()
-            .chain(self.errors.iter().map(|errors| {
-                Section::new(
-                    format!("I/O errors on {}", errors.counted_on),
-                    dictionary_table(error_entries(errors)),
-                )
-            }))
-            .collect()
-    }
+        DriveTemperature::Unreported(MissingSensor::NotExposed) => {
+            ValueCell::from("not reported by the drive")
+        }
+    };
+    let summary = Section::new(
+        "Temperature",
+        dictionary_table([
+            LabeledValue::new("Drive", health.device_name.as_str()),
+            LabeledValue::new("Temperature", temperature_cell),
+        ]),
+    );
+    let threshold_section = Section::new(
+        "Thresholds",
+        dictionary_table(thresholds.into_iter().flat_map(|thresholds| {
+            [
+                LabeledValue::new("Warns above", Quantity::temperature(thresholds.warning)),
+                LabeledValue::new("Critical above", thresholds.critical_text()),
+            ]
+        })),
+    );
+    [summary, threshold_section, Section::from(health)]
+        .into_iter()
+        .chain(health.errors.iter().map(|errors| {
+            Section::new(
+                format!("I/O errors on {}", errors.counted_on),
+                dictionary_table(error_entries(errors)),
+            )
+        }))
+        .collect()
 }
 
 fn error_entries(errors: &DeviceErrors) -> Vec<LabeledValue> {

@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use bytesize::ByteSize;
 use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::{
@@ -7,11 +5,13 @@ use sottomano_desktop_sources::disk_storage::{
 };
 
 use crate::{
-    clock::Clock,
-    group_items::{group_item_reading::GroupItemReading, reading_row::PanelVisibility},
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::{Quantity, localized_decimal},
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -59,35 +59,37 @@ fn compression_ratio(space: &BcachefsSpace) -> Option<f64> {
         .then(|| extents.uncompressed.as_u64() as f64 / extents.compressed.as_u64() as f64)
 }
 
-impl GroupItemReading for CompressionSettingRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Compression".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::ArrowsInSimple(Weight::Regular).into()
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        PanelVisibility::Hidden
-    }
-
-    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
+impl<'a> CompressionSettingRow<'a> {
+    pub(super) fn reading_row(self, locale: Locale) -> ReadingRow<'a> {
         let ratio = match self {
             CompressionSettingRow::Bcachefs(space) => compression_ratio(space),
             CompressionSettingRow::Btrfs(_) => None,
         };
-        Some(match ratio {
+        let label = match ratio {
             Some(ratio) => format!(
                 "{}  {}×",
                 self.algorithm_text(),
                 localized_decimal(ratio, 1, locale)
             ),
             None => self.algorithm_text(),
-        })
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(label),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            panel_visibility: PanelVisibility::Hidden,
+            ..ReadingRow::glyph_only(
+                "Compression",
+                Phosphor::ArrowsInSimple(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |_| self.hover_card()),
+            )
+        }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self) -> Vec<Section> {
         let compressed_sizes = match self {
             CompressionSettingRow::Bcachefs(space)
                 if space.compressed_extents.compressed > ByteSize::default() =>

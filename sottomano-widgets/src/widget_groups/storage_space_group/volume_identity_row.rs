@@ -1,16 +1,15 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::{
     mounted_filesystem_usage::FilesystemUsage, udev_volume_identity::VolumePropertyKind,
 };
 
 use crate::{
-    clock::Clock,
-    group_items::{group_item_reading::GroupItemReading, reading_row::PanelVisibility},
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -29,20 +28,8 @@ fn property_title(kind: VolumePropertyKind) -> &'static str {
     }
 }
 
-impl GroupItemReading for VolumeIdentityRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Volume".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::IdentificationCard(Weight::Regular).into()
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        PanelVisibility::Hidden
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
+impl<'a> VolumeIdentityRow<'a> {
+    pub(super) fn reading_row(self) -> ReadingRow<'a> {
         let volume = &self.usage.volume;
         let fs_type = &self.usage.mount.fs_type;
         let format_text = match volume.value_of(VolumePropertyKind::Version) {
@@ -52,13 +39,27 @@ impl GroupItemReading for VolumeIdentityRow<'_> {
             Some(named_version) => named_version.to_owned(),
             None => fs_type.clone(),
         };
-        Some(match volume.value_of(VolumePropertyKind::Label) {
+        let label = match volume.value_of(VolumePropertyKind::Label) {
             Some(volume_label) => format!("{format_text}  “{volume_label}”"),
             None => format_text,
-        })
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(label),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            panel_visibility: PanelVisibility::Hidden,
+            ..ReadingRow::glyph_only(
+                "Volume",
+                Phosphor::IdentificationCard(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |_| self.hover_card()),
+            )
+        }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             "Identity",
             dictionary_table(

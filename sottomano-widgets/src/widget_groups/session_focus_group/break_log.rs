@@ -1,6 +1,6 @@
-use std::{borrow::Cow, num::NonZeroUsize};
+use std::num::NonZeroUsize;
 
-use chrono::{DateTime, Local, Locale, Utc};
+use chrono::{DateTime, Local, Utc};
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
     Accounting, LAST_DAY, TakenBreak,
@@ -8,10 +8,13 @@ use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
@@ -128,25 +131,29 @@ impl BreakLog<'_> {
     }
 }
 
-impl GroupItemReading for BreakLog<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Breaks".into()
+impl<'a> BreakLog<'a> {
+    pub fn reading_row(self, clock: Clock) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(
+                    self.recent_breaks(clock.utc())
+                        .taken_breaks
+                        .len()
+                        .to_string(),
+                ),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Breaks",
+                Phosphor::Coffee(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Coffee(Weight::Regular).into()
-    }
-
-    fn label(&self, clock: Clock, _locale: Locale) -> Option<String> {
-        Some(
-            self.recent_breaks(clock.utc())
-                .taken_breaks
-                .len()
-                .to_string(),
-        )
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
         self.sections(clock.utc()).into_iter().collect::<Vec<_>>()
     }
 }

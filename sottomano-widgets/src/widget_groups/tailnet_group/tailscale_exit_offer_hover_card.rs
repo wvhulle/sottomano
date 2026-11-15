@@ -1,5 +1,4 @@
-use std::borrow::Cow;
-
+use chrono::Locale;
 use sottomano_desktop_sources::network_connectivity::tailscale_status::{
     ExitNodeOffer, ExitOfferControl, Tailnet,
 };
@@ -8,11 +7,12 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -32,27 +32,28 @@ pub(super) struct ExitOfferRow<'a> {
     pub(super) tailnet: &'a Tailnet,
 }
 
-impl GroupItemReading for ExitOfferRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Offer as exit node".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Broadcast(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(self.tailnet.exit_offer)
-    }
-
-    fn label(&self, _clock: Clock, _locale: chrono::Locale) -> Option<String> {
-        match self.tailnet.offer_control() {
-            ExitOfferControl::Switchable(_) => None,
-            ExitOfferControl::BlockedByExitNodeInUse => Some("blocked".to_owned()),
+impl<'a> ExitOfferRow<'a> {
+    pub(super) fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        let label = match self.tailnet.offer_control() {
+            ExitOfferControl::Switchable(_) => ReadoutLabel::Unlabeled,
+            ExitOfferControl::BlockedByExitNodeInUse => ReadoutLabel::Labeled("blocked".to_owned()),
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Offer as exit node",
+                Phosphor::Broadcast(Weight::Regular).into(),
+                ReadingDisplayState::from(self.tailnet.exit_offer),
+                Box::new(move |_| self.hover_card()),
+            )
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self) -> Vec<Section> {
         let blocked_entry = matches!(
             self.tailnet.offer_control(),
             ExitOfferControl::BlockedByExitNodeInUse

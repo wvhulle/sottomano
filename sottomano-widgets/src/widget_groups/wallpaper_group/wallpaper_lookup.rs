@@ -1,9 +1,9 @@
 use std::{
-    borrow::Cow,
     fmt::{Display, Formatter, Result as FmtResult},
     path::PathBuf,
 };
 
+use chrono::Locale;
 use futures_rx::RxExt;
 use iced::futures::{Stream, StreamExt, stream};
 use sottomano_desktop_sources::{
@@ -18,10 +18,9 @@ use sottomano_desktop_sources::{
 use super::{article_label::Article, photo_credit::Photo, place_label::Place};
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -118,16 +117,17 @@ fn displayed_lookups(
     }
 }
 
-impl GroupItemReading for Lookup {
-    fn name(&self) -> Cow<'static, str> {
-        "Wallpaper lookup".into()
+impl Lookup {
+    pub(super) fn reading_row(&self, _clock: Clock, _locale: Locale) -> ReadingRow<'_> {
+        ReadingRow::glyph_only(
+            "Wallpaper lookup",
+            Phosphor::Image(Weight::Regular).into(),
+            ReadingDisplayState::Idle,
+            Box::new(move |_| self.hover_card()),
+        )
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Image(Weight::Regular).into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             "Photo",
             dictionary_table([LabeledValue::new("File", self.photo.file_name.clone())]),

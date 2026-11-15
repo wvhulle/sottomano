@@ -1,4 +1,4 @@
-use std::{borrow::Cow, num::NonZeroUsize};
+use std::num::NonZeroUsize;
 
 use chrono::Locale;
 use sottomano_desktop_sources::{
@@ -9,8 +9,9 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-        reading_row::PanelVisibility,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{
         Section, SectionTitle, SectionWidget, dictionary_table, headed_table,
@@ -33,86 +34,96 @@ const OPENROUTER_TOOL_MODELS_URL: &str = "https://openrouter.ai/models?supported
 pub(crate) const OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Ranking(Weight::Regular));
 
-impl GroupItemReading for OpenRouterModelRankings {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub(crate) fn best_models_panel_visibility(rankings: &OpenRouterModelRankings) -> PanelVisibility {
+    if rankings.best_first.is_empty() {
+        PanelVisibility::Hidden
+    } else {
+        PanelVisibility::Shown
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Ranking(Weight::Regular).into()
+pub(crate) fn best_models_reading_row(
+    rankings: &OpenRouterModelRankings,
+    _clock: Clock,
+    _locale: Locale,
+) -> ReadingRow<'_> {
+    let label = match rankings.best_first.first() {
+        Some(scored) => ReadoutLabel::Labeled(scored.model.clone()),
+        None => ReadoutLabel::Unlabeled,
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        panel_visibility: best_models_panel_visibility(rankings),
+        ..ReadingRow::glyph_only(
+            OpenRouterModelRankings::NAME,
+            Phosphor::Ranking(Weight::Regular).into(),
+            ReadingDisplayState::Idle,
+            Box::new(move |card_clock| best_models_hover_card(rankings, card_clock)),
+        )
     }
+}
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.best_first.first()?.model.clone())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Idle
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        let ranking_table = Section::new(
-            SectionTitle::captioned(
-                format!(
-                    "Tool-Capable Models ≤ {} Blended",
-                    spend_text(&self.max_blended_per_million)
-                ),
-                "Intelligence Index from Artificial Analysis via OpenRouter; OpenRouter prices",
+pub(crate) fn best_models_hover_card(
+    rankings: &OpenRouterModelRankings,
+    _clock: Clock,
+) -> Vec<Section> {
+    let ranking_table = Section::new(
+        SectionTitle::captioned(
+            format!(
+                "Tool-Capable Models ≤ {} Blended",
+                spend_text(&rankings.max_blended_per_million)
             ),
-            headed_table(
-                [
-                    ColumnHeading::titled("Intelligence"),
-                    ColumnHeading::titled("In/Mtok"),
-                    ColumnHeading::titled("Out/Mtok"),
-                    ColumnHeading::titled("Context"),
-                    ColumnHeading::titled("Page"),
-                ],
-                self.best_first.iter().map(TableRecord::from),
-            )
-            .truncated_to(LISTED_MODELS),
-        );
-        let unscored_note = (self.unscored_count > 0).then(|| {
-            Section::new(
-                "Unscored Models",
-                SectionWidget::paragraph(format!(
-                    "{} affordable models have no Intelligence Index on OpenRouter",
-                    self.unscored_count
-                )),
-            )
-        });
-        let source_links = Section::new(
-            "Sources",
-            dictionary_table([
-                LabeledValue::new(
-                    "Benchmarks",
-                    ValueCell::Link {
-                        label: "OpenRouter rankings".to_owned(),
-                        url: OPENROUTER_RANKINGS_URL.to_owned(),
-                    },
-                ),
-                LabeledValue::new(
-                    "Prices",
-                    ValueCell::Link {
-                        label: "OpenRouter models".to_owned(),
-                        url: OPENROUTER_TOOL_MODELS_URL.to_owned(),
-                    },
-                ),
-            ]),
-        );
-        [ranking_table]
-            .into_iter()
-            .chain(unscored_note)
-            .chain([source_links])
-            .collect::<Vec<_>>()
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        if self.best_first.is_empty() {
-            PanelVisibility::Hidden
-        } else {
-            PanelVisibility::Shown
-        }
-    }
+            "Intelligence Index from Artificial Analysis via OpenRouter; OpenRouter prices",
+        ),
+        headed_table(
+            [
+                ColumnHeading::titled("Intelligence"),
+                ColumnHeading::titled("In/Mtok"),
+                ColumnHeading::titled("Out/Mtok"),
+                ColumnHeading::titled("Context"),
+                ColumnHeading::titled("Page"),
+            ],
+            rankings.best_first.iter().map(TableRecord::from),
+        )
+        .truncated_to(LISTED_MODELS),
+    );
+    let unscored_note = (rankings.unscored_count > 0).then(|| {
+        Section::new(
+            "Unscored Models",
+            SectionWidget::paragraph(format!(
+                "{} affordable models have no Intelligence Index on OpenRouter",
+                rankings.unscored_count
+            )),
+        )
+    });
+    let source_links = Section::new(
+        "Sources",
+        dictionary_table([
+            LabeledValue::new(
+                "Benchmarks",
+                ValueCell::Link {
+                    label: "OpenRouter rankings".to_owned(),
+                    url: OPENROUTER_RANKINGS_URL.to_owned(),
+                },
+            ),
+            LabeledValue::new(
+                "Prices",
+                ValueCell::Link {
+                    label: "OpenRouter models".to_owned(),
+                    url: OPENROUTER_TOOL_MODELS_URL.to_owned(),
+                },
+            ),
+        ]),
+    );
+    [ranking_table]
+        .into_iter()
+        .chain(unscored_note)
+        .chain([source_links])
+        .collect::<Vec<_>>()
 }
 
 impl From<&ScoredModel> for TableRecord<5> {
