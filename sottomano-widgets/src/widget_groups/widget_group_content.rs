@@ -563,7 +563,6 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         &self.group_identity
     }
 
-    #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.items.is_empty()
     }

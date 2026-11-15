@@ -171,7 +171,10 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         Self {
             group_menus,
             messenger: GroupMenuMessenger { topic, on_message },
-            groups: groups.into_iter().collect(),
+            groups: groups
+                .into_iter()
+                .filter(|group| !group.is_empty())
+                .collect(),
         }
     }
 
@@ -645,6 +648,25 @@ mod tests {
             .and_then(|found| found.visible_bounds())
             .map(|bounds| bounds.y);
         (header_top, item_top)
+    }
+
+    #[test]
+    fn a_group_without_items_is_left_out_of_the_menu() {
+        let group_menus = opened_menu_state(every_presentation()[0]);
+        let expansion = WidgetGroupExpansion::default();
+        let empty_group = WidgetGroupContent::expandable(
+            WidgetGroupFamily::Gpu,
+            &expansion,
+            |_| SmokeMessage,
+            Vec::<GroupItem<'_, SmokeMessage>>::new(),
+        );
+        let menu = GroupMenuView::new(
+            GroupMenuTopic::Hardware,
+            &group_menus,
+            |_| SmokeMessage,
+            [empty_group],
+        );
+        assert!(menu.open_group_menu().families.is_empty());
     }
 
     #[test]

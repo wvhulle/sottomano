@@ -173,9 +173,7 @@ impl<'a> HoverCardContent<'a> {
                 row([
                     group_name.into(),
                     self.small_dim_text("\u{203a}".to_owned()).into(),
-                    self.bold_title(item_in_group_name)
-                        .style(text::primary)
-                        .into(),
+                    self.bold_title(item_in_group_name).into(),
                 ])
                 .spacing(self.config.theme.spacing.item_gap)
                 .align_y(Vertical::Center)
@@ -195,15 +193,15 @@ impl<'a> HoverCardContent<'a> {
                 .padding(self.edge_row_padding())
                 .into();
         Some(
-            Column::with_children([header_row, self.separator_rule(), unpin])
+            Column::with_children([header_row, Self::separator_rule(), unpin])
                 .spacing(self.config.theme.spacing.item_gap)
                 .into(),
         )
     }
 
-    fn separator_rule(&self) -> Element<'static, PopupMessage> {
-        container(rule::horizontal(OUTLINE_WIDTH_PX).style(rule::default))
-            .padding(self.edge_row_padding())
+    fn separator_rule() -> Element<'static, PopupMessage> {
+        rule::horizontal(OUTLINE_WIDTH_PX)
+            .style(rule::default)
             .into()
     }
 
