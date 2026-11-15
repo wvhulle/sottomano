@@ -39,9 +39,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        icon_glyph::IconGlyph,
-        simple_icons::SimpleIcon,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        icon_glyph::IconGlyph, simple_icons::SimpleIcon, subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };
@@ -148,9 +146,9 @@ impl GroupItemReading for ListedContainerRow<'_> {
 
 pub struct DockerEnginesGroup {
     engines: Vec<DockerEngineSocket>,
-    probes: BTreeMap<PathBuf, SubscribedSnapshot<DockerEngineProbe, HidesFetchFailures>>,
-    listings: BTreeMap<PathBuf, SubscribedSnapshot<DockerEngineListing, HidesFetchFailures>>,
-    readouts: BTreeMap<PathBuf, SubscribedSnapshot<DockerEngineReadout, HidesFetchFailures>>,
+    probes: BTreeMap<PathBuf, SubscribedSnapshot<DockerEngineProbe>>,
+    listings: BTreeMap<PathBuf, SubscribedSnapshot<DockerEngineListing>>,
+    readouts: BTreeMap<PathBuf, SubscribedSnapshot<DockerEngineReadout>>,
     expansion: WidgetGroupExpansion,
 }
 

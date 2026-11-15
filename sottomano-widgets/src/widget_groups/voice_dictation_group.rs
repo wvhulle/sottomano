@@ -51,7 +51,7 @@ use crate::{
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
         phosphor::{Phosphor, Weight},
-        subscribed_snapshot::{HidesFailuresAfterSuccess, SubscribedSnapshot},
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -85,11 +85,11 @@ impl From<VoiceDictationTarget> for HoverTarget {
 }
 
 pub struct VoiceDictationGroup {
-    interface_mismatch: SubscribedSnapshot<NotulistInterfaceMismatch, HidesFailuresAfterSuccess>,
-    dictation: SubscribedSnapshot<NotulistDictation, HidesFailuresAfterSuccess>,
-    engine: SubscribedSnapshot<NotulistEngine, HidesFailuresAfterSuccess>,
-    pipeline: SubscribedSnapshot<NotulistPipeline, HidesFailuresAfterSuccess>,
-    output_problems: SubscribedSnapshot<NotulistOutputProblems, HidesFailuresAfterSuccess>,
+    interface_mismatch: SubscribedSnapshot<NotulistInterfaceMismatch>,
+    dictation: SubscribedSnapshot<NotulistDictation>,
+    engine: SubscribedSnapshot<NotulistEngine>,
+    pipeline: SubscribedSnapshot<NotulistPipeline>,
+    output_problems: SubscribedSnapshot<NotulistOutputProblems>,
     model_card: HoverFetchedSnapshot<HuggingFaceModelCard>,
     runtime: UnitSwitch,
     expansion: WidgetGroupExpansion,

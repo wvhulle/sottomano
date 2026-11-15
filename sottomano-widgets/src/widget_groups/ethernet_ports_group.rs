@@ -33,8 +33,7 @@ use crate::{
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -96,9 +95,9 @@ pub enum EthernetPortsInteraction {
 
 #[derive(Default)]
 pub struct EthernetPortsGroup {
-    ethernet: SubscribedSnapshot<Ethernet, HidesFetchFailures>,
+    ethernet: SubscribedSnapshot<Ethernet>,
     ethernet_details: HoverFetchedSnapshot<EthernetDetails>,
-    gateway_latencies: SubscribedSnapshot<GatewayLatencies, HidesFetchFailures>,
+    gateway_latencies: SubscribedSnapshot<GatewayLatencies>,
     expansions: KeyedExpansions<String>,
 }
 

@@ -40,8 +40,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -67,8 +66,8 @@ pub struct MemoryBoardGroup {
     memory_growth: SubscribedSnapshot<MemoryGrowth>,
     stall_pressure: SubscribedSnapshot<MemoryStallPressure>,
     swap_activity: SubscribedSnapshot<SwapActivity>,
-    hardware: SubscribedSnapshot<HostHardware, HidesFetchFailures>,
-    module_temperatures: SubscribedSnapshot<MemoryModuleTemperatures, HidesFetchFailures>,
+    hardware: SubscribedSnapshot<HostHardware>,
+    module_temperatures: SubscribedSnapshot<MemoryModuleTemperatures>,
     memory_processes: HoverFetchedSnapshot<MemoryProcesses>,
     swapped_processes: HoverFetchedSnapshot<SwappedProcesses>,
     expansion: WidgetGroupExpansion,

@@ -31,7 +31,7 @@ use crate::{
     widgets::{
         keyed_record_table::{IntoTableRecord, TableRecord},
         phosphor::{Phosphor, Weight},
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };
@@ -50,7 +50,7 @@ const MIN_SAMPLE_W: f64 = 0.5;
 
 pub struct PowerProfileControl {
     control: SliderControl,
-    status: SubscribedSnapshot<ProfileStatus, HidesFetchFailures>,
+    status: SubscribedSnapshot<ProfileStatus>,
     conditions: Option<Conditions>,
     battery: Option<Battery>,
     profile_models: Option<HashMap<Profile, RegressionState>>,

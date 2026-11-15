@@ -34,9 +34,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        icon_glyph::IconGlyph,
-        simple_icons::SimpleIcon,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        icon_glyph::IconGlyph, simple_icons::SimpleIcon, subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };
@@ -188,9 +186,9 @@ impl GroupItemReading for VirtualBoxMachineRow<'_> {
 
 #[derive(Default)]
 pub struct VirtualBoxMachinesGroup {
-    probe: SubscribedSnapshot<VirtualBoxMachineProbe, HidesFetchFailures>,
-    listings: SubscribedSnapshot<VirtualBoxMachineListings, HidesFetchFailures>,
-    detail: SubscribedSnapshot<VirtualBoxMachines, HidesFetchFailures>,
+    probe: SubscribedSnapshot<VirtualBoxMachineProbe>,
+    listings: SubscribedSnapshot<VirtualBoxMachineListings>,
+    detail: SubscribedSnapshot<VirtualBoxMachines>,
     expansion: WidgetGroupExpansion,
 }
 

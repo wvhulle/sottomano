@@ -45,8 +45,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -73,7 +72,7 @@ pub struct ComputeGroup {
     cpu_clock: SubscribedSnapshot<CpuClock>,
     cpu_temperature: SubscribedSnapshot<Temperature>,
     cpu_power_draw: SubscribedSnapshot<CpuPower>,
-    host_hardware: SubscribedSnapshot<HostHardware, HidesFetchFailures>,
+    host_hardware: SubscribedSnapshot<HostHardware>,
     x3d_cache_preference: ToggleControl<X3dCachePreference>,
     core_loads: HoverFetchedSnapshot<CpuCoreLoads>,
     cpu_busy_processes: HoverFetchedSnapshot<CpuBusyProcesses>,

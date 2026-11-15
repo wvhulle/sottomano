@@ -45,7 +45,7 @@ use crate::{
             timer::{ActionAvailability, AvailabilityChange, IdleTimer, TimerChange},
         },
         phosphor::{Phosphor, Weight},
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -71,8 +71,8 @@ pub struct IdlePauseGroups {
     power_down: IdlePause,
     quiet_screen_off: Option<Duration>,
     idle_watcher: Option<task::Handle>,
-    sleep_obstacles: SubscribedSnapshot<SleepObstacles, HidesFetchFailures>,
-    idle_inhibitors: SubscribedSnapshot<ScreenSaverInhibitors, HidesFetchFailures>,
+    sleep_obstacles: SubscribedSnapshot<SleepObstacles>,
+    idle_inhibitors: SubscribedSnapshot<ScreenSaverInhibitors>,
     pause_blockers: Vec<PauseBlocker>,
 }
 

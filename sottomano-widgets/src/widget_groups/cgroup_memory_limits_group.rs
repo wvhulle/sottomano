@@ -31,7 +31,7 @@ use crate::{
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };
@@ -153,7 +153,7 @@ impl GroupItemReading for LimitedCgroupRow<'_> {
 
 #[derive(Default)]
 pub struct CgroupMemoryLimitsGroup {
-    listing: SubscribedSnapshot<LimitedCgroups, HidesFetchFailures>,
+    listing: SubscribedSnapshot<LimitedCgroups>,
     first_seen_oom_kills: BTreeMap<String, u64>,
     expansion: WidgetGroupExpansion,
 }

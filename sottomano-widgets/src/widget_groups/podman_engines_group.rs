@@ -39,7 +39,7 @@ use crate::{
         discovered_systemd_services::{DiscoveredSystemdServices, ScopedServiceCommands},
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };
@@ -110,14 +110,14 @@ impl GroupItemReading for UnreadableEngineRow<'_> {
 
 struct PodmanEngineReading<'a> {
     engine: &'a DiscoveredPodmanEngine,
-    reading: &'a SubscribedSnapshot<EngineReadout, HidesFetchFailures>,
+    reading: &'a SubscribedSnapshot<EngineReadout>,
 }
 
 #[derive(Default)]
 pub struct PodmanEnginesGroup {
     services: DiscoveredSystemdServices,
     engines: Vec<DiscoveredPodmanEngine>,
-    readouts: BTreeMap<PathBuf, SubscribedSnapshot<EngineReadout, HidesFetchFailures>>,
+    readouts: BTreeMap<PathBuf, SubscribedSnapshot<EngineReadout>>,
     expansion: WidgetGroupExpansion,
 }
 

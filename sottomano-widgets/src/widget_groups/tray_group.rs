@@ -54,13 +54,13 @@ use crate::{
         icon_handle::PixmapHandles,
         phosphor::{Phosphor, Weight},
         shared_metrics::ACCENT_STROKE_PX,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
 #[derive(Default)]
 pub struct TrayGroup {
-    items: SubscribedSnapshot<Vec<TrayItem>, HidesFetchFailures>,
+    items: SubscribedSnapshot<Vec<TrayItem>>,
     pixmap_handles: PixmapHandles,
     host: Option<TrayHost>,
     open_submenus: HashSet<i32>,

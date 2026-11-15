@@ -1,23 +1,15 @@
-use std::{
-    borrow::Cow,
-    convert::Infallible,
-    fmt::{Display, Formatter, Result as FmtResult},
-    marker::PhantomData,
-    mem::take,
-};
+use std::mem::take;
 
-use sottomano_desktop_sources::{
-    SnapshotDelivery, SnapshotSource,
-    network_connectivity::internet_connectivity_gate::InternetUnreachable,
-};
+use sottomano_desktop_sources::{SnapshotDelivery, SnapshotSource};
 
 use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
         group_item_reading::{GroupItemReading, PanelVisibility},
-        offline_internet_reading::{OfflineSnapshot, PlaceholderCause, SnapshotPlaceholder},
-        reading_display_state::ReadingDisplayState,
+        offline_internet_reading::{
+            PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble, TroubledSnapshot,
+        },
     },
     hover_cards::{
         HoverTarget,
@@ -26,62 +18,7 @@ use crate::{
             hover_card_source_delivery::{DeliveryStamp, SourceDelivery},
         },
     },
-    widgets::icon_glyph::IconGlyph,
 };
-
-pub struct FailedSnapshotFetch<S: SnapshotSource> {
-    name: Cow<'static, str>,
-    icon: IconGlyph,
-    error: S::Error,
-}
-
-impl<S: SnapshotSource + GroupItemReading> FailedSnapshotFetch<S> {
-    pub fn from_fetch_error(error: S::Error) -> Self {
-        Self {
-            name: S::NAME.into(),
-            icon: S::fallback_icon(),
-            error,
-        }
-    }
-}
-
-impl<S: SnapshotSource> GroupItemReading for FailedSnapshotFetch<S> {
-    fn name(&self) -> Cow<'static, str> {
-        self.name.clone()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        self.icon
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Failed
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        Vec::new()
-    }
-}
-
-impl<S: SnapshotSource> Display for FailedSnapshotFetch<S> {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
-        write!(formatter, "{}", self.error)
-    }
-}
-
-impl GroupItemReading for Infallible {
-    fn name(&self) -> Cow<'static, str> {
-        match *self {}
-    }
-
-    fn icon(&self) -> IconGlyph {
-        match *self {}
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        match *self {}
-    }
-}
 
 pub enum CommandOutcome<S: SnapshotSource> {
     Applied { expected_snapshot: S },
@@ -89,26 +26,8 @@ pub enum CommandOutcome<S: SnapshotSource> {
     Reread { reread_fetch: Result<S, S::Error> },
 }
 
-pub struct ShowsFetchFailures;
-pub struct HidesFailuresAfterSuccess;
-pub struct HidesFetchFailures;
-
-pub trait FetchFailurePolicy<S: SnapshotSource>: Sized {
-    type ShownFailure: GroupItemReading + Display;
-
-    fn after_failed_fetch(
-        latest: SubscribedSnapshot<S, Self>,
-        error: S::Error,
-        delivery_timing: DeliveryStamp,
-    ) -> SubscribedSnapshot<S, Self>;
-}
-
 #[derive(Default)]
-pub enum SubscribedSnapshot<S, Policy = ShowsFetchFailures>
-where
-    S: SnapshotSource,
-    Policy: FetchFailurePolicy<S>,
-{
+pub enum SubscribedSnapshot<S: SnapshotSource> {
     #[default]
     AwaitingFirstSnapshot,
     SourceUnavailable,
@@ -116,147 +35,41 @@ where
         held_snapshot: S,
         delivery_timing: DeliveryStamp,
     },
-    SnapshotFetchFailed {
-        fetch_failure: Policy::ShownFailure,
-        delivery_timing: DeliveryStamp,
+    SnapshotTroubled {
+        troubled_snapshot: TroubledSnapshot<S>,
     },
-    SnapshotHeldOffline {
-        offline_snapshot: OfflineSnapshot<S>,
-    },
-    OfflineBeforeSnapshot {
-        offline_placeholder: SnapshotPlaceholder<S>,
+    NoSnapshot {
+        placeholder: SnapshotPlaceholder<S>,
     },
 }
 
-impl<S: SnapshotSource + GroupItemReading> FetchFailurePolicy<S> for ShowsFetchFailures {
-    type ShownFailure = FailedSnapshotFetch<S>;
-
-    fn after_failed_fetch(
-        latest: SubscribedSnapshot<S, Self>,
-        error: S::Error,
-        delivery_timing: DeliveryStamp,
-    ) -> SubscribedSnapshot<S, Self> {
-        let fetch_failure = match latest {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. }
-            | SubscribedSnapshot::SnapshotHeldOffline {
-                offline_snapshot: OfflineSnapshot { held_snapshot, .. },
-                ..
-            } => FailedSnapshotFetch {
-                name: held_snapshot.name(),
-                icon: held_snapshot.icon(),
-                error,
-            },
-            SubscribedSnapshot::SnapshotFetchFailed { fetch_failure, .. } => FailedSnapshotFetch {
-                error,
-                ..fetch_failure
-            },
-            SubscribedSnapshot::AwaitingFirstSnapshot
-            | SubscribedSnapshot::SourceUnavailable
-            | SubscribedSnapshot::OfflineBeforeSnapshot { .. } => {
-                FailedSnapshotFetch::from_fetch_error(error)
-            }
-        };
-        SubscribedSnapshot::SnapshotFetchFailed {
-            fetch_failure,
-            delivery_timing,
-        }
-    }
-}
-
-impl<S: SnapshotSource + GroupItemReading> FetchFailurePolicy<S> for HidesFailuresAfterSuccess {
-    type ShownFailure = FailedSnapshotFetch<S>;
-
-    fn after_failed_fetch(
-        latest: SubscribedSnapshot<S, Self>,
-        error: S::Error,
-        delivery_timing: DeliveryStamp,
-    ) -> SubscribedSnapshot<S, Self> {
-        match latest {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. }
-            | SubscribedSnapshot::SnapshotHeldOffline {
-                offline_snapshot: OfflineSnapshot { held_snapshot, .. },
-                ..
-            } => {
-                tracing::warn!("{}: {error}", S::NAME);
-                SubscribedSnapshot::SnapshotHeld {
-                    held_snapshot,
-                    delivery_timing,
-                }
-            }
-            SubscribedSnapshot::SnapshotFetchFailed { fetch_failure, .. } => {
-                SubscribedSnapshot::SnapshotFetchFailed {
-                    fetch_failure: FailedSnapshotFetch {
-                        error,
-                        ..fetch_failure
-                    },
-                    delivery_timing,
-                }
-            }
-            SubscribedSnapshot::AwaitingFirstSnapshot
-            | SubscribedSnapshot::SourceUnavailable
-            | SubscribedSnapshot::OfflineBeforeSnapshot { .. } => {
-                SubscribedSnapshot::SnapshotFetchFailed {
-                    fetch_failure: FailedSnapshotFetch::from_fetch_error(error),
-                    delivery_timing,
-                }
-            }
-        }
-    }
-}
-
-impl<S: SnapshotSource> FetchFailurePolicy<S> for HidesFetchFailures {
-    type ShownFailure = Infallible;
-
-    fn after_failed_fetch(
-        latest: SubscribedSnapshot<S, Self>,
-        error: S::Error,
-        delivery_timing: DeliveryStamp,
-    ) -> SubscribedSnapshot<S, Self> {
-        tracing::warn!("{}: {error}", S::NAME);
-        match latest {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. }
-            | SubscribedSnapshot::SnapshotHeldOffline {
-                offline_snapshot: OfflineSnapshot { held_snapshot, .. },
-                ..
-            } => SubscribedSnapshot::SnapshotHeld {
-                held_snapshot,
-                delivery_timing,
-            },
-            SubscribedSnapshot::SnapshotFetchFailed { fetch_failure, .. } => match fetch_failure {},
-            awaiting_or_unavailable => awaiting_or_unavailable,
-        }
-    }
-}
-
-impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> SubscribedSnapshot<S, Policy> {
+impl<S: SnapshotSource> SubscribedSnapshot<S> {
     pub fn get(&self) -> Option<&S> {
         match self {
             SubscribedSnapshot::SnapshotHeld { held_snapshot, .. }
-            | SubscribedSnapshot::SnapshotHeldOffline {
-                offline_snapshot: OfflineSnapshot { held_snapshot, .. },
-                ..
+            | SubscribedSnapshot::SnapshotTroubled {
+                troubled_snapshot: TroubledSnapshot { held_snapshot, .. },
             } => Some(held_snapshot),
             SubscribedSnapshot::AwaitingFirstSnapshot
             | SubscribedSnapshot::SourceUnavailable
-            | SubscribedSnapshot::SnapshotFetchFailed { .. }
-            | SubscribedSnapshot::OfflineBeforeSnapshot { .. } => None,
+            | SubscribedSnapshot::NoSnapshot { .. } => None,
         }
     }
 
     fn delivery_timing(&self) -> Option<DeliveryStamp> {
         match self {
-            SubscribedSnapshot::AwaitingFirstSnapshot
-            | SubscribedSnapshot::SourceUnavailable
-            | SubscribedSnapshot::OfflineBeforeSnapshot { .. } => None,
             SubscribedSnapshot::SnapshotHeld {
                 delivery_timing, ..
             }
-            | SubscribedSnapshot::SnapshotFetchFailed {
-                delivery_timing, ..
+            | SubscribedSnapshot::SnapshotTroubled {
+                troubled_snapshot:
+                    TroubledSnapshot {
+                        delivery_timing, ..
+                    },
             } => Some(*delivery_timing),
-            SubscribedSnapshot::SnapshotHeldOffline { offline_snapshot } => {
-                Some(offline_snapshot.delivery_timing)
-            }
+            SubscribedSnapshot::AwaitingFirstSnapshot
+            | SubscribedSnapshot::SourceUnavailable
+            | SubscribedSnapshot::NoSnapshot { .. } => None,
         }
     }
 
@@ -276,7 +89,9 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> SubscribedSnapshot<S, Pol
     fn delivered(self, delivery: SnapshotDelivery<S>, clock: Clock) -> Self {
         match delivery {
             SnapshotDelivery::SourceUnavailable => SubscribedSnapshot::SourceUnavailable,
-            SnapshotDelivery::InternetUnreachable(offline_reason) => self.offline(offline_reason),
+            SnapshotDelivery::InternetUnreachable(offline_reason) => {
+                self.troubled(SnapshotTrouble::Offline(offline_reason), None)
+            }
             SnapshotDelivery::SnapshotUnchanged => self.redelivered(clock),
             SnapshotDelivery::SnapshotDelivered {
                 snapshot_fetch,
@@ -288,43 +103,52 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> SubscribedSnapshot<S, Pol
                         held_snapshot,
                         delivery_timing,
                     },
-                    Err(error) => Policy::after_failed_fetch(self, error, delivery_timing),
+                    Err(fetch_error) => {
+                        tracing::warn!(source = S::NAME, error = %fetch_error, "snapshot fetch failed");
+                        self.troubled(
+                            SnapshotTrouble::FetchFailed(fetch_error.to_string()),
+                            Some(delivery_timing),
+                        )
+                    }
                 }
             }
         }
     }
 
-    fn offline(self, offline_reason: InternetUnreachable) -> Self {
-        match self {
+    fn troubled(self, trouble: SnapshotTrouble, fresh_timing: Option<DeliveryStamp>) -> Self {
+        let held = match self {
             SubscribedSnapshot::SnapshotHeld {
                 held_snapshot,
                 delivery_timing,
             }
-            | SubscribedSnapshot::SnapshotHeldOffline {
-                offline_snapshot:
-                    OfflineSnapshot {
+            | SubscribedSnapshot::SnapshotTroubled {
+                troubled_snapshot:
+                    TroubledSnapshot {
                         held_snapshot,
                         delivery_timing,
                         ..
                     },
-            } => SubscribedSnapshot::SnapshotHeldOffline {
-                offline_snapshot: OfflineSnapshot {
-                    held_snapshot,
-                    offline_reason: Box::new(offline_reason),
-                    delivery_timing,
-                },
-            },
+            } => Some((held_snapshot, delivery_timing)),
             SubscribedSnapshot::AwaitingFirstSnapshot
             | SubscribedSnapshot::SourceUnavailable
-            | SubscribedSnapshot::SnapshotFetchFailed { .. }
-            | SubscribedSnapshot::OfflineBeforeSnapshot { .. } => {
-                SubscribedSnapshot::OfflineBeforeSnapshot {
-                    offline_placeholder: SnapshotPlaceholder {
-                        placeholder_cause: PlaceholderCause::Offline(offline_reason),
-                        placeholder_source: PhantomData,
-                    },
-                }
-            }
+            | SubscribedSnapshot::NoSnapshot { .. } => None,
+        };
+        let Some((held_snapshot, held_timing)) = held else {
+            return SubscribedSnapshot::NoSnapshot {
+                placeholder: SnapshotPlaceholder::caused_by(match trouble {
+                    SnapshotTrouble::FetchFailed(message) => PlaceholderCause::FetchFailed(message),
+                    SnapshotTrouble::Offline(offline_reason) => {
+                        PlaceholderCause::Offline(offline_reason)
+                    }
+                }),
+            };
+        };
+        SubscribedSnapshot::SnapshotTroubled {
+            troubled_snapshot: TroubledSnapshot {
+                held_snapshot,
+                trouble,
+                delivery_timing: fresh_timing.unwrap_or(held_timing),
+            },
         }
     }
 
@@ -337,7 +161,11 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> SubscribedSnapshot<S, Pol
                 held_snapshot,
                 delivery_timing,
             },
-            Err(error) => Policy::after_failed_fetch(self, error, delivery_timing),
+            Err(refusal) => SubscribedSnapshot::NoSnapshot {
+                placeholder: SnapshotPlaceholder::caused_by(PlaceholderCause::FetchFailed(
+                    refusal.to_string(),
+                )),
+            },
         }
     }
 
@@ -350,34 +178,21 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> SubscribedSnapshot<S, Pol
                 held_snapshot,
                 delivery_timing: delivery_timing.redelivered(clock),
             },
-            SubscribedSnapshot::SnapshotFetchFailed {
-                fetch_failure,
-                delivery_timing,
-            } => SubscribedSnapshot::SnapshotFetchFailed {
-                fetch_failure,
-                delivery_timing: delivery_timing.redelivered(clock),
-            },
-            SubscribedSnapshot::SnapshotHeldOffline { offline_snapshot } => {
-                SubscribedSnapshot::SnapshotHeldOffline {
-                    offline_snapshot: OfflineSnapshot {
-                        delivery_timing: offline_snapshot.delivery_timing.redelivered(clock),
-                        ..offline_snapshot
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                SubscribedSnapshot::SnapshotTroubled {
+                    troubled_snapshot: TroubledSnapshot {
+                        delivery_timing: troubled_snapshot.delivery_timing.redelivered(clock),
+                        ..troubled_snapshot
                     },
                 }
             }
             SubscribedSnapshot::AwaitingFirstSnapshot
             | SubscribedSnapshot::SourceUnavailable
-            | SubscribedSnapshot::OfflineBeforeSnapshot { .. } => self,
+            | SubscribedSnapshot::NoSnapshot { .. } => self,
         }
     }
 
     pub fn sections_described_by(&self, describe: impl FnOnce(&S) -> Vec<Section>) -> Vec<Section> {
-        let stamped = |delivery: SourceDelivery, sections: Vec<Section>| -> Vec<Section> {
-            sections
-                .into_iter()
-                .map(|section| section.stamped_by::<S>(delivery))
-                .collect()
-        };
         match self {
             SubscribedSnapshot::SourceUnavailable => Vec::new(),
             SubscribedSnapshot::AwaitingFirstSnapshot => {
@@ -386,60 +201,46 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> SubscribedSnapshot<S, Pol
             SubscribedSnapshot::SnapshotHeld {
                 held_snapshot,
                 delivery_timing,
-            } => stamped(
-                SourceDelivery::Delivered(*delivery_timing),
-                describe(held_snapshot),
-            ),
-            SubscribedSnapshot::SnapshotFetchFailed { fetch_failure, .. } => {
-                vec![Section::source_state::<S>(
-                    SourceDelivery::Failed,
-                    fetch_failure.to_string(),
-                )]
+            } => describe(held_snapshot)
+                .into_iter()
+                .map(|section| section.stamped_by::<S>(SourceDelivery::Delivered(*delivery_timing)))
+                .collect(),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let delivery = troubled_snapshot.source_delivery();
+                describe(&troubled_snapshot.held_snapshot)
+                    .into_iter()
+                    .map(|section| section.stamped_by::<S>(delivery))
+                    .chain([troubled_snapshot.trouble_section()])
+                    .collect()
             }
-            SubscribedSnapshot::SnapshotHeldOffline { offline_snapshot } => stamped(
-                SourceDelivery::Offline,
-                describe(&offline_snapshot.held_snapshot),
-            ),
-            SubscribedSnapshot::OfflineBeforeSnapshot {
-                offline_placeholder,
-            } => vec![offline_placeholder.source_state()],
+            SubscribedSnapshot::NoSnapshot { placeholder } => vec![placeholder.source_state()],
         }
     }
 
     pub fn hover_card_with(&self, sections: Vec<Section>) -> Vec<Section> {
         self.sections_described_by(|_| sections)
     }
+}
 
+impl<S: SnapshotSource + GroupItemReading> SubscribedSnapshot<S> {
     pub fn failure(&self) -> Option<&dyn GroupItemReading> {
         match self {
-            SubscribedSnapshot::SnapshotFetchFailed { fetch_failure, .. } => Some(fetch_failure),
+            SubscribedSnapshot::NoSnapshot { placeholder } => Some(placeholder),
             SubscribedSnapshot::AwaitingFirstSnapshot
             | SubscribedSnapshot::SourceUnavailable
             | SubscribedSnapshot::SnapshotHeld { .. }
-            | SubscribedSnapshot::SnapshotHeldOffline { .. }
-            | SubscribedSnapshot::OfflineBeforeSnapshot { .. } => None,
+            | SubscribedSnapshot::SnapshotTroubled { .. } => None,
         }
     }
 }
 
-impl<S: SnapshotSource + ReadingSections, Policy: FetchFailurePolicy<S>>
-    SubscribedSnapshot<S, Policy>
-{
+impl<S: SnapshotSource + ReadingSections> SubscribedSnapshot<S> {
     pub fn sections(&self, clock: Clock) -> Vec<Section> {
         self.sections_described_by(|held_snapshot| held_snapshot.sections(clock))
     }
 }
 
-fn awaiting_snapshot_placeholder<S>() -> SnapshotPlaceholder<S> {
-    SnapshotPlaceholder {
-        placeholder_cause: PlaceholderCause::AwaitingFirstSnapshot,
-        placeholder_source: PhantomData,
-    }
-}
-
-impl<S: SnapshotSource + GroupItemReading, Policy: FetchFailurePolicy<S>>
-    SubscribedSnapshot<S, Policy>
-{
+impl<S: SnapshotSource + GroupItemReading> SubscribedSnapshot<S> {
     pub fn visible_reading(&self) -> Option<&S> {
         self.get()
             .filter(|held_snapshot| held_snapshot.panel_visibility() == PanelVisibility::Shown)
@@ -451,14 +252,11 @@ impl<S: SnapshotSource + GroupItemReading, Policy: FetchFailurePolicy<S>>
                 (held_snapshot.panel_visibility() == PanelVisibility::Shown)
                     .then_some(held_snapshot as &dyn GroupItemReading)
             }
-            SubscribedSnapshot::SnapshotFetchFailed { fetch_failure, .. } => Some(fetch_failure),
-            SubscribedSnapshot::SnapshotHeldOffline {
-                offline_snapshot, ..
-            } => (offline_snapshot.panel_visibility() == PanelVisibility::Shown)
-                .then_some(offline_snapshot as &dyn GroupItemReading),
-            SubscribedSnapshot::OfflineBeforeSnapshot {
-                offline_placeholder,
-            } => Some(offline_placeholder),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                (troubled_snapshot.panel_visibility() == PanelVisibility::Shown)
+                    .then_some(troubled_snapshot as &dyn GroupItemReading)
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => Some(placeholder),
             SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {
                 None
             }
@@ -482,7 +280,7 @@ impl<S: SnapshotSource + GroupItemReading, Policy: FetchFailurePolicy<S>>
     {
         if matches!(self, SubscribedSnapshot::AwaitingFirstSnapshot) {
             return Some(GroupItem::reading(
-                awaiting_snapshot_placeholder::<S>(),
+                SnapshotPlaceholder::<S>::caused_by(PlaceholderCause::AwaitingFirstSnapshot),
                 target,
             ));
         }
@@ -497,14 +295,21 @@ impl<S: SnapshotSource + GroupItemReading, Policy: FetchFailurePolicy<S>>
 #[cfg(test)]
 mod tests {
     use std::{
+        borrow::Cow,
         fmt::{Display, Formatter, Result as FmtResult},
         time::{Duration, SystemTime},
     };
 
     use iced::futures::{Stream, stream};
-    use sottomano_desktop_sources::delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling};
+    use sottomano_desktop_sources::{
+        delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
+        network_connectivity::internet_connectivity_gate::InternetUnreachable,
+    };
 
     use super::*;
+    use crate::{
+        group_items::reading_display_state::ReadingDisplayState, widgets::icon_glyph::IconGlyph,
+    };
 
     #[derive(Debug, Clone, PartialEq)]
     struct CountedSnapshot(u32);
@@ -597,25 +402,28 @@ mod tests {
     }
 
     #[test]
-    fn a_holder_that_hides_failures_keeps_its_snapshot() {
+    fn a_failed_fetch_keeps_the_held_snapshot_and_marks_it_failed() {
         let timeline = TestTimeline::starting_now();
-        let mut latest: SubscribedSnapshot<CountedSnapshot, HidesFetchFailures> =
-            SubscribedSnapshot::default();
+        let mut latest: SubscribedSnapshot<CountedSnapshot> = SubscribedSnapshot::default();
         latest.receive(polled_delivery(Ok(CountedSnapshot(1))), timeline.at(10));
         latest.receive(polled_delivery(Err(CountingFailure)), timeline.at(13));
         assert_eq!(latest.get(), Some(&CountedSnapshot(1)));
+        assert_eq!(
+            latest.display().map(|widget| widget.state(timeline.at(13))),
+            Some(ReadingDisplayState::Failed)
+        );
     }
 
     #[test]
-    fn failures_after_a_success_are_hidden_but_failures_before_it_are_shown() {
+    fn a_failure_before_any_snapshot_shows_a_failed_placeholder() {
         let timeline = TestTimeline::starting_now();
-        let mut latest: SubscribedSnapshot<CountedSnapshot, HidesFailuresAfterSuccess> =
-            SubscribedSnapshot::default();
+        let mut latest: SubscribedSnapshot<CountedSnapshot> = SubscribedSnapshot::default();
         latest.receive(polled_delivery(Err(CountingFailure)), timeline.at(10));
         assert!(latest.failure().is_some());
         latest.receive(polled_delivery(Ok(CountedSnapshot(2))), timeline.at(13));
         latest.receive(polled_delivery(Err(CountingFailure)), timeline.at(16));
         assert_eq!(latest.get(), Some(&CountedSnapshot(2)));
+        assert!(latest.failure().is_none());
     }
 
     #[test]
@@ -628,7 +436,7 @@ mod tests {
     }
 
     #[test]
-    fn a_refused_command_shows_its_failure_with_the_held_timing() {
+    fn a_refused_command_drops_the_assumed_snapshot_and_shows_its_failure() {
         let timeline = TestTimeline::starting_now();
         let mut latest: SubscribedSnapshot<CountedSnapshot> = SubscribedSnapshot::default();
         latest.receive(polled_delivery(Ok(CountedSnapshot(1))), timeline.at(10));
@@ -636,15 +444,7 @@ mod tests {
             refusal: CountingFailure,
         });
         assert!(latest.failure().is_some());
-        assert_eq!(
-            latest.delivery_timing(),
-            Some(DeliveryStamp {
-                cadence: DeliveryCadence::PeriodicPolling(PeriodicPolling::every(
-                    Duration::from_secs(3)
-                )),
-                delivered_at: timeline.at(10).instant,
-            })
-        );
+        assert!(latest.get().is_none());
     }
 
     #[test]

@@ -56,7 +56,7 @@ use crate::{
         app_window_focus::AppWindowFocus,
         icon_handle::IconHandle,
         phosphor::{Phosphor, Weight},
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };
@@ -131,7 +131,7 @@ enum PlaybackPace {
 
 #[derive(Default)]
 pub struct MediaGroup {
-    players: SubscribedSnapshot<Vec<Media>, HidesFetchFailures>,
+    players: SubscribedSnapshot<Vec<Media>>,
     sessions: HashMap<String, PlayerSession>,
     lyrics_snapshots: HashMap<LyricsQuery, SubscribedSnapshot<TrackLyrics>>,
 }

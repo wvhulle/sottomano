@@ -21,7 +21,11 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    group_items::{
+        group_item::GroupItem,
+        group_item_reading::GroupItemReading,
+        offline_internet_reading::{PlaceholderCause, SnapshotPlaceholder},
+    },
     hover_cards::{
         HoverTarget,
         hover_card_body::{ReadingSections, Section},
@@ -33,8 +37,7 @@ use crate::{
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot,
-        subscribed_snapshot::{FailedSnapshotFetch, HidesFetchFailures, SubscribedSnapshot},
+        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -65,7 +68,7 @@ enum GpuDeviceAccess {
         snapshot: SubscribedSnapshot<GpuSnapshot>,
     },
     Unreadable {
-        handle_failure: FailedSnapshotFetch<GpuSnapshot>,
+        handle_failure: SnapshotPlaceholder<GpuSnapshot>,
     },
 }
 
@@ -122,7 +125,7 @@ fn gpu_group_identity(bus: &PciBusId) -> WidgetGroupIdentity {
 
 #[derive(Default)]
 pub struct GpuGroup {
-    discovery: SubscribedSnapshot<GpuDiscovery, HidesFetchFailures>,
+    discovery: SubscribedSnapshot<GpuDiscovery>,
     devices: BTreeMap<PciBusId, GpuDevice>,
     hovered_bus: Option<PciBusId>,
     clocks: HoverFetchedSnapshot<GpuClocks>,
@@ -240,8 +243,8 @@ impl GpuGroup {
                                 snapshot: SubscribedSnapshot::default(),
                             },
                             Err(failure) => GpuDeviceAccess::Unreadable {
-                                handle_failure: FailedSnapshotFetch::from_fetch_error(
-                                    failure.clone(),
+                                handle_failure: SnapshotPlaceholder::caused_by(
+                                    PlaceholderCause::FetchFailed(failure.to_string()),
                                 ),
                             },
                         };
@@ -362,8 +365,7 @@ impl GpuGroup {
         let snapshot = match &device.access {
             GpuDeviceAccess::Readable { snapshot, .. } => snapshot,
             GpuDeviceAccess::Unreadable { handle_failure } => {
-                return handle_failure
-                    .hover_card(clock)
+                return [handle_failure.source_state()]
                     .into_iter()
                     .chain(model_sections)
                     .collect();

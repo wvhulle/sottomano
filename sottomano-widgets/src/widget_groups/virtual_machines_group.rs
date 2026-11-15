@@ -43,7 +43,7 @@ use crate::{
         app_window_focus::AppWindowFocus,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };
@@ -243,7 +243,7 @@ impl GroupItemReading for VirtualMachineRow<'_> {
 
 #[derive(Default)]
 pub struct VirtualMachinesGroup {
-    readout: SubscribedSnapshot<VirtualMachinesReadout, HidesFetchFailures>,
+    readout: SubscribedSnapshot<VirtualMachinesReadout>,
     expansion: WidgetGroupExpansion,
 }
 

@@ -39,7 +39,7 @@ use crate::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
     },
-    widgets::subscribed_snapshot::{HidesFailuresAfterSuccess, SubscribedSnapshot},
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -62,10 +62,10 @@ impl From<WeatherTarget> for HoverTarget {
 pub struct WeatherGroup {
     temperature: SubscribedSnapshot<Temperature>,
     wind: SubscribedSnapshot<Wind>,
-    rain: SubscribedSnapshot<Rain, HidesFailuresAfterSuccess>,
-    precipitation_model: SubscribedSnapshot<PrecipitationModel, HidesFailuresAfterSuccess>,
+    rain: SubscribedSnapshot<Rain>,
+    precipitation_model: SubscribedSnapshot<PrecipitationModel>,
     pollen: SubscribedSnapshot<Pollen>,
-    location: SubscribedSnapshot<Location, HidesFailuresAfterSuccess>,
+    location: SubscribedSnapshot<Location>,
     expansion: WidgetGroupExpansion,
 }
 

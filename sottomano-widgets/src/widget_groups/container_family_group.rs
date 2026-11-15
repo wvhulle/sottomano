@@ -27,9 +27,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        icon_glyph::IconGlyph,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
-        value_cells::LabeledValue,
+        icon_glyph::IconGlyph, subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue,
     },
 };
 
@@ -97,9 +95,9 @@ pub trait ContainerFamily: Debug + Clone + Sized + 'static {
 }
 
 pub struct ContainerFamilyGroup<Family: ContainerFamily> {
-    probe: SubscribedSnapshot<Family::Probe, HidesFetchFailures>,
-    listings: SubscribedSnapshot<Family::Listings, HidesFetchFailures>,
-    detail: SubscribedSnapshot<Family::Detail, HidesFetchFailures>,
+    probe: SubscribedSnapshot<Family::Probe>,
+    listings: SubscribedSnapshot<Family::Listings>,
+    detail: SubscribedSnapshot<Family::Detail>,
     expansion: WidgetGroupExpansion,
 }
 

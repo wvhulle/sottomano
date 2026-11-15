@@ -37,7 +37,7 @@ use crate::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -62,7 +62,7 @@ pub struct ClaudeUsageGroup {
     enterprise_spend: SubscribedSnapshot<ClaudeEnterpriseSpend>,
     ccusage_periods: SubscribedSnapshot<ClaudeCcusagePeriods>,
     ccusage_block: SubscribedSnapshot<ClaudeCcusageBlock>,
-    ccusage_models: SubscribedSnapshot<ClaudeCcusageModels, HidesFetchFailures>,
+    ccusage_models: SubscribedSnapshot<ClaudeCcusageModels>,
     oauth_credentials: Option<PathBuf>,
     organization: HoverFetchedSnapshot<ClaudeOrganization>,
     expansion: WidgetGroupExpansion,

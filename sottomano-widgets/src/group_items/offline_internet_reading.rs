@@ -20,13 +20,45 @@ use crate::{
     widgets::icon_glyph::IconGlyph,
 };
 
-pub struct OfflineSnapshot<S> {
+pub enum SnapshotTrouble {
+    FetchFailed(String),
+    Offline(InternetUnreachable),
+}
+
+impl SnapshotTrouble {
+    fn source_delivery(&self) -> SourceDelivery {
+        match self {
+            SnapshotTrouble::FetchFailed(_) => SourceDelivery::Failed,
+            SnapshotTrouble::Offline(_) => SourceDelivery::Offline,
+        }
+    }
+
+    fn detail(&self) -> String {
+        match self {
+            SnapshotTrouble::FetchFailed(message) => message.clone(),
+            SnapshotTrouble::Offline(offline_reason) => offline_reason.to_string(),
+        }
+    }
+}
+
+pub struct TroubledSnapshot<S> {
     pub held_snapshot: S,
-    pub offline_reason: Box<InternetUnreachable>,
+    pub trouble: SnapshotTrouble,
     pub delivery_timing: DeliveryStamp,
 }
 
-impl<S: GroupItemReading> GroupItemReading for OfflineSnapshot<S> {
+impl<S: SnapshotSource> TroubledSnapshot<S> {
+    pub fn trouble_section(&self) -> Section {
+        Section::source_state::<S>(self.trouble.source_delivery(), self.trouble.detail())
+    }
+
+    #[must_use]
+    pub fn source_delivery(&self) -> SourceDelivery {
+        self.trouble.source_delivery()
+    }
+}
+
+impl<S: GroupItemReading> GroupItemReading for TroubledSnapshot<S> {
     fn name(&self) -> Cow<'static, str> {
         self.held_snapshot.name()
     }
@@ -40,9 +72,14 @@ impl<S: GroupItemReading> GroupItemReading for OfflineSnapshot<S> {
     }
 
     fn state(&self, clock: Clock) -> ReadingDisplayState {
-        match self.delivery_timing.freshness_at(clock) {
-            SnapshotFreshness::Fresh => self.held_snapshot.state(clock),
-            SnapshotFreshness::PastPollPeriod => ReadingDisplayState::Offline,
+        match (&self.trouble, self.delivery_timing.freshness_at(clock)) {
+            (SnapshotTrouble::FetchFailed(_), _) => ReadingDisplayState::Failed,
+            (SnapshotTrouble::Offline(_), SnapshotFreshness::Fresh) => {
+                self.held_snapshot.state(clock)
+            }
+            (SnapshotTrouble::Offline(_), SnapshotFreshness::PastPollPeriod) => {
+                ReadingDisplayState::Offline
+            }
         }
     }
 
@@ -73,6 +110,7 @@ impl<S: GroupItemReading> GroupItemReading for OfflineSnapshot<S> {
 
 pub enum PlaceholderCause {
     Offline(InternetUnreachable),
+    FetchFailed(String),
     AwaitingFirstSnapshot,
 }
 
@@ -83,10 +121,21 @@ pub struct SnapshotPlaceholder<S> {
 
 impl<S: SnapshotSource> SnapshotPlaceholder<S> {
     #[must_use]
+    pub fn caused_by(placeholder_cause: PlaceholderCause) -> Self {
+        Self {
+            placeholder_cause,
+            placeholder_source: PhantomData,
+        }
+    }
+
+    #[must_use]
     pub fn source_state(&self) -> Section {
         match &self.placeholder_cause {
             PlaceholderCause::Offline(offline_reason) => {
                 Section::source_state::<S>(SourceDelivery::Offline, offline_reason.to_string())
+            }
+            PlaceholderCause::FetchFailed(message) => {
+                Section::source_state::<S>(SourceDelivery::Failed, message.clone())
             }
             PlaceholderCause::AwaitingFirstSnapshot => {
                 Section::source_state::<S>(SourceDelivery::Loading, "")
@@ -107,6 +156,7 @@ impl<S: SnapshotSource + GroupItemReading> GroupItemReading for SnapshotPlacehol
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self.placeholder_cause {
             PlaceholderCause::Offline(_) => ReadingDisplayState::Offline,
+            PlaceholderCause::FetchFailed(_) => ReadingDisplayState::Failed,
             PlaceholderCause::AwaitingFirstSnapshot => ReadingDisplayState::Pending,
         }
     }

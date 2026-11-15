@@ -40,7 +40,7 @@ use crate::{
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
         phosphor::{Phosphor, Weight},
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -63,8 +63,8 @@ impl From<LoginSessionTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct LoginSessionGroup {
-    system: SubscribedSnapshot<OperatingSystemIdentity, HidesFetchFailures>,
-    identity: SubscribedSnapshot<SessionIdentity, HidesFetchFailures>,
+    system: SubscribedSnapshot<OperatingSystemIdentity>,
+    identity: SubscribedSnapshot<SessionIdentity>,
     session: HoverFetchedSnapshot<SessionInfo>,
     service_manager: HoverFetchedSnapshot<UserServiceManager>,
     graphical: HoverFetchedSnapshot<GraphicalSession>,

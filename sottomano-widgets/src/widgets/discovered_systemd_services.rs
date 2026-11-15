@@ -9,9 +9,8 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    background_work::snapshot_subscription,
-    clock::Clock,
-    widgets::subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+    background_work::snapshot_subscription, clock::Clock,
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 const DISCOVERED_SCOPES: [SystemdUnitScope; 2] =
@@ -25,8 +24,8 @@ pub struct ScopedServiceCommands {
 
 #[derive(Default)]
 pub struct DiscoveredSystemdServices {
-    user_services: SubscribedSnapshot<ServiceCommands, HidesFetchFailures>,
-    system_services: SubscribedSnapshot<ServiceCommands, HidesFetchFailures>,
+    user_services: SubscribedSnapshot<ServiceCommands>,
+    system_services: SubscribedSnapshot<ServiceCommands>,
 }
 
 impl DiscoveredSystemdServices {
@@ -49,17 +48,14 @@ impl DiscoveredSystemdServices {
     fn services_in_mut(
         &mut self,
         scope: SystemdUnitScope,
-    ) -> &mut SubscribedSnapshot<ServiceCommands, HidesFetchFailures> {
+    ) -> &mut SubscribedSnapshot<ServiceCommands> {
         match scope {
             SystemdUnitScope::UserSession => &mut self.user_services,
             SystemdUnitScope::SystemWide => &mut self.system_services,
         }
     }
 
-    fn services_in(
-        &self,
-        scope: SystemdUnitScope,
-    ) -> &SubscribedSnapshot<ServiceCommands, HidesFetchFailures> {
+    fn services_in(&self, scope: SystemdUnitScope) -> &SubscribedSnapshot<ServiceCommands> {
         match scope {
             SystemdUnitScope::UserSession => &self.user_services,
             SystemdUnitScope::SystemWide => &self.system_services,

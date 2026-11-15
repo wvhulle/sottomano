@@ -38,7 +38,7 @@ use crate::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };
@@ -187,9 +187,9 @@ impl GroupItemReading for WaydroidSessionRow<'_> {
 }
 
 pub struct WaydroidContainerGroup {
-    probe: SubscribedSnapshot<WaydroidProbe, HidesFetchFailures>,
-    listing: SubscribedSnapshot<WaydroidListing, HidesFetchFailures>,
-    detail: SubscribedSnapshot<WaydroidReadout, HidesFetchFailures>,
+    probe: SubscribedSnapshot<WaydroidProbe>,
+    listing: SubscribedSnapshot<WaydroidListing>,
+    detail: SubscribedSnapshot<WaydroidReadout>,
     container_switch: UnitSwitch,
     expansion: WidgetGroupExpansion,
 }

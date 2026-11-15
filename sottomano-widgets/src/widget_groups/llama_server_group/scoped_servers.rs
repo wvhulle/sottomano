@@ -28,7 +28,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -37,7 +37,7 @@ struct ServerReadings {
     server_label: String,
     discovered: LlamaServerUnit,
     switch: UnitSwitch,
-    server: SubscribedSnapshot<LlamaServer, HidesFetchFailures>,
+    server: SubscribedSnapshot<LlamaServer>,
 }
 
 impl ServerReadings {
@@ -68,7 +68,7 @@ impl ServerReadings {
 
 pub struct ScopedLlamaServers {
     scope: SystemdUnitScope,
-    services: SubscribedSnapshot<ServiceCommands, HidesFetchFailures>,
+    services: SubscribedSnapshot<ServiceCommands>,
     servers: BTreeMap<String, ServerReadings>,
 }
 

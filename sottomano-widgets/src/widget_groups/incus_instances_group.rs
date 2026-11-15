@@ -35,7 +35,7 @@ use crate::{
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };
@@ -270,11 +270,9 @@ impl GroupItemReading for UnreadableDaemonRow {
 
 #[derive(Default)]
 pub struct IncusInstancesGroup {
-    probes: BTreeMap<InstanceDaemon, SubscribedSnapshot<Availability, HidesFetchFailures>>,
-    listings:
-        BTreeMap<InstanceDaemon, SubscribedSnapshot<DaemonInstanceListings, HidesFetchFailures>>,
-    details:
-        BTreeMap<InstanceDaemon, SubscribedSnapshot<DaemonInstancesReadout, HidesFetchFailures>>,
+    probes: BTreeMap<InstanceDaemon, SubscribedSnapshot<Availability>>,
+    listings: BTreeMap<InstanceDaemon, SubscribedSnapshot<DaemonInstanceListings>>,
+    details: BTreeMap<InstanceDaemon, SubscribedSnapshot<DaemonInstancesReadout>>,
     expansion: WidgetGroupExpansion,
 }
 

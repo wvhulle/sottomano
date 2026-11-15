@@ -30,10 +30,7 @@ use crate::{
         widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
-    widgets::{
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
-        value_cells::LabeledValue,
-    },
+    widgets::{subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,7 +75,7 @@ pub enum MobileModemsInteraction {
 
 #[derive(Default)]
 pub struct MobileModemsGroup {
-    mobile_modems: SubscribedSnapshot<MobileModems, HidesFetchFailures>,
+    mobile_modems: SubscribedSnapshot<MobileModems>,
     expansions: KeyedExpansions<String>,
 }
 

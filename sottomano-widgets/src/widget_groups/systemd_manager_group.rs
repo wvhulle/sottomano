@@ -46,7 +46,7 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
+        subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
     },
 };
@@ -111,7 +111,7 @@ impl From<SystemdTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct SystemdManagerGroup {
-    boot: SubscribedSnapshot<BootTimeline, HidesFetchFailures>,
+    boot: SubscribedSnapshot<BootTimeline>,
     failed_system: SubscribedSnapshot<FailedUnits>,
     failed_user: SubscribedSnapshot<FailedUnits>,
     slow_system_jobs: SubscribedSnapshot<SlowJobs>,

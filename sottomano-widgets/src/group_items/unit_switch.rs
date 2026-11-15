@@ -28,7 +28,7 @@ use crate::{
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        subscribed_snapshot::{CommandOutcome, HidesFetchFailures, SubscribedSnapshot},
+        subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
         value_cells::LabeledValue,
     },
 };
@@ -107,7 +107,7 @@ impl GroupItemReading for UnitSwitchReading {
 pub struct UnitSwitch {
     unit: ScopedSystemdUnit,
     face: UnitSwitchFace,
-    active_state: SubscribedSnapshot<UnitActiveState, HidesFetchFailures>,
+    active_state: SubscribedSnapshot<UnitActiveState>,
 }
 
 #[derive(Debug)]
