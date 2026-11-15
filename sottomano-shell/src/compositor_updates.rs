@@ -15,11 +15,18 @@ use sottomano_desktop_sources::{
         workspace_window_snapshot,
     },
 };
-use sottomano_widgets::widget_groups::app_launcher_group::{
-    AppLaunchUsage, FrequentApp, FrequentAppScope, OutputFrequentApps, WorkspaceWindowPresence,
+use sottomano_widgets::widget_groups::{
+    app_launcher_group::{
+        AppLaunchUsage, FrequentApp, FrequentAppScope, OutputFrequentApps, WorkspaceWindowPresence,
+    },
+    widget_group_interaction::WidgetGroupInteraction,
 };
 
-use crate::{desktop_shell::DesktopShell, shell_message::Message, sqlite_app_launches};
+use crate::{
+    desktop_shell::DesktopShell,
+    shell_message::{Message, ShellInteraction},
+    sqlite_app_launches,
+};
 
 impl DesktopShell {
     pub(crate) fn derive_window_snapshot(&mut self) {
@@ -195,7 +202,12 @@ pub(crate) fn switch_heat_effect(message: &Message) -> SwitchHeatEffect {
         Message::Compositor(_)
         | Message::SessionFocus(_)
         | Message::CompositorStyling(_)
-        | Message::Clock(_) => SwitchHeatEffect::Reheats,
+        | Message::Clock(_)
+        | Message::Interaction(ShellInteraction::Group(
+            WidgetGroupInteraction::SessionFocus(_)
+            | WidgetGroupInteraction::CompositorStyling(_)
+            | WidgetGroupInteraction::Clock(_),
+        )) => SwitchHeatEffect::Reheats,
         _ => SwitchHeatEffect::Unaffected,
     }
 }

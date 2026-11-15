@@ -7,38 +7,24 @@ use sottomano_widgets::{
     layer_surfaces::SurfaceRequest,
     toast_messages::NotificationMessage,
     widget_groups::{
-        appearance_presets_group::AppearancePresetsMessage,
-        apptainer_containers_group::{ApptainerContainersInteraction, ApptainerContainersMessage},
-        audio_group::AudioMessage,
-        caldav_group::CaldavMessage,
-        cgroup_memory_limits_group::{CgroupMemoryLimitsInteraction, CgroupMemoryLimitsMessage},
-        ci_runs_group::{CiRunsInteraction, CiRunsMessage},
-        claude_usage_group::{ClaudeUsageInteraction, ClaudeUsageMessage},
-        compute_group::{ComputeInteraction, ComputeMessage},
-        docker_engines_group::{DockerEnginesInteraction, DockerEnginesMessage},
-        flatpak_sandboxes_group::{FlatpakSandboxesInteraction, FlatpakSandboxesMessage},
-        gamepad_group::{GamepadInteraction, GamepadMessage},
-        idle_pause_groups::{IdlePauseInteraction, IdlePauseMessage},
-        incus_instances_group::{IncusInstancesInteraction, IncusInstancesMessage},
-        login_session_group::{LoginSessionInteraction, LoginSessionMessage},
-        lxc_containers_group::{LxcContainersInteraction, LxcContainersMessage},
-        media_group::{MediaInteraction, MediaMessage},
-        memory_board_group::{MemoryBoardInteraction, MemoryBoardMessage},
-        microvm_guests_group::{MicrovmGuestsInteraction, MicrovmGuestsMessage},
-        nspawn_containers_group::{NspawnContainersInteraction, NspawnContainersMessage},
-        podman_engines_group::{PodmanEnginesInteraction, PodmanEnginesMessage},
-        tailnet_group::{TailnetInteraction, TailnetMessage},
-        virtual_machines_group::{VirtualMachinesInteraction, VirtualMachinesMessage},
-        virtualbox_machines_group::{VirtualBoxMachinesInteraction, VirtualBoxMachinesMessage},
-        vmware_machines_group::{VmwareMachinesInteraction, VmwareMachinesMessage},
-        voice_dictation_group::{VoiceDictationInteraction, VoiceDictationMessage},
-        wallpaper_group::WallpaperMessage,
-        waydroid_container_group::{WaydroidContainerInteraction, WaydroidContainerMessage},
-        weather_group::{WeatherInteraction, WeatherMessage},
-        widget_group_content::{GroupEvent, WidgetGroupExpansionMessage},
-        window_group::{WindowGroupInteraction, WindowGroupMessage},
-        wireguard_tunnels_group::{WireguardTunnelsInteraction, WireguardTunnelsMessage},
-        workspaces_group::WorkspacesMessage,
+        apptainer_containers_group::ApptainerContainersMessage, audio_group::AudioMessage,
+        caldav_group::CaldavMessage, cgroup_memory_limits_group::CgroupMemoryLimitsMessage,
+        ci_runs_group::CiRunsMessage, claude_usage_group::ClaudeUsageMessage,
+        compute_group::ComputeMessage, docker_engines_group::DockerEnginesMessage,
+        flatpak_sandboxes_group::FlatpakSandboxesMessage, gamepad_group::GamepadMessage,
+        idle_pause_groups::IdlePauseMessage, incus_instances_group::IncusInstancesMessage,
+        login_session_group::LoginSessionMessage, lxc_containers_group::LxcContainersMessage,
+        media_group::MediaMessage, memory_board_group::MemoryBoardMessage,
+        microvm_guests_group::MicrovmGuestsMessage,
+        nspawn_containers_group::NspawnContainersMessage,
+        podman_engines_group::PodmanEnginesMessage, tailnet_group::TailnetMessage,
+        virtual_machines_group::VirtualMachinesMessage,
+        virtualbox_machines_group::VirtualBoxMachinesMessage,
+        vmware_machines_group::VmwareMachinesMessage, voice_dictation_group::VoiceDictationMessage,
+        wallpaper_group::WallpaperMessage, waydroid_container_group::WaydroidContainerMessage,
+        weather_group::WeatherMessage, widget_group_content::GroupEvent,
+        widget_group_interaction::WidgetGroupInteraction, window_group::WindowGroupMessage,
+        wireguard_tunnels_group::WireguardTunnelsMessage, workspaces_group::WorkspacesMessage,
     },
 };
 
@@ -74,159 +60,36 @@ pub enum ShowcaseMessage {
     WireguardTunnels(WireguardTunnelsMessage),
     LoginSession(LoginSessionMessage),
     WindowGroup(WindowGroupMessage),
-    AppearancePresets(AppearancePresetsMessage),
     GroupMenuState(GroupMenuMessage),
-    HoverCard(HoverCardMessage),
     HoverCardHideElapsed,
     Notification(NotificationMessage),
     SurfaceRegionsCollected(SurfaceRegionsCollector),
-    OutsideShowcase,
+    Interaction(ShowcaseInteraction),
 }
 
 #[derive(Debug, Clone)]
 pub enum ShowcaseInteraction {
-    Compute(ComputeInteraction),
-    MemoryBoard(MemoryBoardInteraction),
-    Weather(WeatherInteraction),
-    ClaudeUsage(ClaudeUsageInteraction),
-    Media(MediaInteraction),
-    IdleTimeouts(IdlePauseInteraction),
-    Wallpaper(WidgetGroupExpansionMessage),
-    Audio(AudioMessage),
-    Gamepad(GamepadInteraction),
-    VoiceDictation(VoiceDictationInteraction),
-    Caldav(WidgetGroupExpansionMessage),
-    PodmanEngines(PodmanEnginesInteraction),
-    VirtualMachines(VirtualMachinesInteraction),
-    NspawnContainers(NspawnContainersInteraction),
-    CgroupMemoryLimits(CgroupMemoryLimitsInteraction),
-    DockerEngines(DockerEnginesInteraction),
-    ApptainerContainers(ApptainerContainersInteraction),
-    VmwareMachines(VmwareMachinesInteraction),
-    VirtualBoxMachines(VirtualBoxMachinesInteraction),
-    WaydroidContainer(WaydroidContainerInteraction),
-    FlatpakSandboxes(FlatpakSandboxesInteraction),
-    LxcContainers(LxcContainersInteraction),
-    IncusInstances(IncusInstancesInteraction),
-    MicrovmGuests(MicrovmGuestsInteraction),
-    CiRuns(CiRunsInteraction),
-    Tailnet(TailnetInteraction),
-    WireguardTunnels(WireguardTunnelsInteraction),
-    LoginSession(LoginSessionInteraction),
-    WindowGroup(WindowGroupInteraction),
-    AppearancePresets(AppearancePresetsMessage),
-    GroupMenuState(GroupMenuMessage),
-    HoverCard(HoverCardMessage),
+    Group(WidgetGroupInteraction),
+    Popup(PopupMessage),
     Notification(NotificationMessage),
     OutsideShowcase,
 }
 
 impl From<ShowcaseInteraction> for ShowcaseMessage {
     fn from(interaction: ShowcaseInteraction) -> Self {
-        match interaction {
-            ShowcaseInteraction::Compute(interaction) => {
-                ShowcaseMessage::Compute(ComputeMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::MemoryBoard(interaction) => {
-                ShowcaseMessage::MemoryBoard(MemoryBoardMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::Weather(interaction) => {
-                ShowcaseMessage::Weather(WeatherMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::ClaudeUsage(interaction) => {
-                ShowcaseMessage::ClaudeUsage(ClaudeUsageMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::Media(interaction) => {
-                ShowcaseMessage::Media(MediaMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::IdleTimeouts(interaction) => {
-                ShowcaseMessage::IdleTimeouts(IdlePauseMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::Wallpaper(expansion) => {
-                ShowcaseMessage::Wallpaper(WallpaperMessage::Expansion(expansion))
-            }
-            ShowcaseInteraction::Audio(message) => ShowcaseMessage::Audio(message),
-            ShowcaseInteraction::Gamepad(interaction) => {
-                ShowcaseMessage::Gamepad(GamepadMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::VoiceDictation(interaction) => {
-                ShowcaseMessage::VoiceDictation(VoiceDictationMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::Caldav(expansion) => {
-                ShowcaseMessage::Caldav(CaldavMessage::Expansion(expansion))
-            }
-            ShowcaseInteraction::PodmanEngines(interaction) => {
-                ShowcaseMessage::PodmanEngines(PodmanEnginesMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::VirtualMachines(interaction) => {
-                ShowcaseMessage::VirtualMachines(VirtualMachinesMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::NspawnContainers(interaction) => {
-                ShowcaseMessage::NspawnContainers(NspawnContainersMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::CgroupMemoryLimits(interaction) => {
-                ShowcaseMessage::CgroupMemoryLimits(CgroupMemoryLimitsMessage::Interaction(
-                    interaction,
-                ))
-            }
-            ShowcaseInteraction::DockerEngines(interaction) => {
-                ShowcaseMessage::DockerEngines(DockerEnginesMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::ApptainerContainers(interaction) => {
-                ShowcaseMessage::ApptainerContainers(ApptainerContainersMessage::Interaction(
-                    interaction,
-                ))
-            }
-            ShowcaseInteraction::VmwareMachines(interaction) => {
-                ShowcaseMessage::VmwareMachines(VmwareMachinesMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::VirtualBoxMachines(interaction) => {
-                ShowcaseMessage::VirtualBoxMachines(VirtualBoxMachinesMessage::Interaction(
-                    interaction,
-                ))
-            }
-            ShowcaseInteraction::WaydroidContainer(interaction) => {
-                ShowcaseMessage::WaydroidContainer(WaydroidContainerMessage::Interaction(
-                    interaction,
-                ))
-            }
-            ShowcaseInteraction::FlatpakSandboxes(interaction) => {
-                ShowcaseMessage::FlatpakSandboxes(FlatpakSandboxesMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::LxcContainers(interaction) => {
-                ShowcaseMessage::LxcContainers(LxcContainersMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::IncusInstances(interaction) => {
-                ShowcaseMessage::IncusInstances(IncusInstancesMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::MicrovmGuests(interaction) => {
-                ShowcaseMessage::MicrovmGuests(MicrovmGuestsMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::CiRuns(interaction) => {
-                ShowcaseMessage::CiRuns(CiRunsMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::Tailnet(interaction) => {
-                ShowcaseMessage::Tailnet(TailnetMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::WireguardTunnels(interaction) => {
-                ShowcaseMessage::WireguardTunnels(WireguardTunnelsMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::LoginSession(interaction) => {
-                ShowcaseMessage::LoginSession(LoginSessionMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::WindowGroup(interaction) => {
-                ShowcaseMessage::WindowGroup(WindowGroupMessage::Interaction(interaction))
-            }
-            ShowcaseInteraction::AppearancePresets(message) => {
-                ShowcaseMessage::AppearancePresets(message)
-            }
-            ShowcaseInteraction::GroupMenuState(message) => {
-                ShowcaseMessage::GroupMenuState(message)
-            }
-            ShowcaseInteraction::HoverCard(message) => ShowcaseMessage::HoverCard(message),
-            ShowcaseInteraction::Notification(message) => ShowcaseMessage::Notification(message),
-            ShowcaseInteraction::OutsideShowcase => ShowcaseMessage::OutsideShowcase,
-        }
+        ShowcaseMessage::Interaction(interaction)
+    }
+}
+
+impl From<HoverCardMessage> for ShowcaseInteraction {
+    fn from(hover_card: HoverCardMessage) -> Self {
+        ShowcaseInteraction::Popup(PopupMessage::HoverCard(hover_card))
+    }
+}
+
+impl From<WidgetGroupInteraction> for ShowcaseInteraction {
+    fn from(group_interaction: WidgetGroupInteraction) -> Self {
+        ShowcaseInteraction::Group(group_interaction)
     }
 }
 
@@ -234,7 +97,7 @@ impl From<GroupEvent<ShowcaseInteraction>> for ShowcaseInteraction {
     fn from(event: GroupEvent<ShowcaseInteraction>) -> Self {
         match event {
             GroupEvent::Group(message) => message,
-            GroupEvent::HoverCard(hover_card) => ShowcaseInteraction::HoverCard(hover_card),
+            GroupEvent::HoverCard(hover_card) => ShowcaseInteraction::from(hover_card),
         }
     }
 }
@@ -242,7 +105,7 @@ impl From<GroupEvent<ShowcaseInteraction>> for ShowcaseInteraction {
 impl From<WorkspacesMessage> for ShowcaseInteraction {
     fn from(workspaces_message: WorkspacesMessage) -> Self {
         match workspaces_message {
-            WorkspacesMessage::HoverCard(hover_card) => ShowcaseInteraction::HoverCard(hover_card),
+            WorkspacesMessage::HoverCard(hover_card) => ShowcaseInteraction::from(hover_card),
             WorkspacesMessage::Drag(_)
             | WorkspacesMessage::RestoreOrder { .. }
             | WorkspacesMessage::ToggleEmptyWorkspaces
@@ -253,17 +116,7 @@ impl From<WorkspacesMessage> for ShowcaseInteraction {
 
 impl From<PopupMessage> for ShowcaseInteraction {
     fn from(popup_message: PopupMessage) -> Self {
-        match popup_message {
-            PopupMessage::HoverCard(hover_card) => ShowcaseInteraction::HoverCard(hover_card),
-            PopupMessage::WindowGroup(window_group) => {
-                ShowcaseInteraction::WindowGroup(window_group)
-            }
-            PopupMessage::CopyText(_)
-            | PopupMessage::OpenUrl(_)
-            | PopupMessage::FocusWindow(_)
-            | PopupMessage::RefreshHoveredReading
-            | PopupMessage::ReleaseFromPanel(_) => ShowcaseInteraction::OutsideShowcase,
-        }
+        ShowcaseInteraction::Popup(popup_message)
     }
 }
 

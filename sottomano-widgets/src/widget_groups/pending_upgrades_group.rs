@@ -48,7 +48,6 @@ pub struct PendingUpgradesGroup {
 #[derive(Debug)]
 pub enum PendingUpgradesMessage {
     Firmware(SnapshotDelivery<Vec<FirmwareUpgrade>>),
-    Interaction(PendingUpgradesInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -72,17 +71,18 @@ impl PendingUpgradesGroup {
         upgrades_message: PendingUpgradesMessage,
         clock: Clock,
     ) -> Task<PendingUpgradesMessage> {
-        match upgrades_message {
-            PendingUpgradesMessage::Firmware(upgrades) => {
-                self.firmware.receive(upgrades, clock);
-                Task::none()
-            }
-            PendingUpgradesMessage::Interaction(PendingUpgradesInteraction::OpenTerminal(
-                terminal,
-            )) => terminal.open(),
-            PendingUpgradesMessage::Interaction(PendingUpgradesInteraction::Expansion(
-                expansion_message,
-            )) => {
+        let PendingUpgradesMessage::Firmware(upgrades) = upgrades_message;
+        self.firmware.receive(upgrades, clock);
+        Task::none()
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: PendingUpgradesInteraction,
+    ) -> Task<PendingUpgradesMessage> {
+        match interaction {
+            PendingUpgradesInteraction::OpenTerminal(terminal) => terminal.open(),
+            PendingUpgradesInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }

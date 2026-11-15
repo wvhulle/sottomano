@@ -17,7 +17,6 @@ use sottomano_desktop_sources::{
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
-use sottomano_toml_config::Config;
 use sottomano_widgets::{
     clock::Clock,
     widget_groups::claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage},
@@ -42,7 +41,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     ]
     .into_iter()
     .for_each(|reading| {
-        let _ = group.update(reading, &Config::default(), clock);
+        let _ = group.update(reading, clock);
     });
     ShowcasedGroup::ClaudeUsage(Box::new(group))
 }

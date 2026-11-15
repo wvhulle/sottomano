@@ -135,7 +135,6 @@ pub enum GpuMessage {
     Snapshot(PciBusId, SnapshotDelivery<GpuSnapshot>),
     ClocksFetched(SnapshotDelivery<GpuClocks>),
     ProcessesFetched(SnapshotDelivery<GpuProcesses>),
-    Interaction(GpuInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -226,7 +225,7 @@ impl GpuGroup {
         }
     }
 
-    pub fn update(&mut self, msg: GpuMessage, config: &Config, clock: Clock) -> Task<GpuMessage> {
+    pub fn update(&mut self, msg: GpuMessage, clock: Clock) -> Task<GpuMessage> {
         match msg {
             GpuMessage::Discovered(reading) => {
                 self.discovery.receive(reading, clock);
@@ -285,25 +284,35 @@ impl GpuGroup {
             GpuMessage::ProcessesFetched(fetched) => {
                 self.processes.receive(fetched, clock);
             }
-            GpuMessage::Interaction(GpuInteraction::Expansion(bus, expansion_message)) => {
+        }
+        Task::none()
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: GpuInteraction,
+        config: &Config,
+        clock: Clock,
+    ) -> Task<GpuMessage> {
+        match interaction {
+            GpuInteraction::Expansion(bus, expansion_message) => {
                 if let Some(device) = self.devices.get_mut(&bus) {
                     device.expansion.update(expansion_message);
                 }
+                Task::none()
             }
-            GpuMessage::Interaction(GpuInteraction::StartClocksFetch(bus)) => {
-                return self.start_detail_fetch(bus, GpuFetchedDetail::Clocks, config, clock);
+            GpuInteraction::StartClocksFetch(bus) => {
+                self.start_detail_fetch(bus, GpuFetchedDetail::Clocks, config, clock)
             }
-            GpuMessage::Interaction(GpuInteraction::StartProcessesFetch(bus)) => {
-                return self.start_detail_fetch(bus, GpuFetchedDetail::Processes, config, clock);
+            GpuInteraction::StartProcessesFetch(bus) => {
+                self.start_detail_fetch(bus, GpuFetchedDetail::Processes, config, clock)
             }
-            GpuMessage::Interaction(GpuInteraction::StopHoverFetches) => {
+            GpuInteraction::StopHoverFetches => {
                 self.stop_hover_fetches();
+                Task::none()
             }
-            GpuMessage::Interaction(GpuInteraction::Refresh(bus)) => {
-                return self.refresh(bus);
-            }
+            GpuInteraction::Refresh(bus) => self.refresh(bus),
         }
-        Task::none()
     }
 
     fn device_items<'a>(

@@ -115,7 +115,6 @@ pub enum StorageMessage {
     Discovered(SnapshotDelivery<BlockFilesystemDiscovery>),
     Usage(PathBuf, Box<SnapshotDelivery<FilesystemUsage>>),
     SubvolumeUsage(PathBuf, Box<SnapshotDelivery<BcachefsSubvolumeUsage>>),
-    Interaction(StorageInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -229,18 +228,24 @@ impl StorageSpaceGroup {
                     filesystem.subvolume_usage.receive(*reading, clock);
                 }
             }
-            StorageMessage::Interaction(StorageInteraction::DiscoveryExpansion(expansion)) => {
+        }
+        Task::none()
+    }
+
+    pub fn interact(&mut self, interaction: StorageInteraction) -> Task<StorageMessage> {
+        match interaction {
+            StorageInteraction::DiscoveryExpansion(expansion) => {
                 self.discovery_expansion.update(expansion);
             }
-            StorageMessage::Interaction(StorageInteraction::MountExpansion {
+            StorageInteraction::MountExpansion {
                 mount_point,
                 expansion,
-            }) => {
+            } => {
                 if let Some(filesystem) = self.filesystems.get_mut(&mount_point) {
                     filesystem.expansion.update(expansion);
                 }
             }
-            StorageMessage::Interaction(StorageInteraction::Refresh(source)) => {
+            StorageInteraction::Refresh(source) => {
                 return self.refresh(source);
             }
         }

@@ -83,7 +83,7 @@ pub enum IdlePauseMessage {
     ScreenPowerChangedByIdleAction(ScreenEdge),
     SleepObstaclesFetched(Box<SnapshotDelivery<SleepObstacles>>),
     IdleInhibitorsFetched(Box<SnapshotDelivery<ScreenSaverInhibitors>>),
-    Interaction(IdlePauseInteraction),
+    TimeoutPersisted(IdleAction, ControlMessage),
 }
 
 #[derive(Debug, Clone)]
@@ -222,34 +222,48 @@ impl IdlePauseGroups {
                 self.refresh_pause_blockers();
                 Task::none()
             }
-            IdlePauseMessage::Interaction(IdlePauseInteraction::Expansion(
-                kind,
-                expansion_message,
-            )) => {
+            IdlePauseMessage::TimeoutPersisted(kind, control_message) => {
+                self.update_timer(kind, control_message)
+            }
+        }
+    }
+
+    pub fn interact(&mut self, interaction: IdlePauseInteraction) -> Task<IdlePauseMessage> {
+        match interaction {
+            IdlePauseInteraction::Expansion(kind, expansion_message) => {
                 let pause = self.pause_mut(kind);
                 if pause.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
                     pause.timer.close();
                 }
                 Task::none()
             }
-            IdlePauseMessage::Interaction(IdlePauseInteraction::Timer(kind, control_message)) => {
-                match self.pause_mut(kind).timer.update(control_message) {
-                    TimerChange::None => Task::none(),
-                    TimerChange::Opened => {
-                        self.close_others(kind);
-                        Task::none()
-                    }
-                    TimerChange::Persist(value) => {
-                        let persist = Task::future(sqlite_idle_timeouts::save(self.timeouts()))
-                            .map(move |store_outcome| {
-                                IdlePauseMessage::Interaction(IdlePauseInteraction::Timer(
-                                    kind,
-                                    ControlMessage::persisted(value, store_outcome),
-                                ))
-                            });
-                        Task::batch([persist, self.rearm()])
-                    }
-                }
+            IdlePauseInteraction::Timer(kind, control_message) => {
+                self.update_timer(kind, control_message)
+            }
+        }
+    }
+
+    fn update_timer(
+        &mut self,
+        kind: IdleAction,
+        control_message: ControlMessage,
+    ) -> Task<IdlePauseMessage> {
+        match self.pause_mut(kind).timer.update(control_message) {
+            TimerChange::None => Task::none(),
+            TimerChange::Opened => {
+                self.close_others(kind);
+                Task::none()
+            }
+            TimerChange::Persist(value) => {
+                let persist = Task::future(sqlite_idle_timeouts::save(self.timeouts())).map(
+                    move |store_outcome| {
+                        IdlePauseMessage::TimeoutPersisted(
+                            kind,
+                            ControlMessage::persisted(value, store_outcome),
+                        )
+                    },
+                );
+                Task::batch([persist, self.rearm()])
             }
         }
     }

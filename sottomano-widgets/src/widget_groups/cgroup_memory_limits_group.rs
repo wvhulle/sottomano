@@ -147,7 +147,6 @@ pub struct CgroupMemoryLimitsGroup {
 #[derive(Debug)]
 pub enum CgroupMemoryLimitsMessage {
     Cgroups(SnapshotDelivery<LimitedCgroups>),
-    Interaction(CgroupMemoryLimitsInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -176,12 +175,16 @@ impl CgroupMemoryLimitsGroup {
                 self.remember_first_oom_kill_counts();
                 Task::none()
             }
-            CgroupMemoryLimitsMessage::Interaction(
-                CgroupMemoryLimitsInteraction::OpenCgroupTop(cgroup_top),
-            ) => cgroup_top.open(),
-            CgroupMemoryLimitsMessage::Interaction(CgroupMemoryLimitsInteraction::Expansion(
-                expansion_message,
-            )) => {
+        }
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: CgroupMemoryLimitsInteraction,
+    ) -> Task<CgroupMemoryLimitsMessage> {
+        match interaction {
+            CgroupMemoryLimitsInteraction::OpenCgroupTop(cgroup_top) => cgroup_top.open(),
+            CgroupMemoryLimitsInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }

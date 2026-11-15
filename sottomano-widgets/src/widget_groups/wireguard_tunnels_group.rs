@@ -49,7 +49,6 @@ pub struct WireguardTunnelsGroup {
 pub enum WireguardTunnelsMessage {
     Wireguard(SnapshotDelivery<Wireguard>),
     TunnelAddressFetched(SnapshotDelivery<TunnelAddress>),
-    Interaction(WireguardTunnelsInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -111,23 +110,28 @@ impl WireguardTunnelsGroup {
             WireguardTunnelsMessage::TunnelAddressFetched(delivery) => {
                 self.tunnel_address.receive(delivery, clock);
             }
-            WireguardTunnelsMessage::Interaction(WireguardTunnelsInteraction::Expansion(
-                expansion_message,
-            )) => {
+        }
+        Task::none()
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: WireguardTunnelsInteraction,
+    ) -> Task<WireguardTunnelsMessage> {
+        match interaction {
+            WireguardTunnelsInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
-            WireguardTunnelsMessage::Interaction(WireguardTunnelsInteraction::SwitchTunnel(
-                wireguard_switch,
-            )) => {
+            WireguardTunnelsInteraction::SwitchTunnel(wireguard_switch) => {
                 return logged_failure_task(
                     format!("NetworkManager WireGuard tunnel {wireguard_switch:?}"),
                     switch_nm_connection(wireguard_switch),
                 );
             }
-            WireguardTunnelsMessage::Interaction(WireguardTunnelsInteraction::StopHoverFetches) => {
+            WireguardTunnelsInteraction::StopHoverFetches => {
                 self.tunnel_address.stop();
             }
-            WireguardTunnelsMessage::Interaction(WireguardTunnelsInteraction::OnBuses(_)) => {}
+            WireguardTunnelsInteraction::OnBuses(_) => {}
         }
         Task::none()
     }

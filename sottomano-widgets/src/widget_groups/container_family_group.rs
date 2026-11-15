@@ -96,7 +96,6 @@ pub enum ContainerFamilyMessage<Family: ContainerFamily> {
     Listings(SnapshotDelivery<Family::Listings>),
     Detail(SnapshotDelivery<Family::Detail>),
     PowerChangeRefused(GuestPowerError),
-    Interaction(ContainerFamilyInteraction<Family>),
 }
 
 #[derive(Debug, Clone)]
@@ -139,19 +138,26 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
             ContainerFamilyMessage::PowerChangeRefused(refusal) => {
                 tracing::warn!(group = Family::GROUP_NAME, %refusal, "power change refused");
             }
-            ContainerFamilyMessage::Interaction(ContainerFamilyInteraction::Stop(request)) => {
-                return refused_power_change(Family::stop(request));
-            }
-            ContainerFamilyMessage::Interaction(ContainerFamilyInteraction::Start(request)) => {
-                return refused_power_change(Family::start(request));
-            }
-            ContainerFamilyMessage::Interaction(ContainerFamilyInteraction::Expansion(
-                expansion_message,
-            )) => {
-                self.expansion.update(expansion_message);
-            }
         }
         Task::none()
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: ContainerFamilyInteraction<Family>,
+    ) -> Task<ContainerFamilyMessage<Family>> {
+        match interaction {
+            ContainerFamilyInteraction::Stop(request) => {
+                refused_power_change(Family::stop(request))
+            }
+            ContainerFamilyInteraction::Start(request) => {
+                refused_power_change(Family::start(request))
+            }
+            ContainerFamilyInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+                Task::none()
+            }
+        }
     }
 
     fn detail_rows(&self) -> Vec<FamilyRow<'_, Family>> {

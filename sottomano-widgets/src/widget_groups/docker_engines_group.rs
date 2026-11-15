@@ -132,7 +132,6 @@ pub enum DockerEnginesMessage {
     Listing(PathBuf, SnapshotDelivery<DockerEngineListing>),
     Engine(PathBuf, SnapshotDelivery<DockerEngineReadout>),
     PowerChangeRefused(GuestPowerError),
-    Interaction(DockerEnginesInteraction),
 }
 
 pub type DockerEnginesInteraction = EngineContainerInteraction;
@@ -210,22 +209,25 @@ impl DockerEnginesGroup {
             DockerEnginesMessage::PowerChangeRefused(refusal) => {
                 tracing::warn!(%refusal, "docker container power change refused");
             }
-            DockerEnginesMessage::Interaction(EngineContainerInteraction::SwitchContainer(
-                request,
-            )) => {
-                return container_switch_task(
-                    ContainerEngineApi::Docker,
-                    request,
-                    DockerEnginesMessage::PowerChangeRefused,
-                );
-            }
-            DockerEnginesMessage::Interaction(EngineContainerInteraction::Expansion(
-                expansion_message,
-            )) => {
-                self.expansion.update(expansion_message);
-            }
         }
         Task::none()
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: DockerEnginesInteraction,
+    ) -> Task<DockerEnginesMessage> {
+        match interaction {
+            EngineContainerInteraction::SwitchContainer(request) => container_switch_task(
+                ContainerEngineApi::Docker,
+                request,
+                DockerEnginesMessage::PowerChangeRefused,
+            ),
+            EngineContainerInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+                Task::none()
+            }
+        }
     }
 
     fn probe_presence_count(&self) -> Option<usize> {

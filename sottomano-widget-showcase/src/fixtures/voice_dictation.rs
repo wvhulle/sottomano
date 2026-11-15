@@ -15,7 +15,6 @@ use sottomano_desktop_sources::{
         notulist_dbus_pipeline_activity::NotulistPipeline,
     },
 };
-use sottomano_toml_config::Config;
 use sottomano_widgets::{
     clock::Clock,
     group_items::unit_switch::UnitSwitchMessage,
@@ -30,7 +29,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     ShowcasedGroup::VoiceDictation(Box::new(dictation_readings().into_iter().fold(
         VoiceDictationGroup::default(),
         |mut group, reading| {
-            let _ = group.update(reading, &Config::default(), clock);
+            let _ = group.update(reading, clock);
             group
         },
     )))

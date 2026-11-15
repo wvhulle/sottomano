@@ -210,10 +210,9 @@ pub enum WaydroidContainerMessage {
     Readout(SnapshotDelivery<WaydroidReadout>),
     ContainerSwitch(UnitSwitchMessage),
     SessionChangeRefused(GuestPowerError),
-    Interaction(WaydroidContainerInteraction),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum WaydroidContainerInteraction {
     ContainerSwitchPressed,
     StartSession,
@@ -279,21 +278,25 @@ impl WaydroidContainerGroup {
                 tracing::warn!(%refusal, "waydroid session change refused");
                 Task::none()
             }
-            WaydroidContainerMessage::Interaction(
-                WaydroidContainerInteraction::ContainerSwitchPressed,
-            ) => self
+        }
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: WaydroidContainerInteraction,
+    ) -> Task<WaydroidContainerMessage> {
+        match interaction {
+            WaydroidContainerInteraction::ContainerSwitchPressed => self
                 .container_switch
                 .press()
                 .map(WaydroidContainerMessage::ContainerSwitch),
-            WaydroidContainerMessage::Interaction(WaydroidContainerInteraction::StartSession) => {
+            WaydroidContainerInteraction::StartSession => {
                 refused_session_change(start_waydroid_session())
             }
-            WaydroidContainerMessage::Interaction(WaydroidContainerInteraction::StopSession) => {
+            WaydroidContainerInteraction::StopSession => {
                 refused_session_change(stop_waydroid_session())
             }
-            WaydroidContainerMessage::Interaction(WaydroidContainerInteraction::Expansion(
-                expansion_message,
-            )) => {
+            WaydroidContainerInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }

@@ -2,7 +2,9 @@ use std::iter::once;
 
 use sottomano_widgets::{
     group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
-    widget_groups::widget_group_content::WidgetGroupContent,
+    widget_groups::{
+        widget_group_content::WidgetGroupContent, widget_group_interaction::WidgetGroupInteraction,
+    },
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};
@@ -18,7 +20,7 @@ impl DesktopShell {
                     self.widget_groups
                         .appearance_presets_group
                         .group_content(&self.widget_groups.shell_appearance())
-                        .map(ShellInteraction::AppearancePresets),
+                        .map(WidgetGroupInteraction::AppearancePresets),
                 )),
         )
     }

@@ -47,7 +47,6 @@ pub enum EthernetPortsMessage {
     Snapshot(SnapshotDelivery<Ethernet>),
     DetailsFetched(SnapshotDelivery<EthernetDetails>),
     GatewayLatencies(SnapshotDelivery<GatewayLatencies>),
-    Interaction(EthernetPortsInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -111,24 +110,33 @@ impl EthernetPortsGroup {
             EthernetPortsMessage::GatewayLatencies(delivery) => {
                 self.gateway_latencies.receive(delivery, clock);
             }
-            EthernetPortsMessage::Interaction(EthernetPortsInteraction::TogglePort(port_name)) => {
-                return logged_failure_task(
-                    format!("toggle Ethernet port {port_name}"),
-                    async move { toggle_ethernet_port(&port_name).await },
-                );
-            }
-            EthernetPortsMessage::Interaction(EthernetPortsInteraction::Expansion {
-                port_name,
-                expansion,
-            }) => {
-                self.expansions.update(&port_name, expansion);
-            }
-            EthernetPortsMessage::Interaction(EthernetPortsInteraction::StopHoverFetches) => {
-                self.ethernet_details.stop();
-            }
-            EthernetPortsMessage::Interaction(EthernetPortsInteraction::OnBuses(_)) => {}
         }
         Task::none()
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: EthernetPortsInteraction,
+    ) -> Task<EthernetPortsMessage> {
+        match interaction {
+            EthernetPortsInteraction::TogglePort(port_name) => {
+                logged_failure_task(format!("toggle Ethernet port {port_name}"), async move {
+                    toggle_ethernet_port(&port_name).await
+                })
+            }
+            EthernetPortsInteraction::Expansion {
+                port_name,
+                expansion,
+            } => {
+                self.expansions.update(&port_name, expansion);
+                Task::none()
+            }
+            EthernetPortsInteraction::StopHoverFetches => {
+                self.ethernet_details.stop();
+                Task::none()
+            }
+            EthernetPortsInteraction::OnBuses(_) => Task::none(),
+        }
     }
 
     fn observe_latest_snapshot(&mut self) {

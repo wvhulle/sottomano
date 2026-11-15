@@ -81,7 +81,6 @@ pub enum PowerMessage {
     CpuTuningFetched(SnapshotDelivery<CpuTuning>),
     ChargeCurveLoaded(CurveLoaded),
     PowerProfile(PowerProfileMessage),
-    Interaction(PowerInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -130,12 +129,7 @@ impl PowerGroup {
         }
     }
 
-    pub fn update(
-        &mut self,
-        power_message: PowerMessage,
-        config: &Config,
-        clock: Clock,
-    ) -> Task<PowerMessage> {
+    pub fn update(&mut self, power_message: PowerMessage, clock: Clock) -> Task<PowerMessage> {
         let task = match power_message {
             PowerMessage::Battery(reading) => {
                 self.battery.receive(reading, clock);
@@ -157,32 +151,49 @@ impl PowerGroup {
                 .power_profile
                 .update(profile_message, clock)
                 .map(PowerMessage::PowerProfile),
-            PowerMessage::Interaction(PowerInteraction::PowerProfile(profile_interaction)) => self
+        };
+        self.estimate_time_left();
+        task
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: PowerInteraction,
+        config: &Config,
+        clock: Clock,
+    ) -> Task<PowerMessage> {
+        let task = match interaction {
+            PowerInteraction::PowerProfile(profile_interaction) => self
                 .power_profile
-                .update(PowerProfileMessage::Interaction(profile_interaction), clock)
+                .interact(profile_interaction)
                 .map(PowerMessage::PowerProfile),
-            PowerMessage::Interaction(PowerInteraction::Expansion(expansion_message)) => {
+            PowerInteraction::Expansion(expansion_message) => {
                 if self.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
                     self.power_profile.close();
                 }
                 Task::none()
             }
-            PowerMessage::Interaction(PowerInteraction::StartChargerFetch) => self
-                .charger
-                .start_hover_fetch((), PowerMessage::ChargerFetched, config, clock),
-            PowerMessage::Interaction(PowerInteraction::StopHoverFetches) => {
+            PowerInteraction::StartChargerFetch => {
+                self.charger
+                    .start_hover_fetch((), PowerMessage::ChargerFetched, config, clock)
+            }
+            PowerInteraction::StopHoverFetches => {
                 self.charger.stop();
                 self.cpu_tuning.stop();
                 Task::none()
             }
-            PowerMessage::Interaction(PowerInteraction::OnBuses(_)) => Task::none(),
+            PowerInteraction::OnBuses(_) => Task::none(),
         };
+        self.estimate_time_left();
+        task
+    }
+
+    fn estimate_time_left(&mut self) {
         let battery = self.battery.get();
         self.time = battery.and_then(|battery| {
             self.time_reading
                 .time_for(battery, self.power_profile.active_estimate())
         });
-        task
     }
 
     fn draw(&self) -> Option<PowerDraw> {

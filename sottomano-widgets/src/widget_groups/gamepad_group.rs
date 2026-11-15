@@ -84,10 +84,9 @@ pub enum GamepadMessage {
     KernelErrors(Vec<DeviceKernelError>),
     Wifi(Box<SnapshotDelivery<Wifi>>),
     Ethernet(Box<SnapshotDelivery<Ethernet>>),
-    Interaction(GamepadInteraction),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum GamepadInteraction {
     DisconnectBluetooth {
         slot: usize,
@@ -373,14 +372,19 @@ impl GamepadGroup {
                 self.receive_ethernet_delivery(*delivery);
                 Action::Idle
             }
-            GamepadMessage::Interaction(GamepadInteraction::DisconnectBluetooth { slot }) => self
+        }
+    }
+
+    pub fn interact(&mut self, interaction: GamepadInteraction) -> Action {
+        match interaction {
+            GamepadInteraction::DisconnectBluetooth { slot } => self
                 .bluetooth_address(slot)
                 .map_or(Action::Idle, |hardware_address| {
                     Action::DisconnectBluetooth {
                         hardware_address: hardware_address.to_owned(),
                     }
                 }),
-            GamepadMessage::Interaction(GamepadInteraction::ToggleCompositorDriving { slot }) => {
+            GamepadInteraction::ToggleCompositorDriving { slot } => {
                 let Some(key) = self.physical_link(slot).map(controller_custody_key) else {
                     return Action::Idle;
                 };
@@ -390,13 +394,11 @@ impl GamepadGroup {
                 }
                 Action::SaveDrivingControllers(self.compositor_driving_controllers.clone())
             }
-            GamepadMessage::Interaction(GamepadInteraction::Expansion { slot, expansion }) => {
+            GamepadInteraction::Expansion { slot, expansion } => {
                 self.expansions.update(&slot, expansion);
                 Action::Idle
             }
-            GamepadMessage::Interaction(GamepadInteraction::ControllerDiscoveryExpansion(
-                expansion,
-            )) => {
+            GamepadInteraction::ControllerDiscoveryExpansion(expansion) => {
                 self.controller_discovery_expansion.update(expansion);
                 Action::Idle
             }
@@ -826,10 +828,7 @@ mod tests {
     }
 
     fn toggle_compositor_driving(group: &mut GamepadGroup, slot: usize) -> Action {
-        group.update(
-            GamepadMessage::Interaction(GamepadInteraction::ToggleCompositorDriving { slot }),
-            &GamepadBindingsConfig::default(),
-        )
+        group.interact(GamepadInteraction::ToggleCompositorDriving { slot })
     }
 
     fn spawned_command(action: Action) -> Vec<String> {

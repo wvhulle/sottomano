@@ -18,7 +18,6 @@ use sottomano_desktop_sources::{
         },
     },
 };
-use sottomano_toml_config::Config;
 use sottomano_widgets::{
     clock::Clock,
     widget_groups::tailnet_group::{TailnetGroup, TailnetInteraction, TailnetMessage},
@@ -37,7 +36,6 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
             Ok(Tailscale::Running(Box::new(home_tailnet(clock)))),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(10))),
         )),
-        &Config::default(),
         clock,
     );
     let _ = tailnet_group.update(
@@ -45,7 +43,6 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
             Ok(TailscaleExitNodes::Running(home_exit_nodes(clock))),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(10))),
         )),
-        &Config::default(),
         clock,
     );
     ShowcasedGroup::Tailnet(Box::new(tailnet_group))

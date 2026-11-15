@@ -215,6 +215,7 @@ pub enum WindowListInteraction {
     Drag(DragMessage),
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum Action {
     None,
     ToggleAudio(i32),

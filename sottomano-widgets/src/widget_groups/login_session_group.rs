@@ -60,7 +60,7 @@ pub enum LoginSessionBusRequest {
     Refresh(LoginSessionSource),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum LoginSessionInteraction {
     Expansion(WidgetGroupExpansionMessage),
     StartCompositorFetch,
@@ -87,7 +87,6 @@ pub enum LoginSessionMessage {
     ServiceManagerFetched(SnapshotDelivery<UserServiceManager>),
     GraphicalFetched(SnapshotDelivery<GraphicalSession>),
     GraphicalTargetFetched(SnapshotDelivery<GraphicalSessionTarget>),
-    Interaction(LoginSessionInteraction),
 }
 
 impl LoginSessionGroup {
@@ -148,7 +147,6 @@ impl LoginSessionGroup {
     pub fn update(
         &mut self,
         message: LoginSessionMessage,
-        config: &Config,
         clock: Clock,
     ) -> Task<LoginSessionMessage> {
         match message {
@@ -170,28 +168,36 @@ impl LoginSessionGroup {
             LoginSessionMessage::GraphicalTargetFetched(delivery) => {
                 self.graphical_target.receive(delivery, clock);
             }
-            LoginSessionMessage::Interaction(LoginSessionInteraction::Expansion(
-                expansion_message,
-            )) => {
+        }
+        Task::none()
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: LoginSessionInteraction,
+        config: &Config,
+        clock: Clock,
+    ) -> Task<LoginSessionMessage> {
+        match interaction {
+            LoginSessionInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
+                Task::none()
             }
-            LoginSessionMessage::Interaction(LoginSessionInteraction::StartCompositorFetch) => {
-                return self.graphical.start_hover_fetch(
-                    (),
-                    LoginSessionMessage::GraphicalFetched,
-                    config,
-                    clock,
-                );
-            }
-            LoginSessionMessage::Interaction(LoginSessionInteraction::StopHoverFetches) => {
+            LoginSessionInteraction::StartCompositorFetch => self.graphical.start_hover_fetch(
+                (),
+                LoginSessionMessage::GraphicalFetched,
+                config,
+                clock,
+            ),
+            LoginSessionInteraction::StopHoverFetches => {
                 self.session.stop();
                 self.service_manager.stop();
                 self.graphical.stop();
                 self.graphical_target.stop();
+                Task::none()
             }
-            LoginSessionMessage::Interaction(LoginSessionInteraction::OnBuses(_)) => {}
+            LoginSessionInteraction::OnBuses(_) => Task::none(),
         }
-        Task::none()
     }
 
     fn identity_items<'a>(

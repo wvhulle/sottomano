@@ -130,7 +130,7 @@ pub enum MediaMessage {
         handle: Option<IconHandle>,
     },
     ProgressAdvanced,
-    Interaction(MediaInteraction),
+    PlayerFallback(MediaInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -173,8 +173,8 @@ fn player_interaction(bus: &str, interaction: PlayerInteraction) -> MediaInterac
     }
 }
 
-fn player_message(bus: &str, interaction: PlayerInteraction) -> MediaMessage {
-    MediaMessage::Interaction(player_interaction(bus, interaction))
+fn player_fallback_message(bus: &str, interaction: PlayerInteraction) -> MediaMessage {
+    MediaMessage::PlayerFallback(player_interaction(bus, interaction))
 }
 
 fn lifted_to_player<'a>(
@@ -315,11 +315,19 @@ impl MediaGroup {
                     session.cover_art = Some(CoverArt { url, handle });
                 }
             }
-            MediaMessage::Interaction(MediaInteraction::Player { bus, interaction }) => {
-                return self.update_player(&bus, interaction, clock);
+            MediaMessage::PlayerFallback(fallback_interaction) => {
+                return self.interact(fallback_interaction, clock);
             }
         }
         Action::Run(Task::none())
+    }
+
+    pub fn interact(&mut self, interaction: MediaInteraction, clock: Clock) -> Action {
+        let MediaInteraction::Player {
+            bus,
+            interaction: player_interaction,
+        } = interaction;
+        self.update_player(&bus, player_interaction, clock)
     }
 
     fn follow_players(&mut self, now: Instant) {
@@ -623,7 +631,7 @@ fn seek_by(
             Ok(()) => Task::none(),
             Err(bus_failure) => {
                 tracing::warn!("mpris {bus}: seeking: {bus_failure}");
-                Task::done(player_message(
+                Task::done(player_fallback_message(
                     &bus,
                     PlayerInteraction::Seek(SeekMessage::Rejected),
                 ))
@@ -638,7 +646,7 @@ fn raise(media: &Media) -> Action {
     };
     Action::FocusAppWindow(AppWindowFocus {
         owner: WindowOwner::Process(pid),
-        unmatched: player_message(&media.bus, PlayerInteraction::RaiseByMpris),
+        unmatched: player_fallback_message(&media.bus, PlayerInteraction::RaiseByMpris),
     })
 }
 
@@ -708,8 +716,8 @@ mod tests {
             ],
             clock,
         );
-        let _ = group.update(
-            player_message(
+        let _ = group.interact(
+            player_interaction(
                 "org.mpris.MediaPlayer2.firefox",
                 PlayerInteraction::Expansion(WidgetGroupExpansionMessage::Toggle),
             ),

@@ -35,7 +35,7 @@ pub enum ClockSource {
     ZoneTime(Tz),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum ClockInteraction {
     Expansion(WidgetGroupExpansionMessage),
     Refresh(ClockSource),
@@ -54,7 +54,6 @@ pub enum ClockMessage {
     Time(SnapshotDelivery<LocalTime>),
     Date(SnapshotDelivery<LocalDate>),
     Zone(Tz, SnapshotDelivery<ZoneTime>),
-    Interaction(ClockInteraction),
 }
 
 impl ClockGroup {
@@ -69,14 +68,18 @@ impl ClockGroup {
             ClockMessage::Zone(zone, reading) => {
                 self.zone_time_mut(zone).receive(reading, clock);
             }
-            ClockMessage::Interaction(ClockInteraction::Expansion(expansion_message)) => {
-                self.expansion.update(expansion_message);
-            }
-            ClockMessage::Interaction(ClockInteraction::Refresh(source)) => {
-                return Self::refresh(source);
-            }
         }
         Task::none()
+    }
+
+    pub fn interact(&mut self, interaction: ClockInteraction) -> Task<ClockMessage> {
+        match interaction {
+            ClockInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+                Task::none()
+            }
+            ClockInteraction::Refresh(source) => Self::refresh(source),
+        }
     }
 
     pub fn subscription(

@@ -79,7 +79,6 @@ pub enum DriveMessage {
     DiskSpace(KernelDevice, Box<SnapshotDelivery<DiskSpaceOccupancy>>),
     DiskActivity(KernelDevice, SnapshotDelivery<DiskActivity>),
     DriveHealth(KernelDevice, SnapshotDelivery<DriveHealth>),
-    Interaction(DriveInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -172,12 +171,7 @@ impl PhysicalDriveGroup {
         }
     }
 
-    pub fn update(
-        &mut self,
-        msg: DriveMessage,
-        config: &Config,
-        clock: Clock,
-    ) -> Task<DriveMessage> {
+    pub fn update(&mut self, msg: DriveMessage, clock: Clock) -> Task<DriveMessage> {
         match msg {
             DriveMessage::Discovered(reading) => {
                 self.discovery.receive(reading, clock);
@@ -207,15 +201,25 @@ impl PhysicalDriveGroup {
                     readings.drive_health.receive(reading, clock);
                 }
             }
-            DriveMessage::Interaction(DriveInteraction::DiscoveryExpansion(expansion)) => {
+        }
+        Task::none()
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: DriveInteraction,
+        config: &Config,
+    ) -> Task<DriveMessage> {
+        match interaction {
+            DriveInteraction::DiscoveryExpansion(expansion) => {
                 self.discovery_expansion.update(expansion);
             }
-            DriveMessage::Interaction(DriveInteraction::DiskExpansion { disk, expansion }) => {
+            DriveInteraction::DiskExpansion { disk, expansion } => {
                 if let Some(readings) = self.disks.get_mut(&disk) {
                     readings.expansion.update(expansion);
                 }
             }
-            DriveMessage::Interaction(DriveInteraction::Refresh(source)) => {
+            DriveInteraction::Refresh(source) => {
                 return self.refresh(
                     &source,
                     &config.widget_groups.physical_drive.temperature_sensors,

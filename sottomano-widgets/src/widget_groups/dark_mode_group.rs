@@ -79,7 +79,7 @@ pub enum DarkModeMessage {
     LocationFix(SnapshotDelivery<Location>),
     SwitchDue,
     ModeToggle(ToggleMessage<DarkMode>),
-    Interaction(DarkModeInteraction),
+    OffsetPersisted(ColorMode, ControlMessage),
 }
 
 #[derive(Debug, Clone)]
@@ -192,6 +192,38 @@ impl DarkModeGroup {
         Task::batch([handled, self.rearm_switch(clock)])
     }
 
+    pub fn interact(
+        &mut self,
+        interaction: DarkModeInteraction,
+        clock: Clock,
+    ) -> Task<DarkModeMessage> {
+        let handled = self.handle_interaction(interaction);
+        Task::batch([handled, self.rearm_switch(clock)])
+    }
+
+    fn handle_interaction(&mut self, interaction: DarkModeInteraction) -> Task<DarkModeMessage> {
+        match interaction {
+            DarkModeInteraction::ModeTogglePressed => {
+                self.mode_toggle.press().map(DarkModeMessage::ModeToggle)
+            }
+            DarkModeInteraction::ToggleAutoSwitch => {
+                self.auto_switch_toggle.toggle_auto_switch();
+                self.persist_saved_schedule()
+            }
+            DarkModeInteraction::OffsetSlider(edge, control_message) => {
+                self.update_offset_slider(edge, control_message)
+            }
+            DarkModeInteraction::Expansion(expansion_message) => {
+                if self.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
+                    self.close_controls();
+                }
+                Task::none()
+            }
+            DarkModeInteraction::SwitchScheme(mode) => self.apply_color_mode(mode),
+            DarkModeInteraction::Refresh(source) => Self::refresh(source),
+        }
+    }
+
     fn handle(&mut self, msg: DarkModeMessage, clock: Clock) -> Task<DarkModeMessage> {
         match msg {
             DarkModeMessage::ScheduleLoaded(saved) => {
@@ -219,28 +251,8 @@ impl DarkModeGroup {
                 .mode_toggle
                 .update(m, clock)
                 .map(DarkModeMessage::ModeToggle),
-            DarkModeMessage::Interaction(DarkModeInteraction::ModeTogglePressed) => {
-                self.mode_toggle.press().map(DarkModeMessage::ModeToggle)
-            }
-            DarkModeMessage::Interaction(DarkModeInteraction::ToggleAutoSwitch) => {
-                self.auto_switch_toggle.toggle_auto_switch();
-                self.persist_saved_schedule()
-            }
-            DarkModeMessage::Interaction(DarkModeInteraction::OffsetSlider(
-                edge,
-                control_message,
-            )) => self.update_offset_slider(edge, control_message),
-            DarkModeMessage::Interaction(DarkModeInteraction::Expansion(expansion_message)) => {
-                if self.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
-                    self.close_controls();
-                }
-                Task::none()
-            }
-            DarkModeMessage::Interaction(DarkModeInteraction::SwitchScheme(mode)) => {
-                self.apply_color_mode(mode)
-            }
-            DarkModeMessage::Interaction(DarkModeInteraction::Refresh(source)) => {
-                Self::refresh(source)
+            DarkModeMessage::OffsetPersisted(edge, control_message) => {
+                self.update_offset_slider(edge, control_message)
             }
         }
     }
@@ -266,10 +278,10 @@ impl DarkModeGroup {
                     self.auto_switch_toggle.saved_schedule,
                 ))
                 .map(move |store_outcome| {
-                    DarkModeMessage::Interaction(DarkModeInteraction::OffsetSlider(
+                    DarkModeMessage::OffsetPersisted(
                         edge,
                         ControlMessage::persisted(value, store_outcome),
-                    ))
+                    )
                 })
             }
             Action::None | Action::Right | Action::Adjust(_) => Task::none(),

@@ -32,7 +32,7 @@ use sottomano_widgets::{
         group_menu_view::{GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard},
     },
     hover_cards::{
-        AnchorEvent, HoverCardHost, HoverCardMessage, HoverTarget, PointerPresence,
+        AnchorEvent, HoverCardHost, HoverCardMessage, HoverTarget, PointerPresence, PopupMessage,
         anchored_popup::PopupAppearances,
         hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent, HoverEffect},
         hover_card_transition::CardRetention,
@@ -46,6 +46,7 @@ use sottomano_widgets::{
     widget_groups::{
         appearance_presets_group::AppearancePresetsMessage, notification_group::AlertSound,
         quiet_schedule_group::quiet_window::QuietPhase,
+        widget_group_interaction::WidgetGroupInteraction,
     },
     widgets::{
         appearance_presets::ShellAppearance,
@@ -216,9 +217,78 @@ impl ShowcaseState {
 
     fn route_message(&mut self, message: ShowcaseMessage) -> Task<ShowcaseMessage> {
         match message {
-            ShowcaseMessage::HoverCard(HoverCardMessage::Anchor(AnchorEvent::LaidOut(
-                widget_anchor,
-            ))) => {
+            ShowcaseMessage::Interaction(interaction) => self.interact(interaction),
+            ShowcaseMessage::GroupMenuState(message) => self.update_group_menus(message),
+            ShowcaseMessage::HoverCardHideElapsed => {
+                let departing = self
+                    .hover_card
+                    .departure(|target| self.hover_content(target));
+                self.hover_card.leave_elapsed(self.clock.instant, departing);
+                Task::none()
+            }
+            ShowcaseMessage::Notification(message) => self.update_notification(message),
+            delivery => {
+                let _delivery_for_another_group = self.group.update(delivery, self.clock);
+                Task::none()
+            }
+        }
+    }
+
+    fn interact(&mut self, interaction: ShowcaseInteraction) -> Task<ShowcaseMessage> {
+        match interaction {
+            ShowcaseInteraction::Group(WidgetGroupInteraction::GroupMenus(message)) => {
+                self.update_group_menus(message)
+            }
+            ShowcaseInteraction::Group(group_interaction) => {
+                if let WidgetGroupInteraction::AppearancePresets(AppearancePresetsMessage::Apply(
+                    preset,
+                )) = &group_interaction
+                {
+                    self.appearance = preset.applied_to(self.appearance);
+                    self.theme =
+                        configured_theme(&scheme_palette(&self.config, self.appearance.scheme));
+                }
+                let _interaction_for_another_group =
+                    self.group
+                        .interact(group_interaction, &self.config, self.clock);
+                Task::none()
+            }
+            ShowcaseInteraction::Popup(popup_message) => self.update_popup(popup_message),
+            ShowcaseInteraction::Notification(message) => self.update_notification(message),
+            ShowcaseInteraction::OutsideShowcase => Task::none(),
+        }
+    }
+
+    fn update_popup(&mut self, popup_message: PopupMessage) -> Task<ShowcaseMessage> {
+        match popup_message {
+            PopupMessage::HoverCard(hover_card) => self.update_hover_card(hover_card),
+            PopupMessage::WindowGroup(window_interaction) => {
+                let _interaction_for_another_group = self.group.interact(
+                    WidgetGroupInteraction::WindowGroup(window_interaction),
+                    &self.config,
+                    self.clock,
+                );
+                Task::none()
+            }
+            PopupMessage::CopyText(_)
+            | PopupMessage::OpenUrl(_)
+            | PopupMessage::FocusWindow(_)
+            | PopupMessage::RefreshHoveredReading
+            | PopupMessage::ReleaseFromPanel(_) => Task::none(),
+        }
+    }
+
+    fn update_group_menus(&mut self, message: GroupMenuMessage) -> Task<ShowcaseMessage> {
+        if let GroupMenuMessage::InspectRow { instrument, .. } = &message {
+            self.schedule_hover_replies(&HoverTarget::Instrument(instrument.clone()));
+        }
+        let _menu_task = self.group_menus.update(message);
+        Task::none()
+    }
+
+    fn update_hover_card(&mut self, hover_card: HoverCardMessage) -> Task<ShowcaseMessage> {
+        match hover_card {
+            HoverCardMessage::Anchor(AnchorEvent::LaidOut(widget_anchor)) => {
                 let _hide_due = self.hover_card.remember_anchor(
                     SHOWCASE_OUTPUT,
                     widget_anchor,
@@ -226,18 +296,13 @@ impl ShowcaseState {
                 );
                 Task::none()
             }
-            ShowcaseMessage::HoverCard(HoverCardMessage::Anchor(AnchorEvent::Entered {
-                target,
-            })) => {
+            HoverCardMessage::Anchor(AnchorEvent::Entered { target }) => {
                 if self.hover_card.shown_retention() != CardRetention::UntilDismissed {
                     self.open_hover_card(target);
                 }
                 Task::none()
             }
-            ShowcaseMessage::HoverCard(HoverCardMessage::Anchor(AnchorEvent::HandlePointed {
-                target,
-                pointing,
-            })) => {
+            HoverCardMessage::Anchor(AnchorEvent::HandlePointed { target, pointing }) => {
                 self.hover_card
                     .set_handle_pointing(SHOWCASE_OUTPUT, &target, pointing);
                 if pointing == PointerPresence::PointedAt
@@ -248,9 +313,7 @@ impl ShowcaseState {
                 }
                 Task::none()
             }
-            ShowcaseMessage::HoverCard(HoverCardMessage::Anchor(AnchorEvent::HandlePressed {
-                target,
-            })) => {
+            HoverCardMessage::Anchor(AnchorEvent::HandlePressed { target }) => {
                 self.hover_card.set_handle_pointing(
                     SHOWCASE_OUTPUT,
                     &target,
@@ -263,50 +326,23 @@ impl ShowcaseState {
                 }
                 Task::none()
             }
-            ShowcaseMessage::HoverCard(HoverCardMessage::ShownWidgetDropped) => Task::done(
-                ShowcaseMessage::HoverCard(HoverCardMessage::ConfirmShownWidgetDropped),
-            ),
-            ShowcaseMessage::HoverCard(HoverCardMessage::ConfirmShownWidgetDropped) => {
+            HoverCardMessage::ShownWidgetDropped => Task::done(ShowcaseMessage::from(
+                ShowcaseInteraction::from(HoverCardMessage::ConfirmShownWidgetDropped),
+            )),
+            HoverCardMessage::ConfirmShownWidgetDropped => {
                 if self.hover_card.shown_widget_liveness() == WidgetLiveness::Dropped {
                     self.dismiss_hover_card();
                 }
                 Task::none()
             }
-            ShowcaseMessage::HoverCard(HoverCardMessage::DismissHeldOpen) => {
+            HoverCardMessage::DismissHeldOpen => {
                 if self.hover_card.shown_retention() == CardRetention::UntilDismissed {
                     self.close_held_open_card();
                 }
                 Task::none()
             }
-            ShowcaseMessage::HoverCard(message) => {
+            message => {
                 let _hide_due = self.hover_card.update(message, self.clock.instant);
-                Task::none()
-            }
-            ShowcaseMessage::GroupMenuState(message) => {
-                if let GroupMenuMessage::InspectRow { instrument, .. } = &message {
-                    self.schedule_hover_replies(&HoverTarget::Instrument(instrument.clone()));
-                }
-                let _menu_task = self.group_menus.update(message);
-                Task::none()
-            }
-            ShowcaseMessage::HoverCardHideElapsed => {
-                let departing = self
-                    .hover_card
-                    .departure(|target| self.hover_content(target));
-                self.hover_card.leave_elapsed(self.clock.instant, departing);
-                Task::none()
-            }
-            ShowcaseMessage::Notification(message) => self.update_notification(message),
-            ShowcaseMessage::AppearancePresets(AppearancePresetsMessage::Apply(preset)) => {
-                self.appearance = preset.applied_to(self.appearance);
-                self.theme =
-                    configured_theme(&scheme_palette(&self.config, self.appearance.scheme));
-                let _message_for_another_group =
-                    self.group.update(message, &self.config, self.clock);
-                Task::none()
-            }
-            other => {
-                let _message_for_another_group = self.group.update(other, &self.config, self.clock);
                 Task::none()
             }
         }
@@ -356,7 +392,9 @@ impl ShowcaseState {
         GroupMenuView::new(
             kind,
             &self.group_menus,
-            ShowcaseInteraction::GroupMenuState,
+            |menu_message| {
+                ShowcaseInteraction::Group(WidgetGroupInteraction::GroupMenus(menu_message))
+            },
             self.group.group_contents(&self.config, self.clock),
         )
     }

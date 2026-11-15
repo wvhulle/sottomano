@@ -92,7 +92,6 @@ pub enum PodmanEnginesMessage {
     Services(ScopedServiceCommands),
     Engine(PathBuf, SnapshotDelivery<EngineListing>),
     PowerChangeRefused(GuestPowerError),
-    Interaction(PodmanEnginesInteraction),
 }
 
 pub type PodmanEnginesInteraction = EngineContainerInteraction;
@@ -149,22 +148,25 @@ impl PodmanEnginesGroup {
             PodmanEnginesMessage::PowerChangeRefused(refusal) => {
                 tracing::warn!(%refusal, "podman container power change refused");
             }
-            PodmanEnginesMessage::Interaction(EngineContainerInteraction::SwitchContainer(
-                request,
-            )) => {
-                return container_switch_task(
-                    ContainerEngineApi::Libpod,
-                    request,
-                    PodmanEnginesMessage::PowerChangeRefused,
-                );
-            }
-            PodmanEnginesMessage::Interaction(EngineContainerInteraction::Expansion(
-                expansion_message,
-            )) => {
-                self.expansion.update(expansion_message);
-            }
         }
         Task::none()
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: PodmanEnginesInteraction,
+    ) -> Task<PodmanEnginesMessage> {
+        match interaction {
+            EngineContainerInteraction::SwitchContainer(request) => container_switch_task(
+                ContainerEngineApi::Libpod,
+                request,
+                PodmanEnginesMessage::PowerChangeRefused,
+            ),
+            EngineContainerInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+                Task::none()
+            }
+        }
     }
 
     fn running_container_rows<'a>(

@@ -109,7 +109,6 @@ pub enum TailnetMessage {
     ExitNodesDelivered(SnapshotDelivery<TailscaleExitNodes>),
     InboundAccessFetched(SnapshotDelivery<TailscaleInboundAccess>),
     PolicyFileFetched(SnapshotDelivery<TailscalePolicyFile>),
-    Interaction(TailnetInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -184,12 +183,7 @@ impl TailnetGroup {
         ])
     }
 
-    pub fn update(
-        &mut self,
-        message: TailnetMessage,
-        config: &Config,
-        clock: Clock,
-    ) -> Task<TailnetMessage> {
+    pub fn update(&mut self, message: TailnetMessage, clock: Clock) -> Task<TailnetMessage> {
         match message {
             TailnetMessage::Tailscale(delivery) => self.tailscale.receive(delivery, clock),
             TailnetMessage::ExitNodesDelivered(delivery) => {
@@ -201,30 +195,39 @@ impl TailnetGroup {
             TailnetMessage::PolicyFileFetched(delivery) => {
                 self.policy_file_access.receive(delivery, clock);
             }
-            TailnetMessage::Interaction(TailnetInteraction::Expansion(expansion_message)) => {
+        }
+        Task::none()
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: TailnetInteraction,
+        config: &Config,
+        clock: Clock,
+    ) -> Task<TailnetMessage> {
+        match interaction {
+            TailnetInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
-            TailnetMessage::Interaction(TailnetInteraction::SwitchTailscale(tailscale_switch)) => {
+            TailnetInteraction::SwitchTailscale(tailscale_switch) => {
                 return refreshed_after_switch(
                     format!("tailscale {tailscale_switch:?}"),
                     switch_tailscale(tailscale_switch),
                 );
             }
-            TailnetMessage::Interaction(TailnetInteraction::SwitchExitOffer(exit_offer_switch)) => {
+            TailnetInteraction::SwitchExitOffer(exit_offer_switch) => {
                 return refreshed_after_switch(
                     format!("tailscale exit offer {exit_offer_switch:?}"),
                     switch_exit_offer(exit_offer_switch),
                 );
             }
-            TailnetMessage::Interaction(TailnetInteraction::SwitchExitRouting(
-                exit_routing_switch,
-            )) => {
+            TailnetInteraction::SwitchExitRouting(exit_routing_switch) => {
                 return refreshed_after_switch(
                     format!("tailscale exit routing {exit_routing_switch:?}"),
                     switch_exit_routing(exit_routing_switch),
                 );
             }
-            TailnetMessage::Interaction(TailnetInteraction::OpenAdminConsole) => {
+            TailnetInteraction::OpenAdminConsole => {
                 use sottomano_desktop_sources::blocking_background_work::blocking;
                 return Task::future(blocking("tailscale admin", || {
                     if let Err(open_failure) = open_admin() {
@@ -233,7 +236,7 @@ impl TailnetGroup {
                 }))
                 .discard();
             }
-            TailnetMessage::Interaction(TailnetInteraction::StartInboundAccessFetch) => {
+            TailnetInteraction::StartInboundAccessFetch => {
                 return self.inbound_access.start_hover_fetch(
                     (),
                     TailnetMessage::InboundAccessFetched,
@@ -241,12 +244,12 @@ impl TailnetGroup {
                     clock,
                 );
             }
-            TailnetMessage::Interaction(TailnetInteraction::StopHoverFetches) => {
+            TailnetInteraction::StopHoverFetches => {
                 self.inbound_access.stop();
                 self.policy_file_access.stop_hover_fetch();
             }
-            TailnetMessage::Interaction(TailnetInteraction::Refresh) => return Self::refresh(),
-            TailnetMessage::Interaction(TailnetInteraction::OnBuses(_)) => {}
+            TailnetInteraction::Refresh => return Self::refresh(),
+            TailnetInteraction::OnBuses(_) => {}
         }
         Task::none()
     }
@@ -533,7 +536,6 @@ mod tests {
                     ExitNodeUse::Unused,
                 )),
             )))),
-            &Config::default(),
             Clock::real(),
         );
         running_group

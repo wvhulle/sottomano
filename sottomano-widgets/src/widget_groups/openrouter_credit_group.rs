@@ -62,7 +62,7 @@ pub enum OpenRouterCreditBusRequest {
     Refresh(OpenRouterCreditSource),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum OpenRouterCreditInteraction {
     Expansion(WidgetGroupExpansionMessage),
     OnBuses(OpenRouterCreditBusRequest),
@@ -81,7 +81,6 @@ pub enum OpenRouterCreditMessage {
     SoftBudget(SnapshotDelivery<OpenRouterSpend>),
     StrictBudget(SnapshotDelivery<OpenRouterStrictBudget>),
     ModelRankings(SnapshotDelivery<OpenRouterModelRankings>),
-    Interaction(OpenRouterCreditInteraction),
 }
 
 impl OpenRouterCreditGroup {
@@ -172,12 +171,19 @@ impl OpenRouterCreditGroup {
             OpenRouterCreditMessage::ModelRankings(reading) => {
                 self.model_rankings.receive(reading, clock);
             }
-            OpenRouterCreditMessage::Interaction(OpenRouterCreditInteraction::Expansion(
-                expansion_message,
-            )) => {
+        }
+        Task::none()
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: OpenRouterCreditInteraction,
+    ) -> Task<OpenRouterCreditMessage> {
+        match interaction {
+            OpenRouterCreditInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
-            OpenRouterCreditMessage::Interaction(OpenRouterCreditInteraction::OnBuses(_)) => {}
+            OpenRouterCreditInteraction::OnBuses(_) => {}
         }
         Task::none()
     }

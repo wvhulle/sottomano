@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use iced::{Task, window::Id};
 use sottomano_widgets::{
     group_menus::group_menu_state::{GroupMenuMessage, PanelRaise},
+    hover_cards::PopupMessage,
     notification_toasts::ToastContext,
     toast_messages::NotificationMessage,
     widget_groups::{
@@ -12,6 +13,7 @@ use sottomano_widgets::{
             QuietChange, QuietScheduleMessage, QuietUpdate, quiet_window::QuietPhase,
         },
         widget_group_content::GroupToastRequests,
+        widget_group_interaction::WidgetGroupInteraction,
     },
 };
 
@@ -29,23 +31,31 @@ pub(crate) enum AlertRescanNeed {
 
 pub(crate) fn alert_rescan_need(message: &Message) -> AlertRescanNeed {
     match message {
-        Message::HoverCard(_)
-        | Message::GroupMenuState(
-            GroupMenuMessage::InspectRow { .. }
-            | GroupMenuMessage::IntendRevealMenuGroup { .. }
-            | GroupMenuMessage::CancelRevealIntent { .. }
-            | GroupMenuMessage::RevealIntentElapsed
-            | GroupMenuMessage::RevealMenuGroup { .. }
-            | GroupMenuMessage::ToggleMenuGroup { .. }
-            | GroupMenuMessage::MenuScrolled { .. }
-            | GroupMenuMessage::ItemListScrolled { .. },
-        )
+        Message::GroupMenuState(menu_message)
+        | Message::Interaction(ShellInteraction::Group(WidgetGroupInteraction::GroupMenus(
+            menu_message,
+        ))) => menu_rescan_need(menu_message),
+        Message::Interaction(ShellInteraction::Popup(PopupMessage::HoverCard(_)))
         | Message::Redraw
         | Message::HoverCardFadeElapsed
         | Message::HoverCardHideElapsed
         | Message::PointerLeft
         | Message::SurfacePressed(_)
         | Message::TypingUnderCards(_) => AlertRescanNeed::Skips,
+        _ => AlertRescanNeed::Rescans,
+    }
+}
+
+fn menu_rescan_need(menu_message: &GroupMenuMessage) -> AlertRescanNeed {
+    match menu_message {
+        GroupMenuMessage::InspectRow { .. }
+        | GroupMenuMessage::IntendRevealMenuGroup { .. }
+        | GroupMenuMessage::CancelRevealIntent { .. }
+        | GroupMenuMessage::RevealIntentElapsed
+        | GroupMenuMessage::RevealMenuGroup { .. }
+        | GroupMenuMessage::ToggleMenuGroup { .. }
+        | GroupMenuMessage::MenuScrolled { .. }
+        | GroupMenuMessage::ItemListScrolled { .. } => AlertRescanNeed::Skips,
         _ => AlertRescanNeed::Rescans,
     }
 }

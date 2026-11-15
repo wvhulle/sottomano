@@ -79,7 +79,6 @@ pub enum JournalEventsMessage {
     ServiceErrors(SnapshotDelivery<ServiceErrors>),
     Coredumps(SnapshotDelivery<Vec<CoredumpEntry>>),
     OomKills(SnapshotDelivery<Vec<OomKillEntry>>),
-    Interaction(JournalEventsInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -204,19 +203,26 @@ impl JournalEventsGroup {
                     );
                 }
             }
-            JournalEventsMessage::Interaction(JournalEventsInteraction::OpenLog(journal)) => {
-                return journal.open();
-            }
-            JournalEventsMessage::Interaction(JournalEventsInteraction::Expansion(
+        }
+        Task::none()
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: JournalEventsInteraction,
+    ) -> Task<JournalEventsMessage> {
+        match interaction {
+            JournalEventsInteraction::OpenLog(journal) => return journal.open(),
+            JournalEventsInteraction::Expansion(
                 SystemdUnitScope::SystemWide,
                 expansion_message,
-            )) => {
+            ) => {
                 self.system_journal.expansion.update(expansion_message);
             }
-            JournalEventsMessage::Interaction(JournalEventsInteraction::Expansion(
+            JournalEventsInteraction::Expansion(
                 SystemdUnitScope::UserSession,
                 expansion_message,
-            )) => {
+            ) => {
                 self.user_journal.expansion.update(expansion_message);
             }
         }

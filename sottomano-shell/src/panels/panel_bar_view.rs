@@ -14,7 +14,7 @@ use sottomano_widgets::{
     hover_cards::HoverTarget,
     widget_groups::{
         panel_settings_group::PanelGroupFraming, sidebar_settings_group::WorkspacesPlacement,
-        workspaces_group::inline_strip,
+        widget_group_interaction::WidgetGroupInteraction, workspaces_group::inline_strip,
     },
 };
 
@@ -224,8 +224,13 @@ impl DesktopShell {
                 self.panel_slot_context(position),
             )
             .map(|element| {
-                element
-                    .map(|event| ShellInteraction::from(event.map(ShellInteraction::WindowGroup)))
+                element.map(|event| {
+                    ShellInteraction::from(event.map(|window_interaction| {
+                        ShellInteraction::Group(WidgetGroupInteraction::WindowGroup(
+                            window_interaction,
+                        ))
+                    }))
+                })
             })
     }
 }

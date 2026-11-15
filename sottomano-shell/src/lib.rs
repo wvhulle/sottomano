@@ -11,6 +11,7 @@ mod notification_updates;
 mod panels;
 mod pointer_drag;
 mod process_memory_report;
+mod shell_interactions;
 mod shell_message;
 mod sqlite_app_launches;
 mod widget_groups;

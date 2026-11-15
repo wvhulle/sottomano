@@ -6,8 +6,11 @@ use iced::{
 };
 use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
-    hover_cards::{AnchorEvent, HoverCardMessage, WidgetAnchor},
-    widget_groups::{window_group::WindowGroupInteraction, workspaces_group},
+    hover_cards::{AnchorEvent, HoverCardMessage, PopupMessage, WidgetAnchor},
+    widget_groups::{
+        widget_group_interaction::WidgetGroupInteraction, window_group::WindowGroupInteraction,
+        workspaces_group,
+    },
     widgets::pointer_drag::DraggedPanelSlot,
 };
 
@@ -24,8 +27,8 @@ fn anchor_hover_cards_on_surface(
     content: Element<'_, ShellInteraction>,
 ) -> Element<'_, ShellInteraction> {
     content.map(move |message| match message {
-        ShellInteraction::HoverCard(HoverCardMessage::Anchor(event)) => {
-            ShellInteraction::HoverCard(HoverCardMessage::OnSurface {
+        ShellInteraction::Popup(PopupMessage::HoverCard(HoverCardMessage::Anchor(event))) => {
+            ShellInteraction::from(HoverCardMessage::OnSurface {
                 surface,
                 position,
                 event: Box::new(match event {
@@ -96,7 +99,9 @@ impl DesktopShell {
                     slot_context,
                 )?
                 .map(|message| {
-                    ShellInteraction::WindowGroup(WindowGroupInteraction::WindowList(message))
+                    ShellInteraction::Group(WidgetGroupInteraction::WindowGroup(
+                        WindowGroupInteraction::WindowList(message),
+                    ))
                 }),
         };
         let placement = match drag.item {

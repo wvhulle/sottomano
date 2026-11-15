@@ -122,7 +122,6 @@ pub enum VoiceDictationMessage {
     OutputProblems(SnapshotDelivery<NotulistOutputProblems>),
     ModelCardFetched(SnapshotDelivery<HuggingFaceModelCard>),
     Runtime(UnitSwitchMessage),
-    Interaction(VoiceDictationInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -213,7 +212,6 @@ impl VoiceDictationGroup {
     pub fn update(
         &mut self,
         msg: VoiceDictationMessage,
-        config: &Config,
         clock: Clock,
     ) -> Task<VoiceDictationMessage> {
         match msg {
@@ -245,36 +243,40 @@ impl VoiceDictationGroup {
                 .runtime
                 .update(message, clock)
                 .map(VoiceDictationMessage::Runtime),
-            VoiceDictationMessage::Interaction(VoiceDictationInteraction::ToggleRecording) => {
-                logged_failure_task(
-                    "notulist toggle recording".to_owned(),
-                    send_dictation_command(DictationCommand::Toggle),
-                )
-            }
-            VoiceDictationMessage::Interaction(VoiceDictationInteraction::RuntimePressed) => {
+        }
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: VoiceDictationInteraction,
+        config: &Config,
+        clock: Clock,
+    ) -> Task<VoiceDictationMessage> {
+        match interaction {
+            VoiceDictationInteraction::ToggleRecording => logged_failure_task(
+                "notulist toggle recording".to_owned(),
+                send_dictation_command(DictationCommand::Toggle),
+            ),
+            VoiceDictationInteraction::RuntimePressed => {
                 self.runtime.press().map(VoiceDictationMessage::Runtime)
             }
-            VoiceDictationMessage::Interaction(VoiceDictationInteraction::Expansion(
-                expansion_message,
-            )) => {
+            VoiceDictationInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }
-            VoiceDictationMessage::Interaction(VoiceDictationInteraction::StartModelCardFetch(
-                repository,
-            )) => self.model_card.start_hover_fetch(
-                repository,
-                VoiceDictationMessage::ModelCardFetched,
-                config,
-                clock,
-            ),
-            VoiceDictationMessage::Interaction(VoiceDictationInteraction::StopHoverFetches) => {
+            VoiceDictationInteraction::StartModelCardFetch(repository) => {
+                self.model_card.start_hover_fetch(
+                    repository,
+                    VoiceDictationMessage::ModelCardFetched,
+                    config,
+                    clock,
+                )
+            }
+            VoiceDictationInteraction::StopHoverFetches => {
                 self.model_card.stop();
                 Task::none()
             }
-            VoiceDictationMessage::Interaction(VoiceDictationInteraction::OnBuses(_)) => {
-                Task::none()
-            }
+            VoiceDictationInteraction::OnBuses(_) => Task::none(),
         }
     }
 

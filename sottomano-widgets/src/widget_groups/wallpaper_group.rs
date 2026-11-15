@@ -36,7 +36,6 @@ pub struct WallpaperGroup {
 #[derive(Debug)]
 pub enum WallpaperMessage {
     Lookup(Box<SnapshotDelivery<Lookup>>),
-    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WallpaperGroup {
@@ -68,12 +67,16 @@ impl WallpaperGroup {
     }
 
     pub fn update(&mut self, message: WallpaperMessage, clock: Clock) -> Task<WallpaperMessage> {
-        match message {
-            WallpaperMessage::Lookup(delivery) => self.lookup.receive(*delivery, clock),
-            WallpaperMessage::Expansion(expansion_message) => {
-                self.expansion.update(expansion_message);
-            }
-        }
+        let WallpaperMessage::Lookup(delivery) = message;
+        self.lookup.receive(*delivery, clock);
+        Task::none()
+    }
+
+    pub fn interact(
+        &mut self,
+        expansion_message: WidgetGroupExpansionMessage,
+    ) -> Task<WallpaperMessage> {
+        self.expansion.update(expansion_message);
         Task::none()
     }
 

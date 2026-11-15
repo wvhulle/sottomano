@@ -54,7 +54,6 @@ pub struct CaldavGroup {
 pub enum CaldavMessage {
     UpcomingEvents(Box<SnapshotDelivery<UpcomingEventList>>),
     OpenTasks(Box<SnapshotDelivery<OpenTaskList>>),
-    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl CaldavGroup {
@@ -113,10 +112,15 @@ impl CaldavGroup {
                 self.upcoming_events.receive(*delivery, clock);
             }
             CaldavMessage::OpenTasks(delivery) => self.open_tasks.receive(*delivery, clock),
-            CaldavMessage::Expansion(expansion_message) => {
-                self.expansion.update(expansion_message);
-            }
         }
+        Task::none()
+    }
+
+    pub fn interact(
+        &mut self,
+        expansion_message: WidgetGroupExpansionMessage,
+    ) -> Task<CaldavMessage> {
+        self.expansion.update(expansion_message);
         Task::none()
     }
 

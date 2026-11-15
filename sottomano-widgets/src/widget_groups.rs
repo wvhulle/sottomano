@@ -67,6 +67,7 @@ pub mod waydroid_container_group;
 pub mod weather_group;
 pub mod widget_group_content;
 pub mod widget_group_identity;
+pub mod widget_group_interaction;
 pub mod wifi_adapters_group;
 pub mod window_group;
 pub mod wireguard_tunnels_group;

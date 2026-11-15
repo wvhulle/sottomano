@@ -1,7 +1,8 @@
 use std::iter::once;
 
-use sottomano_widgets::group_menus::{
-    group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView,
+use sottomano_widgets::{
+    group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
+    widget_groups::widget_group_interaction::WidgetGroupInteraction,
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};
@@ -13,12 +14,12 @@ impl DesktopShell {
             .idle_pause_groups
             .pause_groups(&self.config, self.clock)
             .into_iter()
-            .map(|group| group.map(ShellInteraction::IdleTimeouts));
+            .map(|group| group.map(WidgetGroupInteraction::IdleTimeouts));
         let login_session = self
             .widget_groups
             .login_session_group
             .group_content()
-            .map(ShellInteraction::LoginSession);
+            .map(WidgetGroupInteraction::LoginSession);
         self.group_menu(
             GroupMenuTopic::Session,
             pause_groups.chain(once(login_session)),

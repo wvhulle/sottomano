@@ -74,7 +74,7 @@ pub enum MonitorMessage {
     Backlights(SnapshotDelivery<Vec<Backlight>>),
     BacklightsReread(Vec<Backlight>),
     AutoBrightness(ToggleMessage<AutoBrightness>),
-    Interaction(MonitorInteraction),
+    BacklightCommitted(String, ControlMessage),
 }
 
 #[derive(Debug, Clone)]
@@ -135,22 +135,30 @@ impl MonitorGroup {
                 .clight
                 .update(m, clock)
                 .map(MonitorMessage::AutoBrightness),
-            MonitorMessage::Interaction(MonitorInteraction::Expansion(
-                WidgetGroupExpansionMessage::HandleScrolled(delta),
-            )) => self.scroll_all_backlights(delta),
-            MonitorMessage::Interaction(MonitorInteraction::Expansion(expansion_message)) => {
+            MonitorMessage::BacklightCommitted(serial, control_message) => {
+                self.update_backlight(serial, control_message)
+            }
+        }
+    }
+
+    pub fn interact(&mut self, interaction: MonitorInteraction) -> Task<MonitorMessage> {
+        match interaction {
+            MonitorInteraction::Expansion(WidgetGroupExpansionMessage::HandleScrolled(delta)) => {
+                self.scroll_all_backlights(delta)
+            }
+            MonitorInteraction::Expansion(expansion_message) => {
                 if self.expansion.update(expansion_message) == ExpansionChange::JustCollapsed {
                     self.close_controls();
                 }
                 Task::none()
             }
-            MonitorMessage::Interaction(MonitorInteraction::Backlight(serial, control_message)) => {
+            MonitorInteraction::Backlight(serial, control_message) => {
                 self.update_backlight(serial, control_message)
             }
-            MonitorMessage::Interaction(MonitorInteraction::AutoBrightnessPressed) => {
+            MonitorInteraction::AutoBrightnessPressed => {
                 self.clight.press().map(MonitorMessage::AutoBrightness)
             }
-            MonitorMessage::Interaction(MonitorInteraction::OnBuses(_)) => Task::none(),
+            MonitorInteraction::OnBuses(_) => Task::none(),
         }
     }
 
@@ -209,10 +217,7 @@ impl MonitorGroup {
                     clightd_backlight_writes::set(set_serial, as_percent(value)),
                 )
                 .map(move |control_message| {
-                    MonitorMessage::Interaction(MonitorInteraction::Backlight(
-                        serial.clone(),
-                        control_message,
-                    ))
+                    MonitorMessage::BacklightCommitted(serial.clone(), control_message)
                 })
             }
             Action::None | Action::Right | Action::Adjust(_) if write_settled => Task::perform(

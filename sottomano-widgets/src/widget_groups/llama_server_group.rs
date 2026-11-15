@@ -86,7 +86,6 @@ pub enum LlamaServerMessage {
     ModelPropsFetched(SnapshotDelivery<LlamaModelProps>),
     GgufCardRead(SnapshotDelivery<GgufModelCard>),
     BaseModelCardFetched(SnapshotDelivery<HuggingFaceModelCard>),
-    Interaction(LlamaServerInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -196,22 +195,32 @@ impl LlamaServerGroup {
                 self.base_model_card.receive(delivery, clock);
                 Task::none()
             }
-            LlamaServerMessage::Interaction(LlamaServerInteraction::User(interaction)) => self
+        }
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: LlamaServerInteraction,
+        config: &Config,
+        clock: Clock,
+    ) -> Task<LlamaServerMessage> {
+        match interaction {
+            LlamaServerInteraction::User(scoped_interaction) => self
                 .user
-                .interact(interaction)
+                .interact(scoped_interaction)
                 .map(LlamaServerMessage::User),
-            LlamaServerMessage::Interaction(LlamaServerInteraction::System(interaction)) => self
+            LlamaServerInteraction::System(scoped_interaction) => self
                 .system
-                .interact(interaction)
+                .interact(scoped_interaction)
                 .map(LlamaServerMessage::System),
-            LlamaServerMessage::Interaction(LlamaServerInteraction::Expansion(message)) => {
-                self.expansion.update(message);
+            LlamaServerInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
                 Task::none()
             }
-            LlamaServerMessage::Interaction(LlamaServerInteraction::StartModelFetches(
-                served_model,
-            )) => self.start_model_fetches(&served_model, config, clock),
-            LlamaServerMessage::Interaction(LlamaServerInteraction::StopHoverFetches) => {
+            LlamaServerInteraction::StartModelFetches(served_model) => {
+                self.start_model_fetches(&served_model, config, clock)
+            }
+            LlamaServerInteraction::StopHoverFetches => {
                 self.stop_hover_fetches();
                 Task::none()
             }

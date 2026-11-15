@@ -1,5 +1,6 @@
-use sottomano_widgets::group_menus::{
-    group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView,
+use sottomano_widgets::{
+    group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
+    widget_groups::widget_group_interaction::WidgetGroupInteraction,
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};
@@ -11,36 +12,36 @@ impl DesktopShell {
             self.widget_groups
                 .power_group
                 .group_content(config, self.clock)
-                .map(ShellInteraction::Power),
+                .map(WidgetGroupInteraction::Power),
             self.widget_groups
                 .compute_group
                 .group_content(self.clock, self.config.calendar.locale)
-                .map(ShellInteraction::Compute),
+                .map(WidgetGroupInteraction::Compute),
             self.widget_groups
                 .memory_board_group
                 .group_content(self.clock, self.config.calendar.locale)
-                .map(ShellInteraction::MemoryBoard),
+                .map(WidgetGroupInteraction::MemoryBoard),
         ]
         .into_iter()
         .chain(
             self.widget_groups
                 .gpu_group
                 .group_contents(self.clock)
-                .map(|group| group.map(ShellInteraction::Gpu)),
+                .map(|group| group.map(WidgetGroupInteraction::Gpu)),
         )
         .chain(
             self.widget_groups
                 .storage_space_group
                 .group_contents(self.clock, self.config.calendar.locale)
                 .into_iter()
-                .map(|group| group.map(ShellInteraction::Storage)),
+                .map(|group| group.map(WidgetGroupInteraction::Storage)),
         )
         .chain(
             self.widget_groups
                 .physical_drive_group
                 .group_contents(self.clock, self.config.calendar.locale)
                 .into_iter()
-                .map(|group| group.map(ShellInteraction::Drive)),
+                .map(|group| group.map(WidgetGroupInteraction::Drive)),
         );
         self.group_menu(GroupMenuTopic::Hardware, groups)
     }

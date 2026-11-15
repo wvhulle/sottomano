@@ -95,7 +95,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             iced::Event::Keyboard(KeyboardEvent::KeyPressed {
                 key: Key::Named(Named::Escape),
                 ..
-            }) => Some(Message::HoverCard(HoverCardMessage::DismissHeldOpen)),
+            }) => Some(Message::from(HoverCardMessage::DismissHeldOpen)),
             _ => None,
         }),
         Subscription::run(desktop_entry_changes::application_changes)

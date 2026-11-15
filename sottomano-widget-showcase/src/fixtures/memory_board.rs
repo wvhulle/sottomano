@@ -12,7 +12,7 @@ use sottomano_desktop_sources::{
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
-use sottomano_toml_config::{Config, severity::Severity};
+use sottomano_toml_config::severity::Severity;
 use sottomano_widgets::{
     clock::Clock,
     widget_groups::memory_board_group::{
@@ -39,11 +39,10 @@ const GROWING_TICK: u32 = 2;
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = MemoryBoardGroup::default();
     for message in memory_readings(0) {
-        let _ = group.update(message, &Config::default(), clock);
+        let _ = group.update(message, clock);
     }
     let _ = group.update(
         MemoryBoardMessage::Hardware(host_hardware::ryzen_workstation_delivery()),
-        &Config::default(),
         clock,
     );
     ShowcasedGroup::MemoryBoard(Box::new(group))

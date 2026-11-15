@@ -38,9 +38,9 @@ impl DesktopShell {
                 position,
                 event,
             } => self.on_surface_event(surface, position, *event),
-            HoverCardMessage::ShownWidgetDropped => Task::done(Message::HoverCard(
-                HoverCardMessage::ConfirmShownWidgetDropped,
-            )),
+            HoverCardMessage::ShownWidgetDropped => {
+                Task::done(Message::from(HoverCardMessage::ConfirmShownWidgetDropped))
+            }
             HoverCardMessage::ConfirmShownWidgetDropped => {
                 if self.hover_card.shown_widget_liveness() == WidgetLiveness::Dropped {
                     self.dismiss_hover_card()
@@ -104,7 +104,7 @@ impl DesktopShell {
                 };
                 if let Some(intent_elapsed) = self.hover_card.defer_switch(&parent, &target) {
                     tracing::trace!(target: HOVER_LOG_TARGET, ?target, ?position, "deferred switch");
-                    return intent_elapsed.map(Message::HoverCard);
+                    return intent_elapsed.map(Message::from);
                 }
                 tracing::trace!(target: HOVER_LOG_TARGET, ?target, ?position, "opened");
                 self.hover_card.open(&parent, target);

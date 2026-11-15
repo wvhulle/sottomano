@@ -64,7 +64,7 @@ pub enum WeatherBusRequest {
     Refresh(WeatherSource),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum WeatherInteraction {
     Expansion(WidgetGroupExpansionMessage),
     RefreshLocation,
@@ -90,7 +90,6 @@ pub enum WeatherMessage {
     PrecipitationModel(SnapshotDelivery<PrecipitationModel>),
     Pollen(SnapshotDelivery<Pollen>),
     Location(SnapshotDelivery<Location>),
-    Interaction(WeatherInteraction),
 }
 
 impl WeatherGroup {
@@ -139,13 +138,19 @@ impl WeatherGroup {
             WeatherMessage::Location(reading) => {
                 self.location.receive(reading, clock);
             }
-            WeatherMessage::Interaction(WeatherInteraction::Expansion(expansion_message)) => {
+        }
+        Task::none()
+    }
+
+    pub fn interact(&mut self, interaction: WeatherInteraction) -> Task<WeatherMessage> {
+        match interaction {
+            WeatherInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
-            WeatherMessage::Interaction(WeatherInteraction::RefreshLocation) => {
+            WeatherInteraction::RefreshLocation => {
                 return first_delivery::<Location>(()).map(WeatherMessage::Location);
             }
-            WeatherMessage::Interaction(WeatherInteraction::OnBuses(_)) => {}
+            WeatherInteraction::OnBuses(_) => {}
         }
         Task::none()
     }

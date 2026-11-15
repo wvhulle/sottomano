@@ -59,7 +59,7 @@ pub enum CopilotUsageBusRequest {
     Refresh(CopilotAccountSource),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum CopilotUsageInteraction {
     Expansion(WidgetGroupExpansionMessage),
     RefreshCli,
@@ -79,7 +79,6 @@ pub enum CopilotUsageMessage {
     Metered(SnapshotDelivery<CopilotMetered>),
     Free(SnapshotDelivery<CopilotFree>),
     Cli(SnapshotDelivery<CopilotCcusage>),
-    Interaction(CopilotUsageInteraction),
 }
 
 impl CopilotUsageGroup {
@@ -145,26 +144,33 @@ impl CopilotUsageGroup {
     pub fn update(
         &mut self,
         message: CopilotUsageMessage,
-        config: &Config,
-        working_days: WeekdaySet,
         clock: Clock,
     ) -> Task<CopilotUsageMessage> {
         match message {
             CopilotUsageMessage::Metered(reading) => self.metered.receive(reading, clock),
             CopilotUsageMessage::Free(reading) => self.free.receive(reading, clock),
             CopilotUsageMessage::Cli(reading) => self.cli.receive(reading, clock),
-            CopilotUsageMessage::Interaction(CopilotUsageInteraction::Expansion(
-                expansion_message,
-            )) => {
-                self.expansion.update(expansion_message);
-            }
-            CopilotUsageMessage::Interaction(CopilotUsageInteraction::RefreshCli) => {
-                return first_delivery::<CopilotCcusage>(cli_budget(config, working_days))
-                    .map(CopilotUsageMessage::Cli);
-            }
-            CopilotUsageMessage::Interaction(CopilotUsageInteraction::OnBuses(_)) => {}
         }
         Task::none()
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: CopilotUsageInteraction,
+        config: &Config,
+        working_days: WeekdaySet,
+    ) -> Task<CopilotUsageMessage> {
+        match interaction {
+            CopilotUsageInteraction::Expansion(expansion_message) => {
+                self.expansion.update(expansion_message);
+                Task::none()
+            }
+            CopilotUsageInteraction::RefreshCli => {
+                first_delivery::<CopilotCcusage>(cli_budget(config, working_days))
+                    .map(CopilotUsageMessage::Cli)
+            }
+            CopilotUsageInteraction::OnBuses(_) => Task::none(),
+        }
     }
 
     fn model_ranking(&self) -> Option<ModelSpendRanking<'_, 1>> {

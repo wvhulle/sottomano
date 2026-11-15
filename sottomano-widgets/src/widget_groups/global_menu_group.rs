@@ -204,7 +204,6 @@ pub enum GlobalMenuMessage {
     RegistrationsChanged(Vec<RegisteredMenuBar>),
     MenuBarChanged(FocusedMenuBar),
     SubmenusPrepared,
-    Interaction(GlobalMenuInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -401,7 +400,12 @@ impl GlobalMenuGroup {
                 Action::None
             }
             GlobalMenuMessage::SubmenusPrepared => Action::None,
-            GlobalMenuMessage::Interaction(GlobalMenuInteraction::ToggleUse) => {
+        }
+    }
+
+    pub fn interact(&mut self, interaction: GlobalMenuInteraction) -> Action {
+        match interaction {
+            GlobalMenuInteraction::ToggleUse => {
                 self.global_menu_use = self.global_menu_use.toggled();
                 if self.global_menu_use == GlobalMenuUse::Disabled {
                     self.registered_menu_bars.clear();
@@ -413,22 +417,18 @@ impl GlobalMenuGroup {
                     sqlite_singleton_flag::save(self.global_menu_use),
                 ))
             }
-            GlobalMenuMessage::Interaction(GlobalMenuInteraction::Expansion {
+            GlobalMenuInteraction::Expansion {
                 top_menu_label,
                 expansion_message,
-            }) => {
+            } => {
                 self.expansions.update(&top_menu_label, expansion_message);
                 Action::None
             }
-            GlobalMenuMessage::Interaction(GlobalMenuInteraction::SwitchExpansion(
-                expansion_message,
-            )) => {
+            GlobalMenuInteraction::SwitchExpansion(expansion_message) => {
                 self.switch_expansion.update(expansion_message);
                 Action::None
             }
-            GlobalMenuMessage::Interaction(GlobalMenuInteraction::ItemPressed(item_id)) => {
-                self.item_activation(item_id)
-            }
+            GlobalMenuInteraction::ItemPressed(item_id) => self.item_activation(item_id),
         }
     }
 
@@ -722,9 +722,7 @@ mod tests {
     fn switched_off_group_shows_nothing() {
         let mut group =
             enabled_group_showing(MenuActivationRoute::DbusMenu(qt_menu_bar_location()));
-        let _ = group.update(GlobalMenuMessage::Interaction(
-            GlobalMenuInteraction::ToggleUse,
-        ));
+        let _ = group.interact(GlobalMenuInteraction::ToggleUse);
         assert_eq!(group.global_menu_use(), GlobalMenuUse::Disabled);
         assert!(group.group_contents().is_empty());
         assert!(!group.shows_top_menus());
@@ -743,9 +741,7 @@ mod tests {
         let mut group =
             enabled_group_showing(MenuActivationRoute::DbusMenu(qt_menu_bar_location()));
         assert!(matches!(
-            group.update(GlobalMenuMessage::Interaction(
-                GlobalMenuInteraction::ItemPressed(QUIT_ITEM_ID),
-            )),
+            group.interact(GlobalMenuInteraction::ItemPressed(QUIT_ITEM_ID)),
             Action::Activate(GlobalMenuRequest::ClickDbusMenuItem {
                 item_id: QUIT_ITEM_ID,
                 ..
@@ -756,10 +752,8 @@ mod tests {
     #[test]
     fn pressing_a_gtk_entry_activates_its_action() {
         let mut group = enabled_group_showing(gtk_quit_route());
-        let Action::Activate(GlobalMenuRequest::ActivateGtkAction { activation, .. }) = group
-            .update(GlobalMenuMessage::Interaction(
-                GlobalMenuInteraction::ItemPressed(QUIT_ITEM_ID),
-            ))
+        let Action::Activate(GlobalMenuRequest::ActivateGtkAction { activation, .. }) =
+            group.interact(GlobalMenuInteraction::ItemPressed(QUIT_ITEM_ID))
         else {
             panic!("the quit entry activates a gtk action");
         };

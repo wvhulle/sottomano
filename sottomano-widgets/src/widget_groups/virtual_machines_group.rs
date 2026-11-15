@@ -239,7 +239,6 @@ pub enum VirtualMachinesMessage {
     WindowNotFound(i32),
     PowerChangeAccepted(String),
     PowerChangeRefused(GuestPowerError),
-    Interaction(VirtualMachinesInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -326,24 +325,27 @@ impl VirtualMachinesGroup {
                 tracing::warn!(%failure, "virtual machine power change refused");
                 Action::Run(Task::none())
             }
-            VirtualMachinesMessage::Interaction(VirtualMachinesInteraction::Expansion(
-                expansion_message,
-            )) => {
+        }
+    }
+
+    pub fn interact(&mut self, interaction: VirtualMachinesInteraction) -> Action {
+        match interaction {
+            VirtualMachinesInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
                 Action::Run(Task::none())
             }
-            VirtualMachinesMessage::Interaction(VirtualMachinesInteraction::FocusWindow(pid)) => {
+            VirtualMachinesInteraction::FocusWindow(pid) => {
                 Action::FocusAppWindow(AppWindowFocus {
                     owner: WindowOwner::Process(pid.unsigned_abs()),
                     unmatched: VirtualMachinesMessage::WindowNotFound(pid),
                 })
             }
-            VirtualMachinesMessage::Interaction(VirtualMachinesInteraction::PowerOff(
-                power_control,
-            )) => Action::Run(power_off_task(power_control)),
-            VirtualMachinesMessage::Interaction(VirtualMachinesInteraction::PowerOn(
-                domain_name,
-            )) => Action::Run(power_on_task(domain_name)),
+            VirtualMachinesInteraction::PowerOff(power_control) => {
+                Action::Run(power_off_task(power_control))
+            }
+            VirtualMachinesInteraction::PowerOn(domain_name) => {
+                Action::Run(power_on_task(domain_name))
+            }
         }
     }
 

@@ -46,7 +46,6 @@ pub struct NetworkManagerVpnGroup {
 #[derive(Debug)]
 pub enum NetworkManagerVpnMessage {
     NetworkManagerVpns(SnapshotDelivery<NetworkManagerVpns>),
-    Interaction(NetworkManagerVpnInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -91,21 +90,23 @@ impl NetworkManagerVpnGroup {
                 self.network_manager_vpns.receive(delivery, clock);
                 Task::none()
             }
-            NetworkManagerVpnMessage::Interaction(NetworkManagerVpnInteraction::Expansion(
-                expansion_message,
-            )) => {
+        }
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: NetworkManagerVpnInteraction,
+    ) -> Task<NetworkManagerVpnMessage> {
+        match interaction {
+            NetworkManagerVpnInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }
-            NetworkManagerVpnMessage::Interaction(NetworkManagerVpnInteraction::SwitchVpn(
-                vpn_switch,
-            )) => logged_failure_task(
+            NetworkManagerVpnInteraction::SwitchVpn(vpn_switch) => logged_failure_task(
                 format!("NetworkManager VPN {vpn_switch:?}"),
                 switch_nm_connection(vpn_switch),
             ),
-            NetworkManagerVpnMessage::Interaction(NetworkManagerVpnInteraction::OnBuses(_)) => {
-                Task::none()
-            }
+            NetworkManagerVpnInteraction::OnBuses(_) => Task::none(),
         }
     }
 

@@ -17,9 +17,7 @@ use iced::{
 };
 use iced_controller_diagram::ControllerArtwork;
 use sottomano_desktop_sinks::{
-    compositor_window_requests::{
-        compositor_requests::CompositorRequest, compositor_rule_files::CompositorRulesFile,
-    },
+    compositor_window_requests::compositor_rule_files::CompositorRulesFile,
     desktop_notifications::alert_sound_player::SoundTheme,
 };
 use sottomano_desktop_sources::{
@@ -36,15 +34,12 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::{Config, ConfigFile, LoadError, SecretPaths, screen_edges::Position};
 use sottomano_widgets::{
-    background_work::{compositor_request, copy_to_clipboard},
     clock::Clock,
     desktop_index::DesktopIndex,
     group_items::group_item::HoverFetch,
     group_menus::{
         cascading_layout::popup_growth::growth_away_from,
-        group_menu_state::{
-            GroupMenuMessage, GroupMenuTopic, OpenGroupMenu, PanelPin, PanelPinDuration,
-        },
+        group_menu_state::{GroupMenuMessage, GroupMenuTopic, OpenGroupMenu},
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
     },
     hover_cards::{
@@ -55,9 +50,9 @@ use sottomano_widgets::{
         NotificationLayer, ToastSurfaceStyle, toast_updates::StoppedChangeWatch,
     },
     widget_groups::{
-        appearance_presets_group::AppearancePresetsMessage,
         idle_pause_groups::IdlePauseMessage,
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
+        widget_group_interaction::WidgetGroupInteraction,
     },
     widgets::{
         configured_theme::configured_theme,
@@ -277,15 +272,6 @@ impl DesktopShell {
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
             Message::QuietSchedule(msg) => self.update_quiet_schedule(msg),
             Message::Session(msg) => self.update_session(msg),
-            Message::AppearancePresets(AppearancePresetsMessage::Apply(preset)) => {
-                self.widget_groups.apply_appearance_preset(preset)
-            }
-            Message::AppearancePresets(AppearancePresetsMessage::Expansion(expansion)) => {
-                self.widget_groups
-                    .appearance_presets_group
-                    .update_expansion(expansion);
-                Task::none()
-            }
             Message::Media(msg) => self.update_media(msg),
             Message::Tray(msg) => self.update_tray(msg),
             Message::GlobalMenu(msg) => self.update_global_menu(msg),
@@ -300,30 +286,8 @@ impl DesktopShell {
                 .idle_pause_groups
                 .update(msg, self.clock)
                 .map(Message::IdleTimeouts),
-            Message::GroupMenuState(msg) => self
-                .widget_groups
-                .group_menus
-                .update(msg)
-                .map(Message::GroupMenuState),
-            Message::ReleaseFromPanel(PanelPin {
-                menu,
-                entry,
-                duration,
-            }) => {
-                let release = match duration {
-                    PanelPinDuration::Permanent => GroupMenuMessage::TogglePin { menu, entry },
-                    PanelPinDuration::UntilAlertEnds => {
-                        GroupMenuMessage::DismissAlertPin { menu, entry }
-                    }
-                };
-                Task::batch([
-                    self.dismiss_hover_card(),
-                    self.widget_groups
-                        .group_menus
-                        .update(release)
-                        .map(Message::GroupMenuState),
-                ])
-            }
+            Message::GroupMenuState(msg) => self.update_group_menus(msg),
+            Message::Interaction(interaction) => self.interact(interaction),
             Message::SoundThemeLoaded(theme) => {
                 self.notifications.adopt_sound_theme(theme);
                 Task::none()
@@ -334,16 +298,8 @@ impl DesktopShell {
             }
             Message::ConfigLoaded(Ok(config)) => self.adopt_config(*config),
             Message::ConfigLoaded(Err(error)) => self.reject_config(&error),
-            Message::DismissPressed => {
-                self.widget_groups.collapse_when_auto_collapsing();
-                Task::none()
-            }
             Message::Compositor(update) => self.apply_compositor_update(update),
             Message::WindowClosed(window) => self.forget_window(window),
-            Message::SidebarWidthChanged { window, width } => {
-                self.update_sidebar_width(window, width)
-            }
-            Message::HoverCard(msg) => self.update_hover_card(msg),
             Message::PointerLeft => {
                 self.pointer_drag = ShellDrag::Idle;
                 self.leave_hover_card()
@@ -392,17 +348,6 @@ impl DesktopShell {
                 tracing::warn!("niri config: {reason}");
                 Task::none()
             }
-            Message::RestoreWorkspaceOrder { output } => self.restore_workspace_order(&output),
-            Message::FocusWorkspace(workspace_id) => {
-                compositor_request(CompositorRequest::FocusWorkspace(workspace_id))
-            }
-            Message::CopyText(text) => copy_to_clipboard(text),
-            Message::OpenUrl(url) => self.open_url(url),
-            Message::RefreshHoveredReading => self.refresh_hovered_reading(),
-            Message::FocusWindow(window) => Task::batch([
-                self.dismiss_hover_card(),
-                compositor_request(CompositorRequest::FocusWindow(window)),
-            ]),
             Message::HoverCardHideElapsed => self.leave_hover_card_after_grace(),
             Message::TypingUnderCards(signal) => {
                 self.typing_under_cards.update(
@@ -466,12 +411,10 @@ impl DesktopShell {
             | Message::CiRuns(_)
             | Message::SessionFocus(_)
             | Message::LoginSession(_)
-            | Message::DarkMode(_)) => self.widget_groups.route(
-                group_message,
-                &self.config,
-                self.desktop_buses.as_ref(),
-                self.clock,
-            ),
+            | Message::DarkMode(_)) => {
+                self.widget_groups
+                    .route(group_message, &self.config, self.clock)
+            }
             Message::HoverCardFadeElapsed
             | Message::LayoutChange { .. }
             | Message::BlurOptionChange { .. }
@@ -607,7 +550,11 @@ impl DesktopShell {
                 self.widget_groups
                     .tray_group
                     .menu_panel_named(&instrument_key.name, &self.config, popup_corners)
-                    .map(|panel| panel.map(ShellInteraction::Tray))
+                    .map(|panel| {
+                        panel.map(|tray_message| {
+                            ShellInteraction::Group(WidgetGroupInteraction::Tray(tray_message))
+                        })
+                    })
             }
             HoverTarget::SessionMenu => Some(
                 self.widget_groups
@@ -617,7 +564,9 @@ impl DesktopShell {
                         popup_corners,
                         self.widget_groups.idle_pause_groups.timeouts(),
                     )
-                    .map(ShellInteraction::Session),
+                    .map(|session_message| {
+                        ShellInteraction::Group(WidgetGroupInteraction::Session(session_message))
+                    }),
             ),
             _ => None,
         }

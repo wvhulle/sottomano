@@ -1,5 +1,6 @@
-use sottomano_widgets::group_menus::{
-    group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView,
+use sottomano_widgets::{
+    group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
+    widget_groups::widget_group_interaction::WidgetGroupInteraction,
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};
@@ -12,7 +13,7 @@ impl DesktopShell {
                 .global_menu_group
                 .group_contents()
                 .into_iter()
-                .map(|group| group.map(ShellInteraction::GlobalMenu)),
+                .map(|group| group.map(WidgetGroupInteraction::GlobalMenu)),
         )
     }
 }

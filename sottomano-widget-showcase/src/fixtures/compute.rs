@@ -14,7 +14,7 @@ use sottomano_desktop_sources::{
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
-use sottomano_toml_config::{Config, widget_groups::temperature_sensors::ThresholdOverrides};
+use sottomano_toml_config::widget_groups::temperature_sensors::ThresholdOverrides;
 use sottomano_widgets::{
     clock::Clock,
     group_items::toggle_control::ToggleMessage,
@@ -62,7 +62,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
             .into_iter()
             .chain([hardware_identity, cache_preference])
             .fold(ComputeGroup::default(), |mut group, reading| {
-                let _ = group.update(reading, &Config::default(), clock);
+                let _ = group.update(reading, clock);
                 group
             }),
     ))

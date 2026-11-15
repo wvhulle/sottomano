@@ -60,7 +60,7 @@ pub enum MemoryBoardSource {
     ModuleTemperatures,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum MemoryBoardInteraction {
     Expansion(WidgetGroupExpansionMessage),
     StartMemoryProcessesFetch,
@@ -92,7 +92,6 @@ pub enum MemoryBoardMessage {
     ModuleTemperatures(SnapshotDelivery<MemoryModuleTemperatures>),
     MemoryProcessesFetched(SnapshotDelivery<MemoryProcesses>),
     SwappedProcessesFetched(SnapshotDelivery<SwappedProcesses>),
-    Interaction(MemoryBoardInteraction),
 }
 
 impl MemoryBoardGroup {
@@ -117,7 +116,6 @@ impl MemoryBoardGroup {
     pub fn update(
         &mut self,
         message: MemoryBoardMessage,
-        config: &Config,
         clock: Clock,
     ) -> Task<MemoryBoardMessage> {
         match message {
@@ -139,36 +137,46 @@ impl MemoryBoardGroup {
             MemoryBoardMessage::SwappedProcessesFetched(fetched) => {
                 self.swapped_processes.receive(fetched, clock);
             }
-            MemoryBoardMessage::Interaction(MemoryBoardInteraction::Expansion(
-                expansion_message,
-            )) => {
+        }
+        Task::none()
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: MemoryBoardInteraction,
+        config: &Config,
+        clock: Clock,
+    ) -> Task<MemoryBoardMessage> {
+        match interaction {
+            MemoryBoardInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
+                Task::none()
             }
-            MemoryBoardMessage::Interaction(MemoryBoardInteraction::StartMemoryProcessesFetch) => {
-                return self.memory_processes.start_hover_fetch(
+            MemoryBoardInteraction::StartMemoryProcessesFetch => {
+                self.memory_processes.start_hover_fetch(
                     (),
                     MemoryBoardMessage::MemoryProcessesFetched,
                     config,
                     clock,
-                );
+                )
             }
-            MemoryBoardMessage::Interaction(MemoryBoardInteraction::StartSwappedProcessesFetch) => {
-                return self.swapped_processes.start_hover_fetch(
+            MemoryBoardInteraction::StartSwappedProcessesFetch => {
+                self.swapped_processes.start_hover_fetch(
                     (),
                     MemoryBoardMessage::SwappedProcessesFetched,
                     config,
                     clock,
-                );
+                )
             }
-            MemoryBoardMessage::Interaction(MemoryBoardInteraction::StopHoverFetches) => {
+            MemoryBoardInteraction::StopHoverFetches => {
                 self.memory_processes.stop();
                 self.swapped_processes.stop();
+                Task::none()
             }
-            MemoryBoardMessage::Interaction(MemoryBoardInteraction::Refresh(source)) => {
-                return Self::refresh(source, &config.widget_groups.memory_board.growth_trend);
+            MemoryBoardInteraction::Refresh(source) => {
+                Self::refresh(source, &config.widget_groups.memory_board.growth_trend)
             }
         }
-        Task::none()
     }
 
     fn slot_items(

@@ -1,5 +1,6 @@
-use sottomano_widgets::group_menus::{
-    group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView,
+use sottomano_widgets::{
+    group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
+    widget_groups::widget_group_interaction::WidgetGroupInteraction,
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};
@@ -12,55 +13,55 @@ impl DesktopShell {
                 self.widget_groups
                     .virtual_machines_group
                     .group_content()
-                    .map(ShellInteraction::VirtualMachines),
+                    .map(WidgetGroupInteraction::VirtualMachines),
                 self.widget_groups
                     .virtualbox_machines_group
                     .group_content()
-                    .map(ShellInteraction::VirtualBoxMachines),
+                    .map(WidgetGroupInteraction::VirtualBoxMachines),
                 self.widget_groups
                     .vmware_machines_group
                     .group_content()
-                    .map(ShellInteraction::VmwareMachines),
+                    .map(WidgetGroupInteraction::VmwareMachines),
                 self.widget_groups
                     .microvm_guests_group
                     .group_content()
-                    .map(ShellInteraction::MicrovmGuests),
+                    .map(WidgetGroupInteraction::MicrovmGuests),
                 self.widget_groups
                     .incus_instances_group
                     .group_content()
-                    .map(ShellInteraction::IncusInstances),
+                    .map(WidgetGroupInteraction::IncusInstances),
                 self.widget_groups
                     .nspawn_containers_group
                     .group_content()
-                    .map(ShellInteraction::NspawnContainers),
+                    .map(WidgetGroupInteraction::NspawnContainers),
                 self.widget_groups
                     .lxc_containers_group
                     .group_content()
-                    .map(ShellInteraction::LxcContainers),
+                    .map(WidgetGroupInteraction::LxcContainers),
                 self.widget_groups
                     .podman_engines_group
                     .group_content()
-                    .map(ShellInteraction::PodmanEngines),
+                    .map(WidgetGroupInteraction::PodmanEngines),
                 self.widget_groups
                     .docker_engines_group
                     .group_content()
-                    .map(ShellInteraction::DockerEngines),
+                    .map(WidgetGroupInteraction::DockerEngines),
                 self.widget_groups
                     .apptainer_containers_group
                     .group_content()
-                    .map(ShellInteraction::ApptainerContainers),
+                    .map(WidgetGroupInteraction::ApptainerContainers),
                 self.widget_groups
                     .waydroid_container_group
                     .group_content()
-                    .map(ShellInteraction::WaydroidContainer),
+                    .map(WidgetGroupInteraction::WaydroidContainer),
                 self.widget_groups
                     .flatpak_sandboxes_group
                     .group_content()
-                    .map(ShellInteraction::FlatpakSandboxes),
+                    .map(WidgetGroupInteraction::FlatpakSandboxes),
                 self.widget_groups
                     .cgroup_memory_limits_group
                     .group_content(&self.config)
-                    .map(ShellInteraction::CgroupMemoryLimits),
+                    .map(WidgetGroupInteraction::CgroupMemoryLimits),
             ],
         )
     }

@@ -40,7 +40,6 @@ pub struct WindowGroup {
 #[derive(Debug)]
 pub enum WindowGroupMessage {
     WindowList(WindowListMessage),
-    Interaction(WindowGroupInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -48,6 +47,7 @@ pub enum WindowGroupInteraction {
     WindowList(WindowListInteraction),
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum Action {
     WindowList(window_list::Action),
 }
@@ -147,14 +147,13 @@ impl WindowGroup {
     }
 
     pub fn update(&mut self, msg: WindowGroupMessage, clock: Clock) -> Action {
-        match msg {
-            WindowGroupMessage::WindowList(window_list_message) => {
-                Action::WindowList(self.window_list.update(window_list_message, clock))
-            }
-            WindowGroupMessage::Interaction(WindowGroupInteraction::WindowList(
-                window_list_interaction,
-            )) => Action::WindowList(self.window_list.interact(&window_list_interaction)),
-        }
+        let WindowGroupMessage::WindowList(window_list_message) = msg;
+        Action::WindowList(self.window_list.update(window_list_message, clock))
+    }
+
+    pub fn interact(&mut self, interaction: WindowGroupInteraction) -> Action {
+        let WindowGroupInteraction::WindowList(window_list_interaction) = interaction;
+        Action::WindowList(self.window_list.interact(&window_list_interaction))
     }
 
     #[must_use]

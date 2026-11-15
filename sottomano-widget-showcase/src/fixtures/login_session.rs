@@ -6,7 +6,6 @@ use sottomano_desktop_sources::{
     login_session_presence::logind_session_facts::SessionIdentity,
     systemd_units_journal::graphical_session_target::GraphicalSession,
 };
-use sottomano_toml_config::Config;
 use sottomano_widgets::{
     clock::Clock,
     widget_groups::login_session_group::{
@@ -20,7 +19,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     ShowcasedGroup::LoginSession(Box::new(session_readings().into_iter().fold(
         LoginSessionGroup::default(),
         |mut group, reading| {
-            let _ = group.update(reading, &Config::default(), clock);
+            let _ = group.update(reading, clock);
             group
         },
     )))

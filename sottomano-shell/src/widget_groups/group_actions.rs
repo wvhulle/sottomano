@@ -18,15 +18,15 @@ use sottomano_widgets::{
     layer_surfaces::{ActivationTokenOutcome, activation_token_request},
     widget_groups::{
         app_launcher_group::{self, AppLauncherMessage},
-        gamepad_group::GamepadMessage,
-        global_menu_group::{self, GlobalMenuMessage, GlobalMenuRequest},
-        media_group::{self, MediaMessage},
+        gamepad_group::{GamepadInteraction, GamepadMessage},
+        global_menu_group::{self, GlobalMenuInteraction, GlobalMenuMessage, GlobalMenuRequest},
+        media_group::{self, MediaInteraction, MediaMessage},
         overlay_settings_group::{self, OverlaySettingsMessage},
         panel_settings_group::{self, PanelSettingsMessage},
         session_power_group::{self, SessionMessage},
         tray_group::{self, TrayMessage},
-        virtual_machines_group::{self, VirtualMachinesMessage},
-        window_group::{self, WindowGroupMessage, window_list},
+        virtual_machines_group::{self, VirtualMachinesInteraction, VirtualMachinesMessage},
+        window_group::{self, WindowGroupInteraction, WindowGroupMessage, window_list},
     },
     widgets::app_window_focus::AppWindowFocus,
 };
@@ -121,11 +121,23 @@ impl DesktopShell {
         &mut self,
         window_message: WindowGroupMessage,
     ) -> Task<Message> {
-        let handled = match self
+        let action = self
             .widget_groups
             .window_group
-            .update(window_message, self.clock)
-        {
+            .update(window_message, self.clock);
+        self.run_window_group_action(action)
+    }
+
+    pub(crate) fn interact_window_group(
+        &mut self,
+        window_interaction: WindowGroupInteraction,
+    ) -> Task<Message> {
+        let action = self.widget_groups.window_group.interact(window_interaction);
+        self.run_window_group_action(action)
+    }
+
+    fn run_window_group_action(&mut self, action: window_group::Action) -> Task<Message> {
+        let handled = match action {
             window_group::Action::WindowList(window_list::Action::ToggleAudio(pid)) => self
                 .widget_groups
                 .audio_group
@@ -150,8 +162,28 @@ impl DesktopShell {
             .into_task()
     }
 
+    pub(crate) fn interact_gamepad(&mut self, interaction: GamepadInteraction) -> Task<Message> {
+        self.widget_groups
+            .gamepad_group
+            .interact(interaction)
+            .into_task()
+    }
+
     pub(crate) fn update_media(&mut self, msg: MediaMessage) -> Task<Message> {
-        match self.widget_groups.media_group.update(msg, self.clock) {
+        let action = self.widget_groups.media_group.update(msg, self.clock);
+        self.run_media_action(action)
+    }
+
+    pub(crate) fn interact_media(&mut self, interaction: MediaInteraction) -> Task<Message> {
+        let action = self
+            .widget_groups
+            .media_group
+            .interact(interaction, self.clock);
+        self.run_media_action(action)
+    }
+
+    fn run_media_action(&self, action: media_group::Action) -> Task<Message> {
+        match action {
             media_group::Action::Run(task) => task.map(Message::Media),
             media_group::Action::FocusAppWindow(focus) => {
                 self.focus_app_window(focus, Message::Media)
@@ -186,7 +218,20 @@ impl DesktopShell {
     }
 
     pub(crate) fn update_global_menu(&mut self, msg: GlobalMenuMessage) -> Task<Message> {
-        match self.widget_groups.global_menu_group.update(msg) {
+        let action = self.widget_groups.global_menu_group.update(msg);
+        self.run_global_menu_action(action)
+    }
+
+    pub(crate) fn interact_global_menu(
+        &mut self,
+        interaction: GlobalMenuInteraction,
+    ) -> Task<Message> {
+        let action = self.widget_groups.global_menu_group.interact(interaction);
+        self.run_global_menu_action(action)
+    }
+
+    fn run_global_menu_action(&mut self, action: global_menu_group::Action) -> Task<Message> {
+        match action {
             global_menu_group::Action::None => Task::none(),
             global_menu_group::Action::Run(task) => task.map(Message::GlobalMenu),
             global_menu_group::Action::Activate(request) => Task::batch([
@@ -230,11 +275,26 @@ impl DesktopShell {
     }
 
     pub(crate) fn update_virtual_machines(&mut self, msg: VirtualMachinesMessage) -> Task<Message> {
-        match self
+        let action = self
             .widget_groups
             .virtual_machines_group
-            .update(msg, self.clock)
-        {
+            .update(msg, self.clock);
+        self.run_virtual_machines_action(action)
+    }
+
+    pub(crate) fn interact_virtual_machines(
+        &mut self,
+        interaction: VirtualMachinesInteraction,
+    ) -> Task<Message> {
+        let action = self
+            .widget_groups
+            .virtual_machines_group
+            .interact(interaction);
+        self.run_virtual_machines_action(action)
+    }
+
+    fn run_virtual_machines_action(&self, action: virtual_machines_group::Action) -> Task<Message> {
+        match action {
             virtual_machines_group::Action::Run(task) => task.map(Message::VirtualMachines),
             virtual_machines_group::Action::FocusAppWindow(focus) => {
                 self.focus_app_window(focus, Message::VirtualMachines)

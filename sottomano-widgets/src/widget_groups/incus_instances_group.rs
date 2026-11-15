@@ -254,7 +254,6 @@ pub enum IncusInstancesMessage {
         SnapshotDelivery<FamilyDetails<DaemonInstance>>,
     ),
     StateChangeRefused(GuestPowerError),
-    Interaction(IncusInstancesInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -331,20 +330,26 @@ impl IncusInstancesGroup {
                 tracing::warn!("incus instance state: {refusal}");
                 Task::none()
             }
-            IncusInstancesMessage::Interaction(IncusInstancesInteraction::ChangeState {
+        }
+    }
+
+    pub fn interact(
+        &mut self,
+        interaction: IncusInstancesInteraction,
+    ) -> Task<IncusInstancesMessage> {
+        match interaction {
+            IncusInstancesInteraction::ChangeState {
                 instance_daemon,
                 project_name,
                 instance_name,
                 run_change,
-            }) => Task::future(async move {
+            } => Task::future(async move {
                 change_instance_state(instance_daemon, &project_name, &instance_name, run_change)
                     .await
                     .err()
             })
             .and_then(|refusal| Task::done(IncusInstancesMessage::StateChangeRefused(refusal))),
-            IncusInstancesMessage::Interaction(IncusInstancesInteraction::Expansion(
-                expansion_message,
-            )) => {
+            IncusInstancesInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
                 Task::none()
             }

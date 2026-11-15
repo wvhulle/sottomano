@@ -61,7 +61,7 @@ pub enum ReachabilityBusRequest {
     Refresh,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum ReachabilityInteraction {
     Expansion(WidgetGroupExpansionMessage),
     OnBuses(ReachabilityBusRequest),
@@ -82,7 +82,6 @@ pub enum ReachabilityMessage {
     Latency(SnapshotDelivery<InternetLatency>),
     Connectivity(SnapshotDelivery<UplinkConnectivity>),
     MeteredTotalsLoaded(Option<MeteredVolumeTotals>),
-    Interaction(ReachabilityInteraction),
 }
 
 impl ReachabilityGroup {
@@ -141,12 +140,16 @@ impl ReachabilityGroup {
                     clock.instant,
                 );
             }
-            ReachabilityMessage::Interaction(ReachabilityInteraction::Expansion(
-                expansion_message,
-            )) => {
+        }
+        Task::none()
+    }
+
+    pub fn interact(&mut self, interaction: ReachabilityInteraction) -> Task<ReachabilityMessage> {
+        match interaction {
+            ReachabilityInteraction::Expansion(expansion_message) => {
                 self.expansion.update(expansion_message);
             }
-            ReachabilityMessage::Interaction(ReachabilityInteraction::OnBuses(_)) => {}
+            ReachabilityInteraction::OnBuses(_) => {}
         }
         Task::none()
     }

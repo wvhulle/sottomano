@@ -49,7 +49,6 @@ pub enum WifiAdaptersMessage {
     Snapshot(SnapshotDelivery<Wifi>),
     DetailsFetched(Box<SnapshotDelivery<WifiDetails>>),
     GatewayLatencies(SnapshotDelivery<GatewayLatencies>),
-    Interaction(WifiAdaptersInteraction),
 }
 
 #[derive(Debug, Clone)]
@@ -114,30 +113,34 @@ impl WifiAdaptersGroup {
             WifiAdaptersMessage::GatewayLatencies(delivery) => {
                 self.gateway_latencies.receive(delivery, clock);
             }
-            WifiAdaptersMessage::Interaction(WifiAdaptersInteraction::ToggleAdapter(
-                adapter_device,
-            )) => {
+        }
+        Task::none()
+    }
+
+    pub fn interact(&mut self, interaction: WifiAdaptersInteraction) -> Task<WifiAdaptersMessage> {
+        match interaction {
+            WifiAdaptersInteraction::ToggleAdapter(adapter_device) => {
                 return logged_failure_task(
                     format!("toggle Wi-Fi adapter {adapter_device}"),
                     async move { toggle_wifi_adapter(&adapter_device).await },
                 );
             }
-            WifiAdaptersMessage::Interaction(WifiAdaptersInteraction::ToggleAllRadios) => {
+            WifiAdaptersInteraction::ToggleAllRadios => {
                 return logged_failure_task(
                     "toggle all Wi-Fi radios".to_owned(),
                     toggle_wifi_radio(),
                 );
             }
-            WifiAdaptersMessage::Interaction(WifiAdaptersInteraction::Expansion {
+            WifiAdaptersInteraction::Expansion {
                 adapter_device,
                 expansion,
-            }) => {
+            } => {
                 self.expansions.update(&adapter_device, expansion);
             }
-            WifiAdaptersMessage::Interaction(WifiAdaptersInteraction::StopHoverFetches) => {
+            WifiAdaptersInteraction::StopHoverFetches => {
                 self.wifi_details.stop();
             }
-            WifiAdaptersMessage::Interaction(WifiAdaptersInteraction::OnBuses(_)) => {}
+            WifiAdaptersInteraction::OnBuses(_) => {}
         }
         Task::none()
     }

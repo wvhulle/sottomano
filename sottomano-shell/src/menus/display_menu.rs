@@ -1,5 +1,6 @@
-use sottomano_widgets::group_menus::{
-    group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView,
+use sottomano_widgets::{
+    group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
+    widget_groups::widget_group_interaction::WidgetGroupInteraction,
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::ShellInteraction};
@@ -13,19 +14,19 @@ impl DesktopShell {
                 self.widget_groups
                     .monitor_group
                     .group_content(config, &self.outputs, self.clock)
-                    .map(ShellInteraction::Monitor),
+                    .map(WidgetGroupInteraction::Monitor),
                 self.widget_groups
                     .dark_mode_group
                     .group_content(config, self.clock)
-                    .map(ShellInteraction::DarkMode),
+                    .map(WidgetGroupInteraction::DarkMode),
                 self.widget_groups
                     .color_temperature_group
                     .group_content(config)
-                    .map(ShellInteraction::ColorTemperature),
+                    .map(WidgetGroupInteraction::ColorTemperature),
                 self.widget_groups
                     .wallpaper_group
                     .group_content(self.clock)
-                    .map(ShellInteraction::Wallpaper),
+                    .map(WidgetGroupInteraction::Wallpaper),
             ],
         )
     }
