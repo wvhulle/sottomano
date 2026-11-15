@@ -1,4 +1,6 @@
 use chrono::Locale;
+
+use crate::group_items::reading_display_state::ReadingDisplayState;
 mod open_tasks_reading;
 mod upcoming_events_reading;
 
@@ -183,8 +185,9 @@ impl CaldavGroup {
             .into_iter()
             .flatten(),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: self.account_handle_glyph(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

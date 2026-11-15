@@ -1,3 +1,4 @@
+use crate::group_items::reading_display_state::ReadingDisplayState;
 mod sqlite_panel_layout;
 
 use iced::Task;
@@ -470,8 +471,9 @@ impl PanelSettingsGroup {
                     .items(config, PanelSettingsMessage::Appearance, clock),
             ),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::Rows(Weight::Regular).into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

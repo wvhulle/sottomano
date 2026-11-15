@@ -1,3 +1,4 @@
+use crate::group_items::group_item_reading::GroupItemReading;
 mod channel_level_control;
 
 use std::{
@@ -352,9 +353,9 @@ impl AudioGroup {
             .into_iter()
             .flatten(),
         )
-        .face(WidgetGroupFace::IconColoredBy {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::Waveform(Weight::Regular).into(),
-            reading: &self.sink_control,
+            state: self.sink_control.state(clock),
         })
         .forwards_scroll(sink.map(|_| "change the output volume"))
     }

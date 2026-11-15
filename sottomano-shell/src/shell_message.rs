@@ -22,9 +22,7 @@ use sottomano_toml_config::{Config, LoadError};
 use sottomano_widgets::{
     desktop_index::ResolvedIcons,
     desktop_panels::panel_slot_drag::DragMessage,
-    group_menus::group_menu_state::{
-        GroupMenuMessage, GroupMenuPin, GroupMenuTopic, PanelPinDuration,
-    },
+    group_menus::group_menu_state::{GroupMenuMessage, PanelPin},
     hover_cards::{HoverCardMessage, PopupMessage},
     layer_surfaces::SurfaceRequest,
     toast_messages::NotificationMessage,
@@ -143,11 +141,7 @@ pub enum Message {
     VoiceDictation(VoiceDictationMessage),
     IdleTimeouts(IdlePauseMessage),
     GroupMenuState(GroupMenuMessage),
-    ReleaseFromPanel {
-        menu: GroupMenuTopic,
-        entry: GroupMenuPin,
-        pin_duration: PanelPinDuration,
-    },
+    ReleaseFromPanel(PanelPin),
     Media(MediaMessage),
     Tray(TrayMessage),
     GlobalMenu(GlobalMenuMessage),
@@ -201,16 +195,11 @@ pub enum Message {
     OutputsResolved(HashMap<String, compositor_output_facts::OutputInfo>),
     Output(OutputChange),
     ReloadDesktopEntries,
-    SidebarWidthChanged {
-        window: Id,
-        width: f32,
-    },
+    SidebarWidthChanged { window: Id, width: f32 },
     PointerDrag(DragMessage),
     CompositorRequestFailed(CompositorRequestFailure),
     NiriConfigRead(Result<ConfiguredWorkspaces, String>),
-    RestoreWorkspaceOrder {
-        output: String,
-    },
+    RestoreWorkspaceOrder { output: String },
     FocusWorkspace(u64),
     DesktopBus(Result<DesktopBusEvent, zbus::Error>),
 }
@@ -349,11 +338,7 @@ pub enum ShellInteraction {
     LoginSession(WidgetGroupExpansionMessage),
     WindowGroup(WindowGroupInteraction),
     AppLauncher(AppLauncherMessage),
-    ReleaseFromPanel {
-        menu: GroupMenuTopic,
-        entry: GroupMenuPin,
-        pin_duration: PanelPinDuration,
-    },
+    ReleaseFromPanel(PanelPin),
     HoverCard(HoverCardMessage),
     Notification(NotificationMessage),
     CopyText(String),
@@ -361,10 +346,7 @@ pub enum ShellInteraction {
     FocusWindow(u64),
     RefreshHoveredReading,
     DismissPressed,
-    SidebarWidthChanged {
-        window: Id,
-        width: f32,
-    },
+    SidebarWidthChanged { window: Id, width: f32 },
     Workspaces(WorkspacesMessage),
     SurfaceRequest(SurfaceRequest),
     CompositorRequestFailed(CompositorRequestFailure),
@@ -533,15 +515,7 @@ impl From<ShellInteraction> for Message {
                 Message::WindowGroup(WindowGroupMessage::Interaction(interaction))
             }
             ShellInteraction::AppLauncher(message) => Message::AppLauncher(message),
-            ShellInteraction::ReleaseFromPanel {
-                menu,
-                entry,
-                pin_duration,
-            } => Message::ReleaseFromPanel {
-                menu,
-                entry,
-                pin_duration,
-            },
+            ShellInteraction::ReleaseFromPanel(panel_pin) => Message::ReleaseFromPanel(panel_pin),
             ShellInteraction::HoverCard(message) => Message::HoverCard(message),
             ShellInteraction::Notification(message) => Message::Notification(message),
             ShellInteraction::CopyText(copied) => Message::CopyText(copied),
@@ -612,15 +586,9 @@ impl From<PopupMessage> for ShellInteraction {
             PopupMessage::FocusWindow(window) => ShellInteraction::FocusWindow(window),
             PopupMessage::RefreshHoveredReading => ShellInteraction::RefreshHoveredReading,
             PopupMessage::WindowGroup(window_group) => ShellInteraction::WindowGroup(window_group),
-            PopupMessage::ReleaseFromPanel {
-                menu,
-                entry,
-                pin_duration,
-            } => ShellInteraction::ReleaseFromPanel {
-                menu,
-                entry,
-                pin_duration,
-            },
+            PopupMessage::ReleaseFromPanel(panel_pin) => {
+                ShellInteraction::ReleaseFromPanel(panel_pin)
+            }
         }
     }
 }

@@ -845,7 +845,9 @@ mod tests {
             Locale::default(),
         );
         let toast = rain_item
-            .ongoing_toasts_with_reading(0, Locale::default(), clock)
+            .toast_requests(0, Locale::default(), clock)
+            .ongoing_toasts
+            .into_iter()
             .next();
         assert_eq!(toast.map(|toast| toast.severity), Some(Severity::Warning));
     }

@@ -5,6 +5,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
         toggle_control::{IconToggle, SwitchPresses},
     },
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuState},
@@ -136,8 +137,9 @@ impl GroupMenuState {
                     .items(config, GroupMenuMessage::Appearance, clock),
             ),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::ListDashes(Weight::Regular).into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 

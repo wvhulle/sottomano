@@ -29,7 +29,8 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading, toggle_control::SwitchPosition,
+        group_item::GroupItem, group_item_reading::GroupItemReading,
+        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{HoverTarget, hover_card_body::Section},
@@ -534,8 +535,9 @@ impl TailnetGroup {
                     )
                 })),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: SimpleIcon::Tailscale.into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

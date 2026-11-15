@@ -12,17 +12,14 @@ use sottomano_desktop_sources::login_session_presence::idle_session_actions::Idl
 use sottomano_toml_config::screen_edges::Position;
 
 pub use crate::hover_cards::{
-    hover_area::{
-        announcing_hoverable, hoverable, marked_by_hover_target, marked_by_menu_pin,
-        press_toggled_hoverable,
-    },
+    hover_area::{hoverable, marked_by_hover_target, marked_by_menu_pin},
     hover_card_surfaces::HoverCardHost,
-    laid_out_anchors::{CardOpening, WidgetAnchor},
+    laid_out_anchors::WidgetAnchor,
 };
 use crate::{
     group_menus::{
         group_menu_settings::GroupMenuSettingsTarget,
-        group_menu_state::{GroupMenuPin, GroupMenuTopic, PanelPinDuration},
+        group_menu_state::{GroupMenuTopic, PanelPin},
     },
     widget_groups::{
         app_launcher_group::AppLauncherTarget,
@@ -237,22 +234,14 @@ pub enum HoverOrigin {
         item_group_name: Box<WidgetGroupTitle>,
         panel_pin: PanelPinOrigin,
     },
+    MenuHandle(GroupMenuTopic),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum PanelPinOrigin {
     #[default]
     Unpinned,
-    GroupPinnedFrom {
-        menu: GroupMenuTopic,
-        group: Box<WidgetGroupIdentity>,
-    },
-    ItemPinnedFrom {
-        menu: GroupMenuTopic,
-        group: Box<WidgetGroupIdentity>,
-        item_in_group_name: String,
-        pin_duration: PanelPinDuration,
-    },
+    Pinned(Box<PanelPin>),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -336,11 +325,7 @@ pub enum PopupMessage {
     FocusWindow(u64),
     RefreshHoveredReading,
     WindowGroup(WindowGroupInteraction),
-    ReleaseFromPanel {
-        menu: GroupMenuTopic,
-        entry: GroupMenuPin,
-        pin_duration: PanelPinDuration,
-    },
+    ReleaseFromPanel(PanelPin),
 }
 
 #[cfg(test)]

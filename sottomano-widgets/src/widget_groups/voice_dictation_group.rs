@@ -1,4 +1,6 @@
 use chrono::Locale;
+
+use crate::group_items::reading_display_state::ReadingDisplayState;
 mod dictation_phase_item;
 mod inference_hardware_item;
 mod interface_mismatch_item;
@@ -396,14 +398,20 @@ impl VoiceDictationGroup {
             .into_iter()
             .flatten(),
         )
-        .face(self.handle_face())
+        .face(self.handle_face(clock))
     }
 
-    fn handle_face(&self) -> WidgetGroupFace<'_> {
+    fn handle_face(&self, clock: Clock) -> WidgetGroupFace {
         let glyph = Phosphor::UserSound(Weight::Regular).into();
         match self.dictation.display() {
-            Some(reading) => WidgetGroupFace::IconColoredBy { glyph, reading },
-            None => WidgetGroupFace::Icon { glyph },
+            Some(reading) => WidgetGroupFace::Glyph {
+                glyph,
+                state: reading.state(clock),
+            },
+            None => WidgetGroupFace::Glyph {
+                glyph,
+                state: ReadingDisplayState::Idle,
+            },
         }
     }
 }

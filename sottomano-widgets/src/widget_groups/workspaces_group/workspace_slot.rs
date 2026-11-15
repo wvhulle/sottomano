@@ -2,6 +2,7 @@ use corredo::{
     drag_reorder::{HoverReorder, draggable_slot},
     gauges::{ColorDotTrack, activity_line},
     orientation::Axis,
+    popovers::NestedMenuOpenTrigger,
     theming::{
         ThemedColor, background_strong_color, danger_color, primary_color, primary_weak_color,
         secondary_text_color, text_color,
@@ -278,6 +279,7 @@ impl<'s> WorkspaceSlot<'s> {
             dragged,
         );
         hoverable(
+            NestedMenuOpenTrigger::Hover,
             pressable.into(),
             HoverTarget::Workspace(self.workspace.id),
             PressHints::default(),

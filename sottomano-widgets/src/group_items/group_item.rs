@@ -28,16 +28,19 @@ use crate::{
         },
         toggle_control::{IconToggle, SwitchPosition},
     },
+    group_menus::group_menu_state::{AlertPromotion, GroupMenuPin},
     hover_cards::{
-        HoverAnnouncement, HoverOrigin, HoverTarget, PressHints, announcing_hoverable,
-        hover_card_body::Section, press_toggled_hoverable,
+        HoverAnnouncement, HoverOrigin, HoverTarget, PressHints, hover_card_body::Section,
+        hoverable,
     },
-    widget_groups::widget_group_content::GroupEvent,
+    widget_groups::{
+        widget_group_content::{GroupEvent, GroupToastRequests},
+        widget_group_identity::WidgetGroupIdentity,
+    },
     widgets::{
-        announced_level::LevelReading,
         icon_glyph::IconGlyph,
         ongoing_toast::{
-            AlertedReading, LevelNotice, OngoingToast, OngoingToastActionButton, ReadingAlerts,
+            LevelNotice, OngoingToast, OngoingToastActionButton, ReadingAlerts, RowNotice,
             StateToast, ToastBody, ToastProgress, quota_pace_alert_severity,
         },
         phosphor::{Phosphor, Weight},
@@ -435,9 +438,11 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         clock: Clock,
         locale: Locale,
     ) -> Self {
+        let switch_position = toggle.switch_position;
+        let press_does = toggle.press_does();
         Self::reading(toggle, target, clock, locale).on_switch_press(
-            toggle.switch_position,
-            toggle.press_does(),
+            switch_position,
+            press_does,
             message,
         )
     }
@@ -583,51 +588,37 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         })
     }
 
-    pub(crate) fn level_reading(&self, on_body_clicked: M) -> Option<LevelReading<M>> {
-        let LevelNotice::Announced { level, glyph } = &self.alerts.level else {
-            return None;
-        };
-        Some(LevelReading {
-            hover_target: self.hover.target().clone(),
-            glyph: *glyph,
-            level: level.clone(),
-            on_body_clicked,
-        })
-    }
-
-    pub(crate) fn ongoing_toasts_with_reading(
+    pub(crate) fn toast_requests(
         &self,
         on_body_clicked: M,
         locale: Locale,
         clock: Clock,
-    ) -> impl Iterator<Item = OngoingToast<M>>
+    ) -> GroupToastRequests<M>
     where
         M: Clone,
     {
-        let alerted_reading = AlertedReading {
+        let notice = RowNotice {
             hover_target: self.hover.target().clone(),
             widget_name: self.face.name.clone(),
             state: self.face.icon.display_state(),
             alerts: &self.alerts,
+            on_body_clicked,
         };
-        let quota_toast = OngoingToast::quota_pace_alert(
-            &alerted_reading,
-            on_body_clicked.clone(),
-            locale,
-            clock,
-        );
-        let ongoing_toast =
-            OngoingToast::reading_state_alert(&alerted_reading, on_body_clicked, clock);
-        ongoing_toast
-            .map(|alert| {
-                self.ongoing_toast_action_buttons
-                    .iter()
-                    .cloned()
-                    .fold(alert, OngoingToast::with_action_button)
-            })
-            .into_iter()
-            .chain(quota_toast)
-            .chain(self.ongoing_toasts.iter().cloned())
+        let state_toast = OngoingToast::reading_state_alert(&notice, clock).map(|alert| {
+            self.ongoing_toast_action_buttons
+                .iter()
+                .cloned()
+                .fold(alert, OngoingToast::with_action_button)
+        });
+        let quota_toast = OngoingToast::quota_pace_alert(&notice, locale, clock);
+        GroupToastRequests {
+            ongoing_toasts: state_toast
+                .into_iter()
+                .chain(quota_toast)
+                .chain(self.ongoing_toasts.iter().cloned())
+                .collect(),
+            levels: notice.level_reading().into_iter().collect(),
+        }
     }
 
     pub(crate) fn shown_alert_severity(&self) -> Option<Severity> {
@@ -638,9 +629,13 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             .filter(|severity| *severity > Severity::Normal)
     }
 
-    pub(crate) fn shown_from(&self, promotion_severity: Severity) -> bool {
-        self.shown_alert_severity()
-            .is_some_and(|alert_severity| alert_severity >= promotion_severity)
+    pub(crate) fn alert_promotion(&self, promotion_severity: Severity) -> AlertPromotion {
+        match self.shown_alert_severity() {
+            Some(alert_severity) if alert_severity >= promotion_severity => {
+                AlertPromotion::Promoted
+            }
+            Some(_) | None => AlertPromotion::Unpromoted,
+        }
     }
 
     pub(crate) fn view(
@@ -741,8 +736,19 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn pinning(&self) -> ItemPinning {
         self.pinning
+    }
+
+    pub(crate) fn menu_pin(&self, group: &WidgetGroupIdentity) -> Option<GroupMenuPin> {
+        match self.pinning {
+            ItemPinning::Pinnable => Some(GroupMenuPin::Item {
+                group: group.clone(),
+                item_in_group_name: self.face.name.clone(),
+            }),
+            ItemPinning::Unpinnable => None,
+        }
     }
 
     pub(crate) fn item_in_group_name(&self) -> Cow<'static, str> {
@@ -756,20 +762,13 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         placement: ItemPlacement,
     ) -> Element<'a, GroupEvent<M>> {
         match placement {
-            ItemPlacement::Panel => match self.card_opening_trigger {
-                NestedMenuOpenTrigger::Hover => announcing_hoverable(
-                    element,
-                    target.clone(),
-                    self.announcement(),
-                    GroupEvent::HoverCard,
-                ),
-                NestedMenuOpenTrigger::Press => press_toggled_hoverable(
-                    element,
-                    target.clone(),
-                    self.announcement(),
-                    GroupEvent::HoverCard,
-                ),
-            },
+            ItemPlacement::Panel => hoverable(
+                self.card_opening_trigger,
+                element,
+                target.clone(),
+                self.announcement(),
+                GroupEvent::HoverCard,
+            ),
             ItemPlacement::Table | ItemPlacement::Menu => element,
         }
     }
@@ -836,7 +835,7 @@ mod tests {
     use super::*;
     use crate::{
         group_items::{group_item_reading::NamedTestReading, toggle_control::SwitchPresses},
-        group_menus::group_menu_state::{GroupMenuTopic, PanelPinDuration},
+        group_menus::group_menu_state::{GroupMenuTopic, PanelPin, PanelPinDuration},
         hover_cards::{AnchorEvent, HoverCardMessage, PanelPinOrigin},
         widget_groups::{
             dark_mode_group::DarkModeTarget,
@@ -1004,12 +1003,14 @@ mod tests {
     fn pinned_slider_origin() -> HoverOrigin {
         HoverOrigin::GroupHandle {
             item_group_name: Box::new(WidgetGroupTitle::Named("Dark mode".into())),
-            panel_pin: PanelPinOrigin::ItemPinnedFrom {
+            panel_pin: PanelPinOrigin::Pinned(Box::new(PanelPin {
                 menu: GroupMenuTopic::Media,
-                group: Box::new(WidgetGroupIdentity::sole(WidgetGroupFamily::Media)),
-                item_in_group_name: "pinned slider".into(),
-                pin_duration: PanelPinDuration::Permanent,
-            },
+                entry: GroupMenuPin::Item {
+                    group: WidgetGroupIdentity::sole(WidgetGroupFamily::Media),
+                    item_in_group_name: "pinned slider".into(),
+                },
+                duration: PanelPinDuration::Permanent,
+            })),
         }
     }
 

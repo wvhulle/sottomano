@@ -1,4 +1,6 @@
 use chrono::Locale;
+
+use crate::group_items::reading_display_state::ReadingDisplayState;
 mod copilot_cli_monthly_spend;
 mod copilot_free_quota_count;
 mod copilot_quota_gauge;
@@ -217,8 +219,9 @@ impl CopilotUsageGroup {
                 ]
             })),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: SimpleIcon::GitHubCopilot.into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

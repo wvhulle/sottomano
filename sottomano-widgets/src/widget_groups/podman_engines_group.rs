@@ -320,8 +320,9 @@ impl PodmanEnginesGroup {
             EngineContainerInteraction::Expansion,
             self.container_rows(clock, locale),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::Cube(Weight::Regular).into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

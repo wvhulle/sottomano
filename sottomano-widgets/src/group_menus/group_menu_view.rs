@@ -4,8 +4,8 @@ use chrono::Locale;
 use corredo::{
     orientation::Axis,
     popovers::{
-        BesideRow, CascadeOrientation, NestedMenuGroup, NestedMenuLayout, NestedMenuOpenTrigger,
-        NestedMenuRowEmphasis, NestedMenuStyle, nested_menu,
+        BesideRow, CascadeOrientation, NestedMenuGroup, NestedMenuLayout, NestedMenuRowEmphasis,
+        NestedMenuStyle, nested_menu,
     },
     selection_scroll::{ScrollEdgeFade, ScrollPacing},
     theming::text_color,
@@ -20,7 +20,7 @@ use crate::{
     group_menus::{
         cascading_layout::menu_satellite_regions::{SatelliteBlur, satellite_with_regions},
         group_menu_state::{
-            GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic, MenuPinState,
+            AlertPromotion, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
             OpenGroupMenu, PanelRaise,
         },
         menu_rows::{
@@ -34,14 +34,14 @@ use crate::{
     },
     hover_cards::{
         HoverAnnouncement, HoverOrigin, HoverTarget, MenuHandleIndicator, PanelPinOrigin,
-        PopupMessage, PressHints, announcing_hoverable,
+        PopupMessage, PressHints,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
         hover_card_content::HoverCardContent,
-        press_toggled_hoverable,
+        hoverable,
     },
     widget_groups::{
         widget_group_content::{EdgeIndicator, GroupEvent, GroupToastRequests, WidgetGroupContent},
-        widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
+        widget_group_identity::WidgetGroupIdentity,
     },
     widgets::{
         configured_scroll::configured_scroll, icon_glyph::IconGlyph,
@@ -237,19 +237,15 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         let target = HoverTarget::GroupMenu(self.messenger.topic);
         let announcement = HoverAnnouncement {
             press_hints: PressHints::default(),
-            origin: HoverOrigin::GroupHandle {
-                item_group_name: Box::new(WidgetGroupTitle::fixed(self.messenger.topic.title())),
-                panel_pin: PanelPinOrigin::Unpinned,
-            },
+            origin: HoverOrigin::MenuHandle(self.messenger.topic),
         };
-        let handle = match self.group_menus.presentation().open_trigger {
-            NestedMenuOpenTrigger::Hover => {
-                announcing_hoverable(glyph, target, announcement, GroupEvent::HoverCard)
-            }
-            NestedMenuOpenTrigger::Press => {
-                press_toggled_hoverable(glyph, target, announcement, GroupEvent::HoverCard)
-            }
-        };
+        let handle = hoverable(
+            self.group_menus.presentation().open_trigger,
+            glyph,
+            target,
+            announcement,
+            GroupEvent::HoverCard,
+        );
         let indicator = EdgeIndicator::menu_handle_view(highest_alert_severity, handle_indicator);
         PanelSlot::new(handle, indicator)
             .view(panel_position)
@@ -271,7 +267,9 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         let group_menus = self.group_menus;
         once(handle_slot).chain(self.groups.into_iter().flat_map(move |member| {
             let group_entry = GroupMenuPin::Group(member.group_identity().clone());
-            if group_menus.pin_state(topic, group_entry) == MenuPinState::Pinned {
+            if let PanelPinOrigin::Pinned(_) =
+                group_menus.panel_pin(topic, group_entry, AlertPromotion::Unpromoted)
+            {
                 return member
                     .pinned_from(topic)
                     .view(config, panel_position, clock)
@@ -306,7 +304,8 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             .into_iter()
             .filter(|member| {
                 let group_entry = GroupMenuPin::Group(member.group_identity().clone());
-                group_menus.pin_state(messenger.topic, group_entry) == MenuPinState::Unpinned
+                group_menus.panel_pin(messenger.topic, group_entry, AlertPromotion::Unpromoted)
+                    == PanelPinOrigin::Unpinned
             })
             .fold(MenuSections::empty(), |sections, member| {
                 member.extend_menu_sections(
@@ -436,7 +435,7 @@ fn nested_menu_groups<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 
                             BesideRow::Nothing
                         }
                     };
-                    item_entry(row_context, &entry.group_identity, item, beside)
+                    item_entry(row_context, item, beside)
                 })
                 .collect();
             NestedMenuGroup {
@@ -1060,7 +1059,7 @@ mod tests {
             menu: GroupMenuTopic::Media,
             entry: GroupMenuPin::Item {
                 group: WidgetGroupIdentity::sole(WidgetGroupFamily::Media),
-                item_in_group_name: "Lyrics".to_owned(),
+                item_in_group_name: "Lyrics".into(),
             },
         });
         let expansion = WidgetGroupExpansion::default();

@@ -83,9 +83,9 @@ pub struct SwitchPresses {
     pub turning_off: &'static str,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct IconToggle {
-    pub name: &'static str,
+    pub name: Cow<'static, str>,
     pub icon: Phosphor,
     pub switch_position: SwitchPosition,
     pub presses: SwitchPresses,
@@ -94,13 +94,13 @@ pub struct IconToggle {
 impl IconToggle {
     #[must_use]
     pub fn new(
-        name: &'static str,
+        name: impl Into<Cow<'static, str>>,
         icon: Phosphor,
         switch_position: impl Into<SwitchPosition>,
         presses: SwitchPresses,
     ) -> Self {
         Self {
-            name,
+            name: name.into(),
             icon,
             switch_position: switch_position.into(),
             presses,
@@ -123,7 +123,7 @@ impl IconToggle {
 
 impl GroupItemReading for IconToggle {
     fn name(&self) -> Cow<'static, str> {
-        self.name.into()
+        self.name.clone()
     }
 
     fn icon(&self) -> IconGlyph {

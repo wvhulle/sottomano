@@ -14,13 +14,13 @@ use crate::{
         group_item_gestures::GroupItemGesture,
     },
     group_menus::{
-        group_menu_state::{GroupMenuPin, GroupMenuState},
+        group_menu_state::{GroupMenuPin, GroupMenuState, ItemPin, PanelPin, PanelPinDuration},
         group_menu_view::GroupMenuMessenger,
         menu_rows::menu_row::{MenuRowContent, menu_row_content},
     },
     hover_cards::{HoverTarget, marked_by_menu_pin},
     widget_groups::{
-        widget_group_content::{GroupEvent, GroupItemPin, GroupMenuItemRow},
+        widget_group_content::{GroupEvent, GroupMenuItemRow},
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
@@ -167,26 +167,39 @@ pub(crate) fn group_header<'a, M: Clone + From<GroupEvent<M>> + 'a>(
 
 pub(crate) fn item_entry<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     layout: &GroupMenuRowContext<'_, M>,
-    group: &WidgetGroupIdentity,
     item: GroupMenuItemRow<'a, M>,
     beside: BesideRow<'a, M>,
 ) -> NestedMenuItem<'a, HoverTarget, M> {
     let emphasis = item.row_emphasis(layout.group_menus.inspected_target(layout.menu.topic));
-    let pin_button = |pin_weight, pin_color: fn(&iced::Theme) -> iced::Color| {
+    let pin_button = |entry, pin_weight, pin_color: fn(&iced::Theme) -> iced::Color| {
         glyph_button(
             Phosphor::PushPin(pin_weight),
             layout.config.theme.font.icon_size_px,
             pin_color,
-            layout.menu.toggle_pin(GroupMenuPin::Item {
-                group: group.clone(),
-                item_in_group_name: item.name.to_string(),
-            }),
+            layout.menu.toggle_pin(entry),
         )
     };
     let item_pin = match item.pin {
-        GroupItemPin::Unpinnable => None,
-        GroupItemPin::Unpinned => Some(pin_button(Weight::Regular, trailing_glyph_color(emphasis))),
-        GroupItemPin::Pinned => Some(pin_button(Weight::Fill, pinned_glyph_color(emphasis))),
+        ItemPin::Unpinnable => None,
+        ItemPin::Pinned(PanelPin {
+            entry,
+            duration: PanelPinDuration::Permanent,
+            ..
+        }) => Some(pin_button(
+            entry,
+            Weight::Fill,
+            pinned_glyph_color(emphasis),
+        )),
+        ItemPin::Unpinned(entry)
+        | ItemPin::Pinned(PanelPin {
+            entry,
+            duration: PanelPinDuration::UntilAlertEnds,
+            ..
+        }) => Some(pin_button(
+            entry,
+            Weight::Regular,
+            trailing_glyph_color(emphasis),
+        )),
     };
     let content = menu_row_content(
         layout.config,

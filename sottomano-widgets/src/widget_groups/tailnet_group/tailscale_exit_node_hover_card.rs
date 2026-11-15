@@ -17,6 +17,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -67,7 +68,7 @@ impl GroupItemReading for ExitNodeChoiceRow<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(self.exit_node_option.node_use)
+        ReadingDisplayState::from(SwitchPosition::from(self.exit_node_option.node_use))
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
@@ -132,7 +133,7 @@ impl GroupItemReading for ExitNodeLanAccessRow<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(self.exit_node_choices.lan_access)
+        ReadingDisplayState::from(SwitchPosition::from(self.exit_node_choices.lan_access))
     }
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {

@@ -16,7 +16,9 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+    },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
@@ -187,8 +189,9 @@ impl WireguardTunnelsGroup {
                 }
             }),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: SimpleIcon::WireGuard.into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

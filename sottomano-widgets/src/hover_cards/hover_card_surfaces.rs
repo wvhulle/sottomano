@@ -594,6 +594,7 @@ mod tests {
         sync::{Arc, LazyLock},
     };
 
+    use corredo::popovers::NestedMenuOpenTrigger;
     use iced::{
         Point, Rectangle, Size,
         time::{Duration, Instant},
@@ -605,8 +606,8 @@ mod tests {
     use crate::{
         clock::Clock,
         hover_cards::{
-            CardOpening, HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence,
-            WidgetAnchor, hover_card_surfaces::HoverEffect, hover_card_transition::CardRetention,
+            HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence, WidgetAnchor,
+            hover_card_surfaces::HoverEffect, hover_card_transition::CardRetention,
             laid_out_anchors::WidgetLiveness,
         },
         layer_surfaces::PanelEdge,
@@ -663,7 +664,7 @@ mod tests {
         Rectangle::new(Point::new(horizontal_position, 0.0), Size::new(10.0, 10.0))
     }
 
-    fn widget_at(horizontal_position: f32, opening: CardOpening) -> WidgetAnchor {
+    fn widget_at(horizontal_position: f32, opening: NestedMenuOpenTrigger) -> WidgetAnchor {
         WidgetAnchor {
             target: workspace_card(),
             opening,
@@ -682,7 +683,7 @@ mod tests {
             "DP-1",
             WidgetAnchor {
                 presence: Arc::downgrade(&widget),
-                ..widget_at(1.0, CardOpening::OnHover)
+                ..widget_at(1.0, NestedMenuOpenTrigger::Hover)
             },
         );
         host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
@@ -702,7 +703,7 @@ mod tests {
                 "DP-1",
                 WidgetAnchor {
                     presence: Arc::downgrade(&original),
-                    ..widget_at(1.0, CardOpening::OnHover)
+                    ..widget_at(1.0, NestedMenuOpenTrigger::Hover)
                 },
             );
             host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
@@ -713,7 +714,7 @@ mod tests {
             "DP-1",
             WidgetAnchor {
                 presence: Arc::downgrade(&rebuilt),
-                ..widget_at(1.0, CardOpening::OnHover)
+                ..widget_at(1.0, NestedMenuOpenTrigger::Hover)
             },
         );
         assert_eq!(host.shown_widget_liveness(), WidgetLiveness::Alive);
@@ -735,7 +736,7 @@ mod tests {
     #[test]
     fn an_open_card_reads_the_newest_anchor_of_its_output() {
         let mut host = HoverCardHost::default();
-        let opening = CardOpening::OnHover;
+        let opening = NestedMenuOpenTrigger::Hover;
         remember(&mut host, "DP-1", widget_at(1.0, opening));
         remember(&mut host, "DP-2", widget_at(50.0, opening));
         host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
@@ -747,7 +748,7 @@ mod tests {
     #[test]
     fn a_held_open_menu_reads_the_newest_anchor_of_its_handle() {
         let mut host = host_holding_a_menu_open();
-        let opening = CardOpening::OnPress;
+        let opening = NestedMenuOpenTrigger::Press;
         remember(&mut host, "DP-1", widget_at(1.0, opening));
         remember(&mut host, "DP-1", widget_at(2.0, opening));
         assert_eq!(host.shown_anchor(), Some(anchor_at(2.0)));
@@ -763,7 +764,11 @@ mod tests {
     fn a_shown_card_leaves_when_its_widget_is_hidden_even_with_the_pointer_on_it() {
         let now = Clock::real().instant;
         let mut host = HoverCardHost::default();
-        remember(&mut host, "DP-1", widget_at(1.0, CardOpening::OnHover));
+        remember(
+            &mut host,
+            "DP-1",
+            widget_at(1.0, NestedMenuOpenTrigger::Hover),
+        );
         host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
         let _on_card = host.update(HoverCardMessage::EnterHoverCard, now);
         let due = host
@@ -771,7 +776,7 @@ mod tests {
                 "DP-1",
                 WidgetAnchor {
                     visible: false,
-                    ..widget_at(1.0, CardOpening::OnHover)
+                    ..widget_at(1.0, NestedMenuOpenTrigger::Hover)
                 },
                 now,
             )
@@ -784,13 +789,17 @@ mod tests {
     fn a_hidden_widget_on_another_output_leaves_the_card_alone() {
         let now = Clock::real().instant;
         let mut host = HoverCardHost::default();
-        remember(&mut host, "DP-1", widget_at(1.0, CardOpening::OnHover));
+        remember(
+            &mut host,
+            "DP-1",
+            widget_at(1.0, NestedMenuOpenTrigger::Hover),
+        );
         host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
         let hide_due = host.remember_anchor(
             "DP-2",
             WidgetAnchor {
                 visible: false,
-                ..widget_at(1.0, CardOpening::OnHover)
+                ..widget_at(1.0, NestedMenuOpenTrigger::Hover)
             },
             now,
         );
@@ -805,7 +814,7 @@ mod tests {
             "DP-1",
             WidgetAnchor {
                 visible: false,
-                ..widget_at(1.0, CardOpening::OnPress)
+                ..widget_at(1.0, NestedMenuOpenTrigger::Press)
             },
             now,
         );
@@ -816,7 +825,11 @@ mod tests {
     #[test]
     fn a_disconnect_removes_anchors_and_the_shown_card() {
         let mut host = HoverCardHost::default();
-        remember(&mut host, "DP-1", widget_at(1.0, CardOpening::OnHover));
+        remember(
+            &mut host,
+            "DP-1",
+            widget_at(1.0, NestedMenuOpenTrigger::Hover),
+        );
         host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
         host.forget_output("DP-1");
         assert_eq!(host.target(), None);
@@ -883,7 +896,11 @@ mod tests {
     #[test]
     fn a_handle_indicator_follows_the_pointer_and_survives_a_new_layout() {
         let mut host = HoverCardHost::default();
-        remember(&mut host, "DP-1", widget_at(0.0, CardOpening::OnPress));
+        remember(
+            &mut host,
+            "DP-1",
+            widget_at(0.0, NestedMenuOpenTrigger::Press),
+        );
         host.set_handle_pointing("DP-1", &workspace_card(), PointerPresence::PointedAt);
         assert_eq!(
             host.handle_indicator(&workspace_card(), "DP-1").pointing,
@@ -893,7 +910,11 @@ mod tests {
             host.handle_indicator(&workspace_card(), "DP-2").pointing,
             PointerPresence::NotPointedAt
         );
-        remember(&mut host, "DP-1", widget_at(5.0, CardOpening::OnPress));
+        remember(
+            &mut host,
+            "DP-1",
+            widget_at(5.0, NestedMenuOpenTrigger::Press),
+        );
         assert_eq!(
             host.handle_indicator(&workspace_card(), "DP-1").pointing,
             PointerPresence::PointedAt

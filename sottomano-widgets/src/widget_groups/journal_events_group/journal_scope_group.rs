@@ -64,9 +64,9 @@ impl JournalScopeGroup {
             .into_iter()
             .flatten(),
         )
-        .face(WidgetGroupFace::IconColoredBy {
+        .face(WidgetGroupFace::Glyph {
             glyph: self.icon(),
-            reading: self,
+            state: self.state(clock),
         })
     }
 

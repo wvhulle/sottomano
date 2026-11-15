@@ -553,9 +553,9 @@ impl GlobalMenuGroup {
             .into_iter()
             .chain(lookup_failure_row),
         )
-        .face(WidgetGroupFace::IconColoredBy {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::AppWindow(Weight::Regular).into(),
-            reading: self,
+            state: self.state(clock),
         })
     }
 
@@ -624,8 +624,9 @@ impl GlobalMenuGroup {
                         },
                         entry_items,
                     )
-                    .face(WidgetGroupFace::Icon {
+                    .face(WidgetGroupFace::Glyph {
                         glyph: top_menu_glyph(&top_menu_label).into(),
+                        state: ReadingDisplayState::Idle,
                     }),
                 )
             })

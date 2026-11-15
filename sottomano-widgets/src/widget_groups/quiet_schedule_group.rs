@@ -1,3 +1,4 @@
+use crate::group_items::reading_display_state::ReadingDisplayState;
 mod clock_slider;
 pub mod quiet_window;
 mod sqlite_quiet_hours;
@@ -577,8 +578,9 @@ impl QuietScheduleGroup {
                 ),
             ],
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: self.face_icon().into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 

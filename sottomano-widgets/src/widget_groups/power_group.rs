@@ -1,3 +1,4 @@
+use crate::group_items::reading_display_state::ReadingDisplayState;
 mod battery_charge_gauge;
 mod battery_time_reading;
 mod cpu_tuning_sections;
@@ -276,8 +277,9 @@ impl PowerGroup {
             .into_iter()
             .flatten(),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::Lightning(Weight::Regular).into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

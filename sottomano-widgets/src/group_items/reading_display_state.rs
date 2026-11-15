@@ -5,11 +5,7 @@ use iced::{Color, Theme, widget::text};
 use sottomano_desktop_sources::{
     container_run_state::ContainerRunState,
     media_playback_audio::mpris_players::{LoopMode, QueueOrder},
-    network_connectivity::{
-        network_manager_proxies::{LinkPhase, RadioPower},
-        tailscale_exit_nodes::ExitNodeLanAccess,
-        tailscale_status::{ExitNodeOffer, ExitNodeUse},
-    },
+    network_connectivity::{network_manager_proxies::LinkPhase, tailscale_status::ExitNodeOffer},
 };
 use sottomano_toml_config::severity::Severity;
 
@@ -104,39 +100,12 @@ impl From<ContainerRunState> for ReadingDisplayState {
     }
 }
 
-impl From<RadioPower> for ReadingDisplayState {
-    fn from(radio_power: RadioPower) -> Self {
-        match radio_power {
-            RadioPower::On => ReadingDisplayState::On,
-            RadioPower::Off => ReadingDisplayState::Off,
-        }
-    }
-}
-
-impl From<ExitNodeUse> for ReadingDisplayState {
-    fn from(exit_node_use: ExitNodeUse) -> Self {
-        match exit_node_use {
-            ExitNodeUse::InUse => ReadingDisplayState::On,
-            ExitNodeUse::Unused => ReadingDisplayState::Off,
-        }
-    }
-}
-
 impl From<ExitNodeOffer> for ReadingDisplayState {
     fn from(exit_offer: ExitNodeOffer) -> Self {
         match exit_offer {
             ExitNodeOffer::NotOffered => ReadingDisplayState::Off,
             ExitNodeOffer::AwaitingApproval => ReadingDisplayState::Pending,
             ExitNodeOffer::Approved => ReadingDisplayState::On,
-        }
-    }
-}
-
-impl From<ExitNodeLanAccess> for ReadingDisplayState {
-    fn from(lan_access: ExitNodeLanAccess) -> Self {
-        match lan_access {
-            ExitNodeLanAccess::Allowed => ReadingDisplayState::On,
-            ExitNodeLanAccess::Blocked => ReadingDisplayState::Off,
         }
     }
 }

@@ -10,6 +10,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::{HoverTarget, hover_card_body::Section},
@@ -305,8 +306,9 @@ impl SidebarSettingsGroup {
                     .flatten(),
             ),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::SidebarSimple(Weight::Regular).into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

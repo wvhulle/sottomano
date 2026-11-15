@@ -9,6 +9,7 @@ use std::{
 use chrono::Locale;
 use corredo::{
     changing_text::{MeasuredReadout, ReadoutLabels, steady_width_text},
+    popovers::NestedMenuOpenTrigger,
     transitions::ExpansionState,
     value_controls::{
         ExpandingSlider, ExpandingSliderParts, ScrollWrites, SecondaryPress, SliderEffect,
@@ -33,8 +34,8 @@ use crate::{
     },
     hover_cards::{
         HoverAnnouncement, HoverCardMessage, HoverOrigin, HoverTarget, PressHints,
-        announcing_hoverable,
         hover_card_body::{Section, dictionary_table},
+        hoverable,
     },
     widgets::{
         announced_level::{AnnouncedLevel, LevelAnnouncement, LevelChangeOrigin},
@@ -460,7 +461,8 @@ impl SliderControl {
                         ExpansionState::Collapsed => "open the slider",
                         ExpansionState::Expanded => "close the slider",
                     };
-                    announcing_hoverable(
+                    hoverable(
+                        NestedMenuOpenTrigger::Hover,
                         content,
                         self.target.clone(),
                         HoverAnnouncement {

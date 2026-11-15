@@ -1,3 +1,4 @@
+use crate::group_items::reading_display_state::ReadingDisplayState;
 mod backlight_display;
 mod clight_auto_brightness;
 mod output_details;
@@ -283,8 +284,9 @@ impl MonitorGroup {
                     .map(GroupItem::previewed_on_handle),
             ),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::Lightbulb(Weight::Regular).into(),
+            state: ReadingDisplayState::Idle,
         })
         .forwards_scroll((!self.sliders.is_empty()).then_some("change every backlight"))
     }

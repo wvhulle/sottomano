@@ -41,7 +41,9 @@ use sottomano_widgets::{
     desktop_index::DesktopIndex,
     group_menus::{
         cascading_layout::popup_growth::growth_away_from,
-        group_menu_state::{GroupMenuMessage, GroupMenuTopic, OpenGroupMenu, PanelPinDuration},
+        group_menu_state::{
+            GroupMenuMessage, GroupMenuTopic, OpenGroupMenu, PanelPin, PanelPinDuration,
+        },
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
     },
     hover_cards::{
@@ -300,12 +302,12 @@ impl DesktopShell {
                 .group_menus
                 .update(msg)
                 .map(Message::GroupMenuState),
-            Message::ReleaseFromPanel {
+            Message::ReleaseFromPanel(PanelPin {
                 menu,
                 entry,
-                pin_duration,
-            } => {
-                let release = match pin_duration {
+                duration,
+            }) => {
+                let release = match duration {
                     PanelPinDuration::Permanent => GroupMenuMessage::TogglePin { menu, entry },
                     PanelPinDuration::UntilAlertEnds => {
                         GroupMenuMessage::DismissAlertPin { menu, entry }

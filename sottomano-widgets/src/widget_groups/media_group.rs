@@ -6,6 +6,7 @@ use std::{
 };
 
 use corredo::{
+    popovers::NestedMenuOpenTrigger,
     press_actions::{ConfirmButton, ConfirmPolicy, ConfirmPress},
     transitions::ExpansionState,
     value_controls::SeekMessage,
@@ -565,6 +566,7 @@ fn player_group<'a>(
                 lifted_to_player(
                     bus,
                     hoverable(
+                        NestedMenuOpenTrigger::Hover,
                         bar,
                         player_target(MediaTarget::Seek),
                         PressHints {

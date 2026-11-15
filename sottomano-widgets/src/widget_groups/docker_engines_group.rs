@@ -365,9 +365,9 @@ impl DockerEnginesGroup {
             EngineContainerInteraction::Expansion,
             self.container_rows(clock, locale),
         )
-        .face(WidgetGroupFace::IconColoredBy {
+        .face(WidgetGroupFace::Glyph {
             glyph: IconGlyph::SimpleIcon(SimpleIcon::Docker),
-            reading: self,
+            state: self.state(clock),
         })
     }
 

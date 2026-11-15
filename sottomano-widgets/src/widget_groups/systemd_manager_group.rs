@@ -334,9 +334,9 @@ impl SystemdManagerGroup {
             .into_iter()
             .flatten(),
         )
-        .face(WidgetGroupFace::IconColoredBy {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::Speedometer(Weight::Regular).into(),
-            reading: self,
+            state: self.state(clock),
         })
     }
 

@@ -452,8 +452,9 @@ impl VirtualMachinesGroup {
             VirtualMachinesInteraction::Expansion,
             rows.chain(inactive_rows),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::DesktopTower(Weight::Regular).into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

@@ -1,3 +1,4 @@
+use corredo::popovers::NestedMenuOpenTrigger;
 use iced::{Alignment, Element, widget::Row};
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{
     Command, LoopMode, Media, PlayerSetting, QueueOrder, Status,
@@ -85,6 +86,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         Message: 'a,
     {
         hoverable(
+            NestedMenuOpenTrigger::Hover,
             glyph_button(
                 glyph,
                 self.primary_size(),

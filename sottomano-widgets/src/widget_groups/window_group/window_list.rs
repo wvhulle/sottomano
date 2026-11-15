@@ -7,6 +7,7 @@ use corredo::{
     drag_reorder::{HoverReorder, ListDeparture, SlotAlarm, draggable_slot},
     gauges::activity_line,
     orientation::Axis,
+    popovers::NestedMenuOpenTrigger,
     selection_scroll::ScrollEdgeFade,
     theming::{
         background_color, background_strong_color, danger_color, primary_color, warning_color,
@@ -815,6 +816,7 @@ impl WindowSlot<'_> {
         let press_hints = self.press_hints();
         let usage = self.window_entry.is_focused.then(|| {
             hoverable(
+                NestedMenuOpenTrigger::Hover,
                 self.secondary_glyph(Phosphor::UserFocus),
                 WindowTarget::Usage(window).into(),
                 press_hints,
@@ -823,6 +825,7 @@ impl WindowSlot<'_> {
         });
         let inspecting = self.window_entry.is_focused.then(|| {
             hoverable(
+                NestedMenuOpenTrigger::Hover,
                 self.secondary_glyph(Phosphor::Package),
                 WindowTarget::Inspect(window).into(),
                 press_hints,

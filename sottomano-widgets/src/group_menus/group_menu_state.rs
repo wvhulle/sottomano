@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::BTreeSet,
     mem::take,
     sync::Arc,
@@ -8,19 +9,21 @@ use std::{
 use corredo::popovers::NestedMenuPresentation;
 use iced::{Task, task};
 use sottomano_desktop_sources::sqlite_state_store::StoreError;
+use sottomano_toml_config::severity::Severity;
 use tokio::time::sleep;
 
 use crate::{
     background_work::logged_failure_task,
+    group_items::group_item::GroupItem,
     group_menus::{
         group_menu_inspection::GroupMenuInspection,
         group_menu_settings::GroupMenuSettingsTarget,
         group_source_demand::{GroupSourceDemand, GroupSurface},
         sqlite_group_menu_pins,
-        sqlite_group_menu_pins::StoredGroupMenuPin,
+        sqlite_group_menu_pins::{PinChange, StoredGroupMenuPin},
         sqlite_group_menu_presentation,
     },
-    hover_cards::{HoverTarget, hover_card_surfaces::SWITCH_INTENT},
+    hover_cards::{HoverTarget, PanelPinOrigin, hover_card_surfaces::SWITCH_INTENT},
     widget_groups::{
         widget_group_content::{
             ExpansionChange, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -122,18 +125,12 @@ impl GroupMenuTopic {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MenuPinState {
-    Pinned,
-    Unpinned,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GroupMenuPin {
     Group(WidgetGroupIdentity),
     Item {
         group: WidgetGroupIdentity,
-        item_in_group_name: String,
+        item_in_group_name: Cow<'static, str>,
     },
 }
 
@@ -153,7 +150,7 @@ impl GroupMenuPin {
                 menu_topic,
                 group_family: group.family.stored_name().to_owned(),
                 group_instance: group.instance.stored_name().to_owned(),
-                item_in_group_name,
+                item_in_group_name: item_in_group_name.into_owned(),
             },
         }
     }
@@ -165,10 +162,23 @@ pub enum PanelPinDuration {
     UntilAlertEnds,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PanelPin {
+    pub menu: GroupMenuTopic,
+    pub entry: GroupMenuPin,
+    pub duration: PanelPinDuration,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AlertPinState {
-    Raised,
-    Dismissed,
+pub enum AlertPromotion {
+    Promoted,
+    Unpromoted,
+}
+
+pub(crate) enum ItemPin {
+    Unpinnable,
+    Unpinned(GroupMenuPin),
+    Pinned(PanelPin),
 }
 
 #[derive(Debug, Clone)]
@@ -221,22 +231,12 @@ pub enum GroupMenuMessage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PanelRaise {
     pub menu: GroupMenuTopic,
-    pub group: WidgetGroupIdentity,
-    pub item_in_group_name: String,
+    pub entry: GroupMenuPin,
 }
 
 impl PanelRaise {
     fn stored(self) -> StoredGroupMenuPin {
-        let PanelRaise {
-            menu,
-            group,
-            item_in_group_name,
-        } = self;
-        GroupMenuPin::Item {
-            group,
-            item_in_group_name,
-        }
-        .stored_in(menu)
+        self.entry.stored_in(self.menu)
     }
 }
 
@@ -306,20 +306,46 @@ impl GroupMenuState {
     }
 
     #[must_use]
-    pub fn pin_state(&self, menu: GroupMenuTopic, entry: GroupMenuPin) -> MenuPinState {
-        if self.pinned.contains(&entry.stored_in(menu)) {
-            MenuPinState::Pinned
+    pub fn panel_pin(
+        &self,
+        menu: GroupMenuTopic,
+        entry: GroupMenuPin,
+        alert_promotion: AlertPromotion,
+    ) -> PanelPinOrigin {
+        let stored_pin = entry.clone().stored_in(menu);
+        let duration = if self.pinned.contains(&stored_pin) {
+            PanelPinDuration::Permanent
+        } else if alert_promotion == AlertPromotion::Promoted
+            && !self.dismissed_alert_pins.contains(&stored_pin)
+        {
+            PanelPinDuration::UntilAlertEnds
         } else {
-            MenuPinState::Unpinned
-        }
+            return PanelPinOrigin::Unpinned;
+        };
+        PanelPinOrigin::Pinned(Box::new(PanelPin {
+            menu,
+            entry,
+            duration,
+        }))
     }
 
-    #[must_use]
-    pub fn alert_pin_state(&self, menu: GroupMenuTopic, entry: GroupMenuPin) -> AlertPinState {
-        if self.dismissed_alert_pins.contains(&entry.stored_in(menu)) {
-            AlertPinState::Dismissed
-        } else {
-            AlertPinState::Raised
+    pub(crate) fn item_pin<'a, M: 'a>(
+        &self,
+        menu: GroupMenuTopic,
+        group: &WidgetGroupIdentity,
+        item: &GroupItem<'a, M>,
+        promotion_severity: Severity,
+    ) -> ItemPin {
+        let Some(entry) = item.menu_pin(group) else {
+            return ItemPin::Unpinnable;
+        };
+        match self.panel_pin(
+            menu,
+            entry.clone(),
+            item.alert_promotion(promotion_severity),
+        ) {
+            PanelPinOrigin::Pinned(pin) => ItemPin::Pinned(*pin),
+            PanelPinOrigin::Unpinned => ItemPin::Unpinned(entry),
         }
     }
 
@@ -469,14 +495,14 @@ impl GroupMenuState {
             }
             GroupMenuMessage::TogglePin { menu, entry } => {
                 let pin = entry.stored_in(menu);
-                let pin_state = if self.pinned.remove(&pin) {
-                    MenuPinState::Unpinned
+                let pin_change = if self.pinned.remove(&pin) {
+                    PinChange::Unpin
                 } else {
                     self.pinned.insert(pin.clone());
-                    MenuPinState::Pinned
+                    PinChange::Pin
                 };
                 Task::perform(
-                    sqlite_group_menu_pins::save(pin, pin_state),
+                    sqlite_group_menu_pins::save(pin, pin_change),
                     |store_outcome| GroupMenuMessage::PinSaved(store_outcome.map_err(Arc::new)),
                 )
             }
@@ -571,18 +597,41 @@ mod tests {
     use corredo::transitions::ExpansionState;
 
     use super::{
-        AlertPinState, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
-        GroupSourceDemand, MENU_SOURCE_LINGER, MenuPinState, OpenGroupMenu, PanelRaise,
-        WidgetGroupFamily, WidgetGroupIdentity,
+        AlertPromotion, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
+        GroupSourceDemand, MENU_SOURCE_LINGER, OpenGroupMenu, PanelPin, PanelPinDuration,
+        PanelRaise, WidgetGroupFamily, WidgetGroupIdentity,
     };
-    use crate::{clock::Clock, widget_groups::widget_group_identity::WidgetGroupInstance};
+    use crate::{
+        clock::Clock, hover_cards::PanelPinOrigin,
+        widget_groups::widget_group_identity::WidgetGroupInstance,
+    };
+
+    fn quiet_pin(
+        group_menus: &GroupMenuState,
+        menu: GroupMenuTopic,
+        entry: GroupMenuPin,
+    ) -> PanelPinOrigin {
+        group_menus.panel_pin(menu, entry, AlertPromotion::Unpromoted)
+    }
+
+    fn pinned_for(
+        menu: GroupMenuTopic,
+        entry: GroupMenuPin,
+        duration: PanelPinDuration,
+    ) -> PanelPinOrigin {
+        PanelPinOrigin::Pinned(Box::new(PanelPin {
+            menu,
+            entry,
+            duration,
+        }))
+    }
 
     const GPU_GROUP: WidgetGroupIdentity = WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu);
 
     fn gpu_load_item() -> GroupMenuPin {
         GroupMenuPin::Item {
             group: GPU_GROUP,
-            item_in_group_name: "gpu_load".to_owned(),
+            item_in_group_name: "gpu_load".into(),
         }
     }
 
@@ -623,17 +672,33 @@ mod tests {
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(GPU_GROUP)));
         assert_eq!(
-            group_menus.pin_state(GroupMenuTopic::Hardware, GroupMenuPin::Group(GPU_GROUP)),
-            MenuPinState::Pinned
+            quiet_pin(
+                &group_menus,
+                GroupMenuTopic::Hardware,
+                GroupMenuPin::Group(GPU_GROUP)
+            ),
+            pinned_for(
+                GroupMenuTopic::Hardware,
+                GroupMenuPin::Group(GPU_GROUP),
+                PanelPinDuration::Permanent
+            )
         );
         assert_eq!(
-            group_menus.pin_state(GroupMenuTopic::Behaviour, GroupMenuPin::Group(GPU_GROUP)),
-            MenuPinState::Unpinned
+            quiet_pin(
+                &group_menus,
+                GroupMenuTopic::Behaviour,
+                GroupMenuPin::Group(GPU_GROUP)
+            ),
+            PanelPinOrigin::Unpinned
         );
         let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(GPU_GROUP)));
         assert_eq!(
-            group_menus.pin_state(GroupMenuTopic::Hardware, GroupMenuPin::Group(GPU_GROUP)),
-            MenuPinState::Unpinned
+            quiet_pin(
+                &group_menus,
+                GroupMenuTopic::Hardware,
+                GroupMenuPin::Group(GPU_GROUP)
+            ),
+            PanelPinOrigin::Unpinned
         );
     }
 
@@ -642,12 +707,20 @@ mod tests {
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(toggle_in_hardware(gpu_load_item()));
         assert_eq!(
-            group_menus.pin_state(GroupMenuTopic::Hardware, gpu_load_item()),
-            MenuPinState::Pinned
+            quiet_pin(&group_menus, GroupMenuTopic::Hardware, gpu_load_item()),
+            pinned_for(
+                GroupMenuTopic::Hardware,
+                gpu_load_item(),
+                PanelPinDuration::Permanent
+            )
         );
         assert_eq!(
-            group_menus.pin_state(GroupMenuTopic::Hardware, GroupMenuPin::Group(GPU_GROUP)),
-            MenuPinState::Unpinned
+            quiet_pin(
+                &group_menus,
+                GroupMenuTopic::Hardware,
+                GroupMenuPin::Group(GPU_GROUP)
+            ),
+            PanelPinOrigin::Unpinned
         );
     }
 
@@ -666,15 +739,14 @@ mod tests {
     fn alerting_gpu_item() -> PanelRaise {
         PanelRaise {
             menu: GroupMenuTopic::Hardware,
-            group: GPU_GROUP,
-            item_in_group_name: "hot gpu".to_owned(),
+            entry: alerting_gpu_pin(),
         }
     }
 
     fn alerting_gpu_pin() -> GroupMenuPin {
         GroupMenuPin::Item {
             group: GPU_GROUP,
-            item_in_group_name: "hot gpu".to_owned(),
+            item_in_group_name: "hot gpu".into(),
         }
     }
 
@@ -688,8 +760,12 @@ mod tests {
         });
         group_menus.track_source_demand(None, vec![alerting_gpu_item()], Clock::real().instant);
         assert_eq!(
-            group_menus.alert_pin_state(GroupMenuTopic::Hardware, alerting_gpu_pin()),
-            AlertPinState::Dismissed
+            group_menus.panel_pin(
+                GroupMenuTopic::Hardware,
+                alerting_gpu_pin(),
+                AlertPromotion::Promoted
+            ),
+            PanelPinOrigin::Unpinned
         );
     }
 
@@ -704,8 +780,16 @@ mod tests {
         group_menus.track_source_demand(None, Vec::new(), Clock::real().instant);
         group_menus.track_source_demand(None, vec![alerting_gpu_item()], Clock::real().instant);
         assert_eq!(
-            group_menus.alert_pin_state(GroupMenuTopic::Hardware, alerting_gpu_pin()),
-            AlertPinState::Raised
+            group_menus.panel_pin(
+                GroupMenuTopic::Hardware,
+                alerting_gpu_pin(),
+                AlertPromotion::Promoted
+            ),
+            pinned_for(
+                GroupMenuTopic::Hardware,
+                alerting_gpu_pin(),
+                PanelPinDuration::UntilAlertEnds
+            )
         );
     }
 
@@ -713,25 +797,31 @@ mod tests {
     fn pinning_one_sibling_item_leaves_the_other() {
         let sibling_item = |item_in_group_name: &str| GroupMenuPin::Item {
             group: GPU_GROUP,
-            item_in_group_name: item_in_group_name.to_owned(),
+            item_in_group_name: item_in_group_name.to_owned().into(),
         };
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(toggle_in_hardware(sibling_item(
             "WireguardTunnel(WireguardTunnelTarget { interface: \"wg0\" })",
         )));
         assert_eq!(
-            group_menus.pin_state(
+            quiet_pin(
+                &group_menus,
                 GroupMenuTopic::Hardware,
                 sibling_item("WireguardTunnel(WireguardTunnelTarget { interface: \"wg0\" })")
             ),
-            MenuPinState::Pinned
+            pinned_for(
+                GroupMenuTopic::Hardware,
+                sibling_item("WireguardTunnel(WireguardTunnelTarget { interface: \"wg0\" })"),
+                PanelPinDuration::Permanent
+            )
         );
         assert_eq!(
-            group_menus.pin_state(
+            quiet_pin(
+                &group_menus,
                 GroupMenuTopic::Hardware,
                 sibling_item("WireguardTunnel(WireguardTunnelTarget { interface: \"wg1\" })")
             ),
-            MenuPinState::Unpinned
+            PanelPinOrigin::Unpinned
         );
     }
 
@@ -786,12 +876,24 @@ mod tests {
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(second_port.clone())));
         assert_eq!(
-            group_menus.pin_state(GroupMenuTopic::Hardware, GroupMenuPin::Group(second_port)),
-            MenuPinState::Pinned
+            quiet_pin(
+                &group_menus,
+                GroupMenuTopic::Hardware,
+                GroupMenuPin::Group(second_port.clone())
+            ),
+            pinned_for(
+                GroupMenuTopic::Hardware,
+                GroupMenuPin::Group(second_port),
+                PanelPinDuration::Permanent
+            )
         );
         assert_eq!(
-            group_menus.pin_state(GroupMenuTopic::Hardware, GroupMenuPin::Group(first_port)),
-            MenuPinState::Unpinned
+            quiet_pin(
+                &group_menus,
+                GroupMenuTopic::Hardware,
+                GroupMenuPin::Group(first_port)
+            ),
+            PanelPinOrigin::Unpinned
         );
     }
 
@@ -802,18 +904,24 @@ mod tests {
             "Firefox", ":1.40",
         ))));
         assert_eq!(
-            group_menus.pin_state(
+            quiet_pin(
+                &group_menus,
                 GroupMenuTopic::Hardware,
                 GroupMenuPin::Group(player_on_bus("Firefox", ":1.41"))
             ),
-            MenuPinState::Pinned
+            pinned_for(
+                GroupMenuTopic::Hardware,
+                GroupMenuPin::Group(player_on_bus("Firefox", ":1.41")),
+                PanelPinDuration::Permanent
+            )
         );
         assert_eq!(
-            group_menus.pin_state(
+            quiet_pin(
+                &group_menus,
                 GroupMenuTopic::Hardware,
                 GroupMenuPin::Group(player_on_bus("Spotify", ":1.42"))
             ),
-            MenuPinState::Unpinned
+            PanelPinOrigin::Unpinned
         );
     }
 

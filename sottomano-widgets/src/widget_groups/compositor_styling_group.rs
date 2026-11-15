@@ -1,3 +1,4 @@
+use crate::group_items::reading_display_state::ReadingDisplayState;
 pub mod sqlite_compositor_styling;
 pub mod switch_heat_borders;
 
@@ -437,8 +438,9 @@ impl CompositorStylingGroup {
                 })
                 .map(|(_, styling_item)| styling_item),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: compositor_face(self.rules_file.compositor()),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

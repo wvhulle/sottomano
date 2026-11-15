@@ -5,6 +5,7 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sources::network_connectivity::network_manager_proxies::Metering;
 
 use crate::{
+    group_items::reading_display_state::ReadingDisplayState,
     hover_cards::hover_card_body::dictionary_table,
     widget_groups::widget_group_identity::WidgetGroupFamily,
 };
@@ -197,14 +198,15 @@ impl ReachabilityGroup {
         }
     }
 
-    fn handle_face(&self) -> WidgetGroupFace<'_> {
+    fn handle_face(&self, clock: Clock) -> WidgetGroupFace {
         match self.connectivity.display() {
-            Some(reading) => WidgetGroupFace::IconColoredBy {
+            Some(reading) => WidgetGroupFace::Glyph {
                 glyph: reading.icon(),
-                reading,
+                state: reading.state(clock),
             },
-            None => WidgetGroupFace::Icon {
+            None => WidgetGroupFace::Glyph {
                 glyph: Phosphor::CloudCheck(Weight::Regular).into(),
+                state: ReadingDisplayState::Idle,
             },
         }
     }
@@ -234,7 +236,7 @@ impl ReachabilityGroup {
                         .group_item(ReachabilityTarget::Latency, clock, locale),
                 ),
         )
-        .face(self.handle_face())
+        .face(self.handle_face(clock))
     }
 }
 

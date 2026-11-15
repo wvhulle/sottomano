@@ -17,6 +17,7 @@ use crate::{
     desktop_index::DesktopIndex,
     group_items::{
         group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
+        reading_display_state::ReadingDisplayState,
         source_reading::GroupItemIcon,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
@@ -560,8 +561,9 @@ impl AppLauncherGroup {
             AppLauncherMessage::FrequentExpansion,
             frequent_rows,
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: IconGlyph::from(Phosphor::ClockCounterClockwise(Weight::Regular)),
+            state: ReadingDisplayState::Idle,
         })
     }
 
@@ -584,8 +586,9 @@ impl AppLauncherGroup {
             move |expansion| AppLauncherMessage::CategoryExpansion(category, expansion),
             category_rows,
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: IconGlyph::from(category_glyph(category)),
+            state: ReadingDisplayState::Idle,
         })
     }
 
@@ -616,8 +619,9 @@ impl AppLauncherGroup {
                 ),
             ],
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: IconGlyph::from(Phosphor::SlidersHorizontal(Weight::Regular)),
+            state: ReadingDisplayState::Idle,
         })
     }
 

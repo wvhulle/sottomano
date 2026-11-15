@@ -9,7 +9,7 @@ use chrono::Locale;
 use corredo::{
     gauges::activity_line,
     orientation::Axis,
-    popovers::NestedMenuRowEmphasis,
+    popovers::{NestedMenuOpenTrigger, NestedMenuRowEmphasis},
     press_actions::flat_button,
     theming::{primary_color, secondary_text_color, text_color},
     transitions::{expand_transition, reveal},
@@ -26,17 +26,14 @@ use crate::{
     desktop_panels::panel_slot::PanelSlot,
     group_items::{
         aligned_quantity::ItemAlignment,
-        group_item::{
-            GroupItem, GroupItemHoverArea, GroupItemValue, ItemPinning, MenuParts, RowScroll,
-        },
+        group_item::{GroupItem, GroupItemHoverArea, GroupItemValue, MenuParts, RowScroll},
         group_item_gestures::GroupItemGestures,
-        group_item_reading::GroupItemReading,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         source_reading::{GroupItemIcon, reading_value},
     },
     group_menus::{
         group_menu_state::{
-            AlertPinState, GroupMenuPin, GroupMenuState, GroupMenuTopic, MenuPinState,
+            AlertPromotion, GroupMenuPin, GroupMenuState, GroupMenuTopic, ItemPin, PanelPin,
             PanelPinDuration, PanelRaise,
         },
         group_menu_view::MenuSections,
@@ -46,8 +43,9 @@ use crate::{
     },
     hover_cards::{
         HoverAnnouncement, HoverCardMessage, HoverOrigin, HoverTarget, MenuHandleIndicator,
-        PanelPinOrigin, PointerPresence, PressHints, announcing_hoverable,
+        PanelPinOrigin, PointerPresence, PressHints,
         hover_card_body::{Section, hover_card_source_delivery::SectionSource},
+        hoverable,
     },
     widget_groups::widget_group_identity::{
         WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle,
@@ -193,94 +191,72 @@ impl<M> GroupEvent<M> {
     }
 }
 
-pub enum WidgetGroupFace<'a> {
-    Icon {
+pub enum WidgetGroupFace {
+    Glyph {
         glyph: IconGlyph,
-    },
-    IconColoredBy {
-        glyph: IconGlyph,
-        reading: &'a dyn GroupItemReading,
+        state: ReadingDisplayState,
     },
     FirstItem,
 }
 
-impl<'a> WidgetGroupFace<'a> {
+impl WidgetGroupFace {
     fn hover_target(&self, group_identity: &WidgetGroupIdentity) -> Option<HoverTarget> {
         match self {
-            WidgetGroupFace::Icon { .. } | WidgetGroupFace::IconColoredBy { .. } => {
+            WidgetGroupFace::Glyph { .. } => {
                 Some(HoverTarget::GroupFace(Box::new(group_identity.clone())))
             }
             WidgetGroupFace::FirstItem => None,
         }
     }
 
-    fn into_face_item<M: Clone + 'a>(
+    fn glyph_face_item<'a, M: Clone + 'a>(
+        glyph: IconGlyph,
+        state: ReadingDisplayState,
+        group_identity: &WidgetGroupIdentity,
+        group_title: &WidgetGroupTitle,
+    ) -> GroupItem<'a, M> {
+        GroupItem::composed(
+            group_title.to_string(),
+            GroupItemIcon::IconGlyph { glyph, state },
+            GroupItemHoverArea::ByChildren {
+                row_target: HoverTarget::GroupFace(Box::new(group_identity.clone())),
+            },
+            GroupItemValue::Nothing,
+        )
+    }
+
+    fn into_face_item<'a, M: Clone + 'a>(
         self,
         group_identity: &WidgetGroupIdentity,
         group_title: &WidgetGroupTitle,
         items: &mut Vec<GroupItem<'a, M>>,
         handle_announcement: HoverAnnouncement,
-        clock: Clock,
     ) -> GroupItem<'a, M> {
-        let glyph_face = |glyph, state| {
-            GroupItem::composed(
-                group_title.to_string(),
-                GroupItemIcon::IconGlyph { glyph, state },
-                GroupItemHoverArea::ByChildren {
-                    row_target: HoverTarget::GroupFace(Box::new(group_identity.clone())),
-                },
-                GroupItemValue::Nothing,
-            )
-        };
         match self {
-            WidgetGroupFace::Icon { glyph } => glyph_face(glyph, ReadingDisplayState::Idle),
-            WidgetGroupFace::IconColoredBy { glyph, reading } => {
-                glyph_face(glyph, reading.state(clock))
+            WidgetGroupFace::Glyph { glyph, state } => {
+                Self::glyph_face_item(glyph, state, group_identity, group_title)
             }
             WidgetGroupFace::FirstItem => items.remove(0).acting_as_handle(handle_announcement),
         }
     }
 
-    fn into_menu_parts<M: Clone + 'a>(
+    fn into_menu_parts<'a, M: Clone + 'a>(
         self,
+        group_identity: &WidgetGroupIdentity,
+        group_title: &WidgetGroupTitle,
         config: &'a Config,
         items: &[GroupItem<'a, M>],
         clock: Clock,
     ) -> MenuParts<'a, M> {
-        let preview = || collapsing_previewed_value(config, items, 0.0);
         match self {
-            WidgetGroupFace::Icon { glyph, .. } => MenuParts {
-                icon: icon_face_glyph(config, glyph, FaceGlyphTint::Text),
-                value: preview(),
-            },
-            WidgetGroupFace::IconColoredBy { glyph, reading, .. } => MenuParts {
-                icon: icon_face_glyph(
-                    config,
-                    glyph,
-                    FaceGlyphTint::ReadingTint(reading.state(clock)),
-                ),
-                value: preview(),
+            WidgetGroupFace::Glyph { glyph, state } => MenuParts {
+                icon: Self::glyph_face_item(glyph, state, group_identity, group_title)
+                    .menu_parts(config, clock)
+                    .icon,
+                value: collapsing_previewed_value(config, items, 0.0),
             },
             WidgetGroupFace::FirstItem => items[0].menu_parts(config, clock),
         }
-    }
-}
-
-#[derive(Clone, Copy)]
-enum FaceGlyphTint {
-    Text,
-    ReadingTint(ReadingDisplayState),
-}
-
-fn icon_face_glyph<'a, Message: 'a>(
-    config: &Config,
-    glyph: IconGlyph,
-    tint: FaceGlyphTint,
-) -> Element<'a, Message> {
-    let icon_size = config.theme.font.icon_size_px;
-    match tint {
-        FaceGlyphTint::Text => glyph.view(icon_size, text_color),
-        FaceGlyphTint::ReadingTint(state) => glyph.view(icon_size, move |theme| state.color(theme)),
     }
 }
 
@@ -314,15 +290,9 @@ impl<M> FromIterator<GroupToastRequests<M>> for GroupToastRequests<M> {
     }
 }
 
-pub(crate) enum GroupItemPin {
-    Unpinnable,
-    Unpinned,
-    Pinned,
-}
-
 pub(crate) struct GroupMenuItemRow<'a, M> {
     pub name: Cow<'static, str>,
-    pub pin: GroupItemPin,
+    pub pin: ItemPin,
     pub inspected_target: HoverTarget,
     pub gestures: GroupItemGestures<M>,
     pub row_scroll: RowScroll<'a, M>,
@@ -353,7 +323,7 @@ pub struct WidgetGroupContent<'a, M> {
     group_title: WidgetGroupTitle,
     expansion: &'a WidgetGroupExpansion,
     on_expansion: Rc<dyn Fn(WidgetGroupExpansionMessage) -> M + 'a>,
-    face: WidgetGroupFace<'a>,
+    face: WidgetGroupFace,
     scroll_does: Option<&'static str>,
     items: Vec<GroupItem<'a, M>>,
     panel_pin: PanelPinOrigin,
@@ -434,7 +404,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         let mut seen_names = BTreeSet::new();
         self.items
             .iter()
-            .filter(|item| item.pinning() == ItemPinning::Pinnable)
+            .filter(|item| item.menu_pin(&self.group_identity).is_some())
             .map(|item| item.item_in_group_name().into_owned())
             .filter(|item_name| *item_name == group_title || !seen_names.insert(item_name.clone()))
             .collect()
@@ -447,29 +417,26 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     ) -> Vec<PanelRaise> {
         self.items
             .iter()
-            .filter(|item| item.shown_from(promotion_severity))
-            .filter(|item| item.pinning() == ItemPinning::Pinnable)
-            .map(|item| PanelRaise {
-                menu,
-                group: self.group_identity.clone(),
-                item_in_group_name: item.item_in_group_name().into_owned(),
-            })
+            .filter(|item| item.alert_promotion(promotion_severity) == AlertPromotion::Promoted)
+            .filter_map(|item| item.menu_pin(&self.group_identity))
+            .map(|entry| PanelRaise { menu, entry })
             .collect()
     }
 
     #[must_use]
     pub fn pinned_from(self, menu: GroupMenuTopic) -> Self {
         Self {
-            panel_pin: PanelPinOrigin::GroupPinnedFrom {
+            panel_pin: PanelPinOrigin::Pinned(Box::new(PanelPin {
                 menu,
-                group: Box::new(self.group_identity.clone()),
-            },
+                entry: GroupMenuPin::Group(self.group_identity.clone()),
+                duration: PanelPinDuration::Permanent,
+            })),
             ..self
         }
     }
 
     #[must_use]
-    pub fn face(self, face: WidgetGroupFace<'a>) -> Self {
+    pub fn face(self, face: WidgetGroupFace) -> Self {
         Self { face, ..self }
     }
 
@@ -515,29 +482,10 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     #[must_use]
     pub fn toast_requests(&self, locale: Locale, clock: Clock) -> GroupToastRequests<M> {
         let expand = (self.on_expansion)(WidgetGroupExpansionMessage::Expand);
-        self.toast_requests_revealed_by(&expand, locale, clock)
-    }
-
-    fn toast_requests_revealed_by(
-        &self,
-        reveal_message: &M,
-        locale: Locale,
-        clock: Clock,
-    ) -> GroupToastRequests<M> {
-        GroupToastRequests {
-            ongoing_toasts: self
-                .items
-                .iter()
-                .flat_map(|item| {
-                    item.ongoing_toasts_with_reading(reveal_message.clone(), locale, clock)
-                })
-                .collect(),
-            levels: self
-                .items
-                .iter()
-                .filter_map(|item| item.level_reading(reveal_message.clone()))
-                .collect(),
-        }
+        self.items
+            .iter()
+            .map(|item| item.toast_requests(expand.clone(), locale, clock))
+            .collect()
     }
 
     pub(crate) fn highest_alert_severity(&self) -> Severity {
@@ -589,35 +537,16 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         items
             .into_iter()
             .filter_map(|item| {
-                if item.pinning() == ItemPinning::Unpinnable {
+                let ItemPin::Pinned(panel_pin) =
+                    group_menus.item_pin(menu, &group_identity, &item, promotion_severity)
+                else {
                     return None;
-                }
-                let item_in_group_name = item.item_in_group_name().into_owned();
-                let entry = GroupMenuPin::Item {
-                    group: group_identity.clone(),
-                    item_in_group_name: item_in_group_name.clone(),
-                };
-                let pin_duration = match group_menus.pin_state(menu, entry.clone()) {
-                    MenuPinState::Pinned => PanelPinDuration::Permanent,
-                    MenuPinState::Unpinned
-                        if item.shown_from(promotion_severity)
-                            && group_menus.alert_pin_state(menu, entry)
-                                == AlertPinState::Raised =>
-                    {
-                        PanelPinDuration::UntilAlertEnds
-                    }
-                    MenuPinState::Unpinned => return None,
                 };
                 let pinned_announcement = HoverAnnouncement {
                     press_hints: PressHints::default(),
                     origin: HoverOrigin::GroupHandle {
                         item_group_name: Box::new(group_title.clone()),
-                        panel_pin: PanelPinOrigin::ItemPinnedFrom {
-                            menu,
-                            group: Box::new(group_identity.clone()),
-                            item_in_group_name,
-                            pin_duration,
-                        },
+                        panel_pin: PanelPinOrigin::Pinned(Box::new(panel_pin)),
                     },
                 };
                 let item = item.acting_as_handle(pinned_announcement);
@@ -651,7 +580,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             items,
             ..
         } = self;
-        let face = face.into_menu_parts(config, &items, clock);
+        let face = face.into_menu_parts(&group_identity, &group_title, config, &items, clock);
         let aligned = items.iter().fold(BTreeMap::new(), |mut aligned, item| {
             if let ItemAlignment::Aligned(quantity) = item.alignment() {
                 aligned.insert(quantity, item.table_cell_view(config, clock));
@@ -663,19 +592,12 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             .filter(|item| item.alignment() == ItemAlignment::Unaligned)
             .map(|item| GroupMenuItemRow {
                 name: item.item_in_group_name(),
-                pin: match item.pinning() {
-                    ItemPinning::Unpinnable => GroupItemPin::Unpinnable,
-                    ItemPinning::Pinnable => match group_menus.pin_state(
-                        menu,
-                        GroupMenuPin::Item {
-                            group: group_identity.clone(),
-                            item_in_group_name: item.item_in_group_name().into_owned(),
-                        },
-                    ) {
-                        MenuPinState::Pinned => GroupItemPin::Pinned,
-                        MenuPinState::Unpinned => GroupItemPin::Unpinned,
-                    },
-                },
+                pin: group_menus.item_pin(
+                    menu,
+                    &group_identity,
+                    item,
+                    config.group_menus.alert_promotion_severity,
+                ),
                 inspected_target: item.inspected_target().clone(),
                 gestures: item.gestures(),
                 row_scroll: item.row_scroll(),
@@ -748,7 +670,6 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             &group_title,
             &mut items,
             handle_announcement.clone(),
-            clock,
         );
         let handle_target = items
             .iter()
@@ -778,7 +699,8 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             .on_press(toggle.clone())
             .into();
             let handle = match &handle_target {
-                Some(target) => announcing_hoverable(
+                Some(target) => hoverable(
+                    NestedMenuOpenTrigger::Hover,
                     handle,
                     target.clone(),
                     handle_announcement.clone(),
@@ -952,7 +874,7 @@ mod tests {
             group_item::GroupItem, group_item_reading::GroupItemReading,
             reading_display_state::ReadingDisplayState,
         },
-        group_menus::group_menu_state::{GroupMenuTopic, PanelRaise},
+        group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic, PanelRaise},
         hover_cards::{HoverTarget, hover_card_body::Section},
         widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         widgets::{
@@ -1008,8 +930,10 @@ mod tests {
             group.panel_raises(GroupMenuTopic::Media, Severity::Critical),
             vec![PanelRaise {
                 menu: GroupMenuTopic::Media,
-                group: WidgetGroupIdentity::sole(WidgetGroupFamily::Weather),
-                item_in_group_name: "Shown state reading".to_owned(),
+                entry: GroupMenuPin::Item {
+                    group: WidgetGroupIdentity::sole(WidgetGroupFamily::Weather),
+                    item_in_group_name: "Shown state reading".into(),
+                },
             }]
         );
     }

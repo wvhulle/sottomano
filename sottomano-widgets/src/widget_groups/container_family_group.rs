@@ -263,9 +263,9 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
             ContainerFamilyInteraction::Expansion,
             self.group_rows(clock, locale),
         )
-        .face(WidgetGroupFace::IconColoredBy {
+        .face(WidgetGroupFace::Glyph {
             glyph: Family::group_glyph(),
-            reading: self,
+            state: self.state(clock),
         })
     }
 }

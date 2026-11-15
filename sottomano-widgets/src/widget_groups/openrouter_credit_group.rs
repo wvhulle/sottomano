@@ -1,4 +1,6 @@
 use chrono::Locale;
+
+use crate::group_items::reading_display_state::ReadingDisplayState;
 mod best_models_within_cap;
 mod openrouter_soft_budget;
 mod strict_budget_remaining;
@@ -249,8 +251,9 @@ impl OpenRouterCreditGroup {
                 ]
             })),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: SimpleIcon::OpenRouter.into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

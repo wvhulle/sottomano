@@ -1,4 +1,7 @@
-use corredo::press_actions::{ConfirmButton, ConfirmStage};
+use corredo::{
+    popovers::NestedMenuOpenTrigger,
+    press_actions::{ConfirmButton, ConfirmStage},
+};
 use iced::{Alignment, Element, widget::Row};
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{Command, Media, Status};
 use sottomano_toml_config::Config;
@@ -64,6 +67,7 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
                 opacity: self.reveal,
             };
             hoverable(
+                NestedMenuOpenTrigger::Hover,
                 glyph_button(
                     Phosphor::Stop(state.weight()),
                     self.config.theme.font.icon_size_px,
@@ -90,6 +94,7 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
     {
         self.media.capabilities.quit.then(|| {
             hoverable(
+                NestedMenuOpenTrigger::Hover,
                 configured_confirm_button(
                     self.quit_button,
                     self.config,

@@ -271,9 +271,9 @@ impl CgroupMemoryLimitsGroup {
             CgroupMemoryLimitsInteraction::Expansion,
             rows,
         )
-        .face(WidgetGroupFace::IconColoredBy {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::Gauge(Weight::Regular).into(),
-            reading: self,
+            state: self.state(clock),
         })
     }
 }

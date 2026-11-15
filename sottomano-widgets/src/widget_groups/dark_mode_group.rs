@@ -1,3 +1,4 @@
+use crate::group_items::reading_display_state::ReadingDisplayState;
 mod auto_switch_toggle;
 mod offset_slider;
 mod sqlite_dark_mode_schedule;
@@ -393,8 +394,9 @@ impl DarkModeGroup {
             .into_iter()
             .flatten(),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::MoonStars(Weight::Regular).into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

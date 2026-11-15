@@ -343,8 +343,9 @@ impl NspawnContainersGroup {
             NspawnContainersInteraction::Expansion,
             rows,
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::ShippingContainer(Weight::Regular).into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

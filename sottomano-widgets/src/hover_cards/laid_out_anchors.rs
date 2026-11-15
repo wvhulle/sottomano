@@ -1,19 +1,14 @@
 use std::sync::Weak;
 
+use corredo::popovers::NestedMenuOpenTrigger;
 use iced::Rectangle;
 
 use crate::hover_cards::{HoverTarget, PointerPresence};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CardOpening {
-    OnHover,
-    OnPress,
-}
-
 #[derive(Debug, Clone)]
 pub struct WidgetAnchor {
     pub target: HoverTarget,
-    pub opening: CardOpening,
+    pub opening: NestedMenuOpenTrigger,
     pub anchor: Rectangle,
     pub visible: bool,
     pub presence: Weak<()>,
@@ -106,7 +101,7 @@ impl LaidOutAnchors {
             .iter()
             .filter(|known| {
                 known.output == output
-                    && known.widget_anchor.opening == CardOpening::OnPress
+                    && known.widget_anchor.opening == NestedMenuOpenTrigger::Press
                     && known.widget_anchor.widget_liveness() == WidgetLiveness::Alive
             })
             .map(|known| known.widget_anchor.anchor)
@@ -128,9 +123,10 @@ pub enum WidgetLiveness {
 mod tests {
     use std::sync::{Arc, LazyLock};
 
+    use corredo::popovers::NestedMenuOpenTrigger;
     use iced::{Point, Rectangle, Size};
 
-    use super::{CardOpening, LaidOutAnchors, WidgetAnchor};
+    use super::{LaidOutAnchors, WidgetAnchor};
     use crate::hover_cards::{HoverTarget, PointerPresence, laid_out_anchors::WidgetLiveness};
 
     static LIVE_WIDGET: LazyLock<Arc<()>> = LazyLock::new(|| Arc::new(()));
@@ -146,7 +142,7 @@ mod tests {
     fn handle_at(horizontal_position: f32) -> WidgetAnchor {
         WidgetAnchor {
             target: workspace_card(),
-            opening: CardOpening::OnPress,
+            opening: NestedMenuOpenTrigger::Press,
             anchor: anchor_at(horizontal_position),
             visible: true,
             presence: Arc::downgrade(&LIVE_WIDGET),
@@ -227,7 +223,7 @@ mod tests {
         anchors.remember(
             "DP-1",
             WidgetAnchor {
-                opening: CardOpening::OnHover,
+                opening: NestedMenuOpenTrigger::Hover,
                 ..handle_at(1.0)
             },
         );

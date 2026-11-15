@@ -1,6 +1,6 @@
 use std::{mem::replace, slice::from_ref, sync::Arc};
 
-use corredo::popovers::anchor_marker;
+use corredo::popovers::{NestedMenuOpenTrigger, anchor_marker};
 use iced::{
     Element, Event, Length, Rectangle, Size, Vector,
     advanced::{
@@ -14,46 +14,23 @@ use iced::{
 use crate::{
     group_menus::group_menu_state::GroupMenuPin,
     hover_cards::{
-        AnchorEvent, CardOpening, HoverAnnouncement, HoverCardMessage, HoverTarget,
-        PointerPresence, PressHints, WidgetAnchor,
+        AnchorEvent, HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence,
+        WidgetAnchor,
     },
 };
 
 pub fn hoverable<'a, M: 'a>(
+    opening: NestedMenuOpenTrigger,
     content: Element<'a, M>,
     target: HoverTarget,
-    press_hints: PressHints,
-    wrap: impl Fn(HoverCardMessage) -> M + 'a,
-) -> Element<'a, M> {
-    announcing_hoverable(content, target, HoverAnnouncement::from(press_hints), wrap)
-}
-
-pub fn announcing_hoverable<'a, M: 'a>(
-    content: Element<'a, M>,
-    target: HoverTarget,
-    announcement: HoverAnnouncement,
+    announcement: impl Into<HoverAnnouncement>,
     wrap: impl Fn(HoverCardMessage) -> M + 'a,
 ) -> Element<'a, M> {
     Element::new(HoverArea {
         content,
         target,
-        announcement,
-        opening: CardOpening::OnHover,
-        wrap: Box::new(wrap),
-    })
-}
-
-pub fn press_toggled_hoverable<'a, M: 'a>(
-    content: Element<'a, M>,
-    target: HoverTarget,
-    announcement: HoverAnnouncement,
-    wrap: impl Fn(HoverCardMessage) -> M + 'a,
-) -> Element<'a, M> {
-    Element::new(HoverArea {
-        content,
-        target,
-        announcement,
-        opening: CardOpening::OnPress,
+        announcement: announcement.into(),
+        opening,
         wrap: Box::new(wrap),
     })
 }
@@ -62,7 +39,7 @@ struct HoverArea<'a, M> {
     content: Element<'a, M>,
     target: HoverTarget,
     announcement: HoverAnnouncement,
-    opening: CardOpening,
+    opening: NestedMenuOpenTrigger,
     wrap: Box<dyn Fn(HoverCardMessage) -> M + 'a>,
 }
 
@@ -96,14 +73,16 @@ impl<M> HoverArea<'_, M> {
         let replaced = replace(state, HoverState::from(self.target.clone()));
         (replaced.pointer_presence == PointerPresence::PointedAt).then(|| {
             (self.wrap)(match self.opening {
-                CardOpening::OnHover => HoverCardMessage::Exit {
+                NestedMenuOpenTrigger::Hover => HoverCardMessage::Exit {
                     target: replaced.target,
                 },
-                CardOpening::OnPress => HoverCardMessage::Anchor(AnchorEvent::HandlePointed {
-                    target: replaced.target,
-                    pointing: PointerPresence::NotPointedAt,
-                    announcement: replaced.announced,
-                }),
+                NestedMenuOpenTrigger::Press => {
+                    HoverCardMessage::Anchor(AnchorEvent::HandlePointed {
+                        target: replaced.target,
+                        pointing: PointerPresence::NotPointedAt,
+                        announcement: replaced.announced,
+                    })
+                }
             })
         })
     }
@@ -116,8 +95,9 @@ impl<M> HoverArea<'_, M> {
         viewport: &Rectangle,
     ) -> Option<M> {
         let pointed_at = pointer_presence == PointerPresence::PointedAt;
-        let reports =
-            self.opening == CardOpening::OnPress || pointed_at || state.reported_anchor.is_some();
+        let reports = self.opening == NestedMenuOpenTrigger::Press
+            || pointed_at
+            || state.reported_anchor.is_some();
         let visible = pointed_at || anchor.intersection(viewport).is_some();
         if !reports || (state.reported_anchor == Some(anchor) && state.reported_visible == visible)
         {
@@ -188,9 +168,9 @@ impl<M> HoverArea<'_, M> {
         }
         state.pointer_presence = pointer_presence;
         match (pointer_presence, self.opening) {
-            (PointerPresence::PointedAt, CardOpening::OnHover) => Some(self.enter(state)),
-            (PointerPresence::NotPointedAt, CardOpening::OnHover) => Some(self.exit()),
-            (pointer_presence, CardOpening::OnPress) => {
+            (PointerPresence::PointedAt, NestedMenuOpenTrigger::Hover) => Some(self.enter(state)),
+            (PointerPresence::NotPointedAt, NestedMenuOpenTrigger::Hover) => Some(self.exit()),
+            (pointer_presence, NestedMenuOpenTrigger::Press) => {
                 Some(self.menu_handle_pointed(pointer_presence))
             }
         }
@@ -280,7 +260,7 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
         if let Some(laid_out) = self.laid_out_anchor(state, pointer_presence, anchor, viewport) {
             shell.publish(laid_out);
         }
-        if self.opening == CardOpening::OnPress
+        if self.opening == NestedMenuOpenTrigger::Press
             && pointer_presence == PointerPresence::PointedAt
             && !shell.is_event_captured()
             && matches!(
@@ -329,7 +309,7 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
             viewport,
             renderer,
         );
-        if self.opening == CardOpening::OnPress && cursor.is_over(layout.bounds()) {
+        if self.opening == NestedMenuOpenTrigger::Press && cursor.is_over(layout.bounds()) {
             content_interaction.max(mouse::Interaction::Pointer)
         } else {
             content_interaction
@@ -372,6 +352,7 @@ pub fn marked_by_menu_pin<'a, M: 'a>(
 
 #[cfg(test)]
 mod tests {
+    use corredo::popovers::NestedMenuOpenTrigger;
     use iced::{
         Point, Rectangle, Settings, Size,
         mouse::{Button, Event as MouseEvent},
@@ -379,17 +360,18 @@ mod tests {
     };
     use iced_test::Simulator;
 
-    use super::{HoverArea, HoverState, announcing_hoverable, press_toggled_hoverable};
+    use super::{HoverArea, HoverState, hoverable};
     use crate::hover_cards::{
-        AnchorEvent, CardOpening, HoverAnnouncement, HoverCardMessage, HoverTarget,
-        PointerPresence, WidgetAnchor, laid_out_anchors::WidgetLiveness,
+        AnchorEvent, HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence,
+        WidgetAnchor, laid_out_anchors::WidgetLiveness,
     };
 
     const INSIDE_AREA: Point = Point::new(10.0, 10.0);
     const OUTSIDE_AREA: Point = Point::new(100.0, 100.0);
 
     fn press_toggled_area<'a>() -> iced::Element<'a, HoverCardMessage> {
-        press_toggled_hoverable(
+        hoverable(
+            NestedMenuOpenTrigger::Press,
             container(Space::new()).width(40.0).height(40.0).into(),
             HoverTarget::Workspace(7),
             HoverAnnouncement::default(),
@@ -398,7 +380,8 @@ mod tests {
     }
 
     fn hovered_area<'a>() -> iced::Element<'a, HoverCardMessage> {
-        announcing_hoverable(
+        hoverable(
+            NestedMenuOpenTrigger::Hover,
             container(Space::new()).width(40.0).height(40.0).into(),
             HoverTarget::Workspace(7),
             HoverAnnouncement::default(),
@@ -484,7 +467,10 @@ mod tests {
         );
     }
 
-    fn area_of(target: HoverTarget, opening: CardOpening) -> HoverArea<'static, HoverCardMessage> {
+    fn area_of(
+        target: HoverTarget,
+        opening: NestedMenuOpenTrigger,
+    ) -> HoverArea<'static, HoverCardMessage> {
         HoverArea {
             content: Space::new().into(),
             target,
@@ -494,7 +480,7 @@ mod tests {
         }
     }
 
-    fn area_opening_on(opening: CardOpening) -> HoverArea<'static, HoverCardMessage> {
+    fn area_opening_on(opening: NestedMenuOpenTrigger) -> HoverArea<'static, HoverCardMessage> {
         area_of(HoverTarget::Workspace(7), opening)
     }
 
@@ -521,7 +507,7 @@ mod tests {
 
     #[test]
     fn a_hover_area_stays_silent_until_first_hovered() {
-        let area = area_opening_on(CardOpening::OnHover);
+        let area = area_opening_on(NestedMenuOpenTrigger::Hover);
         let mut state = fresh_state();
         assert!(
             report_of(
@@ -545,7 +531,7 @@ mod tests {
 
     #[test]
     fn a_menu_handle_reports_before_any_hover() {
-        let area = area_opening_on(CardOpening::OnPress);
+        let area = area_opening_on(NestedMenuOpenTrigger::Press);
         let mut state = fresh_state();
         assert!(
             report_of(
@@ -560,7 +546,7 @@ mod tests {
 
     #[test]
     fn a_hovered_area_reports_each_move_once_even_after_the_pointer_left() {
-        let area = area_opening_on(CardOpening::OnHover);
+        let area = area_opening_on(NestedMenuOpenTrigger::Hover);
         let mut state = fresh_state();
         assert!(
             report_of(
@@ -612,7 +598,7 @@ mod tests {
     #[test]
     fn a_new_target_in_a_reused_slot_with_identical_bounds_reports_again() {
         let mut state = fresh_state();
-        let first = area_opening_on(CardOpening::OnHover);
+        let first = area_opening_on(NestedMenuOpenTrigger::Hover);
         assert!(
             report_of(
                 &first,
@@ -622,7 +608,7 @@ mod tests {
             )
             .is_some()
         );
-        let second = area_of(HoverTarget::Workspace(8), CardOpening::OnHover);
+        let second = area_of(HoverTarget::Workspace(8), NestedMenuOpenTrigger::Hover);
         let _replaced = second.exit_of_replaced_target(&mut state);
         assert!(matches!(
             report_of(
@@ -642,7 +628,7 @@ mod tests {
 
     #[test]
     fn a_replaced_target_exits_only_if_it_was_hovered() {
-        let second = area_of(HoverTarget::Workspace(8), CardOpening::OnHover);
+        let second = area_of(HoverTarget::Workspace(8), NestedMenuOpenTrigger::Hover);
         let mut unhovered = fresh_state();
         assert!(second.exit_of_replaced_target(&mut unhovered).is_none());
         let mut hovered = HoverState {
@@ -661,7 +647,7 @@ mod tests {
 
     #[test]
     fn a_replaced_menu_handle_stops_being_pointed_at() {
-        let second = area_of(HoverTarget::Workspace(8), CardOpening::OnPress);
+        let second = area_of(HoverTarget::Workspace(8), NestedMenuOpenTrigger::Press);
         let mut hovered = HoverState {
             pointer_presence: PointerPresence::PointedAt,
             ..fresh_state()
@@ -678,7 +664,7 @@ mod tests {
 
     #[test]
     fn dropping_the_state_shows_in_the_reported_presence() {
-        let area = area_opening_on(CardOpening::OnHover);
+        let area = area_opening_on(NestedMenuOpenTrigger::Hover);
         let mut state = fresh_state();
         let Some(HoverCardMessage::Anchor(AnchorEvent::LaidOut(widget_anchor))) = report_of(
             &area,
@@ -695,7 +681,7 @@ mod tests {
 
     #[test]
     fn a_replaced_target_no_longer_counts_as_the_old_widget() {
-        let area = area_opening_on(CardOpening::OnHover);
+        let area = area_opening_on(NestedMenuOpenTrigger::Hover);
         let mut state = fresh_state();
         let Some(HoverCardMessage::Anchor(AnchorEvent::LaidOut(widget_anchor))) = report_of(
             &area,
@@ -705,14 +691,14 @@ mod tests {
         ) else {
             panic!("a hovered area reports");
         };
-        let replacement = area_of(HoverTarget::Workspace(8), CardOpening::OnHover);
+        let replacement = area_of(HoverTarget::Workspace(8), NestedMenuOpenTrigger::Hover);
         let _exit = replacement.exit_of_replaced_target(&mut state);
         assert_eq!(widget_anchor.widget_liveness(), WidgetLiveness::Dropped);
     }
 
     #[test]
     fn bounds_leaving_the_viewport_report_as_hidden_unless_hovered() {
-        let area = area_opening_on(CardOpening::OnHover);
+        let area = area_opening_on(NestedMenuOpenTrigger::Hover);
         let mut state = fresh_state();
         let visibility = |message: Option<HoverCardMessage>| match message {
             Some(HoverCardMessage::Anchor(AnchorEvent::LaidOut(widget_anchor))) => {

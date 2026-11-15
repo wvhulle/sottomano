@@ -33,7 +33,7 @@ use sottomano_toml_config::{Config, severity::Severity};
 use crate::{
     clock::Clock,
     group_items::reading_display_state::ReadingDisplayState,
-    group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic, PanelPinDuration},
+    group_menus::group_menu_state::{GroupMenuPin, PanelPin, PanelPinDuration},
     hover_cards::{
         HoverOrigin, MouseGesture, PanelPinOrigin, PopupMessage, PressHints,
         core_grid::CoreCellGrid,
@@ -153,41 +153,24 @@ impl<'a> HoverCardContent<'a> {
         else {
             return None;
         };
-        let group_name = self.small_dim_text(item_group_name.to_string());
-        let (header, unpin): (Element<'static, PopupMessage>, _) = match panel_pin {
-            PanelPinOrigin::Unpinned => return None,
-            PanelPinOrigin::GroupPinnedFrom { menu, group } => (
-                group_name.into(),
-                self.release_action_row(
-                    *menu,
-                    GroupMenuPin::Group((**group).clone()),
-                    PanelPinDuration::Permanent,
-                ),
-            ),
-            PanelPinOrigin::ItemPinnedFrom {
-                menu,
-                group,
-                item_in_group_name,
-                pin_duration,
-            } => (
-                row([
-                    group_name.into(),
-                    self.small_dim_text("\u{203a}".to_owned()).into(),
-                    self.bold_title(item_in_group_name).into(),
-                ])
-                .spacing(self.config.theme.spacing.item_gap)
-                .align_y(Vertical::Center)
-                .into(),
-                self.release_action_row(
-                    *menu,
-                    GroupMenuPin::Item {
-                        group: (**group).clone(),
-                        item_in_group_name: item_in_group_name.clone(),
-                    },
-                    *pin_duration,
-                ),
-            ),
+        let PanelPinOrigin::Pinned(panel_pin) = panel_pin else {
+            return None;
         };
+        let group_name = self.small_dim_text(item_group_name.to_string());
+        let header: Element<'static, PopupMessage> = match &panel_pin.entry {
+            GroupMenuPin::Group(_) => group_name.into(),
+            GroupMenuPin::Item {
+                item_in_group_name, ..
+            } => row([
+                group_name.into(),
+                self.small_dim_text("\u{203a}".to_owned()).into(),
+                self.bold_title(item_in_group_name).into(),
+            ])
+            .spacing(self.config.theme.spacing.item_gap)
+            .align_y(Vertical::Center)
+            .into(),
+        };
+        let unpin = self.release_action_row((**panel_pin).clone());
         let header_row: Element<'static, PopupMessage> =
             container(container(header).padding(self.title_padding()))
                 .padding(self.edge_row_padding())
@@ -205,14 +188,9 @@ impl<'a> HoverCardContent<'a> {
             .into()
     }
 
-    fn release_action_row(
-        &self,
-        menu: GroupMenuTopic,
-        entry: GroupMenuPin,
-        pin_duration: PanelPinDuration,
-    ) -> Element<'static, PopupMessage> {
+    fn release_action_row(&self, panel_pin: PanelPin) -> Element<'static, PopupMessage> {
         let font = &self.config.theme.font;
-        let (release_glyph, release_text) = match pin_duration {
+        let (release_glyph, release_text) = match panel_pin.duration {
             PanelPinDuration::Permanent => {
                 (Phosphor::PushPin(Weight::Fill), "unpin from the panel")
             }
@@ -239,11 +217,7 @@ impl<'a> HoverCardContent<'a> {
                 text_color: text_color(theme),
                 ..button::Style::default()
             })
-            .on_press(PopupMessage::ReleaseFromPanel {
-                menu,
-                entry,
-                pin_duration,
-            })
+            .on_press(PopupMessage::ReleaseFromPanel(panel_pin))
             .into()
     }
 

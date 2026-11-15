@@ -1,4 +1,6 @@
 use chrono::Locale;
+
+use crate::group_items::reading_display_state::ReadingDisplayState;
 mod context_fill_gauge;
 mod generation_rate_label;
 mod gguf_model_card_sections;
@@ -254,8 +256,9 @@ impl LlamaServerGroup {
                         .items(LlamaServerInteraction::System, clock, locale),
                 ),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::Robot(Weight::Regular).into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

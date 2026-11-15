@@ -445,9 +445,9 @@ impl IncusInstancesGroup {
             IncusInstancesInteraction::Expansion,
             rows,
         )
-        .face(WidgetGroupFace::IconColoredBy {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::Package(Weight::Regular).into(),
-            reading: self,
+            state: self.state(clock),
         })
     }
 

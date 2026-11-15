@@ -1,4 +1,6 @@
 use chrono::Locale;
+
+use crate::group_items::reading_display_state::ReadingDisplayState;
 mod claude_code_billing_block;
 mod claude_code_period_spend;
 mod claude_enterprise_credit_spend;
@@ -341,8 +343,9 @@ impl ClaudeUsageGroup {
                 )
             })),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: SimpleIcon::Claude.into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

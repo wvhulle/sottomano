@@ -262,7 +262,7 @@ impl From<PopupMessage> for ShowcaseInteraction {
             | PopupMessage::OpenUrl(_)
             | PopupMessage::FocusWindow(_)
             | PopupMessage::RefreshHoveredReading
-            | PopupMessage::ReleaseFromPanel { .. } => ShowcaseInteraction::OutsideShowcase,
+            | PopupMessage::ReleaseFromPanel(_) => ShowcaseInteraction::OutsideShowcase,
         }
     }
 }

@@ -347,9 +347,9 @@ impl WaydroidContainerGroup {
             WaydroidContainerInteraction::Expansion,
             rows,
         )
-        .face(WidgetGroupFace::IconColoredBy {
+        .face(WidgetGroupFace::Glyph {
             glyph: IconGlyph::SimpleIcon(SimpleIcon::Android),
-            reading: self,
+            state: self.state(clock),
         })
     }
 

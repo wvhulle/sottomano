@@ -1,4 +1,6 @@
 use chrono::Locale;
+
+use crate::group_items::reading_display_state::ReadingDisplayState;
 mod account_face;
 mod compositor_face;
 mod desktop_services_face;
@@ -242,8 +244,9 @@ impl LoginSessionGroup {
             identity,
             kernel.into_iter().chain(items),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::StackSimple(Weight::Regular).into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 

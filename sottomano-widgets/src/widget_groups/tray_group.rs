@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 
-use corredo::{gauges::activity_line, orientation::Axis, theming::primary_color};
+use corredo::{
+    gauges::activity_line, orientation::Axis, popovers::NestedMenuOpenTrigger,
+    theming::primary_color,
+};
 use iced::{
     Alignment, Element, Task,
     border::Radius,
@@ -306,8 +309,9 @@ impl TrayGroup {
             TrayMessage::Expansion,
             group_items,
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::DotsThreeVertical(Weight::Regular).into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }
@@ -402,6 +406,7 @@ fn item_view<'a>(
         ..PressHints::default()
     };
     let hover = hoverable(
+        NestedMenuOpenTrigger::Hover,
         marked,
         HoverTarget::Tray(item.address.clone()),
         press_hints,

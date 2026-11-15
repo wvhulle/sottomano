@@ -19,7 +19,7 @@ use crate::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
-        toggle_control::{SwitchPosition, SwitchPresses},
+        toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::{
         HoverTarget,
@@ -56,32 +56,31 @@ pub struct UnitSwitchFace {
     pub presses: SwitchPresses,
 }
 
-#[derive(Clone)]
-struct UnitSwitchReading {
-    face: UnitSwitchFace,
-    shown_glyph: IconGlyph,
-    activity: UnitActivity,
+impl UnitSwitchFace {
+    fn toggle_in(&self, switch_position: SwitchPosition) -> IconToggle {
+        IconToggle::new(self.name.clone(), self.icon, switch_position, self.presses)
+    }
 }
 
-impl UnitSwitchReading {
-    fn press_does(&self) -> &'static str {
-        match self.activity.press_change() {
-            RunChange::Start => self.face.presses.turning_on,
-            RunChange::Stop => self.face.presses.turning_off,
-        }
-    }
-
-    fn switch_position(&self) -> SwitchPosition {
-        match self.activity.press_change() {
+impl From<UnitActivity> for SwitchPosition {
+    fn from(activity: UnitActivity) -> Self {
+        match activity.press_change() {
             RunChange::Start => SwitchPosition::Off,
             RunChange::Stop => SwitchPosition::On,
         }
     }
 }
 
+#[derive(Clone)]
+struct UnitSwitchReading {
+    toggle: IconToggle,
+    shown_glyph: IconGlyph,
+    activity: UnitActivity,
+}
+
 impl GroupItemReading for UnitSwitchReading {
     fn name(&self) -> Cow<'static, str> {
-        self.face.name.clone()
+        self.toggle.name()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -207,7 +206,7 @@ impl UnitSwitch {
             (activity, _) => activity,
         };
         Some(UnitSwitchReading {
-            face: self.face.clone(),
+            toggle: self.face.toggle_in(activity.into()),
             shown_glyph: self.face.icon.with_weight(Weight::Regular).into(),
             activity,
         })
@@ -246,9 +245,11 @@ impl UnitSwitch {
         pressed: M,
     ) -> GroupItem<'a, M> {
         match self.reading(ServiceReadiness::Serving) {
-            Some(reading) => {
-                group_item.on_switch_press(reading.switch_position(), reading.press_does(), pressed)
-            }
+            Some(reading) => group_item.on_switch_press(
+                reading.toggle.switch_position,
+                reading.toggle.press_does(),
+                pressed,
+            ),
             None => group_item,
         }
     }
@@ -266,8 +267,8 @@ impl UnitSwitch {
             shown_glyph,
             ..self.reading(service_readiness)?
         };
-        let switch_position = reading.switch_position();
-        let press_does = reading.press_does();
+        let switch_position = reading.toggle.switch_position;
+        let press_does = reading.toggle.press_does();
         Some(
             GroupItem::reading(reading, target, clock, locale).on_switch_press(
                 switch_position,

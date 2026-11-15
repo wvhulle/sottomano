@@ -1,3 +1,4 @@
+use corredo::popovers::NestedMenuOpenTrigger;
 pub mod inline_strip;
 pub mod sidebar_column;
 pub mod workspace_hover_card;
@@ -296,6 +297,7 @@ fn empty_workspaces_toggle<'a>(
         "show the empty workspaces until the next workspace switch"
     };
     Some(hoverable(
+        NestedMenuOpenTrigger::Hover,
         button(face)
             .padding(0)
             .style(flat_button(secondary_text_color))
@@ -348,6 +350,7 @@ fn order_restore<'a>(
         configured.order_status_on(workspaces) == ConfiguredOrderStatus::Diverged
     })?;
     Some(hoverable(
+        NestedMenuOpenTrigger::Hover,
         glyph_button(
             Phosphor::ArrowCounterClockwise(Weight::Regular),
             config.theme.font.icon_size_px,

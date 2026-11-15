@@ -16,7 +16,8 @@ use crate::{
     background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading, toggle_control::SwitchPosition,
+        group_item::GroupItem, group_item_reading::GroupItemReading,
+        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{HoverTarget, hover_card_body::Section},
@@ -178,8 +179,9 @@ impl NetworkManagerVpnGroup {
                 }
             }),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::ShieldCheck(Weight::Regular).into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

@@ -1,3 +1,6 @@
+use crate::group_items::{
+    group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+};
 mod pause_blocker_rows;
 mod sqlite_idle_timeouts;
 
@@ -437,11 +440,14 @@ impl IdlePauseGroups {
             });
         let glyph = pause_glyph(pause).into();
         let face = match first_blocker {
-            Some(blocker) => WidgetGroupFace::IconColoredBy {
+            Some(blocker) => WidgetGroupFace::Glyph {
                 glyph,
-                reading: blocker,
+                state: blocker.state(clock),
             },
-            None => WidgetGroupFace::Icon { glyph },
+            None => WidgetGroupFace::Glyph {
+                glyph,
+                state: ReadingDisplayState::Idle,
+            },
         };
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::IdleTimeouts, pause_stored_name(pause)),

@@ -1,3 +1,4 @@
+use crate::group_items::reading_display_state::ReadingDisplayState;
 mod gamma_dim_gauge;
 mod sun_follow_toggle;
 
@@ -291,8 +292,9 @@ impl ColorTemperatureGroup {
             .into_iter()
             .flatten(),
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::ThermometerHot(Weight::Regular).into(),
+            state: ReadingDisplayState::Idle,
         })
         .forwards_scroll(gamma_available.then_some("change the screen warmth"))
     }

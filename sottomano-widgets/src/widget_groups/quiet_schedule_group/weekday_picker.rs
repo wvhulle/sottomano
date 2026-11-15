@@ -1,5 +1,8 @@
 use chrono::{Weekday, WeekdaySet};
-use corredo::value_controls::{DaySelection, weekday_picker as themed_weekday_picker};
+use corredo::{
+    popovers::NestedMenuOpenTrigger,
+    value_controls::{DaySelection, weekday_picker as themed_weekday_picker},
+};
 use iced::Element;
 use sottomano_toml_config::Config;
 
@@ -73,6 +76,7 @@ impl<'a, Message: 'a + Clone> From<WeekdayPicker<'_, Message>> for Element<'a, M
             })
             .wrap_day(move |day, day_selection, day_button| {
                 hoverable(
+                    NestedMenuOpenTrigger::Hover,
                     day_button,
                     (messages.target)(day),
                     PressHints {

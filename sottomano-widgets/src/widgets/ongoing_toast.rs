@@ -16,8 +16,11 @@ use crate::{
     group_items::reading_display_state::ReadingDisplayState,
     hover_cards::HoverTarget,
     widgets::{
-        amount_text::percent_text, announced_level::AnnouncedLevel, icon_glyph::IconGlyph,
-        localized_durations::duration_text, localized_time::LocalizedTimeFormat,
+        amount_text::percent_text,
+        announced_level::{AnnouncedLevel, LevelReading},
+        icon_glyph::IconGlyph,
+        localized_durations::duration_text,
+        localized_time::LocalizedTimeFormat,
     },
 };
 
@@ -199,19 +202,33 @@ pub fn quota_pace_alert_severity(quota_windows: &[Quota]) -> Option<Severity> {
         .max()
 }
 
-pub struct AlertedReading<'r> {
+pub struct RowNotice<'r, Message> {
     pub hover_target: HoverTarget,
     pub widget_name: Cow<'static, str>,
     pub state: ReadingDisplayState,
     pub alerts: &'r ReadingAlerts,
+    pub on_body_clicked: Message,
+}
+
+impl<Message: Clone> RowNotice<'_, Message> {
+    pub fn level_reading(&self) -> Option<LevelReading<Message>> {
+        let LevelNotice::Announced { level, glyph } = &self.alerts.level else {
+            return None;
+        };
+        Some(LevelReading {
+            hover_target: self.hover_target.clone(),
+            glyph: *glyph,
+            level: level.clone(),
+            on_body_clicked: self.on_body_clicked.clone(),
+        })
+    }
 }
 
 impl<Message> OngoingToast<Message> {
-    pub fn reading_state_alert(
-        reading: &AlertedReading<'_>,
-        on_body_clicked: Message,
-        clock: Clock,
-    ) -> Option<Self> {
+    pub fn reading_state_alert(reading: &RowNotice<'_, Message>, clock: Clock) -> Option<Self>
+    where
+        Message: Clone,
+    {
         let severity = state_alert_severity(reading.state, &reading.alerts.state_toast)?;
         let StateToast::NotifyFromSeverity {
             summary_text,
@@ -236,17 +253,19 @@ impl<Message> OngoingToast<Message> {
                 ToastProgress::Measured(fill) => Some(*fill),
             },
             since: clock.wall,
-            on_body_clicked,
+            on_body_clicked: reading.on_body_clicked.clone(),
             action_buttons: Vec::new(),
         })
     }
 
     pub fn quota_pace_alert(
-        reading: &AlertedReading<'_>,
-        on_body_clicked: Message,
+        reading: &RowNotice<'_, Message>,
         locale: Locale,
         clock: Clock,
-    ) -> Option<Self> {
+    ) -> Option<Self>
+    where
+        Message: Clone,
+    {
         let now = clock.utc();
         let alerting: Vec<Quota> = reading
             .alerts
@@ -269,7 +288,7 @@ impl<Message> OngoingToast<Message> {
             progress: Some(worst.used),
             body: Some(quota_pace_body(&alerting, now, locale)),
             since: clock.wall,
-            on_body_clicked,
+            on_body_clicked: reading.on_body_clicked.clone(),
             action_buttons: Vec::new(),
         })
     }
@@ -343,13 +362,13 @@ mod tests {
             ..ReadingAlerts::default()
         };
         OngoingToast::reading_state_alert(
-            &AlertedReading {
+            &RowNotice {
                 hover_target: HoverTarget::Power(PowerTarget::BatteryTime),
                 widget_name: "Fixed reading".into(),
                 state,
                 alerts: &alerts,
+                on_body_clicked: 0,
             },
-            0,
             Clock::real(),
         )
     }

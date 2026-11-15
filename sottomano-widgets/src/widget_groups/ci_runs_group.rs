@@ -1,4 +1,6 @@
 use chrono::Locale;
+
+use crate::group_items::reading_display_state::ReadingDisplayState;
 mod ci_run_readings;
 mod ci_runner_watches;
 
@@ -299,8 +301,9 @@ impl CiRunsGroup {
             CiRunsInteraction::Expansion,
             runner_rows,
         )
-        .face(WidgetGroupFace::Icon {
+        .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::FlowArrow(Weight::Regular).into(),
+            state: ReadingDisplayState::Idle,
         })
     }
 }

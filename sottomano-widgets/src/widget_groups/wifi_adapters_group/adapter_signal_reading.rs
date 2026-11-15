@@ -10,7 +10,7 @@ use crate::{
     clock::Clock,
     group_items::{
         gauge::percent_fill, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::interface_address_sections::{link_stats_section, signal_level},
@@ -163,7 +163,7 @@ impl GroupItemReading for AllWifiRadiosSwitch {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(self.radio_power)
+        ReadingDisplayState::from(SwitchPosition::from(self.radio_power))
     }
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
