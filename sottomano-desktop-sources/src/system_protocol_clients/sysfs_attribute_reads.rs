@@ -6,10 +6,13 @@ use std::{
 
 use uom::si::{f64::Frequency, frequency::kilohertz};
 
-use crate::{blocking_background_work::Panicked, delivery_cadence_drivers::ChangeWatchFailure};
+use crate::{
+    blocking_background_work::Panicked, delivery_cadence_drivers::ChangeWatchFailure,
+    system_protocol_clients::shell_command_output,
+};
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum FileReadError {
     #[error("change watch: {0}")]
     ChangeWatch(#[from] ChangeWatchFailure),
     #[error("cannot read {0}")]
@@ -18,28 +21,40 @@ pub enum Error {
     Unwritable { path: String, detail: String },
     #[error("unexpected contents in {0}")]
     Unparsable(String),
-    #[error("no matching temperature sensor in /sys/class/hwmon")]
-    NoTemperatureSensor,
-    #[error("sensor read panicked")]
+    #[error("statvfs on {mount_point} failed (errno {errno})")]
+    Statvfs { mount_point: String, errno: i32 },
+    #[error("no {fs_type} filesystem found on {device}")]
+    NoFilesystemOn {
+        fs_type: &'static str,
+        device: String,
+    },
+    #[error("{0}")]
+    Command(#[from] shell_command_output::Error),
+    #[error("read panicked")]
     Panicked,
 }
 
-impl From<Panicked> for Error {
+impl From<Panicked> for FileReadError {
     fn from(Panicked: Panicked) -> Self {
-        Error::Panicked
+        FileReadError::Panicked
     }
 }
 
-pub fn read_field(path: &Path) -> Result<String, Error> {
+pub fn read_field(path: &Path) -> Result<String, FileReadError> {
     fs::read_to_string(path)
         .map(|field_text| field_text.trim().to_string())
-        .map_err(|read_failure| Error::Unreadable(format!("{}: {read_failure}", path.display())))
+        .map_err(|read_failure| {
+            FileReadError::Unreadable(format!("{}: {read_failure}", path.display()))
+        })
 }
 
-pub fn parse_field<T: FromStr>(path: &Path) -> Result<T, Error> {
-    read_field(path)?
-        .parse()
-        .map_err(|_| Error::Unparsable(path.display().to_string()))
+pub fn parse_field<T: FromStr>(path: &Path) -> Result<T, FileReadError> {
+    read_field(path)?.parse().map_err(|_| unparsable_file(path))
+}
+
+#[must_use]
+pub fn unparsable_file(path: &Path) -> FileReadError {
+    FileReadError::Unparsable(path.display().to_string())
 }
 
 #[must_use]

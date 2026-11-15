@@ -11,7 +11,7 @@ use sottomano_desktop_sources::compositor_window_ipc::{
 use tokio::fs;
 
 use crate::compositor_window_requests::compositor_requests::{
-    CompositorRequest, send_compositor_request_or_warn,
+    CompositorRequest, send_compositor_request,
 };
 #[cfg(feature = "hyprland")]
 use crate::compositor_window_requests::hyprland_lua_rules::rendered_hyprland_rules;
@@ -46,7 +46,10 @@ impl RulesWrite {
         replace(&self.path, &self.rules)
             .await
             .map_err(|write_error| write_error.kind())?;
-        send_compositor_request_or_warn(CompositorRequest::ReloadConfig).await;
+        if let Err(reload_failure) = send_compositor_request(CompositorRequest::ReloadConfig).await
+        {
+            tracing::warn!("reloading the compositor rules: {reload_failure}");
+        }
         Ok(())
     }
 }

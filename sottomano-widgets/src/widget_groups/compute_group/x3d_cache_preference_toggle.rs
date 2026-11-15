@@ -8,7 +8,7 @@ use sottomano_desktop_sources::{
         amd_x3d_cache_preference::X3dCachePreference,
         cpu_topology::{CoreRole, CpuTopology},
     },
-    system_protocol_clients::sysfs_attribute_reads::Error,
+    system_protocol_clients::sysfs_attribute_reads::FileReadError,
 };
 
 use super::core_grid_sections::topology_facts;
@@ -120,7 +120,7 @@ impl ToggleableSource for X3dCachePreference {
         self.other()
     }
 
-    fn apply_toggle(&self) -> impl Future<Output = Result<(), Error>> + Send + 'static {
+    fn apply_toggle(&self) -> impl Future<Output = Result<(), FileReadError>> + Send + 'static {
         let wanted_preference = self.other();
         async move { write_x3d_cache_preference(wanted_preference) }
     }

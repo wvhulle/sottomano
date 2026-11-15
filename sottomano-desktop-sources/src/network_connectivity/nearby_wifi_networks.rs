@@ -6,11 +6,11 @@ use zbus::{Connection, zvariant::OwnedObjectPath};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     network_connectivity::{
-        ReadingError, device_or_absent,
+        device_or_absent,
         network_manager_proxies::{self, ApInfo, DeviceInfo, WirelessProfile},
         nm_readings,
     },
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -123,7 +123,7 @@ async fn adapter_nearby_networks(
     ))
 }
 
-async fn read_nearby_networks(connection: Connection) -> Result<NearbyWifiNetworks, ReadingError> {
+async fn read_nearby_networks(connection: Connection) -> Result<NearbyWifiNetworks, BusReadError> {
     let devices = network_manager_proxies::devices_of_kind(
         &connection,
         network_manager_proxies::DeviceKind::Wifi,
@@ -139,7 +139,7 @@ async fn read_nearby_networks(connection: Connection) -> Result<NearbyWifiNetwor
 }
 
 impl SnapshotSource for NearbyWifiNetworks {
-    type Error = zbus::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "nearby Wi-Fi networks";

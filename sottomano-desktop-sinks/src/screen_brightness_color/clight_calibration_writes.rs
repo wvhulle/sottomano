@@ -5,7 +5,7 @@ use sottomano_desktop_sources::{
         BrightnessCalibration, ClightDaemonProxy, ConfBacklightProxy, config_file,
         current_calibration,
     },
-    system_protocol_clients::dbus_desktop_buses::Error,
+    system_protocol_clients::dbus_desktop_buses::BusReadError,
 };
 use zbus::Connection;
 
@@ -20,15 +20,22 @@ fn persist(calibration: BrightnessCalibration) {
         BrightnessCalibration::FromWebcam => "false",
     };
     let contents = format!("backlight:\n{{\n    no_auto_calibration = {value};\n}};\n");
-    let _ = fs::write::<&Path, String>(&file, contents);
+    if let Err(write_failure) = fs::write::<&Path, String>(&file, contents) {
+        tracing::warn!(
+            "clight: persisting the calibration to {}: {write_failure}",
+            file.display()
+        );
+    }
 }
 
 pub async fn pause_auto_calib() {
-    let _ = set_calibration(BrightnessCalibration::Fixed).await;
+    if let Err(pause_failure) = set_calibration(BrightnessCalibration::Fixed).await {
+        tracing::debug!("clight: pausing webcam calibration: {pause_failure}");
+    }
     persist(BrightnessCalibration::Fixed);
 }
 
-pub async fn flip() -> Result<(), Error> {
+pub async fn flip() -> Result<(), BusReadError> {
     let wanted_calibration = match current_calibration().await {
         Ok(BrightnessCalibration::FromWebcam) => BrightnessCalibration::Fixed,
         Ok(BrightnessCalibration::Fixed) => BrightnessCalibration::FromWebcam,
@@ -48,7 +55,7 @@ pub async fn flip() -> Result<(), Error> {
     outcome
 }
 
-async fn set_calibration(calibration: BrightnessCalibration) -> Result<(), Error> {
+async fn set_calibration(calibration: BrightnessCalibration) -> Result<(), BusReadError> {
     let session = Connection::session().await?;
     ConfBacklightProxy::new(&session)
         .await?
@@ -58,10 +65,13 @@ async fn set_calibration(calibration: BrightnessCalibration) -> Result<(), Error
 }
 
 async fn capture() {
-    let Ok(session) = Connection::session().await else {
-        return;
+    let captured = async {
+        ClightDaemonProxy::new(&Connection::session().await?)
+            .await?
+            .capture(true, false)
+            .await
     };
-    if let Ok(proxy) = ClightDaemonProxy::new(&session).await {
-        let _ = proxy.capture(true, false).await;
+    if let Err(capture_failure) = captured.await {
+        tracing::warn!("clight: capturing webcam light: {capture_failure}");
     }
 }

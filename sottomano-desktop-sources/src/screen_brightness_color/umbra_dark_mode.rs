@@ -5,11 +5,11 @@ use futures::{Stream, StreamExt, stream};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::AvailabilityStreams,
-    delivery_cadence_drivers::{ChangeTriggerStreams, ChangeWatchFailure, SnapshotDeliveryStreams},
+    delivery_cadence_drivers::{ChangeTriggerStreams, SnapshotDeliveryStreams},
     screen_brightness_color::solar_switch_schedule::ColorMode,
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
-        shell_command_output,
+        shell_command_output::{self, WatchedCommandError},
     },
 };
 
@@ -18,16 +18,8 @@ pub struct DarkMode {
     pub color_mode: ColorMode,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum DarkModeReadError {
-    #[error("{0}")]
-    Command(#[from] shell_command_output::Error),
-    #[error("{0}")]
-    ChangeWatch(#[from] ChangeWatchFailure),
-}
-
 impl SnapshotSource for DarkMode {
-    type Error = DarkModeReadError;
+    type Error = WatchedCommandError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Color scheme";
@@ -46,7 +38,7 @@ impl SnapshotSource for DarkMode {
 }
 
 impl DarkMode {
-    async fn read() -> Result<Self, DarkModeReadError> {
+    async fn read() -> Result<Self, WatchedCommandError> {
         let mode = shell_command_output::output("umbra", &["get"]).await?;
         Ok(DarkMode {
             color_mode: match mode.trim() {

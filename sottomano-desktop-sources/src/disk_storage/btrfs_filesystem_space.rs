@@ -3,12 +3,12 @@ use std::path::PathBuf;
 use bytesize::ByteSize;
 
 use super::{
-    Error,
     block_filesystem_mounts::{Compression, KernelDevice},
     filesystem_device_errors::{DeviceErrors, ErrorCount},
-    read_disk_text, read_disk_value,
 };
-use crate::system_protocol_clients::sysfs_attribute_reads::list_dir;
+use crate::system_protocol_clients::sysfs_attribute_reads::{
+    FileReadError, list_dir, parse_field, read_field,
+};
 
 const SYS_FS_BTRFS: &str = "/sys/fs/btrfs";
 const SECTOR_BYTES: u64 = 512;
@@ -71,7 +71,7 @@ pub struct BtrfsFilesystem {
 }
 
 impl BtrfsFilesystem {
-    pub fn containing(devices: &[KernelDevice]) -> Result<Self, Error> {
+    pub fn containing(devices: &[KernelDevice]) -> Result<Self, FileReadError> {
         list_dir(SYS_FS_BTRFS)
             .into_iter()
             .find(|dir| {
@@ -80,7 +80,7 @@ impl BtrfsFilesystem {
                     .any(|device| dir.join("devices").join(&device.name).exists())
             })
             .map(|dir| BtrfsFilesystem { dir })
-            .ok_or_else(|| Error::NoFilesystemOn {
+            .ok_or_else(|| FileReadError::NoFilesystemOn {
                 fs_type: "btrfs",
                 device: devices
                     .first()
@@ -88,7 +88,7 @@ impl BtrfsFilesystem {
             })
     }
 
-    pub fn space(&self, compression: Compression) -> Result<BtrfsSpace, Error> {
+    pub fn space(&self, compression: Compression) -> Result<BtrfsSpace, FileReadError> {
         Ok(BtrfsSpace {
             compression,
             unallocated: self.unallocated()?,
@@ -96,7 +96,7 @@ impl BtrfsFilesystem {
                 used: self.allocation_bytes("metadata", "bytes_used")?,
                 allocated: self.allocation_bytes("metadata", "total_bytes")?,
             },
-            global_reserve: read_disk_value(&self.dir.join("allocation").join("global_rsv_size"))
+            global_reserve: parse_field(&self.dir.join("allocation").join("global_rsv_size"))
                 .map(ByteSize::b)?,
             metadata_chunk: self
                 .allocation_bytes("metadata", "chunk_size")
@@ -107,12 +107,12 @@ impl BtrfsFilesystem {
         })
     }
 
-    pub fn device_errors(&self) -> Result<DeviceErrors, Error> {
+    pub fn device_errors(&self) -> Result<DeviceErrors, FileReadError> {
         let summed = list_dir(self.dir.join("devinfo"))
             .iter()
             .map(|device| {
                 let path = device.join("error_stats");
-                read_disk_text(&path).map(|stats| ErrorStats::parse(&stats))
+                read_field(&path).map(|stats| ErrorStats::parse(&stats))
             })
             .try_fold(ErrorStats::default(), |total, device| {
                 device.map(|device| total.plus(device))
@@ -129,10 +129,10 @@ impl BtrfsFilesystem {
         })
     }
 
-    fn unallocated(&self) -> Result<ByteSize, Error> {
+    fn unallocated(&self) -> Result<ByteSize, FileReadError> {
         let device_sectors: u64 = list_dir(self.dir.join("devices"))
             .iter()
-            .map(|device| read_disk_value::<u64>(&device.join("size")))
+            .map(|device| parse_field::<u64>(&device.join("size")))
             .sum::<Result<_, _>>()?;
         let allocated: u64 = BLOCK_GROUP_KINDS
             .iter()
@@ -145,15 +145,15 @@ impl BtrfsFilesystem {
             .checked_sub(allocated)
             .map(ByteSize::b)
             .ok_or_else(|| {
-                Error::Unparsable(format!(
+                FileReadError::Unparsable(format!(
                     "{}: allocated chunks exceed the device size",
                     self.dir.display()
                 ))
             })
     }
 
-    fn allocation_bytes(&self, kind: &str, counter: &str) -> Result<ByteSize, Error> {
-        read_disk_value(&self.dir.join("allocation").join(kind).join(counter)).map(ByteSize::b)
+    fn allocation_bytes(&self, kind: &str, counter: &str) -> Result<ByteSize, FileReadError> {
+        parse_field(&self.dir.join("allocation").join(kind).join(counter)).map(ByteSize::b)
     }
 }
 

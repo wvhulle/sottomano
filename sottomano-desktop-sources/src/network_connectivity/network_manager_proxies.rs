@@ -21,11 +21,10 @@ use zbus::{
 };
 
 use crate::{
-    network_connectivity::ReadingError,
     non_empty_text::non_empty,
     system_protocol_clients::{
         dbus_change_signals::{change_triggers, properties_changed_rule},
-        dbus_desktop_buses::prop,
+        dbus_desktop_buses::{BusReadError, prop},
     },
 };
 
@@ -310,31 +309,31 @@ pub async fn network_manager_proxy(connection: &Connection) -> zbus::Result<Mana
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DeviceLinkState {
-    Connected,
+pub enum LinkPhase {
+    Up,
     Switching,
-    Disconnected,
+    Down,
 }
 
-impl From<u32> for DeviceLinkState {
+impl From<u32> for LinkPhase {
     fn from(state_code: u32) -> Self {
         if state_code == STATE_ACTIVATED {
-            DeviceLinkState::Connected
+            LinkPhase::Up
         } else if STATES_ACTIVATING.contains(&state_code) || state_code == STATE_DEACTIVATING {
-            DeviceLinkState::Switching
+            LinkPhase::Switching
         } else {
-            DeviceLinkState::Disconnected
+            LinkPhase::Down
         }
     }
 }
 
-impl DeviceLinkState {
+impl LinkPhase {
     #[must_use]
     pub const fn label(self) -> &'static str {
         match self {
-            DeviceLinkState::Connected => "connected",
-            DeviceLinkState::Switching => "switching",
-            DeviceLinkState::Disconnected => "disconnected",
+            LinkPhase::Up => "connected",
+            LinkPhase::Switching => "switching",
+            LinkPhase::Down => "disconnected",
         }
     }
 }
@@ -342,7 +341,7 @@ impl DeviceLinkState {
 pub struct DeviceInfo {
     pub interface: String,
     pub kind: DeviceKind,
-    pub link_state: DeviceLinkState,
+    pub link_state: LinkPhase,
     pub path: OwnedObjectPath,
     pub proxy: DeviceProxy<'static>,
 }
@@ -358,14 +357,14 @@ pub async fn devices(connection: &Connection) -> zbus::Result<Vec<DeviceInfo>> {
 pub async fn devices_of_kind(
     connection: &Connection,
     kind: DeviceKind,
-) -> Result<Vec<DeviceInfo>, ReadingError> {
+) -> Result<Vec<DeviceInfo>, BusReadError> {
     let mut matching_devices: Vec<DeviceInfo> = devices(connection)
         .await?
         .into_iter()
         .filter(|device| device.kind == kind)
         .collect();
     if matching_devices.is_empty() {
-        return Err(ReadingError::Absent);
+        return Err(BusReadError::Absent);
     }
     matching_devices.sort_by(|left, right| left.interface.cmp(&right.interface));
     Ok(matching_devices)
@@ -394,7 +393,7 @@ async fn device_info(connection: &Connection, path: OwnedObjectPath) -> zbus::Re
     Ok(DeviceInfo {
         kind: DeviceKind::from(kind),
         interface,
-        link_state: DeviceLinkState::from(state),
+        link_state: LinkPhase::from(state),
         path,
         proxy,
     })
@@ -528,7 +527,7 @@ async fn uplink_identity(
     }))
 }
 
-pub async fn uplink(connection: Connection) -> Result<Uplink, ReadingError> {
+pub async fn uplink(connection: Connection) -> Result<Uplink, BusReadError> {
     let manager = network_manager_proxy(&connection).await?;
     let (paths, connectivity, metered) = try_join!(
         manager.get_devices(),
@@ -544,9 +543,7 @@ pub async fn uplink(connection: Connection) -> Result<Uplink, ReadingError> {
     Ok(Uplink {
         activated_interfaces: interfaces
             .into_iter()
-            .filter(|interface| {
-                interface.link_state == DeviceLinkState::Connected && !interface.name.is_empty()
-            })
+            .filter(|interface| interface.link_state == LinkPhase::Up && !interface.name.is_empty())
             .map(|interface| interface.name)
             .collect(),
         connectivity: Connectivity::try_from(connectivity)
@@ -561,17 +558,17 @@ pub async fn uplink(connection: Connection) -> Result<Uplink, ReadingError> {
     })
 }
 
-pub async fn manager_connectivity(connection: Connection) -> Result<Connectivity, ReadingError> {
+pub async fn manager_connectivity(connection: Connection) -> Result<Connectivity, BusReadError> {
     let state_code = network_manager_proxy(&connection)
         .await?
         .connectivity()
         .await?;
-    Connectivity::try_from(state_code).map_err(|_| ReadingError::Absent)
+    Connectivity::try_from(state_code).map_err(|_| BusReadError::Absent)
 }
 
-pub async fn device_gateways(connection: Connection) -> Result<Vec<DeviceGateway>, ReadingError> {
+pub async fn device_gateways(connection: Connection) -> Result<Vec<DeviceGateway>, BusReadError> {
     let routed_devices = devices(&connection).await?.into_iter().filter(|device| {
-        device.link_state == DeviceLinkState::Connected
+        device.link_state == LinkPhase::Up
             && matches!(device.kind, DeviceKind::Ethernet | DeviceKind::Wifi)
     });
     let gateways_per_device = try_join_all(routed_devices.map(|device| {
@@ -608,7 +605,7 @@ pub async fn device_gateways(connection: Connection) -> Result<Vec<DeviceGateway
 }
 
 struct DeviceInterface {
-    link_state: DeviceLinkState,
+    link_state: LinkPhase,
     name: String,
 }
 
@@ -619,7 +616,7 @@ async fn device_interface(
     let device: DeviceProxy = uncached(connection, path).await?;
     let (state, name) = try_join!(device.state(), device.ip_interface())?;
     Ok(DeviceInterface {
-        link_state: DeviceLinkState::from(state),
+        link_state: LinkPhase::from(state),
         name,
     })
 }

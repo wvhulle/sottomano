@@ -13,7 +13,7 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::Config;
 
 use crate::{
-    background_work::{first_delivery, snapshot_subscription},
+    background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
     group_menus::group_source_demand::GroupSourceDemand,
@@ -102,7 +102,10 @@ impl WireguardTunnelsGroup {
             WireguardTunnelsMessage::Interaction(WireguardTunnelsInteraction::SwitchTunnel(
                 wireguard_switch,
             )) => {
-                return Task::future(switch_nm_connection(wireguard_switch)).discard();
+                return logged_failure_task(
+                    format!("NetworkManager WireGuard tunnel {wireguard_switch:?}"),
+                    switch_nm_connection(wireguard_switch),
+                );
             }
         }
         Task::none()

@@ -1,7 +1,7 @@
 use fast_dav_rs::{CalDavClient, CalendarInfo, WebDavClient, discover_caldav};
 
 use crate::{
-    caldav_tasks_events::caldav_agenda::Error,
+    StateChange, caldav_tasks_events::caldav_agenda::Error,
     system_protocol_clients::http_json_client::REQUEST_TIMEOUT,
 };
 
@@ -26,14 +26,14 @@ pub enum ChangeTracking {
 
 impl ChangeTracking {
     #[must_use]
-    pub fn change_since(&self, earlier: &Self) -> CalendarChange {
+    pub fn change_since(&self, earlier: &Self) -> StateChange {
         match (self, earlier) {
             (ChangeTracking::Token(current), ChangeTracking::Token(previous))
                 if current == previous =>
             {
-                CalendarChange::Unchanged
+                StateChange::Unchanged
             }
-            _ => CalendarChange::Changed,
+            _ => StateChange::Changed,
         }
     }
 }
@@ -117,12 +117,6 @@ pub(super) fn last_path_segment(href: &str) -> String {
         .to_owned()
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CalendarChange {
-    Unchanged,
-    Changed,
-}
-
 #[cfg(test)]
 mod tests {
     use fast_dav_rs::map_calendar_list;
@@ -166,12 +160,9 @@ mod tests {
     fn an_untracked_calendar_never_counts_as_unchanged() {
         assert_eq!(
             ChangeTracking::Untracked.change_since(&ChangeTracking::Untracked),
-            CalendarChange::Changed
+            StateChange::Changed
         );
         let token = ChangeTracking::Token("42".to_owned());
-        assert_eq!(
-            token.change_since(&token.clone()),
-            CalendarChange::Unchanged
-        );
+        assert_eq!(token.change_since(&token.clone()), StateChange::Unchanged);
     }
 }

@@ -13,7 +13,7 @@ use crate::{
     cpu_memory_compute::memory_usage::{MEMINFO, PROC},
     delivery_cadence_drivers::PeriodicPolling,
     desktop_windows_apps::process_tree_inspection::binary_name,
-    system_protocol_clients::sysfs_attribute_reads::Error,
+    system_protocol_clients::sysfs_attribute_reads::FileReadError,
 };
 
 const VMSTAT: &str = "/proc/vmstat";
@@ -39,7 +39,7 @@ struct SwappedPageCounters {
 }
 
 impl SnapshotSource for SwapActivity {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Swap";
@@ -60,26 +60,25 @@ impl SnapshotSource for SwapActivity {
 fn read_swap_activity(
     previous: &mut Option<SwappedPageCounters>,
     now: Instant,
-) -> Result<SwapActivity, Error> {
-    let info = Meminfo::current().map_err(|_| Error::Unreadable(MEMINFO.to_owned()))?;
-    let swap =
-        if info.swap_total == 0 {
-            Swap::NotConfigured
-        } else {
-            Swap::Configured {
-                used: ByteSize::b(info.swap_total.checked_sub(info.swap_free).ok_or_else(
-                    || Error::Unparsable(format!("{MEMINFO} SwapFree above SwapTotal")),
-                )?),
-                total: ByteSize::b(info.swap_total),
-            }
-        };
-    let counters = vmstat().map_err(|_| Error::Unreadable(VMSTAT.to_owned()))?;
+) -> Result<SwapActivity, FileReadError> {
+    let info = Meminfo::current().map_err(|_| FileReadError::Unreadable(MEMINFO.to_owned()))?;
+    let swap = if info.swap_total == 0 {
+        Swap::NotConfigured
+    } else {
+        Swap::Configured {
+            used: ByteSize::b(info.swap_total.checked_sub(info.swap_free).ok_or_else(|| {
+                FileReadError::Unparsable(format!("{MEMINFO} SwapFree above SwapTotal"))
+            })?),
+            total: ByteSize::b(info.swap_total),
+        }
+    };
+    let counters = vmstat().map_err(|_| FileReadError::Unreadable(VMSTAT.to_owned()))?;
     let page_counter = |field: &str| {
         let pages = counters
             .get(field)
-            .ok_or_else(|| Error::Unparsable(format!("{VMSTAT} field {field}")))?;
+            .ok_or_else(|| FileReadError::Unparsable(format!("{VMSTAT} field {field}")))?;
         u64::try_from(*pages).map_err(|conversion_failure| {
-            Error::Unparsable(format!(
+            FileReadError::Unparsable(format!(
                 "{VMSTAT} field {field} = {pages}: {conversion_failure}"
             ))
         })
@@ -140,7 +139,7 @@ pub struct SwappedProcesses {
 }
 
 impl SnapshotSource for SwappedProcesses {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Swapped processes";
@@ -153,9 +152,9 @@ impl SnapshotSource for SwappedProcesses {
     }
 }
 
-fn read_swapped_processes() -> Result<SwappedProcesses, Error> {
+fn read_swapped_processes() -> Result<SwappedProcesses, FileReadError> {
     let mut processes: Vec<SwappedProcess> = all_processes()
-        .map_err(|_| Error::Unreadable(PROC.to_owned()))?
+        .map_err(|_| FileReadError::Unreadable(PROC.to_owned()))?
         .filter_map(|process_entry| {
             process_entry
                 .inspect_err(|listing_failure| {

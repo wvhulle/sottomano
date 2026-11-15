@@ -7,7 +7,7 @@ use crate::{
         network_manager_proxies::{self, Connectivity},
         nm_readings,
     },
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,7 +16,7 @@ pub struct UplinkConnectivity {
 }
 
 impl SnapshotSource for UplinkConnectivity {
-    type Error = zbus::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Connectivity";
@@ -27,10 +27,9 @@ impl SnapshotSource for UplinkConnectivity {
             network_manager_proxies::CONNECTIVITY_PROPERTIES,
             network_manager_proxies::manager_connectivity,
         )
-        .map(|reading| match reading {
-            Ok(Some(connectivity)) => SnapshotDelivery::live_push(Ok(Self { connectivity })),
-            Ok(None) => SnapshotDelivery::SourceUnavailable,
-            Err(failure) => SnapshotDelivery::live_push(Err(failure)),
+        .map(|reading| {
+            SnapshotDelivery::live_push(reading.map(|connectivity| Self { connectivity }))
+                .unavailable_when_absent()
         })
         .repeats_as_unchanged()
     }

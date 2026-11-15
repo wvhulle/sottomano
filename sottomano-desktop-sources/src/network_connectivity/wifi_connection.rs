@@ -6,10 +6,10 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     host_machine_identity::udev_hardware_identity::Adapter,
     network_connectivity::{
-        ReadingError, device_or_absent, interface_bus_attachment::InterfaceAttachment,
-        network_manager_proxies, nm_readings, sysfs_interface_faults::InterfaceFaultCounters,
+        device_or_absent, interface_bus_attachment::InterfaceAttachment, network_manager_proxies,
+        nm_readings, sysfs_interface_faults::InterfaceFaultCounters,
     },
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
 };
 
 #[derive(Debug, Clone)]
@@ -24,7 +24,7 @@ pub struct Link {
 pub struct WifiAdapter {
     pub device: String,
     pub attachment: InterfaceAttachment,
-    pub link_state: network_manager_proxies::DeviceLinkState,
+    pub link_state: network_manager_proxies::LinkPhase,
     pub link: Option<Link>,
 }
 
@@ -59,7 +59,7 @@ pub struct WifiDetails {
 
 async fn wifi_devices(
     connection: &Connection,
-) -> Result<Vec<network_manager_proxies::DeviceInfo>, ReadingError> {
+) -> Result<Vec<network_manager_proxies::DeviceInfo>, BusReadError> {
     network_manager_proxies::devices_of_kind(connection, network_manager_proxies::DeviceKind::Wifi)
         .await
 }
@@ -68,7 +68,7 @@ async fn adapter_link(
     connection: &Connection,
     device: &network_manager_proxies::DeviceInfo,
 ) -> zbus::Result<Option<Link>> {
-    let ap_path = if device.link_state == network_manager_proxies::DeviceLinkState::Connected {
+    let ap_path = if device.link_state == network_manager_proxies::LinkPhase::Up {
         Some(network_manager_proxies::active_access_point(connection, device).await?)
     } else {
         None
@@ -100,7 +100,7 @@ async fn wifi_adapter(
     })
 }
 
-async fn read(connection: Connection) -> Result<Wifi, ReadingError> {
+async fn read(connection: Connection) -> Result<Wifi, BusReadError> {
     let (devices, radio_power) = try_join!(wifi_devices(&connection), async {
         Ok(network_manager_proxies::wireless_radio_power(&connection).await?)
     })?;
@@ -120,7 +120,7 @@ async fn adapter_details(
     connection: &Connection,
     device: network_manager_proxies::DeviceInfo,
 ) -> zbus::Result<WifiAdapterDetails> {
-    let addressing = if device.link_state == network_manager_proxies::DeviceLinkState::Connected {
+    let addressing = if device.link_state == network_manager_proxies::LinkPhase::Up {
         let (ip, mac, bitrate, mtu) = try_join!(
             network_manager_proxies::ip(connection, &device),
             network_manager_proxies::hw_address(&device),
@@ -146,7 +146,7 @@ async fn adapter_details(
     })
 }
 
-async fn read_details(connection: Connection) -> Result<WifiDetails, ReadingError> {
+async fn read_details(connection: Connection) -> Result<WifiDetails, BusReadError> {
     let devices = wifi_devices(&connection).await?;
     let adapters = try_join_all(
         devices
@@ -158,7 +158,7 @@ async fn read_details(connection: Connection) -> Result<WifiDetails, ReadingErro
 }
 
 impl SnapshotSource for Wifi {
-    type Error = zbus::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Wi-Fi";
@@ -185,7 +185,7 @@ impl SnapshotSource for Wifi {
 }
 
 impl SnapshotSource for WifiDetails {
-    type Error = zbus::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Wi-Fi details";

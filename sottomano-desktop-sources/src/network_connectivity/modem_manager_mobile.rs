@@ -10,11 +10,11 @@ use zbus::{
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    host_machine_identity::udev_hardware_identity::{Adapter, ModemIdentity, reported},
+    host_machine_identity::udev_hardware_identity::{Adapter, DeviceIdentity, reported},
     network_connectivity::{
         device_or_absent, interface, managed_objects_readings, network_manager_proxies,
     },
-    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Properties, prop},
+    system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses, Properties, prop},
 };
 
 const SERVICE: &str = "org.freedesktop.ModemManager1";
@@ -31,7 +31,8 @@ pub struct MobileModems {
 #[derive(Debug, Clone)]
 pub struct Mobile {
     pub modem_path: String,
-    pub identity: ModemIdentity,
+    pub identity: DeviceIdentity,
+    pub adapter: Option<Adapter>,
     pub operator: Option<String>,
     pub technology: Vec<String>,
     pub signal: Option<i64>,
@@ -46,16 +47,16 @@ pub struct Mobile {
 
 impl Mobile {
     #[must_use]
-    pub fn link_state(&self) -> network_manager_proxies::DeviceLinkState {
+    pub fn link_state(&self) -> network_manager_proxies::LinkPhase {
         match self.state {
-            Some(ModemState::Connected) => network_manager_proxies::DeviceLinkState::Connected,
+            Some(ModemState::Connected) => network_manager_proxies::LinkPhase::Up,
             Some(
                 ModemState::Enabling
                 | ModemState::Disabling
                 | ModemState::Connecting
                 | ModemState::Disconnecting,
-            ) => network_manager_proxies::DeviceLinkState::Switching,
-            _ => network_manager_proxies::DeviceLinkState::Disconnected,
+            ) => network_manager_proxies::LinkPhase::Switching,
+            _ => network_manager_proxies::LinkPhase::Down,
         }
     }
 
@@ -269,12 +270,13 @@ fn modem_reading(
 
     Some(Mobile {
         modem_path: modem_path.as_str().to_owned(),
-        identity: ModemIdentity {
-            manufacturer: reported_prop(modem, "Manufacturer"),
+        identity: DeviceIdentity {
+            vendor: reported_prop(modem, "Manufacturer"),
             model: reported_prop(modem, "Model"),
+            serial: None,
             revision: reported_prop(modem, "Revision"),
-            adapter: prop::<String>(modem, "Device").and_then(Adapter::read_sysfs_device),
         },
+        adapter: prop::<String>(modem, "Device").and_then(Adapter::read_sysfs_device),
         operator: modem_3gpp
             .and_then(|iface| prop::<String>(iface, "OperatorName"))
             .filter(|operator| !operator.is_empty()),
@@ -293,7 +295,7 @@ fn modem_reading(
 }
 
 impl SnapshotSource for MobileModems {
-    type Error = zbus::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Mobile broadband";

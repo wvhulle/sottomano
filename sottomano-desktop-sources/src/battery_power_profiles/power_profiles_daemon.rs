@@ -12,7 +12,7 @@ use crate::{
     screen_brightness_color::clightd_backlight,
     system_protocol_clients::{
         dbus_change_signals::{change_triggers, properties_changed_rule},
-        dbus_desktop_buses::{self, DesktopBuses, Properties, name_owned, prop, text_prop},
+        dbus_desktop_buses::{BusReadError, DesktopBuses, Properties, name_owned, prop, text_prop},
         protocol_peer_reconnects::subscribed,
         sysfs_attribute_reads,
     },
@@ -139,7 +139,7 @@ impl Conditions {
 }
 
 impl SnapshotSource for Conditions {
-    type Error = sysfs_attribute_reads::Error;
+    type Error = sysfs_attribute_reads::FileReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Power conditions";
@@ -197,7 +197,7 @@ pub struct ProfileStatus {
 }
 
 impl SnapshotSource for ProfileStatus {
-    type Error = dbus_desktop_buses::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Power profile";
@@ -207,7 +207,8 @@ impl SnapshotSource for ProfileStatus {
         name_owned(system.clone(), DAEMON_SERVICE).while_available(
             move || {
                 let system = system.clone();
-                subscribed(system, status_changes).map(SnapshotDelivery::live_push)
+                subscribed(system, status_changes)
+                    .map(|status| SnapshotDelivery::live_push(status).unavailable_when_absent())
             },
             || SnapshotDelivery::SourceUnavailable,
         )
@@ -225,10 +226,7 @@ pub fn active_profile_changes(
 
 async fn status_changes(
     system: zbus::Connection,
-) -> Result<
-    impl Stream<Item = Result<ProfileStatus, dbus_desktop_buses::Error>>,
-    dbus_desktop_buses::Error,
-> {
+) -> Result<impl Stream<Item = Result<ProfileStatus, BusReadError>>, BusReadError> {
     let daemon = PowerProfilesProxy::new(&system).await?;
     let changes = change_triggers(
         &system,
@@ -241,14 +239,12 @@ async fn status_changes(
     }))
 }
 
-async fn read_status(
-    daemon: &PowerProfilesProxy<'_>,
-) -> Result<ProfileStatus, dbus_desktop_buses::Error> {
+async fn read_status(daemon: &PowerProfilesProxy<'_>) -> Result<ProfileStatus, BusReadError> {
     let active = daemon.active_profile().await?;
     let active = active
         .parse::<Profile>()
         .map_err(|UnknownProfile(active)| {
-            dbus_desktop_buses::Error::Call(format!("unknown power profile {active:?}"))
+            BusReadError::UnexpectedReply(format!("unknown power profile {active:?}"))
         })?;
     let holds = daemon.active_profile_holds().await?;
     let degraded = daemon.performance_degraded().await?;

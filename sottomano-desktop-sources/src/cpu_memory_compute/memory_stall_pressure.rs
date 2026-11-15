@@ -6,7 +6,7 @@ use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
     SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
-    system_protocol_clients::sysfs_attribute_reads::Error,
+    system_protocol_clients::sysfs_attribute_reads::FileReadError,
 };
 
 const MEMORY_PRESSURE: &str = "/proc/pressure/memory";
@@ -35,7 +35,7 @@ impl From<&PressureRecord> for StallAverages {
 }
 
 impl SnapshotSource for MemoryStallPressure {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "RAM pressure";
@@ -48,9 +48,9 @@ impl SnapshotSource for MemoryStallPressure {
     }
 }
 
-fn read_memory_stall_pressure() -> Result<MemoryStallPressure, Error> {
-    let pressure =
-        MemoryPressure::current().map_err(|_| Error::Unreadable(MEMORY_PRESSURE.to_owned()))?;
+fn read_memory_stall_pressure() -> Result<MemoryStallPressure, FileReadError> {
+    let pressure = MemoryPressure::current()
+        .map_err(|_| FileReadError::Unreadable(MEMORY_PRESSURE.to_owned()))?;
     Ok(MemoryStallPressure {
         some: StallAverages::from(&pressure.some),
         full: StallAverages::from(&pressure.full),

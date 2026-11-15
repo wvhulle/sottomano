@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use bytesize::ByteSize;
 use chrono::{DateTime, Utc};
 
-use super::{Error, block_filesystem_mounts::KernelDevice, read_disk_value};
+use super::block_filesystem_mounts::KernelDevice;
+use crate::system_protocol_clients::sysfs_attribute_reads::{FileReadError, parse_field};
 
 const SYS_FS_EXT4: &str = "/sys/fs/ext4";
 
@@ -29,13 +30,13 @@ pub struct Ext4SysfsDirectory {
 }
 
 impl Ext4SysfsDirectory {
-    pub fn containing(devices: &[KernelDevice]) -> Result<Self, Error> {
+    pub fn containing(devices: &[KernelDevice]) -> Result<Self, FileReadError> {
         devices
             .iter()
             .map(|device| Path::new(SYS_FS_EXT4).join(&device.name))
             .find(|dir| dir.exists())
             .map(|dir| Ext4SysfsDirectory { dir })
-            .ok_or_else(|| Error::NoFilesystemOn {
+            .ok_or_else(|| FileReadError::NoFilesystemOn {
                 fs_type: "ext4",
                 device: devices
                     .first()
@@ -43,17 +44,17 @@ impl Ext4SysfsDirectory {
             })
     }
 
-    pub fn counters(&self) -> Result<Ext4Counters, Error> {
-        let kibibytes = |attribute: &str| -> Result<ByteSize, Error> {
-            read_disk_value::<u64>(&self.dir.join(attribute)).map(ByteSize::kib)
+    pub fn counters(&self) -> Result<Ext4Counters, FileReadError> {
+        let kibibytes = |attribute: &str| -> Result<ByteSize, FileReadError> {
+            parse_field::<u64>(&self.dir.join(attribute)).map(ByteSize::kib)
         };
-        let moment = |attribute: &str| -> Result<DateTime<Utc>, Error> {
+        let moment = |attribute: &str| -> Result<DateTime<Utc>, FileReadError> {
             let path = self.dir.join(attribute);
-            let seconds = read_disk_value::<i64>(&path)?;
+            let seconds = parse_field::<i64>(&path)?;
             DateTime::from_timestamp(seconds, 0)
-                .ok_or_else(|| Error::Unparsable(path.display().to_string()))
+                .ok_or_else(|| FileReadError::Unparsable(path.display().to_string()))
         };
-        let error_count = read_disk_value::<u64>(&self.dir.join("errors_count"))?;
+        let error_count = parse_field::<u64>(&self.dir.join("errors_count"))?;
         let recorded_errors = if error_count == 0 {
             RecordedErrors::Clean
         } else {

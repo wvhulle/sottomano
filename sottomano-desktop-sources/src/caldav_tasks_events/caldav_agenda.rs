@@ -14,11 +14,10 @@ use icalendar::Calendar;
 use tokio::sync::Mutex;
 
 use crate::{
-    SnapshotDelivery, SnapshotSource,
+    SnapshotDelivery, SnapshotSource, StateChange,
     caldav_tasks_events::{
         caldav_calendar_discovery::{
-            CaldavLogin, CalendarChange, CalendarCollection, CalendarHome, ChangeTracking,
-            connect_calendar_home,
+            CaldavLogin, CalendarCollection, CalendarHome, ChangeTracking, connect_calendar_home,
         },
         caldav_event_query::EventWindow,
         caldav_home_listing::{CalendarHomeListing, CalendarVisibility},
@@ -29,14 +28,14 @@ use crate::{
         PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams, triggered_deliveries_with_recheck,
     },
     network_connectivity::internet_connectivity_gate,
-    secret_file_reads::read_secret,
+    secret_file_reads::{SecretUnreadable, read_secret},
     system_protocol_clients::dbus_desktop_buses::OnBus,
 };
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum Error {
-    #[error("password unreadable")]
-    Secret,
+    #[error("password: {0}")]
+    Secret(#[from] SecretUnreadable),
     #[error("user or password rejected (HTTP 401)")]
     Rejected,
     #[error("server names no current-user-principal")]
@@ -238,9 +237,7 @@ impl<Entry: CalendarEntryQuery> CalendarHomePoller<Entry> {
     }
 
     pub(super) async fn poll(&mut self) -> Result<PolledCalendarHome, Error> {
-        let Some(password) = read_secret(&self.account.password) else {
-            return Err(Error::Secret);
-        };
+        let password = read_secret(&self.account.password)?;
         let home = self.connected_home(password).await?;
         let refreshed = self.refresh(&home).await;
         if refreshed.is_err() {
@@ -301,7 +298,7 @@ impl<Entry: CalendarEntryQuery> CalendarHomePoller<Entry> {
                                 && calendar
                                     .change_tracking
                                     .change_since(&cached.change_tracking)
-                                    == CalendarChange::Unchanged =>
+                                    == StateChange::Unchanged =>
                         {
                             Ok(cached)
                         }

@@ -14,6 +14,7 @@ use sottomano_toml_config::Config;
 use tokio::time::sleep;
 
 use crate::{
+    background_work::logged_failure_task,
     group_items::{
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
@@ -134,13 +135,13 @@ impl SessionPowerGroup {
                 self.permissions = permissions;
                 Action::Run(Task::none())
             }
-            SessionMessage::Press(action) => Action::Performed(
-                Task::future(async move {
+            SessionMessage::Press(action) => Action::Performed(logged_failure_task(
+                format!("session action {action:?}"),
+                async move {
                     sleep(PRESS_SETTLE_DELAY).await;
-                    perform_session_action(action).await;
-                })
-                .discard(),
-            ),
+                    perform_session_action(action).await
+                },
+            )),
         }
     }
 

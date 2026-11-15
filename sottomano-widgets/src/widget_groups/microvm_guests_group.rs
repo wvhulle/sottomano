@@ -2,7 +2,9 @@ use std::{borrow::Cow, collections::BTreeMap, mem::take, path::PathBuf};
 
 use chrono::Locale;
 use iced::{Subscription, Task};
-use sottomano_desktop_sinks::microvm_guests::press_guest_power_button;
+use sottomano_desktop_sinks::{
+    microvm_guests::press_guest_power_button, sink_write_errors::GuestPowerError,
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     container_family_snapshots::{FamilyDetails, FamilyListings},
@@ -213,7 +215,7 @@ pub enum MicrovmGuestsMessage {
     Machines(SnapshotDelivery<FamilyDetails<MicrovmGuest>>),
     Units(SnapshotDelivery<MicrovmUnits>),
     Switch(String, UnitSwitchMessage),
-    PowerButtonRefused(String),
+    PowerButtonRefused(GuestPowerError),
     Interaction(MicrovmGuestsInteraction),
 }
 

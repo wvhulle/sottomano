@@ -25,6 +25,7 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::{Config, widget_groups::session_focus::SessionFocusConfig};
 
 use crate::{
+    background_work::logged_failure_task,
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     hover_cards::{HoverTarget, hover_card_body::Section},
@@ -163,9 +164,10 @@ impl SessionFocusGroup {
                 self.recompute_daily_totals(config, clock.utc());
                 Task::future(span_writes).discard()
             }
-            SessionFocusMessage::BreakStarted(action) => {
-                Task::future(perform_session_action(action)).discard()
-            }
+            SessionFocusMessage::BreakStarted(action) => logged_failure_task(
+                format!("break action {action:?}"),
+                perform_session_action(action),
+            ),
             SessionFocusMessage::WarningSnoozed => {
                 let snooze_length = config.warning_snooze;
                 self.snooze = Some(WarningSnooze {

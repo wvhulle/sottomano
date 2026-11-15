@@ -1,34 +1,34 @@
 use sottomano_desktop_sources::desktop_windows_apps::status_notifier_tray::TrayHost;
-use system_tray::client::ActivateRequest;
+use system_tray::{client::ActivateRequest, error::Error as TrayError};
 
 const STATUS_NOTIFIER_ITEM_PATH: &str = "/StatusNotifierItem";
 const STATUS_NOTIFIER_ITEM_INTERFACE: &str = "org.kde.StatusNotifierItem";
 
-pub async fn activate_tray_item(tray_host: TrayHost, command: TrayCommand) {
+pub async fn activate_tray_item(
+    tray_host: TrayHost,
+    command: TrayCommand,
+) -> Result<(), TrayError> {
     tracing::debug!(
         "tray {}: activating without xdg activation token",
         command.address()
     );
-    send_tray_command(&tray_host, command).await;
+    send_tray_command(&tray_host, command).await
 }
 
 pub async fn activate_tray_item_with_token(
     tray_host: TrayHost,
     command: TrayCommand,
     activation_token: String,
-) {
+) -> Result<(), TrayError> {
     provide_activation_token(&tray_host, command.address(), activation_token).await;
-    send_tray_command(&tray_host, command).await;
+    send_tray_command(&tray_host, command).await
 }
 
-async fn send_tray_command(tray_host: &TrayHost, command: TrayCommand) {
-    if let Err(activate_failure) = tray_host
+async fn send_tray_command(tray_host: &TrayHost, command: TrayCommand) -> Result<(), TrayError> {
+    tray_host
         .tray_client()
         .activate(activation_request(command))
         .await
-    {
-        tracing::warn!("tray: activate: {activate_failure}");
-    }
 }
 
 async fn provide_activation_token(tray_host: &TrayHost, address: &str, activation_token: String) {

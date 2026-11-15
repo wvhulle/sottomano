@@ -26,6 +26,7 @@ use sottomano_toml_config::{
 };
 
 use crate::{
+    background_work::logged_failure_task,
     clock::Clock,
     group_items::{
         group_item::{
@@ -251,13 +252,14 @@ impl TrayGroup {
             return Task::none();
         };
         match token {
-            ActivationTokenOutcome::Issued(activation_token) => Task::future(
+            ActivationTokenOutcome::Issued(activation_token) => logged_failure_task(
+                "tray: activate".to_owned(),
                 activate_tray_item_with_token(host, command, activation_token),
-            )
-            .discard(),
-            ActivationTokenOutcome::Unavailable => {
-                Task::future(activate_tray_item(host, command)).discard()
-            }
+            ),
+            ActivationTokenOutcome::Unavailable => logged_failure_task(
+                "tray: activate".to_owned(),
+                activate_tray_item(host, command),
+            ),
         }
     }
 

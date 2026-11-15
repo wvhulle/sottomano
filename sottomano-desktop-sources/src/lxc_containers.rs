@@ -16,7 +16,7 @@ use crate::{
     delivery_cadence_drivers::{ChangeTriggerStreams, PeriodicPolling},
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
-        sysfs_attribute_reads::Error,
+        sysfs_attribute_reads::FileReadError,
         sysfs_cgroup_memory::{CGROUP_ROOT, read_cgroup_memory},
     },
 };
@@ -43,7 +43,7 @@ pub struct LxcProbe {
 }
 
 impl SnapshotSource for LxcProbe {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "LXC presence";
@@ -86,7 +86,7 @@ pub struct LxcContainerListing {
 }
 
 impl SnapshotSource for FamilyListings<LxcContainerListing> {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "LXC container names";
@@ -125,7 +125,7 @@ fn named_lxc_containers(
 }
 
 impl SnapshotSource for FamilyDetails<LxcContainer> {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "LXC containers";

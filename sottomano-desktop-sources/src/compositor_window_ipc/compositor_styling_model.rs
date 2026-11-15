@@ -119,12 +119,6 @@ pub enum StylingControl {
     SwitchHeatBorders,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ControlSupport {
-    Available,
-    Missing,
-}
-
 #[must_use]
 pub fn escaped_for_regex(literal: &str) -> String {
     literal

@@ -2,8 +2,11 @@ use std::borrow::Cow;
 
 use chrono::Locale;
 use iced::{Subscription, Task};
-use sottomano_desktop_sinks::qemu_virtual_machines::libvirt_domain_shutdown::{
-    request_libvirt_shutdown, request_libvirt_start, request_qmp_powerdown,
+use sottomano_desktop_sinks::{
+    qemu_virtual_machines::libvirt_domain_shutdown::{
+        request_libvirt_shutdown, request_libvirt_start, request_qmp_powerdown,
+    },
+    sink_write_errors::GuestPowerError,
 };
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -19,7 +22,6 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
-use tokio::task::spawn_blocking;
 
 use crate::{
     background_work::snapshot_subscription,
@@ -245,7 +247,7 @@ pub enum VirtualMachinesMessage {
     Machines(SnapshotDelivery<VirtualMachinesReadout>),
     WindowNotFound(i32),
     PowerChangeAccepted(String),
-    PowerChangeRefused(String),
+    PowerChangeRefused(GuestPowerError),
     Interaction(VirtualMachinesInteraction),
 }
 
@@ -270,7 +272,6 @@ fn power_off_task(power_control: GuestPowerControl) -> Task<VirtualMachinesMessa
                 request_qmp_powerdown(&socket_path)
                     .await
                     .map(|()| target_label)
-                    .map_err(|failure| failure.to_string())
             },
             |shutdown| match shutdown {
                 Ok(target_label) => VirtualMachinesMessage::PowerChangeAccepted(target_label),
@@ -279,9 +280,9 @@ fn power_off_task(power_control: GuestPowerControl) -> Task<VirtualMachinesMessa
         ),
         GuestPowerControl::LibvirtDomain(domain_name) => Task::perform(
             async move {
-                spawn_blocking(move || request_libvirt_shutdown(&domain_name).map(|()| domain_name))
+                request_libvirt_shutdown(domain_name.clone())
                     .await
-                    .unwrap_or_else(|join_failure| Err(join_failure.to_string()))
+                    .map(|()| domain_name)
             },
             |shutdown| match shutdown {
                 Ok(domain_name) => VirtualMachinesMessage::PowerChangeAccepted(domain_name),
@@ -295,9 +296,9 @@ fn power_off_task(power_control: GuestPowerControl) -> Task<VirtualMachinesMessa
 fn power_on_task(domain_name: String) -> Task<VirtualMachinesMessage> {
     Task::perform(
         async move {
-            spawn_blocking(move || request_libvirt_start(&domain_name).map(|()| domain_name))
+            request_libvirt_start(domain_name.clone())
                 .await
-                .unwrap_or_else(|join_failure| Err(join_failure.to_string()))
+                .map(|()| domain_name)
         },
         |start| match start {
             Ok(domain_name) => VirtualMachinesMessage::PowerChangeAccepted(domain_name),

@@ -35,16 +35,10 @@ use crate::{
     delivery_cadence_drivers::ChangeTriggerStreams,
     system_protocol_clients::{
         dbus_change_signals::object_manager_changes,
-        dbus_desktop_buses::{Properties, name_owned},
+        dbus_desktop_buses::{BusReadError, Properties, name_owned},
         protocol_peer_reconnects::subscribed,
     },
 };
-
-#[derive(Debug)]
-pub enum ReadingError {
-    Bus(zbus::Error),
-    Absent,
-}
 
 pub fn device_or_absent<S, R>(
     system: zbus::Connection,
@@ -52,45 +46,25 @@ pub fn device_or_absent<S, R>(
     mut readings: impl FnMut() -> R + Send,
 ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
 where
-    S: SnapshotSource<Error = zbus::Error>,
-    R: Stream<Item = zbus::Result<Option<S>>> + Send,
+    S: SnapshotSource<Error = BusReadError>,
+    R: Stream<Item = Result<S, BusReadError>> + Send,
 {
     name_owned(system, service).while_available(
         move || {
-            readings().map(|device| match device {
-                Ok(Some(device)) => SnapshotDelivery::live_push(Ok(device)),
-                Ok(None) => SnapshotDelivery::SourceUnavailable,
-                Err(failure) => SnapshotDelivery::live_push(Err(failure)),
-            })
+            readings().map(|device| SnapshotDelivery::live_push(device).unavailable_when_absent())
         },
         || SnapshotDelivery::SourceUnavailable,
     )
-}
-
-impl From<zbus::Error> for ReadingError {
-    fn from(error: zbus::Error) -> Self {
-        Self::Bus(error)
-    }
-}
-
-pub fn device_readings<T>(
-    readings: impl Stream<Item = Result<T, ReadingError>>,
-) -> impl Stream<Item = zbus::Result<Option<T>>> {
-    readings.map(|reading| match reading {
-        Ok(device) => Ok(Some(device)),
-        Err(ReadingError::Absent) => Ok(None),
-        Err(ReadingError::Bus(failure)) => Err(failure),
-    })
 }
 
 pub fn nm_readings<T, F>(
     system: Connection,
     watched_properties: &'static [&'static str],
     read: fn(Connection) -> F,
-) -> impl Stream<Item = zbus::Result<Option<T>>>
+) -> impl Stream<Item = Result<T, BusReadError>>
 where
     T: Send + 'static,
-    F: Future<Output = Result<T, ReadingError>> + Send + 'static,
+    F: Future<Output = Result<T, BusReadError>> + Send + 'static,
 {
     subscribed(system, move |system| {
         subscribe_nm(system, watched_properties, read)
@@ -101,14 +75,13 @@ async fn subscribe_nm<T, F>(
     connection: Connection,
     watched_properties: &'static [&'static str],
     read: fn(Connection) -> F,
-) -> zbus::Result<impl Stream<Item = zbus::Result<Option<T>>>>
+) -> Result<impl Stream<Item = Result<T, BusReadError>>, BusReadError>
 where
     T: Send + 'static,
-    F: Future<Output = Result<T, ReadingError>> + Send + 'static,
+    F: Future<Output = Result<T, BusReadError>> + Send + 'static,
 {
     let signals = network_manager_proxies::changes(&connection, watched_properties).await?;
-    let readings = signals.triggered_rereads(move || read(connection.clone()));
-    Ok(device_readings(readings))
+    Ok(signals.triggered_rereads(move || read(connection.clone())))
 }
 
 pub fn managed_objects_readings<T: Send + 'static>(
@@ -116,7 +89,7 @@ pub fn managed_objects_readings<T: Send + 'static>(
     service: &'static str,
     path: &'static str,
     reading: fn(&ManagedObjects) -> Option<T>,
-) -> impl Stream<Item = zbus::Result<Option<T>>> {
+) -> impl Stream<Item = Result<T, BusReadError>> {
     subscribed(system, move |system| {
         subscribe_managed_objects(system, service, path, reading)
     })
@@ -127,20 +100,16 @@ async fn subscribe_managed_objects<T: Send + 'static>(
     service: &'static str,
     path: &'static str,
     reading: fn(&ManagedObjects) -> Option<T>,
-) -> zbus::Result<impl Stream<Item = zbus::Result<Option<T>>>> {
+) -> Result<impl Stream<Item = Result<T, BusReadError>>, BusReadError> {
     let objects = Arc::new(ObjectManagerProxy::new(&connection, service, path).await?);
     let signals = object_manager_changes(&connection, service, path).await?;
-    let readings = signals.triggered_rereads(move || {
+    Ok(signals.triggered_rereads(move || {
         let objects = objects.clone();
         async move {
-            let managed = objects
-                .get_managed_objects()
-                .await
-                .map_err(zbus::Error::from)?;
-            reading(&managed).ok_or(ReadingError::Absent)
+            let managed = objects.get_managed_objects().await?;
+            reading(&managed).ok_or(BusReadError::Absent)
         }
-    });
-    Ok(device_readings(readings))
+    }))
 }
 
 #[must_use]

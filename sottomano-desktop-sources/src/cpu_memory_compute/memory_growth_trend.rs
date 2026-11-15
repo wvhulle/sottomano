@@ -23,7 +23,7 @@ use crate::{
     },
     delivery_cadence_drivers::PeriodicPolling,
     desktop_windows_apps::process_tree_inspection::binary_name,
-    system_protocol_clients::sysfs_attribute_reads::Error,
+    system_protocol_clients::sysfs_attribute_reads::FileReadError,
 };
 
 const SHOWN_GROWING_PROCESSES: usize = 3;
@@ -47,7 +47,7 @@ pub struct GrowingMemoryProcess {
 }
 
 impl SnapshotSource for MemoryGrowth {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = MemoryGrowthTrendConfig;
 
     const NAME: &'static str = "RAM growth";
@@ -80,7 +80,7 @@ fn read_memory_growth(
     window: &mut MemoryTrendWindow,
     trend_config: &MemoryGrowthTrendConfig,
     now: Instant,
-) -> Result<MemoryGrowth, Error> {
+) -> Result<MemoryGrowth, FileReadError> {
     let usage = read_used_and_headroom()?;
     let rising_per_second = window
         .record_used(now, usage.used)
@@ -113,15 +113,14 @@ struct UsedAndHeadroom {
     headroom: ByteSize,
 }
 
-fn read_used_and_headroom() -> Result<UsedAndHeadroom, Error> {
-    let info = Meminfo::current().map_err(|_| Error::Unreadable(MEMINFO.to_owned()))?;
+fn read_used_and_headroom() -> Result<UsedAndHeadroom, FileReadError> {
+    let info = Meminfo::current().map_err(|_| FileReadError::Unreadable(MEMINFO.to_owned()))?;
     let available = info
         .mem_available
-        .ok_or_else(|| Error::Unparsable(format!("{MEMINFO} field MemAvailable")))?;
-    let used = info
-        .mem_total
-        .checked_sub(available)
-        .ok_or_else(|| Error::Unparsable(format!("{MEMINFO} MemAvailable above MemTotal")))?;
+        .ok_or_else(|| FileReadError::Unparsable(format!("{MEMINFO} field MemAvailable")))?;
+    let used = info.mem_total.checked_sub(available).ok_or_else(|| {
+        FileReadError::Unparsable(format!("{MEMINFO} MemAvailable above MemTotal"))
+    })?;
     Ok(UsedAndHeadroom {
         used: ByteSize::b(used),
         headroom: ByteSize::b(
@@ -299,9 +298,9 @@ fn with_binary_name(process: GrowingMemoryProcess) -> GrowingMemoryProcess {
     GrowingMemoryProcess { name, ..process }
 }
 
-fn resident_by_process() -> Result<Vec<ProcessResident>, Error> {
+fn resident_by_process() -> Result<Vec<ProcessResident>, FileReadError> {
     Ok(all_processes()
-        .map_err(|_| Error::Unreadable(PROC.to_owned()))?
+        .map_err(|_| FileReadError::Unreadable(PROC.to_owned()))?
         .filter_map(|process_entry| {
             process_entry
                 .inspect_err(|listing_failure| {

@@ -1,7 +1,9 @@
 use std::borrow::Cow;
 
 use chrono::Locale;
-use sottomano_desktop_sinks::flatpak_sandboxes::stop_flatpak_instance;
+use sottomano_desktop_sinks::{
+    flatpak_sandboxes::stop_flatpak_instance, sink_write_errors::GuestPowerError,
+};
 use sottomano_desktop_sources::{
     container_family_snapshots::{FamilyDetails, FamilyListings},
     container_run_state::ContainerRunState,
@@ -215,7 +217,7 @@ impl ContainerFamily for FlatpakFamily {
         )]
     }
 
-    async fn stop(instance_id: String) -> Result<(), String> {
+    async fn stop(instance_id: String) -> Result<(), GuestPowerError> {
         stop_flatpak_instance(&instance_id).await
     }
 }

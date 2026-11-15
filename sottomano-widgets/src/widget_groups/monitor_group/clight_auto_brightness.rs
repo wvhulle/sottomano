@@ -4,7 +4,7 @@ use sottomano_desktop_sinks::screen_brightness_color::clight_calibration_writes;
 use sottomano_desktop_sources::{
     SnapshotSource,
     screen_brightness_color::clight_auto_brightness::{AutoBrightness, BrightnessCalibration},
-    system_protocol_clients::dbus_desktop_buses,
+    system_protocol_clients::dbus_desktop_buses::BusReadError,
 };
 
 use crate::{
@@ -52,9 +52,7 @@ impl ToggleableSource for AutoBrightness {
         }
     }
 
-    fn apply_toggle(
-        &self,
-    ) -> impl Future<Output = Result<(), dbus_desktop_buses::Error>> + Send + 'static {
+    fn apply_toggle(&self) -> impl Future<Output = Result<(), BusReadError>> + Send + 'static {
         clight_calibration_writes::flip()
     }
 

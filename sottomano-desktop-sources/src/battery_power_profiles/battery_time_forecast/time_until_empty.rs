@@ -105,7 +105,7 @@ mod tests {
             battery_time_forecast::discharge_power_regression::trained,
             upower_battery_state::{BATTERY_POLL_INTERVAL, ChargeBehaviour, ChargeStatus},
         },
-        host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
+        host_machine_identity::udev_hardware_identity::DeviceIdentity,
     };
 
     fn on_battery(energy_wh: f64) -> Battery {
@@ -118,7 +118,8 @@ mod tests {
             charge_limit: Ratio::new::<ratio>(1.0),
             charge_behaviour: ChargeBehaviour::Auto,
             serial: String::new(),
-            identity: PowerSupplyIdentity::default(),
+            identity: DeviceIdentity::default(),
+            technology: None,
         }
     }
 

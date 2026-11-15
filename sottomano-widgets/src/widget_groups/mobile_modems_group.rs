@@ -8,7 +8,7 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
         modem_manager_mobile::{Mobile, MobileModems},
-        network_manager_proxies::{DeviceLinkState, RadioPower},
+        network_manager_proxies::{LinkPhase, RadioPower},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -226,7 +226,7 @@ impl MobileModemsGroup {
         let address_items = [AddressFamily::Ipv4, AddressFamily::Ipv6]
             .into_iter()
             .filter(|family| {
-                modem.link_state() == DeviceLinkState::Connected
+                modem.link_state() == LinkPhase::Up
                     && modem_family_address(modem, *family).is_some()
             })
             .map(|family| {

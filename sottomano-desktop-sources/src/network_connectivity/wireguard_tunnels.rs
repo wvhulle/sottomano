@@ -12,13 +12,13 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::{ChangeTriggerStreams, ChangeWatchFailure, PeriodicPolling},
     network_connectivity::network_manager_proxies::{
-        self, ActivationState, ActiveWireguard, NmConnectionSwitch, WireguardPeerSettings,
-        WireguardProfile,
+        self, ActivationState, ActiveWireguard, LinkPhase, NmConnectionSwitch,
+        WireguardPeerSettings, WireguardProfile,
     },
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBuses, OnBus, SERVICE_ABSENT_ERRORS},
         protocol_peer_reconnects::subscribed,
-        shell_command_output,
+        shell_command_output::{self, WatchedCommandError},
     },
 };
 
@@ -206,28 +206,28 @@ impl Tunnel {
     }
 
     #[must_use]
-    pub fn tunnel_phase(&self) -> TunnelPhase {
+    pub fn tunnel_phase(&self) -> LinkPhase {
         match &self.origin {
             TunnelOrigin::NetworkManager {
                 activity: TunnelActivity::Active { .. },
                 ..
             }
-            | TunnelOrigin::KernelOnly => TunnelPhase::Up,
+            | TunnelOrigin::KernelOnly => LinkPhase::Up,
             TunnelOrigin::NetworkManager {
                 activity: TunnelActivity::Switching { .. },
                 ..
-            } => TunnelPhase::Switching,
+            } => LinkPhase::Switching,
             TunnelOrigin::NetworkManager {
                 activity: TunnelActivity::Inactive,
                 ..
-            } => TunnelPhase::Down,
+            } => LinkPhase::Down,
         }
     }
 
     #[must_use]
     pub fn traffic_routing(&self) -> TunnelRouting {
         let default_route = self.role == TunnelRole::Client
-            && self.tunnel_phase() == TunnelPhase::Up
+            && self.tunnel_phase() == LinkPhase::Up
             && self
                 .peers
                 .iter()
@@ -321,16 +321,8 @@ pub struct TunnelAddress {
     pub ip: Option<String>,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum TunnelAddressError {
-    #[error("{0}")]
-    Command(#[from] shell_command_output::Error),
-    #[error("{0}")]
-    ChangeWatch(#[from] ChangeWatchFailure),
-}
-
 impl SnapshotSource for TunnelAddress {
-    type Error = TunnelAddressError;
+    type Error = WatchedCommandError;
     type StreamInputs = OnBus<String>;
 
     const NAME: &'static str = "Tunnel address";
@@ -344,8 +336,10 @@ impl SnapshotSource for TunnelAddress {
 
 async fn address_changes(
     watched: OnBus<String>,
-) -> Result<impl Stream<Item = Result<TunnelAddress, TunnelAddressError>> + Send, TunnelAddressError>
-{
+) -> Result<
+    impl Stream<Item = Result<TunnelAddress, WatchedCommandError>> + Send,
+    WatchedCommandError,
+> {
     let addressing = network_manager_proxies::changes(&watched.buses.system, ADDRESSING_PROPERTIES)
         .await
         .map_err(ChangeWatchFailure::from)?
@@ -606,13 +600,6 @@ async fn interface_ip(iface: &str) -> Option<String> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TunnelPhase {
-    Up,
-    Switching,
-    Down,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TunnelRouting {
     DefaultRoute,
     Partial,
@@ -767,7 +754,7 @@ mod tests {
         };
         assert_eq!(tunnel.role, TunnelRole::Server { listen_port: 51820 });
         assert_eq!(tunnel.statistics_access, StatisticsAccess::NeedsNetAdmin);
-        assert_eq!(tunnel.tunnel_phase(), TunnelPhase::Up);
+        assert_eq!(tunnel.tunnel_phase(), LinkPhase::Up);
         assert_eq!(tunnel.peers.len(), 2);
         assert!(
             tunnel
@@ -802,7 +789,7 @@ mod tests {
     fn inactive_profile_switches_to_connect() {
         let wireguard = assemble_tunnels(vec![server_profile()], &[], HashMap::new());
         let tunnel = &wireguard.tunnels[0];
-        assert_eq!(tunnel.tunnel_phase(), TunnelPhase::Down);
+        assert_eq!(tunnel.tunnel_phase(), LinkPhase::Down);
         assert_eq!(tunnel.statistics_access, StatisticsAccess::TunnelDown);
         assert_eq!(
             tunnel.switch(),

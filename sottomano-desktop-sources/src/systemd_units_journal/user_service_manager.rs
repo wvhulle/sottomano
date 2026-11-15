@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use zbus::proxy::CacheProperties;
 
 use crate::{
@@ -8,7 +8,7 @@ use crate::{
     host_machine_identity::hostname1_os_identity::at_micros,
     system_protocol_clients::{
         dbus_change_signals::change_triggers,
-        dbus_desktop_buses::{self, DesktopBuses},
+        dbus_desktop_buses::{BusReadError, DesktopBuses},
     },
     systemd_units_journal::{ManagerProxy, UNIT_INTERFACE, manager_signal, systemd_signal},
 };
@@ -21,22 +21,20 @@ pub struct UserServiceManager {
 }
 
 impl SnapshotSource for UserServiceManager {
-    type Error = dbus_desktop_buses::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Your systemd instance right now";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(buses, manager_state_changes)
+            .map(SnapshotDelivery::unavailable_when_absent)
     }
 }
 
 async fn manager_state_changes(
     buses: DesktopBuses,
-) -> Result<
-    impl Stream<Item = Result<UserServiceManager, dbus_desktop_buses::Error>> + Send,
-    dbus_desktop_buses::Error,
-> {
+) -> Result<impl Stream<Item = Result<UserServiceManager, BusReadError>> + Send, BusReadError> {
     let manager = ManagerProxy::builder(&buses.session)
         .cache_properties(CacheProperties::No)
         .build()

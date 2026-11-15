@@ -3,7 +3,7 @@ use notulist_client::{EngineState, followed_engine_state};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error},
+    system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
     voice_dictation_input::notulist_followed_deliveries,
 };
 
@@ -13,7 +13,7 @@ pub struct NotulistEngine {
 }
 
 impl SnapshotSource for NotulistEngine {
-    type Error = Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Speech model";

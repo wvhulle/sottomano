@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use sottomano_desktop_sources::network_connectivity::{
-    network_manager_proxies::{DeviceLinkState, RadioPower},
+    network_manager_proxies::{LinkPhase, RadioPower},
     wifi_connection::{WifiAdapter, WifiAdapterDetails},
 };
 use uom::si::f64::Ratio;
@@ -45,7 +45,7 @@ impl GroupItemReading for AdapterSignalReading<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.adapter.link_state == DeviceLinkState::Switching {
+        if self.adapter.link_state == LinkPhase::Switching {
             return ReadingDisplayState::Pending;
         }
         self.adapter
@@ -104,7 +104,7 @@ impl GroupItemReading for AdapterSignalReading<'_> {
 impl AdapterConnectionSwitch<'_> {
     #[must_use]
     pub fn press_does(&self) -> &'static str {
-        if self.adapter.link_state == DeviceLinkState::Connected {
+        if self.adapter.link_state == LinkPhase::Up {
             "disconnect this Wi-Fi adapter"
         } else {
             "connect this Wi-Fi adapter"
@@ -118,7 +118,7 @@ impl GroupItemReading for AdapterConnectionSwitch<'_> {
     }
 
     fn icon(&self) -> IconGlyph {
-        if self.adapter.link_state == DeviceLinkState::Connected {
+        if self.adapter.link_state == LinkPhase::Up {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {
             Phosphor::ToggleLeft(Weight::Regular).into()

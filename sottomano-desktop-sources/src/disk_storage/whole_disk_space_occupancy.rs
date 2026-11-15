@@ -1,15 +1,18 @@
-use std::{fs, path::PathBuf, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
 use bytesize::ByteSize;
 use futures::Stream;
 use rustix::fs::statvfs;
 
 use super::{
-    Error,
     bcachefs_filesystem_space::{BcachefsDeviceSpace, BcachefsFilesystem},
     block_filesystem_mounts::{FilesystemMount, KernelDevice},
 };
-use crate::{SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling};
+use crate::{
+    SnapshotDelivery, SnapshotSource,
+    delivery_cadence_drivers::PeriodicPolling,
+    system_protocol_clients::sysfs_attribute_reads::{FileReadError, parse_field},
+};
 
 const SECTOR_BYTES: u64 = 512;
 
@@ -66,7 +69,7 @@ impl DiskSpaceOccupancy {
 }
 
 impl SnapshotSource for DiskSpaceOccupancy {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = DiskOccupancyInputs;
 
     const NAME: &'static str = "Disk space";
@@ -79,7 +82,7 @@ impl SnapshotSource for DiskSpaceOccupancy {
     }
 }
 
-fn read_disk_occupancy(inputs: &DiskOccupancyInputs) -> Result<DiskSpaceOccupancy, Error> {
+fn read_disk_occupancy(inputs: &DiskOccupancyInputs) -> Result<DiskSpaceOccupancy, FileReadError> {
     Ok(DiskSpaceOccupancy {
         disk: inputs.disk.name.clone(),
         capacity: block_device_size(&inputs.disk)?,
@@ -95,7 +98,7 @@ fn read_disk_occupancy(inputs: &DiskOccupancyInputs) -> Result<DiskSpaceOccupanc
 fn filesystem_share_on_disk(
     filesystem: &FilesystemMount,
     disk: &KernelDevice,
-) -> Result<FilesystemShare, Error> {
+) -> Result<FilesystemShare, FileReadError> {
     let (used_on_disk, bcachefs_members) = match filesystem.fs_type.as_str() {
         "bcachefs" => {
             let members = bcachefs_members_on_disk(filesystem, disk)?;
@@ -114,7 +117,7 @@ fn filesystem_share_on_disk(
 fn bcachefs_members_on_disk(
     filesystem: &FilesystemMount,
     disk: &KernelDevice,
-) -> Result<Vec<BcachefsDeviceSpace>, Error> {
+) -> Result<Vec<BcachefsDeviceSpace>, FileReadError> {
     let space = BcachefsFilesystem::containing(&filesystem.devices)?.space()?;
     Ok(space
         .devices
@@ -129,7 +132,7 @@ fn bcachefs_members_on_disk(
         .collect())
 }
 
-fn used_by_members(members: &[BcachefsDeviceSpace]) -> Result<ByteSize, Error> {
+fn used_by_members(members: &[BcachefsDeviceSpace]) -> Result<ByteSize, FileReadError> {
     members
         .iter()
         .map(|member| {
@@ -138,22 +141,22 @@ fn used_by_members(members: &[BcachefsDeviceSpace]) -> Result<ByteSize, Error> {
                 .as_u64()
                 .checked_sub(member.free.as_u64())
                 .ok_or_else(|| {
-                    Error::Unparsable(format!(
+                    FileReadError::Unparsable(format!(
                         "bcachefs member {} reports more free space than capacity",
                         member.partition
                     ))
                 })
         })
-        .sum::<Result<u64, Error>>()
+        .sum::<Result<u64, FileReadError>>()
         .map(ByteSize::b)
 }
 
 fn proportional_used_on_disk(
     filesystem: &FilesystemMount,
     disk: &KernelDevice,
-) -> Result<ByteSize, Error> {
+) -> Result<ByteSize, FileReadError> {
     let mount_point = filesystem.primary_mount_point();
-    let stat = statvfs(mount_point).map_err(|errno| Error::Statvfs {
+    let stat = statvfs(mount_point).map_err(|errno| FileReadError::Statvfs {
         mount_point: mount_point.display().to_string(),
         errno: errno.raw_os_error(),
     })?;
@@ -166,7 +169,7 @@ fn proportional_used_on_disk(
         .devices
         .iter()
         .map(|device| Ok((device.whole_disk() == *disk, block_device_size(device)?)))
-        .collect::<Result<Vec<_>, Error>>()?;
+        .collect::<Result<Vec<_>, FileReadError>>()?;
     let total_size: u64 = device_sizes.iter().map(|(_, size)| size.as_u64()).sum();
     let size_on_disk: u64 = device_sizes
         .iter()
@@ -181,13 +184,7 @@ fn proportional_used_on_disk(
     ))
 }
 
-fn block_device_size(device: &KernelDevice) -> Result<ByteSize, Error> {
-    let path = device.sysfs_dir().join("size");
-    let text =
-        fs::read_to_string(&path).map_err(|_| Error::Unreadable(path.display().to_string()))?;
-    let sectors: u64 = text
-        .trim()
-        .parse()
-        .map_err(|_| Error::Unparsable(path.display().to_string()))?;
+fn block_device_size(device: &KernelDevice) -> Result<ByteSize, FileReadError> {
+    let sectors: u64 = parse_field(&device.sysfs_dir().join("size"))?;
     Ok(ByteSize::b(sectors * SECTOR_BYTES))
 }

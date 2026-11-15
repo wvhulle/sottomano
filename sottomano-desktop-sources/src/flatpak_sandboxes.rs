@@ -19,7 +19,7 @@ use crate::{
     },
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
-        sysfs_attribute_reads::Error,
+        sysfs_attribute_reads::FileReadError,
         sysfs_cgroup_memory::unit_memory_of_process,
     },
 };
@@ -38,7 +38,7 @@ pub struct FlatpakProbe {
 }
 
 impl SnapshotSource for FlatpakProbe {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Flatpak instance presence";
@@ -67,9 +67,9 @@ fn flatpak_instances_directory() -> Option<PathBuf> {
         .map(|runtime_directory| PathBuf::from(runtime_directory).join(INSTANCES_DIRECTORY))
 }
 
-fn counted_running_instances() -> Result<FlatpakProbe, Error> {
+fn counted_running_instances() -> Result<FlatpakProbe, FileReadError> {
     let instances_directory = flatpak_instances_directory()
-        .ok_or_else(|| Error::Unreadable(RUNTIME_DIRECTORY_VARIABLE.to_owned()))?;
+        .ok_or_else(|| FileReadError::Unreadable(RUNTIME_DIRECTORY_VARIABLE.to_owned()))?;
     Ok(FlatpakProbe {
         running_count: running_sandboxes_in(&instances_directory, Path::new(PROC_ROOT))
             .details
@@ -84,7 +84,7 @@ pub struct FlatpakSandboxListing {
 }
 
 impl SnapshotSource for FamilyListings<FlatpakSandboxListing> {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Flatpak app ids";
@@ -94,7 +94,7 @@ impl SnapshotSource for FamilyListings<FlatpakSandboxListing> {
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         PeriodicPolling::every(SANDBOX_POLL_PERIOD).blocking_poll_deliveries(|| {
             let instances_directory = flatpak_instances_directory()
-                .ok_or_else(|| Error::Unreadable(RUNTIME_DIRECTORY_VARIABLE.to_owned()))?;
+                .ok_or_else(|| FileReadError::Unreadable(RUNTIME_DIRECTORY_VARIABLE.to_owned()))?;
             Ok(listed_sandboxes_in(
                 &instances_directory,
                 Path::new(PROC_ROOT),
@@ -147,7 +147,7 @@ pub struct FlatpakSandbox {
 }
 
 impl SnapshotSource for FamilyDetails<FlatpakSandbox> {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Flatpak sandboxes";
@@ -157,7 +157,7 @@ impl SnapshotSource for FamilyDetails<FlatpakSandbox> {
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         PeriodicPolling::every(SANDBOX_POLL_PERIOD).blocking_poll_deliveries(|| {
             let instances_directory = flatpak_instances_directory()
-                .ok_or_else(|| Error::Unreadable(RUNTIME_DIRECTORY_VARIABLE.to_owned()))?;
+                .ok_or_else(|| FileReadError::Unreadable(RUNTIME_DIRECTORY_VARIABLE.to_owned()))?;
             Ok(running_sandboxes_in(
                 &instances_directory,
                 Path::new(PROC_ROOT),

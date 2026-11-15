@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use sottomano_desktop_sources::network_connectivity::{
     ethernet_connection::{Link, Port, PortState},
     interface_bus_attachment::InterfaceAttachment,
-    network_manager_proxies::DeviceLinkState,
+    network_manager_proxies::LinkPhase,
 };
 
 use crate::{
@@ -83,7 +83,7 @@ impl GroupItemReading for PortLinkReading<'_> {
 impl PortConnectionSwitch<'_> {
     #[must_use]
     pub fn press_does(&self) -> &'static str {
-        if self.port_state.link_state == DeviceLinkState::Connected {
+        if self.port_state.link_state == LinkPhase::Up {
             "disconnect this Ethernet port"
         } else {
             "connect this Ethernet port"
@@ -97,7 +97,7 @@ impl GroupItemReading for PortConnectionSwitch<'_> {
     }
 
     fn icon(&self) -> IconGlyph {
-        if self.port_state.link_state == DeviceLinkState::Connected {
+        if self.port_state.link_state == LinkPhase::Up {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {
             Phosphor::ToggleLeft(Weight::Regular).into()

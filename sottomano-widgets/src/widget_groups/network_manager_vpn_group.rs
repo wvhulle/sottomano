@@ -5,14 +5,14 @@ use sottomano_desktop_sinks::network_connectivity::network_manager_activations::
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
-        network_manager_proxies::NmConnectionSwitch,
-        network_manager_vpn_connections::{NetworkManagerVpns, VpnActivation, VpnConnection},
+        network_manager_proxies::{LinkPhase, NmConnectionSwitch},
+        network_manager_vpn_connections::{NetworkManagerVpns, VpnConnection},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 use crate::{
-    background_work::{first_delivery, snapshot_subscription},
+    background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading, toggle_control::SwitchPosition,
@@ -101,7 +101,10 @@ impl NetworkManagerVpnGroup {
             }
             NetworkManagerVpnMessage::Interaction(NetworkManagerVpnInteraction::SwitchVpn(
                 vpn_switch,
-            )) => Task::future(switch_nm_connection(vpn_switch)).discard(),
+            )) => logged_failure_task(
+                format!("NetworkManager VPN {vpn_switch:?}"),
+                switch_nm_connection(vpn_switch),
+            ),
         }
     }
 
@@ -151,7 +154,7 @@ impl NetworkManagerVpnGroup {
         let previewed_connection_name = self
             .vpn_connections()
             .iter()
-            .find(|vpn_connection| vpn_connection.activation() == VpnActivation::Activated)
+            .find(|vpn_connection| vpn_connection.link_phase() == LinkPhase::Up)
             .map(|vpn_connection| vpn_connection.name.as_str());
         WidgetGroupContent::expandable(
             WidgetGroupFamily::NetworkManagerVpns,

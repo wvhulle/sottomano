@@ -6,37 +6,35 @@ use sottomano_desktop_sources::{
     system_protocol_clients::shell_command_output,
 };
 
-use crate::compositor_window_requests::compositor_requests::{self, CompositorRequest};
+use crate::{
+    compositor_window_requests::compositor_requests::{self, CompositorRequest},
+    sink_write_errors::{BusWriteError, SessionActionError},
+};
 
 const BOOT_LOADER_MENU_DEFAULT_TIMEOUT: u64 = 0;
 
-pub async fn perform_session_action(session_action: SessionAction) {
+pub async fn perform_session_action(
+    session_action: SessionAction,
+) -> Result<(), SessionActionError> {
     match session_action {
         SessionAction::ScreenOff => {
-            compositor_requests::send_compositor_request_or_warn(
-                CompositorRequest::PowerOffMonitors,
-            )
-            .await;
+            compositor_requests::send_compositor_request(CompositorRequest::PowerOffMonitors)
+                .await?;
         }
         SessionAction::LogOut => {
-            compositor_requests::send_compositor_request_or_warn(CompositorRequest::Quit).await;
+            compositor_requests::send_compositor_request(CompositorRequest::Quit).await?;
         }
         SessionAction::RestartShell => {
-            if let Err(restart_failure) = shell_command_output::output(
-                "systemctl",
-                &["--user", "restart", "sottomano.service"],
-            )
-            .await
-            {
-                tracing::warn!("restarting sottomano.service: {restart_failure}");
-            }
+            shell_command_output::output("systemctl", &["--user", "restart", "sottomano.service"])
+                .await?;
         }
         logind_action => {
-            if let Err(logind_failure) = perform_logind_action(logind_action).await {
-                tracing::warn!("logind: {logind_failure}");
-            }
+            perform_logind_action(logind_action)
+                .await
+                .map_err(BusWriteError::from)?;
         }
     }
+    Ok(())
 }
 
 async fn perform_logind_action(session_action: SessionAction) -> zbus::Result<()> {

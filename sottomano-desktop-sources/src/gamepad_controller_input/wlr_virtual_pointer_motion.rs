@@ -1,22 +1,13 @@
 use std::{io, time::Instant};
 
 use sottomano_toml_config::widget_groups::gamepad_bindings::PointerButton;
-use wayrs_client::{Connection, global::BindError, protocol::wl_pointer::ButtonState};
+use wayrs_client::{Connection, protocol::wl_pointer::ButtonState};
 use wayrs_protocols::wlr_virtual_pointer_unstable_v1::{
     ZwlrVirtualPointerManagerV1, ZwlrVirtualPointerV1,
 };
 
 use super::gamepad_input_machine::PointerEffect;
-
-#[derive(Debug, thiserror::Error)]
-pub enum VirtualPointerError {
-    #[error("could not connect to wayland: {0}")]
-    Connect(wayrs_client::ConnectError),
-    #[error("compositor offers no virtual pointer: {0}")]
-    Unsupported(BindError),
-    #[error("wayland io: {0}")]
-    Io(io::Error),
-}
+use crate::system_protocol_clients::wayland_protocol_errors::WaylandProtocolError;
 
 pub struct VirtualPointer {
     conn: Connection<()>,
@@ -25,14 +16,18 @@ pub struct VirtualPointer {
 }
 
 impl VirtualPointer {
-    pub async fn connect() -> Result<Self, VirtualPointerError> {
-        let mut conn = Connection::<()>::connect().map_err(VirtualPointerError::Connect)?;
+    pub async fn connect() -> Result<Self, WaylandProtocolError> {
+        let mut conn = Connection::<()>::connect().map_err(WaylandProtocolError::Connect)?;
         conn.async_roundtrip()
             .await
-            .map_err(VirtualPointerError::Io)?;
-        let manager: ZwlrVirtualPointerManagerV1 = conn
-            .bind_singleton(1..=2)
-            .map_err(VirtualPointerError::Unsupported)?;
+            .map_err(WaylandProtocolError::Io)?;
+        let manager: ZwlrVirtualPointerManagerV1 =
+            conn.bind_singleton(1..=2).map_err(|source| {
+                WaylandProtocolError::ProtocolUnavailable {
+                    protocol: "zwlr_virtual_pointer_manager_v1",
+                    source,
+                }
+            })?;
         let pointer = manager.create_virtual_pointer(&mut conn, None);
         Ok(Self {
             conn,

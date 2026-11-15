@@ -2,8 +2,9 @@ use std::{borrow::Cow, path::Path};
 
 use chrono::Locale;
 use iced::Task;
-use sottomano_desktop_sinks::container_power::{
-    ContainerEngineApi, start_container, stop_container,
+use sottomano_desktop_sinks::{
+    container_power::{ContainerEngineApi, start_container, stop_container},
+    sink_write_errors::GuestPowerError,
 };
 use sottomano_desktop_sources::{
     container_run_state::{ContainerRunState, RunChange},
@@ -67,7 +68,7 @@ pub enum EngineContainerInteraction {
 pub(crate) fn container_switch_task<Message: Send + 'static>(
     engine_api: ContainerEngineApi,
     request: ContainerSwitchRequest,
-    refused: fn(String) -> Message,
+    refused: fn(GuestPowerError) -> Message,
 ) -> Task<Message> {
     Task::future(async move {
         let EngineContainerTarget {
@@ -79,9 +80,7 @@ pub(crate) fn container_switch_task<Message: Send + 'static>(
             RunChange::Start => start_container(engine_api, socket_path, &container_id).await,
             RunChange::Stop => stop_container(engine_api, socket_path, &container_id).await,
         };
-        switched
-            .map_err(|failure| format!("container {container_id}: {failure}"))
-            .err()
+        switched.err()
     })
     .and_then(move |refusal| Task::done(refused(refusal)))
 }

@@ -7,7 +7,7 @@ use procfs::{Current, Meminfo, WithCurrentSystemInfo, process::all_processes};
 use crate::{
     SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
     desktop_windows_apps::process_tree_inspection::binary_name,
-    system_protocol_clients::sysfs_attribute_reads::Error,
+    system_protocol_clients::sysfs_attribute_reads::FileReadError,
 };
 
 pub(super) const MEMINFO: &str = "/proc/meminfo";
@@ -27,7 +27,7 @@ impl Memory {
 }
 
 impl SnapshotSource for Memory {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "RAM";
@@ -39,15 +39,14 @@ impl SnapshotSource for Memory {
     }
 }
 
-pub(super) fn read_meminfo() -> Result<Memory, Error> {
-    let info = Meminfo::current().map_err(|_| Error::Unreadable(MEMINFO.to_owned()))?;
+pub(super) fn read_meminfo() -> Result<Memory, FileReadError> {
+    let info = Meminfo::current().map_err(|_| FileReadError::Unreadable(MEMINFO.to_owned()))?;
     let available = info
         .mem_available
-        .ok_or_else(|| Error::Unparsable(format!("{MEMINFO} field MemAvailable")))?;
-    let used = info
-        .mem_total
-        .checked_sub(available)
-        .ok_or_else(|| Error::Unparsable(format!("{MEMINFO} MemAvailable above MemTotal")))?;
+        .ok_or_else(|| FileReadError::Unparsable(format!("{MEMINFO} field MemAvailable")))?;
+    let used = info.mem_total.checked_sub(available).ok_or_else(|| {
+        FileReadError::Unparsable(format!("{MEMINFO} MemAvailable above MemTotal"))
+    })?;
     Ok(Memory {
         used: ByteSize::b(used),
         total: ByteSize::b(info.mem_total),
@@ -67,7 +66,7 @@ pub struct MemoryProcesses {
 }
 
 impl SnapshotSource for MemoryProcesses {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Processes";
@@ -80,9 +79,9 @@ impl SnapshotSource for MemoryProcesses {
     }
 }
 
-fn read_memory_processes() -> Result<MemoryProcesses, Error> {
+fn read_memory_processes() -> Result<MemoryProcesses, FileReadError> {
     let mut processes: Vec<MemoryProcess> = all_processes()
-        .map_err(|_| Error::Unreadable(PROC.to_owned()))?
+        .map_err(|_| FileReadError::Unreadable(PROC.to_owned()))?
         .filter_map(|process_entry| {
             process_entry
                 .inspect_err(|listing_failure| {

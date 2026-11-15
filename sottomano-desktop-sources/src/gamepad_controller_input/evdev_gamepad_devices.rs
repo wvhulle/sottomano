@@ -218,7 +218,7 @@ pub enum ButtonEdge {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StickAxis {
+pub enum PlaneAxis {
     Horizontal,
     Vertical,
 }
@@ -235,7 +235,7 @@ pub enum RawGamepadEvent {
     Stick {
         slot: usize,
         stick: GamepadStick,
-        axis: StickAxis,
+        axis: PlaneAxis,
         deflection: f32,
     },
     ReportTiming {
@@ -291,19 +291,13 @@ impl AxisRange {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum HatAxis {
-    Horizontal,
-    Vertical,
-}
-
-impl HatAxis {
-    const fn button(self, value: i32) -> Option<GamepadButton> {
+impl PlaneAxis {
+    const fn hat_button(self, value: i32) -> Option<GamepadButton> {
         match (self, value.signum()) {
-            (HatAxis::Horizontal, -1) => Some(GamepadButton::DpadLeft),
-            (HatAxis::Horizontal, 1) => Some(GamepadButton::DpadRight),
-            (HatAxis::Vertical, -1) => Some(GamepadButton::DpadUp),
-            (HatAxis::Vertical, 1) => Some(GamepadButton::DpadDown),
+            (PlaneAxis::Horizontal, -1) => Some(GamepadButton::DpadLeft),
+            (PlaneAxis::Horizontal, 1) => Some(GamepadButton::DpadRight),
+            (PlaneAxis::Vertical, -1) => Some(GamepadButton::DpadUp),
+            (PlaneAxis::Vertical, 1) => Some(GamepadButton::DpadDown),
             _ => None,
         }
     }
@@ -369,10 +363,10 @@ impl GamepadEventTranslator {
 
     fn stick(&self, axis: AbsoluteAxisCode, raw: i32) -> Option<RawGamepadEvent> {
         let (stick, stick_axis, sign) = match axis {
-            AbsoluteAxisCode::ABS_X => (GamepadStick::Left, StickAxis::Horizontal, 1.0),
-            AbsoluteAxisCode::ABS_Y => (GamepadStick::Left, StickAxis::Vertical, -1.0),
-            AbsoluteAxisCode::ABS_RX => (GamepadStick::Right, StickAxis::Horizontal, 1.0),
-            AbsoluteAxisCode::ABS_RY => (GamepadStick::Right, StickAxis::Vertical, -1.0),
+            AbsoluteAxisCode::ABS_X => (GamepadStick::Left, PlaneAxis::Horizontal, 1.0),
+            AbsoluteAxisCode::ABS_Y => (GamepadStick::Left, PlaneAxis::Vertical, -1.0),
+            AbsoluteAxisCode::ABS_RX => (GamepadStick::Right, PlaneAxis::Horizontal, 1.0),
+            AbsoluteAxisCode::ABS_RY => (GamepadStick::Right, PlaneAxis::Vertical, -1.0),
             _ => return None,
         };
         let range = self.ranges.get(&axis)?;
@@ -387,7 +381,7 @@ impl GamepadEventTranslator {
     fn hat(
         &mut self,
         axis: AbsoluteAxisCode,
-        hat_axis: HatAxis,
+        hat_axis: PlaneAxis,
         value: i32,
     ) -> Vec<RawGamepadEvent> {
         let previous = self.hat_positions.insert(axis, value).unwrap_or(0);
@@ -395,10 +389,10 @@ impl GamepadEventTranslator {
             return Vec::new();
         }
         let released = hat_axis
-            .button(previous)
+            .hat_button(previous)
             .map(|button| self.button(button, ButtonEdge::Released));
         let pressed = hat_axis
-            .button(value)
+            .hat_button(value)
             .map(|button| self.button(button, ButtonEdge::Pressed));
         released.into_iter().chain(pressed).collect()
     }
@@ -450,10 +444,10 @@ impl GamepadEventTranslator {
                 .into_iter()
                 .collect(),
             EventSummary::AbsoluteAxis(_, axis @ AbsoluteAxisCode::ABS_HAT0X, value) => {
-                self.hat(axis, HatAxis::Horizontal, value)
+                self.hat(axis, PlaneAxis::Horizontal, value)
             }
             EventSummary::AbsoluteAxis(_, axis @ AbsoluteAxisCode::ABS_HAT0Y, value) => {
-                self.hat(axis, HatAxis::Vertical, value)
+                self.hat(axis, PlaneAxis::Vertical, value)
             }
             EventSummary::AbsoluteAxis(_, axis @ AbsoluteAxisCode::ABS_Z, value) => self
                 .analog_trigger(axis, GamepadButton::LeftTrigger, value)
@@ -781,7 +775,7 @@ mod tests {
             [RawGamepadEvent::Stick {
                 slot: 31,
                 stick: GamepadStick::Left,
-                axis: StickAxis::Vertical,
+                axis: PlaneAxis::Vertical,
                 deflection: 1.0,
             }]
         );

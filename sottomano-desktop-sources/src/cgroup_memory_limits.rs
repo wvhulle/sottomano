@@ -10,7 +10,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::{
-        sysfs_attribute_reads::Error,
+        sysfs_attribute_reads::FileReadError,
         sysfs_cgroup_memory::{CGROUP_ROOT, CgroupMemoryReading, read_cgroup_memory},
     },
 };
@@ -31,7 +31,7 @@ pub struct LimitedCgroups {
 }
 
 impl SnapshotSource for LimitedCgroups {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Memory limits";
@@ -43,7 +43,7 @@ impl SnapshotSource for LimitedCgroups {
             .blocking_poll_deliveries(|| limited_cgroups_under(Path::new(CGROUP_ROOT)))
             .map(|delivery| {
                 delivery.unavailable_when(|fetch_error| {
-                    matches!(fetch_error, Error::Unreadable(_))
+                    matches!(fetch_error, FileReadError::Unreadable(_))
                         && !Path::new(CGROUP_ROOT).join("cgroup.controllers").exists()
                 })
             })
@@ -107,9 +107,9 @@ fn collect_limited_cgroups(
     }
 }
 
-fn limited_cgroups_under(cgroup_root: &Path) -> Result<LimitedCgroups, Error> {
+fn limited_cgroups_under(cgroup_root: &Path) -> Result<LimitedCgroups, FileReadError> {
     if !cgroup_root.join("cgroup.controllers").exists() {
-        return Err(Error::Unreadable(cgroup_root.display().to_string()));
+        return Err(FileReadError::Unreadable(cgroup_root.display().to_string()));
     }
     let mut cgroups = Vec::new();
     collect_limited_cgroups(cgroup_root, cgroup_root, CGROUP_SEARCH_DEPTH, &mut cgroups);

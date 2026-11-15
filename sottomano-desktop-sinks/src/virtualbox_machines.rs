@@ -1,13 +1,13 @@
-use crate::finished_commands::run_to_success;
+use crate::{finished_commands::run_to_success, sink_write_errors::GuestPowerError};
 
-pub async fn press_virtualbox_power_button(machine_reference: &str) -> Result<(), String> {
-    run_to_success(
+pub async fn press_virtualbox_power_button(machine_reference: &str) -> Result<(), GuestPowerError> {
+    Ok(run_to_success(
         "VBoxManage",
         ["controlvm", machine_reference, "acpipowerbutton"],
     )
-    .await
+    .await?)
 }
 
-pub async fn start_virtualbox_machine(machine_uuid: &str) -> Result<(), String> {
-    run_to_success("VBoxManage", ["startvm", machine_uuid]).await
+pub async fn start_virtualbox_machine(machine_uuid: &str) -> Result<(), GuestPowerError> {
+    Ok(run_to_success("VBoxManage", ["startvm", machine_uuid]).await?)
 }

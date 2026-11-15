@@ -1,7 +1,9 @@
 use std::{borrow::Cow, path::PathBuf};
 
 use chrono::Locale;
-use sottomano_desktop_sinks::vmware_machines::stop_vmware_machine;
+use sottomano_desktop_sinks::{
+    sink_write_errors::GuestPowerError, vmware_machines::stop_vmware_machine,
+};
 use sottomano_desktop_sources::{
     container_family_snapshots::{FamilyDetails, FamilyListings},
     vmware_machines::{VmwareMachine, VmwareMachineListing, VmwareMachineProbe},
@@ -180,7 +182,7 @@ impl ContainerFamily for VmwareFamily {
             .collect()
     }
 
-    async fn stop(configuration_file: PathBuf) -> Result<(), String> {
+    async fn stop(configuration_file: PathBuf) -> Result<(), GuestPowerError> {
         stop_vmware_machine(&configuration_file).await
     }
 }

@@ -5,6 +5,8 @@ use sottomano_desktop_sources::desktop_windows_apps::dbusmenu_menu_bar_layout::{
 };
 use zbus::zvariant::Value;
 
+use crate::sink_write_errors::BusWriteError;
+
 const CLICKED_EVENT: &str = "clicked";
 const OPENED_EVENT: &str = "opened";
 
@@ -35,12 +37,8 @@ pub async fn click_dbusmenu_item(
     connection: zbus::Connection,
     location: DbusMenuLocation,
     item_id: i32,
-) {
-    if let Err(click_failure) =
-        send_menu_event(&connection, &location, item_id, CLICKED_EVENT).await
-    {
-        tracing::warn!("global menu: click item {item_id}: {click_failure}");
-    }
+) -> Result<(), BusWriteError> {
+    Ok(send_menu_event(&connection, &location, item_id, CLICKED_EVENT).await?)
 }
 
 pub async fn open_dbusmenu_submenu(

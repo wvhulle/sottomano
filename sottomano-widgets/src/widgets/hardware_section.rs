@@ -1,14 +1,16 @@
 use sottomano_desktop_sources::{
+    battery_power_profiles::upower_battery_state::Battery,
     cpu_memory_compute::pci_gpu_readings::{GpuModel, GpuNames},
-    host_machine_identity::udev_hardware_identity::{
-        Adapter, CpuModel, DriveIdentity, ModemIdentity, PowerSupplyIdentity,
-    },
+    disk_storage::drive_temperature_health::DriveHealth,
+    host_machine_identity::udev_hardware_identity::{Adapter, CpuModel, DeviceIdentity},
+    network_connectivity::modem_manager_mobile::Mobile,
 };
 
 use crate::{
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::Quantity,
+        simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
         vendor_logo::{PciVendorId, VendorLogo},
     },
@@ -79,68 +81,66 @@ impl From<&CpuModel> for Section {
     }
 }
 
-impl From<&DriveIdentity> for Section {
-    fn from(drive: &DriveIdentity) -> Self {
+fn device_identity_entries(
+    identity: &DeviceIdentity,
+    vendor_logo: Option<SimpleIcon>,
+) -> impl Iterator<Item = LabeledValue> + '_ {
+    let named_vendor = identity
+        .vendor
+        .as_deref()
+        .map(|vendor| LabeledValue::logo_prefixed("Vendor", vendor_logo, vendor));
+    let model_logo = match identity.vendor {
+        Some(_) => None,
+        None => vendor_logo,
+    };
+    let named_model = identity
+        .model
+        .as_deref()
+        .map(|model| LabeledValue::logo_prefixed("Model", model_logo, model));
+    named_vendor.into_iter().chain(named_model).chain(
+        [
+            ("Serial", &identity.serial),
+            ("Firmware", &identity.revision),
+        ]
+        .into_iter()
+        .filter_map(|(key, value)| Some(LabeledValue::new(key, value.as_deref()?))),
+    )
+}
+
+impl From<&DriveHealth> for Section {
+    fn from(drive: &DriveHealth) -> Self {
         let vendor_logo = drive
             .pci_vendor
             .and_then(|vendor| PciVendorId(vendor).vendor_logo());
-        let named_model = drive
-            .model
+        Section::hardware_identity(device_identity_entries(&drive.identity, vendor_logo))
+    }
+}
+
+impl From<&Battery> for Section {
+    fn from(battery: &Battery) -> Self {
+        let technology = battery
+            .technology
             .as_deref()
-            .map(|model| LabeledValue::logo_prefixed("Model", vendor_logo, model));
+            .map(|technology| LabeledValue::new("Technology", technology));
         Section::hardware_identity(
-            named_model.into_iter().chain(
-                [("Serial", &drive.serial), ("Firmware", &drive.firmware)]
-                    .into_iter()
-                    .filter_map(|(key, value)| Some(LabeledValue::new(key, value.as_deref()?))),
-            ),
+            device_identity_entries(&battery.identity, None).chain(technology),
         )
     }
 }
 
-impl From<&PowerSupplyIdentity> for Section {
-    fn from(supply: &PowerSupplyIdentity) -> Self {
+impl From<&Mobile> for Section {
+    fn from(modem: &Mobile) -> Self {
         Section::hardware_identity(
-            [
-                ("Manufacturer", &supply.manufacturer),
-                ("Model", &supply.model),
-                ("Serial", &supply.serial),
-                ("Technology", &supply.technology),
-            ]
-            .into_iter()
-            .filter_map(|(key, value)| Some(LabeledValue::new(key, value.as_deref()?))),
-        )
-    }
-}
-
-impl From<&ModemIdentity> for Section {
-    fn from(modem: &ModemIdentity) -> Self {
-        Section::hardware_identity(
-            [
-                ("Manufacturer", &modem.manufacturer),
-                ("Model", &modem.model),
-                ("Firmware", &modem.revision),
-            ]
-            .into_iter()
-            .filter_map(|(key, value)| Some(LabeledValue::new(key, value.as_deref()?)))
-            .chain(modem.adapter.iter().flat_map(adapter_bus_entries)),
+            device_identity_entries(&modem.identity, None)
+                .chain(modem.adapter.iter().flat_map(adapter_bus_entries)),
         )
     }
 }
 
 impl From<&Adapter> for Section {
     fn from(adapter: &Adapter) -> Self {
-        let named_vendor = adapter.vendor.as_deref().map(|vendor| {
-            LabeledValue::logo_prefixed("Vendor", adapter.bus_id.vendor_logo(), vendor)
-        });
-        let model = adapter
-            .model
-            .as_deref()
-            .map(|model| LabeledValue::new("Model", model));
         Section::hardware_identity(
-            named_vendor
-                .into_iter()
-                .chain(model)
+            device_identity_entries(&adapter.identity, adapter.bus_id.vendor_logo())
                 .chain(adapter_bus_entries(adapter)),
         )
     }

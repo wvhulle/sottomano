@@ -74,5 +74,10 @@ pub fn logged_failure_task<M: Send + 'static, Failure: Display>(
 }
 
 pub fn copy_to_clipboard<M: Send + 'static>(text: String) -> Task<M> {
-    Task::future(blocking("clipboard", move || clipboard_copy::write(&text))).discard()
+    Task::future(blocking("clipboard", move || {
+        if let Err(copy_failure) = clipboard_copy::write(&text) {
+            tracing::warn!("clipboard: copying {} bytes: {copy_failure}", text.len());
+        }
+    }))
+    .discard()
 }

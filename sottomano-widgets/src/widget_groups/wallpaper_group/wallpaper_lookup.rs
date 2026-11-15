@@ -10,6 +10,7 @@ use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::AvailabilityStreams,
     network_connectivity::internet_connectivity_gate,
+    secret_file_reads::AuthenticatedFetchError,
     system_protocol_clients::{dbus_desktop_buses::OnBus, shell_command_output},
     wallpaper_place_article::{self, DisplayedWallpaper, Wallpaper},
 };
@@ -46,7 +47,7 @@ impl From<&Wallpaper> for Lookup {
 #[derive(Debug, Clone)]
 pub enum Failure {
     Query(shell_command_output::Error),
-    Resolve(wallpaper_place_article::Error),
+    Resolve(AuthenticatedFetchError),
 }
 
 impl Display for Failure {

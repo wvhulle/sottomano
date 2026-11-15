@@ -1,8 +1,10 @@
 use iced::Task;
 use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::{
-    CompositorRequest, send_compositor_request_or_warn,
+    CompositorRequest, send_compositor_request,
 };
 use sottomano_toml_config::Config;
+
+use crate::background_work::logged_failure_task;
 
 #[derive(Debug, Clone)]
 pub struct TerminalCommand {
@@ -35,9 +37,9 @@ impl TerminalCommand {
     }
 
     pub fn open<M: Send + 'static>(self) -> Task<M> {
-        Task::future(send_compositor_request_or_warn(CompositorRequest::Spawn(
-            self.command,
-        )))
-        .discard()
+        logged_failure_task(
+            "open a terminal command".to_owned(),
+            send_compositor_request(CompositorRequest::Spawn(self.command)),
+        )
     }
 }

@@ -4,10 +4,10 @@ use iced::alignment::Horizontal;
 use sottomano_desktop_sources::{
     SnapshotSource,
     network_connectivity::{
-        network_manager_proxies::NmConnectionSwitch,
+        network_manager_proxies::{LinkPhase, NmConnectionSwitch},
         wireguard_tunnels::{
             Peer, PeerEndpoint, PeerLink, PeerTraffic, RouteScope, StatisticsAccess, Tunnel,
-            TunnelAddress, TunnelPhase, TunnelRole, Wireguard,
+            TunnelAddress, TunnelRole, Wireguard,
         },
     },
 };
@@ -146,9 +146,9 @@ fn statistics_entry(statistics_access: &StatisticsAccess) -> Option<LabeledValue
 
 fn activity_entry(tunnel: &Tunnel) -> Option<LabeledValue> {
     match tunnel.tunnel_phase() {
-        TunnelPhase::Switching => Some(LabeledValue::new("State", "switching")),
-        TunnelPhase::Up => None,
-        TunnelPhase::Down => Some(LabeledValue::new("State", "not connected")),
+        LinkPhase::Switching => Some(LabeledValue::new("State", "switching")),
+        LinkPhase::Up => None,
+        LinkPhase::Down => Some(LabeledValue::new("State", "not connected")),
     }
 }
 
@@ -288,9 +288,9 @@ impl GroupItemReading for Tunnel {
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self.tunnel_phase() {
-            TunnelPhase::Switching => return ReadingDisplayState::Pending,
-            TunnelPhase::Down => return ReadingDisplayState::Off,
-            TunnelPhase::Up => {}
+            LinkPhase::Switching => return ReadingDisplayState::Pending,
+            LinkPhase::Down => return ReadingDisplayState::Off,
+            LinkPhase::Up => {}
         }
         match self.role {
             TunnelRole::Server { .. } => server_state(self),

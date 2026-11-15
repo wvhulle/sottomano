@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use sottomano_desktop_sources::network_connectivity::{
     modem_manager_mobile::{Mobile, ModemState},
-    network_manager_proxies::{DeviceLinkState, RadioPower},
+    network_manager_proxies::{LinkPhase, RadioPower},
 };
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
@@ -58,13 +58,13 @@ impl GroupItemReading for ModemSignalReading<'_> {
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self.modem.link_state() {
-            DeviceLinkState::Switching => ReadingDisplayState::Pending,
-            DeviceLinkState::Connected => self
+            LinkPhase::Switching => ReadingDisplayState::Pending,
+            LinkPhase::Up => self
                 .modem
                 .signal
                 .map_or(Severity::Normal, signal_level)
                 .into(),
-            DeviceLinkState::Disconnected => ReadingDisplayState::Off,
+            LinkPhase::Down => ReadingDisplayState::Off,
         }
     }
 
@@ -104,7 +104,7 @@ impl GroupItemReading for ModemSignalReading<'_> {
                     .flatten(),
                 ),
             ),
-            Section::from(&self.modem.identity),
+            Section::from(self.modem),
         ]
     }
 }
@@ -112,7 +112,7 @@ impl GroupItemReading for ModemSignalReading<'_> {
 impl ModemConnectionSwitch<'_> {
     #[must_use]
     pub fn press_does(&self) -> &'static str {
-        if self.modem.link_state() == DeviceLinkState::Connected {
+        if self.modem.link_state() == LinkPhase::Up {
             "disconnect this modem"
         } else {
             "connect this modem"
@@ -126,7 +126,7 @@ impl GroupItemReading for ModemConnectionSwitch<'_> {
     }
 
     fn icon(&self) -> IconGlyph {
-        if self.modem.link_state() == DeviceLinkState::Connected {
+        if self.modem.link_state() == LinkPhase::Up {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {
             Phosphor::ToggleLeft(Weight::Regular).into()

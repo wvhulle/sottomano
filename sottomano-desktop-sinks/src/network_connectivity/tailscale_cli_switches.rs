@@ -6,23 +6,25 @@ use sottomano_desktop_sources::{
     system_protocol_clients::shell_command_output,
 };
 
-pub async fn switch_tailscale(tailscale_switch: TailscaleSwitch) {
+pub async fn switch_tailscale(
+    tailscale_switch: TailscaleSwitch,
+) -> Result<(), shell_command_output::Error> {
     let subcommand = match tailscale_switch {
         TailscaleSwitch::Up => "up",
         TailscaleSwitch::Down => "down",
     };
-    if let Err(command_error) = shell_command_output::output("tailscale", &[subcommand]).await {
-        tracing::warn!("tailscale {subcommand}: {command_error}");
-    }
+    shell_command_output::output("tailscale", &[subcommand])
+        .await
+        .map(drop)
 }
 
-pub async fn switch_exit_offer(exit_offer_switch: ExitOfferSwitch) {
+pub async fn switch_exit_offer(
+    exit_offer_switch: ExitOfferSwitch,
+) -> Result<(), shell_command_output::Error> {
     let set_argument = exit_offer_argument(exit_offer_switch);
-    if let Err(command_error) =
-        shell_command_output::output("tailscale", &["set", set_argument]).await
-    {
-        tracing::warn!("tailscale set {set_argument}: {command_error}");
-    }
+    shell_command_output::output("tailscale", &["set", set_argument])
+        .await
+        .map(drop)
 }
 
 pub fn open_admin() -> Result<(), shell_command_output::Error> {
@@ -36,13 +38,13 @@ fn exit_offer_argument(exit_offer_switch: ExitOfferSwitch) -> &'static str {
     }
 }
 
-pub async fn switch_exit_routing(exit_routing_switch: ExitRoutingSwitch) {
+pub async fn switch_exit_routing(
+    exit_routing_switch: ExitRoutingSwitch,
+) -> Result<(), shell_command_output::Error> {
     let set_argument = exit_routing_argument(&exit_routing_switch);
-    if let Err(command_error) =
-        shell_command_output::output("tailscale", &["set", &set_argument]).await
-    {
-        tracing::warn!("tailscale set {set_argument}: {command_error}");
-    }
+    shell_command_output::output("tailscale", &["set", &set_argument])
+        .await
+        .map(drop)
 }
 
 fn exit_routing_argument(exit_routing_switch: &ExitRoutingSwitch) -> String {

@@ -10,7 +10,7 @@ use crate::{
     delivery_cadence_drivers::{ChangeTriggerStreams, ChangeWatchFailure, SnapshotDeliveryStreams},
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses,
-        sysfs_attribute_reads::{Error, read_field, read_trimmed},
+        sysfs_attribute_reads::{FileReadError, read_field, read_trimmed},
     },
 };
 
@@ -34,7 +34,7 @@ fn read_words(path: impl AsRef<Path>) -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn read_cpu_tuning() -> Result<CpuTuning, Error> {
+fn read_cpu_tuning() -> Result<CpuTuning, FileReadError> {
     let cpu = Path::new(CPU_FREQ);
     let policy = cpu.join("cpu0/cpufreq");
     Ok(CpuTuning {
@@ -56,7 +56,7 @@ fn read_cpu_tuning() -> Result<CpuTuning, Error> {
 }
 
 impl SnapshotSource for CpuTuning {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "CPU tuning";

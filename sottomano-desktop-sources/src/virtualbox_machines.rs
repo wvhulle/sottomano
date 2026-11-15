@@ -14,7 +14,7 @@ use crate::{
     system_protocol_clients::{
         procfs_process_scan::{ScannedProcess, program_stem, readable_text, scan_processes},
         shell_command_output::{self, blocking},
-        sysfs_attribute_reads::Error,
+        sysfs_attribute_reads::FileReadError,
     },
 };
 
@@ -30,7 +30,7 @@ pub struct VirtualBoxMachineProbe {
 }
 
 impl SnapshotSource for VirtualBoxMachineProbe {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "VirtualBox presence";
@@ -42,12 +42,12 @@ impl SnapshotSource for VirtualBoxMachineProbe {
     }
 }
 
-fn probed_machines() -> Result<VirtualBoxMachineProbe, Error> {
+fn probed_machines() -> Result<VirtualBoxMachineProbe, FileReadError> {
     let process_scan = scan_processes(|scanned| {
         program_stem(&scanned.command_line)
             .is_some_and(|program| VIRTUALBOX_VM_PROGRAMS.contains(&program))
     })
-    .ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
+    .ok_or_else(|| FileReadError::Unreadable("/proc".to_owned()))?;
     Ok(VirtualBoxMachineProbe {
         running_count: process_scan.matched_processes.len(),
     })
@@ -73,7 +73,7 @@ pub struct VirtualBoxMachineListings {
 }
 
 impl SnapshotSource for VirtualBoxMachineListings {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "VirtualBox machine names";
@@ -85,12 +85,12 @@ impl SnapshotSource for VirtualBoxMachineListings {
     }
 }
 
-fn named_machines() -> Result<VirtualBoxMachineListings, Error> {
+fn named_machines() -> Result<VirtualBoxMachineListings, FileReadError> {
     let process_scan = scan_processes(|scanned| {
         program_stem(&scanned.command_line)
             .is_some_and(|program| VIRTUALBOX_VM_PROGRAMS.contains(&program))
     })
-    .ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
+    .ok_or_else(|| FileReadError::Unreadable("/proc".to_owned()))?;
     let mut listings: Vec<VirtualBoxMachineListing> = process_scan
         .matched_processes
         .iter()
@@ -173,7 +173,7 @@ pub struct VirtualBoxMachine {
 }
 
 impl SnapshotSource for FamilyDetails<VirtualBoxMachine> {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "VirtualBox machines";
@@ -250,12 +250,12 @@ fn default_settings_file(machine_name: &str) -> Option<PathBuf> {
     )
 }
 
-fn scanned_machines() -> Result<FamilyDetails<VirtualBoxMachine>, Error> {
+fn scanned_machines() -> Result<FamilyDetails<VirtualBoxMachine>, FileReadError> {
     let process_scan = scan_processes(|scanned| {
         program_stem(&scanned.command_line)
             .is_some_and(|program| VIRTUALBOX_VM_PROGRAMS.contains(&program))
     })
-    .ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
+    .ok_or_else(|| FileReadError::Unreadable("/proc".to_owned()))?;
     let mut details: Vec<VirtualBoxMachine> = process_scan
         .matched_processes
         .iter()

@@ -207,7 +207,7 @@ impl PowerGroup {
                 let mut sections = self.battery.hover_card(clock);
                 sections.extend(
                     self.battery
-                        .sections_described_by(|battery| vec![Section::from(&battery.identity)]),
+                        .sections_described_by(|battery| vec![Section::from(battery)]),
                 );
                 sections
             }

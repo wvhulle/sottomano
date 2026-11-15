@@ -11,7 +11,7 @@ use crate::{
     non_empty_text::non_empty,
     system_protocol_clients::{
         dbus_change_signals::change_triggers,
-        dbus_desktop_buses::{self, DesktopBuses},
+        dbus_desktop_buses::{BusReadError, DesktopBuses},
     },
     systemd_units_journal::{ManagerProxy, UNIT_INTERFACE, UnitProxy, systemd_signal},
 };
@@ -34,7 +34,7 @@ pub struct GraphicalSessionTarget {
 }
 
 impl SnapshotSource for GraphicalSession {
-    type Error = dbus_desktop_buses::Error;
+    type Error = BusReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Where apps connect to it";
@@ -45,16 +45,14 @@ impl SnapshotSource for GraphicalSession {
 }
 
 impl GraphicalSession {
-    async fn read() -> Result<Self, dbus_desktop_buses::Error> {
-        let compositor_version = compositor_version()
-            .await
-            .ok_or(dbus_desktop_buses::Error::Absent)?;
+    async fn read() -> Result<Self, BusReadError> {
+        let compositor_version = compositor_version().await.ok_or(BusReadError::Absent)?;
         Ok(Self {
             current_desktop: session_environment_variable("XDG_CURRENT_DESKTOP"),
             session_desktop: session_environment_variable("XDG_SESSION_DESKTOP"),
             compositor_version,
             wayland_display: session_environment_variable("WAYLAND_DISPLAY")
-                .ok_or(dbus_desktop_buses::Error::Absent)?,
+                .ok_or(BusReadError::Absent)?,
             x11_display: session_environment_variable("DISPLAY"),
         })
     }
@@ -72,22 +70,20 @@ fn session_environment_variable(variable_name: &str) -> Option<String> {
 }
 
 impl SnapshotSource for GraphicalSessionTarget {
-    type Error = dbus_desktop_buses::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Desktop startup progress";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(buses, target_changes)
+            .map(SnapshotDelivery::unavailable_when_absent)
     }
 }
 
 async fn target_changes(
     buses: DesktopBuses,
-) -> Result<
-    impl Stream<Item = Result<GraphicalSessionTarget, dbus_desktop_buses::Error>> + Send,
-    dbus_desktop_buses::Error,
-> {
+) -> Result<impl Stream<Item = Result<GraphicalSessionTarget, BusReadError>> + Send, BusReadError> {
     let manager = ManagerProxy::new(&buses.session).await?;
     manager.ensure_subscribed().await?;
     let unit = UnitProxy::builder(&buses.session)

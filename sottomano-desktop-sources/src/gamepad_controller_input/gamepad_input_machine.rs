@@ -9,7 +9,7 @@ use sottomano_toml_config::widget_groups::gamepad_bindings::{
 
 use super::{
     accelerometer_report_timing::ReportTiming,
-    evdev_gamepad_devices::{ButtonEdge, ConnectedGamepad, RawGamepadEvent, StickAxis},
+    evdev_gamepad_devices::{ButtonEdge, ConnectedGamepad, PlaneAxis, RawGamepadEvent},
     stick_motion_tracking::{
         FlickTracker, PointerDisplacement, StickPosition, pointer_displacement,
     },
@@ -260,15 +260,15 @@ impl GamepadMachine {
         &mut self,
         slot: usize,
         stick: GamepadStick,
-        axis: StickAxis,
+        axis: PlaneAxis,
         deflection: f32,
         now: Instant,
     ) -> Option<GamepadInput> {
         let pointer_stick = self.pointer_stick();
         let tracker = self.sticks.entry(slot).or_default().tracker_mut(stick);
         let direction = match axis {
-            StickAxis::Horizontal => tracker.move_x(deflection, now),
-            StickAxis::Vertical => tracker.move_y(deflection, now),
+            PlaneAxis::Horizontal => tracker.move_x(deflection, now),
+            PlaneAxis::Vertical => tracker.move_y(deflection, now),
         }?;
         (Some(stick) != pointer_stick).then_some(GamepadInput::StickFlick {
             slot,
@@ -336,7 +336,7 @@ mod tests {
         MachineInput::Raw(RawGamepadEvent::Stick {
             slot,
             stick: GamepadStick::Right,
-            axis: StickAxis::Horizontal,
+            axis: PlaneAxis::Horizontal,
             deflection: 1.0,
         })
     }
@@ -407,7 +407,7 @@ mod tests {
             MachineInput::Raw(RawGamepadEvent::Stick {
                 slot: 31,
                 stick: GamepadStick::Left,
-                axis: StickAxis::Horizontal,
+                axis: PlaneAxis::Horizontal,
                 deflection: -0.9,
             }),
             start,

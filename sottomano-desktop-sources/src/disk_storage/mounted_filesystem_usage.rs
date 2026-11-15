@@ -5,14 +5,16 @@ use futures::Stream;
 use rustix::fs::{StatVfs, StatVfsMountFlags, statvfs};
 
 use super::{
-    Error,
     bcachefs_filesystem_space::{BcachefsFilesystem, BcachefsSpace},
     block_filesystem_mounts::FilesystemMount,
     btrfs_filesystem_space::{BtrfsFilesystem, BtrfsSpace},
     ext4_sysfs_counters::{Ext4Counters, Ext4SysfsDirectory},
     udev_volume_identity::VolumeIdentity,
 };
-use crate::{SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling};
+use crate::{
+    SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
+    system_protocol_clients::sysfs_attribute_reads::FileReadError,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FilesystemUsage {
@@ -84,7 +86,7 @@ impl FilesystemUsage {
 }
 
 impl SnapshotSource for FilesystemUsage {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = FilesystemMount;
 
     const NAME: &'static str = "Disk usage";
@@ -97,7 +99,7 @@ impl SnapshotSource for FilesystemUsage {
     }
 }
 
-fn read_filesystem_usage(mount: FilesystemMount) -> Result<FilesystemUsage, Error> {
+fn read_filesystem_usage(mount: FilesystemMount) -> Result<FilesystemUsage, FileReadError> {
     let stat = read_statvfs(&mount)?;
     Ok(FilesystemUsage {
         total: ByteSize::b(stat.f_blocks * stat.f_frsize),
@@ -110,7 +112,10 @@ fn read_filesystem_usage(mount: FilesystemMount) -> Result<FilesystemUsage, Erro
     })
 }
 
-fn read_filesystem_space(mount: &FilesystemMount, stat: &StatVfs) -> Result<Filesystem, Error> {
+fn read_filesystem_space(
+    mount: &FilesystemMount,
+    stat: &StatVfs,
+) -> Result<Filesystem, FileReadError> {
     match mount.fs_type.as_str() {
         "btrfs" => Ok(Filesystem::Btrfs(
             BtrfsFilesystem::containing(&mount.devices)?.space(mount.compression.clone())?,
@@ -131,8 +136,8 @@ fn read_filesystem_space(mount: &FilesystemMount, stat: &StatVfs) -> Result<File
     }
 }
 
-fn read_statvfs(mount: &FilesystemMount) -> Result<StatVfs, Error> {
-    statvfs(mount.primary_mount_point()).map_err(|errno| Error::Statvfs {
+fn read_statvfs(mount: &FilesystemMount) -> Result<StatVfs, FileReadError> {
+    statvfs(mount.primary_mount_point()).map_err(|errno| FileReadError::Statvfs {
         mount_point: mount.primary_mount_point().display().to_string(),
         errno: errno.raw_os_error(),
     })

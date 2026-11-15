@@ -10,3 +10,4 @@ pub mod protocol_peer_reconnects;
 pub mod shell_command_output;
 pub mod sysfs_attribute_reads;
 pub mod sysfs_cgroup_memory;
+pub mod wayland_protocol_errors;

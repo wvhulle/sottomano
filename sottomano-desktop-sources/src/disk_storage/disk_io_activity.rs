@@ -1,7 +1,4 @@
-use std::{
-    fs,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use futures::Stream;
 use tokio::time::sleep;
@@ -12,10 +9,12 @@ use uom::si::{
     time::{millisecond, second},
 };
 
-use super::{Error, block_filesystem_mounts::KernelDevice};
+use super::block_filesystem_mounts::KernelDevice;
 use crate::{
-    SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
+    SnapshotDelivery, SnapshotSource,
+    delivery_cadence_drivers::PeriodicPolling,
     restarting_counters::count_since_counter_restart,
+    system_protocol_clients::sysfs_attribute_reads::{FileReadError, read_field, unparsable_file},
 };
 
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(3);
@@ -43,7 +42,7 @@ pub struct DiskActivity {
 }
 
 impl SnapshotSource for DiskActivity {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = KernelDevice;
 
     const NAME: &'static str = "Disk activity";
@@ -56,7 +55,7 @@ impl SnapshotSource for DiskActivity {
 }
 
 impl DiskActivity {
-    async fn poll(disk: KernelDevice) -> Result<Self, Error> {
+    async fn poll(disk: KernelDevice) -> Result<Self, FileReadError> {
         let earlier = CounterSample::take(&disk)?;
         sleep(SAMPLE_WINDOW).await;
         let later = CounterSample::take(&disk)?;
@@ -73,13 +72,11 @@ struct CounterSample {
 }
 
 impl CounterSample {
-    fn take(disk: &KernelDevice) -> Result<Self, Error> {
+    fn take(disk: &KernelDevice) -> Result<Self, FileReadError> {
         let stat = disk.sysfs_dir().join("stat");
-        let line =
-            fs::read_to_string(&stat).map_err(|_| Error::Unreadable(stat.display().to_string()))?;
+        let line = read_field(&stat)?;
         Ok(CounterSample {
-            counters: BlockCounters::parse(&line)
-                .ok_or_else(|| Error::Unparsable(stat.display().to_string()))?,
+            counters: BlockCounters::parse(&line).ok_or_else(|| unparsable_file(&stat))?,
             disk: disk.name.clone(),
             at: Instant::now(),
         })

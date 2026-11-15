@@ -12,11 +12,11 @@ use std::{
 use futures::Stream;
 use procfs::process::{MountInfo, Process};
 
-use super::Error;
 use crate::{
-    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking_poll,
+    SnapshotDelivery, SnapshotSource,
+    blocking_background_work::blocking_poll,
     delivery_cadence_drivers::PeriodicPolling,
-    system_protocol_clients::sysfs_attribute_reads::list_dir,
+    system_protocol_clients::sysfs_attribute_reads::{FileReadError, list_dir},
 };
 
 const MOUNTINFO: &str = "/proc/self/mountinfo";
@@ -71,7 +71,7 @@ pub struct BlockFilesystemDiscovery {
 }
 
 impl SnapshotSource for BlockFilesystemDiscovery {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Mounted filesystems";
@@ -85,10 +85,10 @@ impl SnapshotSource for BlockFilesystemDiscovery {
 }
 
 impl BlockFilesystemDiscovery {
-    pub fn read_mountinfo() -> Result<Self, Error> {
+    pub fn read_mountinfo() -> Result<Self, FileReadError> {
         let mounts = Process::myself()
             .and_then(|process| process.mountinfo())
-            .map_err(|_| Error::Unreadable(MOUNTINFO.to_owned()))?;
+            .map_err(|_| FileReadError::Unreadable(MOUNTINFO.to_owned()))?;
         Ok(BlockFilesystemDiscovery {
             filesystems: group_block_mounts(
                 mounts.into_iter().map(MountEntry::from),

@@ -133,7 +133,9 @@ fn celsius(degrees: u32) -> ThermodynamicTemperature {
 }
 
 fn pci_database_names(bus: &PciBusId) -> Option<GpuNames> {
-    let database_name = Adapter::read_sysfs_device(Path::new(PCI_DEVICES).join(&bus.0))?.model?;
+    let database_name = Adapter::read_sysfs_device(Path::new(PCI_DEVICES).join(&bus.0))?
+        .identity
+        .model?;
     Some(GpuNames::split_database_name(&database_name))
 }
 

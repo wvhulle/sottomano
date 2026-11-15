@@ -6,7 +6,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::{Availability, AvailabilityStreams},
     blocking_background_work::blocking_poll,
-    system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_trimmed},
+    system_protocol_clients::sysfs_attribute_reads::{FileReadError, list_dir, read_trimmed},
 };
 
 pub const X3D_VCACHE_DRIVER: &str = "/sys/bus/platform/drivers/amd_x3d_vcache";
@@ -64,17 +64,17 @@ impl X3dCachePreference {
             .find(|mode| mode.exists())
     }
 
-    fn read() -> Result<Self, Error> {
-        let mode_file =
-            Self::mode_file().ok_or_else(|| Error::Unreadable(X3D_VCACHE_DRIVER.to_owned()))?;
+    fn read() -> Result<Self, FileReadError> {
+        let mode_file = Self::mode_file()
+            .ok_or_else(|| FileReadError::Unreadable(X3D_VCACHE_DRIVER.to_owned()))?;
         let mode = read_trimmed(&mode_file)
-            .ok_or_else(|| Error::Unreadable(mode_file.display().to_string()))?;
-        mode.parse().map_err(|_| Error::Unparsable(mode))
+            .ok_or_else(|| FileReadError::Unreadable(mode_file.display().to_string()))?;
+        mode.parse().map_err(|_| FileReadError::Unparsable(mode))
     }
 }
 
 impl SnapshotSource for X3dCachePreference {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "X3D scheduling preference";

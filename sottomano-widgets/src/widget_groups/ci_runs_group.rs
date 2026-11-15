@@ -7,7 +7,10 @@ pub use ci_run_readings::CiRunnerKind;
 use ci_run_readings::{CiRunnerFailureRow, CiTaskRow, WatchedCiRunner};
 pub use ci_runner_watches::{CiRunnerSnapshot, CiRunnerWatches};
 use iced::{Subscription, Task};
-use sottomano_desktop_sinks::ci_runner_tasks::libpod_container_stop::stop_task_containers;
+use sottomano_desktop_sinks::{
+    ci_runner_tasks::libpod_container_stop::stop_task_containers,
+    sink_write_errors::GuestPowerError,
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     ci_runner_tasks::{
@@ -96,7 +99,7 @@ pub enum CiRunsMessage {
     WoodpeckerRunner(String, SnapshotDelivery<WoodpeckerAgentTasks>),
     ForgejoRunner(String, SnapshotDelivery<ForgejoRunnerTasks>),
     CancelAccepted(String),
-    CancelRefused(String, String),
+    CancelRefused(String, GuestPowerError),
     Interaction(CiRunsInteraction),
 }
 

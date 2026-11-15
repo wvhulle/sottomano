@@ -30,7 +30,7 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::{Config, widget_groups::systemd_manager::SystemdManagerConfig};
 
 use crate::{
-    background_work::{copy_to_clipboard, snapshot_subscription},
+    background_work::{copy_to_clipboard, logged_failure_task, snapshot_subscription},
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
@@ -211,7 +211,12 @@ impl SystemdManagerGroup {
             }
             SystemdManagerMessage::Interaction(SystemdManagerInteraction::RestartFailedUnit(
                 restart,
-            )) => return Task::future(restart_failed_unit(restart)).discard(),
+            )) => {
+                return logged_failure_task(
+                    format!("systemd: restarting {}", restart.unit),
+                    restart_failed_unit(restart),
+                );
+            }
             SystemdManagerMessage::Interaction(SystemdManagerInteraction::InspectCoredump(
                 command,
             )) => return command.open(),

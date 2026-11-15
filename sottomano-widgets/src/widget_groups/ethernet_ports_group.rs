@@ -7,7 +7,7 @@ use sottomano_desktop_sources::{
     network_connectivity::{
         ethernet_connection::{Ethernet, EthernetDetails, Port, PortState},
         icmp_gateway_latency::GatewayLatencies,
-        network_manager_proxies::DeviceLinkState,
+        network_manager_proxies::LinkPhase,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -316,7 +316,7 @@ impl EthernetPortsGroup {
         );
         let address_items = [AddressFamily::Ipv4, AddressFamily::Ipv6]
             .into_iter()
-            .filter(|_| port_state.link_state == DeviceLinkState::Connected)
+            .filter(|_| port_state.link_state == LinkPhase::Up)
             .map(|family| {
                 GroupItem::reading(
                     InterfaceAddressReading { family },
@@ -326,7 +326,7 @@ impl EthernetPortsGroup {
                     },
                 )
             });
-        let dns_item = (port_state.link_state == DeviceLinkState::Connected).then(|| {
+        let dns_item = (port_state.link_state == LinkPhase::Up).then(|| {
             GroupItem::reading(
                 InterfaceDnsReading,
                 EthernetPortTarget::Dns {
@@ -377,7 +377,7 @@ mod tests {
         network_connectivity::{
             ethernet_connection::{Ethernet, PortState},
             interface_bus_attachment::InterfaceAttachment,
-            network_manager_proxies::DeviceLinkState,
+            network_manager_proxies::LinkPhase,
         },
     };
 
@@ -388,7 +388,7 @@ mod tests {
         PortState {
             name: port_name.to_owned(),
             attachment,
-            link_state: DeviceLinkState::Disconnected,
+            link_state: LinkPhase::Down,
         }
     }
 

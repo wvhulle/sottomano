@@ -11,10 +11,10 @@ use zbus::{
 };
 
 use crate::{
-    SnapshotDelivery, SnapshotSource,
+    SnapshotDelivery, SnapshotSource, StateChange,
     login_session_presence::cgroup_inhibitor_app_names::InhibitorAppNames,
     non_empty_text::non_empty,
-    system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
+    system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
 };
 
 const SCREENSAVER_SERVICE: &str = "org.freedesktop.ScreenSaver";
@@ -34,26 +34,20 @@ pub struct ScreenSaverInhibitors {
 }
 
 impl SnapshotSource for ScreenSaverInhibitors {
-    type Error = dbus_desktop_buses::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Idle inhibitors";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries(buses, inhibitor_changes).map(|delivery| {
-            delivery.unavailable_when(|fetch_error| {
-                matches!(fetch_error, dbus_desktop_buses::Error::Absent)
-            })
-        })
+        SnapshotDelivery::live_push_deliveries(buses, inhibitor_changes)
+            .map(SnapshotDelivery::unavailable_when_absent)
     }
 }
 
 async fn inhibitor_changes(
     buses: DesktopBuses,
-) -> Result<
-    impl Stream<Item = Result<ScreenSaverInhibitors, dbus_desktop_buses::Error>> + Send,
-    dbus_desktop_buses::Error,
-> {
+) -> Result<impl Stream<Item = Result<ScreenSaverInhibitors, BusReadError>> + Send, BusReadError> {
     let bus_driver = DBusProxy::new(&buses.session).await?;
     let service_owner = screensaver_service_owner(&bus_driver).await?;
     let monitor = zbus::connection::Builder::session()?.build().await?;
@@ -70,7 +64,7 @@ async fn inhibitor_changes(
         .scan(InhibitCallLedger::default(), |ledger, event| {
             ready(Some(match event {
                 Ok(event) => {
-                    (ledger.apply(event) == HeldChange::Changed).then(|| Ok(ledger.held.clone()))
+                    (ledger.apply(event) == StateChange::Changed).then(|| Ok(ledger.held.clone()))
                 }
                 Err(monitor_failure) => Some(Err(monitor_failure)),
             }))
@@ -263,7 +257,7 @@ struct InhibitCallLedger {
 }
 
 impl InhibitCallLedger {
-    fn apply(&mut self, event: ScreenSaverBusEvent) -> HeldChange {
+    fn apply(&mut self, event: ScreenSaverBusEvent) -> StateChange {
         let held_before = self.held.len();
         match event {
             ScreenSaverBusEvent::InhibitCalled {
@@ -307,17 +301,11 @@ impl InhibitCallLedger {
             }
         }
         if self.held.len() == held_before {
-            HeldChange::Unchanged
+            StateChange::Unchanged
         } else {
-            HeldChange::Changed
+            StateChange::Changed
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum HeldChange {
-    Changed,
-    Unchanged,
 }
 
 #[cfg(test)]
@@ -326,7 +314,7 @@ mod tests {
 
     use zbus::Message;
 
-    use super::{HeldChange, InhibitCallLedger, ScreenSaverBusEvent, bus_event};
+    use super::{InhibitCallLedger, ScreenSaverBusEvent, StateChange, bus_event};
 
     const CALL_SERIAL: NonZeroU32 = NonZeroU32::MIN;
 
@@ -350,9 +338,9 @@ mod tests {
     #[test]
     fn an_inhibit_is_held_only_once_its_cookie_returns() {
         let mut ledger = InhibitCallLedger::default();
-        assert_eq!(ledger.apply(called(":1.5")), HeldChange::Unchanged);
+        assert_eq!(ledger.apply(called(":1.5")), StateChange::Unchanged);
         assert!(ledger.held.is_empty());
-        assert_eq!(ledger.apply(returned(":1.5", 7)), HeldChange::Changed);
+        assert_eq!(ledger.apply(returned(":1.5", 7)), StateChange::Changed);
         assert_eq!(ledger.held[0].stated_name, "Firefox");
         assert_eq!(ledger.held[0].reason, "Playing video");
     }
@@ -360,9 +348,9 @@ mod tests {
     #[test]
     fn unrelated_replies_from_the_service_are_ignored() {
         let mut ledger = InhibitCallLedger::default();
-        assert_eq!(ledger.apply(returned(":1.5", 7)), HeldChange::Unchanged);
+        assert_eq!(ledger.apply(returned(":1.5", 7)), StateChange::Unchanged);
         ledger.apply(called(":1.5"));
-        assert_eq!(ledger.apply(returned(":1.6", 7)), HeldChange::Unchanged);
+        assert_eq!(ledger.apply(returned(":1.6", 7)), StateChange::Unchanged);
         assert!(ledger.held.is_empty());
     }
 
@@ -376,14 +364,14 @@ mod tests {
                 caller: ":1.6".to_owned(),
                 cookie: 7,
             }),
-            HeldChange::Unchanged
+            StateChange::Unchanged
         );
         assert_eq!(
             ledger.apply(ScreenSaverBusEvent::UnInhibitCalled {
                 caller: ":1.5".to_owned(),
                 cookie: 7,
             }),
-            HeldChange::Changed
+            StateChange::Changed
         );
         assert!(ledger.held.is_empty());
     }
@@ -398,7 +386,7 @@ mod tests {
             ledger.apply(ScreenSaverBusEvent::ConnectionClosed {
                 connection: ":1.5".to_owned(),
             }),
-            HeldChange::Changed
+            StateChange::Changed
         );
         assert!(ledger.held.is_empty());
         assert!(ledger.awaiting_cookies.is_empty());

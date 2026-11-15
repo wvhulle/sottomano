@@ -17,7 +17,7 @@ use crate::{
     },
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::internet_connectivity_gate,
-    secret_file_reads::read_secret,
+    secret_file_reads::{AuthenticatedFetchError, read_secret},
     system_protocol_clients::{dbus_desktop_buses::OnBus, http_json_client},
 };
 
@@ -25,14 +25,6 @@ const ANALYTICS_URL: &str = "https://openrouter.ai/api/v1/analytics/query";
 const CREDITS_URL: &str = "https://openrouter.ai/api/v1/credits";
 const KEYS_URL: &str = "https://openrouter.ai/api/v1/keys";
 const ANALYTICS_HOUR_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
-
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum Error {
-    #[error("management key unreadable")]
-    Secret,
-    #[error("{0}")]
-    Fetch(#[from] http_json_client::Error),
-}
 
 #[derive(Deserialize)]
 struct Envelope<T> {
@@ -137,7 +129,7 @@ impl OpenRouterSpend {
 }
 
 impl SnapshotSource for OpenRouterSpend {
-    type Error = Error;
+    type Error = AuthenticatedFetchError;
     type StreamInputs = OnBus<OpenRouterAccount>;
 
     const NAME: &'static str = "OpenRouter soft budget";
@@ -154,8 +146,8 @@ impl SnapshotSource for OpenRouterSpend {
 }
 
 impl OpenRouterSpend {
-    async fn poll(account: OpenRouterAccount) -> Result<Self, Error> {
-        let key = read_secret(&account.management_key).ok_or(Error::Secret)?;
+    async fn poll(account: OpenRouterAccount) -> Result<Self, AuthenticatedFetchError> {
+        let key = read_secret(&account.management_key)?;
         let today = Local::now().date_naive();
         let week = CalendarSpan::week_containing(today);
         let month = CalendarSpan::month_containing(today);
@@ -246,7 +238,7 @@ impl OpenRouterStrictBudget {
 }
 
 impl SnapshotSource for OpenRouterStrictBudget {
-    type Error = Error;
+    type Error = AuthenticatedFetchError;
     type StreamInputs = OnBus<PathBuf>;
 
     const NAME: &'static str = "OpenRouter strict budget";
@@ -263,8 +255,8 @@ impl SnapshotSource for OpenRouterStrictBudget {
 }
 
 impl OpenRouterStrictBudget {
-    async fn poll(key: PathBuf) -> Result<Self, Error> {
-        let key = read_secret(&key).ok_or(Error::Secret)?;
+    async fn poll(key: PathBuf) -> Result<Self, AuthenticatedFetchError> {
+        let key = read_secret(&key)?;
         Ok(Self {
             credits: credits(&key).await?,
             key_limits: key_limits(&key).await?,
@@ -272,7 +264,10 @@ impl OpenRouterStrictBudget {
     }
 }
 
-async fn hourly_usage_since(key: &str, first_day: CalendarSpan) -> Result<Vec<Usage>, Error> {
+async fn hourly_usage_since(
+    key: &str,
+    first_day: CalendarSpan,
+) -> Result<Vec<Usage>, AuthenticatedFetchError> {
     let start = first_day.starts_at();
     let payload = json!({
         "metrics": ["total_usage"],
@@ -298,14 +293,14 @@ fn utc_hour<'de, D: Deserializer<'de>>(deserializer: D) -> Result<DateTime<Utc>,
         .map_err(de::Error::custom)
 }
 
-async fn credits(key: &str) -> Result<Credits, Error> {
+async fn credits(key: &str) -> Result<Credits, AuthenticatedFetchError> {
     let auth = format!("Bearer {key}");
     let envelope: Envelope<Credits> =
         http_json_client::get_json(CREDITS_URL, &[("Authorization", &auth)]).await?;
     Ok(envelope.data)
 }
 
-async fn key_limits(key: &str) -> Result<Vec<KeyLimit>, Error> {
+async fn key_limits(key: &str) -> Result<Vec<KeyLimit>, AuthenticatedFetchError> {
     let auth = format!("Bearer {key}");
     let envelope: Envelope<Vec<ApiKey>> =
         http_json_client::get_json(KEYS_URL, &[("Authorization", &auth)]).await?;

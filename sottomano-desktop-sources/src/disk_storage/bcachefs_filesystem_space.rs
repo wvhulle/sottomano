@@ -3,12 +3,12 @@ use std::{fs, path::PathBuf};
 use bytesize::ByteSize;
 
 use super::{
-    Error,
     block_filesystem_mounts::KernelDevice,
     filesystem_device_errors::{DeviceErrors, ErrorCount},
-    read_disk_text, read_disk_value, unparsable_disk_file,
 };
-use crate::system_protocol_clients::sysfs_attribute_reads::list_dir;
+use crate::system_protocol_clients::sysfs_attribute_reads::{
+    FileReadError, list_dir, parse_field, read_field, unparsable_file,
+};
 
 const SYS_FS_BCACHEFS: &str = "/sys/fs/bcachefs";
 const MEMBER_DIR_PREFIX: &str = "dev-";
@@ -78,7 +78,7 @@ struct BcachefsMember {
 }
 
 impl BcachefsFilesystem {
-    pub fn containing(devices: &[KernelDevice]) -> Result<Self, Error> {
+    pub fn containing(devices: &[KernelDevice]) -> Result<Self, FileReadError> {
         let first_device = devices.first().map_or("", |device| device.name.as_str());
         list_dir(SYS_FS_BCACHEFS)
             .into_iter()
@@ -89,47 +89,47 @@ impl BcachefsFilesystem {
                     .iter()
                     .any(|member| devices.iter().any(|device| device.name == member.partition))
             })
-            .ok_or_else(|| Error::NoFilesystemOn {
+            .ok_or_else(|| FileReadError::NoFilesystemOn {
                 fs_type: "bcachefs",
                 device: first_device.to_owned(),
             })
     }
 
-    pub fn space(&self) -> Result<BcachefsSpace, Error> {
+    pub fn space(&self) -> Result<BcachefsSpace, FileReadError> {
         Ok(BcachefsSpace {
             devices: self
                 .members()
                 .iter()
                 .map(BcachefsMember::space)
                 .collect::<Result<_, _>>()?,
-            metadata_replicas: read_disk_value(&self.option_path("metadata_replicas"))?,
-            data_replicas: read_disk_value(&self.option_path("data_replicas"))?,
-            compression: read_disk_value::<String>(&self.option_path("compression"))?,
-            background_compression: read_disk_value::<String>(
+            metadata_replicas: parse_field(&self.option_path("metadata_replicas"))?,
+            data_replicas: parse_field(&self.option_path("data_replicas"))?,
+            compression: parse_field::<String>(&self.option_path("compression"))?,
+            background_compression: parse_field::<String>(
                 &self.option_path("background_compression"),
             )?,
-            compressed_extents: CompressedExtents::parse(&read_disk_text(
+            compressed_extents: CompressedExtents::parse(&read_field(
                 &self.dir.join("compression_stats"),
             )?),
-            snapshot_deletion: SnapshotDeletion::parse(&read_disk_text(
+            snapshot_deletion: SnapshotDeletion::parse(&read_field(
                 &self.dir.join("snapshot_delete_status"),
             )?),
         })
     }
 
-    pub fn device_errors(&self, partition: &KernelDevice) -> Result<DeviceErrors, Error> {
+    pub fn device_errors(&self, partition: &KernelDevice) -> Result<DeviceErrors, FileReadError> {
         let member = self
             .members()
             .into_iter()
             .find(|member| member.partition == partition.name)
-            .ok_or_else(|| Error::NoFilesystemOn {
+            .ok_or_else(|| FileReadError::NoFilesystemOn {
                 fs_type: "bcachefs",
                 device: partition.name.clone(),
             })?;
         let path = member.dir.join("io_errors");
         Ok(DeviceErrors {
             counted_on: member.partition.clone(),
-            counts: parse_errors_since_reset(&read_disk_text(&path)?),
+            counts: parse_errors_since_reset(&read_field(&path)?),
             reset_command: format!(
                 "echo 1 | sudo tee {}",
                 member.dir.join("io_errors_reset").display()
@@ -170,16 +170,16 @@ impl BcachefsMember {
         Some(BcachefsMember { dir, partition })
     }
 
-    fn space(&self) -> Result<BcachefsDeviceSpace, Error> {
+    fn space(&self) -> Result<BcachefsDeviceSpace, FileReadError> {
         let bucket_size_path = self.dir.join("bucket_size");
-        let bucket_bytes = parse_human_size(&read_disk_text(&bucket_size_path)?)
-            .ok_or_else(|| unparsable_disk_file(&bucket_size_path))?;
+        let bucket_bytes = parse_human_size(&read_field(&bucket_size_path)?)
+            .ok_or_else(|| unparsable_file(&bucket_size_path))?;
         let alloc_path = self.dir.join("alloc_debug");
-        let buckets = BucketCounts::parse(&read_disk_text(&alloc_path)?)
+        let buckets = BucketCounts::parse(&read_field(&alloc_path)?)
             .filter(|bucket_counts| bucket_counts.reusable <= bucket_counts.capacity)
-            .ok_or_else(|| unparsable_disk_file(&alloc_path))?;
+            .ok_or_else(|| unparsable_file(&alloc_path))?;
         let state_path = self.dir.join("state");
-        let label = read_disk_value::<String>(&self.dir.join("label"))?;
+        let label = parse_field::<String>(&self.dir.join("label"))?;
         Ok(BcachefsDeviceSpace {
             label: if label.is_empty() {
                 self.partition.clone()
@@ -187,12 +187,12 @@ impl BcachefsMember {
                 label
             },
             partition: self.partition.clone(),
-            state: selected_choice(&read_disk_text(&state_path)?)
-                .ok_or_else(|| unparsable_disk_file(&state_path))?
+            state: selected_choice(&read_field(&state_path)?)
+                .ok_or_else(|| unparsable_file(&state_path))?
                 .to_owned(),
             free: ByteSize::b(buckets.reusable * bucket_bytes),
             capacity: ByteSize::b(buckets.capacity * bucket_bytes),
-            holds_metadata: read_disk_text(&self.dir.join("data_allowed"))?
+            holds_metadata: read_field(&self.dir.join("data_allowed"))?
                 .trim()
                 .split(',')
                 .any(|data_type| data_type == METADATA_DATA_TYPE),

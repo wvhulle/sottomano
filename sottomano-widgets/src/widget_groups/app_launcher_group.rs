@@ -3,7 +3,7 @@ use std::{cmp::Reverse, collections::HashMap};
 use corredo::theming::primary_color;
 use iced::{Element, Task};
 use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::{
-    CompositorRequest, send_compositor_request_or_warn,
+    CompositorRequest, send_compositor_request,
 };
 use sottomano_desktop_sources::desktop_windows_apps::desktop_entry_app_catalog::{
     AppCategory, LaunchableApp, OpenAppWindows,
@@ -301,17 +301,17 @@ fn launch_task(app: &LaunchableApp, config: &Config) -> Task<AppLauncherMessage>
     if app.runs_in_terminal {
         return TerminalCommand::running(config, launch_command).open();
     }
-    Task::future(send_compositor_request_or_warn(CompositorRequest::Spawn(
-        launch_command,
-    )))
-    .discard()
+    logged_failure_task(
+        "launch an app".to_owned(),
+        send_compositor_request(CompositorRequest::Spawn(launch_command)),
+    )
 }
 
 fn jump_task(window: u64) -> Task<AppLauncherMessage> {
-    Task::future(send_compositor_request_or_warn(
-        CompositorRequest::FocusWindow(window),
-    ))
-    .discard()
+    logged_failure_task(
+        "jump to a window".to_owned(),
+        send_compositor_request(CompositorRequest::FocusWindow(window)),
+    )
 }
 
 impl AppLauncherGroup {

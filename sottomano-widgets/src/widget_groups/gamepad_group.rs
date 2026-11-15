@@ -19,7 +19,7 @@ use sottomano_desktop_sinks::{
         CompositorRequest, CompositorRequestFailure,
     },
     network_connectivity::bluez_bluetooth_commands::disconnect_bluetooth_address,
-    voice_dictation_input::notulist_dictation_commands::send_logged_dictation_command,
+    voice_dictation_input::notulist_dictation_commands::send_dictation_command,
 };
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -182,9 +182,10 @@ impl Action {
         match self {
             Action::Idle => Task::none(),
             Action::Compositor(request) => compositor_request(request),
-            Action::Dictation(command) => {
-                Task::future(send_logged_dictation_command(command)).discard()
-            }
+            Action::Dictation(command) => logged_failure_task(
+                format!("notulist {command:?}"),
+                send_dictation_command(command),
+            ),
             Action::DisconnectBluetooth { hardware_address } => {
                 logged_failure_task("disconnect Bluetooth controller".to_owned(), async move {
                     disconnect_bluetooth_address(hardware_address).await

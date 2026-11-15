@@ -8,14 +8,15 @@ use std::{
 
 use futures::{Stream, StreamExt, future::select, stream};
 use zbus::{
-    fdo::{DBusProxy, IntrospectableProxy},
+    fdo::{self, DBusProxy, IntrospectableProxy},
     names::BusName,
     zvariant::OwnedValue,
 };
 
 use crate::{
-    backing_service_availability::Availability, delivery_cadence_drivers::ChangeWatchFailure,
-    non_empty_text::non_empty, system_protocol_clients::protocol_peer_reconnects::subscribed,
+    SnapshotDelivery, SnapshotSource, backing_service_availability::Availability,
+    delivery_cadence_drivers::ChangeWatchFailure, non_empty_text::non_empty,
+    system_protocol_clients::protocol_peer_reconnects::subscribed,
 };
 
 pub type Properties = HashMap<String, OwnedValue>;
@@ -44,13 +45,46 @@ pub fn text_prop(properties: &Properties, key: &str) -> Option<String> {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("change watch: {0}")]
-    ChangeWatch(#[from] ChangeWatchFailure),
-    #[error("{0}")]
-    Call(String),
+pub enum BusReadError {
     #[error("service not running")]
     Absent,
+    #[error(transparent)]
+    Bus(zbus::Error),
+    #[error("change watch: {0}")]
+    ChangeWatch(#[from] ChangeWatchFailure),
+    #[error("unexpected reply: {0}")]
+    UnexpectedReply(String),
+}
+
+impl From<zbus::Error> for BusReadError {
+    fn from(error: zbus::Error) -> Self {
+        match &error {
+            zbus::Error::MethodError(name, _, _)
+                if SERVICE_ABSENT_ERRORS.contains(&name.as_str()) =>
+            {
+                BusReadError::Absent
+            }
+            _ => BusReadError::Bus(error),
+        }
+    }
+}
+
+impl From<fdo::Error> for BusReadError {
+    fn from(error: fdo::Error) -> Self {
+        match error {
+            fdo::Error::ServiceUnknown(_)
+            | fdo::Error::NameHasNoOwner(_)
+            | fdo::Error::NoReply(_) => BusReadError::Absent,
+            other => BusReadError::from(zbus::Error::from(other)),
+        }
+    }
+}
+
+impl<Source: SnapshotSource<Error = BusReadError>> SnapshotDelivery<Source> {
+    #[must_use]
+    pub fn unavailable_when_absent(self) -> Self {
+        self.unavailable_when(|read_error| matches!(read_error, BusReadError::Absent))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -244,18 +278,17 @@ pub async fn introspected_interface_offer(
     bus_name: &'static str,
     object_path: &'static str,
     expected_interface: &str,
-) -> Result<InterfaceOffer, Error> {
+) -> Result<InterfaceOffer, BusReadError> {
     let introspection = IntrospectableProxy::builder(connection)
         .destination(bus_name)?
         .path(object_path)?
         .build()
         .await?;
-    let introspection_xml = introspection
-        .introspect()
-        .await
-        .map_err(zbus::Error::from)?;
-    let object_node = zbus_xml::Node::from_reader(introspection_xml.as_bytes())
-        .map_err(|parse_error| Error::Call(format!("{bus_name}: introspection: {parse_error}")))?;
+    let introspection_xml = introspection.introspect().await?;
+    let object_node =
+        zbus_xml::Node::from_reader(introspection_xml.as_bytes()).map_err(|parse_error| {
+            BusReadError::UnexpectedReply(format!("{bus_name}: introspection: {parse_error}"))
+        })?;
     let offered_names: Vec<String> = object_node
         .interfaces()
         .iter()
@@ -272,19 +305,6 @@ pub const SERVICE_ABSENT_ERRORS: [&str; 3] = [
     "org.freedesktop.DBus.Error.NameHasNoOwner",
     "org.freedesktop.DBus.Error.NoReply",
 ];
-
-impl From<zbus::Error> for Error {
-    fn from(error: zbus::Error) -> Self {
-        match &error {
-            zbus::Error::MethodError(name, _, _)
-                if SERVICE_ABSENT_ERRORS.contains(&name.as_str()) =>
-            {
-                Error::Absent
-            }
-            _ => Error::Call(error.to_string()),
-        }
-    }
-}
 
 pub fn served_while_connected<ServedStream: Stream + Send>(
     served: ServedStream,

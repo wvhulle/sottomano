@@ -6,6 +6,8 @@ use sottomano_desktop_sources::{
     system_protocol_clients::http_json_client,
 };
 
+use crate::sink_write_errors::GuestPowerError;
+
 const NOT_FOUND_STATUS: u16 = 404;
 const STOP_GRACE_SECONDS: u32 = 10;
 
@@ -35,7 +37,7 @@ pub async fn stop_container(
     engine_api: ContainerEngineApi,
     engine_socket: &Path,
     container_id: &str,
-) -> Result<(), http_json_client::Error> {
+) -> Result<(), GuestPowerError> {
     let stop_url = format!(
         "{}/containers/{container_id}/stop?{}={STOP_GRACE_SECONDS}",
         engine_api.api_root(),
@@ -47,7 +49,10 @@ pub async fn stop_container(
             status: NOT_FOUND_STATUS,
             ..
         }) => Ok(()),
-        Err(failure) => Err(failure),
+        Err(source) => Err(GuestPowerError::Http {
+            target: format!("container {container_id}"),
+            source,
+        }),
     }
 }
 
@@ -55,9 +60,13 @@ pub async fn start_container(
     engine_api: ContainerEngineApi,
     engine_socket: &Path,
     container_id: &str,
-) -> Result<(), http_json_client::Error> {
+) -> Result<(), GuestPowerError> {
     let start_url = format!("{}/containers/{container_id}/start", engine_api.api_root());
     http_json_client::post_over_unix_socket(engine_socket, &start_url)
         .await
         .map(drop)
+        .map_err(|source| GuestPowerError::Http {
+            target: format!("container {container_id}"),
+            source,
+        })
 }

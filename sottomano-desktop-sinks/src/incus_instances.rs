@@ -5,6 +5,8 @@ use sottomano_desktop_sources::{
     system_protocol_clients::http_json_client,
 };
 
+use crate::sink_write_errors::GuestPowerError;
+
 const STATE_CHANGE_TIMEOUT_SECONDS: u32 = 30;
 
 const fn incus_state_action(run_change: RunChange) -> &'static str {
@@ -19,7 +21,7 @@ pub async fn change_instance_state(
     project_name: &str,
     instance_name: &str,
     run_change: RunChange,
-) -> Result<(), String> {
+) -> Result<(), GuestPowerError> {
     let state_url =
         format!("{INCUS_API_ROOT}/instances/{instance_name}/state?project={project_name}");
     http_json_client::put_over_unix_socket(
@@ -32,5 +34,8 @@ pub async fn change_instance_state(
     )
     .await
     .map(|_| ())
-    .map_err(|failure| format!("{instance_name}: {failure}"))
+    .map_err(|source| GuestPowerError::Http {
+        target: instance_name.to_owned(),
+        source,
+    })
 }

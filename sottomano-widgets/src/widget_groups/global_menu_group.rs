@@ -6,9 +6,12 @@ use iced::{
     Subscription, Task,
     futures::{Stream, stream},
 };
-use sottomano_desktop_sinks::desktop_windows_apps::{
-    dbusmenu_item_events::{click_dbusmenu_item, prepare_dbusmenu_submenus},
-    gtk_action_activation::activate_gtk_action,
+use sottomano_desktop_sinks::{
+    desktop_windows_apps::{
+        dbusmenu_item_events::{click_dbusmenu_item, prepare_dbusmenu_submenus},
+        gtk_action_activation::activate_gtk_action,
+    },
+    sink_write_errors::BusWriteError,
 };
 use sottomano_desktop_sources::{
     desktop_windows_apps::{
@@ -247,10 +250,10 @@ pub enum GlobalMenuRequest {
 }
 
 impl GlobalMenuRequest {
-    pub async fn send(self, session_bus: zbus::Connection) {
+    pub async fn send(self, session_bus: zbus::Connection) -> Result<(), BusWriteError> {
         match self {
             GlobalMenuRequest::ClickDbusMenuItem { location, item_id } => {
-                click_dbusmenu_item(session_bus, location, item_id).await;
+                click_dbusmenu_item(session_bus, location, item_id).await
             }
             GlobalMenuRequest::ActivateGtkAction {
                 action_groups,

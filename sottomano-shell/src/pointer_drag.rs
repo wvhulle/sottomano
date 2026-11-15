@@ -4,7 +4,7 @@ use corredo::drag_reorder::MoveTracking;
 use iced::{Subscription, Task, window::frames};
 use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::CompositorRequest;
 use sottomano_desktop_sources::{
-    compositor_window_ipc::compositor_connection::{CompositorKind, OverviewSupport},
+    compositor_window_ipc::compositor_connection::{CompositorFeatureSupport, CompositorKind},
     desktop_windows_apps::workspace_window_snapshot,
 };
 use sottomano_toml_config::screen_edges::Position;
@@ -230,7 +230,7 @@ fn click_slot(click: SlotClick) -> Task<Message> {
             is_active: true, ..
         } => {
             if CompositorKind::detected().map(CompositorKind::overview_support)
-                == Some(OverviewSupport::Available)
+                == Some(CompositorFeatureSupport::Available)
             {
                 compositor_request(CompositorRequest::ToggleOverview)
             } else {

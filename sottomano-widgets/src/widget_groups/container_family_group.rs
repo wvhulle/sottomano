@@ -6,6 +6,7 @@ use std::{
 
 use chrono::Locale;
 use iced::{Subscription, Task};
+use sottomano_desktop_sinks::sink_write_errors::GuestPowerError;
 use sottomano_desktop_sources::{SnapshotDelivery, SnapshotSource};
 
 use crate::{
@@ -75,15 +76,15 @@ pub trait ContainerFamily: Debug + Clone + Sized + 'static {
 
     fn stop(
         request: Self::PowerRequest,
-    ) -> impl Future<Output = Result<(), String>> + Send + 'static;
+    ) -> impl Future<Output = Result<(), GuestPowerError>> + Send + 'static;
 
     fn start(
         request: Self::PowerRequest,
-    ) -> impl Future<Output = Result<(), String>> + Send + 'static {
-        ready(Err(format!(
-            "{} cannot start {request:?} from the bar",
-            Self::GROUP_NAME
-        )))
+    ) -> impl Future<Output = Result<(), GuestPowerError>> + Send + 'static {
+        ready(Err(GuestPowerError::StartUnsupported {
+            group_name: Self::GROUP_NAME,
+            request: format!("{request:?}"),
+        }))
     }
 
     fn group_label(probe: &Self::Probe) -> String {
@@ -121,7 +122,7 @@ pub enum ContainerFamilyMessage<Family: ContainerFamily> {
     Probe(SnapshotDelivery<Family::Probe>),
     Listings(SnapshotDelivery<Family::Listings>),
     Detail(SnapshotDelivery<Family::Detail>),
-    PowerChangeRefused(String),
+    PowerChangeRefused(GuestPowerError),
     Interaction(ContainerFamilyInteraction<Family>),
 }
 
@@ -255,7 +256,7 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
 }
 
 fn refused_power_change<Family: ContainerFamily>(
-    power_change: impl Future<Output = Result<(), String>> + Send + 'static,
+    power_change: impl Future<Output = Result<(), GuestPowerError>> + Send + 'static,
 ) -> Task<ContainerFamilyMessage<Family>> {
     Task::future(async move { power_change.await.err() })
         .and_then(|refusal| Task::done(ContainerFamilyMessage::PowerChangeRefused(refusal)))

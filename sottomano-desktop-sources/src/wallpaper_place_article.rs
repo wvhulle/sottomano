@@ -15,7 +15,7 @@ use uom::si::{angle::degree, f64::Angle};
 
 use crate::{
     backing_service_availability::Availability,
-    secret_file_reads::read_secret,
+    secret_file_reads::{AuthenticatedFetchError, read_secret},
     system_protocol_clients::{
         http_json_client, protocol_peer_reconnects::subscribed, shell_command_output,
     },
@@ -56,14 +56,6 @@ pub struct WikipediaArticle {
     pub title: String,
     pub url: String,
     pub summary: Option<String>,
-}
-
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum Error {
-    #[error("unsplash access key unreadable")]
-    Secret,
-    #[error("{0}")]
-    Fetch(#[from] http_json_client::Error),
 }
 
 #[derive(Deserialize)]
@@ -353,8 +345,12 @@ pub fn unresolved(path: &str, id: &str) -> Wallpaper {
     }
 }
 
-pub async fn resolve(path: String, id: String, unsplash_key: &Path) -> Result<Wallpaper, Error> {
-    let secret = read_secret(unsplash_key).ok_or(Error::Secret)?;
+pub async fn resolve(
+    path: String,
+    id: String,
+    unsplash_key: &Path,
+) -> Result<Wallpaper, AuthenticatedFetchError> {
+    let secret = read_secret(unsplash_key)?;
     let mut wallpaper = describe_photo(file_name(&path).to_owned(), &id, &secret).await?;
     let language = wikipedia_language();
     if let Some(position) = wallpaper.position {
@@ -411,7 +407,11 @@ pub fn photo_id(path: &str) -> Option<String> {
     (photographer.ends_with('-') && identifier_like).then(|| id.to_owned())
 }
 
-async fn describe_photo(file_name: String, id: &str, secret: &str) -> Result<Wallpaper, Error> {
+async fn describe_photo(
+    file_name: String,
+    id: &str,
+    secret: &str,
+) -> Result<Wallpaper, AuthenticatedFetchError> {
     let authorization = format!("Client-ID {secret}");
     let url = format!("{UNSPLASH_PHOTO_ENDPOINT}{id}");
     let response: PhotoResponse = http_json_client::get_json(
@@ -455,7 +455,7 @@ async fn nearby_search(
     language: &str,
     position: Position,
     place: Option<&str>,
-) -> Result<SearchEnvelope, Error> {
+) -> Result<SearchEnvelope, AuthenticatedFetchError> {
     let Position {
         latitude,
         longitude,

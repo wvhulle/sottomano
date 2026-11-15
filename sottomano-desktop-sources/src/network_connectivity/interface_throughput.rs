@@ -24,7 +24,7 @@ use crate::{
     network_connectivity::{
         network_manager_proxies, network_manager_proxies::Metering, nm_readings,
     },
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
 };
 
 const SAMPLE_POLLING: PeriodicPolling = PeriodicPolling::every(Duration::from_secs(2));
@@ -98,7 +98,7 @@ pub struct InterfaceThroughput {
 }
 
 impl SnapshotSource for InterfaceThroughput {
-    type Error = zbus::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Network throughput";
@@ -111,6 +111,7 @@ impl SnapshotSource for InterfaceThroughput {
         )
         .map(|uplink| match uplink {
             Ok(uplink) => ThroughputEvent::UplinkChanged(uplink),
+            Err(BusReadError::Absent) => ThroughputEvent::UplinkAbsent,
             Err(failure) => ThroughputEvent::UplinkUnreadable(failure),
         });
         let ticks = SAMPLE_POLLING.poll_ticks().map(ThroughputEvent::Tick);
@@ -129,9 +130,9 @@ impl SnapshotSource for InterfaceThroughput {
                                 delivery_cadence: DeliveryCadence::PeriodicPolling(polling),
                             })
                     }
-                    ThroughputEvent::UplinkChanged(uplink) => {
-                        *sampler =
-                            mem::take(sampler).observed(ThroughputEvent::UplinkChanged(uplink));
+                    uplink_event @ (ThroughputEvent::UplinkChanged(_)
+                    | ThroughputEvent::UplinkAbsent) => {
+                        *sampler = mem::take(sampler).observed(uplink_event);
                         None
                     }
                 };
@@ -143,8 +144,9 @@ impl SnapshotSource for InterfaceThroughput {
 }
 
 enum ThroughputEvent {
-    UplinkChanged(Option<network_manager_proxies::Uplink>),
-    UplinkUnreadable(zbus::Error),
+    UplinkChanged(network_manager_proxies::Uplink),
+    UplinkAbsent,
+    UplinkUnreadable(BusReadError),
     Tick(PeriodicPolling),
 }
 
@@ -160,12 +162,12 @@ struct ThroughputSampler {
 impl ThroughputSampler {
     fn observed(self, event: ThroughputEvent) -> Self {
         match event {
-            ThroughputEvent::UplinkChanged(Some(uplink)) => Self {
+            ThroughputEvent::UplinkChanged(uplink) => Self {
                 interfaces: physical(&uplink.activated_interfaces),
                 metering: uplink.metering,
                 ..self
             },
-            ThroughputEvent::UplinkChanged(None) => Self {
+            ThroughputEvent::UplinkAbsent => Self {
                 interfaces: Vec::default(),
                 metering: Metering::Unmetered,
                 ..self

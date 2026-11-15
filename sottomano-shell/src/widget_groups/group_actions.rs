@@ -14,7 +14,7 @@ use sottomano_desktop_sources::{
     system_protocol_clients::shell_command_output::blocking::run,
 };
 use sottomano_widgets::{
-    background_work::compositor_request,
+    background_work::{compositor_request, logged_failure_task},
     layer_surfaces::{ActivationTokenOutcome, activation_token_request},
     widget_groups::{
         app_launcher_group::{self, AppLauncherMessage},
@@ -200,7 +200,10 @@ impl DesktopShell {
         let Some(buses) = &self.desktop_buses else {
             return Task::none();
         };
-        Task::future(request.send(buses.session.clone())).discard()
+        logged_failure_task(
+            format!("global menu: {request:?}"),
+            request.send(buses.session.clone()),
+        )
     }
 
     fn send_tray_command_with_activation_token(&self, command: TrayCommand) -> Task<Message> {

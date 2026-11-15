@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature};
 use zbus::{Connection, proxy};
 
@@ -10,7 +10,7 @@ use crate::{
     delivery_cadence_drivers::ChangeTriggerStreams,
     system_protocol_clients::{
         dbus_change_signals::{change_triggers, properties_changed_rule},
-        dbus_desktop_buses::{DesktopBuses, Error, name_owned},
+        dbus_desktop_buses::{BusReadError, DesktopBuses, name_owned},
     },
 };
 
@@ -43,7 +43,7 @@ pub struct ColorTemperature {
 }
 
 impl SnapshotSource for ColorTemperature {
-    type Error = Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Screen dimming";
@@ -53,6 +53,7 @@ impl SnapshotSource for ColorTemperature {
             move || {
                 let buses = buses.clone();
                 SnapshotDelivery::live_push_deliveries(buses, relay_changes)
+                    .map(SnapshotDelivery::unavailable_when_absent)
             },
             || SnapshotDelivery::SourceUnavailable,
         )
@@ -61,7 +62,7 @@ impl SnapshotSource for ColorTemperature {
 
 async fn relay_changes(
     buses: DesktopBuses,
-) -> Result<impl Stream<Item = Result<ColorTemperature, Error>> + Send, Error> {
+) -> Result<impl Stream<Item = Result<ColorTemperature, BusReadError>> + Send, BusReadError> {
     let relay = GammaRelayProxy::new(&buses.session).await?;
     let changes = change_triggers(
         &buses.session,
@@ -75,7 +76,7 @@ async fn relay_changes(
 }
 
 impl ColorTemperature {
-    async fn read(relay: &GammaRelayProxy<'_>) -> Result<Self, Error> {
+    async fn read(relay: &GammaRelayProxy<'_>) -> Result<Self, BusReadError> {
         let brightness = relay.brightness().await?;
         let temperature = relay.temperature().await?;
         #[allow(clippy::cast_possible_truncation)]

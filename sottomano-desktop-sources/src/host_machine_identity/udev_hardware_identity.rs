@@ -197,7 +197,7 @@ pub fn host_bridge_subsystem_vendor() -> Option<u16> {
         .filter(|vendor| *vendor != 0)
 }
 
-fn pci_parent_vendor(device: &Path) -> Option<u16> {
+pub(crate) fn pci_parent_vendor(device: &Path) -> Option<u16> {
     let parent = device.join("device");
     (link_target_name(&parent.join("subsystem")).as_deref() == Some("pci"))
         .then(|| hex_attribute(&parent.join("vendor")))
@@ -224,10 +224,40 @@ fn hex_attribute(path: &Path) -> Option<u16> {
         .ok()
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Adapter {
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DeviceIdentity {
     pub vendor: Option<String>,
     pub model: Option<String>,
+    pub serial: Option<String>,
+    pub revision: Option<String>,
+}
+
+impl DeviceIdentity {
+    #[must_use]
+    pub fn read_drive_controller(controller: &Path) -> Self {
+        DeviceIdentity {
+            vendor: None,
+            model: sysfs_attribute(controller.join("model")),
+            serial: sysfs_attribute(controller.join("serial")),
+            revision: sysfs_attribute(controller.join("firmware_rev"))
+                .or_else(|| sysfs_attribute(controller.join("rev"))),
+        }
+    }
+
+    #[must_use]
+    pub fn read_power_supply(supply: &Path) -> Self {
+        DeviceIdentity {
+            vendor: sysfs_attribute(supply.join("manufacturer")),
+            model: sysfs_attribute(supply.join("model_name")),
+            serial: sysfs_attribute(supply.join("serial_number")),
+            revision: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Adapter {
+    pub identity: DeviceIdentity,
     pub bus_id: BusId,
     pub driver: Option<String>,
 }
@@ -252,8 +282,12 @@ impl Adapter {
             .find_map(|device| Some((device.to_path_buf(), BusId::read_sysfs_device(device)?)))?;
         let properties = UdevProperties::from(bus_device.as_path());
         Some(Adapter {
-            vendor: properties.vendor(),
-            model: properties.model(),
+            identity: DeviceIdentity {
+                vendor: properties.vendor(),
+                model: properties.model(),
+                serial: None,
+                revision: None,
+            },
             bus_id,
             driver: link_target_name(&function.join("driver")),
         })
@@ -262,53 +296,6 @@ impl Adapter {
     #[must_use]
     pub fn read_net_interface(interface: &str) -> Option<Self> {
         Self::read_class_device(PathBuf::from("/sys/class/net").join(interface))
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DriveIdentity {
-    pub pci_vendor: Option<u16>,
-    pub model: Option<String>,
-    pub serial: Option<String>,
-    pub firmware: Option<String>,
-}
-
-impl From<&Path> for DriveIdentity {
-    fn from(controller: &Path) -> Self {
-        DriveIdentity {
-            pci_vendor: pci_parent_vendor(controller),
-            model: sysfs_attribute(controller.join("model")),
-            serial: sysfs_attribute(controller.join("serial")),
-            firmware: sysfs_attribute(controller.join("firmware_rev"))
-                .or_else(|| sysfs_attribute(controller.join("rev"))),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModemIdentity {
-    pub manufacturer: Option<String>,
-    pub model: Option<String>,
-    pub revision: Option<String>,
-    pub adapter: Option<Adapter>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct PowerSupplyIdentity {
-    pub manufacturer: Option<String>,
-    pub model: Option<String>,
-    pub serial: Option<String>,
-    pub technology: Option<String>,
-}
-
-impl From<&Path> for PowerSupplyIdentity {
-    fn from(supply: &Path) -> Self {
-        PowerSupplyIdentity {
-            manufacturer: sysfs_attribute(supply.join("manufacturer")),
-            model: sysfs_attribute(supply.join("model_name")),
-            serial: sysfs_attribute(supply.join("serial_number")),
-            technology: sysfs_attribute(supply.join("technology")),
-        }
     }
 }
 

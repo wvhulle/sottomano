@@ -1,7 +1,7 @@
-use crate::finished_commands::run_to_success;
+use crate::{finished_commands::run_to_success, sink_write_errors::GuestPowerError};
 
-pub async fn start_waydroid_session() -> Result<(), String> {
-    run_to_success(
+pub async fn start_waydroid_session() -> Result<(), GuestPowerError> {
+    Ok(run_to_success(
         "systemd-run",
         [
             "--user",
@@ -13,9 +13,9 @@ pub async fn start_waydroid_session() -> Result<(), String> {
             "start",
         ],
     )
-    .await
+    .await?)
 }
 
-pub async fn stop_waydroid_session() -> Result<(), String> {
-    run_to_success("waydroid", ["session", "stop"]).await
+pub async fn stop_waydroid_session() -> Result<(), GuestPowerError> {
+    Ok(run_to_success("waydroid", ["session", "stop"]).await?)
 }

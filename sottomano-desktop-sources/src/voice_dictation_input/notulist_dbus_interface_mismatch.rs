@@ -3,7 +3,7 @@ use futures::{Stream, StreamExt};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::SnapshotDeliveryStreams,
-    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error, InterfaceOffer},
+    system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses, InterfaceOffer},
     voice_dictation_input::notulist_interface_offers,
 };
 
@@ -14,7 +14,7 @@ pub struct NotulistInterfaceMismatch {
 }
 
 impl SnapshotSource for NotulistInterfaceMismatch {
-    type Error = Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Interface mismatch";

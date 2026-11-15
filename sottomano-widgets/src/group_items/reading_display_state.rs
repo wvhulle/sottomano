@@ -6,7 +6,7 @@ use sottomano_desktop_sources::{
     container_run_state::ContainerRunState,
     media_playback_audio::mpris_players::{LoopMode, QueueOrder},
     network_connectivity::{
-        network_manager_proxies::{DeviceLinkState, RadioPower},
+        network_manager_proxies::{LinkPhase, RadioPower},
         tailscale_exit_nodes::ExitNodeLanAccess,
         tailscale_status::{ExitNodeOffer, ExitNodeUse},
     },
@@ -85,12 +85,12 @@ impl ReadingDisplayState {
     }
 }
 
-impl From<DeviceLinkState> for ReadingDisplayState {
-    fn from(link_state: DeviceLinkState) -> Self {
+impl From<LinkPhase> for ReadingDisplayState {
+    fn from(link_state: LinkPhase) -> Self {
         match link_state {
-            DeviceLinkState::Connected => ReadingDisplayState::On,
-            DeviceLinkState::Switching => ReadingDisplayState::Pending,
-            DeviceLinkState::Disconnected => ReadingDisplayState::Off,
+            LinkPhase::Up => ReadingDisplayState::On,
+            LinkPhase::Switching => ReadingDisplayState::Pending,
+            LinkPhase::Down => ReadingDisplayState::Off,
         }
     }
 }

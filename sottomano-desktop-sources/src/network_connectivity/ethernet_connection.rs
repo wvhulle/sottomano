@@ -6,10 +6,10 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     host_machine_identity::udev_hardware_identity::Adapter,
     network_connectivity::{
-        ReadingError, device_or_absent, interface_bus_attachment::InterfaceAttachment,
-        network_manager_proxies, nm_readings, sysfs_interface_faults::InterfaceFaultCounters,
+        device_or_absent, interface_bus_attachment::InterfaceAttachment, network_manager_proxies,
+        nm_readings, sysfs_interface_faults::InterfaceFaultCounters,
     },
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
 };
 
 #[derive(Debug, Clone)]
@@ -28,7 +28,7 @@ pub struct Link {
 pub struct PortState {
     pub name: String,
     pub attachment: InterfaceAttachment,
-    pub link_state: network_manager_proxies::DeviceLinkState,
+    pub link_state: network_manager_proxies::LinkPhase,
 }
 
 #[derive(Debug, Clone)]
@@ -41,7 +41,7 @@ impl Ethernet {
     pub fn connected_count(&self) -> usize {
         self.ports
             .iter()
-            .filter(|port| port.link_state == network_manager_proxies::DeviceLinkState::Connected)
+            .filter(|port| port.link_state == network_manager_proxies::LinkPhase::Up)
             .count()
     }
 }
@@ -63,7 +63,7 @@ async fn port(
     device: network_manager_proxies::DeviceInfo,
 ) -> zbus::Result<Port> {
     let adapter = Adapter::read_net_interface(&device.interface);
-    let link = if device.link_state == network_manager_proxies::DeviceLinkState::Connected {
+    let link = if device.link_state == network_manager_proxies::LinkPhase::Up {
         Some(link(connection, &device).await?)
     } else {
         None
@@ -106,7 +106,7 @@ async fn link(
 
 async fn ethernet_devices(
     connection: &Connection,
-) -> Result<Vec<network_manager_proxies::DeviceInfo>, ReadingError> {
+) -> Result<Vec<network_manager_proxies::DeviceInfo>, BusReadError> {
     network_manager_proxies::devices_of_kind(
         connection,
         network_manager_proxies::DeviceKind::Ethernet,
@@ -114,7 +114,7 @@ async fn ethernet_devices(
     .await
 }
 
-async fn read(connection: Connection) -> Result<Ethernet, ReadingError> {
+async fn read(connection: Connection) -> Result<Ethernet, BusReadError> {
     Ok(Ethernet {
         ports: ethernet_devices(&connection)
             .await?
@@ -128,14 +128,14 @@ async fn read(connection: Connection) -> Result<Ethernet, ReadingError> {
     })
 }
 
-async fn read_details(connection: Connection) -> Result<EthernetDetails, ReadingError> {
+async fn read_details(connection: Connection) -> Result<EthernetDetails, BusReadError> {
     let devices = ethernet_devices(&connection).await?;
     let ports = try_join_all(devices.into_iter().map(|device| port(&connection, device))).await?;
     Ok(EthernetDetails { ports })
 }
 
 impl SnapshotSource for Ethernet {
-    type Error = zbus::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Ethernet";
@@ -157,7 +157,7 @@ impl SnapshotSource for Ethernet {
 }
 
 impl SnapshotSource for EthernetDetails {
-    type Error = zbus::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Ethernet details";

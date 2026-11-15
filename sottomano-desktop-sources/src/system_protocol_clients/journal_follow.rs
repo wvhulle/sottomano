@@ -19,6 +19,8 @@ use systemd::journal::{Journal, JournalRecord, JournalWaitResult, OpenOptions};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
+use crate::StateChange;
+
 pub const EVENT_HORIZON: Duration = Duration::from_secs(3600);
 
 pub trait JournalEvent: Clone + Send + 'static {
@@ -107,12 +109,12 @@ impl<E: JournalEvent> WindowedJournal<E> {
                 JournalWaitResult::Append => self.read_appended(),
                 JournalWaitResult::Invalidate => {
                     self.rebuild_from_horizon()?;
-                    WindowChange::Changed
+                    StateChange::Changed
                 }
-                JournalWaitResult::Nop => WindowChange::Unchanged,
+                JournalWaitResult::Nop => StateChange::Unchanged,
             };
             let expired = self.window.drop_expired(SystemTime::now());
-            if appended == WindowChange::Changed || expired == WindowChange::Changed {
+            if appended == StateChange::Changed || expired == StateChange::Changed {
                 return Ok(());
             }
         }
@@ -132,15 +134,15 @@ impl<E: JournalEvent> WindowedJournal<E> {
         Ok(())
     }
 
-    fn read_appended(&mut self) -> WindowChange {
-        let mut appended = WindowChange::Unchanged;
+    fn read_appended(&mut self) -> StateChange {
+        let mut appended = StateChange::Unchanged;
         while let Ok(Some(record)) = self.journal.next_entry() {
             let Ok(at) = self.journal.timestamp() else {
                 continue;
             };
             if let Some(event) = admitted_event(record, at) {
                 self.window.events.push_back(event);
-                appended = WindowChange::Changed;
+                appended = StateChange::Changed;
             }
         }
         appended
@@ -167,7 +169,7 @@ impl<E> Default for EventWindow<E> {
 }
 
 impl<E: JournalEvent> EventWindow<E> {
-    fn drop_expired(&mut self, now: SystemTime) -> WindowChange {
+    fn drop_expired(&mut self, now: SystemTime) -> StateChange {
         let before = self.events.len();
         while self
             .events
@@ -177,9 +179,9 @@ impl<E: JournalEvent> EventWindow<E> {
             self.events.pop_front();
         }
         if self.events.len() == before {
-            WindowChange::Unchanged
+            StateChange::Unchanged
         } else {
-            WindowChange::Changed
+            StateChange::Changed
         }
     }
 
@@ -290,12 +292,6 @@ pub fn journal_record<'a>(fields: impl IntoIterator<Item = (&'a str, &'a str)>) 
         .collect()
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum WindowChange {
-    Changed,
-    Unchanged,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -330,12 +326,12 @@ mod tests {
             events: [0, 10, 30].map(|at| Stamped(minutes(at))).into(),
         };
         let now = minutes(65);
-        assert_eq!(window.drop_expired(now), WindowChange::Changed);
+        assert_eq!(window.drop_expired(now), StateChange::Changed);
         assert_eq!(window.events, [Stamped(minutes(10)), Stamped(minutes(30))]);
         assert_eq!(
             window.time_until_next_expiry(now),
             Some(Duration::from_mins(5))
         );
-        assert_eq!(window.drop_expired(now), WindowChange::Unchanged);
+        assert_eq!(window.drop_expired(now), StateChange::Unchanged);
     }
 }

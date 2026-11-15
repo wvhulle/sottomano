@@ -2,13 +2,9 @@ use sottomano_desktop_sources::system_protocol_clients::shell_command_output;
 
 const COPY_PROGRAM: &str = "wl-copy";
 
-pub fn write(text: &str) {
+pub fn write(text: &str) -> Result<(), shell_command_output::Error> {
     if text.is_empty() {
-        return;
+        return Ok(());
     }
-    if let Err(copy_failure) =
-        shell_command_output::blocking::run(COPY_PROGRAM, &["--trim-newline", "--", text])
-    {
-        tracing::warn!("clipboard: copying {} bytes: {copy_failure}", text.len());
-    }
+    shell_command_output::blocking::run(COPY_PROGRAM, &["--trim-newline", "--", text])
 }

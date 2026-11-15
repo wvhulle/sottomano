@@ -7,7 +7,7 @@ use super::hwmon_temperature_sensors::{HwmonChip, TemperatureSensor};
 use crate::{
     SnapshotDelivery, SnapshotSource, blocking_background_work::blocking_poll,
     delivery_cadence_drivers::PeriodicPolling,
-    system_protocol_clients::sysfs_attribute_reads::Error,
+    system_protocol_clients::sysfs_attribute_reads::FileReadError,
 };
 
 const MEMORY_MODULE_SENSOR_CHIPS: [&str; 2] = ["spd5118", "jc42"];
@@ -24,7 +24,7 @@ pub struct MemoryModuleTemperature {
 }
 
 impl SnapshotSource for MemoryModuleTemperatures {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Module temperatures";

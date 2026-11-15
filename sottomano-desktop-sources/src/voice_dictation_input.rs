@@ -13,13 +13,13 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::{Availability, AvailabilityStreams},
     system_protocol_clients::dbus_desktop_buses::{
-        DesktopBuses, Error, InterfaceOffer, introspected_interface_offer, name_owned,
+        BusReadError, DesktopBuses, InterfaceOffer, introspected_interface_offer, name_owned,
     },
 };
 
 fn notulist_interface_offers(
     session: zbus::Connection,
-) -> impl Stream<Item = Option<Result<InterfaceOffer, Error>>> + Send {
+) -> impl Stream<Item = Option<Result<InterfaceOffer, BusReadError>>> + Send {
     name_owned(session.clone(), DICTATION_BUS_NAME).switch_map(move |owner_availability| {
         let session = session.clone();
         stream::once(async move {
@@ -45,7 +45,7 @@ fn notulist_followed_deliveries<S, Value, Followed, FollowedValues>(
     snapshot_of: fn(Value) -> S,
 ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
 where
-    S: SnapshotSource<Error = Error> + PartialEq,
+    S: SnapshotSource<Error = BusReadError> + PartialEq,
     Followed: Future<Output = zbus::Result<FollowedValues>> + Send,
     FollowedValues: Stream<Item = zbus::Result<Value>> + Send,
     Value: 'static,
@@ -65,6 +65,7 @@ where
                     let followed = follow(session);
                     async move { Ok(followed.await?.map(move |value| Ok(snapshot_of(value?)))) }
                 })
+                .map(SnapshotDelivery::unavailable_when_absent)
             },
             || SnapshotDelivery::SourceUnavailable,
         )

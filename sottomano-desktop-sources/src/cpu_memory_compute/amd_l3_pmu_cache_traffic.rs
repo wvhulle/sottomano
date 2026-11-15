@@ -10,7 +10,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::{Availability, AvailabilityStreams},
     delivery_cadence_drivers::PeriodicPolling,
-    system_protocol_clients::sysfs_attribute_reads::{Error, read_trimmed},
+    system_protocol_clients::sysfs_attribute_reads::{FileReadError, read_trimmed},
 };
 
 const L3_PMU: &str = "amd_l3";
@@ -33,7 +33,7 @@ pub struct SharedCacheTraffic {
 }
 
 impl SnapshotSource for L3CacheTraffic {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "L3 cache traffic";
@@ -101,18 +101,18 @@ impl LookupCounters {
     }
 }
 
-fn read_l3_cache_traffic() -> Result<L3CacheTraffic, Error> {
-    let counting_cpus =
-        read_trimmed(L3_PMU_CPUMASK).ok_or_else(|| Error::Unreadable(L3_PMU_CPUMASK.to_owned()))?;
+fn read_l3_cache_traffic() -> Result<L3CacheTraffic, FileReadError> {
+    let counting_cpus = read_trimmed(L3_PMU_CPUMASK)
+        .ok_or_else(|| FileReadError::Unreadable(L3_PMU_CPUMASK.to_owned()))?;
     let counters = cpulist(&counting_cpus)
         .map(LookupCounters::open)
         .collect::<io::Result<Vec<_>>>()
-        .map_err(|failure| Error::Unreadable(format!("{L3_PMU}: {failure}")))?;
+        .map_err(|failure| FileReadError::Unreadable(format!("{L3_PMU}: {failure}")))?;
     thread::sleep(SAMPLE_GAP);
     let caches = counters
         .into_iter()
         .map(|counters| counters.traffic(SAMPLE_GAP))
         .collect::<io::Result<Vec<_>>>()
-        .map_err(|failure| Error::Unreadable(format!("{L3_PMU}: {failure}")))?;
+        .map_err(|failure| FileReadError::Unreadable(format!("{L3_PMU}: {failure}")))?;
     Ok(L3CacheTraffic { caches })
 }

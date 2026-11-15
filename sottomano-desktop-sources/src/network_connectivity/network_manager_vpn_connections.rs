@@ -4,12 +4,14 @@ use zbus::{Connection, zvariant::OwnedObjectPath};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     network_connectivity::{
-        ReadingError, device_or_absent,
-        network_manager_proxies::{self, ActiveVpn, AddressBlock, NmConnectionSwitch, VpnProfile},
+        device_or_absent,
+        network_manager_proxies::{
+            self, ActiveVpn, AddressBlock, LinkPhase, NmConnectionSwitch, VpnProfile,
+        },
         nm_readings,
     },
     non_empty_text::non_empty,
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
 };
 
 const PLUGIN_SERVICE_PREFIX: &str = "org.freedesktop.NetworkManager.";
@@ -116,12 +118,17 @@ impl VpnConnection {
     }
 
     #[must_use]
-    pub fn activation(&self) -> VpnActivation {
+    pub fn link_phase(&self) -> LinkPhase {
         match &self.activity {
-            VpnActivity::Active(tunnel) if tunnel.vpn_state == VpnState::Activated => {
-                VpnActivation::Activated
-            }
-            _ => VpnActivation::NotActivated,
+            VpnActivity::Inactive => LinkPhase::Down,
+            VpnActivity::Active(tunnel) => match tunnel.vpn_state {
+                VpnState::Activated => LinkPhase::Up,
+                VpnState::Preparing
+                | VpnState::NeedsAuthentication
+                | VpnState::Connecting
+                | VpnState::AwaitingAddress => LinkPhase::Switching,
+                VpnState::Failed | VpnState::Disconnected => LinkPhase::Down,
+            },
         }
     }
 
@@ -162,13 +169,13 @@ pub struct NetworkManagerVpns {
     pub connections: Vec<VpnConnection>,
 }
 
-async fn read(connection: Connection) -> Result<NetworkManagerVpns, ReadingError> {
+async fn read(connection: Connection) -> Result<NetworkManagerVpns, BusReadError> {
     let (profiles, mut active_vpns) = try_join!(
         network_manager_proxies::vpn_profiles(&connection),
         network_manager_proxies::active_vpns(&connection)
     )?;
     if profiles.is_empty() {
-        return Err(ReadingError::Absent);
+        return Err(BusReadError::Absent);
     }
     Ok(NetworkManagerVpns {
         connections: profiles
@@ -179,7 +186,7 @@ async fn read(connection: Connection) -> Result<NetworkManagerVpns, ReadingError
 }
 
 impl SnapshotSource for NetworkManagerVpns {
-    type Error = zbus::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "NetworkManager VPNs";
@@ -192,12 +199,6 @@ impl SnapshotSource for NetworkManagerVpns {
             move || nm_readings(system.clone(), WATCHED_VPN_PROPERTIES, read),
         )
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VpnActivation {
-    Activated,
-    NotActivated,
 }
 
 #[cfg(test)]
@@ -248,7 +249,7 @@ mod tests {
             vpn_connection.remote_gateway.as_deref(),
             Some("vpn.example.com")
         );
-        assert_eq!(vpn_connection.activation(), VpnActivation::Activated);
+        assert_eq!(vpn_connection.link_phase(), LinkPhase::Up);
         assert_eq!(
             vpn_connection.switch(),
             NmConnectionSwitch::Disconnect(object_path(
@@ -267,7 +268,7 @@ mod tests {
         let vpn_connection =
             VpnConnection::claiming_active_vpn(globalprotect_profile(), &mut Vec::new());
         assert_eq!(vpn_connection.activity, VpnActivity::Inactive);
-        assert_eq!(vpn_connection.activation(), VpnActivation::NotActivated);
+        assert_eq!(vpn_connection.link_phase(), LinkPhase::Down);
         assert_eq!(
             vpn_connection.switch(),
             NmConnectionSwitch::Connect(object_path("/org/freedesktop/NetworkManager/Settings/1"))

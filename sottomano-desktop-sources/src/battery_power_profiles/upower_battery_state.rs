@@ -24,12 +24,14 @@ use crate::{
     backing_service_availability::{Availability, AvailabilityStreams},
     blocking_background_work::blocking_poll,
     delivery_cadence_drivers::{ChangeWatchFailure, PeriodicPolling},
-    host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
+    host_machine_identity::udev_hardware_identity::{DeviceIdentity, sysfs_attribute},
     system_protocol_clients::{
         dbus_change_signals::{change_triggers, properties_changed_rule},
         dbus_desktop_buses::DesktopBuses,
         protocol_peer_reconnects::subscribed,
-        sysfs_attribute_reads::{Error, list_dir, parse_field, read_field, read_i64, read_trimmed},
+        sysfs_attribute_reads::{
+            FileReadError, list_dir, parse_field, read_field, read_i64, read_trimmed,
+        },
     },
 };
 
@@ -107,7 +109,8 @@ pub struct Battery {
     pub charge_limit: Ratio,
     pub charge_behaviour: ChargeBehaviour,
     pub serial: String,
-    pub identity: PowerSupplyIdentity,
+    pub identity: DeviceIdentity,
+    pub technology: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -116,7 +119,7 @@ pub struct ChargerSupply {
 }
 
 impl SnapshotSource for ChargerSupply {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Charger";
@@ -129,7 +132,7 @@ impl SnapshotSource for ChargerSupply {
 }
 
 impl ChargerSupply {
-    fn poll(_key: ()) -> impl Future<Output = Result<Self, Error>> + Send {
+    fn poll(_key: ()) -> impl Future<Output = Result<Self, FileReadError>> + Send {
         ready(Ok(ChargerSupply {
             limit: list_dir(POWER_SUPPLY)
                 .iter()
@@ -199,7 +202,7 @@ impl Battery {
 }
 
 impl SnapshotSource for Battery {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Battery";
@@ -274,9 +277,9 @@ fn supply_state_changes(system: Connection) -> impl Stream<Item = zbus::Result<(
     })
 }
 
-fn read_battery() -> Result<Battery, Error> {
-    let dir =
-        first_power_supply("BAT").ok_or_else(|| Error::Unreadable(POWER_SUPPLY.to_owned()))?;
+fn read_battery() -> Result<Battery, FileReadError> {
+    let dir = first_power_supply("BAT")
+        .ok_or_else(|| FileReadError::Unreadable(POWER_SUPPLY.to_owned()))?;
     Ok(Battery {
         status: ChargeStatus::from(read_field(&dir.join("status"))?.as_str()),
         capacity: Ratio::new::<percent>(parse_field(&dir.join("capacity"))?),
@@ -291,7 +294,8 @@ fn read_battery() -> Result<Battery, Error> {
             .and_then(|choices| ChargeBehaviour::selected_in(&choices))
             .unwrap_or(ChargeBehaviour::Auto),
         serial: read_trimmed(dir.join("serial_number")).unwrap_or_default(),
-        identity: PowerSupplyIdentity::from(dir.as_path()),
+        identity: DeviceIdentity::read_power_supply(&dir),
+        technology: sysfs_attribute(dir.join("technology")),
     })
 }
 
@@ -301,11 +305,11 @@ fn voltage(dir: &Path) -> Option<ElectricPotential> {
     ))
 }
 
-fn unreadable(dir: &Path, file: &str) -> Error {
-    Error::Unreadable(dir.join(file).display().to_string())
+fn unreadable(dir: &Path, file: &str) -> FileReadError {
+    FileReadError::Unreadable(dir.join(file).display().to_string())
 }
 
-fn energy(dir: &Path, energy_file: &str, charge_file: &str) -> Result<Energy, Error> {
+fn energy(dir: &Path, energy_file: &str, charge_file: &str) -> Result<Energy, FileReadError> {
     read_i64(dir.join(energy_file))
         .map(|uwh| Energy::new::<microwatt_hour>(uwh as f64))
         .or_else(|| {
@@ -316,7 +320,7 @@ fn energy(dir: &Path, energy_file: &str, charge_file: &str) -> Result<Energy, Er
         .ok_or_else(|| unreadable(dir, energy_file))
 }
 
-fn power(dir: &Path) -> Result<Power, Error> {
+fn power(dir: &Path) -> Result<Power, FileReadError> {
     read_i64(dir.join("power_now"))
         .map(|uw| Power::new::<microwatt>(uw as f64))
         .or_else(|| {
@@ -357,7 +361,8 @@ mod tests {
             charge_limit: Ratio::new::<ratio>(limit),
             charge_behaviour: ChargeBehaviour::Auto,
             serial: String::new(),
-            identity: PowerSupplyIdentity::default(),
+            identity: DeviceIdentity::default(),
+            technology: None,
         }
     }
 

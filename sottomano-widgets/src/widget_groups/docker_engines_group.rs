@@ -6,7 +6,9 @@ use std::{
 
 use chrono::Locale;
 use iced::{Subscription, Task};
-use sottomano_desktop_sinks::container_power::ContainerEngineApi;
+use sottomano_desktop_sinks::{
+    container_power::ContainerEngineApi, sink_write_errors::GuestPowerError,
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     backing_service_availability::Availability,
@@ -160,7 +162,7 @@ pub enum DockerEnginesMessage {
     Probe(PathBuf, SnapshotDelivery<DockerEngineProbe>),
     Listing(PathBuf, SnapshotDelivery<DockerEngineListing>),
     Engine(PathBuf, SnapshotDelivery<DockerEngineReadout>),
-    PowerChangeRefused(String),
+    PowerChangeRefused(GuestPowerError),
     Interaction(DockerEnginesInteraction),
 }
 

@@ -11,7 +11,7 @@ use crate::{
     non_empty_text::non_empty,
     system_protocol_clients::{
         dbus_change_signals::{change_triggers, properties_changed_rule},
-        dbus_desktop_buses::{self, DesktopBuses},
+        dbus_desktop_buses::{BusReadError, DesktopBuses},
     },
 };
 
@@ -89,26 +89,21 @@ fn current_distribution_ids() -> Vec<String> {
 }
 
 impl SnapshotSource for OperatingSystemIdentity {
-    type Error = dbus_desktop_buses::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Operating system";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries(buses, identity_changes).map(|delivery| {
-            delivery.unavailable_when(|fetch_error| {
-                matches!(fetch_error, dbus_desktop_buses::Error::Absent)
-            })
-        })
+        SnapshotDelivery::live_push_deliveries(buses, identity_changes)
+            .map(SnapshotDelivery::unavailable_when_absent)
     }
 }
 
 async fn identity_changes(
     buses: DesktopBuses,
-) -> Result<
-    impl Stream<Item = Result<OperatingSystemIdentity, dbus_desktop_buses::Error>> + Send,
-    dbus_desktop_buses::Error,
-> {
+) -> Result<impl Stream<Item = Result<OperatingSystemIdentity, BusReadError>> + Send, BusReadError>
+{
     let hostname = HostnameProxy::new(&buses.system).await?;
     let kernel = hostname.kernel_release().await?;
     let operating_system = hostname.operating_system_pretty_name().await?;

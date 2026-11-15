@@ -9,10 +9,9 @@ use sottomano_desktop_sinks::compositor_window_requests::compositor_rule_files::
 };
 use sottomano_desktop_sources::{
     compositor_window_ipc::{
-        compositor_connection::CompositorKind,
+        compositor_connection::{CompositorFeatureSupport, CompositorKind},
         compositor_styling_model::{
-            AppWindowLayout, CompositorStyling, ControlSupport, HeatedWindow, ShellBlurDepth,
-            StylingControl,
+            AppWindowLayout, CompositorStyling, HeatedWindow, ShellBlurDepth, StylingControl,
         },
     },
     sqlite_state_store::StoreError,
@@ -232,10 +231,10 @@ impl CompositorStylingGroup {
         }
     }
 
-    fn control_support(&self, control: StylingControl) -> ControlSupport {
+    fn control_support(&self, control: StylingControl) -> CompositorFeatureSupport {
         self.rules_file
             .compositor()
-            .map_or(ControlSupport::Available, |compositor| {
+            .map_or(CompositorFeatureSupport::Available, |compositor| {
                 compositor.styling_support(control)
             })
     }
@@ -426,7 +425,9 @@ impl CompositorStylingGroup {
             CompositorStylingMessage::Expansion,
             styling_items
                 .into_iter()
-                .filter(|(control, _)| self.control_support(*control) == ControlSupport::Available)
+                .filter(|(control, _)| {
+                    self.control_support(*control) == CompositorFeatureSupport::Available
+                })
                 .map(|(_, styling_item)| styling_item),
         )
         .face(WidgetGroupFace::Icon {

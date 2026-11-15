@@ -8,20 +8,12 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::internet_connectivity_gate,
-    secret_file_reads::read_secret,
+    secret_file_reads::{AuthenticatedFetchError, read_secret},
     system_protocol_clients::{dbus_desktop_buses::OnBus, http_json_client},
 };
 
 const POLICY_FILE_URL: &str = "https://api.tailscale.com/api/v2/tailnet/-/acl";
 pub const ACCESS_CONTROLS_URL: &str = "https://login.tailscale.com/admin/acls";
-
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum PolicyFileError {
-    #[error("API token unreadable")]
-    TokenUnreadable,
-    #[error("{0}")]
-    Fetch(#[from] http_json_client::Error),
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PolicyRule {
@@ -185,7 +177,7 @@ impl From<PolicyFileJson> for TailscalePolicyFile {
 }
 
 impl SnapshotSource for TailscalePolicyFile {
-    type Error = PolicyFileError;
+    type Error = AuthenticatedFetchError;
     type StreamInputs = OnBus<PathBuf>;
 
     const NAME: &'static str = "Tailscale policy file";
@@ -205,8 +197,8 @@ impl SnapshotSource for TailscalePolicyFile {
 }
 
 impl TailscalePolicyFile {
-    async fn poll(token_path: PathBuf) -> Result<Self, PolicyFileError> {
-        let token = read_secret(&token_path).ok_or(PolicyFileError::TokenUnreadable)?;
+    async fn poll(token_path: PathBuf) -> Result<Self, AuthenticatedFetchError> {
+        let token = read_secret(&token_path)?;
         let authorization = format!("Bearer {token}");
         let policy_file: PolicyFileJson = http_json_client::get_json(
             POLICY_FILE_URL,

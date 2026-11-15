@@ -13,7 +13,7 @@ use crate::{
     delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::{
         procfs_process_scan::{program_stem, readable_text, scan_processes},
-        sysfs_attribute_reads::Error,
+        sysfs_attribute_reads::FileReadError,
     },
 };
 
@@ -28,7 +28,7 @@ pub struct VmwareMachineProbe {
 }
 
 impl SnapshotSource for VmwareMachineProbe {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "VMware presence";
@@ -40,10 +40,10 @@ impl SnapshotSource for VmwareMachineProbe {
     }
 }
 
-fn probed_machines() -> Result<VmwareMachineProbe, Error> {
+fn probed_machines() -> Result<VmwareMachineProbe, FileReadError> {
     let process_scan =
         scan_processes(|scanned| program_stem(&scanned.command_line) == Some(VMX_PROGRAM))
-            .ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
+            .ok_or_else(|| FileReadError::Unreadable("/proc".to_owned()))?;
     Ok(VmwareMachineProbe {
         running_count: process_scan.matched_processes.len(),
     })
@@ -57,7 +57,7 @@ pub struct VmwareMachineListing {
 }
 
 impl SnapshotSource for FamilyListings<VmwareMachineListing> {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "VMware machine names";
@@ -69,10 +69,10 @@ impl SnapshotSource for FamilyListings<VmwareMachineListing> {
     }
 }
 
-fn named_machines() -> Result<FamilyListings<VmwareMachineListing>, Error> {
+fn named_machines() -> Result<FamilyListings<VmwareMachineListing>, FileReadError> {
     let process_scan =
         scan_processes(|scanned| program_stem(&scanned.command_line) == Some(VMX_PROGRAM))
-            .ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
+            .ok_or_else(|| FileReadError::Unreadable("/proc".to_owned()))?;
     let mut listings: Vec<VmwareMachineListing> = process_scan
         .matched_processes
         .iter()
@@ -100,7 +100,7 @@ pub struct VmwareMachine {
 }
 
 impl SnapshotSource for FamilyDetails<VmwareMachine> {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "VMware machines";
@@ -139,10 +139,10 @@ fn file_stem_text(configuration_file: &Path) -> String {
         .map_or_else(String::new, |file_stem| file_stem.display().to_string())
 }
 
-fn scanned_machines() -> Result<FamilyDetails<VmwareMachine>, Error> {
+fn scanned_machines() -> Result<FamilyDetails<VmwareMachine>, FileReadError> {
     let process_scan =
         scan_processes(|scanned| program_stem(&scanned.command_line) == Some(VMX_PROGRAM))
-            .ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
+            .ok_or_else(|| FileReadError::Unreadable("/proc".to_owned()))?;
     let mut details: Vec<VmwareMachine> = process_scan
         .matched_processes
         .iter()

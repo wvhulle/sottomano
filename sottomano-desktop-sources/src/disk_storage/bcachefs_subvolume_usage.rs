@@ -9,12 +9,11 @@ use futures::Stream;
 use rustix::fs::statvfs;
 use serde::Deserialize;
 
-use super::{
-    Error, block_filesystem_mounts::FilesystemMount, mounted_filesystem_usage::MountAccess,
-};
+use super::{block_filesystem_mounts::FilesystemMount, mounted_filesystem_usage::MountAccess};
 use crate::{
-    SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
-    system_protocol_clients::shell_command_output,
+    SnapshotDelivery, SnapshotSource,
+    delivery_cadence_drivers::PeriodicPolling,
+    system_protocol_clients::{shell_command_output, sysfs_attribute_reads::FileReadError},
 };
 
 const BCACHEFS_PROGRAM: &str = "bcachefs";
@@ -42,7 +41,7 @@ pub struct SubvolumeMount {
 }
 
 impl SnapshotSource for BcachefsSubvolumeUsage {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = FilesystemMount;
 
     const NAME: &'static str = "Subvolumes";
@@ -55,7 +54,7 @@ impl SnapshotSource for BcachefsSubvolumeUsage {
     }
 }
 
-fn read_subvolume_usage(mount: &FilesystemMount) -> Result<BcachefsSubvolumeUsage, Error> {
+fn read_subvolume_usage(mount: &FilesystemMount) -> Result<BcachefsSubvolumeUsage, FileReadError> {
     let mounted_trees = mount
         .mount_points
         .iter()
@@ -98,16 +97,16 @@ struct MountedSnapshotTree {
 }
 
 impl MountedSnapshotTree {
-    fn read(mount_point: &Path) -> Result<Self, Error> {
+    fn read(mount_point: &Path) -> Result<Self, FileReadError> {
         let mount_point_text = mount_point
             .to_str()
-            .ok_or_else(|| Error::Unparsable(mount_point.display().to_string()))?;
+            .ok_or_else(|| FileReadError::Unparsable(mount_point.display().to_string()))?;
         let listing = shell_command_output::blocking::output(
             BCACHEFS_PROGRAM,
             &["subvolume", "list-snapshots", "--json", mount_point_text],
         )?;
         let tree = serde_json::from_str(&listing).map_err(|_| {
-            Error::Unparsable(format!("{BCACHEFS_PROGRAM} output for {mount_point_text}"))
+            FileReadError::Unparsable(format!("{BCACHEFS_PROGRAM} output for {mount_point_text}"))
         })?;
         Ok(MountedSnapshotTree {
             mount: SubvolumeMount {
@@ -119,8 +118,8 @@ impl MountedSnapshotTree {
     }
 }
 
-fn mount_access(mount_point: &Path) -> Result<MountAccess, Error> {
-    let stat = statvfs(mount_point).map_err(|errno| Error::Statvfs {
+fn mount_access(mount_point: &Path) -> Result<MountAccess, FileReadError> {
+    let stat = statvfs(mount_point).map_err(|errno| FileReadError::Statvfs {
         mount_point: mount_point.display().to_string(),
         errno: errno.raw_os_error(),
     })?;

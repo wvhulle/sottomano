@@ -10,7 +10,9 @@ use uom::si::{f64::Power, power::watt};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
-    system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_i64, read_trimmed},
+    system_protocol_clients::sysfs_attribute_reads::{
+        FileReadError, list_dir, read_i64, read_trimmed,
+    },
 };
 
 const POWERCAP: &str = "/sys/class/powercap";
@@ -28,7 +30,7 @@ pub struct PowerZone {
 }
 
 impl SnapshotSource for CpuPower {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "CPU power";

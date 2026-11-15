@@ -5,7 +5,9 @@ use std::{
 
 use tokio::process::Command;
 
-use crate::backing_service_availability::Availability;
+use crate::{
+    backing_service_availability::Availability, delivery_cadence_drivers::ChangeWatchFailure,
+};
 
 const TRANSIENT_SCOPE_PROGRAM: &str = "systemd-run";
 const BACKGROUND_SCOPE_ARGS: [&str; 6] = [
@@ -32,6 +34,14 @@ pub enum Error {
         program: String,
         exit_status: String,
     },
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum WatchedCommandError {
+    #[error("{0}")]
+    Command(#[from] Error),
+    #[error("{0}")]
+    ChangeWatch(#[from] ChangeWatchFailure),
 }
 
 fn spawn_failure(program: &str, error: &io::Error) -> Error {

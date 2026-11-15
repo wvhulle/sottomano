@@ -17,7 +17,10 @@ use sottomano_desktop_sources::{
             ExitNodeUse, ExitOfferControl, ExitOfferSwitch, Tailnet, Tailscale, TailscaleSwitch,
         },
     },
-    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
+    system_protocol_clients::{
+        dbus_desktop_buses::{DesktopBuses, OnBus},
+        shell_command_output,
+    },
 };
 use sottomano_toml_config::Config;
 
@@ -124,6 +127,18 @@ pub enum TailnetInteraction {
     OpenAdminConsole,
 }
 
+fn refreshed_after_switch(
+    switch_label: String,
+    switch_work: impl Future<Output = Result<(), shell_command_output::Error>> + Send + 'static,
+) -> Task<TailnetMessage> {
+    Task::future(switch_work).then(move |switched| {
+        if let Err(command_error) = switched {
+            tracing::warn!("{switch_label}: {command_error}");
+        }
+        TailnetGroup::refresh()
+    })
+}
+
 impl TailnetGroup {
     #[must_use]
     pub fn without_policy_file() -> Self {
@@ -187,17 +202,24 @@ impl TailnetGroup {
                 self.expansion.update(expansion_message);
             }
             TailnetMessage::Interaction(TailnetInteraction::SwitchTailscale(tailscale_switch)) => {
-                return Task::future(switch_tailscale(tailscale_switch)).then(|()| Self::refresh());
+                return refreshed_after_switch(
+                    format!("tailscale {tailscale_switch:?}"),
+                    switch_tailscale(tailscale_switch),
+                );
             }
             TailnetMessage::Interaction(TailnetInteraction::SwitchExitOffer(exit_offer_switch)) => {
-                return Task::future(switch_exit_offer(exit_offer_switch))
-                    .then(|()| Self::refresh());
+                return refreshed_after_switch(
+                    format!("tailscale exit offer {exit_offer_switch:?}"),
+                    switch_exit_offer(exit_offer_switch),
+                );
             }
             TailnetMessage::Interaction(TailnetInteraction::SwitchExitRouting(
                 exit_routing_switch,
             )) => {
-                return Task::future(switch_exit_routing(exit_routing_switch))
-                    .then(|()| Self::refresh());
+                return refreshed_after_switch(
+                    format!("tailscale exit routing {exit_routing_switch:?}"),
+                    switch_exit_routing(exit_routing_switch),
+                );
             }
             TailnetMessage::Interaction(TailnetInteraction::OpenAdminConsole) => {
                 use sottomano_desktop_sources::blocking_background_work::blocking;

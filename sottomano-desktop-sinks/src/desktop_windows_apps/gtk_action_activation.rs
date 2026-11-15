@@ -6,6 +6,8 @@ use sottomano_desktop_sources::desktop_windows_apps::gtk_menus_menu_bar::{
 };
 use zbus::zvariant::{OwnedObjectPath, Value};
 
+use crate::sink_write_errors::BusWriteError;
+
 fn action_group_path(
     action_groups: &GtkActionGroups,
     scope: GtkActionScope,
@@ -28,13 +30,13 @@ pub async fn activate_gtk_action(
     connection: zbus::Connection,
     action_groups: GtkActionGroups,
     activation: GtkMenuActivation,
-) {
+) -> Result<(), BusWriteError> {
     let Some(object_path) = action_group_path(&action_groups, activation.scope) else {
         tracing::debug!(
             "global menu: {} needs an action group the application does not export",
             activation.action_name
         );
-        return;
+        return Ok(());
     };
     let parameter: Vec<Value<'_>> = match &activation.action_target {
         GtkActionTarget::Untargeted => Vec::new(),
@@ -43,16 +45,9 @@ pub async fn activate_gtk_action(
             vec![target_value.clone()]
         }
     };
-    let activated = async {
-        gtk_actions_proxy(&connection, &action_groups.bus_name, object_path)
-            .await?
-            .activate(&activation.action_name, &parameter, HashMap::new())
-            .await
-    };
-    if let Err(activate_failure) = activated.await {
-        tracing::warn!(
-            "global menu: activate {}: {activate_failure}",
-            activation.action_name
-        );
-    }
+    gtk_actions_proxy(&connection, &action_groups.bus_name, object_path)
+        .await?
+        .activate(&activation.action_name, &parameter, HashMap::new())
+        .await?;
+    Ok(())
 }

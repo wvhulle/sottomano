@@ -11,7 +11,7 @@ use super::{
 use crate::{
     SnapshotDelivery, SnapshotSource, blocking_background_work::blocking_poll,
     delivery_cadence_drivers::PeriodicPolling,
-    system_protocol_clients::sysfs_attribute_reads::Error,
+    system_protocol_clients::sysfs_attribute_reads::FileReadError,
 };
 
 const CPU_STAT: &str = "/proc/stat";
@@ -37,7 +37,7 @@ pub struct CpuCoreLoads {
 }
 
 impl SnapshotSource for CpuUsage {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "CPU load";
@@ -50,7 +50,7 @@ impl SnapshotSource for CpuUsage {
 }
 
 impl SnapshotSource for CpuCoreLoads {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "CPU load per chiplet";
@@ -63,18 +63,18 @@ impl SnapshotSource for CpuCoreLoads {
     }
 }
 
-fn unreadable() -> Error {
-    Error::Unreadable(CPU_STAT.to_owned())
+fn unreadable() -> FileReadError {
+    FileReadError::Unreadable(CPU_STAT.to_owned())
 }
 
-fn read_cpu_usage() -> Result<CpuUsage, Error> {
+fn read_cpu_usage() -> Result<CpuUsage, FileReadError> {
     let sample = CpuStatSample::take()?;
     Ok(CpuUsage {
         busy: sample.busy_fraction().ok_or_else(unreadable)?,
     })
 }
 
-fn read_core_loads(topology: CpuTopology) -> Result<CpuCoreLoads, Error> {
+fn read_core_loads(topology: CpuTopology) -> Result<CpuCoreLoads, FileReadError> {
     let earlier_idle = IdleSnapshot::read();
     let sample = CpuStatSample::take()?;
     let later_idle = IdleSnapshot::read();
@@ -199,10 +199,11 @@ struct CpuStat {
 }
 
 impl CpuStat {
-    fn read() -> Result<Self, Error> {
-        let content = fs::read_to_string(CPU_STAT)
-            .map_err(|read_failure| Error::Unreadable(format!("{CPU_STAT}: {read_failure}")))?;
-        Self::parse(&content).ok_or_else(|| Error::Unparsable(CPU_STAT.to_owned()))
+    fn read() -> Result<Self, FileReadError> {
+        let content = fs::read_to_string(CPU_STAT).map_err(|read_failure| {
+            FileReadError::Unreadable(format!("{CPU_STAT}: {read_failure}"))
+        })?;
+        Self::parse(&content).ok_or_else(|| FileReadError::Unparsable(CPU_STAT.to_owned()))
     }
 
     fn parse(content: &str) -> Option<Self> {
@@ -221,7 +222,7 @@ struct CpuStatSample {
 }
 
 impl CpuStatSample {
-    fn take() -> Result<Self, Error> {
+    fn take() -> Result<Self, FileReadError> {
         let earlier = CpuStat::read()?;
         thread::sleep(SAMPLE_GAP);
         let later = CpuStat::read()?;

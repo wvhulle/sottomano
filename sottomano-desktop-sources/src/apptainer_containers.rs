@@ -15,7 +15,7 @@ use crate::{
     qemu_virtual_machines::procfs_qemu_processes::account_names_by_uid,
     system_protocol_clients::{
         procfs_process_scan::{ScannedProcess, scan_processes},
-        sysfs_attribute_reads::Error,
+        sysfs_attribute_reads::FileReadError,
     },
 };
 
@@ -31,7 +31,7 @@ pub struct ApptainerProbe {
 }
 
 impl SnapshotSource for ApptainerProbe {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Apptainer presence";
@@ -58,7 +58,7 @@ pub struct ApptainerContainerListing {
 }
 
 impl SnapshotSource for FamilyListings<ApptainerContainerListing> {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Apptainer container names";
@@ -71,9 +71,9 @@ impl SnapshotSource for FamilyListings<ApptainerContainerListing> {
     }
 }
 
-fn named_runtime_parents() -> Result<FamilyListings<ApptainerContainerListing>, Error> {
-    let process_scan =
-        scan_processes(is_runtime_parent).ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
+fn named_runtime_parents() -> Result<FamilyListings<ApptainerContainerListing>, FileReadError> {
+    let process_scan = scan_processes(is_runtime_parent)
+        .ok_or_else(|| FileReadError::Unreadable("/proc".to_owned()))?;
     let listings = process_scan
         .matched_processes
         .iter()
@@ -112,7 +112,7 @@ pub struct ApptainerContainer {
 }
 
 impl SnapshotSource for FamilyDetails<ApptainerContainer> {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "Apptainer containers";
@@ -164,9 +164,9 @@ fn image_file_of(container_pid: i32) -> Option<PathBuf> {
     })
 }
 
-fn scanned_containers() -> Result<FamilyDetails<ApptainerContainer>, Error> {
-    let process_scan =
-        scan_processes(is_runtime_parent).ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
+fn scanned_containers() -> Result<FamilyDetails<ApptainerContainer>, FileReadError> {
+    let process_scan = scan_processes(is_runtime_parent)
+        .ok_or_else(|| FileReadError::Unreadable("/proc".to_owned()))?;
     let account_names = if process_scan.matched_processes.is_empty() {
         HashMap::new()
     } else {

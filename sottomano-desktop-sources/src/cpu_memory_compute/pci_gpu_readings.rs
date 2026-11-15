@@ -129,7 +129,7 @@ pub enum GpuRuntimePower {
 }
 
 impl SnapshotSource for GpuRuntimePower {
-    type Error = sysfs_attribute_reads::Error;
+    type Error = sysfs_attribute_reads::FileReadError;
     type StreamInputs = PciBusId;
 
     const NAME: &'static str = "GPU runtime power";

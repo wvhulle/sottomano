@@ -5,8 +5,7 @@ use futures::{Stream, StreamExt, stream};
 use tokio::task::spawn_blocking;
 
 use crate::compositor_window_ipc::{
-    compositor_output_facts::OutputInfo,
-    compositor_styling_model::{ControlSupport, StylingControl},
+    compositor_output_facts::OutputInfo, compositor_styling_model::StylingControl,
     compositor_window_state::CompositorUpdate,
 };
 #[cfg(feature = "hyprland")]
@@ -68,19 +67,19 @@ impl CompositorKind {
     }
 
     #[must_use]
-    pub fn overview_support(self) -> OverviewSupport {
+    pub fn overview_support(self) -> CompositorFeatureSupport {
         match self {
             #[cfg(feature = "niri")]
-            CompositorKind::Niri => OverviewSupport::Available,
+            CompositorKind::Niri => CompositorFeatureSupport::Available,
             #[cfg(feature = "sway")]
-            CompositorKind::Sway => OverviewSupport::Missing,
+            CompositorKind::Sway => CompositorFeatureSupport::Missing,
             #[cfg(feature = "hyprland")]
-            CompositorKind::Hyprland => OverviewSupport::Missing,
+            CompositorKind::Hyprland => CompositorFeatureSupport::Missing,
         }
     }
 
     #[must_use]
-    pub fn styling_support(self, control: StylingControl) -> ControlSupport {
+    pub fn styling_support(self, control: StylingControl) -> CompositorFeatureSupport {
         match (self, control) {
             #[cfg(feature = "sway")]
             (
@@ -88,8 +87,8 @@ impl CompositorKind {
                 StylingControl::WindowCornerRadius
                 | StylingControl::ShellBlurDepth
                 | StylingControl::SwitchHeatBorders,
-            ) => ControlSupport::Missing,
-            _ => ControlSupport::Available,
+            ) => CompositorFeatureSupport::Missing,
+            _ => CompositorFeatureSupport::Available,
         }
     }
 
@@ -294,7 +293,7 @@ pub async fn compositor_window_pids() -> Option<Vec<i32>> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OverviewSupport {
+pub enum CompositorFeatureSupport {
     Available,
     Missing,
 }

@@ -9,7 +9,7 @@ use crate::{
     delivery_cadence_drivers::ChangeTriggerStreams,
     system_protocol_clients::{
         dbus_desktop_buses::{
-            self, DesktopBuses, Properties, SERVICE_ABSENT_ERRORS, name_owned, prop,
+            BusReadError, DesktopBuses, Properties, SERVICE_ABSENT_ERRORS, name_owned, prop,
         },
         protocol_peer_reconnects::subscribed,
     },
@@ -96,7 +96,7 @@ impl FirmwareUpgrade {
 }
 
 impl SnapshotSource for Vec<FirmwareUpgrade> {
-    type Error = dbus_desktop_buses::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Firmware upgrades";
@@ -104,7 +104,10 @@ impl SnapshotSource for Vec<FirmwareUpgrade> {
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
         name_owned(system.clone(), FWUPD_SERVICE).while_available(
-            move || signalled_upgrades(system.clone()).map(SnapshotDelivery::live_push),
+            move || {
+                signalled_upgrades(system.clone())
+                    .map(|upgrades| SnapshotDelivery::live_push(upgrades).unavailable_when_absent())
+            },
             || SnapshotDelivery::SourceUnavailable,
         )
     }
@@ -112,16 +115,13 @@ impl SnapshotSource for Vec<FirmwareUpgrade> {
 
 fn signalled_upgrades(
     system: zbus::Connection,
-) -> impl Stream<Item = Result<Vec<FirmwareUpgrade>, dbus_desktop_buses::Error>> + Send {
+) -> impl Stream<Item = Result<Vec<FirmwareUpgrade>, BusReadError>> + Send {
     subscribed(system, upgrades_on_daemon_changes)
 }
 
 async fn upgrades_on_daemon_changes(
     system: zbus::Connection,
-) -> Result<
-    impl Stream<Item = Result<Vec<FirmwareUpgrade>, dbus_desktop_buses::Error>> + Send,
-    dbus_desktop_buses::Error,
-> {
+) -> Result<impl Stream<Item = Result<Vec<FirmwareUpgrade>, BusReadError>> + Send, BusReadError> {
     let fwupd = FwupdProxy::new(&system).await?;
     let changes = stream::select(
         stream::select(
@@ -142,18 +142,11 @@ async fn upgrades_on_daemon_changes(
     }))
 }
 
-async fn pending_upgrades(
-    system: &zbus::Connection,
-) -> Result<Vec<FirmwareUpgrade>, dbus_desktop_buses::Error> {
+async fn pending_upgrades(system: &zbus::Connection) -> Result<Vec<FirmwareUpgrade>, BusReadError> {
     let fwupd = FwupdProxy::new(system).await?;
-    let devices = match fwupd
-        .get_devices()
-        .await
-        .map_err(dbus_desktop_buses::Error::from)
-    {
-        Ok(devices) => devices,
-        Err(dbus_desktop_buses::Error::Absent) => return Ok(Vec::new()),
-        Err(error) => return Err(error),
+    let devices = match fwupd.get_devices().await.map_err(BusReadError::from) {
+        Err(BusReadError::Absent) => return Ok(Vec::new()),
+        listed => listed?,
     };
     let mut upgrades = Vec::new();
     for device in devices.iter().filter(|device| {
@@ -163,14 +156,13 @@ async fn pending_upgrades(
             continue;
         };
         let releases = match fwupd.get_upgrades(&device_id).await {
-            Ok(releases) => releases,
             Err(zbus::Error::MethodError(name, _, _))
                 if NO_UPGRADE_ERRORS.contains(&name.as_str())
                     || SERVICE_ABSENT_ERRORS.contains(&name.as_str()) =>
             {
                 continue;
             }
-            Err(error) => return Err(dbus_desktop_buses::Error::Call(error.to_string())),
+            offered => offered?,
         };
         upgrades.extend(
             releases

@@ -85,7 +85,7 @@ impl GroupItemReading for DriveHealth {
                 ]
             })),
         );
-        [summary, threshold_section, Section::from(&self.identity)]
+        [summary, threshold_section, Section::from(self)]
             .into_iter()
             .chain(self.errors.iter().map(|errors| {
                 Section::new(

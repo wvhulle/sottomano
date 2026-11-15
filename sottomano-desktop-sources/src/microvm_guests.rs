@@ -21,7 +21,7 @@ use crate::{
         dbus_desktop_buses::DesktopBuses,
         procfs_process_scan::scan_processes,
         procfs_process_tree::ProcessTable,
-        sysfs_attribute_reads::Error,
+        sysfs_attribute_reads::FileReadError,
         sysfs_cgroup_memory::{
             cgroup_directory_of_process, read_cgroup_memory, unit_cgroup_enclosing,
         },
@@ -44,7 +44,7 @@ pub struct MicrovmProbe {
 }
 
 impl SnapshotSource for MicrovmProbe {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "MicroVM presence";
@@ -115,7 +115,7 @@ pub struct MicrovmGuestListing {
 }
 
 impl SnapshotSource for FamilyListings<MicrovmGuestListing> {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "MicroVM machine names";
@@ -127,10 +127,10 @@ impl SnapshotSource for FamilyListings<MicrovmGuestListing> {
     }
 }
 
-fn listed_machines() -> Result<FamilyListings<MicrovmGuestListing>, Error> {
+fn listed_machines() -> Result<FamilyListings<MicrovmGuestListing>, FileReadError> {
     let process_scan =
         scan_processes(|scanned| launched_hypervisor(&scanned.command_line).is_some())
-            .ok_or_else(|| Error::Unreadable(PROC_ROOT.to_owned()))?;
+            .ok_or_else(|| FileReadError::Unreadable(PROC_ROOT.to_owned()))?;
     let mut listings: Vec<MicrovmGuestListing> = process_scan
         .matched_processes
         .iter()
@@ -159,7 +159,7 @@ pub struct MicrovmGuest {
 }
 
 impl SnapshotSource for FamilyDetails<MicrovmGuest> {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "MicroVMs";
@@ -253,10 +253,10 @@ fn read_launch(hypervisor: MicrovmHypervisor, command_line: &[String]) -> Hyperv
     }
 }
 
-fn scanned_machines() -> Result<FamilyDetails<MicrovmGuest>, Error> {
+fn scanned_machines() -> Result<FamilyDetails<MicrovmGuest>, FileReadError> {
     let process_scan =
         scan_processes(|scanned| launched_hypervisor(&scanned.command_line).is_some())
-            .ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
+            .ok_or_else(|| FileReadError::Unreadable("/proc".to_owned()))?;
     let mut details: Vec<MicrovmGuest> = process_scan
         .matched_processes
         .iter()

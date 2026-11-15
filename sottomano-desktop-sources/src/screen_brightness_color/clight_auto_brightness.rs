@@ -1,6 +1,6 @@
 use std::{env, path::PathBuf};
 
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use zbus::{Connection, proxy, proxy::CacheProperties};
 
 use crate::{
@@ -9,7 +9,7 @@ use crate::{
     delivery_cadence_drivers::ChangeTriggerStreams,
     system_protocol_clients::{
         dbus_desktop_buses,
-        dbus_desktop_buses::{DesktopBuses, Error, name_owned},
+        dbus_desktop_buses::{BusReadError, DesktopBuses, name_owned},
         inotify_directory_changes::{WatchTarget, changes},
     },
 };
@@ -61,7 +61,7 @@ impl BrightnessCalibration {
 }
 
 impl SnapshotSource for AutoBrightness {
-    type Error = Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Auto-brightness";
@@ -71,6 +71,7 @@ impl SnapshotSource for AutoBrightness {
             move || {
                 let buses = buses.clone();
                 SnapshotDelivery::live_push_deliveries(buses, calibration_changes)
+                    .map(SnapshotDelivery::unavailable_when_absent)
             },
             || SnapshotDelivery::SourceUnavailable,
         )
@@ -79,7 +80,7 @@ impl SnapshotSource for AutoBrightness {
 
 async fn calibration_changes(
     buses: DesktopBuses,
-) -> Result<impl Stream<Item = Result<AutoBrightness, Error>> + Send, Error> {
+) -> Result<impl Stream<Item = Result<AutoBrightness, BusReadError>> + Send, BusReadError> {
     let conf = ConfBacklightProxy::builder(buses.on(dbus_desktop_buses::Bus::Session))
         .cache_properties(CacheProperties::No)
         .build()
@@ -107,7 +108,7 @@ pub fn config_file() -> Option<PathBuf> {
     Some(config_home.join("clight.conf"))
 }
 
-pub async fn current_calibration() -> Result<BrightnessCalibration, Error> {
+pub async fn current_calibration() -> Result<BrightnessCalibration, BusReadError> {
     let session = Connection::session().await?;
     let conf_backlight = ConfBacklightProxy::new(&session).await?;
     let no_auto_calibration = conf_backlight.no_auto_calib().await?;

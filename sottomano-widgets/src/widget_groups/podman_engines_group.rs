@@ -6,7 +6,9 @@ use std::{
 
 use chrono::Locale;
 use iced::{Subscription, Task};
-use sottomano_desktop_sinks::container_power::ContainerEngineApi;
+use sottomano_desktop_sinks::{
+    container_power::ContainerEngineApi, sink_write_errors::GuestPowerError,
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     podman_container_engine::{
@@ -125,7 +127,7 @@ pub struct PodmanEnginesGroup {
 pub enum PodmanEnginesMessage {
     Services(ScopedServiceCommands),
     Engine(PathBuf, SnapshotDelivery<EngineListing>),
-    PowerChangeRefused(String),
+    PowerChangeRefused(GuestPowerError),
     Interaction(PodmanEnginesInteraction),
 }
 

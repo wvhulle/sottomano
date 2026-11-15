@@ -21,7 +21,7 @@ use crate::{
     backing_service_availability::{Availability, AvailabilityStreams},
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::internet_connectivity_gate,
-    secret_file_reads::read_secret,
+    secret_file_reads::{SecretUnreadable, read_secret},
     system_protocol_clients::{
         dbus_desktop_buses::OnBus, http_json_client, inotify_file_presence::path_present,
     },
@@ -36,8 +36,8 @@ const USER_POLLING: PeriodicPolling = PeriodicPolling::every(Duration::from_secs
 pub enum Error {
     #[error("transcript watch: {0}")]
     ChangeWatch(#[from] ChangeWatchFailure),
-    #[error("GitHub token unreadable")]
-    Secret,
+    #[error("GitHub token: {0}")]
+    Secret(#[from] SecretUnreadable),
     #[error("{0}")]
     Fetch(#[from] http_json_client::Error),
     #[error("no metered quota in response")]
@@ -151,7 +151,7 @@ where
 }
 
 async fn user_info(key: &Path) -> Result<UserInfo, Error> {
-    let token = read_secret(key).ok_or(Error::Secret)?;
+    let token = read_secret(key)?;
     let auth = format!("token {token}");
     Ok(http_json_client::get_json(
         &format!("{API_BASE}{USER_ENDPOINT}"),

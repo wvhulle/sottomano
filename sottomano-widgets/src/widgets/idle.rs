@@ -7,11 +7,11 @@ use sottomano_desktop_sinks::login_session_presence::logind_session_commands::pe
 use sottomano_desktop_sources::{
     login_session_presence::{
         idle_session_actions::IdleAction,
-        wayland_idle_notify::{
-            IdleEdge, IdleNotifier, IdleTrigger, InputOrInhibitors, TaggedEdge, WaylandError,
-        },
+        wayland_idle_notify::{IdleEdge, IdleNotifier, IdleTrigger, InputOrInhibitors, TaggedEdge},
     },
-    system_protocol_clients::protocol_peer_reconnects::subscribed,
+    system_protocol_clients::{
+        protocol_peer_reconnects::subscribed, wayland_protocol_errors::WaylandProtocolError,
+    },
 };
 use tokio::task::spawn;
 
@@ -56,7 +56,11 @@ fn perform_idled_actions(edges: &[IdleActionEdge]) {
         .filter(|tagged| tagged.edge == IdleEdge::Idled)
         .for_each(|tagged| {
             let action = tagged.tag.session_action();
-            spawn(perform_session_action(action));
+            spawn(async move {
+                if let Err(action_failure) = perform_session_action(action).await {
+                    tracing::warn!("idle action {action:?}: {action_failure}");
+                }
+            });
         });
 }
 
@@ -66,7 +70,7 @@ pub fn performed_idle_action_edges(
     subscribed(triggers, |triggers| async move {
         let mut notifier = IdleNotifier::<IdleAction, InputOrInhibitors>::connect().await?;
         notifier.arm(&triggers);
-        Ok::<_, WaylandError>(stream::unfold(notifier, |mut notifier| async move {
+        Ok::<_, WaylandProtocolError>(stream::unfold(notifier, |mut notifier| async move {
             match notifier.edges().await {
                 Ok(edges) => {
                     perform_idled_actions(&edges);

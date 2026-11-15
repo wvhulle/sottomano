@@ -25,10 +25,10 @@ use super::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::{Availability, AvailabilityStreams},
-    blocking_background_work::blocking_poll,
+    blocking_background_work::{Panicked, blocking_poll},
     cpu_memory_compute::temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
     delivery_cadence_drivers::PeriodicPolling,
-    system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_trimmed},
+    system_protocol_clients::sysfs_attribute_reads::{FileReadError, list_dir, read_trimmed},
 };
 
 const WARNING_MARGIN_CELSIUS: f64 = 20.0;
@@ -72,7 +72,7 @@ pub struct CpuCoreTemperatures {
 }
 
 impl SnapshotSource for CpuCoreTemperatures {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ThresholdOverrides;
 
     const NAME: &'static str = "Chiplets";
@@ -165,8 +165,22 @@ impl Temperature {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum CpuTemperatureError {
+    #[error("no matching temperature sensor in /sys/class/hwmon")]
+    NoTemperatureSensor,
+    #[error("sensor read panicked")]
+    Panicked,
+}
+
+impl From<Panicked> for CpuTemperatureError {
+    fn from(Panicked: Panicked) -> Self {
+        CpuTemperatureError::Panicked
+    }
+}
+
 impl SnapshotSource for Temperature {
-    type Error = Error;
+    type Error = CpuTemperatureError;
     type StreamInputs = SensorConfig;
 
     const NAME: &'static str = "CPU temperature";
@@ -231,14 +245,14 @@ fn holding_earliest_critical(
     })
 }
 
-fn read_temperature(probe: &TemperatureProbe) -> Result<Temperature, Error> {
+fn read_temperature(probe: &TemperatureProbe) -> Result<Temperature, CpuTemperatureError> {
     let readings: Vec<TempReading> = probe
         .sensors
         .iter()
         .flat_map(ChosenSensors::readings)
         .collect();
     if readings.is_empty() {
-        return Err(Error::NoTemperatureSensor);
+        return Err(CpuTemperatureError::NoTemperatureSensor);
     }
     let temperature = Temperature {
         throttle_limit: throttle_limit(&readings),

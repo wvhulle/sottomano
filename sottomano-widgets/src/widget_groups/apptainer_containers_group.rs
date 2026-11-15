@@ -4,7 +4,9 @@ use std::{
 };
 
 use chrono::Locale;
-use sottomano_desktop_sinks::apptainer_containers::stop_apptainer_container;
+use sottomano_desktop_sinks::{
+    apptainer_containers::stop_apptainer_container, sink_write_errors::GuestPowerError,
+};
 use sottomano_desktop_sources::{
     apptainer_containers::{ApptainerContainer, ApptainerContainerListing, ApptainerProbe},
     container_family_snapshots::{FamilyDetails, FamilyListings},
@@ -196,7 +198,9 @@ impl ContainerFamily for ApptainerFamily {
             .collect()
     }
 
-    fn stop(runtime_pid: i32) -> impl Future<Output = Result<(), String>> + Send + 'static {
+    fn stop(
+        runtime_pid: i32,
+    ) -> impl Future<Output = Result<(), GuestPowerError>> + Send + 'static {
         ready(stop_apptainer_container(runtime_pid))
     }
 }

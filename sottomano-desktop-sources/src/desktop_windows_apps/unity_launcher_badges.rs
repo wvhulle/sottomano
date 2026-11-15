@@ -12,6 +12,7 @@ use zbus::{
 };
 
 use crate::{
+    StateChange,
     non_empty_text::non_empty,
     system_protocol_clients::{
         dbus_change_signals::signal_messages,
@@ -96,17 +97,12 @@ impl Registry {
             Signal::Update { sender, uri, entry } => self.update(sender, &uri, entry),
             Signal::OwnerLost(sender) => self.forget_owner(&sender),
         };
-        (registry_change == RegistryChange::Changed).then(|| self.entries.clone())
+        (registry_change == StateChange::Changed).then(|| self.entries.clone())
     }
 
-    fn update(
-        &mut self,
-        sender: Option<String>,
-        uri: &str,
-        entry: LauncherEntry,
-    ) -> RegistryChange {
+    fn update(&mut self, sender: Option<String>, uri: &str, entry: LauncherEntry) -> StateChange {
         let Some(key) = app_key(uri) else {
-            return RegistryChange::Unchanged;
+            return StateChange::Unchanged;
         };
         if let Some(sender) = sender {
             self.owners.entry(sender).or_default().insert(key.clone());
@@ -117,24 +113,24 @@ impl Registry {
             self.entries.by_app.insert(key, entry.clone()) != Some(entry)
         };
         if changed {
-            RegistryChange::Changed
+            StateChange::Changed
         } else {
-            RegistryChange::Unchanged
+            StateChange::Unchanged
         }
     }
 
-    fn forget_owner(&mut self, sender: &str) -> RegistryChange {
+    fn forget_owner(&mut self, sender: &str) -> StateChange {
         let Some(keys) = self.owners.remove(sender) else {
-            return RegistryChange::Unchanged;
+            return StateChange::Unchanged;
         };
         let removed_count = keys
             .iter()
             .filter_map(|key| self.entries.by_app.remove(key))
             .count();
         if removed_count > 0 {
-            RegistryChange::Changed
+            StateChange::Changed
         } else {
-            RegistryChange::Unchanged
+            StateChange::Unchanged
         }
     }
 }
@@ -205,10 +201,4 @@ fn update_signal(message: &zbus::Message) -> zbus::Result<Signal> {
         uri,
         entry: LauncherEntry::parse(&props),
     })
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RegistryChange {
-    Changed,
-    Unchanged,
 }

@@ -1,7 +1,7 @@
 use std::{fs, io, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use tokio::{process::Command, task::spawn_blocking};
 use zbus::proxy::CacheProperties;
 
@@ -17,7 +17,7 @@ use crate::{
     },
     non_empty_text::non_empty,
     system_protocol_clients::{
-        dbus_desktop_buses::{self, DesktopBuses},
+        dbus_desktop_buses::{BusReadError, DesktopBuses},
         shell_command_output::shown_process_text,
     },
 };
@@ -205,7 +205,7 @@ struct ObstacleReaders {
 }
 
 impl SnapshotSource for SleepObstacles {
-    type Error = dbus_desktop_buses::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Sleep obstacles";
@@ -213,12 +213,11 @@ impl SnapshotSource for SleepObstacles {
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         PeriodicPolling::every(OBSTACLE_POLL_PERIOD)
             .poll_deliveries_after_setup(prepare_readers(buses), read_obstacles)
+            .map(SnapshotDelivery::unavailable_when_absent)
     }
 }
 
-async fn prepare_readers(
-    buses: DesktopBuses,
-) -> Result<ObstacleReaders, dbus_desktop_buses::Error> {
+async fn prepare_readers(buses: DesktopBuses) -> Result<ObstacleReaders, BusReadError> {
     Ok(ObstacleReaders {
         manager: ManagerProxy::builder(&buses.system)
             .cache_properties(CacheProperties::No)
@@ -228,9 +227,7 @@ async fn prepare_readers(
     })
 }
 
-async fn read_obstacles(
-    readers: ObstacleReaders,
-) -> Result<SleepObstacles, dbus_desktop_buses::Error> {
+async fn read_obstacles(readers: ObstacleReaders) -> Result<SleepObstacles, BusReadError> {
     let ObstacleReaders { manager, app_names } = readers;
     let (shutdown_kind, shutdown_usec) = manager.scheduled_shutdown().await?;
     let sleep_states = vec![

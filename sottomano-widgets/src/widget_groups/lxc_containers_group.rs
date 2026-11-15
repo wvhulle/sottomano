@@ -1,7 +1,9 @@
 use std::borrow::Cow;
 
 use chrono::Locale;
-use sottomano_desktop_sinks::lxc_containers::change_lxc_container;
+use sottomano_desktop_sinks::{
+    lxc_containers::change_lxc_container, sink_write_errors::GuestPowerError,
+};
 use sottomano_desktop_sources::{
     container_family_snapshots::{FamilyDetails, FamilyListings},
     container_run_state::{ContainerRunState, RunChange},
@@ -203,11 +205,11 @@ impl ContainerFamily for LxcFamily {
         ]
     }
 
-    async fn stop(container_name: String) -> Result<(), String> {
+    async fn stop(container_name: String) -> Result<(), GuestPowerError> {
         change_lxc_container(&container_name, RunChange::Stop).await
     }
 
-    async fn start(container_name: String) -> Result<(), String> {
+    async fn start(container_name: String) -> Result<(), GuestPowerError> {
         change_lxc_container(&container_name, RunChange::Start).await
     }
 }

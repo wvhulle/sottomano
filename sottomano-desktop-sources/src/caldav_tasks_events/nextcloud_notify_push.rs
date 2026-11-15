@@ -19,7 +19,7 @@ use tokio_tungstenite::{
 };
 
 use crate::{
-    secret_file_reads::read_secret,
+    secret_file_reads::{SecretUnreadable, read_secret},
     system_protocol_clients::{http_json_client, protocol_peer_reconnects::subscribed},
 };
 
@@ -44,7 +44,7 @@ struct PushSubscription {
 #[derive(Debug)]
 pub enum NotifyPushFailure {
     Unsupported,
-    PasswordUnreadable,
+    PasswordUnreadable(SecretUnreadable),
     Capabilities(http_json_client::Error),
     WebSocket(WebSocketError),
     AuthenticationRefused,
@@ -55,7 +55,9 @@ impl Display for NotifyPushFailure {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             NotifyPushFailure::Unsupported => write!(f, "server offers no notify_push"),
-            NotifyPushFailure::PasswordUnreadable => write!(f, "password unreadable"),
+            NotifyPushFailure::PasswordUnreadable(secret_error) => {
+                write!(f, "password: {secret_error}")
+            }
             NotifyPushFailure::Capabilities(error) => write!(f, "capabilities request: {error}"),
             NotifyPushFailure::WebSocket(error) => write!(f, "websocket: {error}"),
             NotifyPushFailure::AuthenticationRefused => write!(f, "credentials refused"),
@@ -148,9 +150,7 @@ pub fn activity_pings(
 }
 
 async fn listen_for_activity(login: &PushLogin) -> Result<PushSocket, NotifyPushFailure> {
-    let Some(password) = read_secret(&login.password) else {
-        return Err(NotifyPushFailure::PasswordUnreadable);
-    };
+    let password = read_secret(&login.password).map_err(NotifyPushFailure::PasswordUnreadable)?;
     let websocket_url = advertised_websocket(login, &password).await?;
     let (mut socket, _) = connect_async(websocket_url.as_str()).await?;
     socket.send(Message::text(login.user.as_str())).await?;

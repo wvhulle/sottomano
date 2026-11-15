@@ -8,7 +8,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
     desktop_windows_apps::process_tree_inspection::{CpuCapacity, binary_name},
-    system_protocol_clients::sysfs_attribute_reads::Error,
+    system_protocol_clients::sysfs_attribute_reads::FileReadError,
 };
 
 const PROC: &str = "/proc";
@@ -27,7 +27,7 @@ pub struct CpuBusyProcesses {
 }
 
 impl SnapshotSource for CpuBusyProcesses {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "CPU load per process";
@@ -46,9 +46,9 @@ pub(crate) struct ProcessIncarnation {
     pub(crate) started: u64,
 }
 
-fn spent_ticks_by_process() -> Result<HashMap<ProcessIncarnation, u64>, Error> {
+fn spent_ticks_by_process() -> Result<HashMap<ProcessIncarnation, u64>, FileReadError> {
     Ok(all_processes()
-        .map_err(|_| Error::Unreadable(PROC.to_owned()))?
+        .map_err(|_| FileReadError::Unreadable(PROC.to_owned()))?
         .filter_map(|process_entry| {
             process_entry
                 .inspect_err(|listing_failure| {
@@ -81,12 +81,12 @@ fn spent_ticks_by_process() -> Result<HashMap<ProcessIncarnation, u64>, Error> {
         .collect())
 }
 
-fn read_cpu_busy_processes() -> Result<CpuBusyProcesses, Error> {
+fn read_cpu_busy_processes() -> Result<CpuBusyProcesses, FileReadError> {
     let capacity = CpuCapacity::one_core();
     let earlier = spent_ticks_by_process()?;
     thread::sleep(SAMPLE_GAP);
     let mut processes: Vec<CpuBusyProcess> = all_processes()
-        .map_err(|_| Error::Unreadable(PROC.to_owned()))?
+        .map_err(|_| FileReadError::Unreadable(PROC.to_owned()))?
         .filter_map(|process_entry| {
             process_entry
                 .inspect_err(|listing_failure| {

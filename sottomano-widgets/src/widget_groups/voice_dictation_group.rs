@@ -11,7 +11,7 @@ use std::borrow::Cow;
 
 use iced::{Subscription, Task};
 use notulist_client::{DictationCommand, DictationEngine, DictationPhase, EngineState};
-use sottomano_desktop_sinks::voice_dictation_input::notulist_dictation_commands::send_logged_dictation_command;
+use sottomano_desktop_sinks::voice_dictation_input::notulist_dictation_commands::send_dictation_command;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -27,7 +27,7 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::Config;
 
 use crate::{
-    background_work::{first_delivery, snapshot_subscription},
+    background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_items::{
         group_item::GroupItem,
@@ -247,7 +247,10 @@ impl VoiceDictationGroup {
                 .update(message, clock)
                 .map(VoiceDictationMessage::Runtime),
             VoiceDictationMessage::Interaction(VoiceDictationInteraction::ToggleRecording) => {
-                Task::future(send_logged_dictation_command(DictationCommand::Toggle)).discard()
+                logged_failure_task(
+                    "notulist toggle recording".to_owned(),
+                    send_dictation_command(DictationCommand::Toggle),
+                )
             }
             VoiceDictationMessage::Interaction(VoiceDictationInteraction::RuntimePressed) => {
                 self.runtime.press().map(VoiceDictationMessage::Runtime)

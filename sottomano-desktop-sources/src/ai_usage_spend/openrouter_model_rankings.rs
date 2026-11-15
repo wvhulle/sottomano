@@ -6,13 +6,10 @@ use serde::{Deserialize, Deserializer, de};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    ai_usage_spend::{
-        openrouter_credits::Error,
-        spend_money::{Money, usd},
-    },
+    ai_usage_spend::spend_money::{Money, usd},
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::internet_connectivity_gate,
-    secret_file_reads::read_secret,
+    secret_file_reads::{AuthenticatedFetchError, read_secret},
     system_protocol_clients::{dbus_desktop_buses::OnBus, http_json_client},
 };
 
@@ -143,8 +140,8 @@ impl OpenRouterModelRankings {
         }
     }
 
-    async fn poll(inputs: ModelRankingInputs) -> Result<Self, Error> {
-        let management_key = read_secret(&inputs.management_key).ok_or(Error::Secret)?;
+    async fn poll(inputs: ModelRankingInputs) -> Result<Self, AuthenticatedFetchError> {
+        let management_key = read_secret(&inputs.management_key)?;
         let authorization = format!("Bearer {management_key}");
         let benchmark_headers = [("Authorization", authorization.as_str())];
         let (openrouter_listing, benchmark_listing) = try_join!(
@@ -163,7 +160,7 @@ impl OpenRouterModelRankings {
 }
 
 impl SnapshotSource for OpenRouterModelRankings {
-    type Error = Error;
+    type Error = AuthenticatedFetchError;
     type StreamInputs = OnBus<ModelRankingInputs>;
 
     const NAME: &'static str = "Best models within price cap";

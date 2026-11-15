@@ -15,7 +15,7 @@ use crate::{
     backing_service_availability::{Availability, AvailabilityStreams},
     blocking_background_work::blocking_poll,
     delivery_cadence_drivers::PeriodicPolling,
-    system_protocol_clients::sysfs_attribute_reads::Error,
+    system_protocol_clients::sysfs_attribute_reads::FileReadError,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -155,7 +155,7 @@ impl CpuClock {
 }
 
 impl SnapshotSource for CpuClock {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = ();
 
     const NAME: &'static str = "CPU clock";
@@ -184,10 +184,10 @@ impl SnapshotSource for CpuClock {
     }
 }
 
-fn read_cpu_clock(probe: ClockProbe) -> Result<CpuClock, Error> {
+fn read_cpu_clock(probe: ClockProbe) -> Result<CpuClock, FileReadError> {
     let cores = core_freqs();
     if cores.is_empty() {
-        return Err(Error::Unreadable(CPU_FREQ.to_owned()));
+        return Err(FileReadError::Unreadable(CPU_FREQ.to_owned()));
     }
     Ok(CpuClock {
         limit_causes: core_limit_causes(&cores, &probe.throttle_baseline),

@@ -1,4 +1,4 @@
-use std::{future::ready, io, marker::PhantomData, mem::take, time::Duration};
+use std::{future::ready, marker::PhantomData, mem::take, time::Duration};
 
 use futures::{Stream, StreamExt, stream};
 use wayrs_client::{Connection, EventCtx, global::GlobalExt, protocol::WlSeat};
@@ -6,19 +6,9 @@ use wayrs_protocols::ext_idle_notify_v1::{
     ExtIdleNotificationV1, ExtIdleNotifierV1, ext_idle_notification_v1,
 };
 
-use crate::system_protocol_clients::protocol_peer_reconnects::subscribed;
-
-#[derive(Debug, thiserror::Error)]
-pub enum WaylandError {
-    #[error("could not connect to wayland: {0}")]
-    Connect(wayrs_client::ConnectError),
-    #[error("compositor does not advertise ext_idle_notifier_v1 version {required_version}")]
-    NotifierUnavailable { required_version: u32 },
-    #[error("compositor exposes no wl_seat")]
-    NoSeat,
-    #[error("wayland io: {0}")]
-    Io(io::Error),
-}
+use crate::system_protocol_clients::{
+    protocol_peer_reconnects::subscribed, wayland_protocol_errors::WaylandProtocolError,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IdleEdge {
@@ -115,10 +105,12 @@ pub struct IdleNotifier<Tag, Counting: CountedActivity> {
 }
 
 impl<Tag: Copy + Send + 'static, Counting: CountedActivity> IdleNotifier<Tag, Counting> {
-    pub async fn connect() -> Result<Self, WaylandError> {
+    pub async fn connect() -> Result<Self, WaylandProtocolError> {
         let mut conn =
-            Connection::<DispatchState<Tag>>::connect().map_err(WaylandError::Connect)?;
-        conn.async_roundtrip().await.map_err(WaylandError::Io)?;
+            Connection::<DispatchState<Tag>>::connect().map_err(WaylandProtocolError::Connect)?;
+        conn.async_roundtrip()
+            .await
+            .map_err(WaylandProtocolError::Io)?;
 
         let seat_globals: Vec<_> = conn
             .globals()
@@ -138,12 +130,13 @@ impl<Tag: Copy + Send + 'static, Counting: CountedActivity> IdleNotifier<Tag, Co
             })
             .collect();
         if seats.is_empty() {
-            return Err(WaylandError::NoSeat);
+            return Err(WaylandProtocolError::NoSeat);
         }
         let notifier: ExtIdleNotifierV1 = conn
             .bind_singleton(Counting::NOTIFIER_VERSION..=2)
-            .map_err(|_| WaylandError::NotifierUnavailable {
-                required_version: Counting::NOTIFIER_VERSION,
+            .map_err(|source| WaylandProtocolError::ProtocolUnavailable {
+                protocol: "ext_idle_notifier_v1",
+                source,
             })?;
 
         Ok(Self {
@@ -182,12 +175,15 @@ impl<Tag: Copy + Send + 'static, Counting: CountedActivity> IdleNotifier<Tag, Co
         }
     }
 
-    pub async fn edges(&mut self) -> Result<Vec<TaggedEdge<Tag>>, WaylandError> {
-        self.conn.async_flush().await.map_err(WaylandError::Io)?;
+    pub async fn edges(&mut self) -> Result<Vec<TaggedEdge<Tag>>, WaylandProtocolError> {
+        self.conn
+            .async_flush()
+            .await
+            .map_err(WaylandProtocolError::Io)?;
         self.conn
             .async_recv_events()
             .await
-            .map_err(WaylandError::Io)?;
+            .map_err(WaylandProtocolError::Io)?;
         self.conn.dispatch_events(&mut self.state);
         Ok(take(&mut self.state.edges))
     }
@@ -214,7 +210,7 @@ fn notification_cb<Tag: Copy>(
 
 pub fn input_idle_edges(after: Duration) -> impl Stream<Item = InputIdleEdge> + Send {
     subscribed(after, |after| async move {
-        Ok::<_, WaylandError>(connected_input_idle_edges(after).await?.map(Ok))
+        Ok::<_, WaylandProtocolError>(connected_input_idle_edges(after).await?.map(Ok))
     })
     .filter_map(|edge| {
         ready(
@@ -228,7 +224,7 @@ pub fn input_idle_edges(after: Duration) -> impl Stream<Item = InputIdleEdge> + 
 
 async fn connected_input_idle_edges(
     after: Duration,
-) -> Result<impl Stream<Item = InputIdleEdge> + Send, WaylandError> {
+) -> Result<impl Stream<Item = InputIdleEdge> + Send, WaylandProtocolError> {
     let mut notifier = IdleNotifier::<(), InputOnly>::connect().await?;
     notifier.arm(&[IdleTrigger { after, tag: () }]);
     let freshly_armed_notification_is_not_idle = stream::iter([InputIdleEdge(IdleEdge::Resumed)]);

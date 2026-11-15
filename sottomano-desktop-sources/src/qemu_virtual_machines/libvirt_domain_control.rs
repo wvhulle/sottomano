@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use virt::{
     connect::Connect,
     domain::Domain,
+    error::Error as VirtError,
     sys::{
         VIR_CONNECT_LIST_DOMAINS_INACTIVE, VIR_DOMAIN_PAUSED, VIR_DOMAIN_PMSUSPENDED,
         VIR_DOMAIN_RUNNING, VIR_DOMAIN_SHUTDOWN, virDomainState,
@@ -28,9 +29,10 @@ fn run_state_of_domain_state(domain_state: virDomainState) -> GuestRunState {
 }
 
 #[cfg(feature = "libvirt-domains")]
-pub fn with_system_connection<T>(use_connection: impl FnOnce(&Connect) -> T) -> Result<T, String> {
-    let mut connection =
-        Connect::open(Some(LIBVIRT_SYSTEM_URI)).map_err(|failure| failure.to_string())?;
+pub fn with_system_connection<T>(
+    use_connection: impl FnOnce(&Connect) -> T,
+) -> Result<T, VirtError> {
+    let mut connection = Connect::open(Some(LIBVIRT_SYSTEM_URI))?;
     let outcome = use_connection(&connection);
     let _ = connection.close();
     Ok(outcome)
@@ -74,9 +76,7 @@ pub(crate) fn libvirt_run_states(_domain_names: &[String]) -> HashMap<String, Gu
 #[must_use]
 pub(crate) fn inactive_libvirt_domains() -> Vec<String> {
     let listed = with_system_connection(|connection| {
-        connection
-            .list_all_domains(VIR_CONNECT_LIST_DOMAINS_INACTIVE)
-            .map_err(|failure| failure.to_string())
+        connection.list_all_domains(VIR_CONNECT_LIST_DOMAINS_INACTIVE)
     })
     .and_then(|listing| listing);
     let domains = match listed {

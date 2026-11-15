@@ -4,7 +4,7 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
     network_connectivity::{
-        network_manager_proxies::{DeviceLinkState, RadioPower},
+        network_manager_proxies::{LinkPhase, RadioPower},
         tailscale_exit_nodes::ExitNodeLanAccess,
         tailscale_status::ExitNodeUse,
     },
@@ -40,11 +40,11 @@ impl From<SwitchPosition> for ReadingDisplayState {
     }
 }
 
-impl From<DeviceLinkState> for SwitchPosition {
-    fn from(link_state: DeviceLinkState) -> Self {
+impl From<LinkPhase> for SwitchPosition {
+    fn from(link_state: LinkPhase) -> Self {
         match link_state {
-            DeviceLinkState::Connected => SwitchPosition::On,
-            DeviceLinkState::Switching | DeviceLinkState::Disconnected => SwitchPosition::Off,
+            LinkPhase::Up => SwitchPosition::On,
+            LinkPhase::Switching | LinkPhase::Down => SwitchPosition::Off,
         }
     }
 }
@@ -244,7 +244,7 @@ impl<S: ToggleableSource> ToggleControl<S> {
 mod tests {
     use sottomano_desktop_sources::{
         cpu_memory_compute::amd_x3d_cache_preference::X3dCachePreference,
-        system_protocol_clients::sysfs_attribute_reads::Error,
+        system_protocol_clients::sysfs_attribute_reads::FileReadError,
     };
 
     use super::*;
@@ -253,8 +253,8 @@ mod tests {
         widget_groups::compute_group::ComputeTarget,
     };
 
-    fn refused_write() -> Error {
-        Error::Unwritable {
+    fn refused_write() -> FileReadError {
+        FileReadError::Unwritable {
             path: "/sys/bus/platform/drivers/amd_x3d_vcache/AMDI0101:00/amd_x3d_mode".to_owned(),
             detail: "Permission denied (os error 13)".to_owned(),
         }

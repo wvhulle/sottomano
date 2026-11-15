@@ -2,7 +2,9 @@ use std::{borrow::Cow, collections::BTreeMap};
 
 use chrono::Locale;
 use iced::{Subscription, Task};
-use sottomano_desktop_sinks::incus_instances::change_instance_state;
+use sottomano_desktop_sinks::{
+    incus_instances::change_instance_state, sink_write_errors::GuestPowerError,
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     backing_service_availability::Availability,
@@ -262,7 +264,7 @@ pub enum IncusInstancesMessage {
         InstanceDaemon,
         SnapshotDelivery<FamilyDetails<DaemonInstance>>,
     ),
-    StateChangeRefused(String),
+    StateChangeRefused(GuestPowerError),
     Interaction(IncusInstancesInteraction),
 }
 

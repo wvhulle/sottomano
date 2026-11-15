@@ -8,7 +8,6 @@ use sottomano_toml_config::{
 use uom::si::f64::ThermodynamicTemperature;
 
 use super::{
-    Error,
     bcachefs_filesystem_space::BcachefsFilesystem,
     block_filesystem_mounts::{BlockFilesystemDiscovery, FilesystemMount, KernelDevice},
     btrfs_filesystem_space::BtrfsFilesystem,
@@ -21,7 +20,8 @@ use crate::{
         temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
     },
     delivery_cadence_drivers::PeriodicPolling,
-    host_machine_identity::udev_hardware_identity::DriveIdentity,
+    host_machine_identity::udev_hardware_identity::{DeviceIdentity, pci_parent_vendor},
+    system_protocol_clients::sysfs_attribute_reads::FileReadError,
 };
 
 const COMPOSITE_LABEL: &str = "Composite";
@@ -32,7 +32,8 @@ const UNREPORTED_CRITICAL_CELSIUS: f64 = 70.0;
 #[derive(Debug, Clone, PartialEq)]
 pub struct DriveHealth {
     pub device_name: String,
-    pub identity: DriveIdentity,
+    pub identity: DeviceIdentity,
+    pub pci_vendor: Option<u16>,
     pub temperature: DriveTemperature,
     pub overrides: ThresholdOverrides,
     pub errors: Vec<DeviceErrors>,
@@ -116,7 +117,7 @@ impl DriveTemperature {
 }
 
 impl SnapshotSource for DriveHealth {
-    type Error = Error;
+    type Error = FileReadError;
     type StreamInputs = DriveHealthInputs;
 
     const NAME: &'static str = "Drive health";
@@ -129,7 +130,7 @@ impl SnapshotSource for DriveHealth {
     }
 }
 
-fn read_drive_health(inputs: &DriveHealthInputs) -> Result<DriveHealth, Error> {
+fn read_drive_health(inputs: &DriveHealthInputs) -> Result<DriveHealth, FileReadError> {
     let disk = &inputs.disk;
     let controller = disk.sysfs_dir().join("device");
     let discovery = BlockFilesystemDiscovery::read_mountinfo()?;
@@ -149,7 +150,8 @@ fn read_drive_health(inputs: &DriveHealthInputs) -> Result<DriveHealth, Error> {
         .collect();
     Ok(DriveHealth {
         device_name: disk.name.clone(),
-        identity: DriveIdentity::from(controller.as_path()),
+        identity: DeviceIdentity::read_drive_controller(&controller),
+        pci_vendor: pci_parent_vendor(&controller),
         temperature: DriveTemperature::read(&sensor_choice, disk, &controller),
         overrides: inputs.sensor.overrides(),
         errors,
@@ -159,7 +161,7 @@ fn read_drive_health(inputs: &DriveHealthInputs) -> Result<DriveHealth, Error> {
 fn errors_on_disk(
     filesystem: &FilesystemMount,
     disk: &KernelDevice,
-) -> Result<Vec<DeviceErrors>, Error> {
+) -> Result<Vec<DeviceErrors>, FileReadError> {
     match filesystem.fs_type.as_str() {
         "btrfs" => Ok(vec![
             BtrfsFilesystem::containing(&filesystem.devices)?.device_errors()?,

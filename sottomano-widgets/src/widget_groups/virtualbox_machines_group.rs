@@ -1,8 +1,9 @@
 use std::borrow::Cow;
 
 use chrono::Locale;
-use sottomano_desktop_sinks::virtualbox_machines::{
-    press_virtualbox_power_button, start_virtualbox_machine,
+use sottomano_desktop_sinks::{
+    sink_write_errors::GuestPowerError,
+    virtualbox_machines::{press_virtualbox_power_button, start_virtualbox_machine},
 };
 use sottomano_desktop_sources::{
     container_family_snapshots::FamilyDetails,
@@ -234,11 +235,11 @@ impl ContainerFamily for VirtualBoxFamily {
             .collect()
     }
 
-    async fn stop(machine_reference: String) -> Result<(), String> {
+    async fn stop(machine_reference: String) -> Result<(), GuestPowerError> {
         press_virtualbox_power_button(&machine_reference).await
     }
 
-    async fn start(machine_uuid: String) -> Result<(), String> {
+    async fn start(machine_uuid: String) -> Result<(), GuestPowerError> {
         start_virtualbox_machine(&machine_uuid).await
     }
 }

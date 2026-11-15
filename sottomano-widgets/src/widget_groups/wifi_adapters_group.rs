@@ -8,7 +8,7 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
         icmp_gateway_latency::GatewayLatencies,
-        network_manager_proxies::{DeviceLinkState, RadioPower},
+        network_manager_proxies::{LinkPhase, RadioPower},
         wifi_connection::{Wifi, WifiAdapter, WifiAdapterDetails, WifiDetails},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -309,7 +309,7 @@ impl WifiAdaptersGroup {
         });
         let address_items = [AddressFamily::Ipv4, AddressFamily::Ipv6]
             .into_iter()
-            .filter(|_| adapter.link_state == DeviceLinkState::Connected)
+            .filter(|_| adapter.link_state == LinkPhase::Up)
             .map(|family| {
                 GroupItem::reading(
                     InterfaceAddressReading { family },
@@ -319,7 +319,7 @@ impl WifiAdaptersGroup {
                     },
                 )
             });
-        let dns_item = (adapter.link_state == DeviceLinkState::Connected).then(|| {
+        let dns_item = (adapter.link_state == LinkPhase::Up).then(|| {
             GroupItem::reading(
                 InterfaceDnsReading,
                 WifiAdapterTarget::Dns {

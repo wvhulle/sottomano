@@ -2,7 +2,10 @@ use std::{borrow::Cow, future::Future};
 
 use chrono::Locale;
 use iced::{Subscription, Task};
-use sottomano_desktop_sinks::waydroid_container::{start_waydroid_session, stop_waydroid_session};
+use sottomano_desktop_sinks::{
+    sink_write_errors::GuestPowerError,
+    waydroid_container::{start_waydroid_session, stop_waydroid_session},
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     backing_service_availability::Availability,
@@ -216,7 +219,7 @@ pub enum WaydroidContainerMessage {
     Listing(SnapshotDelivery<WaydroidListing>),
     Readout(SnapshotDelivery<WaydroidReadout>),
     ContainerSwitch(UnitSwitchMessage),
-    SessionChangeRefused(String),
+    SessionChangeRefused(GuestPowerError),
     Interaction(WaydroidContainerInteraction),
 }
 
@@ -229,7 +232,7 @@ pub enum WaydroidContainerInteraction {
 }
 
 fn refused_session_change(
-    session_change: impl Future<Output = Result<(), String>> + Send + 'static,
+    session_change: impl Future<Output = Result<(), GuestPowerError>> + Send + 'static,
 ) -> Task<WaydroidContainerMessage> {
     Task::future(async move { session_change.await.err() })
         .and_then(|refusal| Task::done(WaydroidContainerMessage::SessionChangeRefused(refusal)))

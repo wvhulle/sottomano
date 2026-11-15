@@ -69,7 +69,7 @@ mod tests {
             battery_time_forecast::charge_power_by_state_of_charge::learned_curve,
             upower_battery_state::{ChargeBehaviour, ChargeStatus},
         },
-        host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
+        host_machine_identity::udev_hardware_identity::DeviceIdentity,
     };
 
     const CAPACITY_WH: f64 = 50.0;
@@ -84,7 +84,8 @@ mod tests {
             charge_limit: Ratio::new::<ratio>(1.0),
             charge_behaviour: ChargeBehaviour::Auto,
             serial: String::new(),
-            identity: PowerSupplyIdentity::default(),
+            identity: DeviceIdentity::default(),
+            technology: None,
         }
     }
 

@@ -17,7 +17,7 @@ use crate::{
         network_manager_proxies::{self, DeviceGateway},
         nm_readings,
     },
-    system_protocol_clients::{dbus_desktop_buses, dbus_desktop_buses::DesktopBuses},
+    system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,7 +44,7 @@ impl SnapshotSource for GatewayLatencies {
             network_manager_proxies::device_gateways,
         )
         .map(|gateway_reading| match gateway_reading {
-            Ok(gateways) => ProbeEvent::GatewaysChanged(gateways.unwrap_or_default()),
+            Ok(gateways) => ProbeEvent::GatewaysChanged(gateways),
             Err(listing_error) => ProbeEvent::GatewayListingFailed(listing_error),
         });
         let ticks = PROBE_POLLING.poll_ticks().map(ProbeEvent::Tick);
@@ -58,10 +58,8 @@ impl SnapshotSource for GatewayLatencies {
                         ProbeEvent::GatewaysChanged(gateways) => prober.retarget(gateways),
                         ProbeEvent::GatewayListingFailed(listing_error) => {
                             prober.retarget(Vec::new());
-                            let delivery = match dbus_desktop_buses::Error::from(listing_error) {
-                                dbus_desktop_buses::Error::Absent => {
-                                    SnapshotDelivery::SourceUnavailable
-                                }
+                            let delivery = match listing_error {
+                                BusReadError::Absent => SnapshotDelivery::SourceUnavailable,
                                 listing_failure => SnapshotDelivery::SnapshotDelivered {
                                     snapshot_fetch: Err(LatencyProbeError::GatewayListing(
                                         listing_failure.to_string(),
@@ -87,7 +85,7 @@ impl SnapshotSource for GatewayLatencies {
 
 enum ProbeEvent {
     GatewaysChanged(Vec<DeviceGateway>),
-    GatewayListingFailed(zbus::Error),
+    GatewayListingFailed(BusReadError),
     Tick(PeriodicPolling),
 }
 

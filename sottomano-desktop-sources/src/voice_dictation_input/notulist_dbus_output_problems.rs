@@ -3,7 +3,7 @@ use notulist_client::{OutputProblem, followed_output_problems};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error},
+    system_protocol_clients::dbus_desktop_buses::{BusReadError, DesktopBuses},
     voice_dictation_input::notulist_followed_deliveries,
 };
 
@@ -13,7 +13,7 @@ pub struct NotulistOutputProblems {
 }
 
 impl SnapshotSource for NotulistOutputProblems {
-    type Error = Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Typing output";

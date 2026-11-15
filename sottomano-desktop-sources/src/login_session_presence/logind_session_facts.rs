@@ -16,7 +16,7 @@ use crate::{
     non_empty_text::non_empty,
     system_protocol_clients::{
         dbus_change_signals::{change_triggers, properties_changed_rule},
-        dbus_desktop_buses::{self, DesktopBuses},
+        dbus_desktop_buses::{BusReadError, DesktopBuses},
     },
 };
 
@@ -73,31 +73,29 @@ pub struct SessionIdentity {
 }
 
 impl SnapshotSource for SessionIdentity {
-    type Error = dbus_desktop_buses::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Session identity";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries(buses, identity_changes).map(|delivery| {
-            delivery.unavailable_when(|fetch_error| {
-                matches!(fetch_error, dbus_desktop_buses::Error::Absent)
-            })
-        })
+        SnapshotDelivery::live_push_deliveries(buses, identity_changes)
+            .map(SnapshotDelivery::unavailable_when_absent)
     }
 }
 
 async fn identity_changes(
     buses: DesktopBuses,
-) -> Result<
-    impl Stream<Item = Result<SessionIdentity, dbus_desktop_buses::Error>> + Send,
-    dbus_desktop_buses::Error,
-> {
+) -> Result<impl Stream<Item = Result<SessionIdentity, BusReadError>> + Send, BusReadError> {
     let session = own_session(&buses.system).await?;
     let identity = SessionIdentity {
-        user: non_empty(session.name().await?).ok_or(dbus_desktop_buses::Error::Absent)?,
+        user: non_empty(session.name().await?).ok_or_else(|| {
+            BusReadError::UnexpectedReply("logind session has no user name".to_owned())
+        })?,
         uid: session.user().await?.0,
-        seat: non_empty(session.seat().await?.0).ok_or(dbus_desktop_buses::Error::Absent)?,
+        seat: non_empty(session.seat().await?.0).ok_or_else(|| {
+            BusReadError::UnexpectedReply("logind session has no seat".to_owned())
+        })?,
         virtual_terminal: NonZeroU32::new(session.vt_nr().await?),
         login_manager: session.service().await?,
         desktop: session
@@ -127,9 +125,7 @@ async fn identity_changes(
     }))
 }
 
-async fn own_session(
-    system: &zbus::Connection,
-) -> Result<SessionProxy<'static>, dbus_desktop_buses::Error> {
+async fn own_session(system: &zbus::Connection) -> Result<SessionProxy<'static>, BusReadError> {
     let manager = ManagerProxy::new(system).await?;
     let path = manager.get_session(&session_id()).await?;
     let session_builder = SessionProxy::builder(system).path(path)?;
@@ -149,22 +145,20 @@ pub struct SessionInfo {
 }
 
 impl SnapshotSource for SessionInfo {
-    type Error = dbus_desktop_buses::Error;
+    type Error = BusReadError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Login session";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(buses, session_changes)
+            .map(SnapshotDelivery::unavailable_when_absent)
     }
 }
 
 async fn session_changes(
     buses: DesktopBuses,
-) -> Result<
-    impl Stream<Item = Result<SessionInfo, dbus_desktop_buses::Error>> + Send,
-    dbus_desktop_buses::Error,
-> {
+) -> Result<impl Stream<Item = Result<SessionInfo, BusReadError>> + Send, BusReadError> {
     let session = own_session(&buses.system).await?;
     let leader = session.leader().await?;
     let info = SessionInfo {
@@ -174,7 +168,9 @@ async fn session_changes(
         leader_name: process_name(leader),
         greeter: greeter_program(leader),
         state: session.state().await?,
-        since: at_micros(session.timestamp().await?).ok_or(dbus_desktop_buses::Error::Absent)?,
+        since: at_micros(session.timestamp().await?).ok_or_else(|| {
+            BusReadError::UnexpectedReply("logind session start time is out of range".to_owned())
+        })?,
         idle_since: None,
     };
     let changes = change_triggers(

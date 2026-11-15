@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{error::Error, fmt};
 
 use sottomano_desktop_sources::compositor_window_ipc::compositor_connection::{
     CompositorKind, missing_compositor_reason,
@@ -116,6 +116,8 @@ impl fmt::Display for CompositorRequestFailure {
     }
 }
 
+impl Error for CompositorRequestFailure {}
+
 pub async fn send_compositor_request(
     request: CompositorRequest,
 ) -> Result<(), CompositorRequestFailure> {
@@ -145,11 +147,5 @@ pub async fn send_compositor_request(
             request: format!("{request:?}"),
             reason: missing_compositor_reason(),
         }),
-    }
-}
-
-pub async fn send_compositor_request_or_warn(request: CompositorRequest) {
-    if let Err(failure) = send_compositor_request(request).await {
-        tracing::warn!("{failure}");
     }
 }

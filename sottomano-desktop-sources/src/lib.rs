@@ -53,6 +53,12 @@ use crate::{
     network_connectivity::internet_connectivity_gate::InternetUnreachable,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StateChange {
+    Changed,
+    Unchanged,
+}
+
 pub trait SnapshotSource: Clone + Debug + Sized + Send + 'static {
     type Error: Debug + Display + Send + 'static;
     type StreamInputs: Clone + Hash + Send + Sync + 'static;
