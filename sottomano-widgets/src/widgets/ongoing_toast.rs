@@ -13,10 +13,7 @@ use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
-    group_items::{
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
-        reading_display_state::ReadingDisplayState,
-    },
+    group_items::group_item_reading::{GroupItemReading, OngoingToastThreshold},
     hover_cards::HoverTarget,
     widgets::{
         amount_text::percent_text, localized_durations::duration_text,
@@ -127,20 +124,6 @@ pub struct OngoingToast<Message> {
     pub action_buttons: Vec<OngoingToastActionButton<Message>>,
 }
 
-pub(crate) const fn alerting_severity_of(state: ReadingDisplayState) -> Severity {
-    match state {
-        ReadingDisplayState::Warning => Severity::Warning,
-        ReadingDisplayState::Critical => Severity::Critical,
-        ReadingDisplayState::Failed
-        | ReadingDisplayState::Off
-        | ReadingDisplayState::Offline
-        | ReadingDisplayState::Idle
-        | ReadingDisplayState::Pending
-        | ReadingDisplayState::On
-        | ReadingDisplayState::Live => Severity::Normal,
-    }
-}
-
 pub fn reading_display_state_alert_severity(
     widget: &dyn GroupItemReading,
     clock: Clock,
@@ -151,7 +134,7 @@ pub fn reading_display_state_alert_severity(
     else {
         return None;
     };
-    let severity = alerting_severity_of(widget.state(clock));
+    let severity = widget.state(clock).severity();
     (severity > Severity::Normal && severity >= minimum_severity).then_some(severity)
 }
 
@@ -280,6 +263,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        group_items::reading_display_state::ReadingDisplayState,
         hover_cards::hover_card_body::Section,
         widget_groups::power_group::PowerTarget,
         widgets::{
@@ -360,8 +344,11 @@ mod tests {
     }
 
     #[test]
-    fn failed_readings_never_alert() {
-        assert!(alert_for(ReadingDisplayState::Failed, FROM_WARNING).is_none());
+    fn failed_readings_alert_as_critical() {
+        assert_eq!(
+            alert_for(ReadingDisplayState::Failed, FROM_WARNING).map(|alert| alert.severity),
+            Some(Severity::Critical)
+        );
     }
 
     fn proceed_button(button_label: &str, on_button_pressed: u8) -> OngoingToastActionButton<u8> {

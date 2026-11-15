@@ -35,9 +35,7 @@ use crate::{
         announced_level::LevelReading,
         icon_glyph::IconGlyph,
         icon_handle::IconHandle,
-        ongoing_toast::{
-            OngoingToast, OngoingToastActionButton, alerting_severity_of, quota_pace_alert_severity,
-        },
+        ongoing_toast::{OngoingToast, OngoingToastActionButton, quota_pace_alert_severity},
         phosphor::{Phosphor, Weight},
     },
 };
@@ -536,8 +534,8 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 
     pub(crate) fn shown_alert_severity(&self, clock: Clock) -> Option<Severity> {
         let shown_state_severity = match &self.kind {
-            GroupItemContent::Reading { widget, .. } => alerting_severity_of(widget.state(clock)),
-            GroupItemContent::Slider { widget, .. } => alerting_severity_of(widget.state(clock)),
+            GroupItemContent::Reading { widget, .. } => widget.state(clock).severity(),
+            GroupItemContent::Slider { widget, .. } => widget.state(clock).severity(),
             GroupItemContent::Composed {
                 identity:
                     ComposedGroupItemFace {
@@ -545,7 +543,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                         ..
                     },
                 ..
-            } => alerting_severity_of(*state),
+            } => state.severity(),
             GroupItemContent::Composed { .. } => Severity::Normal,
         };
         let quota_severity = self

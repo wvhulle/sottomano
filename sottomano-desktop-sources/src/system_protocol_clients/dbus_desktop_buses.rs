@@ -47,8 +47,6 @@ pub fn text_prop(properties: &Properties, key: &str) -> Option<String> {
 pub enum Error {
     #[error("change watch: {0}")]
     ChangeWatch(#[from] ChangeWatchFailure),
-    #[error("session bus: {0}")]
-    Connect(String),
     #[error("{0}")]
     Call(String),
     #[error("service not running")]

@@ -10,14 +10,14 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, PanelVisibility},
+        group_item_reading::{GroupItemReading, OngoingToastThreshold, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{
         Section,
         hover_card_source_delivery::{DeliveryStamp, SnapshotFreshness, SourceDelivery},
     },
-    widgets::icon_glyph::IconGlyph,
+    widgets::{announced_level::AnnouncedLevel, icon_glyph::IconGlyph},
 };
 
 pub enum SnapshotTrouble {
@@ -101,6 +101,22 @@ impl<S: GroupItemReading> GroupItemReading for TroubledSnapshot<S> {
 
     fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {
         self.held_snapshot.quota_windows(now)
+    }
+
+    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
+        self.held_snapshot.ongoing_toast_threshold()
+    }
+
+    fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> Option<String> {
+        self.held_snapshot.ongoing_toast_body(clock, locale)
+    }
+
+    fn live_gauge(&self) -> Option<Ratio> {
+        self.held_snapshot.live_gauge()
+    }
+
+    fn announced_level(&self, locale: Locale) -> Option<AnnouncedLevel> {
+        self.held_snapshot.announced_level(locale)
     }
 
     fn hover_card(&self, clock: Clock) -> Vec<Section> {

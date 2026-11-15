@@ -24,7 +24,6 @@ const VMX_EXTENSION: &str = ".vmx";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VmwareMachineProbe {
     pub running_count: usize,
-    pub running_pids: Vec<i32>,
 }
 
 impl SnapshotSource for VmwareMachineProbe {
@@ -44,16 +43,8 @@ fn probed_machines() -> Result<VmwareMachineProbe, Error> {
     let process_scan =
         scan_processes(|scanned| program_stem(&scanned.command_line) == Some(VMX_PROGRAM))
             .ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
-    let mut running_pids: Vec<i32> = process_scan
-        .matched_processes
-        .iter()
-        .map(|scanned| scanned.pid)
-        .collect();
-    running_pids.sort_unstable();
-    let running_count = running_pids.len();
     Ok(VmwareMachineProbe {
-        running_count,
-        running_pids,
+        running_count: process_scan.matched_processes.len(),
     })
 }
 

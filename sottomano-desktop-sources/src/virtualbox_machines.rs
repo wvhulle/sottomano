@@ -26,7 +26,6 @@ const VIRTUALBOX_MANAGER_PROGRAM: &str = "VBoxManage";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VirtualBoxMachineProbe {
     pub running_count: usize,
-    pub running_pids: Vec<i32>,
 }
 
 impl SnapshotSource for VirtualBoxMachineProbe {
@@ -48,16 +47,8 @@ fn probed_machines() -> Result<VirtualBoxMachineProbe, Error> {
             .is_some_and(|program| VIRTUALBOX_VM_PROGRAMS.contains(&program))
     })
     .ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
-    let mut running_pids: Vec<i32> = process_scan
-        .matched_processes
-        .iter()
-        .map(|scanned| scanned.pid)
-        .collect();
-    running_pids.sort_unstable();
-    let running_count = running_pids.len();
     Ok(VirtualBoxMachineProbe {
-        running_count,
-        running_pids,
+        running_count: process_scan.matched_processes.len(),
     })
 }
 
