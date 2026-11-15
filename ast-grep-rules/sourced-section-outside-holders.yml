@@ -1,0 +1,39 @@
+id: sourced-section-outside-holders
+language: rust
+severity: error
+message: Only the snapshot holders decide which source a section came from and how it was delivered.
+note: Build sections with Section::new and let SubscribedSnapshot or HoverFetchedSnapshot stamp them with hover_card_with or sections_described_by.
+files:
+  - sottomano-widgets/src/**/*.rs
+  - sottomano-shell/src/**/*.rs
+  - sottomano-widget-showcase/src/**/*.rs
+ignores:
+  - sottomano-widgets/src/hover_cards/hover_card_body.rs
+  - sottomano-widgets/src/hover_cards/hover_card_body/hover_card_source_delivery.rs
+  - sottomano-widgets/src/hover_cards/hover_card_content.rs
+  - sottomano-widgets/src/widgets/subscribed_snapshot.rs
+  - sottomano-widgets/src/widgets/hover_fetched_snapshot.rs
+  - sottomano-widgets/src/group_items/offline_internet_reading.rs
+rule:
+  any:
+    - kind: struct_expression
+      has:
+        field: name
+        regex: '^(SectionSource::Snapshot|DeliveryStamp)$'
+    - kind: scoped_identifier
+      regex: '^SourceDelivery::(Delivered|Loading|Failed|Offline)$'
+      not:
+        inside:
+          any:
+            - kind: match_pattern
+            - kind: tuple_struct_pattern
+            - kind: let_condition
+            - kind: or_pattern
+          stopBy: end
+  not:
+    inside:
+      kind: mod_item
+      has:
+        field: name
+        regex: ^tests$
+      stopBy: end

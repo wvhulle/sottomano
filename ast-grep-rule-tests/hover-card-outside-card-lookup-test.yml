@@ -1,0 +1,5 @@
+id: hover-card-outside-card-lookup
+valid:
+  - "fn wifi_card(&self) -> Vec<Section> { self.wifi.hover_card_with(vec![Section::new(\"Radio\", dictionary_table([]))]) }"
+invalid:
+  - "fn wifi_card(sections: Vec<Section>) -> Option<HoverCard> { HoverCard::new(sections, CardHeader::Unheaded) }"

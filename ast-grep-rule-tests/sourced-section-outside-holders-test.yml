@@ -1,0 +1,10 @@
+id: sourced-section-outside-holders
+valid:
+  - "fn card() -> Vec<Section> { vec![Section::new(\"Usage\", dictionary_table([]))] }"
+  - "fn label(delivery: SourceDelivery) -> &'static str { match delivery { SourceDelivery::Loading => \"loading\", SourceDelivery::Delivered(_) | SourceDelivery::Failed | SourceDelivery::Offline => \"\" } }"
+  - "fn offline(delivery: SourceDelivery) -> bool { if let SourceDelivery::Offline = delivery { true } else { false } }"
+  - "mod tests { fn expected() -> SectionSource { SectionSource::Snapshot { source_name: \"Wi-Fi\", delivery: SourceDelivery::Failed } } }"
+invalid:
+  - "fn card() -> SectionSource { SectionSource::Snapshot { source_name: \"Wi-Fi\", delivery: SourceDelivery::Loading } }"
+  - "fn stamp(at: DateTime<Utc>) -> DeliveryStamp { DeliveryStamp { cadence: DeliveryCadence::Live, delivered_at: at } }"
+  - "fn state() -> SourceDelivery { SourceDelivery::Offline }"
