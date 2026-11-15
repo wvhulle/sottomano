@@ -36,6 +36,7 @@ use crate::{
         group_item::{GroupItem, GroupItemValue},
         group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
         source_reading::GroupItemIcon,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
@@ -533,10 +534,8 @@ impl GlobalMenuGroup {
     ) -> WidgetGroupContent<'_, GlobalMenuInteraction> {
         let lookup_failure_row = self.lookup_failure().map(|lookup_failure| {
             GroupItem::reading(
-                MenuLookupFailureReading { lookup_failure },
+                ReadingRow::evaluated(MenuLookupFailureReading { lookup_failure }, clock, locale),
                 GlobalMenuTarget::LookupFailure,
-                clock,
-                locale,
             )
         });
         WidgetGroupContent::expandable(
@@ -547,8 +546,6 @@ impl GlobalMenuGroup {
                 global_menu_use_toggle(self.global_menu_use),
                 GlobalMenuTarget::Use,
                 GlobalMenuInteraction::ToggleUse,
-                clock,
-                locale,
             )]
             .into_iter()
             .chain(lookup_failure_row),

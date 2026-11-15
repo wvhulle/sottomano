@@ -21,6 +21,7 @@ use crate::{
         group_item::{GroupItem, GroupItemValue},
         group_item_reading::GroupItemReading,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
+        reading_row::ReadingRow,
         source_reading::GroupItemIcon,
     },
     hover_cards::hover_card_body::{Section, SectionTable, SectionWidget, headed_grouped_table},
@@ -39,6 +40,9 @@ use crate::{
 const LINES_BEFORE_CURRENT: usize = 2;
 const LINES_AFTER_CURRENT: usize = 3;
 
+pub(crate) const TRACK_LYRICS_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::Phosphor(Phosphor::MicrophoneSlash(Weight::Regular));
+
 impl GroupItemReading for TrackLyrics {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
@@ -48,13 +52,9 @@ impl GroupItemReading for TrackLyrics {
         match self {
             TrackLyrics::Synced(_) => Phosphor::MicrophoneStage(Weight::Regular).into(),
             TrackLyrics::PlainOnly(_) | TrackLyrics::Instrumental | TrackLyrics::Missing => {
-                Self::fallback_icon()
+                TRACK_LYRICS_FALLBACK_GLYPH
             }
         }
-    }
-
-    fn fallback_icon() -> IconGlyph {
-        Phosphor::MicrophoneSlash(Weight::Regular).into()
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
@@ -157,12 +157,13 @@ pub(super) fn lyrics_item<'a>(
     let locale = config.calendar.locale;
     let Some(timed_line) = singing_line(lyrics_snapshot, media, sampled_at) else {
         return lyrics_snapshot.group_item(
+            TRACK_LYRICS_FALLBACK_GLYPH,
+            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
             PlayerTarget {
                 bus: media.bus.clone().into(),
                 control: MediaTarget::Lyrics,
             },
             clock,
-            locale,
         );
     };
     Some(current_lyric_line(config, media, timed_line, sampled_at))

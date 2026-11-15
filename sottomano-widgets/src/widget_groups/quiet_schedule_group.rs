@@ -524,14 +524,11 @@ impl QuietScheduleGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-        clock: Clock,
     ) -> WidgetGroupContent<'a, QuietScheduleMessage> {
-        let locale = config.calendar.locale;
         let slider = |slider| {
             GroupItem::slider(
                 self.slider(slider),
                 config,
-                clock,
                 QuietScheduleMessage::Slider.with(slider),
             )
         };
@@ -544,8 +541,6 @@ impl QuietScheduleGroup {
                     self.follow_schedule_toggle(),
                     QuietScheduleTarget::FollowSchedule,
                     QuietScheduleMessage::ToggleFollowsSchedule,
-                    clock,
-                    locale,
                 ),
                 slider(QuietSlider::Start),
                 slider(QuietSlider::End),

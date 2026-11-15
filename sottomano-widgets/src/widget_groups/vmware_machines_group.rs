@@ -13,6 +13,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
     },
     hover_cards::{
         HoverTarget,
@@ -137,8 +138,6 @@ impl ContainerFamily for VmwareFamily {
     type Detail = FamilyDetails<VmwareMachine>;
     type Target = VmwareMachineTarget;
     type PowerRequest = PathBuf;
-    type ListingRow<'a> = VmwareMachineListingRow<'a>;
-    type DetailRow<'a> = VmwareMachineRow<'a>;
 
     const FAMILY: WidgetGroupFamily = WidgetGroupFamily::VmwareMachines;
     const STOP_HINT: &'static str = "shut the machine down";
@@ -154,13 +153,15 @@ impl ContainerFamily for VmwareFamily {
 
     fn listing_rows(
         listings: &FamilyListings<VmwareMachineListing>,
-    ) -> Vec<FamilyRow<Self, VmwareMachineListingRow<'_>>> {
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<FamilyRow<'_, Self>> {
         listings
             .listings
             .iter()
             .map(|listing| FamilyRow {
                 target: VmwareMachineTarget { pid: listing.pid },
-                reading: VmwareMachineListingRow { listing },
+                reading: ReadingRow::evaluated(VmwareMachineListingRow { listing }, clock, locale),
                 power: RowPower::Stoppable(listing.configuration_file.clone()),
             })
             .collect()
@@ -168,7 +169,9 @@ impl ContainerFamily for VmwareFamily {
 
     fn detail_rows(
         detail: &FamilyDetails<VmwareMachine>,
-    ) -> Vec<FamilyRow<Self, VmwareMachineRow<'_>>> {
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<FamilyRow<'_, Self>> {
         detail
             .details
             .iter()
@@ -176,7 +179,7 @@ impl ContainerFamily for VmwareFamily {
                 target: VmwareMachineTarget {
                     pid: machine.listing.pid,
                 },
-                reading: VmwareMachineRow { machine },
+                reading: ReadingRow::evaluated(VmwareMachineRow { machine }, clock, locale),
                 power: RowPower::Stoppable(machine.listing.configuration_file.clone()),
             })
             .collect()

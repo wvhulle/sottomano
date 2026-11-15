@@ -14,8 +14,7 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     group_items::{
-        gauge::percent_fill,
-        group_item_reading::{GroupItemReading, PanelVisibility},
+        gauge::percent_fill, group_item_reading::GroupItemReading, reading_row::PanelVisibility,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{

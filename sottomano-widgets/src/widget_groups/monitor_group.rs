@@ -1,4 +1,7 @@
-use crate::group_items::reading_display_state::ReadingDisplayState;
+use crate::{
+    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
+    widgets::icon_glyph::IconGlyph,
+};
 mod backlight_display;
 mod clight_auto_brightness;
 mod output_details;
@@ -230,7 +233,6 @@ impl MonitorGroup {
         &self,
         target: &MonitorTarget,
         outputs: &HashMap<String, OutputInfo>,
-        clock: Clock,
     ) -> Vec<Section> {
         match target {
             MonitorTarget::Backlight(serial) => {
@@ -252,7 +254,7 @@ impl MonitorGroup {
                         ConnectedOutput::driving(backlight, outputs).as_ref(),
                     ))
             }
-            MonitorTarget::ClightAuto => self.clight.hover_card(clock),
+            MonitorTarget::ClightAuto => self.clight.hover_card(),
         }
     }
 
@@ -264,7 +266,7 @@ impl MonitorGroup {
         let locale = config.calendar.locale;
         let backlight_items = self.sliders.iter().map(|(serial, slider)| {
             let serial = serial.clone();
-            GroupItem::slider(slider, config, clock, move |control_message| {
+            GroupItem::slider(slider, config, move |control_message| {
                 MonitorInteraction::Backlight(serial.clone(), control_message)
             })
             .previewed_on_handle()
@@ -276,10 +278,11 @@ impl MonitorGroup {
             backlight_items.chain(
                 self.clight
                     .group_item(
+                        IconGlyph::default(),
+                        |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
                         MonitorTarget::ClightAuto,
                         MonitorInteraction::AutoBrightnessPressed,
                         clock,
-                        locale,
                     )
                     .map(GroupItem::previewed_on_handle),
             ),

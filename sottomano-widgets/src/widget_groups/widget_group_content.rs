@@ -862,62 +862,40 @@ fn revealed_content<'a, Message: 'a>(
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::Cow;
-
-    use chrono::Locale;
     use sottomano_toml_config::severity::Severity;
 
     use super::{WidgetGroupContent, WidgetGroupExpansion};
     use crate::{
-        clock::Clock,
         group_items::{
-            group_item::GroupItem, group_item_reading::GroupItemReading,
-            reading_display_state::ReadingDisplayState,
+            group_item::GroupItem, reading_display_state::ReadingDisplayState,
+            reading_row::ReadingRow,
         },
         group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic, PanelRaise},
-        hover_cards::{HoverTarget, hover_card_body::Section},
+        hover_cards::HoverTarget,
         widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
-        widgets::{
-            icon_glyph::IconGlyph,
-            phosphor::{Phosphor, Weight},
-        },
+        widgets::icon_glyph::IconGlyph,
     };
 
-    struct ShownStateReading(ReadingDisplayState);
-
-    impl GroupItemReading for ShownStateReading {
-        fn name(&self) -> Cow<'static, str> {
-            "Shown state reading".into()
-        }
-
-        fn icon(&self) -> IconGlyph {
-            Phosphor::Question(Weight::Regular).into()
-        }
-
-        fn state(&self, _clock: Clock) -> ReadingDisplayState {
-            self.0
-        }
-
-        fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-            Vec::new().into_iter().collect::<Vec<_>>()
-        }
+    fn shown_state_row(shown_state: ReadingDisplayState) -> ReadingRow<'static> {
+        ReadingRow::glyph_only(
+            "Shown state reading",
+            IconGlyph::default(),
+            shown_state,
+            Box::new(|_| Vec::new()),
+        )
     }
 
     fn group_showing(
         expansion: &WidgetGroupExpansion,
         shown_state: ReadingDisplayState,
     ) -> WidgetGroupContent<'_, ()> {
-        let clock = Clock::real();
-        let locale = Locale::default();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Weather,
             expansion,
             |_| (),
             [GroupItem::reading(
-                ShownStateReading(shown_state),
+                shown_state_row(shown_state),
                 HoverTarget::Workspace(7),
-                clock,
-                locale,
             )],
         )
     }
@@ -951,8 +929,6 @@ mod tests {
 
     #[test]
     fn an_item_announcement_follows_the_current_press() {
-        let clock = Clock::real();
-        let locale = Locale::default();
         let expansion = WidgetGroupExpansion::default();
         let group_pressing = |description| {
             WidgetGroupContent::expandable(
@@ -960,10 +936,8 @@ mod tests {
                 &expansion,
                 |_| (),
                 [GroupItem::reading(
-                    ShownStateReading(ReadingDisplayState::Idle),
+                    shown_state_row(ReadingDisplayState::Idle),
                     HoverTarget::Workspace(7),
-                    clock,
-                    locale,
                 )
                 .on_press(description, ())],
             )

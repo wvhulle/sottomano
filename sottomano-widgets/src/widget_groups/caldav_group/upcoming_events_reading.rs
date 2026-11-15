@@ -138,17 +138,16 @@ fn starts_label(start: AgendaMoment, now: DateTime<Local>, locale: Locale) -> St
         .unwrap_or_else(|| LocalizedTimeFormat::AbbreviatedWeekday.format(&begins, locale))
 }
 
+pub(crate) const UPCOMING_EVENT_LIST_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::Phosphor(Phosphor::CalendarDots(Weight::Regular));
+
 impl GroupItemReading for UpcomingEventList {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
-        Self::fallback_icon()
-    }
-
-    fn fallback_icon() -> IconGlyph {
-        Phosphor::CalendarDots(Weight::Regular).into()
+        UPCOMING_EVENT_LIST_FALLBACK_GLYPH
     }
 
     fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
@@ -243,8 +242,12 @@ mod tests {
             group_item_reading::GroupItemReading,
             offline_internet_reading::{PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble},
             reading_display_state::ReadingDisplayState,
+            reading_row::ReadingRow,
+            source_reading::ReadoutLabel,
         },
-        widget_groups::caldav_group::CaldavTarget,
+        widget_groups::caldav_group::{
+            CaldavTarget, upcoming_events_reading::UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
+        },
         widgets::subscribed_snapshot::SubscribedSnapshot,
     };
 
@@ -260,13 +263,14 @@ mod tests {
     #[test]
     fn events_awaiting_their_first_snapshot_show_a_pending_reading() {
         let pending_events = SubscribedSnapshot::<UpcomingEventList>::default();
-        assert!(!pending_events.hover_card(Clock::real()).is_empty());
+        assert!(!pending_events.hover_card_with(Vec::new()).is_empty());
         assert!(
             pending_events
                 .group_item_while_pending::<()>(
+                    UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
+                    |snapshot| ReadingRow::evaluated(snapshot, Clock::real(), Locale::default()),
                     CaldavTarget::UpcomingEvents,
                     Clock::real(),
-                    Locale::default(),
                 )
                 .is_some()
         );
@@ -281,12 +285,15 @@ mod tests {
     #[test]
     fn a_pending_reading_draws_no_label_until_its_data_arrives() {
         let pending_events = event_placeholder(PlaceholderCause::AwaitingFirstSnapshot);
-        assert_eq!(pending_events.label(Clock::real(), Locale::en_US), None);
-        assert_eq!(
-            pending_events.state(Clock::real()),
-            ReadingDisplayState::Pending,
-        );
-        assert!(pending_events.hover_card(Clock::real()).is_empty());
+        let pending_row = pending_events.reading_row(UPCOMING_EVENT_LIST_FALLBACK_GLYPH);
+        assert_eq!(pending_row.readout.label, ReadoutLabel::Unlabeled);
+        assert_eq!(pending_row.shown_state(), ReadingDisplayState::Pending);
+        let card_titles: Vec<String> = pending_row
+            .hover_card(Clock::real())
+            .iter()
+            .map(|section| section.title().text().to_owned())
+            .collect();
+        assert_eq!(card_titles, ["Loading".to_owned()]);
     }
 
     #[test]
@@ -294,11 +301,9 @@ mod tests {
         let offline_events = event_placeholder(PlaceholderCause::Troubled(
             SnapshotTrouble::Offline(InternetUnreachable::NoConnection),
         ));
-        assert_eq!(offline_events.label(Clock::real(), Locale::en_US), None);
-        assert_eq!(
-            offline_events.state(Clock::real()),
-            ReadingDisplayState::Offline
-        );
+        let offline_row = offline_events.reading_row(UPCOMING_EVENT_LIST_FALLBACK_GLYPH);
+        assert_eq!(offline_row.readout.label, ReadoutLabel::Unlabeled);
+        assert_eq!(offline_row.shown_state(), ReadingDisplayState::Offline);
     }
 
     #[test]

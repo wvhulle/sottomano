@@ -241,7 +241,7 @@ impl ColorTemperatureGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: ColorTemperatureTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: ColorTemperatureTarget) -> Vec<Section> {
         match target {
             ColorTemperatureTarget::GammaDim => self.gamma.hover_card_with(vec![Section::new(
                 "Setting",
@@ -251,18 +251,14 @@ impl ColorTemperatureGroup {
                 "Setting",
                 dictionary_table([LabeledValue::new("Temperature", self.warmth.readout_cell())]),
             )]),
-            ColorTemperatureTarget::Automatic => {
-                self.auto.hover_card(ServiceReadiness::Serving, clock)
-            }
+            ColorTemperatureTarget::Automatic => self.auto.hover_card(ServiceReadiness::Serving),
         }
     }
 
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-        clock: Clock,
     ) -> WidgetGroupContent<'a, ColorTemperatureInteraction> {
-        let locale = config.calendar.locale;
         let gamma_available = self.gamma.get().is_some();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::ColorTemperature,
@@ -270,23 +266,16 @@ impl ColorTemperatureGroup {
             ColorTemperatureInteraction::Expansion,
             [
                 gamma_available.then(|| {
-                    GroupItem::slider(
-                        &self.warmth,
-                        config,
-                        clock,
-                        ColorTemperatureInteraction::Warmth,
-                    )
-                    .previewed_on_handle()
+                    GroupItem::slider(&self.warmth, config, ColorTemperatureInteraction::Warmth)
+                        .previewed_on_handle()
                 }),
                 gamma_available.then(|| {
-                    GroupItem::slider(&self.dim, config, clock, ColorTemperatureInteraction::Dim)
+                    GroupItem::slider(&self.dim, config, ColorTemperatureInteraction::Dim)
                 }),
                 self.auto.group_item(
                     ServiceReadiness::Serving,
                     ColorTemperatureTarget::Automatic,
                     ColorTemperatureInteraction::AutoPressed,
-                    clock,
-                    locale,
                 ),
             ]
             .into_iter()

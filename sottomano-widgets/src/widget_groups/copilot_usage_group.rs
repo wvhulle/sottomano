@@ -1,6 +1,17 @@
 use chrono::Locale;
 
-use crate::group_items::reading_display_state::ReadingDisplayState;
+use crate::{
+    group_items::{
+        group_item_reading::GroupItemReading,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{ReadingRow, reading_hover_card},
+    },
+    widget_groups::copilot_usage_group::{
+        copilot_cli_monthly_spend::COPILOT_CCUSAGE_FALLBACK_GLYPH,
+        copilot_free_quota_count::COPILOT_FREE_FALLBACK_GLYPH,
+        copilot_quota_gauge::COPILOT_METERED_FALLBACK_GLYPH,
+    },
+};
 mod copilot_cli_monthly_spend;
 mod copilot_free_quota_count;
 mod copilot_quota_gauge;
@@ -22,7 +33,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    group_items::group_item::GroupItem,
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
@@ -152,28 +163,36 @@ impl CopilotUsageGroup {
     #[must_use]
     pub fn hover_card_for(&self, target: CopilotUsageTarget, clock: Clock) -> Vec<Section> {
         match target {
-            CopilotUsageTarget::Metered => self.metered.hover_card(clock),
-            CopilotUsageTarget::Free => self.free.hover_card(clock),
-            CopilotUsageTarget::Cli => self.cli.hover_card(clock),
+            CopilotUsageTarget::Metered => self
+                .metered
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            CopilotUsageTarget::Free => self
+                .free
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            CopilotUsageTarget::Cli => self
+                .cli
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
             CopilotUsageTarget::MostUsedModel => {
                 let Some(ranking) = self.model_ranking() else {
                     return Vec::new();
                 };
                 self.cli
-                    .hover_card_with(MostUsedModel(ranking).hover_card(clock))
+                    .hover_card_with(reading_hover_card(MostUsedModel(ranking), clock))
             }
             CopilotUsageTarget::MostUsedModelSpend => {
                 let Some(ranking) = self.model_ranking() else {
                     return Vec::new();
                 };
                 self.cli
-                    .hover_card_with(MostUsedModelSpend(ranking).hover_card(clock))
+                    .hover_card_with(reading_hover_card(MostUsedModelSpend(ranking), clock))
             }
         }
     }
 
     fn model_ranking(&self) -> Option<ModelSpendRanking<'_, 1>> {
-        let cli = self.cli.visible_reading()?;
+        let cli = self
+            .cli
+            .visible_reading(GroupItemReading::panel_visibility)?;
         ModelSpendRanking::new(
             "ccusage, local Copilot CLI session data",
             [RankedSpan {
@@ -194,27 +213,37 @@ impl CopilotUsageGroup {
             identity,
             [
                 self.metered
-                    .group_item(CopilotUsageTarget::Metered, clock, locale)
+                    .group_item(
+                        COPILOT_METERED_FALLBACK_GLYPH,
+                        |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                        CopilotUsageTarget::Metered,
+                        clock,
+                    )
                     .map(GroupItem::previewed_on_handle),
-                self.free
-                    .group_item(CopilotUsageTarget::Free, clock, locale),
-                self.cli.group_item(CopilotUsageTarget::Cli, clock, locale),
+                self.free.group_item(
+                    COPILOT_FREE_FALLBACK_GLYPH,
+                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    CopilotUsageTarget::Free,
+                    clock,
+                ),
+                self.cli.group_item(
+                    COPILOT_CCUSAGE_FALLBACK_GLYPH,
+                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    CopilotUsageTarget::Cli,
+                    clock,
+                ),
             ]
             .into_iter()
             .flatten()
             .chain(self.model_ranking().into_iter().flat_map(|ranking| {
                 [
                     GroupItem::reading(
-                        MostUsedModel(ranking),
+                        ReadingRow::evaluated(MostUsedModel(ranking), clock, locale),
                         CopilotUsageTarget::MostUsedModel,
-                        clock,
-                        locale,
                     ),
                     GroupItem::reading(
-                        MostUsedModelSpend(ranking),
+                        ReadingRow::evaluated(MostUsedModelSpend(ranking), clock, locale),
                         CopilotUsageTarget::MostUsedModelSpend,
-                        clock,
-                        locale,
                     ),
                 ]
             })),

@@ -6,6 +6,7 @@ pub mod group_item_reading;
 pub mod item_toggle_switch;
 pub mod offline_internet_reading;
 pub mod reading_display_state;
+pub mod reading_row;
 pub mod slider_control;
 pub mod source_reading;
 pub mod toggle_control;

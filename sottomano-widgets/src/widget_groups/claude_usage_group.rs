@@ -1,6 +1,17 @@
 use chrono::Locale;
 
-use crate::group_items::reading_display_state::ReadingDisplayState;
+use crate::{
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::{ReadingRow, reading_hover_card},
+    },
+    widget_groups::claude_usage_group::{
+        claude_code_billing_block::CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH,
+        claude_code_period_spend::CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH,
+        claude_enterprise_credit_spend::CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH,
+        claude_usage_window_gauge::CLAUDE_USAGE_WINDOWS_FALLBACK_GLYPH,
+    },
+};
 mod claude_code_billing_block;
 mod claude_code_period_spend;
 mod claude_enterprise_credit_spend;
@@ -27,7 +38,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    group_items::group_item::GroupItem,
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
@@ -251,27 +262,35 @@ impl ClaudeUsageGroup {
     #[must_use]
     pub fn hover_card_for(&self, target: ClaudeUsageTarget, clock: Clock) -> Vec<Section> {
         match target {
-            ClaudeUsageTarget::UsageWindows => self.usage_windows.hover_card(clock),
+            ClaudeUsageTarget::UsageWindows => self
+                .usage_windows
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
             ClaudeUsageTarget::EnterpriseSpend => {
-                let mut sections = self.enterprise_spend.hover_card(clock);
+                let mut sections = self
+                    .enterprise_spend
+                    .sections_described_by(|snapshot| reading_hover_card(snapshot, clock));
                 sections.extend(self.organization.sections(clock));
                 sections
             }
-            ClaudeUsageTarget::CcusagePeriods => self.ccusage_periods.hover_card(clock),
-            ClaudeUsageTarget::CcusageBlock => self.ccusage_block.hover_card(clock),
+            ClaudeUsageTarget::CcusagePeriods => self
+                .ccusage_periods
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            ClaudeUsageTarget::CcusageBlock => self
+                .ccusage_block
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
             ClaudeUsageTarget::MostUsedModel => {
                 let Some(ranking) = self.model_ranking() else {
                     return Vec::new();
                 };
                 self.ccusage_models
-                    .hover_card_with(MostUsedModel(ranking).hover_card(clock))
+                    .hover_card_with(reading_hover_card(MostUsedModel(ranking), clock))
             }
             ClaudeUsageTarget::MostUsedModelSpend => {
                 let Some(ranking) = self.billed_model_ranking() else {
                     return Vec::new();
                 };
                 self.ccusage_models
-                    .hover_card_with(MostUsedModelSpend(ranking).hover_card(clock))
+                    .hover_card_with(reading_hover_card(MostUsedModelSpend(ranking), clock))
             }
         }
     }
@@ -315,31 +334,44 @@ impl ClaudeUsageGroup {
             identity,
             [
                 self.usage_windows
-                    .group_item(ClaudeUsageTarget::UsageWindows, clock, locale)
+                    .group_item(
+                        CLAUDE_USAGE_WINDOWS_FALLBACK_GLYPH,
+                        |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                        ClaudeUsageTarget::UsageWindows,
+                        clock,
+                    )
                     .map(GroupItem::previewed_on_handle),
-                self.enterprise_spend
-                    .group_item(ClaudeUsageTarget::EnterpriseSpend, clock, locale),
-                self.ccusage_periods
-                    .group_item(ClaudeUsageTarget::CcusagePeriods, clock, locale),
-                self.ccusage_block
-                    .group_item(ClaudeUsageTarget::CcusageBlock, clock, locale),
+                self.enterprise_spend.group_item(
+                    CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH,
+                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    ClaudeUsageTarget::EnterpriseSpend,
+                    clock,
+                ),
+                self.ccusage_periods.group_item(
+                    CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH,
+                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    ClaudeUsageTarget::CcusagePeriods,
+                    clock,
+                ),
+                self.ccusage_block.group_item(
+                    CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH,
+                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    ClaudeUsageTarget::CcusageBlock,
+                    clock,
+                ),
             ]
             .into_iter()
             .flatten()
             .chain(self.model_ranking().map(|ranking| {
                 GroupItem::reading(
-                    MostUsedModel(ranking),
+                    ReadingRow::evaluated(MostUsedModel(ranking), clock, locale),
                     ClaudeUsageTarget::MostUsedModel,
-                    clock,
-                    locale,
                 )
             }))
             .chain(self.billed_model_ranking().map(|ranking| {
                 GroupItem::reading(
-                    MostUsedModelSpend(ranking),
+                    ReadingRow::evaluated(MostUsedModelSpend(ranking), clock, locale),
                     ClaudeUsageTarget::MostUsedModelSpend,
-                    clock,
-                    locale,
                 )
             })),
         )

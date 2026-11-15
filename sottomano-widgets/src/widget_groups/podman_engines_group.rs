@@ -23,7 +23,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
     },
     hover_cards::{
         HoverTarget,
@@ -289,13 +289,15 @@ impl PodmanEnginesGroup {
                 ));
             } else if let Some(read_failure) = reading.fetch_failure() {
                 failure_rows.push(GroupItem::reading(
-                    UnreadableEngineRow {
-                        engine,
-                        read_failure,
-                    },
+                    ReadingRow::evaluated(
+                        UnreadableEngineRow {
+                            engine,
+                            read_failure,
+                        },
+                        clock,
+                        locale,
+                    ),
                     PodmanEngineTarget::from(engine),
-                    clock,
-                    locale,
                 ));
             }
         }

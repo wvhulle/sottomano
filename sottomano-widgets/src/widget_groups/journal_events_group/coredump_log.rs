@@ -8,8 +8,9 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::{GroupItemReading, PanelVisibility},
+        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
@@ -54,15 +55,13 @@ impl JournalScopeGroup {
         clock: Clock,
     ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
         let locale = config.calendar.locale;
-        let coredumps = self.coredumps.display()?;
+        let coredumps = self.coredumps.reading_row(
+            IconGlyph::default(),
+            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+            clock,
+        )?;
         Some(
-            GroupItem::reading(
-                coredumps,
-                JournalTarget::Coredumps(self.unit_scope),
-                clock,
-                locale,
-            )
-            .on_press(
+            GroupItem::reading(coredumps, JournalTarget::Coredumps(self.unit_scope)).on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
                 JournalEventsInteraction::OpenLog(TerminalCommand::journal(
                     config,

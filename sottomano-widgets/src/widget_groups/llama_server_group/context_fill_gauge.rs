@@ -71,10 +71,6 @@ impl GroupItemReading for ContextFill<'_> {
         Phosphor::Scroll(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> IconGlyph {
-        Phosphor::Scroll(Weight::Regular).into()
-    }
-
     fn gauge(&self) -> Option<Ratio> {
         Some(self.fullest)
     }

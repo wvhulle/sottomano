@@ -18,6 +18,9 @@ use crate::{
     },
 };
 
+pub(crate) const GPU_SNAPSHOT_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::Phosphor(Phosphor::GraphicsCard(Weight::Regular));
+
 impl GroupItemReading for GpuSnapshot {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
@@ -26,11 +29,7 @@ impl GroupItemReading for GpuSnapshot {
     fn icon(&self) -> IconGlyph {
         self.vendor
             .vendor_logo()
-            .map_or_else(Self::fallback_icon, IconGlyph::from)
-    }
-
-    fn fallback_icon() -> IconGlyph {
-        Phosphor::GraphicsCard(Weight::Regular).into()
+            .map_or(GPU_SNAPSHOT_FALLBACK_GLYPH, IconGlyph::from)
     }
 
     fn gauge(&self) -> Option<Ratio> {

@@ -414,13 +414,9 @@ impl GroupItemReading for RainForecast<'_> {
                         .strength(model.current.intensity)
                         .glyph(),
                 ),
-                None => Self::fallback_icon(),
+                None => RAIN_FALLBACK_GLYPH,
             },
         }
-    }
-
-    fn fallback_icon() -> IconGlyph {
-        Rain::fallback_icon()
     }
 
     fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
@@ -564,10 +560,6 @@ impl GroupItemReading for RadarRainForecast<'_> {
             .glyph()
     }
 
-    fn fallback_icon() -> IconGlyph {
-        Rain::fallback_icon()
-    }
-
     fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
         self.rain.label(clock, locale)
     }
@@ -611,6 +603,8 @@ impl GroupItemReading for RadarRainForecast<'_> {
     }
 }
 
+pub(crate) const RAIN_FALLBACK_GLYPH: IconGlyph = IconGlyph::WeatherIcon(WeatherIcon::Raindrop);
+
 impl GroupItemReading for Rain {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
@@ -618,10 +612,6 @@ impl GroupItemReading for Rain {
 
     fn icon(&self) -> IconGlyph {
         RadarRainForecast::with_default_alerts(self).icon()
-    }
-
-    fn fallback_icon() -> IconGlyph {
-        WeatherIcon::Raindrop.into()
     }
 
     fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
@@ -649,6 +639,9 @@ impl GroupItemReading for Rain {
     }
 }
 
+pub(crate) const PRECIPITATION_MODEL_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::WeatherIcon(WeatherIcon::Sprinkle);
+
 impl GroupItemReading for PrecipitationModel {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
@@ -656,10 +649,6 @@ impl GroupItemReading for PrecipitationModel {
 
     fn icon(&self) -> IconGlyph {
         RainForecast::modelled_with_default_alerts(self).icon()
-    }
-
-    fn fallback_icon() -> IconGlyph {
-        WeatherIcon::Sprinkle.into()
     }
 
     fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
@@ -686,7 +675,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_items::{group_item::GroupItem, group_item_reading::PanelVisibility},
+        group_items::{
+            group_item::GroupItem,
+            reading_row::{PanelVisibility, ReadingRow},
+        },
         hover_cards::HoverTarget,
         widget_groups::weather_group::{WeatherTarget, rain_forecast_ranking::RADAR_FRAME_LENGTH},
         widgets::keyed_record_table::RecordCells,
@@ -839,10 +831,12 @@ mod tests {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 3.0]);
         let rain_item: GroupItem<'_, u8> = GroupItem::reading(
-            RadarRainForecast::with_default_alerts(&rain),
+            ReadingRow::evaluated(
+                RadarRainForecast::with_default_alerts(&rain),
+                clock,
+                Locale::default(),
+            ),
             HoverTarget::Weather(WeatherTarget::Rain),
-            clock,
-            Locale::default(),
         );
         let toast = rain_item
             .toast_requests(0, Locale::default(), clock)

@@ -75,10 +75,6 @@ impl GroupItemReading for InferenceHardware<'_> {
         }
     }
 
-    fn fallback_icon() -> IconGlyph {
-        Phosphor::Cpu(Weight::Regular).into()
-    }
-
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
         ReadingDisplayState::On
     }

@@ -24,7 +24,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
@@ -388,10 +388,8 @@ impl DockerEnginesGroup {
                 };
                 with_container_switch(
                     GroupItem::reading(
-                        ListedContainerRow { engine, listed },
+                        ReadingRow::evaluated(ListedContainerRow { engine, listed }, clock, locale),
                         container_hover_target(target.clone()),
-                        clock,
-                        locale,
                     ),
                     listed.run_state,
                     target,
@@ -430,13 +428,15 @@ impl DockerEnginesGroup {
                 ));
             } else if let Some(read_failure) = self.readout_failure(engine) {
                 failure_rows.push(GroupItem::reading(
-                    UnreadableEngineRow {
-                        engine,
-                        read_failure,
-                    },
+                    ReadingRow::evaluated(
+                        UnreadableEngineRow {
+                            engine,
+                            read_failure,
+                        },
+                        clock,
+                        locale,
+                    ),
                     DockerEngineTarget::from(engine),
-                    clock,
-                    locale,
                 ));
             } else {
                 running_rows.extend(self.listed_rows(engine, clock, locale));

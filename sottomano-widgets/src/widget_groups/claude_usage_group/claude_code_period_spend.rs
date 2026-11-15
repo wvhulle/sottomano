@@ -25,16 +25,15 @@ use crate::{
     },
 };
 
+pub(crate) const CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::Phosphor(Phosphor::CalendarDots(Weight::Regular));
+
 impl GroupItemReading for ClaudeCcusagePeriods {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
-        Phosphor::CalendarDots(Weight::Regular).into()
-    }
-
-    fn fallback_icon() -> IconGlyph {
         Phosphor::CalendarDots(Weight::Regular).into()
     }
 

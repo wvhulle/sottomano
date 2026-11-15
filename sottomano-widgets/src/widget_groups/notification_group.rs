@@ -10,6 +10,7 @@ use crate::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::{
@@ -180,12 +181,13 @@ impl NotificationGroup {
             &self.expansion,
             NotificationGroupMessage::Expansion,
             [
-                GroupItem::reading(status, NotificationTarget::Status, clock, locale),
                 GroupItem::reading(
-                    DoNotDisturbStatus { quiet_phase },
+                    ReadingRow::evaluated(status, clock, locale),
+                    NotificationTarget::Status,
+                ),
+                GroupItem::reading(
+                    ReadingRow::evaluated(DoNotDisturbStatus { quiet_phase }, clock, locale),
                     QuietScheduleTarget::DoNotDisturb,
-                    clock,
-                    locale,
                 )
                 .on_switch_press(
                     quiet_phase,
@@ -199,8 +201,6 @@ impl NotificationGroup {
                     sound_toggle(self.alert_sound),
                     NotificationTarget::Sound,
                     NotificationGroupMessage::ToggleSound,
-                    clock,
-                    locale,
                 ),
             ],
         )

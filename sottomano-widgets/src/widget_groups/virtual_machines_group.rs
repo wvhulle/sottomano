@@ -28,7 +28,8 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
+        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
+        toggle_control::SwitchPosition,
     },
     hover_cards::{
         HoverTarget,
@@ -401,10 +402,8 @@ impl VirtualMachinesGroup {
             .unwrap_or_default();
         let rows = machines.iter().map(|machine| {
             let row = GroupItem::reading(
-                VirtualMachineRow { machine },
+                ReadingRow::evaluated(VirtualMachineRow { machine }, clock, locale),
                 VirtualMachineTarget::RunningProcess { pid: machine.pid },
-                clock,
-                locale,
             );
             let row = match machine.launch.display {
                 GuestDisplay::Windowed => row.on_right_press(
@@ -433,12 +432,10 @@ impl VirtualMachinesGroup {
             .unwrap_or_default();
         let inactive_rows = inactive_domains.iter().map(|domain_name| {
             GroupItem::reading(
-                InactiveDomainRow { domain_name },
+                ReadingRow::evaluated(InactiveDomainRow { domain_name }, clock, locale),
                 VirtualMachineTarget::InactiveDomain {
                     domain_name: Cow::Owned(domain_name.clone()),
                 },
-                clock,
-                locale,
             )
             .on_switch_press(
                 SwitchPosition::Off,

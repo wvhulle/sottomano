@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 
-use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
@@ -15,8 +14,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
+        group_item::GroupItem, reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
     },
     hover_cards::{HoverTarget, hover_card_body::Section},
     widgets::{
@@ -116,30 +114,22 @@ impl IconToggle {
     }
 
     #[must_use]
-    pub fn switch_hover_card(&self, clock: Clock) -> Vec<Section> {
-        self.hover_card(clock).into_iter().collect()
+    pub fn switch_hover_card(&self, _clock: Clock) -> Vec<Section> {
+        Vec::new()
+    }
+
+    #[must_use]
+    pub fn reading_row(self) -> ReadingRow<'static> {
+        ReadingRow::glyph_only(
+            self.name,
+            self.icon.with_weight(Weight::Regular).into(),
+            ReadingDisplayState::from(self.switch_position),
+            Box::new(|_| Vec::new()),
+        )
     }
 }
 
-impl GroupItemReading for IconToggle {
-    fn name(&self) -> Cow<'static, str> {
-        self.name.clone()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        self.icon.with_weight(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(self.switch_position)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![]
-    }
-}
-
-pub trait ToggleableSource: SnapshotSource + GroupItemReading {
+pub trait ToggleableSource: SnapshotSource {
     #[must_use]
     fn toggled_value(&self) -> Self;
     fn apply_toggle(&self) -> impl Future<Output = Result<(), Self::Error>> + Send + 'static;
@@ -207,31 +197,25 @@ impl<S: ToggleableSource> ToggleControl<S> {
         self.reading.apply_command(command_outcome);
     }
 
-    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
-        match self.reading.get() {
-            Some(_) => self.reading.hover_card_with(vec![]),
-            None => self.reading.hover_card(clock),
-        }
+    pub fn hover_card(&self) -> Vec<Section> {
+        self.reading.hover_card_with(Vec::new())
     }
 
     pub fn snapshot(&self) -> Option<&S> {
         self.reading.get()
     }
 
-    pub fn reading(&self) -> Option<&dyn GroupItemReading> {
-        self.reading
-            .get()
-            .map(|display| display as &dyn GroupItemReading)
-    }
-
-    pub fn group_item<M: Clone + 'static>(
-        &self,
+    pub fn group_item<'s, M: Clone + 's>(
+        &'s self,
+        fallback_icon: IconGlyph,
+        describe: impl FnOnce(&'s S) -> ReadingRow<'s>,
         target: impl Into<HoverTarget>,
         on_press: M,
         clock: Clock,
-        locale: Locale,
-    ) -> Option<GroupItem<'_, M>> {
-        let shown = self.reading.group_item(target, clock, locale)?;
+    ) -> Option<GroupItem<'s, M>> {
+        let shown = self
+            .reading
+            .group_item(fallback_icon, describe, target, clock)?;
         Some(match self.reading.get() {
             Some(current) => shown.on_switch_press(
                 current.switch_position(),
@@ -245,6 +229,7 @@ impl<S: ToggleableSource> ToggleControl<S> {
 
 #[cfg(test)]
 mod tests {
+    use chrono::Locale;
     use sottomano_desktop_sources::{
         cpu_memory_compute::amd_x3d_cache_preference::X3dCachePreference,
         system_protocol_clients::sysfs_attribute_reads::FileReadError,
@@ -278,24 +263,29 @@ mod tests {
 
         let _ = control.update(ToggleMessage::Refused(refused_write()), Clock::real());
 
-        assert!(control.reading().is_none());
+        assert!(control.snapshot().is_none());
         let shown = control
             .reading
-            .display()
+            .reading_row(
+                IconGlyph::default(),
+                |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                clock,
+            )
             .expect("failed reading still shows");
-        assert_eq!(shown.state(Clock::real()), ReadingDisplayState::Failed);
+        assert_eq!(shown.shown_state(), ReadingDisplayState::Failed);
         assert!(
             control
                 .group_item(
+                    IconGlyph::default(),
+                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
                     HoverTarget::Compute(ComputeTarget::X3dCachePreference),
                     (),
                     clock,
-                    locale
                 )
                 .is_some()
         );
         let shown_sections: Vec<(String, SectionSource)> = control
-            .hover_card(Clock::real())
+            .hover_card()
             .iter()
             .map(|section| (section.title().text().to_owned(), section.source()))
             .collect();

@@ -11,8 +11,9 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::{GroupItemReading, PanelVisibility},
+        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
@@ -39,20 +40,23 @@ impl JournalScopeGroup {
     ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
         let locale = config.calendar.locale;
         let target = JournalTarget::ServiceErrors(self.unit_scope);
-        let Some(service_errors) = self.service_errors.visible_reading() else {
-            return self
-                .service_errors
-                .failure()
-                .map(|failure| GroupItem::reading(failure, target, clock, locale));
+        let Some(service_errors) = self
+            .service_errors
+            .visible_reading(GroupItemReading::panel_visibility)
+        else {
+            return self.service_errors.failure().map(|failure| {
+                GroupItem::reading(failure.reading_row(IconGlyph::default()), target)
+            });
         };
         Some(
-            GroupItem::reading(service_errors, target, clock, locale).on_press(
-                TerminalCommand::JOURNAL_PRESS_HINT,
-                JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                    config,
-                    service_errors.follow_log_args(),
-                )),
-            ),
+            GroupItem::reading(ReadingRow::evaluated(service_errors, clock, locale), target)
+                .on_press(
+                    TerminalCommand::JOURNAL_PRESS_HINT,
+                    JournalEventsInteraction::OpenLog(TerminalCommand::journal(
+                        config,
+                        service_errors.follow_log_args(),
+                    )),
+                ),
         )
     }
 }

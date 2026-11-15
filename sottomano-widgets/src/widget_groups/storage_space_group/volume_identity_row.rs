@@ -7,7 +7,7 @@ use sottomano_desktop_sources::disk_storage::{
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::{GroupItemReading, PanelVisibility},
+    group_items::{group_item_reading::GroupItemReading, reading_row::PanelVisibility},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,

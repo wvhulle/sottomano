@@ -3,7 +3,9 @@ use std::borrow::Cow;
 use iced::{Subscription, Task};
 
 use crate::{
-    clock::Clock, hover_cards::hover_card_body::dictionary_table,
+    clock::Clock,
+    group_items::reading_row::{ReadingRow, reading_hover_card},
+    hover_cards::hover_card_body::dictionary_table,
     widget_groups::widget_group_identity::WidgetGroupFamily,
 };
 
@@ -235,7 +237,9 @@ impl SystemdManagerGroup {
     #[must_use]
     pub fn hover_card_for(&self, target: &SystemdTarget, clock: Clock) -> Vec<Section> {
         match target {
-            SystemdTarget::BootPhases => self.boot.hover_card(clock),
+            SystemdTarget::BootPhases => self
+                .boot
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
             SystemdTarget::StartupUnits => self
                 .boot
                 .get()
@@ -244,11 +248,21 @@ impl SystemdManagerGroup {
                         .hover_card_with(StartupUnits { timeline }.hover_card(clock))
                 })
                 .unwrap_or_default(),
-            SystemdTarget::FailedSystemUnits => self.failed_system.hover_card(clock),
-            SystemdTarget::FailedUserUnits => self.failed_user.hover_card(clock),
-            SystemdTarget::SlowSystemJobs => self.slow_system_jobs.hover_card(clock),
-            SystemdTarget::SlowUserJobs => self.slow_user_jobs.hover_card(clock),
-            SystemdTarget::LastShutdown => self.last_shutdown.hover_card(clock),
+            SystemdTarget::FailedSystemUnits => self
+                .failed_system
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            SystemdTarget::FailedUserUnits => self
+                .failed_user
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            SystemdTarget::SlowSystemJobs => self
+                .slow_system_jobs
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            SystemdTarget::SlowUserJobs => self
+                .slow_user_jobs
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            SystemdTarget::LastShutdown => self
+                .last_shutdown
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
             SystemdTarget::FailedSystemUnit(_)
             | SystemdTarget::FailedUserUnit(_)
             | SystemdTarget::SlowSystemJob(_)
@@ -269,66 +283,84 @@ impl SystemdManagerGroup {
             SystemdManagerInteraction::Expansion,
             [
                 boot.map(|boot| {
-                    GroupItem::reading(boot, SystemdTarget::BootPhases, clock, locale)
-                        .previewed_on_handle()
+                    GroupItem::reading(
+                        ReadingRow::evaluated(boot, clock, locale),
+                        SystemdTarget::BootPhases,
+                    )
+                    .previewed_on_handle()
                 }),
                 boot.map(|timeline| {
                     GroupItem::reading(
-                        StartupUnits { timeline },
+                        ReadingRow::evaluated(StartupUnits { timeline }, clock, locale),
                         SystemdTarget::StartupUnits,
-                        clock,
-                        locale,
                     )
                 }),
                 self.slow_system_jobs
-                    .visible_reading()
+                    .visible_reading(GroupItemReading::panel_visibility)
                     .map(|jobs| slow_jobs_item(jobs, config, clock))
                     .or_else(|| {
                         self.slow_system_jobs.group_item(
+                            IconGlyph::default(),
+                            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
                             SystemdTarget::SlowSystemJobs,
                             clock,
-                            locale,
                         )
                     }),
                 self.slow_user_jobs
-                    .visible_reading()
+                    .visible_reading(GroupItemReading::panel_visibility)
                     .map(|jobs| slow_jobs_item(jobs, config, clock))
                     .or_else(|| {
-                        self.slow_user_jobs
-                            .group_item(SystemdTarget::SlowUserJobs, clock, locale)
+                        self.slow_user_jobs.group_item(
+                            IconGlyph::default(),
+                            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                            SystemdTarget::SlowUserJobs,
+                            clock,
+                        )
                     }),
                 self.failed_system
-                    .visible_reading()
+                    .visible_reading(GroupItemReading::panel_visibility)
                     .map(|failed| failed_units_item(failed, config, clock))
                     .or_else(|| {
                         self.failed_system.group_item(
+                            IconGlyph::default(),
+                            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
                             SystemdTarget::FailedSystemUnits,
                             clock,
-                            locale,
                         )
                     }),
                 self.failed_user
-                    .visible_reading()
+                    .visible_reading(GroupItemReading::panel_visibility)
                     .map(|failed| failed_units_item(failed, config, clock))
                     .or_else(|| {
-                        self.failed_user
-                            .group_item(SystemdTarget::FailedUserUnits, clock, locale)
+                        self.failed_user.group_item(
+                            IconGlyph::default(),
+                            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                            SystemdTarget::FailedUserUnits,
+                            clock,
+                        )
                     }),
                 self.last_shutdown
                     .get()
                     .map(|last| {
-                        GroupItem::reading(last, SystemdTarget::LastShutdown, clock, locale)
-                            .on_press(
-                                TerminalCommand::JOURNAL_PRESS_HINT,
-                                SystemdManagerInteraction::OpenLog(TerminalCommand::journal(
-                                    config,
-                                    last.follow_log_args(),
-                                )),
-                            )
+                        GroupItem::reading(
+                            ReadingRow::evaluated(last, clock, locale),
+                            SystemdTarget::LastShutdown,
+                        )
+                        .on_press(
+                            TerminalCommand::JOURNAL_PRESS_HINT,
+                            SystemdManagerInteraction::OpenLog(TerminalCommand::journal(
+                                config,
+                                last.follow_log_args(),
+                            )),
+                        )
                     })
                     .or_else(|| {
-                        self.last_shutdown
-                            .group_item(SystemdTarget::LastShutdown, clock, locale)
+                        self.last_shutdown.group_item(
+                            IconGlyph::default(),
+                            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                            SystemdTarget::LastShutdown,
+                            clock,
+                        )
                     }),
             ]
             .into_iter()
@@ -340,20 +372,20 @@ impl SystemdManagerGroup {
         })
     }
 
-    fn current_health(&self) -> [Option<&dyn GroupItemReading>; 4] {
+    fn current_health_states(&self, clock: Clock) -> [Option<ReadingDisplayState>; 4] {
         [
             self.slow_system_jobs
-                .visible_reading()
-                .map(|visible_reading| visible_reading as &dyn GroupItemReading),
+                .visible_reading(GroupItemReading::panel_visibility)
+                .map(|jobs| jobs.state(clock)),
             self.slow_user_jobs
-                .visible_reading()
-                .map(|visible_reading| visible_reading as &dyn GroupItemReading),
+                .visible_reading(GroupItemReading::panel_visibility)
+                .map(|jobs| jobs.state(clock)),
             self.failed_system
-                .visible_reading()
-                .map(|visible_reading| visible_reading as &dyn GroupItemReading),
+                .visible_reading(GroupItemReading::panel_visibility)
+                .map(|failed| failed.state(clock)),
             self.failed_user
-                .visible_reading()
-                .map(|visible_reading| visible_reading as &dyn GroupItemReading),
+                .visible_reading(GroupItemReading::panel_visibility)
+                .map(|failed| failed.state(clock)),
         ]
     }
 }
@@ -371,10 +403,10 @@ impl GroupItemReading for SystemdManagerGroup {
         if self.boot.get().is_none() {
             return ReadingDisplayState::Pending;
         }
-        self.current_health()
+        self.current_health_states(clock)
             .into_iter()
             .flatten()
-            .map(|reading| reading.state(clock).severity())
+            .map(ReadingDisplayState::severity)
             .max()
             .unwrap_or_default()
             .into()
@@ -394,10 +426,18 @@ impl GroupItemReading for SystemdManagerGroup {
             "Health",
             dictionary_table(
                 [
-                    self.slow_system_jobs.visible_reading().map(slow_jobs_count),
-                    self.slow_user_jobs.visible_reading().map(slow_jobs_count),
-                    self.failed_system.visible_reading().map(failed_units_count),
-                    self.failed_user.visible_reading().map(failed_units_count),
+                    self.slow_system_jobs
+                        .visible_reading(GroupItemReading::panel_visibility)
+                        .map(slow_jobs_count),
+                    self.slow_user_jobs
+                        .visible_reading(GroupItemReading::panel_visibility)
+                        .map(slow_jobs_count),
+                    self.failed_system
+                        .visible_reading(GroupItemReading::panel_visibility)
+                        .map(failed_units_count),
+                    self.failed_user
+                        .visible_reading(GroupItemReading::panel_visibility)
+                        .map(failed_units_count),
                 ]
                 .into_iter()
                 .flatten(),

@@ -14,6 +14,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
     },
     hover_cards::{
         HoverTarget,
@@ -163,8 +164,6 @@ impl ContainerFamily for FlatpakFamily {
     type Detail = FamilyDetails<FlatpakSandbox>;
     type Target = FlatpakSandboxTarget;
     type PowerRequest = String;
-    type ListingRow<'a> = FlatpakSandboxListingRow<'a>;
-    type DetailRow<'a> = FlatpakSandboxRow<'a>;
 
     const FAMILY: WidgetGroupFamily = WidgetGroupFamily::FlatpakSandboxes;
     const STOP_HINT: &'static str = "quit the app";
@@ -180,7 +179,9 @@ impl ContainerFamily for FlatpakFamily {
 
     fn listing_rows(
         listings: &FamilyListings<FlatpakSandboxListing>,
-    ) -> Vec<FamilyRow<Self, FlatpakSandboxListingRow<'_>>> {
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<FamilyRow<'_, Self>> {
         listings
             .listings
             .iter()
@@ -188,7 +189,7 @@ impl ContainerFamily for FlatpakFamily {
                 target: FlatpakSandboxTarget {
                     instance_id: Cow::Owned(listing.instance_id.clone()),
                 },
-                reading: FlatpakSandboxListingRow { listing },
+                reading: ReadingRow::evaluated(FlatpakSandboxListingRow { listing }, clock, locale),
                 power: RowPower::Stoppable(listing.instance_id.clone()),
             })
             .collect()
@@ -196,7 +197,9 @@ impl ContainerFamily for FlatpakFamily {
 
     fn detail_rows(
         detail: &FamilyDetails<FlatpakSandbox>,
-    ) -> Vec<FamilyRow<Self, FlatpakSandboxRow<'_>>> {
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<FamilyRow<'_, Self>> {
         detail
             .details
             .iter()
@@ -204,7 +207,7 @@ impl ContainerFamily for FlatpakFamily {
                 target: FlatpakSandboxTarget {
                     instance_id: Cow::Owned(sandbox.listing.instance_id.clone()),
                 },
-                reading: FlatpakSandboxRow { sandbox },
+                reading: ReadingRow::evaluated(FlatpakSandboxRow { sandbox }, clock, locale),
                 power: RowPower::Stoppable(sandbox.listing.instance_id.clone()),
             })
             .collect()

@@ -59,6 +59,9 @@ impl MapService {
     }
 }
 
+pub(crate) const LOCATION_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::Phosphor(Phosphor::MapPin(Weight::Regular));
+
 impl GroupItemReading for Location {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
@@ -70,10 +73,6 @@ impl GroupItemReading for Location {
             FixOrigin::Pinned => Phosphor::PushPin(Weight::Regular).into(),
             FixOrigin::Estimated(_) => Phosphor::MapPin(Weight::Regular).into(),
         }
-    }
-
-    fn fallback_icon() -> IconGlyph {
-        Phosphor::MapPin(Weight::Regular).into()
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {

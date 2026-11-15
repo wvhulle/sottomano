@@ -21,16 +21,15 @@ use crate::{
     },
 };
 
+pub(crate) const COPILOT_FREE_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::Phosphor(Phosphor::ChatCircleDots(Weight::Regular));
+
 impl GroupItemReading for CopilotFree {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
-        Phosphor::ChatCircleDots(Weight::Regular).into()
-    }
-
-    fn fallback_icon() -> IconGlyph {
         Phosphor::ChatCircleDots(Weight::Regular).into()
     }
 

@@ -58,6 +58,7 @@ use crate::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -691,10 +692,8 @@ impl GamepadGroup {
             &self.controller_discovery_expansion,
             GamepadInteraction::ControllerDiscoveryExpansion,
             [GroupItem::reading(
-                failure_reading,
+                ReadingRow::evaluated(failure_reading, clock, locale),
                 GamepadTarget::ControllerDiscovery,
-                clock,
-                locale,
             )],
         ))
     }
@@ -714,28 +713,22 @@ impl GamepadGroup {
             power: gamepad.power,
         };
         let face = GroupItem::reading(
-            self.face_reading(gamepad, link, bindings),
+            ReadingRow::evaluated(self.face_reading(gamepad, link, bindings), clock, locale),
             GamepadTarget::Controller { slot },
-            clock,
-            locale,
         );
         let shown_in_bluetooth_group = matches!(link.transport, GamepadTransport::Bluetooth { .. });
         let connection = (!shown_in_bluetooth_group).then(|| {
             GroupItem::reading(
-                self.link_reading(slot, link),
+                ReadingRow::evaluated(self.link_reading(slot, link), clock, locale),
                 GamepadTarget::Link { slot },
-                clock,
-                locale,
             )
         });
         let battery =
             (!shown_in_bluetooth_group && gamepad.power != GamepadPower::NoBattery).then(|| {
                 let battery_running_low = battery_reading.battery_level() == BatteryLevel::Low;
                 let battery_item = GroupItem::reading(
-                    battery_reading,
+                    ReadingRow::evaluated(battery_reading, clock, locale),
                     GamepadTarget::Battery { slot },
-                    clock,
-                    locale,
                 );
                 if battery_running_low {
                     battery_item.previewed_on_handle()
@@ -747,15 +740,11 @@ impl GamepadGroup {
             compositor_driving_toggle(self.controller_custody(slot)),
             GamepadTarget::CompositorDriving { slot },
             GamepadInteraction::ToggleCompositorDriving { slot },
-            clock,
-            locale,
         );
         let usb_cable = usb_cable_role(link.transport).map(|role| {
             let item = GroupItem::reading(
-                UsbCableReading { role },
+                ReadingRow::evaluated(UsbCableReading { role }, clock, locale),
                 GamepadTarget::UsbCable { slot },
-                clock,
-                locale,
             );
             match role {
                 UsbCableRole::ChargingOnly => item.on_press(

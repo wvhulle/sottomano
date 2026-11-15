@@ -5,7 +5,7 @@ use sottomano_desktop_sources::host_machine_identity::udev_hardware_identity::Cp
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::{GroupItemReading, PanelVisibility},
+    group_items::{group_item_reading::GroupItemReading, reading_row::PanelVisibility},
     hover_cards::hover_card_body::Section,
     widgets::{
         icon_glyph::IconGlyph,

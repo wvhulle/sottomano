@@ -152,15 +152,14 @@ impl DesktopShell {
                 .widget_groups
                 .audio_group
                 .hover_card_for(*kind, self.clock),
-            HoverTarget::Monitor(target) => {
-                self.widget_groups
-                    .monitor_group
-                    .hover_card_for(target, &self.outputs, self.clock)
-            }
+            HoverTarget::Monitor(target) => self
+                .widget_groups
+                .monitor_group
+                .hover_card_for(target, &self.outputs),
             HoverTarget::ColorTemperature(target) => self
                 .widget_groups
                 .color_temperature_group
-                .hover_card_for(*target, self.clock),
+                .hover_card_for(*target),
             HoverTarget::DarkMode(target) => self
                 .widget_groups
                 .dark_mode_group
@@ -256,11 +255,11 @@ impl DesktopShell {
             HoverTarget::LxcContainer(target) => self
                 .widget_groups
                 .lxc_containers_group
-                .hover_card_for(target, self.clock),
+                .hover_card_for(target, self.clock, self.config.calendar.locale),
             HoverTarget::FlatpakSandbox(target) => self
                 .widget_groups
                 .flatpak_sandboxes_group
-                .hover_card_for(target, self.clock),
+                .hover_card_for(target, self.clock, self.config.calendar.locale),
             HoverTarget::WaydroidContainer(target) => self
                 .widget_groups
                 .waydroid_container_group
@@ -268,15 +267,15 @@ impl DesktopShell {
             HoverTarget::VirtualBoxMachine(target) => self
                 .widget_groups
                 .virtualbox_machines_group
-                .hover_card_for(target, self.clock),
+                .hover_card_for(target, self.clock, self.config.calendar.locale),
             HoverTarget::VmwareMachine(target) => self
                 .widget_groups
                 .vmware_machines_group
-                .hover_card_for(target, self.clock),
+                .hover_card_for(target, self.clock, self.config.calendar.locale),
             HoverTarget::ApptainerContainer(target) => self
                 .widget_groups
                 .apptainer_containers_group
-                .hover_card_for(target, self.clock),
+                .hover_card_for(target, self.clock, self.config.calendar.locale),
             HoverTarget::DockerEngine(target) => self
                 .widget_groups
                 .docker_engines_group

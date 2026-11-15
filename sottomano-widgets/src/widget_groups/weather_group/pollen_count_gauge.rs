@@ -127,16 +127,15 @@ fn pollen_threshold(grains_per_cubic_metre: f64) -> Quantity {
     Quantity::measured(grains_per_cubic_metre, DisplayUnit::GrainsPerCubicMeter, 0)
 }
 
+pub(crate) const POLLEN_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::Phosphor(Phosphor::Flower(Weight::Regular));
+
 impl GroupItemReading for Pollen {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
-        Phosphor::Flower(Weight::Regular).into()
-    }
-
-    fn fallback_icon() -> IconGlyph {
         Phosphor::Flower(Weight::Regular).into()
     }
 

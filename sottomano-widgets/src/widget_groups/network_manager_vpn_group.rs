@@ -16,8 +16,10 @@ use crate::{
     background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
+        group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{ReadingRow, reading_hover_card},
+        toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{HoverTarget, hover_card_body::Section},
@@ -126,7 +128,7 @@ impl NetworkManagerVpnGroup {
             return Vec::new();
         };
         self.network_manager_vpns
-            .hover_card_with(vpn_connection.hover_card(clock))
+            .hover_card_with(reading_hover_card(vpn_connection, clock))
     }
 
     fn vpn_connection_item(
@@ -136,12 +138,10 @@ impl NetworkManagerVpnGroup {
     ) -> GroupItem<'_, NetworkManagerVpnInteraction> {
         let vpn_switch = vpn_connection.switch();
         GroupItem::reading(
-            vpn_connection,
+            ReadingRow::evaluated(vpn_connection, clock, locale),
             NetworkManagerVpnTarget {
                 connection_name: Cow::Owned(vpn_connection.name.clone()),
             },
-            clock,
-            locale,
         )
         .on_switch_press(
             match vpn_switch {

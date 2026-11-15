@@ -13,8 +13,8 @@ use uom::si::{f64::Ratio, ratio::percent};
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, PanelVisibility},
-        reading_display_state::ReadingDisplayState,
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::PanelVisibility,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -26,16 +26,15 @@ use crate::{
     },
 };
 
+pub(crate) const CLAUDE_USAGE_WINDOWS_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::Phosphor(Phosphor::Gauge(Weight::Regular));
+
 impl GroupItemReading for ClaudeUsageWindows {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
-        Phosphor::Gauge(Weight::Regular).into()
-    }
-
-    fn fallback_icon() -> IconGlyph {
         Phosphor::Gauge(Weight::Regular).into()
     }
 

@@ -24,7 +24,7 @@ impl DesktopShell {
                     .map(ShellInteraction::Weather),
                 self.widget_groups
                     .quiet_schedule_group
-                    .group_content(config, self.clock)
+                    .group_content(config)
                     .map(ShellInteraction::QuietSchedule),
                 self.widget_groups
                     .session_focus_group

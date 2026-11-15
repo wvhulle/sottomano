@@ -1,6 +1,6 @@
 use chrono::Locale;
 
-use crate::group_items::reading_display_state::ReadingDisplayState;
+use crate::group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow};
 mod account_face;
 mod compositor_face;
 mod desktop_services_face;
@@ -27,7 +27,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    group_items::{group_item::GroupItem, reading_row::reading_hover_card},
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         login_session_group::{
@@ -190,52 +190,42 @@ impl LoginSessionGroup {
         let items = self.identity.get().into_iter().flat_map(|identity| {
             [
                 GroupItem::reading(
-                    SeatFace {
-                        seat: &identity.seat,
-                        virtual_terminal: identity.virtual_terminal,
-                    },
+                    ReadingRow::evaluated(
+                        SeatFace {
+                            seat: &identity.seat,
+                            virtual_terminal: identity.virtual_terminal,
+                        },
+                        clock,
+                        locale,
+                    ),
                     LoginSessionTarget::Seat,
-                    clock,
-                    locale,
                 ),
                 GroupItem::reading(
-                    LoginFace { identity },
+                    ReadingRow::evaluated(LoginFace { identity }, clock, locale),
                     LoginSessionTarget::Login,
-                    clock,
-                    locale,
                 ),
                 GroupItem::reading(
-                    AccountFace { identity },
+                    ReadingRow::evaluated(AccountFace { identity }, clock, locale),
                     LoginSessionTarget::Account,
-                    clock,
-                    locale,
                 ),
                 GroupItem::reading(
-                    ServiceManagerFace,
+                    ReadingRow::evaluated(ServiceManagerFace, clock, locale),
                     LoginSessionTarget::ServiceManager,
-                    clock,
-                    locale,
                 ),
                 GroupItem::reading(
-                    CompositorFace { identity },
+                    ReadingRow::evaluated(CompositorFace { identity }, clock, locale),
                     LoginSessionTarget::Compositor,
-                    clock,
-                    locale,
                 ),
                 GroupItem::reading(
-                    DesktopServicesFace,
+                    ReadingRow::evaluated(DesktopServicesFace, clock, locale),
                     LoginSessionTarget::DesktopServices,
-                    clock,
-                    locale,
                 ),
             ]
         });
         let kernel = self.system.get().map(|system| {
             GroupItem::reading(
-                KernelFace { system },
+                ReadingRow::evaluated(KernelFace { system }, clock, locale),
                 LoginSessionTarget::Kernel,
-                clock,
-                locale,
             )
         });
         WidgetGroupContent::expandable(
@@ -269,7 +259,7 @@ impl LoginSessionGroup {
     #[must_use]
     pub fn hover_card_for(&self, target: LoginSessionTarget, clock: Clock) -> Vec<Section> {
         let session_face =
-            |face: &dyn GroupItemReading| self.identity.hover_card_with(face.hover_card(clock));
+            |face_sections: Vec<Section>| self.identity.hover_card_with(face_sections);
         let identity = self.identity.get();
         match target {
             LoginSessionTarget::Kernel => {
@@ -277,22 +267,25 @@ impl LoginSessionGroup {
                     return Vec::new();
                 };
                 self.system
-                    .hover_card_with(KernelFace { system }.hover_card(clock))
+                    .hover_card_with(reading_hover_card(KernelFace { system }, clock))
             }
             LoginSessionTarget::Seat => {
                 let Some(identity) = identity else {
                     return Vec::new();
                 };
-                session_face(&SeatFace {
-                    seat: &identity.seat,
-                    virtual_terminal: identity.virtual_terminal,
-                })
+                session_face(reading_hover_card(
+                    SeatFace {
+                        seat: &identity.seat,
+                        virtual_terminal: identity.virtual_terminal,
+                    },
+                    clock,
+                ))
             }
             LoginSessionTarget::Login => {
                 let Some(identity) = identity else {
                     return Vec::new();
                 };
-                let mut sections = session_face(&LoginFace { identity });
+                let mut sections = session_face(reading_hover_card(LoginFace { identity }, clock));
                 sections.extend(self.session.sections(clock));
                 sections
             }
@@ -300,23 +293,24 @@ impl LoginSessionGroup {
                 let Some(identity) = identity else {
                     return Vec::new();
                 };
-                session_face(&AccountFace { identity })
+                session_face(reading_hover_card(AccountFace { identity }, clock))
             }
             LoginSessionTarget::Compositor => {
                 let Some(identity) = identity else {
                     return Vec::new();
                 };
-                let mut sections = session_face(&CompositorFace { identity });
+                let mut sections =
+                    session_face(reading_hover_card(CompositorFace { identity }, clock));
                 sections.extend(self.graphical.sections(clock));
                 sections
             }
             LoginSessionTarget::ServiceManager => {
-                let mut sections = session_face(&ServiceManagerFace);
+                let mut sections = session_face(reading_hover_card(ServiceManagerFace, clock));
                 sections.extend(self.service_manager.sections(clock));
                 sections
             }
             LoginSessionTarget::DesktopServices => {
-                let mut sections = session_face(&DesktopServicesFace);
+                let mut sections = session_face(reading_hover_card(DesktopServicesFace, clock));
                 sections.extend(self.graphical_target.sections(clock));
                 sections
             }

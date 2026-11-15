@@ -4,10 +4,7 @@ use sottomano_desktop_sources::login_session_presence::idle_session_actions::Idl
 
 use crate::{
     clock::Clock,
-    group_items::{
-        group_item_reading::GroupItemReading,
-        slider_control::{Action, ControlMessage, SliderActivity, SliderControl},
-    },
+    group_items::slider_control::{Action, ControlMessage, SliderActivity, SliderControl},
     hover_cards::{
         HoverTarget,
         hover_card_body::{Section, dictionary_table},
@@ -56,11 +53,6 @@ impl IdleTimer {
             action,
             availability: ActionAvailability::Available,
         }
-    }
-
-    #[must_use]
-    pub fn reading(&self) -> &dyn GroupItemReading {
-        &self.control
     }
 
     #[must_use]

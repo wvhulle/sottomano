@@ -21,16 +21,15 @@ use crate::{
 const MISMATCH_REMEDY: &str =
     "build sottomano and notulist against the same notulist-client revision";
 
+pub(crate) const NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::Phosphor(Phosphor::LinkBreak(Weight::Regular));
+
 impl GroupItemReading for NotulistInterfaceMismatch {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
-        Phosphor::LinkBreak(Weight::Regular).into()
-    }
-
-    fn fallback_icon() -> IconGlyph {
         Phosphor::LinkBreak(Weight::Regular).into()
     }
 

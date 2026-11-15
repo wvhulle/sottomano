@@ -9,8 +9,8 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, PanelVisibility},
-        reading_display_state::ReadingDisplayState,
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::PanelVisibility,
     },
     hover_cards::hover_card_body::{
         Section, SectionTitle, SectionWidget, dictionary_table, headed_table,
@@ -30,16 +30,15 @@ const INTELLIGENCE_INDEX_DECIMALS: u8 = 1;
 const OPENROUTER_RANKINGS_URL: &str = "https://openrouter.ai/rankings";
 const OPENROUTER_TOOL_MODELS_URL: &str = "https://openrouter.ai/models?supported_parameters=tools";
 
+pub(crate) const OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::Phosphor(Phosphor::Ranking(Weight::Regular));
+
 impl GroupItemReading for OpenRouterModelRankings {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
-        Phosphor::Ranking(Weight::Regular).into()
-    }
-
-    fn fallback_icon() -> IconGlyph {
         Phosphor::Ranking(Weight::Regular).into()
     }
 

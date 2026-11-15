@@ -128,7 +128,7 @@ mod tests {
     use bytesize::ByteSize;
 
     use super::*;
-    use crate::group_items::group_item::reading_toast_severity;
+    use crate::group_items::{group_item::reading_toast_severity, reading_row::ReadingRow};
 
     fn growth_towards(
         exhaustion_projection: Option<Duration>,
@@ -160,10 +160,11 @@ mod tests {
     #[test]
     fn a_near_projection_toasts_from_warning() {
         assert_eq!(
-            reading_toast_severity(
-                &growth_towards(Some(Duration::from_secs(200)), Severity::Warning),
-                Clock::real()
-            ),
+            reading_toast_severity(&ReadingRow::evaluated(
+                growth_towards(Some(Duration::from_secs(200)), Severity::Warning),
+                Clock::real(),
+                Locale::default(),
+            )),
             Some(Severity::Warning)
         );
         assert_eq!(

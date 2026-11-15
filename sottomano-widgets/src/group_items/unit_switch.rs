@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 
-use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -17,8 +16,8 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::{
@@ -78,16 +77,8 @@ struct UnitSwitchReading {
     activity: UnitActivity,
 }
 
-impl GroupItemReading for UnitSwitchReading {
-    fn name(&self) -> Cow<'static, str> {
-        self.toggle.name()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        self.shown_glyph
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+impl UnitSwitchReading {
+    fn shown_state(&self) -> ReadingDisplayState {
         match self.activity {
             UnitActivity::Running => ReadingDisplayState::On,
             UnitActivity::Starting | UnitActivity::Stopping => ReadingDisplayState::Pending,
@@ -95,11 +86,21 @@ impl GroupItemReading for UnitSwitchReading {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    fn status_sections(activity: UnitActivity) -> Vec<Section> {
         vec![Section::new(
             "Status",
-            dictionary_table([LabeledValue::new("Service", activity_text(self.activity))]),
+            dictionary_table([LabeledValue::new("Service", activity_text(activity))]),
         )]
+    }
+
+    fn reading_row(&self) -> ReadingRow<'static> {
+        let activity = self.activity;
+        ReadingRow::glyph_only(
+            self.toggle.name.clone(),
+            self.shown_glyph,
+            self.shown_state(),
+            Box::new(move |_| Self::status_sections(activity)),
+        )
     }
 }
 
@@ -213,11 +214,12 @@ impl UnitSwitch {
     }
 
     #[must_use]
-    pub fn hover_card(&self, service_readiness: ServiceReadiness, clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, service_readiness: ServiceReadiness) -> Vec<Section> {
         let Some(reading) = self.reading(service_readiness) else {
             return Vec::new();
         };
-        self.active_state.hover_card_with(reading.hover_card(clock))
+        self.active_state
+            .hover_card_with(UnitSwitchReading::status_sections(reading.activity))
     }
 
     pub fn group_item<'a, M: 'a>(
@@ -225,16 +227,12 @@ impl UnitSwitch {
         service_readiness: ServiceReadiness,
         target: impl Into<HoverTarget>,
         pressed: M,
-        clock: Clock,
-        locale: Locale,
     ) -> Option<GroupItem<'a, M>> {
         self.group_item_with_glyph(
             self.face.icon.with_weight(Weight::Regular).into(),
             service_readiness,
             target,
             pressed,
-            clock,
-            locale,
         )
     }
 
@@ -260,8 +258,6 @@ impl UnitSwitch {
         service_readiness: ServiceReadiness,
         target: impl Into<HoverTarget>,
         pressed: M,
-        clock: Clock,
-        locale: Locale,
     ) -> Option<GroupItem<'a, M>> {
         let reading = UnitSwitchReading {
             shown_glyph,
@@ -270,7 +266,7 @@ impl UnitSwitch {
         let switch_position = reading.toggle.switch_position;
         let press_does = reading.toggle.press_does();
         Some(
-            GroupItem::reading(reading, target, clock, locale).on_switch_press(
+            GroupItem::reading(reading.reading_row(), target).on_switch_press(
                 switch_position,
                 press_does,
                 pressed,

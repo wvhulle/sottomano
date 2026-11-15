@@ -14,7 +14,8 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
+        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
+        toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
@@ -38,9 +39,9 @@ pub enum RowPower<PowerRequest> {
     Stoppable(PowerRequest),
 }
 
-pub struct FamilyRow<Family: ContainerFamily, Reading> {
+pub struct FamilyRow<'a, Family: ContainerFamily> {
     pub target: Family::Target,
-    pub reading: Reading,
+    pub reading: ReadingRow<'a>,
     pub power: RowPower<Family::PowerRequest>,
 }
 
@@ -50,12 +51,6 @@ pub trait ContainerFamily: Debug + Clone + Sized + 'static {
     type Detail: SnapshotSource<StreamInputs = ()>;
     type Target: Into<HoverTarget> + Clone + PartialEq;
     type PowerRequest: Debug + Clone + Send + 'static;
-    type ListingRow<'a>: GroupItemReading + 'a
-    where
-        Self: 'a;
-    type DetailRow<'a>: GroupItemReading + 'a
-    where
-        Self: 'a;
 
     const FAMILY: WidgetGroupFamily;
     const GROUP_NAME: &'static str;
@@ -66,11 +61,20 @@ pub trait ContainerFamily: Debug + Clone + Sized + 'static {
 
     fn running_count(probe: &Self::Probe) -> usize;
 
-    fn listing_rows(listings: &Self::Listings) -> Vec<FamilyRow<Self, Self::ListingRow<'_>>>;
+    fn listing_rows(
+        listings: &Self::Listings,
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<FamilyRow<'_, Self>>;
 
-    fn detail_rows(detail: &Self::Detail) -> Vec<FamilyRow<Self, Self::DetailRow<'_>>>;
+    fn detail_rows(detail: &Self::Detail, clock: Clock, locale: Locale)
+    -> Vec<FamilyRow<'_, Self>>;
 
-    fn stopped_rows(_listings: &Self::Listings) -> Vec<FamilyRow<Self, Self::ListingRow<'_>>> {
+    fn stopped_rows(
+        _listings: &Self::Listings,
+        _clock: Clock,
+        _locale: Locale,
+    ) -> Vec<FamilyRow<'_, Self>> {
         Vec::new()
     }
 
@@ -181,32 +185,37 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
         Task::none()
     }
 
-    fn detail_rows(&self) -> Vec<FamilyRow<Family, Family::DetailRow<'_>>> {
+    fn detail_rows(&self, clock: Clock, locale: Locale) -> Vec<FamilyRow<'_, Family>> {
         self.detail
             .get()
-            .map(Family::detail_rows)
+            .map(|detail| Family::detail_rows(detail, clock, locale))
             .unwrap_or_default()
     }
 
-    fn listing_rows(&self) -> Vec<FamilyRow<Family, Family::ListingRow<'_>>> {
+    fn listing_rows(&self, clock: Clock, locale: Locale) -> Vec<FamilyRow<'_, Family>> {
         self.listings
             .get()
-            .map(Family::listing_rows)
+            .map(|listings| Family::listing_rows(listings, clock, locale))
             .unwrap_or_default()
     }
 
-    fn stopped_rows(&self) -> Vec<FamilyRow<Family, Family::ListingRow<'_>>> {
+    fn stopped_rows(&self, clock: Clock, locale: Locale) -> Vec<FamilyRow<'_, Family>> {
         self.listings
             .get()
-            .map(Family::stopped_rows)
+            .map(|listings| Family::stopped_rows(listings, clock, locale))
             .unwrap_or_default()
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &Family::Target, clock: Clock) -> Vec<Section> {
-        let detail_rows = self.detail_rows();
+    pub fn hover_card_for(
+        &self,
+        target: &Family::Target,
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<Section> {
+        let detail_rows = self.detail_rows(clock, locale);
         let shown_card = if detail_rows.is_empty() {
-            self.listing_rows()
+            self.listing_rows(clock, locale)
                 .into_iter()
                 .find(|row| row.target == *target)
                 .map(|row| self.listings.hover_card_with(row.reading.hover_card(clock)))
@@ -218,7 +227,7 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
         };
         shown_card
             .or_else(|| {
-                self.stopped_rows()
+                self.stopped_rows(clock, locale)
                     .into_iter()
                     .find(|row| row.target == *target)
                     .map(|row| self.listings.hover_card_with(row.reading.hover_card(clock)))
@@ -231,23 +240,20 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
         clock: Clock,
         locale: Locale,
     ) -> Vec<GroupItem<'_, ContainerFamilyInteraction<Family>>> {
-        let detail_rows = self.detail_rows();
+        let detail_rows = self.detail_rows(clock, locale);
         let mut group_rows: Vec<GroupItem<'_, ContainerFamilyInteraction<Family>>> =
             if detail_rows.is_empty() {
-                self.listing_rows()
+                self.listing_rows(clock, locale)
                     .into_iter()
-                    .map(|row| switchable_item(row, clock, locale))
+                    .map(switchable_item)
                     .collect()
             } else {
-                detail_rows
-                    .into_iter()
-                    .map(|row| switchable_item(row, clock, locale))
-                    .collect()
+                detail_rows.into_iter().map(switchable_item).collect()
             };
         group_rows.extend(
-            self.stopped_rows()
+            self.stopped_rows(clock, locale)
                 .into_iter()
-                .map(|row| switchable_item(row, clock, locale)),
+                .map(switchable_item),
         );
         group_rows
     }
@@ -277,12 +283,10 @@ fn refused_power_change<Family: ContainerFamily>(
         .and_then(|refusal| Task::done(ContainerFamilyMessage::PowerChangeRefused(refusal)))
 }
 
-fn switchable_item<'a, Family: ContainerFamily, Reading: GroupItemReading + 'a>(
-    row: FamilyRow<Family, Reading>,
-    clock: Clock,
-    locale: Locale,
-) -> GroupItem<'a, ContainerFamilyInteraction<Family>> {
-    let item = GroupItem::reading(row.reading, row.target, clock, locale);
+fn switchable_item<Family: ContainerFamily>(
+    row: FamilyRow<'_, Family>,
+) -> GroupItem<'_, ContainerFamilyInteraction<Family>> {
+    let item = GroupItem::reading(row.reading, row.target);
     match row.power {
         RowPower::SwitchedOn(request) => item.on_switch_press(
             SwitchPosition::On,
@@ -416,7 +420,7 @@ mod tests {
         assert_eq!(group.group_rows(clock, locale).len(), 1);
         assert!(
             !group
-                .hover_card_for(&VmwareMachineTarget { pid: LISTED_PID }, clock)
+                .hover_card_for(&VmwareMachineTarget { pid: LISTED_PID }, clock, locale)
                 .is_empty()
         );
     }
@@ -433,12 +437,12 @@ mod tests {
         assert_eq!(group.group_rows(clock, locale).len(), 1);
         assert!(
             !group
-                .hover_card_for(&VmwareMachineTarget { pid: DETAILED_PID }, clock)
+                .hover_card_for(&VmwareMachineTarget { pid: DETAILED_PID }, clock, locale)
                 .is_empty()
         );
         assert!(
             group
-                .hover_card_for(&VmwareMachineTarget { pid: LISTED_PID }, clock)
+                .hover_card_for(&VmwareMachineTarget { pid: LISTED_PID }, clock, locale)
                 .is_empty()
         );
     }
@@ -457,14 +461,15 @@ mod tests {
                 },
             ],
         };
-        let presses: Vec<String> = LxcFamily::listing_rows(&listings)
-            .into_iter()
-            .map(|row| match row.power {
-                RowPower::SwitchedOn(container_name) => format!("switch off {container_name}"),
-                RowPower::SwitchedOff(container_name) => format!("switch on {container_name}"),
-                RowPower::Stoppable(container_name) => format!("stop {container_name}"),
-            })
-            .collect();
+        let presses: Vec<String> =
+            LxcFamily::listing_rows(&listings, Clock::real(), Locale::default())
+                .into_iter()
+                .map(|row| match row.power {
+                    RowPower::SwitchedOn(container_name) => format!("switch off {container_name}"),
+                    RowPower::SwitchedOff(container_name) => format!("switch on {container_name}"),
+                    RowPower::Stoppable(container_name) => format!("stop {container_name}"),
+                })
+                .collect();
         assert_eq!(presses, vec!["switch off running", "switch on stopped"]);
     }
 
@@ -510,6 +515,7 @@ mod tests {
                         machine_uuid: "0b1c2d3e".into(),
                     },
                     clock,
+                    locale,
                 )
                 .is_empty()
         );

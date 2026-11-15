@@ -57,10 +57,6 @@ impl GroupItemReading for RuntimeConfiguration<'_> {
         Phosphor::SlidersHorizontal(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> IconGlyph {
-        Phosphor::SlidersHorizontal(Weight::Regular).into()
-    }
-
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
         ReadingDisplayState::On
     }

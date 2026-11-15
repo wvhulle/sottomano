@@ -40,6 +40,9 @@ fn stage_rows(activity: &PipelineActivity) -> impl Iterator<Item = LabeledValue>
     .flatten()
 }
 
+pub(crate) const NOTULIST_PIPELINE_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::Phosphor(Phosphor::Pulse(Weight::Regular));
+
 impl GroupItemReading for NotulistPipeline {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
@@ -47,10 +50,6 @@ impl GroupItemReading for NotulistPipeline {
 
     fn icon(&self) -> IconGlyph {
         stage_icon(self.activity.stage).into()
-    }
-
-    fn fallback_icon() -> IconGlyph {
-        Phosphor::Pulse(Weight::Regular).into()
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {

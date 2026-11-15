@@ -19,12 +19,12 @@ use crate::{
     group_items::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         group_item_gestures::{GroupItemGesture, GroupItemGestures},
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
         item_toggle_switch::item_toggle_switch,
+        reading_row::{DescribeCard, ReadingRow},
         slider_control::{ControlMessage, SliderControl, SliderShownReading},
         source_reading::{
-            GroupItemIcon, IdentityOrdinal, ReadoutBadge, ReadoutGauge, ReadoutLabel, RowFace,
-            RowReadout, face_icon, reading_value, source_reading,
+            GroupItemIcon, IdentityOrdinal, RowFace, RowReadout, face_icon, reading_value,
+            source_reading,
         },
         toggle_control::{IconToggle, SwitchPosition},
     },
@@ -40,8 +40,8 @@ use crate::{
     widgets::{
         icon_glyph::IconGlyph,
         ongoing_toast::{
-            LevelNotice, OngoingToast, OngoingToastActionButton, ReadingAlerts, RowNotice,
-            StateToast, ToastBody, ToastProgress, quota_pace_alert_severity,
+            OngoingToast, OngoingToastActionButton, ReadingAlerts, RowNotice,
+            quota_pace_alert_severity,
         },
         phosphor::{Phosphor, Weight},
     },
@@ -52,8 +52,6 @@ type DrawControl<'a, M> =
     Box<dyn Fn(f32, Clock, ItemPlacement, &HoverOrigin) -> Element<'a, GroupEvent<M>> + 'a>;
 
 type AdjustByScroll<'a, M> = Rc<dyn Fn(ScrollDelta) -> M + 'a>;
-
-type DescribeCard<'a> = Box<dyn Fn(Clock) -> Vec<Section> + 'a>;
 
 pub(crate) enum RowScroll<'a, M> {
     Inert,
@@ -169,92 +167,11 @@ pub(crate) enum ItemPinning {
     Unpinnable,
 }
 
-struct EvaluatedReading {
-    face: RowFace,
-    readout: RowReadout,
-    alerts: ReadingAlerts,
-}
-
-fn evaluated_reading(
-    widget: &(impl GroupItemReading + ?Sized),
-    clock: Clock,
-    locale: Locale,
-) -> EvaluatedReading {
-    let state = widget.state(clock);
-    let glyph = widget.icon();
-    let gauge = widget.gauge();
-    let face = RowFace {
-        name: widget.name(),
-        icon: GroupItemIcon::IconGlyph { glyph, state },
-        ordinal: match widget.identity_ordinal() {
-            Some(ordinal) => IdentityOrdinal::Numbered(ordinal),
-            None => IdentityOrdinal::Unnumbered,
-        },
-    };
-    let readout = RowReadout {
-        label: match widget.label(clock, locale) {
-            Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
-            Some(_) | None => ReadoutLabel::Unlabeled,
-        },
-        gauge: match gauge {
-            Some(fill) => ReadoutGauge::Gauged {
-                fill,
-                live: widget.live_gauge().unwrap_or(fill),
-            },
-            None => ReadoutGauge::Ungauged,
-        },
-        badge: match widget.badge() {
-            Some(count) if count > 0 => ReadoutBadge::Counted(count),
-            Some(_) | None => ReadoutBadge::Unbadged,
-        },
-    };
-    let alerts = ReadingAlerts {
-        state_toast: match widget.ongoing_toast_threshold() {
-            OngoingToastThreshold::NeverNotify => StateToast::NeverNotify,
-            OngoingToastThreshold::NotifyFromSeverity {
-                minimum_severity,
-                summary_text,
-            } => StateToast::NotifyFromSeverity {
-                minimum_severity,
-                summary_text,
-                body: match widget.ongoing_toast_body(clock, locale) {
-                    Some(body) => ToastBody::Text(body),
-                    None => ToastBody::Bodiless,
-                },
-                progress: match gauge {
-                    Some(fill) => ToastProgress::Measured(fill),
-                    None => ToastProgress::Unmeasured,
-                },
-            },
-        },
-        level: match widget.announced_level(locale) {
-            Some(level) => LevelNotice::Announced {
-                level,
-                glyph: glyph.with_weight(state.weight()),
-            },
-            None => LevelNotice::Unannounced,
-        },
-        quota_windows: widget.quota_windows(clock.utc()),
-    };
-    EvaluatedReading {
-        face,
-        readout,
-        alerts,
-    }
-}
-
 #[cfg(test)]
-pub(crate) fn reading_toast_severity(
-    widget: &dyn GroupItemReading,
-    clock: Clock,
-) -> Option<Severity> {
+pub(crate) fn reading_toast_severity(row: &ReadingRow<'_>) -> Option<Severity> {
     use crate::widgets::ongoing_toast::state_alert_severity;
 
-    let evaluated = evaluated_reading(widget, clock, Locale::default());
-    state_alert_severity(
-        evaluated.face.icon.display_state(),
-        &evaluated.alerts.state_toast,
-    )
+    state_alert_severity(row.shown_state(), &row.alerts.state_toast)
 }
 
 pub struct GroupItem<'a, M> {
@@ -317,23 +234,20 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    pub fn reading(
-        widget: impl GroupItemReading + 'a,
-        target: impl Into<HoverTarget>,
-        clock: Clock,
-        locale: Locale,
-    ) -> Self {
-        let EvaluatedReading {
+    pub fn reading(row: ReadingRow<'a>, target: impl Into<HoverTarget>) -> Self {
+        let ReadingRow {
             face,
             readout,
             alerts,
-        } = evaluated_reading(&widget, clock, locale);
+            card,
+            ..
+        } = row;
         Self::assembled_row(
             face,
             RowValueControl::RowReadout(readout),
             GroupItemHoverArea::WholeItem(target.into()),
             ItemPinning::Pinnable,
-            Box::new(move |card_clock| widget.hover_card(card_clock)),
+            card,
             alerts,
         )
     }
@@ -341,14 +255,15 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     pub fn slider(
         slider: &'a SliderControl,
         config: &'a Config,
-        clock: Clock,
         on_control: impl Fn(ControlMessage) -> M + 'a,
     ) -> Self {
-        let EvaluatedReading {
+        let ReadingRow {
             face,
             readout,
             alerts,
-        } = evaluated_reading(slider, clock, config.calendar.locale);
+            card,
+            ..
+        } = slider.reading_row(config.calendar.locale);
         let shown_reading = SliderShownReading {
             face: face.clone(),
             readout: readout.clone(),
@@ -362,13 +277,13 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 adjust_by_scroll: Rc::new(move |delta| {
                     scrolled_control(ControlMessage::Scroll(delta))
                 }),
-                draw: Box::new(move |reveal, clock, placement, hover_origin| {
+                draw: Box::new(move |reveal, _, placement, hover_origin| {
                     let on_control = Rc::clone(&on_control);
                     let slider_view = match placement {
                         ItemPlacement::Panel => {
-                            slider.view(config, shown_reading.clone(), reveal, clock, hover_origin)
+                            slider.view(config, shown_reading.clone(), reveal, hover_origin)
                         }
-                        ItemPlacement::Table => slider.always_open_view(config, clock),
+                        ItemPlacement::Table => slider.always_open_view(config),
                         ItemPlacement::Menu => slider.menu_view(config),
                     };
                     slider_view.map(move |message| match message {
@@ -381,7 +296,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 row_target: slider.target().clone(),
             },
             ItemPinning::Pinnable,
-            Box::new(move |card_clock| slider.hover_card(card_clock)),
+            card,
             alerts,
         )
     }
@@ -431,16 +346,10 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    pub fn toggle(
-        toggle: IconToggle,
-        target: impl Into<HoverTarget>,
-        message: M,
-        clock: Clock,
-        locale: Locale,
-    ) -> Self {
+    pub fn toggle(toggle: IconToggle, target: impl Into<HoverTarget>, message: M) -> Self {
         let switch_position = toggle.switch_position;
         let press_does = toggle.press_does();
-        Self::reading(toggle, target, clock, locale).on_switch_press(
+        Self::reading(toggle.reading_row(), target).on_switch_press(
             switch_position,
             press_does,
             message,
@@ -834,7 +743,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_items::{group_item_reading::NamedTestReading, toggle_control::SwitchPresses},
+        group_items::{reading_row::named_test_row, toggle_control::SwitchPresses},
         group_menus::group_menu_state::{GroupMenuTopic, PanelPin, PanelPinDuration},
         hover_cards::{AnchorEvent, HoverCardMessage, PanelPinOrigin},
         widget_groups::{
@@ -890,14 +799,8 @@ mod tests {
 
     #[test]
     fn a_composed_item_shares_the_pin_of_the_reading_it_replaces_under_the_same_name() {
-        let clock = Clock::real();
-        let locale = Locale::default();
-        let reading: GroupItem<'static, ()> = GroupItem::reading(
-            NamedTestReading("Lyrics"),
-            SessionTarget::Menu,
-            clock,
-            locale,
-        );
+        let reading: GroupItem<'static, ()> =
+            GroupItem::reading(named_test_row("Lyrics"), SessionTarget::Menu);
         let composed: GroupItem<'static, ()> = GroupItem::composed_pinnable(
             "Lyrics",
             GroupItemIcon::Absent,
@@ -928,16 +831,9 @@ mod tests {
 
     #[test]
     fn a_toggle_shows_a_switch_in_its_current_position() {
-        let clock = Clock::real();
-        let locale = Locale::default();
         let indicator_of = |switch_position| {
-            let item: GroupItem<'static, ()> = GroupItem::toggle(
-                toggle_in_position(switch_position),
-                SessionTarget::Menu,
-                (),
-                clock,
-                locale,
-            );
+            let item: GroupItem<'static, ()> =
+                GroupItem::toggle(toggle_in_position(switch_position), SessionTarget::Menu, ());
             item.power_control
         };
         assert_eq!(
@@ -968,19 +864,13 @@ mod tests {
 
     #[test]
     fn readings_and_sliders_are_pinnable_but_plain_composed_rows_are_not() {
-        let clock = Clock::real();
-        let locale = Locale::default();
         let config = Config::default();
         let slider = offset_slider_for(DarkModeTarget::SunriseOffset);
-        let reading: GroupItem<'static, ()> = GroupItem::reading(
-            NamedTestReading("Named reading"),
-            SessionTarget::Menu,
-            clock,
-            locale,
-        );
+        let reading: GroupItem<'static, ()> =
+            GroupItem::reading(named_test_row("Named reading"), SessionTarget::Menu);
         assert_eq!(reading.pinning(), ItemPinning::Pinnable);
         assert_eq!(
-            GroupItem::slider(&slider, &config, clock, |_| ()).pinning(),
+            GroupItem::slider(&slider, &config, |_| ()).pinning(),
             ItemPinning::Pinnable
         );
         assert_eq!(
@@ -991,11 +881,10 @@ mod tests {
 
     #[test]
     fn a_slider_in_group_name_is_its_shown_name() {
-        let clock = Clock::real();
         let config = Config::default();
         let slider = offset_slider_for(DarkModeTarget::SunriseOffset);
         assert_eq!(
-            GroupItem::slider(&slider, &config, clock, |_| ()).item_in_group_name(),
+            GroupItem::slider(&slider, &config, |_| ()).item_in_group_name(),
             slider.name()
         );
     }
@@ -1023,10 +912,9 @@ mod tests {
     fn events_from_pointing_at_pinned_slider(
         slider_pointing: SliderPointing,
     ) -> Vec<GroupEvent<ControlMessage>> {
-        let clock = Clock::real();
         let config = Config::default();
         let slider = offset_slider_for(DarkModeTarget::SunriseOffset);
-        let item = GroupItem::slider(&slider, &config, clock, |message| message).acting_as_handle(
+        let item = GroupItem::slider(&slider, &config, |message| message).acting_as_handle(
             HoverAnnouncement {
                 press_hints: PressHints::default(),
                 origin: pinned_slider_origin(),

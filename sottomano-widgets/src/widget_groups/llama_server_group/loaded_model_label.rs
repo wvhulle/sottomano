@@ -41,10 +41,6 @@ impl GroupItemReading for LlamaModel {
         Phosphor::Brain(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> IconGlyph {
-        Phosphor::Brain(Weight::Regular).into()
-    }
-
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(self.id.clone())
     }

@@ -13,8 +13,8 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, PanelVisibility},
-        reading_display_state::ReadingDisplayState,
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::PanelVisibility,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -28,16 +28,15 @@ use crate::{
     },
 };
 
+pub(crate) const COPILOT_CCUSAGE_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::Phosphor(Phosphor::TerminalWindow(Weight::Regular));
+
 impl GroupItemReading for CopilotCcusage {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
-        Phosphor::TerminalWindow(Weight::Regular).into()
-    }
-
-    fn fallback_icon() -> IconGlyph {
         Phosphor::TerminalWindow(Weight::Regular).into()
     }
 

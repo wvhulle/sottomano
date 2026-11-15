@@ -1,3 +1,4 @@
+use crate::group_items::reading_row::reading_hover_card;
 mod break_log;
 mod context_switch_rate;
 mod daily_totals_gauge;
@@ -27,7 +28,7 @@ use sottomano_toml_config::{Config, widget_groups::session_focus::SessionFocusCo
 use crate::{
     background_work::logged_failure_task,
     clock::Clock,
-    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    group_items::{group_item::GroupItem, reading_row::ReadingRow},
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         session_focus_group::{
@@ -271,10 +272,8 @@ impl SessionFocusGroup {
     ) -> WidgetGroupContent<'a, SessionFocusMessage> {
         let locale = config.calendar.locale;
         let session = GroupItem::reading(
-            self.session_face(config),
+            ReadingRow::evaluated(self.session_face(config), clock, locale),
             SessionFocusTarget::Session,
-            clock,
-            locale,
         )
         .ongoing_toast_action_buttons([
             OngoingToastActionButton {
@@ -294,28 +293,20 @@ impl SessionFocusGroup {
             },
         ]);
         let breaks = GroupItem::reading(
-            self.break_log(config),
+            ReadingRow::evaluated(self.break_log(config), clock, locale),
             SessionFocusTarget::Breaks,
-            clock,
-            locale,
         );
         let focus_run = GroupItem::reading(
-            self.focus_run_reading(config),
+            ReadingRow::evaluated(self.focus_run_reading(config), clock, locale),
             SessionFocusTarget::FocusRun,
-            clock,
-            locale,
         );
         let totals = GroupItem::reading(
-            &self.daily_totals,
+            ReadingRow::evaluated(&self.daily_totals, clock, locale),
             SessionFocusTarget::DailyTotals,
-            clock,
-            locale,
         );
         let switches = GroupItem::reading(
-            self.context_switch_rate(config),
+            ReadingRow::evaluated(self.context_switch_rate(config), clock, locale),
             SessionFocusTarget::ContextSwitches,
-            clock,
-            locale,
         );
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SessionFocus,
@@ -333,12 +324,14 @@ impl SessionFocusGroup {
         clock: Clock,
     ) -> Vec<Section> {
         let body = match target {
-            SessionFocusTarget::Session => self.session_face(config).hover_card(clock),
-            SessionFocusTarget::Breaks => self.break_log(config).hover_card(clock),
-            SessionFocusTarget::FocusRun => self.focus_run_reading(config).hover_card(clock),
-            SessionFocusTarget::DailyTotals => self.daily_totals.hover_card(clock),
+            SessionFocusTarget::Session => reading_hover_card(self.session_face(config), clock),
+            SessionFocusTarget::Breaks => reading_hover_card(self.break_log(config), clock),
+            SessionFocusTarget::FocusRun => {
+                reading_hover_card(self.focus_run_reading(config), clock)
+            }
+            SessionFocusTarget::DailyTotals => reading_hover_card(&self.daily_totals, clock),
             SessionFocusTarget::ContextSwitches => {
-                self.context_switch_rate(config).hover_card(clock)
+                reading_hover_card(self.context_switch_rate(config), clock)
             }
         };
         body.into_iter().collect()

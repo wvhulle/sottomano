@@ -25,6 +25,9 @@ use crate::{
     },
 };
 
+pub(crate) const TEMPERATURE_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::WeatherIcon(WeatherIcon::Thermometer);
+
 impl GroupItemReading for Temperature {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
@@ -32,13 +35,9 @@ impl GroupItemReading for Temperature {
 
     fn icon(&self) -> IconGlyph {
         self.condition
-            .map_or_else(Self::fallback_icon, |condition| {
+            .map_or(TEMPERATURE_FALLBACK_GLYPH, |condition| {
                 WeatherIcon::Sky(condition, self.daylight).into()
             })
-    }
-
-    fn fallback_icon() -> IconGlyph {
-        WeatherIcon::Thermometer.into()
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {

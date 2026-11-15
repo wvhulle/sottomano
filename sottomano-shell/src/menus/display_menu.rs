@@ -20,7 +20,7 @@ impl DesktopShell {
                     .map(ShellInteraction::DarkMode),
                 self.widget_groups
                     .color_temperature_group
-                    .group_content(config, self.clock)
+                    .group_content(config)
                     .map(ShellInteraction::ColorTemperature),
                 self.widget_groups
                     .wallpaper_group

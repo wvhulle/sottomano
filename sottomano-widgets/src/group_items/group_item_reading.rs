@@ -7,13 +7,9 @@ use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
-    group_items::reading_display_state::ReadingDisplayState,
+    group_items::{reading_display_state::ReadingDisplayState, reading_row::PanelVisibility},
     hover_cards::hover_card_body::Section,
-    widgets::{
-        announced_level::AnnouncedLevel,
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
-    },
+    widgets::{announced_level::AnnouncedLevel, icon_glyph::IconGlyph},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,24 +21,10 @@ pub enum OngoingToastThreshold {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PanelVisibility {
-    Shown,
-    Hidden,
-}
-
 pub trait GroupItemReading {
     fn name(&self) -> Cow<'static, str>;
 
     fn icon(&self) -> IconGlyph;
-
-    #[must_use]
-    fn fallback_icon() -> IconGlyph
-    where
-        Self: Sized,
-    {
-        Phosphor::Question(Weight::Regular).into()
-    }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         None
@@ -146,23 +128,5 @@ impl<ForwardedReading: GroupItemReading + ?Sized> GroupItemReading for &Forwarde
 
     fn hover_card(&self, clock: Clock) -> Vec<Section> {
         (**self).hover_card(clock)
-    }
-}
-
-#[cfg(test)]
-pub(crate) struct NamedTestReading(pub &'static str);
-
-#[cfg(test)]
-impl GroupItemReading for NamedTestReading {
-    fn name(&self) -> Cow<'static, str> {
-        self.0.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Question(Weight::Regular).into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![]
     }
 }

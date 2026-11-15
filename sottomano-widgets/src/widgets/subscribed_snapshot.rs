@@ -1,16 +1,16 @@
 use std::mem::take;
 
-use chrono::Locale;
 use sottomano_desktop_sources::{SnapshotDelivery, SnapshotSource};
 
 use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::{GroupItemReading, PanelVisibility},
         offline_internet_reading::{
             PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble, TroubledSnapshot,
         },
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::{
         HoverTarget,
@@ -19,6 +19,7 @@ use crate::{
             hover_card_source_delivery::{DeliveryStamp, SourceDelivery},
         },
     },
+    widgets::icon_glyph::IconGlyph,
 };
 
 pub enum CommandOutcome<S: SnapshotSource> {
@@ -239,8 +240,8 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
     }
 }
 
-impl<S: SnapshotSource + GroupItemReading> SubscribedSnapshot<S> {
-    pub fn failure(&self) -> Option<&dyn GroupItemReading> {
+impl<S: SnapshotSource> SubscribedSnapshot<S> {
+    pub fn failure(&self) -> Option<&SnapshotPlaceholder<S>> {
         match self {
             SubscribedSnapshot::NoSnapshot { placeholder } => Some(placeholder),
             SubscribedSnapshot::AwaitingFirstSnapshot
@@ -248,6 +249,85 @@ impl<S: SnapshotSource + GroupItemReading> SubscribedSnapshot<S> {
             | SubscribedSnapshot::SnapshotHeld { .. }
             | SubscribedSnapshot::SnapshotTroubled { .. } => None,
         }
+    }
+
+    pub fn visible_reading(
+        &self,
+        panel_visibility: impl FnOnce(&S) -> PanelVisibility,
+    ) -> Option<&S> {
+        self.get()
+            .filter(|held_snapshot| panel_visibility(held_snapshot) == PanelVisibility::Shown)
+    }
+
+    pub fn reading_row<'s>(
+        &'s self,
+        fallback_icon: IconGlyph,
+        describe: impl FnOnce(&'s S) -> ReadingRow<'s>,
+        clock: Clock,
+    ) -> Option<ReadingRow<'s>> {
+        let described_row = match self {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => describe(held_snapshot),
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                troubled_snapshot.shown_over(describe(&troubled_snapshot.held_snapshot), clock)
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => {
+                return Some(placeholder.reading_row(fallback_icon));
+            }
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {
+                return None;
+            }
+        };
+        (described_row.panel_visibility == PanelVisibility::Shown).then_some(described_row)
+    }
+
+    pub fn shown_state(
+        &self,
+        held_state: impl FnOnce(&S) -> ReadingDisplayState,
+        panel_visibility: impl FnOnce(&S) -> PanelVisibility,
+        clock: Clock,
+    ) -> Option<ReadingDisplayState> {
+        match self {
+            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
+                (panel_visibility(held_snapshot) == PanelVisibility::Shown)
+                    .then(|| held_state(held_snapshot))
+            }
+            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
+                let held_snapshot = &troubled_snapshot.held_snapshot;
+                (panel_visibility(held_snapshot) == PanelVisibility::Shown)
+                    .then(|| troubled_snapshot.shown_state_over(held_state(held_snapshot), clock))
+            }
+            SubscribedSnapshot::NoSnapshot { placeholder } => Some(placeholder.shown_state()),
+            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {
+                None
+            }
+        }
+    }
+
+    pub fn group_item<'s, M: 's>(
+        &'s self,
+        fallback_icon: IconGlyph,
+        describe: impl FnOnce(&'s S) -> ReadingRow<'s>,
+        target: impl Into<HoverTarget>,
+        clock: Clock,
+    ) -> Option<GroupItem<'s, M>> {
+        self.reading_row(fallback_icon, describe, clock)
+            .map(|row| GroupItem::reading(row, target))
+    }
+
+    pub fn group_item_while_pending<'s, M: 's>(
+        &'s self,
+        fallback_icon: IconGlyph,
+        describe: impl FnOnce(&'s S) -> ReadingRow<'s>,
+        target: impl Into<HoverTarget>,
+        clock: Clock,
+    ) -> Option<GroupItem<'s, M>> {
+        if matches!(self, SubscribedSnapshot::AwaitingFirstSnapshot) {
+            return Some(GroupItem::reading(
+                SnapshotPlaceholder::<S>::awaiting_row(fallback_icon),
+                target,
+            ));
+        }
+        self.group_item(fallback_icon, describe, target, clock)
     }
 }
 
@@ -257,68 +337,9 @@ impl<S: SnapshotSource + ReadingSections> SubscribedSnapshot<S> {
     }
 }
 
-impl<S: SnapshotSource + GroupItemReading> SubscribedSnapshot<S> {
-    pub fn visible_reading(&self) -> Option<&S> {
-        self.get()
-            .filter(|held_snapshot| held_snapshot.panel_visibility() == PanelVisibility::Shown)
-    }
-
-    pub fn display(&self) -> Option<&dyn GroupItemReading> {
-        match self {
-            SubscribedSnapshot::SnapshotHeld { held_snapshot, .. } => {
-                (held_snapshot.panel_visibility() == PanelVisibility::Shown)
-                    .then_some(held_snapshot as &dyn GroupItemReading)
-            }
-            SubscribedSnapshot::SnapshotTroubled { troubled_snapshot } => {
-                (troubled_snapshot.panel_visibility() == PanelVisibility::Shown)
-                    .then_some(troubled_snapshot as &dyn GroupItemReading)
-            }
-            SubscribedSnapshot::NoSnapshot { placeholder } => Some(placeholder),
-            SubscribedSnapshot::AwaitingFirstSnapshot | SubscribedSnapshot::SourceUnavailable => {
-                None
-            }
-        }
-    }
-
-    pub fn group_item<M: 'static>(
-        &self,
-        target: impl Into<HoverTarget>,
-        clock: Clock,
-        locale: Locale,
-    ) -> Option<GroupItem<'_, M>> {
-        self.display()
-            .map(|widget| GroupItem::reading(widget, target, clock, locale))
-    }
-
-    pub fn group_item_while_pending<M: 'static>(
-        &self,
-        target: impl Into<HoverTarget>,
-        clock: Clock,
-        locale: Locale,
-    ) -> Option<GroupItem<'_, M>>
-    where
-        S: 'static,
-    {
-        if matches!(self, SubscribedSnapshot::AwaitingFirstSnapshot) {
-            return Some(GroupItem::reading(
-                SnapshotPlaceholder::<S>::caused_by(PlaceholderCause::AwaitingFirstSnapshot),
-                target,
-                clock,
-                locale,
-            ));
-        }
-        self.group_item(target, clock, locale)
-    }
-
-    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
-        self.sections_described_by(|held_snapshot| held_snapshot.hover_card(clock))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{
-        borrow::Cow,
         fmt::{Display, Formatter, Result as FmtResult},
         time::{Duration, SystemTime},
     };
@@ -357,18 +378,22 @@ mod tests {
         }
     }
 
-    impl GroupItemReading for CountedSnapshot {
-        fn name(&self) -> Cow<'static, str> {
-            "Counted".into()
-        }
+    fn counted_row(_snapshot: &CountedSnapshot) -> ReadingRow<'_> {
+        ReadingRow::glyph_only(
+            "Counted",
+            IconGlyph::default(),
+            ReadingDisplayState::Idle,
+            Box::new(|_| Vec::new()),
+        )
+    }
 
-        fn icon(&self) -> IconGlyph {
-            Self::fallback_icon()
-        }
-
-        fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-            Vec::new()
-        }
+    fn shown_state_at(
+        latest: &SubscribedSnapshot<CountedSnapshot>,
+        clock: Clock,
+    ) -> Option<ReadingDisplayState> {
+        latest
+            .reading_row(IconGlyph::default(), counted_row, clock)
+            .map(|row| row.shown_state())
     }
 
     struct TestTimeline {
@@ -432,7 +457,7 @@ mod tests {
         latest.receive(polled_delivery(Err(CountingFailure)), timeline.at(13));
         assert_eq!(latest.get(), Some(&CountedSnapshot(1)));
         assert_eq!(
-            latest.display().map(|widget| widget.state(timeline.at(13))),
+            shown_state_at(&latest, timeline.at(13)),
             Some(ReadingDisplayState::Failed)
         );
     }
@@ -481,11 +506,11 @@ mod tests {
         );
         assert_eq!(latest.get(), Some(&CountedSnapshot(1)));
         assert_eq!(
-            latest.display().map(|widget| widget.state(timeline.at(12))),
+            shown_state_at(&latest, timeline.at(12)),
             Some(ReadingDisplayState::Idle)
         );
         assert_eq!(
-            latest.display().map(|widget| widget.state(timeline.at(13))),
+            shown_state_at(&latest, timeline.at(13)),
             Some(ReadingDisplayState::Offline)
         );
         latest.receive(polled_delivery(Ok(CountedSnapshot(2))), timeline.at(16));
@@ -501,7 +526,7 @@ mod tests {
             timeline.at(10),
         );
         assert!(latest.get().is_none());
-        assert!(latest.display().is_some());
-        assert!(!latest.hover_card(timeline.at(10)).is_empty());
+        assert!(shown_state_at(&latest, timeline.at(10)).is_some());
+        assert!(!latest.hover_card_with(Vec::new()).is_empty());
     }
 }

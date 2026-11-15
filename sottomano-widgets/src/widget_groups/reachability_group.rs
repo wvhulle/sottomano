@@ -5,9 +5,14 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sources::network_connectivity::network_manager_proxies::Metering;
 
 use crate::{
-    group_items::reading_display_state::ReadingDisplayState,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::{ReadingRow, reading_hover_card},
+        source_reading::GroupItemIcon,
+    },
     hover_cards::hover_card_body::dictionary_table,
     widget_groups::widget_group_identity::WidgetGroupFamily,
+    widgets::icon_glyph::IconGlyph,
 };
 
 mod connectivity_state_reading;
@@ -30,7 +35,7 @@ use sottomano_toml_config::widget_groups::reachability::ReachabilityConfig;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    group_items::group_item::GroupItem,
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
@@ -172,8 +177,7 @@ impl ReachabilityGroup {
             .and_then(|_| self.metered_volume.displayed_totals())
             .map(|totals| metered_section(&totals, throughput.direction));
         self.throughput.hover_card_with(
-            throughput
-                .hover_card(clock)
+            reading_hover_card(throughput, clock)
                 .into_iter()
                 .chain(metered_section)
                 .collect(),
@@ -193,21 +197,31 @@ impl ReachabilityGroup {
                 .get()
                 .map(|throughput| self.direction_hover_card(&throughput.up, clock))
                 .unwrap_or_default(),
-            ReachabilityTarget::Throughput => self.throughput.hover_card(clock),
-            ReachabilityTarget::Latency => self.latency.hover_card(clock),
+            ReachabilityTarget::Throughput => self
+                .throughput
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            ReachabilityTarget::Latency => self
+                .latency
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
         }
     }
 
-    fn handle_face(&self, clock: Clock) -> WidgetGroupFace {
-        match self.connectivity.display() {
-            Some(reading) => WidgetGroupFace::Glyph {
-                glyph: reading.icon(),
-                state: reading.state(clock),
-            },
-            None => WidgetGroupFace::Glyph {
-                glyph: Phosphor::CloudCheck(Weight::Regular).into(),
-                state: ReadingDisplayState::Idle,
-            },
+    fn handle_face(&self, clock: Clock, locale: Locale) -> WidgetGroupFace {
+        let connectivity_row = self.connectivity.reading_row(
+            IconGlyph::default(),
+            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+            clock,
+        );
+        match connectivity_row.map(|row| row.face.icon) {
+            Some(GroupItemIcon::IconGlyph { glyph, state }) => {
+                WidgetGroupFace::Glyph { glyph, state }
+            }
+            Some(GroupItemIcon::Image(_) | GroupItemIcon::Absent) | None => {
+                WidgetGroupFace::Glyph {
+                    glyph: Phosphor::CloudCheck(Weight::Regular).into(),
+                    state: ReadingDisplayState::Idle,
+                }
+            }
         }
     }
 
@@ -222,21 +236,34 @@ impl ReachabilityGroup {
             &self.expansion,
             identity,
             self.throughput
-                .group_item(ReachabilityTarget::Throughput, clock, locale)
+                .group_item(
+                    IconGlyph::default(),
+                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    ReachabilityTarget::Throughput,
+                    clock,
+                )
                 .into_iter()
                 .chain(throughput.into_iter().flat_map(|readings| {
                     [
-                        GroupItem::reading(&readings.down, ReachabilityTarget::Down, clock, locale)
-                            .previewed_on_handle(),
-                        GroupItem::reading(&readings.up, ReachabilityTarget::Up, clock, locale),
+                        GroupItem::reading(
+                            ReadingRow::evaluated(&readings.down, clock, locale),
+                            ReachabilityTarget::Down,
+                        )
+                        .previewed_on_handle(),
+                        GroupItem::reading(
+                            ReadingRow::evaluated(&readings.up, clock, locale),
+                            ReachabilityTarget::Up,
+                        ),
                     ]
                 }))
-                .chain(
-                    self.latency
-                        .group_item(ReachabilityTarget::Latency, clock, locale),
-                ),
+                .chain(self.latency.group_item(
+                    IconGlyph::default(),
+                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    ReachabilityTarget::Latency,
+                    clock,
+                )),
         )
-        .face(self.handle_face(clock))
+        .face(self.handle_face(clock, locale))
     }
 }
 

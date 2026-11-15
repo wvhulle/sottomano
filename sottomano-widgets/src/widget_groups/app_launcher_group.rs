@@ -1,6 +1,5 @@
 use std::{cmp::Reverse, collections::HashMap};
 
-use chrono::Locale;
 use corredo::theming::primary_color;
 use iced::{Element, Task};
 use sottomano_desktop_sinks::compositor_window_requests::compositor_requests::{
@@ -592,11 +591,7 @@ impl AppLauncherGroup {
         })
     }
 
-    fn options_group(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> WidgetGroupContent<'_, AppLauncherMessage> {
+    fn options_group(&self) -> WidgetGroupContent<'_, AppLauncherMessage> {
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::AppLauncher, OPTIONS_GROUP_NAME),
             WidgetGroupTitle::fixed("Launcher options"),
@@ -607,15 +602,11 @@ impl AppLauncherGroup {
                     hide_open_apps_toggle(self.open_app_listing),
                     AppLauncherTarget::HideOpenApps,
                     AppLauncherMessage::ToggleHideOpenApps,
-                    clock,
-                    locale,
                 ),
                 GroupItem::toggle(
                     sort_by_usage_toggle(self.category_app_order),
                     AppLauncherTarget::SortByUsage,
                     AppLauncherMessage::ToggleSortByUsage,
-                    clock,
-                    locale,
                 ),
             ],
         )
@@ -631,9 +622,7 @@ impl AppLauncherGroup {
         index: &DesktopIndex,
         config: &'a Config,
         output: &str,
-        clock: Clock,
     ) -> Vec<WidgetGroupContent<'a, AppLauncherMessage>> {
-        let locale = config.calendar.locale;
         [self.frequent_group(index, config, output)]
             .into_iter()
             .chain(
@@ -641,7 +630,7 @@ impl AppLauncherGroup {
                     .iter()
                     .map(|group| self.category_group(group, index, config)),
             )
-            .chain([self.options_group(clock, locale)])
+            .chain([self.options_group()])
             .collect()
     }
 }
@@ -660,7 +649,7 @@ mod tests {
         FrequentAppScope, GroupItemValue, MAX_FREQUENT_APPS, OpenAppListing, OutputFrequentApps,
         WorkspaceWindowPresence, apps_shown_in_category, frequent_apps_shown,
     };
-    use crate::{clock::Clock, desktop_index::DesktopIndex};
+    use crate::desktop_index::DesktopIndex;
 
     fn app_named(app_id: &str, category: AppCategory) -> LaunchableApp {
         LaunchableApp {
@@ -751,7 +740,6 @@ mod tests {
 
     #[test]
     fn the_frequent_group_belongs_to_the_output_it_is_shown_on() {
-        let clock = Clock::real();
         let mut group = AppLauncherGroup::default();
         group.adopt_usage(AppLaunchUsage {
             frequent_by_output: HashMap::from([(
@@ -768,7 +756,7 @@ mod tests {
 
         let items_on = |output: &str| {
             group
-                .group_contents(&index, &config, output, clock)
+                .group_contents(&index, &config, output)
                 .into_iter()
                 .next()
                 .is_some_and(|frequent| !frequent.is_empty())
@@ -780,7 +768,6 @@ mod tests {
 
     #[test]
     fn the_frequent_title_names_the_scope_it_ranks_over() {
-        let clock = Clock::real();
         let frequent_title_for = |scope: FrequentAppScope| {
             let mut group = AppLauncherGroup::default();
             group.adopt_usage(AppLaunchUsage {
@@ -795,7 +782,7 @@ mod tests {
             });
             let config = Config::default();
             group
-                .group_contents(&DesktopIndex::default(), &config, "DP-1", clock)
+                .group_contents(&DesktopIndex::default(), &config, "DP-1")
                 .first()
                 .map(|frequent| frequent.group_title().to_string())
         };

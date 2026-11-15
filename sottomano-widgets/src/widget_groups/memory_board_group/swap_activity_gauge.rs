@@ -16,8 +16,8 @@ use uom::si::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, PanelVisibility},
-        reading_display_state::ReadingDisplayState,
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::PanelVisibility,
     },
     hover_cards::hover_card_body::{
         ReadingSections, Section, SectionTable, SectionTitle, dictionary_table,
@@ -137,7 +137,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_items::group_item::reading_toast_severity, widgets::keyed_record_table::KeyedTableRow,
+        group_items::{group_item::reading_toast_severity, reading_row::ReadingRow},
+        widgets::keyed_record_table::KeyedTableRow,
     };
 
     fn swap_with(used_gibibytes: u64, paged_in_per_second: ByteSize) -> SwapActivity {
@@ -168,7 +169,14 @@ mod tests {
             nearly_full.state(Clock::real()),
             ReadingDisplayState::Warning
         );
-        assert_eq!(reading_toast_severity(&nearly_full, Clock::real()), None);
+        assert_eq!(
+            reading_toast_severity(&ReadingRow::evaluated(
+                nearly_full,
+                Clock::real(),
+                Locale::default()
+            )),
+            None
+        );
     }
 
     #[test]

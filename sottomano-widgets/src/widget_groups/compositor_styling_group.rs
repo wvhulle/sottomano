@@ -388,23 +388,20 @@ impl CompositorStylingGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-        clock: Clock,
     ) -> WidgetGroupContent<'a, CompositorStylingMessage> {
-        let locale = config.calendar.locale;
         let styling_items = [
             (
                 StylingControl::WindowCornerRadius,
                 GroupItem::slider(
                     &self.corner_radius,
                     config,
-                    clock,
                     CompositorStylingMessage::CornerRadius,
                 )
                 .aligned_as(AlignedQuantity::CornerRadius),
             ),
             (
                 StylingControl::WindowGaps,
-                GroupItem::slider(&self.gaps, config, clock, CompositorStylingMessage::Gaps),
+                GroupItem::slider(&self.gaps, config, CompositorStylingMessage::Gaps),
             ),
             (
                 StylingControl::ShellBlurDepth,
@@ -412,8 +409,6 @@ impl CompositorStylingGroup {
                     xray_toggle(self.blur_depth),
                     CompositorStylingTarget::Xray,
                     CompositorStylingMessage::ToggleXray,
-                    clock,
-                    locale,
                 ),
             ),
             (
@@ -422,8 +417,6 @@ impl CompositorStylingGroup {
                     self.switch_heat.toggle(),
                     CompositorStylingTarget::SwitchHeat,
                     CompositorStylingMessage::ToggleSwitchHeat,
-                    clock,
-                    locale,
                 ),
             ),
         ];

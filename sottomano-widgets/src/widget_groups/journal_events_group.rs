@@ -20,7 +20,7 @@ use sottomano_toml_config::{Config, severity::Severity};
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::group_item_reading::PanelVisibility,
+    group_items::reading_row::{PanelVisibility, reading_hover_card},
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         terminal_command::TerminalCommand,
@@ -248,17 +248,22 @@ impl JournalEventsGroup {
     #[must_use]
     pub fn hover_card_for(&self, target: JournalTarget, clock: Clock) -> Vec<Section> {
         match target {
-            JournalTarget::Kernel => self.system_journal.kernel.hover_card(clock),
+            JournalTarget::Kernel => self
+                .system_journal
+                .kernel
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
             JournalTarget::ServiceErrors(unit_scope) => self
                 .scope_group(unit_scope)
                 .service_errors
-                .hover_card(clock),
-            JournalTarget::Coredumps(unit_scope) => {
-                self.scope_group(unit_scope).coredumps.hover_card(clock)
-            }
-            JournalTarget::OomKills(unit_scope) => {
-                self.scope_group(unit_scope).oom_kills.hover_card(clock)
-            }
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            JournalTarget::Coredumps(unit_scope) => self
+                .scope_group(unit_scope)
+                .coredumps
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            JournalTarget::OomKills(unit_scope) => self
+                .scope_group(unit_scope)
+                .oom_kills
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
         }
     }
 

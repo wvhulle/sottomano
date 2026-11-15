@@ -16,6 +16,7 @@ use crate::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
         toggle_control::SwitchPresses,
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage, activity_text},
     },
@@ -322,12 +323,10 @@ impl NspawnContainersGroup {
             .unwrap_or_default();
         let rows = containers.iter().map(|container| {
             let row = GroupItem::reading(
-                self.container_row(container),
+                ReadingRow::evaluated(self.container_row(container), clock, locale),
                 NspawnContainerTarget {
                     machine_name: Cow::Owned(container.machine_name.clone()),
                 },
-                clock,
-                locale,
             );
             match self.service_switches.get(&container.machine_name) {
                 Some(service_switch) => service_switch.unit_switch.attach_switch_press(

@@ -1,4 +1,6 @@
 use chrono::Locale;
+
+use crate::widget_groups::gpu_group::gpu_load_gauge::GPU_SNAPSHOT_FALLBACK_GLYPH;
 mod gpu_clock_label;
 mod gpu_load_gauge;
 mod gpu_memory_gauge;
@@ -24,8 +26,8 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
         offline_internet_reading::{PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble},
+        reading_row::{ReadingRow, reading_hover_card},
     },
     hover_cards::{
         HoverTarget,
@@ -316,27 +318,40 @@ impl GpuGroup {
                 };
                 let items = [
                     match &device.access {
-                        GpuDeviceAccess::Readable { snapshot, .. } => {
-                            snapshot.group_item(target(GpuReading::Load), clock, locale)
-                        }
-                        GpuDeviceAccess::Unreadable { handle_failure } => Some(GroupItem::reading(
-                            handle_failure,
+                        GpuDeviceAccess::Readable { snapshot, .. } => snapshot.group_item(
+                            GPU_SNAPSHOT_FALLBACK_GLYPH,
+                            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
                             target(GpuReading::Load),
                             clock,
-                            locale,
+                        ),
+                        GpuDeviceAccess::Unreadable { handle_failure } => Some(GroupItem::reading(
+                            handle_failure.reading_row(GPU_SNAPSHOT_FALLBACK_GLYPH),
+                            target(GpuReading::Load),
                         )),
                     },
                     device.clock_label().map(|label| {
-                        GroupItem::reading(label, target(GpuReading::Clock), clock, locale)
+                        GroupItem::reading(
+                            ReadingRow::evaluated(label, clock, locale),
+                            target(GpuReading::Clock),
+                        )
                     }),
                     device.memory().map(|memory| {
-                        GroupItem::reading(memory, target(GpuReading::Memory), clock, locale)
+                        GroupItem::reading(
+                            ReadingRow::evaluated(memory, clock, locale),
+                            target(GpuReading::Memory),
+                        )
                     }),
                     device.temperature_label().map(|label| {
-                        GroupItem::reading(label, target(GpuReading::Temperature), clock, locale)
+                        GroupItem::reading(
+                            ReadingRow::evaluated(label, clock, locale),
+                            target(GpuReading::Temperature),
+                        )
                     }),
                     device.power_label().map(|label| {
-                        GroupItem::reading(label, target(GpuReading::Power), clock, locale)
+                        GroupItem::reading(
+                            ReadingRow::evaluated(label, clock, locale),
+                            target(GpuReading::Power),
+                        )
                     }),
                 ];
                 WidgetGroupContent::expandable_instance(
@@ -383,7 +398,7 @@ impl GpuGroup {
         };
         match target.reading {
             GpuReading::Load => snapshot
-                .hover_card(clock)
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock))
                 .into_iter()
                 .chain(model_sections)
                 .collect(),
@@ -391,7 +406,7 @@ impl GpuGroup {
                 let Some(clock_label) = device.clock_label() else {
                     return Vec::new();
                 };
-                let mut sections = snapshot.hover_card_with(clock_label.hover_card(clock));
+                let mut sections = snapshot.hover_card_with(reading_hover_card(clock_label, clock));
                 sections.extend(
                     self.hovered_sections(&target.bus, |group| group.clocks.sections(clock)),
                 );
@@ -410,12 +425,12 @@ impl GpuGroup {
             GpuReading::Temperature => device
                 .temperature_label()
                 .map(|temperature_label| {
-                    snapshot.hover_card_with(temperature_label.hover_card(clock))
+                    snapshot.hover_card_with(reading_hover_card(temperature_label, clock))
                 })
                 .unwrap_or_default(),
             GpuReading::Power => device
                 .power_label()
-                .map(|power_label| snapshot.hover_card_with(power_label.hover_card(clock)))
+                .map(|power_label| snapshot.hover_card_with(reading_hover_card(power_label, clock)))
                 .unwrap_or_default(),
         }
     }

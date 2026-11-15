@@ -29,8 +29,10 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
+        group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{ReadingRow, reading_hover_card},
+        toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{HoverTarget, hover_card_body::Section},
@@ -46,8 +48,8 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot, simple_icons::SimpleIcon,
-        subscribed_snapshot::SubscribedSnapshot,
+        hover_fetched_snapshot::HoverFetchedSnapshot, icon_glyph::IconGlyph,
+        simple_icons::SimpleIcon, subscribed_snapshot::SubscribedSnapshot,
     },
 };
 
@@ -277,13 +279,15 @@ impl TailnetGroup {
     #[must_use]
     pub fn hover_card_for(&self, target: &TailnetTarget, clock: Clock) -> Vec<Section> {
         match target {
-            TailnetTarget::Membership => self.tailscale.hover_card(clock),
+            TailnetTarget::Membership => self
+                .tailscale
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
             TailnetTarget::ExitOffer => {
                 let Some(tailnet) = self.running_tailnet() else {
                     return Vec::new();
                 };
                 self.tailscale
-                    .hover_card_with(ExitOfferRow { tailnet }.hover_card(clock))
+                    .hover_card_with(reading_hover_card(ExitOfferRow { tailnet }, clock))
             }
             TailnetTarget::OwnNode => {
                 let Some(own_node_row) =
@@ -292,7 +296,7 @@ impl TailnetGroup {
                     return Vec::new();
                 };
                 self.tailscale
-                    .hover_card_with(own_node_row.hover_card(clock))
+                    .hover_card_with(reading_hover_card(own_node_row, clock))
             }
             TailnetTarget::InboundAccess => self.inbound_access.sections(clock),
             TailnetTarget::PolicyFile => self.policy_file_access.sections(clock),
@@ -307,22 +311,28 @@ impl TailnetGroup {
                 else {
                     return Vec::new();
                 };
-                self.tailscale_exit_nodes.hover_card_with(
-                    ExitNodeChoiceRow {
-                        exit_node_option,
-                        exit_node_choices,
-                    }
-                    .hover_card(clock),
-                )
+                self.tailscale_exit_nodes
+                    .hover_card_with(reading_hover_card(
+                        ExitNodeChoiceRow {
+                            exit_node_option,
+                            exit_node_choices,
+                        },
+                        clock,
+                    ))
             }
             TailnetTarget::ExitNodeLanAccess => {
                 let Some(exit_node_choices) = self.running_exit_node_choices() else {
                     return Vec::new();
                 };
                 self.tailscale_exit_nodes
-                    .hover_card_with(ExitNodeLanAccessRow { exit_node_choices }.hover_card(clock))
+                    .hover_card_with(reading_hover_card(
+                        ExitNodeLanAccessRow { exit_node_choices },
+                        clock,
+                    ))
             }
-            TailnetTarget::ExitNodeListFailure => self.tailscale_exit_nodes.hover_card(clock),
+            TailnetTarget::ExitNodeListFailure => self
+                .tailscale_exit_nodes
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
         }
     }
 
@@ -331,13 +341,12 @@ impl TailnetGroup {
         clock: Clock,
         locale: Locale,
     ) -> Option<GroupItem<'_, TailnetInteraction>> {
-        let item = GroupItem::reading(
-            self.tailscale.display()?,
-            TailnetTarget::Membership,
+        let membership_row = self.tailscale.reading_row(
+            IconGlyph::default(),
+            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
             clock,
-            locale,
-        )
-        .on_right_press(
+        )?;
+        let item = GroupItem::reading(membership_row, TailnetTarget::Membership).on_right_press(
             "open the Tailscale admin console",
             TailnetInteraction::OpenAdminConsole,
         );
@@ -372,10 +381,8 @@ impl TailnetGroup {
         match self.policy_file_access {
             PolicyFileAccess::NoApiToken => None,
             PolicyFileAccess::ApiToken { .. } => Some(GroupItem::reading(
-                PolicyFileRow,
+                ReadingRow::evaluated(PolicyFileRow, clock, locale),
                 TailnetTarget::PolicyFile,
-                clock,
-                locale,
             )),
         }
     }
@@ -386,10 +393,8 @@ impl TailnetGroup {
         locale: Locale,
     ) -> GroupItem<'_, TailnetInteraction> {
         let item = GroupItem::reading(
-            ExitOfferRow { tailnet },
+            ReadingRow::evaluated(ExitOfferRow { tailnet }, clock, locale),
             TailnetTarget::ExitOffer,
-            clock,
-            locale,
         );
         match tailnet.offer_control() {
             ExitOfferControl::Switchable(exit_offer_switch @ ExitOfferSwitch::StopOffering) => item
@@ -423,15 +428,17 @@ impl TailnetGroup {
         locale: Locale,
     ) -> GroupItem<'a, TailnetInteraction> {
         let exit_node_item = GroupItem::reading(
-            ExitNodeChoiceRow {
-                exit_node_option,
-                exit_node_choices,
-            },
+            ReadingRow::evaluated(
+                ExitNodeChoiceRow {
+                    exit_node_option,
+                    exit_node_choices,
+                },
+                clock,
+                locale,
+            ),
             TailnetTarget::ExitNodeChoice {
                 exit_node_ip: Cow::Owned(exit_node_option.ip.clone()),
             },
-            clock,
-            locale,
         );
         let exit_node_item = match exit_node_option.node_use {
             ExitNodeUse::InUse => exit_node_item.previewed_on_handle(),
@@ -456,10 +463,8 @@ impl TailnetGroup {
         locale: Locale,
     ) -> GroupItem<'_, TailnetInteraction> {
         GroupItem::reading(
-            ExitNodeLanAccessRow { exit_node_choices },
+            ReadingRow::evaluated(ExitNodeLanAccessRow { exit_node_choices }, clock, locale),
             TailnetTarget::ExitNodeLanAccess,
-            clock,
-            locale,
         )
         .on_switch_press(
             exit_node_choices.lan_access,
@@ -502,14 +507,15 @@ impl TailnetGroup {
             .get()
             .and_then(OwnNodeRow::running_own_node)
             .map(|own_node_row| {
-                GroupItem::reading(own_node_row, TailnetTarget::OwnNode, clock, locale)
+                GroupItem::reading(
+                    ReadingRow::evaluated(own_node_row, clock, locale),
+                    TailnetTarget::OwnNode,
+                )
             });
         let inbound_access_item = self.running_tailnet().map(|_| {
             GroupItem::reading(
-                InboundAccessRow,
+                ReadingRow::evaluated(InboundAccessRow, clock, locale),
                 TailnetTarget::InboundAccess,
-                clock,
-                locale,
             )
         });
         WidgetGroupContent::expandable(
@@ -528,10 +534,8 @@ impl TailnetGroup {
                 .chain(self.exit_node_choice_items(clock, locale))
                 .chain(self.tailscale_exit_nodes.failure().map(|failure_reading| {
                     GroupItem::reading(
-                        failure_reading,
+                        failure_reading.reading_row(IconGlyph::default()),
                         TailnetTarget::ExitNodeListFailure,
-                        clock,
-                        locale,
                     )
                 })),
         )

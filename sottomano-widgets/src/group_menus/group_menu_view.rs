@@ -449,7 +449,7 @@ fn nested_menu_groups<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 
 
 #[cfg(test)]
 mod tests {
-    use chrono::Locale;
+
     use corredo::popovers::{
         CascadeDirection, CascadeOrientation, NestedMenuLayout, NestedMenuOpenTrigger,
         NestedMenuPresentation, OpenGroupLimit, PopupGrowth, SubmenuConnector,
@@ -468,7 +468,7 @@ mod tests {
         desktop_index::DesktopIndex,
         group_items::{
             group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
-            group_item_reading::NamedTestReading,
+            reading_row::named_test_row,
             source_reading::GroupItemIcon,
         },
         group_menus::{
@@ -604,7 +604,6 @@ mod tests {
         orientation: CascadeOrientation,
         clock: Clock,
     ) -> (f32, Option<f32>) {
-        let locale = Locale::default();
         let bench = MenuTestBench {
             clock,
             ..MenuTestBench::default()
@@ -615,10 +614,8 @@ mod tests {
             &expansion,
             |_| SmokeMessage,
             [GroupItem::reading(
-                NamedTestReading("Smoke item"),
+                named_test_row("Smoke item"),
                 HoverTarget::Workspace(7),
-                clock,
-                locale,
             )],
         );
         let surfaces = GroupMenuView::new(
@@ -834,8 +831,6 @@ mod tests {
         pointer_target: impl Fn(&mut Simulator<'_, RowPointerMessage>) -> Point,
         pressed: bool,
     ) -> Vec<RowPointerMessage> {
-        let clock = Clock::real();
-        let locale = Locale::default();
         let bench = MenuTestBench::default();
         let expansion = WidgetGroupExpansion::default();
         let group_menus = opened_menu_state(NestedMenuPresentation::default());
@@ -845,11 +840,11 @@ mod tests {
             |_| RowPointerMessage::Unrelated,
             [match row_press {
                 PointedRowPress::PerformsAction => {
-                    GroupItem::reading(NamedTestReading("Smoke item"), POINTED_ROW, clock, locale)
+                    GroupItem::reading(named_test_row("Smoke item"), POINTED_ROW)
                         .on_press("act", RowPointerMessage::RowAction)
                 }
                 PointedRowPress::ReadOnly => {
-                    GroupItem::reading(NamedTestReading("Smoke item"), POINTED_ROW, clock, locale)
+                    GroupItem::reading(named_test_row("Smoke item"), POINTED_ROW)
                 }
             }],
         );
@@ -902,8 +897,6 @@ mod tests {
     }
 
     fn compute_reveal_messages(approach: PointerApproach) -> Vec<RowPointerMessage> {
-        let clock = Clock::real();
-        let locale = Locale::default();
         let bench = MenuTestBench::default();
         let expansion = WidgetGroupExpansion::default();
         let group_menus = opened_menu_state(NestedMenuPresentation::default());
@@ -913,10 +906,8 @@ mod tests {
                 &expansion,
                 |_| RowPointerMessage::Unrelated,
                 [GroupItem::reading(
-                    NamedTestReading("Smoke item"),
+                    named_test_row("Smoke item"),
                     POINTED_ROW,
-                    clock,
-                    locale,
                 )],
             )
         });

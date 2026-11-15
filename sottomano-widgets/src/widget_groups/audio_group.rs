@@ -1,4 +1,4 @@
-use crate::group_items::group_item_reading::GroupItemReading;
+use crate::{group_items::reading_row::reading_hover_card, widgets::icon_glyph::IconGlyph};
 mod channel_level_control;
 
 use std::{
@@ -286,7 +286,9 @@ impl AudioGroup {
     #[must_use]
     pub fn hover_card_for(&self, target: AudioTarget, clock: Clock) -> Vec<Section> {
         let AudioTarget::Control(kind) = target else {
-            return self.state.hover_card(clock);
+            return self
+                .state
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock));
         };
         let Some(state) = self.state.get() else {
             return Vec::new();
@@ -316,12 +318,7 @@ impl AudioGroup {
         )])
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-        clock: Clock,
-    ) -> WidgetGroupContent<'a, AudioMessage> {
-        let locale = config.calendar.locale;
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a, AudioMessage> {
         let sink = self.state.get().and_then(|state| state.sink.as_ref());
         let source = self.state.get().and_then(|state| state.source.as_ref());
         WidgetGroupContent::expandable(
@@ -333,7 +330,6 @@ impl AudioGroup {
                     GroupItem::slider(
                         &self.sink_control,
                         config,
-                        clock,
                         AudioMessage::Control.with(ControlKind::Sink),
                     )
                     .previewed_on_handle()
@@ -342,12 +338,14 @@ impl AudioGroup {
                     GroupItem::slider(
                         &self.source_control,
                         config,
-                        clock,
                         AudioMessage::Control.with(ControlKind::Source),
                     )
                 }),
                 self.state.failure().map(|failure| {
-                    GroupItem::reading(failure, AudioTarget::Connection, clock, locale)
+                    GroupItem::reading(
+                        failure.reading_row(IconGlyph::default()),
+                        AudioTarget::Connection,
+                    )
                 }),
             ]
             .into_iter()
@@ -355,7 +353,7 @@ impl AudioGroup {
         )
         .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::Waveform(Weight::Regular).into(),
-            state: self.sink_control.state(clock),
+            state: self.sink_control.shown_state(),
         })
         .forwards_scroll(sink.map(|_| "change the output volume"))
     }

@@ -187,23 +187,22 @@ impl ShowcasedShellSettings {
     fn group_contents<'a>(
         &'a self,
         config: &'a Config,
-        clock: Clock,
     ) -> Vec<WidgetGroupContent<'a, ShowcaseInteraction>> {
         let inert_settings = [
             self.panels
-                .group_content(config, clock)
+                .group_content(config)
                 .map(|_| ShowcaseInteraction::OutsideShowcase),
             self.sidebar
-                .group_content(config, clock)
+                .group_content(config)
                 .map(|_| ShowcaseInteraction::OutsideShowcase),
             self.overlays
-                .group_content(config, clock)
+                .group_content(config)
                 .map(|_| ShowcaseInteraction::OutsideShowcase),
             self.compositor_styling
-                .group_content(config, clock)
+                .group_content(config)
                 .map(|_| ShowcaseInteraction::OutsideShowcase),
             self.menus
-                .settings_content(config, clock)
+                .settings_content(config)
                 .map(|_| ShowcaseInteraction::OutsideShowcase),
         ];
         match self.shown_items {
@@ -467,7 +466,7 @@ impl ShowcasedGroup {
         match self {
             ShowcasedGroup::AppLauncher(launcher) => launcher
                 .group
-                .group_contents(&launcher.desktop_entries, config, SHOWCASE_OUTPUT, clock)
+                .group_contents(&launcher.desktop_entries, config, SHOWCASE_OUTPUT)
                 .into_iter()
                 .map(|group| group.map(|_| ShowcaseInteraction::OutsideShowcase))
                 .collect(),
@@ -517,11 +516,7 @@ impl ShowcasedGroup {
                 ]
             }
             ShowcasedGroup::Audio(group) => {
-                vec![
-                    group
-                        .group_content(config, clock)
-                        .map(ShowcaseInteraction::Audio),
-                ]
+                vec![group.group_content(config).map(ShowcaseInteraction::Audio)]
             }
             ShowcasedGroup::Gamepad(gamepad) => gamepad
                 .group
@@ -582,7 +577,7 @@ impl ShowcasedGroup {
                 .iter()
                 .flat_map(|member| member.group_contents(config, clock))
                 .collect(),
-            ShowcasedGroup::ShellSettings(settings) => settings.group_contents(config, clock),
+            ShowcasedGroup::ShellSettings(settings) => settings.group_contents(config),
             ShowcasedGroup::AppearancePresets(presets) => vec![
                 presets
                     .group
@@ -1120,19 +1115,19 @@ impl ShowcasedGroup {
                 let HoverTarget::ApptainerContainer(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(target, clock)
+                group.hover_card_for(target, clock, config.calendar.locale)
             }
             ShowcasedGroup::VmwareMachines(group) => {
                 let HoverTarget::VmwareMachine(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(target, clock)
+                group.hover_card_for(target, clock, config.calendar.locale)
             }
             ShowcasedGroup::VirtualBoxMachines(group) => {
                 let HoverTarget::VirtualBoxMachine(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(target, clock)
+                group.hover_card_for(target, clock, config.calendar.locale)
             }
             ShowcasedGroup::WaydroidContainer(group) => {
                 let HoverTarget::WaydroidContainer(target) = target else {
@@ -1144,13 +1139,13 @@ impl ShowcasedGroup {
                 let HoverTarget::FlatpakSandbox(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(target, clock)
+                group.hover_card_for(target, clock, config.calendar.locale)
             }
             ShowcasedGroup::LxcContainers(group) => {
                 let HoverTarget::LxcContainer(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(target, clock)
+                group.hover_card_for(target, clock, config.calendar.locale)
             }
             ShowcasedGroup::IncusInstances(group) => {
                 let HoverTarget::IncusInstance(target) = target else {

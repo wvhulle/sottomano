@@ -26,11 +26,13 @@ use sottomano_toml_config::{Config, severity::Severity};
 use uom::si::{f64::Ratio, ratio};
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
-        source_reading::{RowFace, RowReadout, labeled_reading, source_reading},
+        reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{
+            GroupItemIcon, IdentityOrdinal, ReadoutBadge, ReadoutGauge, ReadoutLabel, RowFace,
+            RowReadout, labeled_reading, source_reading,
+        },
     },
     hover_cards::{
         HoverAnnouncement, HoverCardMessage, HoverOrigin, HoverTarget, PressHints,
@@ -38,8 +40,9 @@ use crate::{
         hoverable,
     },
     widgets::{
-        announced_level::{AnnouncedLevel, LevelAnnouncement, LevelChangeOrigin},
+        announced_level::{LevelAnnouncement, LevelChangeOrigin},
         icon_glyph::IconGlyph,
+        ongoing_toast::{LevelNotice, ReadingAlerts},
         phosphor::Phosphor,
         slider_look::slider_look,
         text::{panel_text, text_face_of},
@@ -339,6 +342,85 @@ impl SliderControl {
             })
     }
 
+    #[must_use]
+    pub fn name(&self) -> Cow<'static, str> {
+        self.name.clone()
+    }
+
+    #[must_use]
+    pub fn shown_state(&self) -> ReadingDisplayState {
+        match self.slider_activity {
+            SliderActivity::Active => self.severity().into(),
+            SliderActivity::Inactive => ReadingDisplayState::Off,
+        }
+    }
+
+    fn shown_label(&self, locale: Locale) -> ReadoutLabel {
+        match self
+            .label
+            .and_then(|format| format(self.expanding_slider.shown_value(), locale))
+        {
+            Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
+            Some(_) | None => ReadoutLabel::Unlabeled,
+        }
+    }
+
+    fn shown_gauge(&self) -> ReadoutGauge {
+        if !self.gauge {
+            return ReadoutGauge::Ungauged;
+        }
+        let fill = self.range_fill();
+        ReadoutGauge::Gauged {
+            fill,
+            live: fill * Ratio::new::<ratio::ratio>(f64::from(self.live)),
+        }
+    }
+
+    fn level_notice(&self, locale: Locale) -> LevelNotice {
+        let Some(announcement) = self.level_announcement.as_ref() else {
+            return LevelNotice::Unannounced;
+        };
+        let readout = self.readout_text(locale);
+        let body_text = match self.slider_activity {
+            SliderActivity::Active => readout,
+            SliderActivity::Inactive => format!("Muted · {readout}"),
+        };
+        match announcement.level(self.range_fill(), body_text) {
+            Some(level) => LevelNotice::Announced {
+                level,
+                glyph: self
+                    .effective_icon()
+                    .with_weight(self.shown_state().weight()),
+            },
+            None => LevelNotice::Unannounced,
+        }
+    }
+
+    #[must_use]
+    pub fn reading_row(&self, locale: Locale) -> ReadingRow<'static> {
+        ReadingRow {
+            face: RowFace {
+                name: self.name(),
+                icon: GroupItemIcon::IconGlyph {
+                    glyph: self.effective_icon(),
+                    state: self.shown_state(),
+                },
+                ordinal: IdentityOrdinal::Unnumbered,
+            },
+            readout: RowReadout {
+                label: self.shown_label(locale),
+                gauge: self.shown_gauge(),
+                badge: ReadoutBadge::Unbadged,
+            },
+            alerts: ReadingAlerts {
+                level: self.level_notice(locale),
+                ..ReadingAlerts::default()
+            },
+            panel_visibility: PanelVisibility::Shown,
+            card: Box::new(|_| Vec::new()),
+        }
+    }
+
     fn effective_icon(&self) -> IconGlyph {
         self.glyph.map_or(self.icon, |glyph| {
             glyph(self.expanding_slider.shown_value(), self.slider_activity).into()
@@ -441,7 +523,6 @@ impl SliderControl {
         config: &'a Config,
         shown_reading: SliderShownReading,
         reveal: f32,
-        clock: Clock,
         hover_origin: &HoverOrigin,
     ) -> Element<'a, ControlMessage> {
         let hover_origin = hover_origin.clone();
@@ -453,7 +534,7 @@ impl SliderControl {
                     Some(_) => labeled_reading(config, &face, &readout, reveal),
                     None => source_reading(config, &face, &readout, reveal),
                 }),
-                face: Box::new(move || self.state_glyph(config, clock)),
+                face: Box::new(move || self.state_glyph(config)),
                 readout: Box::new(move || self.readout_view(config)),
                 look: Box::new(move || slider_look(config, self.severity())),
                 decorate: Box::new(move |content, expansion_state| {
@@ -485,12 +566,8 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn always_open_view<'a>(
-        &self,
-        config: &Config,
-        clock: Clock,
-    ) -> Element<'a, ControlMessage> {
-        let opened = Row::with_children([self.state_glyph(config, clock), self.menu_view(config)])
+    pub fn always_open_view<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {
+        let opened = Row::with_children([self.state_glyph(config), self.menu_view(config)])
             .spacing(config.theme.spacing.item_gap)
             .align_y(Alignment::Center);
         let mut area = mouse_area(opened).on_scroll(ControlMessage::Scroll);
@@ -510,8 +587,8 @@ impl SliderControl {
         )
     }
 
-    fn state_glyph<'a>(&self, config: &Config, clock: Clock) -> Element<'a, ControlMessage> {
-        let state = self.state(clock);
+    fn state_glyph<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {
+        let state = self.shown_state();
         self.effective_icon()
             .with_weight(state.weight())
             .view(config.theme.font.icon_size_px, move |theme| {
@@ -558,51 +635,6 @@ fn write_outcome_of(write_outcome: &Result<(), ControlWriteFailure>) -> WriteOut
     match write_outcome {
         Ok(()) => WriteOutcome::Accepted,
         Err(_) => WriteOutcome::Rejected,
-    }
-}
-
-impl GroupItemReading for SliderControl {
-    fn name(&self) -> Cow<'static, str> {
-        self.name.clone()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        self.effective_icon()
-    }
-
-    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        self.label
-            .and_then(|format| format(self.expanding_slider.shown_value(), locale))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.slider_activity {
-            SliderActivity::Active => self.severity().into(),
-            SliderActivity::Inactive => ReadingDisplayState::Off,
-        }
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        self.gauge.then(|| self.range_fill())
-    }
-
-    fn live_gauge(&self) -> Option<Ratio> {
-        self.gauge()
-            .map(|fill| fill * Ratio::new::<ratio::ratio>(f64::from(self.live)))
-    }
-
-    fn announced_level(&self, locale: Locale) -> Option<AnnouncedLevel> {
-        let announcement = self.level_announcement.as_ref()?;
-        let readout = self.readout_text(locale);
-        let body_text = match self.slider_activity {
-            SliderActivity::Active => readout,
-            SliderActivity::Inactive => format!("Muted · {readout}"),
-        };
-        announcement.level(self.range_fill(), body_text)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![]
     }
 }
 

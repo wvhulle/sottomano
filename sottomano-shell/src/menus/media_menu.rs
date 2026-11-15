@@ -26,7 +26,7 @@ impl DesktopShell {
             .chain([
                 self.widget_groups
                     .audio_group
-                    .group_content(config, self.clock)
+                    .group_content(config)
                     .map(ShellInteraction::Audio),
                 self.widget_groups
                     .voice_dictation_group

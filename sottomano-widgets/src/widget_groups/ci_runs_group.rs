@@ -1,6 +1,9 @@
 use chrono::Locale;
 
-use crate::group_items::reading_display_state::ReadingDisplayState;
+use crate::group_items::{
+    reading_display_state::ReadingDisplayState,
+    reading_row::{ReadingRow, reading_hover_card},
+};
 mod ci_run_readings;
 mod ci_runner_watches;
 
@@ -25,7 +28,7 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    group_items::group_item::GroupItem,
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
@@ -237,7 +240,8 @@ impl CiRunsGroup {
     pub fn hover_card_for(&self, target: &CiRunsTarget, clock: Clock) -> Vec<Section> {
         match target {
             CiRunsTarget::Runner(reference) => self.runner_hover_card(reference, |watched| {
-                CiRunnerFailureRow::failing_runner(watched).map(|row| row.hover_card(clock))
+                CiRunnerFailureRow::failing_runner(watched)
+                    .map(|row| reading_hover_card(row, clock))
             }),
             CiRunsTarget::Run { runner, run_label } => self.runner_hover_card(runner, |watched| {
                 let task = watched
@@ -245,13 +249,13 @@ impl CiRunsGroup {
                     .tasks
                     .iter()
                     .find(|task| task.run_label == *run_label)?;
-                Some(
+                Some(reading_hover_card(
                     CiTaskRow {
                         kind: watched.kind,
                         task,
-                    }
-                    .hover_card(clock),
-                )
+                    },
+                    clock,
+                ))
             }),
         }
     }
@@ -269,20 +273,25 @@ impl CiRunsGroup {
         let runner_rows = watched_runners.into_iter().flat_map(|watched| {
             let reference = CiRunnerReference::from(&watched);
             let failure_row = CiRunnerFailureRow::failing_runner(watched).map(|row| {
-                GroupItem::reading(row, CiRunsTarget::Runner(reference.clone()), clock, locale)
+                GroupItem::reading(
+                    ReadingRow::evaluated(row, clock, locale),
+                    CiRunsTarget::Runner(reference.clone()),
+                )
             });
             let run_rows = watched.runner.tasks.iter().map(move |task| {
                 let row = GroupItem::reading(
-                    CiTaskRow {
-                        kind: watched.kind,
-                        task,
-                    },
+                    ReadingRow::evaluated(
+                        CiTaskRow {
+                            kind: watched.kind,
+                            task,
+                        },
+                        clock,
+                        locale,
+                    ),
                     CiRunsTarget::Run {
                         runner: reference.clone(),
                         run_label: Cow::Owned(task.run_label.clone()),
                     },
-                    clock,
-                    locale,
                 );
                 match &task.stop_control {
                     TaskStopControl::NoContainerNow => row,

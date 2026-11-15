@@ -11,8 +11,8 @@ use super::core_grid_sections::cpu_ranges;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, PanelVisibility},
-        reading_display_state::ReadingDisplayState,
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::PanelVisibility,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -151,7 +151,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::group_items::group_item_reading::PanelVisibility;
+    use crate::group_items::reading_row::PanelVisibility;
 
     fn clock_with(causes: [Vec<FrequencyLimitCause>; 4]) -> CpuClock {
         CpuClock {

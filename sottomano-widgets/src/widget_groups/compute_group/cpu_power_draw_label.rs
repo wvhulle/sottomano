@@ -9,7 +9,7 @@ use uom::{
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::{GroupItemReading, PanelVisibility},
+    group_items::{group_item_reading::GroupItemReading, reading_row::PanelVisibility},
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,

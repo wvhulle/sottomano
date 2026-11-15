@@ -13,6 +13,12 @@ pub enum IconGlyph {
     WeatherIcon(WeatherIcon),
 }
 
+impl Default for IconGlyph {
+    fn default() -> Self {
+        Phosphor::Question(Weight::Regular).into()
+    }
+}
+
 impl IconGlyph {
     #[must_use]
     pub const fn with_weight(self, weight: Weight) -> Self {

@@ -8,8 +8,8 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, PanelVisibility},
-        reading_display_state::ReadingDisplayState,
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::PanelVisibility,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -19,16 +19,15 @@ use crate::{
     },
 };
 
+pub(crate) const NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::Phosphor(Phosphor::Keyboard(Weight::Regular));
+
 impl GroupItemReading for NotulistOutputProblems {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
-        Phosphor::Keyboard(Weight::Regular).into()
-    }
-
-    fn fallback_icon() -> IconGlyph {
         Phosphor::Keyboard(Weight::Regular).into()
     }
 
@@ -81,7 +80,7 @@ mod tests {
     use notulist_client::{InputMethodError, VirtualKeyboardError};
 
     use super::*;
-    use crate::group_items::group_item_reading::PanelVisibility;
+    use crate::group_items::reading_row::PanelVisibility;
 
     #[test]
     fn no_problems_stay_off_the_panel() {

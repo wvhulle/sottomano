@@ -33,7 +33,8 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::{GroupItemReading, PanelVisibility},
+        group_item_reading::GroupItemReading,
+        reading_row::{PanelVisibility, ReadingRow, reading_hover_card},
     },
     hover_cards::{
         HoverTarget,
@@ -293,25 +294,25 @@ impl StorageSpaceGroup {
             .flat_map(move |(usage, subvolume_usage)| {
                 subvolume_usage.subvolumes.iter().map(move |subvolume| {
                     GroupItem::reading(
-                        SubvolumeUsageRow {
-                            subvolume,
-                            pool_total: usage.total,
-                        },
+                        ReadingRow::evaluated(
+                            SubvolumeUsageRow {
+                                subvolume,
+                                pool_total: usage.total,
+                            },
+                            clock,
+                            locale,
+                        ),
                         StorageTarget::Subvolume {
                             filesystem: primary_mount_point.to_path_buf(),
                             subvolume_path: subvolume.path.clone(),
                         },
-                        clock,
-                        locale,
                     )
                 })
             });
         let subvolume_failure_item = filesystem.subvolume_usage.failure().map(|failure| {
             GroupItem::reading(
-                failure,
+                failure.reading_row(IconGlyph::default()),
                 StorageTarget::SubvolumeUsage(primary_mount_point.to_path_buf()),
-                clock,
-                locale,
             )
         });
         let snapshot_deletion_item =
@@ -323,7 +324,7 @@ impl StorageSpaceGroup {
                     )
                 })
                 .map(|_| {
-                    GroupItem::reading(SnapshotDeletionRow, StorageTarget::SnapshotDeletion(primary_mount_point.to_path_buf()), clock, locale)
+                    GroupItem::reading(ReadingRow::evaluated(SnapshotDeletionRow, clock, locale), StorageTarget::SnapshotDeletion(primary_mount_point.to_path_buf()))
                 });
         let owned_mount_point = primary_mount_point.to_path_buf();
         WidgetGroupContent::expandable_instance(
@@ -340,9 +341,10 @@ impl StorageSpaceGroup {
             filesystem
                 .usage
                 .group_item(
+                    IconGlyph::default(),
+                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
                     StorageTarget::Usage(primary_mount_point.to_path_buf()),
                     clock,
-                    locale,
                 )
                 .into_iter()
                 .chain(property_items)
@@ -369,19 +371,29 @@ impl StorageSpaceGroup {
             WidgetGroupFamily::StorageSpace,
             &self.discovery_expansion,
             StorageInteraction::DiscoveryExpansion,
-            self.discovery
-                .group_item(StorageTarget::MountDiscovery, clock, locale),
+            self.discovery.group_item(
+                IconGlyph::default(),
+                |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                StorageTarget::MountDiscovery,
+                clock,
+            ),
         )]
     }
 
     #[must_use]
     pub fn hover_card_for(&self, target: &StorageTarget, clock: Clock) -> Vec<Section> {
         match target {
-            StorageTarget::MountDiscovery => self.discovery.hover_card(clock),
+            StorageTarget::MountDiscovery => self
+                .discovery
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
             StorageTarget::Usage(mount_point) => self
                 .filesystems
                 .get(mount_point)
-                .map(|filesystem| filesystem.usage.hover_card(clock))
+                .map(|filesystem| {
+                    filesystem
+                        .usage
+                        .sections_described_by(|snapshot| reading_hover_card(snapshot, clock))
+                })
                 .unwrap_or_default(),
             StorageTarget::Property {
                 filesystem,
@@ -398,7 +410,11 @@ impl StorageSpaceGroup {
             StorageTarget::SubvolumeUsage(mount_point) => self
                 .filesystems
                 .get(mount_point)
-                .map(|filesystem| filesystem.subvolume_usage.hover_card(clock))
+                .map(|filesystem| {
+                    filesystem
+                        .subvolume_usage
+                        .sections_described_by(|snapshot| reading_hover_card(snapshot, clock))
+                })
                 .unwrap_or_default(),
             StorageTarget::Subvolume {
                 filesystem,

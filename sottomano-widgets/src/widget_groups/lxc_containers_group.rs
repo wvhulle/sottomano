@@ -14,6 +14,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
     },
     hover_cards::{
         HoverTarget,
@@ -143,8 +144,6 @@ impl ContainerFamily for LxcFamily {
     type Detail = FamilyDetails<LxcContainer>;
     type Target = LxcContainerTarget;
     type PowerRequest = String;
-    type ListingRow<'a> = LxcContainerListingRow<'a>;
-    type DetailRow<'a> = LxcContainerRow<'a>;
 
     const FAMILY: WidgetGroupFamily = WidgetGroupFamily::LxcContainers;
     const STOP_HINT: &'static str = "stop the container";
@@ -161,7 +160,9 @@ impl ContainerFamily for LxcFamily {
 
     fn listing_rows(
         listings: &FamilyListings<LxcContainerListing>,
-    ) -> Vec<FamilyRow<Self, LxcContainerListingRow<'_>>> {
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<FamilyRow<'_, Self>> {
         listings
             .listings
             .iter()
@@ -169,7 +170,7 @@ impl ContainerFamily for LxcFamily {
                 target: LxcContainerTarget {
                     container_name: Cow::Owned(listing.container_name.clone()),
                 },
-                reading: LxcContainerListingRow { listing },
+                reading: ReadingRow::evaluated(LxcContainerListingRow { listing }, clock, locale),
                 power: container_power(listing),
             })
             .collect()
@@ -177,7 +178,9 @@ impl ContainerFamily for LxcFamily {
 
     fn detail_rows(
         detail: &FamilyDetails<LxcContainer>,
-    ) -> Vec<FamilyRow<Self, LxcContainerRow<'_>>> {
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<FamilyRow<'_, Self>> {
         detail
             .details
             .iter()
@@ -185,7 +188,7 @@ impl ContainerFamily for LxcFamily {
                 target: LxcContainerTarget {
                     container_name: Cow::Owned(container.listing.container_name.clone()),
                 },
-                reading: LxcContainerRow { container },
+                reading: ReadingRow::evaluated(LxcContainerRow { container }, clock, locale),
                 power: container_power(&container.listing),
             })
             .collect()

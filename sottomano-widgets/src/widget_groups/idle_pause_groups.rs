@@ -1,5 +1,6 @@
 use crate::group_items::{
     group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+    reading_row::ReadingRow,
 };
 mod pause_blocker_rows;
 mod sqlite_idle_timeouts;
@@ -384,12 +385,10 @@ impl IdlePauseGroups {
     ) -> WidgetGroupContent<'a, IdlePauseInteraction> {
         let locale = config.calendar.locale;
         let first_blocker = self.blockers_of(pause).next();
-        let timeout_slider = GroupItem::slider(
-            self.pause(pause).timer.slider(),
-            config,
-            clock,
-            move |message| IdlePauseInteraction::Timer(pause, message),
-        );
+        let timeout_slider =
+            GroupItem::slider(self.pause(pause).timer.slider(), config, move |message| {
+                IdlePauseInteraction::Timer(pause, message)
+            });
         let timeout_slider = match first_blocker {
             Some(_) => timeout_slider,
             None => timeout_slider.previewed_on_handle(),
@@ -399,13 +398,11 @@ impl IdlePauseGroups {
             .enumerate()
             .map(move |(position, blocker)| {
                 let blocker_item = GroupItem::reading(
-                    blocker,
+                    ReadingRow::evaluated(blocker, clock, locale),
                     HoverTarget::PauseBlocker(PauseBlockerTarget {
                         pause,
                         holder: blocker.holder.clone(),
                     }),
-                    clock,
-                    locale,
                 );
                 match position {
                     0 => blocker_item.previewed_on_handle(),
@@ -419,10 +416,8 @@ impl IdlePauseGroups {
             .and_then(SleepObstacles::sleep_state_that_runs)
             .map(|state| {
                 GroupItem::reading(
-                    NextSleepStateRow { state },
+                    ReadingRow::evaluated(NextSleepStateRow { state }, clock, locale),
                     HoverTarget::IdleOutcome(IdleAction::Sleep),
-                    clock,
-                    locale,
                 )
             });
         let scheduled_shutdown = self
@@ -432,10 +427,8 @@ impl IdlePauseGroups {
             .and_then(|obstacles| obstacles.scheduled_shutdown.as_ref())
             .map(|shutdown| {
                 GroupItem::reading(
-                    ScheduledShutdownRow { shutdown },
+                    ReadingRow::evaluated(ScheduledShutdownRow { shutdown }, clock, locale),
                     HoverTarget::IdleOutcome(IdleAction::PowerOff),
-                    clock,
-                    locale,
                 )
             });
         let glyph = pause_glyph(pause).into();

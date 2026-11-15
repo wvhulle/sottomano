@@ -118,7 +118,7 @@ impl GroupItemReading for Memory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::group_items::group_item::reading_toast_severity;
+    use crate::group_items::{group_item::reading_toast_severity, reading_row::ReadingRow};
 
     fn memory_at(used_gibibytes: u64) -> Memory {
         Memory {
@@ -145,9 +145,20 @@ mod tests {
 
     #[test]
     fn only_a_nearly_full_ram_raises_a_toast() {
-        assert_eq!(reading_toast_severity(&memory_at(80), Clock::real()), None);
         assert_eq!(
-            reading_toast_severity(&memory_at(95), Clock::real()),
+            reading_toast_severity(&ReadingRow::evaluated(
+                memory_at(80),
+                Clock::real(),
+                Locale::default()
+            )),
+            None
+        );
+        assert_eq!(
+            reading_toast_severity(&ReadingRow::evaluated(
+                memory_at(95),
+                Clock::real(),
+                Locale::default()
+            )),
             Some(Severity::Critical)
         );
     }

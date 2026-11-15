@@ -22,6 +22,7 @@ use crate::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
         toggle_control::{SwitchPosition, SwitchPresses},
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
@@ -360,10 +361,8 @@ impl WaydroidContainerGroup {
         locale: Locale,
     ) -> GroupItem<'a, WaydroidContainerInteraction> {
         let row = GroupItem::reading(
-            WaydroidContainerRow { shown },
+            ReadingRow::evaluated(WaydroidContainerRow { shown }, clock, locale),
             WaydroidContainerTarget::Container,
-            clock,
-            locale,
         );
         match self.container_switch.activity() {
             Some(_) => self
@@ -389,12 +388,14 @@ impl WaydroidContainerGroup {
             return vec![container_row];
         }
         let session_row = GroupItem::reading(
-            WaydroidSessionRow {
-                state: shown.state(),
-            },
+            ReadingRow::evaluated(
+                WaydroidSessionRow {
+                    state: shown.state(),
+                },
+                clock,
+                locale,
+            ),
             WaydroidContainerTarget::Session,
-            clock,
-            locale,
         );
         let session_row = match shown.state() {
             WaydroidState::Session { .. } => session_row.on_switch_press(

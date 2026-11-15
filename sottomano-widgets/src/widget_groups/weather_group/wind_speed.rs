@@ -15,16 +15,14 @@ use crate::{
     },
 };
 
+pub(crate) const WIND_FALLBACK_GLYPH: IconGlyph = IconGlyph::WeatherIcon(WeatherIcon::StrongWind);
+
 impl GroupItemReading for Wind {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
-        WeatherIcon::StrongWind.into()
-    }
-
-    fn fallback_icon() -> IconGlyph {
         WeatherIcon::StrongWind.into()
     }
 

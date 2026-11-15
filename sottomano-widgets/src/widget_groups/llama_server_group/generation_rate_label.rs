@@ -35,10 +35,6 @@ impl GroupItemReading for GenerationRate<'_> {
         Phosphor::Lightning(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> IconGlyph {
-        Phosphor::Lightning(Weight::Regular).into()
-    }
-
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(self.text())
     }

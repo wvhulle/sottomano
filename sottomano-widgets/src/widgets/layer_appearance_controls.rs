@@ -380,16 +380,14 @@ impl LayerAppearanceControls {
         &'a self,
         config: &'a Config,
         lift: fn(AppearanceMessage) -> M,
-        clock: Clock,
     ) -> [GroupItem<'a, M>; 8] {
-        let locale = config.calendar.locale;
         let hover = self.hover;
         [
-            GroupItem::slider(&self.opacity, config, clock, move |control| {
+            GroupItem::slider(&self.opacity, config, move |control| {
                 lift(AppearanceMessage::Opacity(control))
             })
             .aligned_as(AlignedQuantity::Opacity),
-            GroupItem::slider(&self.corner_radius, config, clock, move |control| {
+            GroupItem::slider(&self.corner_radius, config, move |control| {
                 lift(AppearanceMessage::CornerRadius(control))
             })
             .aligned_as(AlignedQuantity::CornerRadius),
@@ -397,23 +395,19 @@ impl LayerAppearanceControls {
                 blur_toggle(self.backdrop_blur),
                 hover(AppearanceTarget::Blur),
                 lift(AppearanceMessage::ToggleBlur),
-                clock,
-                locale,
             )
             .aligned_as(AlignedQuantity::Blur),
             GroupItem::toggle(
                 shadow_toggle(self.shadow_casting),
                 hover(AppearanceTarget::DropShadow),
                 lift(AppearanceMessage::ToggleShadow),
-                clock,
-                locale,
             )
             .aligned_as(AlignedQuantity::ShadowCast),
-            GroupItem::slider(&self.shadow_softness, config, clock, move |control| {
+            GroupItem::slider(&self.shadow_softness, config, move |control| {
                 lift(AppearanceMessage::ShadowSoftness(control))
             })
             .aligned_as(AlignedQuantity::ShadowSoftness),
-            GroupItem::slider(&self.shadow_opacity, config, clock, move |control| {
+            GroupItem::slider(&self.shadow_opacity, config, move |control| {
                 lift(AppearanceMessage::ShadowOpacity(control))
             })
             .aligned_as(AlignedQuantity::ShadowOpacity),
@@ -421,11 +415,9 @@ impl LayerAppearanceControls {
                 outline_toggle(self.outline_tracing),
                 hover(AppearanceTarget::Outline),
                 lift(AppearanceMessage::ToggleOutline),
-                clock,
-                locale,
             )
             .aligned_as(AlignedQuantity::Outline),
-            GroupItem::slider(&self.outline_opacity, config, clock, move |control| {
+            GroupItem::slider(&self.outline_opacity, config, move |control| {
                 lift(AppearanceMessage::OutlineOpacity(control))
             })
             .aligned_as(AlignedQuantity::OutlineOpacity),

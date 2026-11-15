@@ -19,8 +19,9 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::{GroupItemReading, PanelVisibility},
+        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, SectionTable, SectionTitle, headed_table},
     widget_groups::{
@@ -130,10 +131,8 @@ pub(super) fn failed_units_item<'a>(
         }
     });
     GroupItem::reading(
-        failed,
+        ReadingRow::evaluated(failed, clock, locale),
         SystemdTarget::failed_units(failed.scope),
-        clock,
-        locale,
     )
     .on_press(
         TerminalCommand::JOURNAL_PRESS_HINT,

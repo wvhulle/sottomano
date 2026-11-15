@@ -11,8 +11,9 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::{GroupItemReading, OngoingToastThreshold, PanelVisibility},
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, headed_table},
     widget_groups::{
@@ -40,19 +41,24 @@ impl PendingUpgradesGroup {
         clock: Clock,
     ) -> Option<GroupItem<'_, PendingUpgradesInteraction>> {
         let locale = config.calendar.locale;
-        let upgrades = self.firmware.visible_reading()?;
+        let upgrades = self
+            .firmware
+            .visible_reading(GroupItemReading::panel_visibility)?;
         let install = PendingUpgradesInteraction::OpenTerminal(TerminalCommand::running(
             config,
             ["fwupdmgr", "update"].map(String::from),
         ));
         Some(
-            GroupItem::reading(upgrades, PendingUpgradesTarget::Firmware, clock, locale)
-                .on_press("run fwupdmgr update in a terminal", install.clone())
-                .ongoing_toast_action_buttons([OngoingToastActionButton {
-                    button_label: "Install".to_owned(),
-                    tint: ActionTint::Proceed,
-                    on_button_pressed: install,
-                }]),
+            GroupItem::reading(
+                ReadingRow::evaluated(upgrades, clock, locale),
+                PendingUpgradesTarget::Firmware,
+            )
+            .on_press("run fwupdmgr update in a terminal", install.clone())
+            .ongoing_toast_action_buttons([OngoingToastActionButton {
+                button_label: "Install".to_owned(),
+                tint: ActionTint::Proceed,
+                on_button_pressed: install,
+            }]),
         )
     }
 }

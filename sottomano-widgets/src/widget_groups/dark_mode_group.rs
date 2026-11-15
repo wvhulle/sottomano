@@ -1,4 +1,7 @@
-use crate::group_items::reading_display_state::ReadingDisplayState;
+use crate::{
+    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
+    widgets::icon_glyph::IconGlyph,
+};
 mod auto_switch_toggle;
 mod offset_slider;
 mod sqlite_dark_mode_schedule;
@@ -29,7 +32,6 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage},
     },
@@ -335,7 +337,7 @@ impl DarkModeGroup {
     #[must_use]
     pub fn hover_card_for(&self, target: DarkModeTarget, clock: Clock) -> Vec<Section> {
         match target {
-            DarkModeTarget::Mode => self.mode_toggle.hover_card(clock),
+            DarkModeTarget::Mode => self.mode_toggle.hover_card(),
             DarkModeTarget::Schedule => self.auto_switch_toggle.schedule_hover_card(clock),
             DarkModeTarget::SunriseOffset => self.offset_slider_hover_card(ColorMode::Light),
             DarkModeTarget::SunsetOffset => self.offset_slider_hover_card(ColorMode::Dark),
@@ -353,12 +355,11 @@ impl DarkModeGroup {
         clock: Clock,
     ) -> WidgetGroupContent<'a, DarkModeInteraction> {
         let locale = config.calendar.locale;
-        let mode_known = self.mode_toggle.reading().is_some();
+        let mode_known = self.mode_toggle.snapshot().is_some();
         let offset_slider = |edge| {
             GroupItem::slider(
                 self.offset_slider_for(edge),
                 config,
-                clock,
                 DarkModeInteraction::OffsetSlider.with(edge),
             )
         };
@@ -369,18 +370,17 @@ impl DarkModeGroup {
             [
                 self.mode_toggle
                     .group_item(
+                        IconGlyph::default(),
+                        |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
                         DarkModeTarget::Mode,
                         DarkModeInteraction::ModeTogglePressed,
                         clock,
-                        locale,
                     )
                     .map(GroupItem::previewed_on_handle),
                 mode_known.then(|| {
                     GroupItem::reading(
-                        &self.auto_switch_toggle as &dyn GroupItemReading,
+                        ReadingRow::evaluated(&self.auto_switch_toggle, clock, locale),
                         DarkModeTarget::Schedule,
-                        clock,
-                        locale,
                     )
                     .on_switch_press(
                         self.auto_switch_toggle.saved_schedule.auto_switch_arming,

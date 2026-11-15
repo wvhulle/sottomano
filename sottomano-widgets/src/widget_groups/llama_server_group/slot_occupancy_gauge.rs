@@ -38,10 +38,6 @@ impl GroupItemReading for SlotOccupancy<'_> {
         Phosphor::Stack(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> IconGlyph {
-        Phosphor::Stack(Weight::Regular).into()
-    }
-
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(format!("{}/{}", self.busy(), self.slots.len()))
     }

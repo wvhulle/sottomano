@@ -271,9 +271,7 @@ impl SidebarSettingsGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-        clock: Clock,
     ) -> WidgetGroupContent<'a, SidebarSettingsMessage> {
-        let locale = config.calendar.locale;
         let sidebar_shown = self.workspaces_placement == WorkspacesPlacement::Sidebar;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SidebarSettings,
@@ -284,24 +282,17 @@ impl SidebarSettingsGroup {
                     workspaces_sidebar_toggle(self.workspaces_placement),
                     SidebarSettingsTarget::WorkspacesPlacement,
                     SidebarSettingsMessage::ToggleWorkspacesPlacement,
-                    clock,
-                    locale,
                 ),
                 GroupItem::toggle(
                     auto_collapse_workspaces_toggle(self.empty_workspace_folding.mode()),
                     SidebarSettingsTarget::AutoCollapseWorkspaces,
                     SidebarSettingsMessage::ToggleAutoCollapseWorkspaces,
-                    clock,
-                    locale,
                 ),
             ]
             .into_iter()
             .chain(
                 sidebar_shown
-                    .then(|| {
-                        self.layer
-                            .items(config, SidebarSettingsMessage::Appearance, clock)
-                    })
+                    .then(|| self.layer.items(config, SidebarSettingsMessage::Appearance))
                     .into_iter()
                     .flatten(),
             ),

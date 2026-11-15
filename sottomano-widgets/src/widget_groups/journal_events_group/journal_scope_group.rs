@@ -70,12 +70,28 @@ impl JournalScopeGroup {
         })
     }
 
-    fn journal_kind_readings(&self) -> [Option<&dyn GroupItemReading>; 4] {
+    fn journal_kind_states(&self, clock: Clock) -> [Option<ReadingDisplayState>; 4] {
         [
-            self.kernel.display(),
-            self.service_errors.display(),
-            self.coredumps.display(),
-            self.oom_kills.display(),
+            self.kernel.shown_state(
+                |snapshot| snapshot.state(clock),
+                GroupItemReading::panel_visibility,
+                clock,
+            ),
+            self.service_errors.shown_state(
+                |snapshot| snapshot.state(clock),
+                GroupItemReading::panel_visibility,
+                clock,
+            ),
+            self.coredumps.shown_state(
+                |snapshot| snapshot.state(clock),
+                GroupItemReading::panel_visibility,
+                clock,
+            ),
+            self.oom_kills.shown_state(
+                |snapshot| snapshot.state(clock),
+                GroupItemReading::panel_visibility,
+                clock,
+            ),
         ]
     }
 }
@@ -93,10 +109,10 @@ impl GroupItemReading for JournalScopeGroup {
     }
 
     fn state(&self, clock: Clock) -> ReadingDisplayState {
-        self.journal_kind_readings()
+        self.journal_kind_states(clock)
             .into_iter()
             .flatten()
-            .map(|kind| kind.state(clock).severity())
+            .map(ReadingDisplayState::severity)
             .max()
             .unwrap_or_default()
             .into()
@@ -105,19 +121,19 @@ impl GroupItemReading for JournalScopeGroup {
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let kernel = self
             .kernel
-            .visible_reading()
+            .visible_reading(GroupItemReading::panel_visibility)
             .map(|errors| LabeledValue::new("Kernel errors", Quantity::count(errors.len())));
         let service = self
             .service_errors
-            .visible_reading()
+            .visible_reading(GroupItemReading::panel_visibility)
             .map(|errors| LabeledValue::new("Service errors", Quantity::count(errors.entry_count)));
         let coredumps = self
             .coredumps
-            .visible_reading()
+            .visible_reading(GroupItemReading::panel_visibility)
             .map(|coredumps| LabeledValue::new("Coredumps", Quantity::count(coredumps.len())));
         let oom_kills = self
             .oom_kills
-            .visible_reading()
+            .visible_reading(GroupItemReading::panel_visibility)
             .map(|kills| LabeledValue::new("OOM kills", Quantity::count(kills.len())));
         vec![Section::new(
             "Last hour",

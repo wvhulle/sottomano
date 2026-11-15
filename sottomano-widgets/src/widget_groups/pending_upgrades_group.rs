@@ -3,8 +3,10 @@ use std::borrow::Cow;
 use iced::{Subscription, Task};
 
 use crate::{
+    group_items::reading_row::{ReadingRow, reading_hover_card},
     hover_cards::hover_card_body::dictionary_table,
-    widget_groups::widget_group_identity::WidgetGroupFamily, widgets::phosphor::Weight,
+    widget_groups::widget_group_identity::WidgetGroupFamily,
+    widgets::phosphor::Weight,
 };
 
 mod firmware_upgrade_list;
@@ -100,7 +102,9 @@ impl PendingUpgradesGroup {
     #[must_use]
     pub fn hover_card_for(&self, target: PendingUpgradesTarget, clock: Clock) -> Vec<Section> {
         match target {
-            PendingUpgradesTarget::Firmware => self.firmware.hover_card(clock),
+            PendingUpgradesTarget::Firmware => self
+                .firmware
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
             PendingUpgradesTarget::Summary => self.firmware.hover_card_with(self.hover_card(clock)),
         }
     }
@@ -111,7 +115,7 @@ impl PendingUpgradesGroup {
         clock: Clock,
     ) -> WidgetGroupContent<'a, PendingUpgradesInteraction> {
         let locale = config.calendar.locale;
-        let has_categories = self.categories().iter().any(Option::is_some);
+        let has_categories = self.category_states(clock).iter().any(Option::is_some);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PendingUpgrades,
             &self.expansion,
@@ -119,15 +123,16 @@ impl PendingUpgradesGroup {
             [
                 has_categories.then(|| {
                     GroupItem::reading(
-                        self as &dyn GroupItemReading,
+                        ReadingRow::evaluated(self, clock, locale),
                         PendingUpgradesTarget::Summary,
-                        clock,
-                        locale,
                     )
                 }),
                 self.firmware_upgrade_item(config, clock),
                 self.firmware.failure().map(|failure| {
-                    GroupItem::reading(failure, PendingUpgradesTarget::Firmware, clock, locale)
+                    GroupItem::reading(
+                        failure.reading_row(IconGlyph::default()),
+                        PendingUpgradesTarget::Firmware,
+                    )
                 }),
             ]
             .into_iter()
@@ -135,8 +140,19 @@ impl PendingUpgradesGroup {
         )
     }
 
-    fn categories(&self) -> [Option<&dyn GroupItemReading>; 1] {
-        [self.firmware.display()]
+    fn category_badges(&self) -> [Option<usize>; 1] {
+        [self
+            .firmware
+            .visible_reading(GroupItemReading::panel_visibility)
+            .and_then(GroupItemReading::badge)]
+    }
+
+    fn category_states(&self, clock: Clock) -> [Option<ReadingDisplayState>; 1] {
+        [self.firmware.shown_state(
+            |snapshot| snapshot.state(clock),
+            GroupItemReading::panel_visibility,
+            clock,
+        )]
     }
 }
 
@@ -150,20 +166,15 @@ impl GroupItemReading for PendingUpgradesGroup {
     }
 
     fn badge(&self) -> Option<usize> {
-        let total: usize = self
-            .categories()
-            .into_iter()
-            .flatten()
-            .filter_map(GroupItemReading::badge)
-            .sum();
+        let total: usize = self.category_badges().into_iter().flatten().sum();
         (total > 0).then_some(total)
     }
 
     fn state(&self, clock: Clock) -> ReadingDisplayState {
-        self.categories()
+        self.category_states(clock)
             .into_iter()
             .flatten()
-            .map(|category| category.state(clock).severity())
+            .map(ReadingDisplayState::severity)
             .max()
             .unwrap_or_default()
             .into()
@@ -172,12 +183,16 @@ impl GroupItemReading for PendingUpgradesGroup {
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::new(
             "Count",
-            dictionary_table(self.firmware.visible_reading().map(|upgrades| {
-                LabeledValue::new(
-                    firmware_upgrade_list::LABEL,
-                    Quantity::count(upgrades.len()),
-                )
-            })),
+            dictionary_table(
+                self.firmware
+                    .visible_reading(GroupItemReading::panel_visibility)
+                    .map(|upgrades| {
+                        LabeledValue::new(
+                            firmware_upgrade_list::LABEL,
+                            Quantity::count(upgrades.len()),
+                        )
+                    }),
+            ),
         )]
     }
 }

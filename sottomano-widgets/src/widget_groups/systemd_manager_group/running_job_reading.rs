@@ -12,8 +12,9 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::{GroupItemReading, PanelVisibility},
+        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
@@ -86,12 +87,15 @@ pub(super) fn slow_jobs_item<'a>(
             action_buttons: Vec::new(),
         }
     });
-    GroupItem::reading(jobs, SystemdTarget::slow_jobs(jobs.scope), clock, locale)
-        .on_press(
-            TerminalCommand::JOURNAL_PRESS_HINT,
-            open_log(jobs.follow_log_args()),
-        )
-        .ongoing_toasts(slow_job_toasts)
+    GroupItem::reading(
+        ReadingRow::evaluated(jobs, clock, locale),
+        SystemdTarget::slow_jobs(jobs.scope),
+    )
+    .on_press(
+        TerminalCommand::JOURNAL_PRESS_HINT,
+        open_log(jobs.follow_log_args()),
+    )
+    .ongoing_toasts(slow_job_toasts)
 }
 
 impl GroupItemReading for SlowJobs {

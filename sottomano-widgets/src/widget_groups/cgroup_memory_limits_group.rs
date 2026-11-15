@@ -15,7 +15,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
     },
     hover_cards::{
         HoverTarget,
@@ -246,12 +246,10 @@ impl CgroupMemoryLimitsGroup {
         let locale = config.calendar.locale;
         let rows = self.listed_cgroups().iter().map(|cgroup| {
             GroupItem::reading(
-                self.cgroup_row(cgroup),
+                ReadingRow::evaluated(self.cgroup_row(cgroup), clock, locale),
                 CgroupMemoryLimitTarget {
                     cgroup_path: Cow::Owned(cgroup.cgroup_path.clone()),
                 },
-                clock,
-                locale,
             )
             .on_press(
                 CGTOP_PRESS_HINT,

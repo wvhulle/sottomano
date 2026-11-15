@@ -13,8 +13,8 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, PanelVisibility},
-        reading_display_state::ReadingDisplayState,
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::PanelVisibility,
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
@@ -26,16 +26,15 @@ use crate::{
     },
 };
 
+pub(crate) const OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::Phosphor(Phosphor::Wallet(Weight::Regular));
+
 impl GroupItemReading for OpenRouterStrictBudget {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
-        Phosphor::Wallet(Weight::Regular).into()
-    }
-
-    fn fallback_icon() -> IconGlyph {
         Phosphor::Wallet(Weight::Regular).into()
     }
 

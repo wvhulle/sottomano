@@ -11,7 +11,10 @@ use super::{
 };
 use crate::{
     clock::Clock,
-    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    group_items::{
+        group_item::GroupItem,
+        reading_row::{ReadingRow, reading_hover_card},
+    },
     hover_cards::{HoverTarget, hover_card_body::Section},
 };
 
@@ -111,33 +114,39 @@ impl<'a> FilesystemPropertyRow<'a> {
         locale: Locale,
     ) -> GroupItem<'a, M> {
         match self {
-            FilesystemPropertyRow::Mount(row) => GroupItem::reading(row, target, clock, locale),
-            FilesystemPropertyRow::Volume(row) => GroupItem::reading(row, target, clock, locale),
-            FilesystemPropertyRow::Inodes(row) => GroupItem::reading(row, target, clock, locale),
+            FilesystemPropertyRow::Mount(row) => {
+                GroupItem::reading(ReadingRow::evaluated(row, clock, locale), target)
+            }
+            FilesystemPropertyRow::Volume(row) => {
+                GroupItem::reading(ReadingRow::evaluated(row, clock, locale), target)
+            }
+            FilesystemPropertyRow::Inodes(row) => {
+                GroupItem::reading(ReadingRow::evaluated(row, clock, locale), target)
+            }
             FilesystemPropertyRow::MetadataRoom(row) => {
-                GroupItem::reading(row, target, clock, locale)
+                GroupItem::reading(ReadingRow::evaluated(row, clock, locale), target)
             }
             FilesystemPropertyRow::Compression(row) => {
-                GroupItem::reading(row, target, clock, locale)
+                GroupItem::reading(ReadingRow::evaluated(row, clock, locale), target)
             }
             FilesystemPropertyRow::Ext4Errors(row) => {
-                GroupItem::reading(row, target, clock, locale)
+                GroupItem::reading(ReadingRow::evaluated(row, clock, locale), target)
             }
             FilesystemPropertyRow::Ext4Writes(row) => {
-                GroupItem::reading(row, target, clock, locale)
+                GroupItem::reading(ReadingRow::evaluated(row, clock, locale), target)
             }
         }
     }
 
     pub(super) fn hover_card(&self, clock: Clock) -> Vec<Section> {
         match self {
-            FilesystemPropertyRow::Mount(row) => row.hover_card(clock),
-            FilesystemPropertyRow::Volume(row) => row.hover_card(clock),
-            FilesystemPropertyRow::Inodes(row) => row.hover_card(clock),
-            FilesystemPropertyRow::MetadataRoom(row) => row.hover_card(clock),
-            FilesystemPropertyRow::Compression(row) => row.hover_card(clock),
-            FilesystemPropertyRow::Ext4Errors(row) => row.hover_card(clock),
-            FilesystemPropertyRow::Ext4Writes(row) => row.hover_card(clock),
+            FilesystemPropertyRow::Mount(row) => reading_hover_card(row, clock),
+            FilesystemPropertyRow::Volume(row) => reading_hover_card(row, clock),
+            FilesystemPropertyRow::Inodes(row) => reading_hover_card(row, clock),
+            FilesystemPropertyRow::MetadataRoom(row) => reading_hover_card(row, clock),
+            FilesystemPropertyRow::Compression(row) => reading_hover_card(row, clock),
+            FilesystemPropertyRow::Ext4Errors(row) => reading_hover_card(row, clock),
+            FilesystemPropertyRow::Ext4Writes(row) => reading_hover_card(row, clock),
         }
     }
 }

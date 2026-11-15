@@ -17,6 +17,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
     },
     hover_cards::{
         HoverTarget,
@@ -151,8 +152,6 @@ impl ContainerFamily for ApptainerFamily {
     type Detail = FamilyDetails<ApptainerContainer>;
     type Target = ApptainerContainerTarget;
     type PowerRequest = i32;
-    type ListingRow<'a> = ApptainerContainerListingRow<'a>;
-    type DetailRow<'a> = ApptainerContainerRow<'a>;
 
     const FAMILY: WidgetGroupFamily = WidgetGroupFamily::ApptainerContainers;
     const STOP_HINT: &'static str = "stop the container";
@@ -168,7 +167,9 @@ impl ContainerFamily for ApptainerFamily {
 
     fn listing_rows(
         listings: &FamilyListings<ApptainerContainerListing>,
-    ) -> Vec<FamilyRow<Self, ApptainerContainerListingRow<'_>>> {
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<FamilyRow<'_, Self>> {
         listings
             .listings
             .iter()
@@ -176,7 +177,11 @@ impl ContainerFamily for ApptainerFamily {
                 target: ApptainerContainerTarget {
                     runtime_pid: listing.runtime_pid,
                 },
-                reading: ApptainerContainerListingRow { listing },
+                reading: ReadingRow::evaluated(
+                    ApptainerContainerListingRow { listing },
+                    clock,
+                    locale,
+                ),
                 power: RowPower::Stoppable(listing.runtime_pid),
             })
             .collect()
@@ -184,7 +189,9 @@ impl ContainerFamily for ApptainerFamily {
 
     fn detail_rows(
         detail: &FamilyDetails<ApptainerContainer>,
-    ) -> Vec<FamilyRow<Self, ApptainerContainerRow<'_>>> {
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<FamilyRow<'_, Self>> {
         detail
             .details
             .iter()
@@ -192,7 +199,7 @@ impl ContainerFamily for ApptainerFamily {
                 target: ApptainerContainerTarget {
                     runtime_pid: container.listing.runtime_pid,
                 },
-                reading: ApptainerContainerRow { container },
+                reading: ReadingRow::evaluated(ApptainerContainerRow { container }, clock, locale),
                 power: RowPower::Stoppable(container.listing.runtime_pid),
             })
             .collect()

@@ -21,7 +21,8 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
+        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
+        toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
@@ -467,16 +468,18 @@ impl IncusInstancesGroup {
                 .iter()
                 .map(|instance| {
                     let row = GroupItem::reading(
-                        IncusInstanceRow {
-                            instance_daemon,
-                            instance,
-                        },
+                        ReadingRow::evaluated(
+                            IncusInstanceRow {
+                                instance_daemon,
+                                instance,
+                            },
+                            clock,
+                            locale,
+                        ),
                         IncusInstanceTarget {
                             instance_daemon,
                             instance_name: Cow::Owned(instance.listing.instance_name.clone()),
                         },
-                        clock,
-                        locale,
                     );
                     instance_power_switch(row, instance_daemon, &instance.listing)
                 })
@@ -487,16 +490,18 @@ impl IncusInstancesGroup {
         };
         if let Some(read_failure) = listing_reading.fetch_failure() {
             return vec![GroupItem::reading(
-                UnreadableDaemonRow {
-                    instance_daemon,
-                    read_failure,
-                },
+                ReadingRow::evaluated(
+                    UnreadableDaemonRow {
+                        instance_daemon,
+                        read_failure,
+                    },
+                    clock,
+                    locale,
+                ),
                 IncusInstanceTarget {
                     instance_daemon,
                     instance_name: Cow::Borrowed(instance_daemon.product_name()),
                 },
-                clock,
-                locale,
             )];
         }
         listing_reading
@@ -506,16 +511,18 @@ impl IncusInstancesGroup {
             .iter()
             .map(|listing| {
                 let row = GroupItem::reading(
-                    IncusInstanceListingRow {
-                        instance_daemon,
-                        listing,
-                    },
+                    ReadingRow::evaluated(
+                        IncusInstanceListingRow {
+                            instance_daemon,
+                            listing,
+                        },
+                        clock,
+                        locale,
+                    ),
                     IncusInstanceTarget {
                         instance_daemon,
                         instance_name: Cow::Owned(listing.instance_name.clone()),
                     },
-                    clock,
-                    locale,
                 );
                 instance_power_switch(row, instance_daemon, listing)
             })

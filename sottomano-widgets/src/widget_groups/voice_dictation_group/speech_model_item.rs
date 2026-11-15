@@ -8,8 +8,8 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, PanelVisibility},
-        reading_display_state::ReadingDisplayState,
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::PanelVisibility,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -21,6 +21,9 @@ use crate::{
 };
 
 const HUGGING_FACE_SITE: &str = "https://huggingface.co";
+
+pub(crate) const NOTULIST_ENGINE_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::Phosphor(Phosphor::Brain(Weight::Regular));
 
 impl GroupItemReading for NotulistEngine {
     fn name(&self) -> Cow<'static, str> {
@@ -36,10 +39,6 @@ impl GroupItemReading for NotulistEngine {
             | EngineState::LoadingSpeechModel
             | EngineState::SpeechModelUnavailable(_) => Phosphor::Brain(Weight::Regular).into(),
         }
-    }
-
-    fn fallback_icon() -> IconGlyph {
-        Phosphor::Brain(Weight::Regular).into()
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
@@ -195,9 +194,7 @@ mod tests {
     use notulist_client::ModelRole;
 
     use super::*;
-    use crate::{
-        group_items::group_item_reading::PanelVisibility, widgets::value_cells::ValueCell,
-    };
+    use crate::{group_items::reading_row::PanelVisibility, widgets::value_cells::ValueCell};
 
     fn keys(rows: impl IntoIterator<Item = LabeledValue>) -> Vec<ValueCell> {
         rows.into_iter().map(|row| row.key().clone()).collect()

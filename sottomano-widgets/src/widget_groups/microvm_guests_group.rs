@@ -24,6 +24,7 @@ use crate::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
         toggle_control::{SwitchPosition, SwitchPresses},
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage, activity_text},
     },
@@ -454,23 +455,23 @@ impl MicrovmGuestsGroup {
     ) -> GroupItem<'a, MicrovmGuestsInteraction> {
         let row = match self.running_guest_of(unit) {
             Some(machine) => GroupItem::reading(
-                MicrovmGuestRow { machine },
+                ReadingRow::evaluated(MicrovmGuestRow { machine }, clock, locale),
                 MicrovmGuestTarget::RunningProcess {
                     pid: machine.listing.pid,
                 },
-                clock,
-                locale,
             ),
             None => GroupItem::reading(
-                MicrovmUnitRow {
-                    unit,
-                    activity: self.unit_activity(unit),
-                },
+                ReadingRow::evaluated(
+                    MicrovmUnitRow {
+                        unit,
+                        activity: self.unit_activity(unit),
+                    },
+                    clock,
+                    locale,
+                ),
                 MicrovmGuestTarget::Unit {
                     instance_name: Cow::Owned(unit.instance_name.clone()),
                 },
-                clock,
-                locale,
             ),
         };
         match self.unit_switches.get(&unit.instance_name) {
@@ -500,12 +501,10 @@ impl MicrovmGuestsGroup {
                 .filter(|machine| !managed_by_unit(machine.unit_name.as_deref()))
                 .map(|machine| {
                     let row = GroupItem::reading(
-                        MicrovmGuestRow { machine },
+                        ReadingRow::evaluated(MicrovmGuestRow { machine }, clock, locale),
                         MicrovmGuestTarget::RunningProcess {
                             pid: machine.listing.pid,
                         },
-                        clock,
-                        locale,
                     );
                     match api_socket_of(machine) {
                         Some(api_socket) => row.on_stop_press(
@@ -533,10 +532,12 @@ impl MicrovmGuestsGroup {
                     })
                     .map(|listing| {
                         GroupItem::reading(
-                            MicrovmGuestListingRow { listing },
+                            ReadingRow::evaluated(
+                                MicrovmGuestListingRow { listing },
+                                clock,
+                                locale,
+                            ),
                             MicrovmGuestTarget::RunningProcess { pid: listing.pid },
-                            clock,
-                            locale,
                         )
                     })
                     .collect()

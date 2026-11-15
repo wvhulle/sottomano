@@ -20,7 +20,8 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
+        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
+        toggle_control::SwitchPosition,
     },
     hover_cards::{
         HoverTarget,
@@ -245,10 +246,12 @@ impl<'a> EngineContainers<'a> {
                 let target = self.target_of(&container.id);
                 with_container_switch(
                     GroupItem::reading(
-                        RunningContainerRow { container, owner },
+                        ReadingRow::evaluated(
+                            RunningContainerRow { container, owner },
+                            clock,
+                            locale,
+                        ),
                         target_of(target.clone()),
-                        clock,
-                        locale,
                     ),
                     ContainerRunState::Running,
                     target,
@@ -273,10 +276,12 @@ impl<'a> EngineContainers<'a> {
                 let target = self.target_of(&container.id);
                 with_container_switch(
                     GroupItem::reading(
-                        StoppedContainerRow { container, owner },
+                        ReadingRow::evaluated(
+                            StoppedContainerRow { container, owner },
+                            clock,
+                            locale,
+                        ),
                         target_of(target.clone()),
-                        clock,
-                        locale,
                     ),
                     ContainerRunState::Stopped,
                     target,
@@ -343,10 +348,8 @@ pub(crate) fn rows_ending_in_hidden_count<'a, Message: 'a>(
     }
     let hidden_count = rows.split_off(SHOWN_CONTAINER_ROWS - 1).len();
     rows.push(GroupItem::reading(
-        HiddenContainersRow { hidden_count },
+        ReadingRow::evaluated(HiddenContainersRow { hidden_count }, clock, locale),
         hidden_target,
-        clock,
-        locale,
     ));
     rows
 }

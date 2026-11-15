@@ -21,7 +21,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
+        reading_row::{ReadingRow, reading_hover_card},
         unit_switch::{ServiceReadiness, UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -214,12 +214,13 @@ impl ScopedLlamaServers {
         let reading = &readings.server;
         let server = reading.get();
         match target.reading {
-            LlamaServerReading::Switch => readings.switch.hover_card(
-                server.map_or(ServiceReadiness::NotYetServing, |_| {
-                    ServiceReadiness::Serving
-                }),
-                clock,
-            ),
+            LlamaServerReading::Switch => {
+                readings
+                    .switch
+                    .hover_card(server.map_or(ServiceReadiness::NotYetServing, |_| {
+                        ServiceReadiness::Serving
+                    }))
+            }
             LlamaServerReading::Model => {
                 let Some(server) = server else {
                     return Vec::new();
@@ -260,25 +261,25 @@ impl ScopedLlamaServers {
                 let Some(rate) = server.and_then(|server| server.generation_rate) else {
                     return Vec::new();
                 };
-                reading.hover_card_with(
+                reading.hover_card_with(reading_hover_card(
                     GenerationRate {
                         rate,
                         server: &readings.server_label,
-                    }
-                    .hover_card(clock),
-                )
+                    },
+                    clock,
+                ))
             }
             LlamaServerReading::Slots => {
                 let Some(server) = server else {
                     return Vec::new();
                 };
-                reading.hover_card_with(
+                reading.hover_card_with(reading_hover_card(
                     SlotOccupancy {
                         slots: &server.slots,
                         server: &readings.server_label,
-                    }
-                    .hover_card(clock),
-                )
+                    },
+                    clock,
+                ))
             }
             LlamaServerReading::ContextFill => {
                 let Some(context_fill) = server.and_then(|server| {
@@ -286,7 +287,7 @@ impl ScopedLlamaServers {
                 }) else {
                     return Vec::new();
                 };
-                reading.hover_card_with(context_fill.hover_card(clock))
+                reading.hover_card_with(reading_hover_card(context_fill, clock))
             }
         }
     }
@@ -313,13 +314,15 @@ impl ScopedLlamaServers {
                 running.map(|server| {
                     let resident = server.resident_model();
                     let model_item = GroupItem::reading(
-                        ServedModel {
-                            resident,
-                            server: server_label,
-                        },
+                        ReadingRow::evaluated(
+                            ServedModel {
+                                resident,
+                                server: server_label,
+                            },
+                            clock,
+                            locale,
+                        ),
                         target(LlamaServerReading::Model),
-                        clock,
-                        locale,
                     );
                     match resident {
                         Some(_) => model_item.previewed_on_handle(),
@@ -328,35 +331,37 @@ impl ScopedLlamaServers {
                 }),
                 busy.and_then(|server| server.generation_rate).map(|rate| {
                     GroupItem::reading(
-                        GenerationRate {
-                            rate,
-                            server: server_label,
-                        },
+                        ReadingRow::evaluated(
+                            GenerationRate {
+                                rate,
+                                server: server_label,
+                            },
+                            clock,
+                            locale,
+                        ),
                         target(LlamaServerReading::GenerationRate),
-                        clock,
-                        locale,
                     )
                 }),
                 running
                     .filter(|server| !server.slots.is_empty())
                     .map(|server| {
                         GroupItem::reading(
-                            SlotOccupancy {
-                                slots: &server.slots,
-                                server: server_label,
-                            },
+                            ReadingRow::evaluated(
+                                SlotOccupancy {
+                                    slots: &server.slots,
+                                    server: server_label,
+                                },
+                                clock,
+                                locale,
+                            ),
                             target(LlamaServerReading::Slots),
-                            clock,
-                            locale,
                         )
                     }),
                 busy.and_then(|server| ContextFill::fullest_busy_slot(&server.slots, server_label))
                     .map(|fill| {
                         GroupItem::reading(
-                            fill,
+                            ReadingRow::evaluated(fill, clock, locale),
                             target(LlamaServerReading::ContextFill),
-                            clock,
-                            locale,
                         )
                     }),
                 readings.switch.group_item(
@@ -368,8 +373,6 @@ impl ScopedLlamaServers {
                         }),
                     target(LlamaServerReading::Switch),
                     lift(ScopedServersInteraction::SwitchPressed(unit.clone())),
-                    clock,
-                    locale,
                 ),
             ]
             .into_iter()

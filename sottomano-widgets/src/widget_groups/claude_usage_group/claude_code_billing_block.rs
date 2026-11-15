@@ -6,8 +6,8 @@ use sottomano_desktop_sources::{SnapshotSource, ai_usage_spend::claude_usage::Cl
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, PanelVisibility},
-        reading_display_state::ReadingDisplayState,
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::PanelVisibility,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -20,16 +20,15 @@ use crate::{
     },
 };
 
+pub(crate) const CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH: IconGlyph =
+    IconGlyph::Phosphor(Phosphor::Timer(Weight::Regular));
+
 impl GroupItemReading for ClaudeCcusageBlock {
     fn name(&self) -> Cow<'static, str> {
         Self::NAME.into()
     }
 
     fn icon(&self) -> IconGlyph {
-        Phosphor::Timer(Weight::Regular).into()
-    }
-
-    fn fallback_icon() -> IconGlyph {
         Phosphor::Timer(Weight::Regular).into()
     }
 

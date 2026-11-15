@@ -3,7 +3,22 @@ use std::convert::identity;
 use iced::{Subscription, Task};
 use sottomano_toml_config::Config;
 
-use crate::widget_groups::widget_group_identity::WidgetGroupFamily;
+use crate::{
+    group_items::{
+        group_item_reading::GroupItemReading,
+        reading_row::{ReadingRow, reading_hover_card},
+    },
+    widget_groups::{
+        weather_group::{
+            geolocation_fix::LOCATION_FALLBACK_GLYPH,
+            pollen_count_gauge::POLLEN_FALLBACK_GLYPH,
+            rain_intensity::{PRECIPITATION_MODEL_FALLBACK_GLYPH, RAIN_FALLBACK_GLYPH},
+            temperature_forecast::TEMPERATURE_FALLBACK_GLYPH,
+            wind_speed::WIND_FALLBACK_GLYPH,
+        },
+        widget_group_identity::WidgetGroupFamily,
+    },
+};
 
 mod geolocation_fix;
 mod pollen_count_gauge;
@@ -29,7 +44,7 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    group_items::group_item::GroupItem,
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
@@ -175,23 +190,38 @@ impl WeatherGroup {
         clock: Clock,
     ) -> Vec<Section> {
         match target {
-            WeatherTarget::Temperature => self.temperature.hover_card(clock),
-            WeatherTarget::Wind => self.wind.hover_card(clock),
+            WeatherTarget::Temperature => self
+                .temperature
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            WeatherTarget::Wind => self
+                .wind
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
             WeatherTarget::Rain => self.rain_hover_card(config, clock),
-            WeatherTarget::Pollen => self.pollen.hover_card(clock),
+            WeatherTarget::Pollen => self
+                .pollen
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
             WeatherTarget::Allergen(allergen) => self
                 .pollen
                 .get()
                 .and_then(|pollen| pollen.concentration(allergen))
-                .map(|concentration| self.pollen.hover_card_with(concentration.hover_card(clock)))
+                .map(|concentration| {
+                    self.pollen
+                        .hover_card_with(reading_hover_card(concentration, clock))
+                })
                 .unwrap_or_default(),
-            WeatherTarget::Location => self.location.hover_card(clock),
+            WeatherTarget::Location => self
+                .location
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
         }
     }
 
     fn rain_forecast<'a>(&'a self, config: &'a Config) -> Option<RainForecast<'a>> {
-        let visible_radar = self.rain.visible_reading();
-        let visible_model = self.precipitation_model.visible_reading();
+        let visible_radar = self
+            .rain
+            .visible_reading(GroupItemReading::panel_visibility);
+        let visible_model = self
+            .precipitation_model
+            .visible_reading(GroupItemReading::panel_visibility);
         let sources = match visible_radar {
             Some(radar) => match visible_model {
                 Some(model) => RainSources::RadarAndModel { radar, model },
@@ -207,13 +237,17 @@ impl WeatherGroup {
 
     fn rain_hover_card(&self, config: &Config, clock: Clock) -> Vec<Section> {
         let Some(forecast) = self.rain_forecast(config) else {
-            let radar_sections = self.rain.hover_card(clock);
+            let radar_sections = self
+                .rain
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock));
             if radar_sections.is_empty() {
-                return self.precipitation_model.hover_card(clock);
+                return self
+                    .precipitation_model
+                    .sections_described_by(|snapshot| reading_hover_card(snapshot, clock));
             }
             return radar_sections;
         };
-        let forecast_sections = forecast.hover_card(clock);
+        let forecast_sections = reading_hover_card(&forecast, clock);
         let mut sections = match forecast.sources {
             RainSources::Model(_) => self.precipitation_model.hover_card_with(forecast_sections),
             RainSources::RadarAndModel { .. } | RainSources::Radar(_) => {
@@ -234,17 +268,24 @@ impl WeatherGroup {
         let locale = config.calendar.locale;
         match self.rain_forecast(config) {
             Some(forecast) => Some(GroupItem::reading(
-                forecast,
+                ReadingRow::evaluated(forecast, clock, locale),
                 WeatherTarget::Rain,
-                clock,
-                locale,
             )),
             None => self
                 .rain
-                .group_item(WeatherTarget::Rain, clock, locale)
+                .group_item(
+                    RAIN_FALLBACK_GLYPH,
+                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    WeatherTarget::Rain,
+                    clock,
+                )
                 .or_else(|| {
-                    self.precipitation_model
-                        .group_item(WeatherTarget::Rain, clock, locale)
+                    self.precipitation_model.group_item(
+                        PRECIPITATION_MODEL_FALLBACK_GLYPH,
+                        |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                        WeatherTarget::Rain,
+                        clock,
+                    )
                 }),
         }
     }
@@ -258,10 +299,8 @@ impl WeatherGroup {
         let airborne_items = self.pollen.get().into_iter().flat_map(|pollen| {
             pollen.airborne().map(|concentration| {
                 GroupItem::reading(
-                    concentration as &dyn GroupItemReading,
+                    ReadingRow::evaluated(concentration, clock, locale),
                     WeatherTarget::Allergen(concentration.allergen),
-                    clock,
-                    locale,
                 )
             })
         });
@@ -270,10 +309,19 @@ impl WeatherGroup {
             &self.expansion,
             identity,
             [
-                self.temperature
-                    .group_item(WeatherTarget::Temperature, clock, locale),
+                self.temperature.group_item(
+                    TEMPERATURE_FALLBACK_GLYPH,
+                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    WeatherTarget::Temperature,
+                    clock,
+                ),
                 self.rain_item(config, clock),
-                self.wind.group_item(WeatherTarget::Wind, clock, locale),
+                self.wind.group_item(
+                    WIND_FALLBACK_GLYPH,
+                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    WeatherTarget::Wind,
+                    clock,
+                ),
             ]
             .into_iter()
             .flatten()
@@ -281,10 +329,17 @@ impl WeatherGroup {
             .chain(
                 [
                     self.pollen.failure().map(|widget| {
-                        GroupItem::reading(widget, WeatherTarget::Pollen, clock, locale)
+                        GroupItem::reading(
+                            widget.reading_row(POLLEN_FALLBACK_GLYPH),
+                            WeatherTarget::Pollen,
+                        )
                     }),
-                    self.location
-                        .group_item(WeatherTarget::Location, clock, locale),
+                    self.location.group_item(
+                        LOCATION_FALLBACK_GLYPH,
+                        |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                        WeatherTarget::Location,
+                        clock,
+                    ),
                 ]
                 .into_iter()
                 .flatten(),

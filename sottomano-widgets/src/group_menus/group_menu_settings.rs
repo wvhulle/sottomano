@@ -88,17 +88,13 @@ impl GroupMenuState {
     pub fn settings_content<'a>(
         &'a self,
         config: &'a Config,
-        clock: Clock,
     ) -> WidgetGroupContent<'a, GroupMenuMessage> {
-        let locale = config.calendar.locale;
         let presentation = self.presentation();
         let accordion_only_item = (presentation.layout == NestedMenuLayout::Accordion).then(|| {
             GroupItem::toggle(
                 keep_one_group_open_toggle(presentation),
                 GroupMenuSettingsTarget::KeepOneGroupOpen,
                 GroupMenuMessage::SwitchPresentation(presentation.with_open_limit_toggled()),
-                clock,
-                locale,
             )
         });
         WidgetGroupContent::expandable(
@@ -110,15 +106,11 @@ impl GroupMenuState {
                     accordion_layout_toggle(presentation),
                     GroupMenuSettingsTarget::AccordionLayout,
                     GroupMenuMessage::SwitchPresentation(presentation.with_layout_toggled()),
-                    clock,
-                    locale,
                 ),
                 GroupItem::toggle(
                     click_to_open_menus_toggle(presentation),
                     GroupMenuSettingsTarget::ClickToOpenMenus,
                     GroupMenuMessage::SwitchPresentation(presentation.with_open_trigger_toggled()),
-                    clock,
-                    locale,
                 ),
                 GroupItem::toggle(
                     submenu_connector_toggle(presentation),
@@ -126,16 +118,11 @@ impl GroupMenuState {
                     GroupMenuMessage::SwitchPresentation(
                         presentation.with_submenu_connector_toggled(),
                     ),
-                    clock,
-                    locale,
                 ),
             ]
             .into_iter()
             .chain(accordion_only_item)
-            .chain(
-                self.layer
-                    .items(config, GroupMenuMessage::Appearance, clock),
-            ),
+            .chain(self.layer.items(config, GroupMenuMessage::Appearance)),
         )
         .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::ListDashes(Weight::Regular).into(),

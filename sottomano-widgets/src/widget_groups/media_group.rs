@@ -34,6 +34,7 @@ use crate::{
     group_items::{
         group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
         reading_display_state::ReadingDisplayState,
+        reading_row::reading_hover_card,
         source_reading::GroupItemIcon,
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -467,7 +468,8 @@ impl MediaGroup {
             return Vec::new();
         };
         let Some(track_lyrics) = lyrics_snapshot.get() else {
-            return lyrics_snapshot.hover_card(clock);
+            return lyrics_snapshot
+                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock));
         };
         let Some(played) = media.progress.played(media.status, clock.instant) else {
             return Vec::new();

@@ -18,6 +18,7 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
     },
     hover_cards::{
         HoverTarget,
@@ -173,8 +174,6 @@ impl ContainerFamily for VirtualBoxFamily {
     type Detail = FamilyDetails<VirtualBoxMachine>;
     type Target = VirtualBoxMachineTarget;
     type PowerRequest = String;
-    type ListingRow<'a> = VirtualBoxListedRow<'a>;
-    type DetailRow<'a> = VirtualBoxMachineRow<'a>;
 
     const FAMILY: WidgetGroupFamily = WidgetGroupFamily::VirtualBoxMachines;
     const STOP_HINT: &'static str = "press the guest's power button";
@@ -191,13 +190,19 @@ impl ContainerFamily for VirtualBoxFamily {
 
     fn listing_rows(
         listings: &VirtualBoxMachineListings,
-    ) -> Vec<FamilyRow<Self, VirtualBoxListedRow<'_>>> {
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<FamilyRow<'_, Self>> {
         listings
             .listings
             .iter()
             .map(|listing| FamilyRow {
                 target: VirtualBoxMachineTarget::RunningProcess { pid: listing.pid },
-                reading: VirtualBoxListedRow::Running(listing),
+                reading: ReadingRow::evaluated(
+                    VirtualBoxListedRow::Running(listing),
+                    clock,
+                    locale,
+                ),
                 power: RowPower::SwitchedOn(listing.machine_reference.clone()),
             })
             .collect()
@@ -205,7 +210,9 @@ impl ContainerFamily for VirtualBoxFamily {
 
     fn detail_rows(
         detail: &FamilyDetails<VirtualBoxMachine>,
-    ) -> Vec<FamilyRow<Self, VirtualBoxMachineRow<'_>>> {
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<FamilyRow<'_, Self>> {
         detail
             .details
             .iter()
@@ -213,7 +220,7 @@ impl ContainerFamily for VirtualBoxFamily {
                 target: VirtualBoxMachineTarget::RunningProcess {
                     pid: machine.listing.pid,
                 },
-                reading: VirtualBoxMachineRow { machine },
+                reading: ReadingRow::evaluated(VirtualBoxMachineRow { machine }, clock, locale),
                 power: RowPower::SwitchedOn(machine.listing.machine_reference.clone()),
             })
             .collect()
@@ -221,7 +228,9 @@ impl ContainerFamily for VirtualBoxFamily {
 
     fn stopped_rows(
         listings: &VirtualBoxMachineListings,
-    ) -> Vec<FamilyRow<Self, VirtualBoxListedRow<'_>>> {
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<FamilyRow<'_, Self>> {
         listings
             .stopped_machines
             .iter()
@@ -229,7 +238,11 @@ impl ContainerFamily for VirtualBoxFamily {
                 target: VirtualBoxMachineTarget::StoppedMachine {
                     machine_uuid: Cow::Owned(machine.machine_uuid.clone()),
                 },
-                reading: VirtualBoxListedRow::Stopped(machine),
+                reading: ReadingRow::evaluated(
+                    VirtualBoxListedRow::Stopped(machine),
+                    clock,
+                    locale,
+                ),
                 power: RowPower::SwitchedOff(machine.machine_uuid.clone()),
             })
             .collect()
