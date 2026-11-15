@@ -173,7 +173,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             messenger: GroupMenuMessenger { topic, on_message },
             groups: groups
                 .into_iter()
-                .filter(|group| !group.is_empty())
+                .filter(WidgetGroupContent::has_face)
                 .collect(),
         }
     }
@@ -468,6 +468,7 @@ mod tests {
         desktop_index::DesktopIndex,
         group_items::{
             group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
+            reading_display_state::ReadingDisplayState,
             reading_row::named_test_row,
             source_reading::GroupItemIcon,
         },
@@ -479,11 +480,12 @@ mod tests {
             HoverAnnouncement, HoverTarget, MenuHandleIndicator, PopupMessage, PressHints,
         },
         widget_groups::{
-            widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
+            widget_group_content::{WidgetGroupContent, WidgetGroupExpansion, WidgetGroupFace},
             widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         },
         widgets::{
-            favicon::Favicons, shell_layer_appearance::ShellLayer, window_icon::WindowAssets,
+            favicon::Favicons, icon_glyph::IconGlyph, shell_layer_appearance::ShellLayer,
+            window_icon::WindowAssets,
         },
     };
 
@@ -645,7 +647,30 @@ mod tests {
     }
 
     #[test]
-    fn a_group_without_items_is_left_out_of_the_menu() {
+    fn a_glyph_faced_group_without_items_stays_in_the_menu() {
+        let group_menus = opened_menu_state(every_presentation()[0]);
+        let expansion = WidgetGroupExpansion::default();
+        let empty_group = WidgetGroupContent::expandable(
+            WidgetGroupFamily::Gpu,
+            &expansion,
+            |_| SmokeMessage,
+            Vec::<GroupItem<'_, SmokeMessage>>::new(),
+        )
+        .face(WidgetGroupFace::Glyph {
+            glyph: IconGlyph::default(),
+            state: ReadingDisplayState::Idle,
+        });
+        let menu = GroupMenuView::new(
+            GroupMenuTopic::Hardware,
+            &group_menus,
+            |_| SmokeMessage,
+            [empty_group],
+        );
+        assert_eq!(menu.open_group_menu().families.len(), 1);
+    }
+
+    #[test]
+    fn a_group_faced_by_its_first_item_is_left_out_without_items() {
         let group_menus = opened_menu_state(every_presentation()[0]);
         let expansion = WidgetGroupExpansion::default();
         let empty_group = WidgetGroupContent::expandable(

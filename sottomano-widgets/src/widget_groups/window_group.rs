@@ -126,7 +126,7 @@ impl WindowGroup {
             }
             WindowGroupMessage::Interaction(WindowGroupInteraction::WindowList(
                 window_list_interaction,
-            )) => Action::WindowList(self.window_list.interact(window_list_interaction)),
+            )) => Action::WindowList(self.window_list.interact(&window_list_interaction)),
         }
     }
 

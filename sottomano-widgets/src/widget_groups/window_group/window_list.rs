@@ -342,15 +342,15 @@ impl WindowList {
         }
     }
 
-    pub fn interact(&mut self, interaction: WindowListInteraction) -> Action {
+    pub fn interact(&mut self, interaction: &WindowListInteraction) -> Action {
         match interaction {
-            WindowListInteraction::ToggleAudio(pid) => Action::ToggleAudio(pid),
+            WindowListInteraction::ToggleAudio(pid) => Action::ToggleAudio(*pid),
             WindowListInteraction::HoverCard(_) => Action::None,
             WindowListInteraction::ProcessFoldToggled(pid) => {
-                self.folding.toggle(pid);
+                self.folding.toggle(*pid);
                 Action::None
             }
-            WindowListInteraction::Drag(drag) => Action::Drag(drag),
+            WindowListInteraction::Drag(drag) => Action::Drag(*drag),
         }
     }
 

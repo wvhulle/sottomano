@@ -507,8 +507,16 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         &self.group_identity
     }
 
+    #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.items.is_empty()
+    }
+
+    pub(crate) fn has_face(&self) -> bool {
+        match self.face {
+            WidgetGroupFace::Glyph { .. } => true,
+            WidgetGroupFace::FirstItem => !self.items.is_empty(),
+        }
     }
 
     #[cfg(test)]

@@ -385,41 +385,11 @@ impl GamepadGroup {
                 Action::Idle
             }
             GamepadMessage::Wifi(delivery) => {
-                match *delivery {
-                    SnapshotDelivery::SnapshotDelivered {
-                        snapshot_fetch: Ok(wifi),
-                        ..
-                    } => self.wifi_band_use = WifiBandUse::from(&wifi),
-                    SnapshotDelivery::SourceUnavailable
-                    | SnapshotDelivery::InternetUnreachable(_)
-                    | SnapshotDelivery::SnapshotDelivered {
-                        snapshot_fetch: Err(_),
-                        ..
-                    } => self.wifi_band_use = WifiBandUse::ClearOfBluetooth,
-                    SnapshotDelivery::SnapshotUnchanged => {}
-                }
+                self.receive_wifi_delivery(*delivery);
                 Action::Idle
             }
             GamepadMessage::Ethernet(delivery) => {
-                match *delivery {
-                    SnapshotDelivery::SnapshotDelivered {
-                        snapshot_fetch: Ok(ethernet),
-                        ..
-                    } => {
-                        self.wired_fallback = if ethernet.connected_count() > 0 {
-                            WiredFallback::Connected
-                        } else {
-                            WiredFallback::Absent
-                        };
-                    }
-                    SnapshotDelivery::SourceUnavailable
-                    | SnapshotDelivery::InternetUnreachable(_)
-                    | SnapshotDelivery::SnapshotDelivered {
-                        snapshot_fetch: Err(_),
-                        ..
-                    } => self.wired_fallback = WiredFallback::Absent,
-                    SnapshotDelivery::SnapshotUnchanged => {}
-                }
+                self.receive_ethernet_delivery(*delivery);
                 Action::Idle
             }
             GamepadMessage::Interaction(GamepadInteraction::DisconnectBluetooth { slot }) => self
@@ -449,6 +419,44 @@ impl GamepadGroup {
                 self.controller_discovery_expansion.update(expansion);
                 Action::Idle
             }
+        }
+    }
+
+    fn receive_wifi_delivery(&mut self, delivery: SnapshotDelivery<Wifi>) {
+        match delivery {
+            SnapshotDelivery::SnapshotDelivered {
+                snapshot_fetch: Ok(wifi),
+                ..
+            } => self.wifi_band_use = WifiBandUse::from(&wifi),
+            SnapshotDelivery::SourceUnavailable
+            | SnapshotDelivery::InternetUnreachable(_)
+            | SnapshotDelivery::SnapshotDelivered {
+                snapshot_fetch: Err(_),
+                ..
+            } => self.wifi_band_use = WifiBandUse::ClearOfBluetooth,
+            SnapshotDelivery::SnapshotUnchanged => {}
+        }
+    }
+
+    fn receive_ethernet_delivery(&mut self, delivery: SnapshotDelivery<Ethernet>) {
+        match delivery {
+            SnapshotDelivery::SnapshotDelivered {
+                snapshot_fetch: Ok(ethernet),
+                ..
+            } => {
+                self.wired_fallback = if ethernet.connected_count() > 0 {
+                    WiredFallback::Connected
+                } else {
+                    WiredFallback::Absent
+                };
+            }
+            SnapshotDelivery::SourceUnavailable
+            | SnapshotDelivery::InternetUnreachable(_)
+            | SnapshotDelivery::SnapshotDelivered {
+                snapshot_fetch: Err(_),
+                ..
+            } => self.wired_fallback = WiredFallback::Absent,
+            SnapshotDelivery::SnapshotUnchanged => {}
         }
     }
 
