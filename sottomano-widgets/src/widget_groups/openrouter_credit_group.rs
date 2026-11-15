@@ -19,7 +19,7 @@ mod best_models_within_cap;
 mod openrouter_soft_budget;
 mod strict_budget_remaining;
 
-use std::{convert::identity, path::PathBuf};
+use std::path::PathBuf;
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
@@ -37,7 +37,6 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::group_item::GroupItem,
-    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -52,18 +51,21 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OpenRouterCreditTarget {
-    SoftBudget,
+pub enum OpenRouterCreditSource {
+    Spend,
     StrictBudget,
-    MostUsedModel,
-    MostUsedModelSpend,
-    BestModelsWithinCap,
+    ModelRankings,
 }
 
-impl From<OpenRouterCreditTarget> for HoverTarget {
-    fn from(target: OpenRouterCreditTarget) -> Self {
-        HoverTarget::OpenRouterCredit(target)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpenRouterCreditBusRequest {
+    Refresh(OpenRouterCreditSource),
+}
+
+#[derive(Debug, Clone)]
+pub enum OpenRouterCreditInteraction {
+    Expansion(WidgetGroupExpansionMessage),
+    OnBuses(OpenRouterCreditBusRequest),
 }
 
 pub struct OpenRouterCreditGroup {
@@ -79,7 +81,7 @@ pub enum OpenRouterCreditMessage {
     SoftBudget(SnapshotDelivery<OpenRouterSpend>),
     StrictBudget(SnapshotDelivery<OpenRouterStrictBudget>),
     ModelRankings(SnapshotDelivery<OpenRouterModelRankings>),
-    Expansion(WidgetGroupExpansionMessage),
+    Interaction(OpenRouterCreditInteraction),
 }
 
 impl OpenRouterCreditGroup {
@@ -98,25 +100,21 @@ impl OpenRouterCreditGroup {
         }
     }
 
-    pub fn refresh(
+    pub fn on_buses(
         &self,
-        target: OpenRouterCreditTarget,
+        request: OpenRouterCreditBusRequest,
         config: &Config,
-        buses: Option<&DesktopBuses>,
+        buses: &DesktopBuses,
     ) -> Task<OpenRouterCreditMessage> {
-        let Some(buses) = buses else {
-            return Task::none();
-        };
-        match target {
-            OpenRouterCreditTarget::SoftBudget
-            | OpenRouterCreditTarget::MostUsedModel
-            | OpenRouterCreditTarget::MostUsedModelSpend => {
+        let OpenRouterCreditBusRequest::Refresh(source) = request;
+        match source {
+            OpenRouterCreditSource::Spend => {
                 self.management_key.clone().map_or_else(Task::none, |key| {
                     first_delivery::<OpenRouterSpend>(account(key, config, buses))
                         .map(OpenRouterCreditMessage::SoftBudget)
                 })
             }
-            OpenRouterCreditTarget::StrictBudget => {
+            OpenRouterCreditSource::StrictBudget => {
                 self.management_key.clone().map_or_else(Task::none, |key| {
                     first_delivery::<OpenRouterStrictBudget>(OnBus {
                         buses: buses.clone(),
@@ -125,7 +123,7 @@ impl OpenRouterCreditGroup {
                     .map(OpenRouterCreditMessage::StrictBudget)
                 })
             }
-            OpenRouterCreditTarget::BestModelsWithinCap => {
+            OpenRouterCreditSource::ModelRankings => {
                 self.management_key.clone().map_or_else(Task::none, |key| {
                     first_delivery::<OpenRouterModelRankings>(ranking_inputs(key, config, buses))
                         .map(OpenRouterCreditMessage::ModelRankings)
@@ -174,9 +172,12 @@ impl OpenRouterCreditGroup {
             OpenRouterCreditMessage::ModelRankings(reading) => {
                 self.model_rankings.receive(reading, clock);
             }
-            OpenRouterCreditMessage::Expansion(expansion_message) => {
+            OpenRouterCreditMessage::Interaction(OpenRouterCreditInteraction::Expansion(
+                expansion_message,
+            )) => {
                 self.expansion.update(expansion_message);
             }
+            OpenRouterCreditMessage::Interaction(OpenRouterCreditInteraction::OnBuses(_)) => {}
         }
         Task::none()
     }
@@ -205,17 +206,19 @@ impl OpenRouterCreditGroup {
     pub fn group_content(
         &self,
         clock: Clock,
-    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
+    ) -> WidgetGroupContent<'_, OpenRouterCreditInteraction> {
+        let refresh_source = |source| {
+            OpenRouterCreditInteraction::OnBuses(OpenRouterCreditBusRequest::Refresh(source))
+        };
         WidgetGroupContent::expandable(
             WidgetGroupFamily::OpenRouterCredit,
             &self.expansion,
-            identity,
+            OpenRouterCreditInteraction::Expansion,
             [
                 self.spend
                     .group_item(
                         OPEN_ROUTER_SPEND_FALLBACK_GLYPH,
                         |snapshot| spend_reading_row(snapshot, clock),
-                        OpenRouterCreditTarget::SoftBudget,
                         clock,
                     )
                     .map(|item| {
@@ -225,12 +228,12 @@ impl OpenRouterCreditGroup {
                             })
                         }))
                         .previewed_on_handle()
+                        .refreshed_by(refresh_source(OpenRouterCreditSource::Spend))
                     }),
                 self.strict_budget
                     .group_item(
                         OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH,
                         |snapshot| strict_budget_reading_row(snapshot),
-                        OpenRouterCreditTarget::StrictBudget,
                         clock,
                     )
                     .map(|item| {
@@ -238,12 +241,12 @@ impl OpenRouterCreditGroup {
                             self.strict_budget
                                 .sections_described_by(strict_budget_hover_card)
                         }))
+                        .refreshed_by(refresh_source(OpenRouterCreditSource::StrictBudget))
                     }),
                 self.model_rankings
                     .group_item(
                         OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH,
                         |snapshot| best_models_reading_row(snapshot),
-                        OpenRouterCreditTarget::BestModelsWithinCap,
                         clock,
                     )
                     .map(|item| {
@@ -251,26 +254,23 @@ impl OpenRouterCreditGroup {
                             self.model_rankings
                                 .sections_described_by(best_models_hover_card)
                         }))
+                        .refreshed_by(refresh_source(OpenRouterCreditSource::ModelRankings))
                     }),
             ]
             .into_iter()
             .flatten()
             .chain(self.model_ranking().into_iter().flat_map(|ranking| {
                 [
-                    GroupItem::reading(
-                        ranking.most_used_model_row(),
-                        OpenRouterCreditTarget::MostUsedModel,
-                    )
-                    .with_hover_card(Box::new(move |_| {
-                        self.spend.hover_card_with(ranking.hover_card())
-                    })),
-                    GroupItem::reading(
-                        ranking.most_used_spend_row(),
-                        OpenRouterCreditTarget::MostUsedModelSpend,
-                    )
-                    .with_hover_card(Box::new(move |_| {
-                        self.spend.hover_card_with(ranking.top_model_share())
-                    })),
+                    GroupItem::reading(ranking.most_used_model_row())
+                        .with_hover_card(Box::new(move |_| {
+                            self.spend.hover_card_with(ranking.hover_card())
+                        }))
+                        .refreshed_by(refresh_source(OpenRouterCreditSource::Spend)),
+                    GroupItem::reading(ranking.most_used_spend_row())
+                        .with_hover_card(Box::new(move |_| {
+                            self.spend.hover_card_with(ranking.top_model_share())
+                        }))
+                        .refreshed_by(refresh_source(OpenRouterCreditSource::Spend)),
                 ]
             })),
         )

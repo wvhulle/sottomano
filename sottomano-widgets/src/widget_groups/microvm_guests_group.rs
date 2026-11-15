@@ -28,10 +28,7 @@ use crate::{
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage, activity_text},
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         process_usage_cells::{approximate_memory_text, uptime_entry},
         widget_group_content::{
@@ -55,12 +52,6 @@ const MICROVM_SWITCH_FACE: UnitSwitchFace = UnitSwitchFace {
         turning_off: "stop the microVM",
     },
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MicrovmGuestTarget {
-    RunningProcess { pid: i32 },
-    Unit { instance_name: Cow<'static, str> },
-}
 
 struct MicrovmUnitRow<'a> {
     unit: &'a MicrovmUnit,
@@ -97,12 +88,6 @@ impl<'a> MicrovmUnitRow<'a> {
                 LabeledValue::new("Unit", self.unit.unit_name.clone()),
             ]),
         )]
-    }
-}
-
-impl From<MicrovmGuestTarget> for HoverTarget {
-    fn from(target: MicrovmGuestTarget) -> Self {
-        HoverTarget::MicrovmGuest(target)
     }
 }
 
@@ -397,25 +382,17 @@ impl MicrovmGuestsGroup {
 
     fn unit_row<'a>(&'a self, unit: &'a MicrovmUnit) -> GroupItem<'a, MicrovmGuestsInteraction> {
         let row = match self.running_guest_of(unit) {
-            Some(machine) => GroupItem::reading(
-                MicrovmGuestRow { machine }.reading_row(),
-                MicrovmGuestTarget::RunningProcess {
-                    pid: machine.listing.pid,
-                },
-            )
-            .with_hover_card(Box::new(move |clock| {
-                self.detail
-                    .hover_card_with(MicrovmGuestRow { machine }.hover_card(clock))
-            })),
+            Some(machine) => GroupItem::reading(MicrovmGuestRow { machine }.reading_row())
+                .with_hover_card(Box::new(move |clock| {
+                    self.detail
+                        .hover_card_with(MicrovmGuestRow { machine }.hover_card(clock))
+                })),
             None => GroupItem::reading(
                 MicrovmUnitRow {
                     unit,
                     activity: self.unit_activity(unit),
                 }
                 .reading_row(),
-                MicrovmGuestTarget::Unit {
-                    instance_name: Cow::Owned(unit.instance_name.clone()),
-                },
             )
             .with_hover_card(Box::new(move |_| {
                 let activity = self.unit_activity(unit);
@@ -447,16 +424,11 @@ impl MicrovmGuestsGroup {
                 .iter()
                 .filter(|machine| !managed_by_unit(machine.unit_name.as_deref()))
                 .map(|machine| {
-                    let row = GroupItem::reading(
-                        MicrovmGuestRow { machine }.reading_row(),
-                        MicrovmGuestTarget::RunningProcess {
-                            pid: machine.listing.pid,
-                        },
-                    )
-                    .with_hover_card(Box::new(move |clock| {
-                        self.detail
-                            .hover_card_with(MicrovmGuestRow { machine }.hover_card(clock))
-                    }));
+                    let row = GroupItem::reading(MicrovmGuestRow { machine }.reading_row())
+                        .with_hover_card(Box::new(move |clock| {
+                            self.detail
+                                .hover_card_with(MicrovmGuestRow { machine }.hover_card(clock))
+                        }));
                     match api_socket_of(machine) {
                         Some(api_socket) => row.on_stop_press(
                             POWER_BUTTON_HINT,
@@ -482,14 +454,11 @@ impl MicrovmGuestsGroup {
                             .any(|unit| unit.instance_name == listing.machine_name)
                     })
                     .map(|listing| {
-                        GroupItem::reading(
-                            MicrovmGuestListingRow { listing }.reading_row(),
-                            MicrovmGuestTarget::RunningProcess { pid: listing.pid },
-                        )
-                        .with_hover_card(Box::new(move |_| {
-                            self.listings
-                                .hover_card_with(MicrovmGuestListingRow::hover_card())
-                        }))
+                        GroupItem::reading(MicrovmGuestListingRow { listing }.reading_row())
+                            .with_hover_card(Box::new(move |_| {
+                                self.listings
+                                    .hover_card_with(MicrovmGuestListingRow::hover_card())
+                            }))
                     })
                     .collect()
             })

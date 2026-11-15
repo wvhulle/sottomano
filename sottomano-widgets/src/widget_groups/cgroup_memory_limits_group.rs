@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::BTreeMap};
+use std::collections::BTreeMap;
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
@@ -17,10 +17,7 @@ use crate::{
         reading_row::ReadingRow,
         source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         terminal_command::TerminalCommand,
         widget_group_content::{
@@ -37,17 +34,6 @@ use crate::{
 
 const STALL_WARNING_PERCENT: f64 = 10.0;
 const CGTOP_PRESS_HINT: &str = "watch it in systemd-cgtop";
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CgroupMemoryLimitTarget {
-    pub cgroup_path: Cow<'static, str>,
-}
-
-impl From<CgroupMemoryLimitTarget> for HoverTarget {
-    fn from(target: CgroupMemoryLimitTarget) -> Self {
-        HoverTarget::CgroupMemoryLimit(target)
-    }
-}
 
 fn bound_text(memory_bound: MemoryBound) -> String {
     match memory_bound {
@@ -237,27 +223,22 @@ impl CgroupMemoryLimitsGroup {
         config: &'a Config,
     ) -> WidgetGroupContent<'a, CgroupMemoryLimitsInteraction> {
         let rows = self.listed_cgroups().iter().map(|cgroup| {
-            GroupItem::reading(
-                self.cgroup_row(cgroup).reading_row(),
-                CgroupMemoryLimitTarget {
-                    cgroup_path: Cow::Owned(cgroup.cgroup_path.clone()),
-                },
-            )
-            .with_hover_card(Box::new(move |_| {
-                self.listing
-                    .hover_card_with(self.cgroup_row(cgroup).hover_card())
-            }))
-            .on_press(
-                CGTOP_PRESS_HINT,
-                CgroupMemoryLimitsInteraction::OpenCgroupTop(TerminalCommand::running(
-                    config,
-                    [
-                        "systemd-cgtop".to_owned(),
-                        "--order=memory".to_owned(),
-                        cgroup.cgroup_path.clone(),
-                    ],
-                )),
-            )
+            GroupItem::reading(self.cgroup_row(cgroup).reading_row())
+                .with_hover_card(Box::new(move |_| {
+                    self.listing
+                        .hover_card_with(self.cgroup_row(cgroup).hover_card())
+                }))
+                .on_press(
+                    CGTOP_PRESS_HINT,
+                    CgroupMemoryLimitsInteraction::OpenCgroupTop(TerminalCommand::running(
+                        config,
+                        [
+                            "systemd-cgtop".to_owned(),
+                            "--order=memory".to_owned(),
+                            cgroup.cgroup_path.clone(),
+                        ],
+                    )),
+                )
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::CgroupMemoryLimits,

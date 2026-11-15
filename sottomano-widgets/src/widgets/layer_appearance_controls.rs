@@ -14,24 +14,11 @@ use crate::{
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    hover_cards::HoverTarget,
     widgets::{
         phosphor::{Phosphor, Weight},
         shell_layer_appearance::{LayerAppearance, ShellLayer},
     },
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AppearanceTarget {
-    Opacity,
-    CornerRadius,
-    Blur,
-    DropShadow,
-    ShadowSoftness,
-    ShadowOpacity,
-    Outline,
-    OutlineOpacity,
-}
 
 #[derive(Debug, Clone)]
 pub enum AppearanceMessage {
@@ -112,7 +99,6 @@ fn outline_toggle(outline_tracing: OutlineTracing) -> IconToggle {
 
 pub struct LayerAppearanceControls {
     layer: ShellLayer,
-    hover: fn(AppearanceTarget) -> HoverTarget,
     opacity: SliderControl,
     corner_radius: SliderControl,
     shadow_softness: SliderControl,
@@ -124,18 +110,17 @@ pub struct LayerAppearanceControls {
 }
 
 impl LayerAppearanceControls {
-    pub fn new(layer: ShellLayer, hover: fn(AppearanceTarget) -> HoverTarget) -> Self {
+    #[must_use]
+    pub fn new(layer: ShellLayer) -> Self {
         let defaults = layer.default_appearance();
         let mut appearance_controls = Self {
             layer,
-            hover,
             backdrop_blur: defaults.backdrop_blur,
             shadow_casting: defaults.frame.shadow.casting,
             outline_tracing: defaults.frame.outline.tracing,
             opacity: SliderControl::new(
                 "Opacity",
                 0.0..=100.0,
-                hover(AppearanceTarget::Opacity),
                 Phosphor::SquareHalf(Weight::Regular),
             )
             .readout(|value, _| format!("{} %", value.round()))
@@ -143,7 +128,6 @@ impl LayerAppearanceControls {
             corner_radius: SliderControl::new(
                 "Corner radius",
                 0.0..=16.0,
-                hover(AppearanceTarget::CornerRadius),
                 Phosphor::FrameCorners(Weight::Regular),
             )
             .readout(|value, _| format!("{} px", value.round()))
@@ -151,7 +135,6 @@ impl LayerAppearanceControls {
             shadow_softness: SliderControl::new(
                 "Shadow softness",
                 0.0..=60.0,
-                hover(AppearanceTarget::ShadowSoftness),
                 Phosphor::Feather(Weight::Regular),
             )
             .readout(|value, _| format!("{} px", value.round()))
@@ -159,7 +142,6 @@ impl LayerAppearanceControls {
             shadow_opacity: SliderControl::new(
                 "Shadow opacity",
                 0.0..=100.0,
-                hover(AppearanceTarget::ShadowOpacity),
                 Phosphor::CircleHalf(Weight::Regular),
             )
             .readout(|value, _| format!("{} %", value.round()))
@@ -167,7 +149,6 @@ impl LayerAppearanceControls {
             outline_opacity: SliderControl::new(
                 "Outline opacity",
                 0.0..=100.0,
-                hover(AppearanceTarget::OutlineOpacity),
                 Phosphor::SquareHalfBottom(Weight::Regular),
             )
             .readout(|value, _| format!("{} %", value.round()))
@@ -354,7 +335,6 @@ impl LayerAppearanceControls {
         config: &'a Config,
         lift: fn(AppearanceMessage) -> M,
     ) -> [GroupItem<'a, M>; 8] {
-        let hover = self.hover;
         [
             GroupItem::slider(&self.opacity, config, move |control| {
                 lift(AppearanceMessage::Opacity(control))
@@ -366,13 +346,11 @@ impl LayerAppearanceControls {
             .aligned_as(AlignedQuantity::CornerRadius),
             GroupItem::toggle(
                 blur_toggle(self.backdrop_blur),
-                hover(AppearanceTarget::Blur),
                 lift(AppearanceMessage::ToggleBlur),
             )
             .aligned_as(AlignedQuantity::Blur),
             GroupItem::toggle(
                 shadow_toggle(self.shadow_casting),
-                hover(AppearanceTarget::DropShadow),
                 lift(AppearanceMessage::ToggleShadow),
             )
             .aligned_as(AlignedQuantity::ShadowCast),
@@ -386,7 +364,6 @@ impl LayerAppearanceControls {
             .aligned_as(AlignedQuantity::ShadowOpacity),
             GroupItem::toggle(
                 outline_toggle(self.outline_tracing),
-                hover(AppearanceTarget::Outline),
                 lift(AppearanceMessage::ToggleOutline),
             )
             .aligned_as(AlignedQuantity::Outline),
@@ -409,22 +386,16 @@ mod tests {
     use crate::{
         desktop_panels::region_reporter::BackdropBlur,
         group_items::slider_control::ControlMessage,
-        hover_cards::HoverTarget,
-        widget_groups::panel_settings_group::PanelSettingsTarget,
         widgets::shell_layer_appearance::{LayerAppearance, ShellLayer},
     };
 
     fn panel_controls() -> LayerAppearanceControls {
-        LayerAppearanceControls::new(ShellLayer::Panels, |target| {
-            HoverTarget::from(PanelSettingsTarget::Appearance(target))
-        })
+        LayerAppearanceControls::new(ShellLayer::Panels)
     }
 
     #[test]
     fn a_fresh_layer_reads_its_default_appearance() {
-        let overlays = LayerAppearanceControls::new(ShellLayer::Overlays, |target| {
-            HoverTarget::from(PanelSettingsTarget::Appearance(target))
-        });
+        let overlays = LayerAppearanceControls::new(ShellLayer::Overlays);
         assert_eq!(
             overlays.appearance(),
             ShellLayer::Overlays.default_appearance()
@@ -433,9 +404,7 @@ mod tests {
 
     #[test]
     fn a_menu_layer_keeps_its_own_background_through_a_load() {
-        let mut menus = LayerAppearanceControls::new(ShellLayer::Menus, |target| {
-            HoverTarget::from(PanelSettingsTarget::Appearance(target))
-        });
+        let mut menus = LayerAppearanceControls::new(ShellLayer::Menus);
         let _ = menus.update(AppearanceMessage::Loaded(
             ShellLayer::Overlays.default_appearance(),
         ));

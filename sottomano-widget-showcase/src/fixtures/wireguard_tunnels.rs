@@ -12,7 +12,8 @@ use sottomano_desktop_sources::{
 use sottomano_widgets::{
     clock::Clock,
     widget_groups::wireguard_tunnels_group::{
-        WireguardTunnelTarget, WireguardTunnelsGroup, WireguardTunnelsMessage,
+        WireguardTunnelsBusRequest, WireguardTunnelsGroup, WireguardTunnelsInteraction,
+        WireguardTunnelsMessage,
     },
 };
 use zbus::zvariant::OwnedObjectPath;
@@ -102,8 +103,14 @@ fn home_wireguard_server() -> Tunnel {
     }
 }
 
-pub fn on_hover(target: &WireguardTunnelTarget) -> Vec<WireguardTunnelsMessage> {
-    let tunnel_ip = match target.interface.as_ref() {
+pub fn on_hover(started_fetch: &WireguardTunnelsInteraction) -> Vec<WireguardTunnelsMessage> {
+    let WireguardTunnelsInteraction::OnBuses(WireguardTunnelsBusRequest::StartTunnelAddressFetch(
+        interface,
+    )) = started_fetch
+    else {
+        return Vec::new();
+    };
+    let tunnel_ip = match interface.as_str() {
         HOME_SERVER_TUNNEL_NAME => "10.8.0.1/24",
         LAB_TUNNEL_NAME => "10.42.0.7/24",
         _ => return Vec::new(),

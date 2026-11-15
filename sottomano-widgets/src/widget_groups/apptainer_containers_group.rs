@@ -16,10 +16,7 @@ use crate::{
         reading_row::ReadingRow,
         source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         container_family_group::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
@@ -34,17 +31,6 @@ use crate::{
         value_cells::LabeledValue,
     },
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ApptainerContainerTarget {
-    pub runtime_pid: i32,
-}
-
-impl From<ApptainerContainerTarget> for HoverTarget {
-    fn from(target: ApptainerContainerTarget) -> Self {
-        HoverTarget::ApptainerContainer(target)
-    }
-}
 
 pub struct ApptainerContainerListingRow<'a> {
     listing: &'a ApptainerContainerListing,
@@ -145,7 +131,6 @@ impl ContainerFamily for ApptainerFamily {
     type Probe = ApptainerProbe;
     type Listings = FamilyListings<ApptainerContainerListing>;
     type Detail = FamilyDetails<ApptainerContainer>;
-    type Target = ApptainerContainerTarget;
     type PowerRequest = i32;
 
     const FAMILY: WidgetGroupFamily = WidgetGroupFamily::ApptainerContainers;
@@ -167,9 +152,6 @@ impl ContainerFamily for ApptainerFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                target: ApptainerContainerTarget {
-                    runtime_pid: listing.runtime_pid,
-                },
                 reading: ApptainerContainerListingRow { listing }.reading_row(),
                 power: RowPower::Stoppable(listing.runtime_pid),
             })
@@ -181,9 +163,6 @@ impl ContainerFamily for ApptainerFamily {
             .details
             .iter()
             .map(|container| FamilyRow {
-                target: ApptainerContainerTarget {
-                    runtime_pid: container.listing.runtime_pid,
-                },
                 reading: ApptainerContainerRow { container }.reading_row(),
                 power: RowPower::Stoppable(container.listing.runtime_pid),
             })

@@ -256,11 +256,8 @@ mod tests {
             reading_display_state::ReadingDisplayState,
             source_reading::ReadoutLabel,
         },
-        widget_groups::caldav_group::{
-            CaldavTarget,
-            upcoming_events_reading::{
-                UPCOMING_EVENT_LIST_FALLBACK_GLYPH, upcoming_events_reading_row,
-            },
+        widget_groups::caldav_group::upcoming_events_reading::{
+            UPCOMING_EVENT_LIST_FALLBACK_GLYPH, upcoming_events_reading_row,
         },
         widgets::subscribed_snapshot::SubscribedSnapshot,
     };
@@ -287,7 +284,6 @@ mod tests {
                         Clock::real(),
                         Locale::default()
                     ),
-                    CaldavTarget::UpcomingEvents,
                     Clock::real(),
                 )
                 .is_some()

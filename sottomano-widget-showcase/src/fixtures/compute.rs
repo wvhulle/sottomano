@@ -14,11 +14,11 @@ use sottomano_desktop_sources::{
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
-use sottomano_toml_config::widget_groups::temperature_sensors::ThresholdOverrides;
+use sottomano_toml_config::{Config, widget_groups::temperature_sensors::ThresholdOverrides};
 use sottomano_widgets::{
     clock::Clock,
     group_items::toggle_control::ToggleMessage,
-    widget_groups::compute_group::{ComputeGroup, ComputeMessage, ComputeTarget},
+    widget_groups::compute_group::{ComputeGroup, ComputeInteraction, ComputeMessage},
 };
 use uom::si::{
     f64::{Frequency, Power, Ratio, ThermodynamicTemperature},
@@ -62,7 +62,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
             .into_iter()
             .chain([hardware_identity, cache_preference])
             .fold(ComputeGroup::default(), |mut group, reading| {
-                let _ = group.update(reading, clock);
+                let _ = group.update(reading, &Config::default(), clock);
                 group
             }),
     ))
@@ -73,15 +73,15 @@ pub fn live(clock: Clock) -> Vec<ShowcaseMessage> {
     latest_snapshot_messages(tick)
         .into_iter()
         .chain(hover_fetched_snapshot_messages(
-            ComputeTarget::CpuLoad,
+            &ComputeInteraction::StartCpuLoadFetches,
             tick,
         ))
         .map(ShowcaseMessage::Compute)
         .collect()
 }
 
-pub fn on_hover(target: ComputeTarget) -> Vec<ComputeMessage> {
-    hover_fetched_snapshot_messages(target, 0)
+pub fn on_hover(started_fetch: &ComputeInteraction) -> Vec<ComputeMessage> {
+    hover_fetched_snapshot_messages(started_fetch, 0)
 }
 
 fn celsius(degrees: f64) -> ThermodynamicTemperature {
@@ -137,9 +137,12 @@ fn latest_snapshot_messages(tick: u32) -> [ComputeMessage; 4] {
     ]
 }
 
-fn hover_fetched_snapshot_messages(target: ComputeTarget, tick: u32) -> Vec<ComputeMessage> {
-    match target {
-        ComputeTarget::CpuLoad => {
+fn hover_fetched_snapshot_messages(
+    started_fetch: &ComputeInteraction,
+    tick: u32,
+) -> Vec<ComputeMessage> {
+    match started_fetch {
+        ComputeInteraction::StartCpuLoadFetches => {
             let busy = cycled(CPU_BUSY_PERCENT, tick);
             vec![
                 ComputeMessage::CpuBusyProcessesFetched(SnapshotDelivery::fixture_delivered(
@@ -163,14 +166,16 @@ fn hover_fetched_snapshot_messages(target: ComputeTarget, tick: u32) -> Vec<Comp
                 )),
             ]
         }
-        ComputeTarget::CpuClock => vec![core_loads_fetched(tick)],
-        ComputeTarget::CpuTemperature => vec![ComputeMessage::CoreTemperaturesFetched(
-            SnapshotDelivery::fixture_delivered(Ok(core_temperatures(tick)), every_seconds(2)),
-        )],
-        ComputeTarget::CpuClockLimits
-        | ComputeTarget::CpuPowerDraw
-        | ComputeTarget::CpuModel
-        | ComputeTarget::X3dCachePreference => Vec::new(),
+        ComputeInteraction::StartCpuClockFetch => vec![core_loads_fetched(tick)],
+        ComputeInteraction::StartCoreTemperaturesFetch => {
+            vec![ComputeMessage::CoreTemperaturesFetched(
+                SnapshotDelivery::fixture_delivered(Ok(core_temperatures(tick)), every_seconds(2)),
+            )]
+        }
+        ComputeInteraction::X3dCachePreferencePressed
+        | ComputeInteraction::Expansion(_)
+        | ComputeInteraction::StopHoverFetches
+        | ComputeInteraction::Refresh(_) => Vec::new(),
     }
 }
 

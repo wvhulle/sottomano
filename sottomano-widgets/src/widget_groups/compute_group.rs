@@ -45,7 +45,7 @@ use crate::{
         toggle_control::{ToggleControl, ToggleMessage},
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::hover_card_body::Section,
     widget_groups::{
         compute_group::cpu_load_gauge::cpu_busy_processes_sections,
         widget_group_content::{
@@ -59,20 +59,12 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ComputeTarget {
+pub enum ComputeSource {
     CpuLoad,
     CpuClock,
-    CpuClockLimits,
     CpuTemperature,
     CpuPowerDraw,
-    CpuModel,
     X3dCachePreference,
-}
-
-impl From<ComputeTarget> for HoverTarget {
-    fn from(target: ComputeTarget) -> Self {
-        HoverTarget::Compute(target)
-    }
 }
 
 #[derive(Default)]
@@ -109,6 +101,11 @@ pub enum ComputeMessage {
 pub enum ComputeInteraction {
     X3dCachePreferencePressed,
     Expansion(WidgetGroupExpansionMessage),
+    StartCpuLoadFetches,
+    StartCpuClockFetch,
+    StartCoreTemperaturesFetch,
+    StopHoverFetches,
+    Refresh(ComputeSource),
 }
 
 impl ComputeGroup {
@@ -116,50 +113,30 @@ impl ComputeGroup {
         self.expansion.collapse();
     }
 
-    pub fn hover(
-        &mut self,
-        hovered: Option<&HoverTarget>,
-        config: &Config,
-        clock: Clock,
-    ) -> Task<ComputeMessage> {
+    fn stop_hover_fetches(&mut self) {
         self.core_loads.stop();
         self.cpu_busy_processes.stop();
         self.core_temperatures.stop();
         self.cache_traffic.stop();
-        match hovered {
-            Some(HoverTarget::Compute(ComputeTarget::CpuLoad)) => Task::batch([
-                self.core_loads.start_hover_fetch(
-                    (),
-                    ComputeMessage::CoreLoadsFetched,
-                    config,
-                    clock,
-                ),
-                self.cpu_busy_processes.start_hover_fetch(
-                    (),
-                    ComputeMessage::CpuBusyProcessesFetched,
-                    config,
-                    clock,
-                ),
-                self.cache_traffic.start_hover_fetch(
-                    (),
-                    ComputeMessage::CacheTrafficFetched,
-                    config,
-                    clock,
-                ),
-            ]),
-            Some(HoverTarget::Compute(ComputeTarget::CpuClock)) => self
-                .core_loads
+    }
+
+    fn start_cpu_load_fetches(&mut self, config: &Config, clock: Clock) -> Task<ComputeMessage> {
+        Task::batch([
+            self.core_loads
                 .start_hover_fetch((), ComputeMessage::CoreLoadsFetched, config, clock),
-            Some(HoverTarget::Compute(ComputeTarget::CpuTemperature)) => {
-                self.core_temperatures.start_hover_fetch(
-                    config.widget_groups.compute.temperature_sensors.overrides(),
-                    ComputeMessage::CoreTemperaturesFetched,
-                    config,
-                    clock,
-                )
-            }
-            _ => Task::none(),
-        }
+            self.cpu_busy_processes.start_hover_fetch(
+                (),
+                ComputeMessage::CpuBusyProcessesFetched,
+                config,
+                clock,
+            ),
+            self.cache_traffic.start_hover_fetch(
+                (),
+                ComputeMessage::CacheTrafficFetched,
+                config,
+                clock,
+            ),
+        ])
     }
 
     fn live(&self) -> ChipletLiveState<'_> {
@@ -193,7 +170,12 @@ impl ComputeGroup {
         ])
     }
 
-    pub fn update(&mut self, msg: ComputeMessage, clock: Clock) -> Task<ComputeMessage> {
+    pub fn update(
+        &mut self,
+        msg: ComputeMessage,
+        config: &Config,
+        clock: Clock,
+    ) -> Task<ComputeMessage> {
         match msg {
             ComputeMessage::HostHardware(delivery) => {
                 self.host_hardware.receive(*delivery, clock);
@@ -233,6 +215,31 @@ impl ComputeGroup {
             ComputeMessage::Interaction(ComputeInteraction::Expansion(expansion_message)) => {
                 self.expansion.update(expansion_message);
             }
+            ComputeMessage::Interaction(ComputeInteraction::StartCpuLoadFetches) => {
+                return self.start_cpu_load_fetches(config, clock);
+            }
+            ComputeMessage::Interaction(ComputeInteraction::StartCpuClockFetch) => {
+                return self.core_loads.start_hover_fetch(
+                    (),
+                    ComputeMessage::CoreLoadsFetched,
+                    config,
+                    clock,
+                );
+            }
+            ComputeMessage::Interaction(ComputeInteraction::StartCoreTemperaturesFetch) => {
+                return self.core_temperatures.start_hover_fetch(
+                    config.widget_groups.compute.temperature_sensors.overrides(),
+                    ComputeMessage::CoreTemperaturesFetched,
+                    config,
+                    clock,
+                );
+            }
+            ComputeMessage::Interaction(ComputeInteraction::StopHoverFetches) => {
+                self.stop_hover_fetches();
+            }
+            ComputeMessage::Interaction(ComputeInteraction::Refresh(source)) => {
+                return Self::refresh(source, &config.widget_groups.compute.temperature_sensors);
+            }
         }
         Task::none()
     }
@@ -251,21 +258,31 @@ impl ComputeGroup {
                     .group_item(
                         IconGlyph::default(),
                         |snapshot| cpu_usage_reading_row(snapshot),
-                        ComputeTarget::CpuLoad,
                         clock,
                     )
                     .map(|row_item| {
-                        row_item.with_hover_card(Box::new(move |_| self.cpu_load_card()))
+                        row_item
+                            .with_hover_card(Box::new(move |_| self.cpu_load_card()))
+                            .fetching_on_hover(
+                                ComputeInteraction::StartCpuLoadFetches,
+                                ComputeInteraction::StopHoverFetches,
+                            )
+                            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuLoad))
                     }),
                 self.cpu_clock
                     .group_item(
                         IconGlyph::default(),
                         |snapshot| cpu_clock_reading_row(snapshot),
-                        ComputeTarget::CpuClock,
                         clock,
                     )
                     .map(|row_item| {
-                        row_item.with_hover_card(Box::new(move |_| self.cpu_clock_card()))
+                        row_item
+                            .with_hover_card(Box::new(move |_| self.cpu_clock_card()))
+                            .fetching_on_hover(
+                                ComputeInteraction::StartCpuClockFetch,
+                                ComputeInteraction::StopHoverFetches,
+                            )
+                            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuClock))
                     }),
                 self.cpu_clock
                     .get()
@@ -277,50 +294,60 @@ impl ComputeGroup {
                     })
                     .filter(|row| row.panel_visibility == PanelVisibility::Shown)
                     .map(|row| {
-                        GroupItem::reading(row, ComputeTarget::CpuClockLimits)
+                        GroupItem::reading(row)
                             .with_hover_card(Box::new(move |_| self.cpu_clock_limits_card()))
+                            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuClock))
                     }),
                 self.cpu_temperature
                     .group_item(
                         IconGlyph::default(),
                         |snapshot| temperature_reading_row(snapshot, clock, locale),
-                        ComputeTarget::CpuTemperature,
                         clock,
                     )
                     .map(|row_item| {
-                        row_item.with_hover_card(Box::new(move |_| self.cpu_temperature_card()))
+                        row_item
+                            .with_hover_card(Box::new(move |_| self.cpu_temperature_card()))
+                            .fetching_on_hover(
+                                ComputeInteraction::StartCoreTemperaturesFetch,
+                                ComputeInteraction::StopHoverFetches,
+                            )
+                            .refreshed_by(ComputeInteraction::Refresh(
+                                ComputeSource::CpuTemperature,
+                            ))
                     }),
                 self.cpu_power_draw
                     .get()
                     .map(|power| cpu_power_reading_row(power))
                     .filter(|row| row.panel_visibility == PanelVisibility::Shown)
                     .map(|row| {
-                        GroupItem::reading(row, ComputeTarget::CpuPowerDraw).with_hover_card(
-                            Box::new(move |_| {
+                        GroupItem::reading(row)
+                            .with_hover_card(Box::new(move |_| {
                                 self.cpu_power_draw
                                     .sections_described_by(cpu_power_hover_card)
-                            }),
-                        )
+                            }))
+                            .refreshed_by(ComputeInteraction::Refresh(ComputeSource::CpuPowerDraw))
                     }),
                 self.host_hardware
                     .get()
                     .map(|hardware| cpu_model_reading_row(&hardware.cpu))
                     .filter(|row| row.panel_visibility == PanelVisibility::Shown)
                     .map(|row| {
-                        GroupItem::reading(row, ComputeTarget::CpuModel)
+                        GroupItem::reading(row)
                             .with_hover_card(Box::new(move |_| self.cpu_model_card()))
                     }),
                 self.x3d_cache_preference
                     .group_item(
                         IconGlyph::default(),
                         |snapshot| x3d_cache_preference_reading_row(snapshot),
-                        ComputeTarget::X3dCachePreference,
                         ComputeInteraction::X3dCachePreferencePressed,
                         clock,
                     )
                     .map(|row_item| {
                         row_item
                             .with_hover_card(Box::new(move |_| self.x3d_cache_preference_card()))
+                            .refreshed_by(ComputeInteraction::Refresh(
+                                ComputeSource::X3dCachePreference,
+                            ))
                     }),
             ]
             .into_iter()
@@ -397,20 +424,17 @@ impl ComputeGroup {
         sections
     }
 
-    pub fn refresh(target: ComputeTarget, sensor: &SensorConfig) -> Task<ComputeMessage> {
-        match target {
-            ComputeTarget::CpuLoad => first_delivery::<CpuUsage>(()).map(ComputeMessage::CpuLoad),
-            ComputeTarget::CpuClock | ComputeTarget::CpuClockLimits => {
-                first_delivery::<CpuClock>(()).map(ComputeMessage::CpuClock)
-            }
-            ComputeTarget::CpuTemperature => {
+    fn refresh(source: ComputeSource, sensor: &SensorConfig) -> Task<ComputeMessage> {
+        match source {
+            ComputeSource::CpuLoad => first_delivery::<CpuUsage>(()).map(ComputeMessage::CpuLoad),
+            ComputeSource::CpuClock => first_delivery::<CpuClock>(()).map(ComputeMessage::CpuClock),
+            ComputeSource::CpuTemperature => {
                 first_delivery::<Temperature>(sensor.clone()).map(ComputeMessage::CpuTemperature)
             }
-            ComputeTarget::CpuPowerDraw => {
+            ComputeSource::CpuPowerDraw => {
                 first_delivery::<CpuPower>(()).map(ComputeMessage::CpuPowerDraw)
             }
-            ComputeTarget::CpuModel => Task::none(),
-            ComputeTarget::X3dCachePreference => ToggleControl::<X3dCachePreference>::refresh(())
+            ComputeSource::X3dCachePreference => ToggleControl::<X3dCachePreference>::refresh(())
                 .map(ComputeMessage::X3dCachePreference),
         }
     }
@@ -488,6 +512,7 @@ mod tests {
             super::ComputeMessage::Interaction(super::ComputeInteraction::Expansion(
                 WidgetGroupExpansionMessage::Toggle,
             )),
+            &sottomano_toml_config::Config::default(),
             Clock::real(),
         );
         assert_eq!(

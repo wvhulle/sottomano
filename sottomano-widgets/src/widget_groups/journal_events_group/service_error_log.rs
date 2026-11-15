@@ -15,8 +15,7 @@ use crate::{
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
         journal_events_group::{
-            JournalEventsInteraction, JournalScopeGroup, JournalTarget, MESSAGE_CAP,
-            shown_while_alerting,
+            JournalEventsInteraction, JournalScopeGroup, MESSAGE_CAP, shown_while_alerting,
         },
         terminal_command::TerminalCommand,
     },
@@ -34,21 +33,21 @@ impl JournalScopeGroup {
         &self,
         config: &Config,
     ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
-        let target = JournalTarget::ServiceErrors(self.unit_scope);
         let Some(service_errors) = self
             .service_errors
             .visible_reading(service_errors_panel_visibility)
         else {
             return self.service_errors.failure().map(|failure| {
-                GroupItem::reading(failure.reading_row(IconGlyph::default()), target)
-                    .with_hover_card(Box::new(move |_| {
+                GroupItem::reading(failure.reading_row(IconGlyph::default())).with_hover_card(
+                    Box::new(move |_| {
                         self.service_errors
                             .sections_described_by(service_errors_hover_card)
-                    }))
+                    }),
+                )
             });
         };
         Some(
-            GroupItem::reading(service_errors_reading_row(service_errors), target)
+            GroupItem::reading(service_errors_reading_row(service_errors))
                 .on_press(
                     TerminalCommand::JOURNAL_PRESS_HINT,
                     JournalEventsInteraction::OpenLog(TerminalCommand::journal(

@@ -8,8 +8,6 @@ mod module_temperature_reading;
 mod stall_pressure_label;
 mod swap_activity_gauge;
 
-use std::convert::identity;
-
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -23,7 +21,6 @@ use sottomano_desktop_sources::{
     host_machine_identity::{
         hostname1_os_identity::MachineInfo, udev_hardware_identity::HostHardware,
     },
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use sottomano_toml_config::{Config, widget_groups::memory_growth_trend::MemoryGrowthTrendConfig};
 
@@ -39,7 +36,6 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::group_item::GroupItem,
-    hover_cards::HoverTarget,
     widget_groups::{
         memory_board_group::{
             memory_usage_gauge::memory_processes_sections,
@@ -55,20 +51,22 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MemoryBoardTarget {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemoryBoardSource {
     Memory,
     Growth,
     Pressure,
     Swap,
-    Slot(String),
-    TemperatureSensor(String),
+    ModuleTemperatures,
 }
 
-impl From<MemoryBoardTarget> for HoverTarget {
-    fn from(target: MemoryBoardTarget) -> Self {
-        HoverTarget::MemoryBoard(target)
-    }
+#[derive(Debug, Clone)]
+pub enum MemoryBoardInteraction {
+    Expansion(WidgetGroupExpansionMessage),
+    StartMemoryProcessesFetch,
+    StartSwappedProcessesFetch,
+    StopHoverFetches,
+    Refresh(MemoryBoardSource),
 }
 
 #[derive(Default)]
@@ -94,40 +92,12 @@ pub enum MemoryBoardMessage {
     ModuleTemperatures(SnapshotDelivery<MemoryModuleTemperatures>),
     MemoryProcessesFetched(SnapshotDelivery<MemoryProcesses>),
     SwappedProcessesFetched(SnapshotDelivery<SwappedProcesses>),
-    Expansion(WidgetGroupExpansionMessage),
+    Interaction(MemoryBoardInteraction),
 }
 
 impl MemoryBoardGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
-    }
-
-    pub fn hover(
-        &mut self,
-        hovered: Option<&HoverTarget>,
-        config: &Config,
-        clock: Clock,
-    ) -> Task<MemoryBoardMessage> {
-        self.memory_processes.stop();
-        self.swapped_processes.stop();
-        match hovered {
-            Some(HoverTarget::MemoryBoard(target)) => match target {
-                MemoryBoardTarget::Memory => self.memory_processes.start_hover_fetch(
-                    (),
-                    MemoryBoardMessage::MemoryProcessesFetched,
-                    config,
-                    clock,
-                ),
-                MemoryBoardTarget::Swap => self.swapped_processes.start_hover_fetch(
-                    (),
-                    MemoryBoardMessage::SwappedProcessesFetched,
-                    config,
-                    clock,
-                ),
-                _ => Task::none(),
-            },
-            _ => Task::none(),
-        }
     }
 
     pub fn subscription(
@@ -147,6 +117,7 @@ impl MemoryBoardGroup {
     pub fn update(
         &mut self,
         message: MemoryBoardMessage,
+        config: &Config,
         clock: Clock,
     ) -> Task<MemoryBoardMessage> {
         match message {
@@ -168,8 +139,33 @@ impl MemoryBoardGroup {
             MemoryBoardMessage::SwappedProcessesFetched(fetched) => {
                 self.swapped_processes.receive(fetched, clock);
             }
-            MemoryBoardMessage::Expansion(expansion_message) => {
+            MemoryBoardMessage::Interaction(MemoryBoardInteraction::Expansion(
+                expansion_message,
+            )) => {
                 self.expansion.update(expansion_message);
+            }
+            MemoryBoardMessage::Interaction(MemoryBoardInteraction::StartMemoryProcessesFetch) => {
+                return self.memory_processes.start_hover_fetch(
+                    (),
+                    MemoryBoardMessage::MemoryProcessesFetched,
+                    config,
+                    clock,
+                );
+            }
+            MemoryBoardMessage::Interaction(MemoryBoardInteraction::StartSwappedProcessesFetch) => {
+                return self.swapped_processes.start_hover_fetch(
+                    (),
+                    MemoryBoardMessage::SwappedProcessesFetched,
+                    config,
+                    clock,
+                );
+            }
+            MemoryBoardMessage::Interaction(MemoryBoardInteraction::StopHoverFetches) => {
+                self.memory_processes.stop();
+                self.swapped_processes.stop();
+            }
+            MemoryBoardMessage::Interaction(MemoryBoardInteraction::Refresh(source)) => {
+                return Self::refresh(source, &config.widget_groups.memory_board.growth_trend);
             }
         }
         Task::none()
@@ -178,7 +174,7 @@ impl MemoryBoardGroup {
     fn slot_items(
         &self,
         locale: Locale,
-    ) -> impl Iterator<Item = GroupItem<'_, WidgetGroupExpansionMessage>> {
+    ) -> impl Iterator<Item = GroupItem<'_, MemoryBoardInteraction>> {
         self.hardware.get().into_iter().flat_map(move |hardware| {
             let machine = &hardware.machine;
             hardware
@@ -195,20 +191,14 @@ impl MemoryBoardGroup {
                             MachineInfo::default()
                         },
                     };
-                    GroupItem::reading(
-                        slot_reading.clone().reading_row(locale),
-                        MemoryBoardTarget::Slot(slot_module.locator.clone()),
+                    GroupItem::reading(slot_reading.clone().reading_row(locale)).with_hover_card(
+                        Box::new(move |_| self.hardware.hover_card_with(slot_reading.hover_card())),
                     )
-                    .with_hover_card(Box::new(move |_| {
-                        self.hardware.hover_card_with(slot_reading.hover_card())
-                    }))
                 })
         })
     }
 
-    fn temperature_items(
-        &self,
-    ) -> impl Iterator<Item = GroupItem<'_, WidgetGroupExpansionMessage>> {
+    fn temperature_items(&self) -> impl Iterator<Item = GroupItem<'_, MemoryBoardInteraction>> {
         self.module_temperatures
             .get()
             .into_iter()
@@ -218,14 +208,14 @@ impl MemoryBoardGroup {
                         bus_address: module.bus_address.clone(),
                         temperature: module.temperature,
                     };
-                    GroupItem::reading(
-                        temperature_reading.clone().reading_row(),
-                        MemoryBoardTarget::TemperatureSensor(module.bus_address.clone()),
-                    )
-                    .with_hover_card(Box::new(move |_| {
-                        self.module_temperatures
-                            .hover_card_with(temperature_reading.hover_card())
-                    }))
+                    GroupItem::reading(temperature_reading.clone().reading_row())
+                        .with_hover_card(Box::new(move |_| {
+                            self.module_temperatures
+                                .hover_card_with(temperature_reading.hover_card())
+                        }))
+                        .refreshed_by(MemoryBoardInteraction::Refresh(
+                            MemoryBoardSource::ModuleTemperatures,
+                        ))
                 })
             })
     }
@@ -234,73 +224,92 @@ impl MemoryBoardGroup {
         &self,
         clock: Clock,
         locale: Locale,
-    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
+    ) -> WidgetGroupContent<'_, MemoryBoardInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MemoryBoard,
             &self.expansion,
-            identity,
+            MemoryBoardInteraction::Expansion,
             [
                 self.memory
                     .group_item(
                         IconGlyph::default(),
                         |snapshot| memory_reading_row(snapshot, locale),
-                        MemoryBoardTarget::Memory,
                         clock,
                     )
                     .map(|memory_item| {
-                        memory_item.with_hover_card(Box::new(move |_| {
-                            let mut sections = self.memory.sections_described_by(memory_hover_card);
-                            sections.extend(
-                                self.memory_processes
-                                    .sections_described_by(memory_processes_sections),
-                            );
-                            sections
-                        }))
+                        memory_item
+                            .with_hover_card(Box::new(move |_| {
+                                let mut sections =
+                                    self.memory.sections_described_by(memory_hover_card);
+                                sections.extend(
+                                    self.memory_processes
+                                        .sections_described_by(memory_processes_sections),
+                                );
+                                sections
+                            }))
+                            .fetching_on_hover(
+                                MemoryBoardInteraction::StartMemoryProcessesFetch,
+                                MemoryBoardInteraction::StopHoverFetches,
+                            )
+                            .refreshed_by(MemoryBoardInteraction::Refresh(
+                                MemoryBoardSource::Memory,
+                            ))
                     }),
                 self.memory_growth
                     .group_item(
                         IconGlyph::default(),
                         |snapshot| memory_growth_reading_row(snapshot, locale),
-                        MemoryBoardTarget::Growth,
                         clock,
                     )
                     .map(|growth_item| {
-                        growth_item.with_hover_card(Box::new(move |_| {
-                            self.memory_growth
-                                .sections_described_by(memory_growth_hover_card)
-                        }))
+                        growth_item
+                            .with_hover_card(Box::new(move |_| {
+                                self.memory_growth
+                                    .sections_described_by(memory_growth_hover_card)
+                            }))
+                            .refreshed_by(MemoryBoardInteraction::Refresh(
+                                MemoryBoardSource::Growth,
+                            ))
                     }),
                 self.stall_pressure
                     .group_item(
                         IconGlyph::default(),
                         |snapshot| memory_stall_reading_row(snapshot, locale),
-                        MemoryBoardTarget::Pressure,
                         clock,
                     )
                     .map(|pressure_item| {
-                        pressure_item.with_hover_card(Box::new(move |_| {
-                            self.stall_pressure
-                                .sections_described_by(memory_stall_hover_card)
-                        }))
+                        pressure_item
+                            .with_hover_card(Box::new(move |_| {
+                                self.stall_pressure
+                                    .sections_described_by(memory_stall_hover_card)
+                            }))
+                            .refreshed_by(MemoryBoardInteraction::Refresh(
+                                MemoryBoardSource::Pressure,
+                            ))
                     }),
                 self.swap_activity
                     .group_item(
                         IconGlyph::default(),
                         |snapshot| swap_activity_reading_row(snapshot, locale),
-                        MemoryBoardTarget::Swap,
                         clock,
                     )
                     .map(|swap_item| {
-                        swap_item.with_hover_card(Box::new(move |_| {
-                            let mut sections = self
-                                .swap_activity
-                                .sections_described_by(swap_activity_hover_card);
-                            sections.extend(
-                                self.swapped_processes
-                                    .sections_described_by(swapped_processes_sections),
-                            );
-                            sections
-                        }))
+                        swap_item
+                            .with_hover_card(Box::new(move |_| {
+                                let mut sections = self
+                                    .swap_activity
+                                    .sections_described_by(swap_activity_hover_card);
+                                sections.extend(
+                                    self.swapped_processes
+                                        .sections_described_by(swapped_processes_sections),
+                                );
+                                sections
+                            }))
+                            .fetching_on_hover(
+                                MemoryBoardInteraction::StartSwappedProcessesFetch,
+                                MemoryBoardInteraction::StopHoverFetches,
+                            )
+                            .refreshed_by(MemoryBoardInteraction::Refresh(MemoryBoardSource::Swap))
                     }),
             ]
             .into_iter()
@@ -310,33 +319,26 @@ impl MemoryBoardGroup {
         )
     }
 
-    pub fn refresh(
-        target: &MemoryBoardTarget,
+    fn refresh(
+        source: MemoryBoardSource,
         growth_trend_config: &MemoryGrowthTrendConfig,
-        buses: Option<&DesktopBuses>,
     ) -> Task<MemoryBoardMessage> {
-        match target {
-            MemoryBoardTarget::Memory => {
+        match source {
+            MemoryBoardSource::Memory => {
                 first_delivery::<Memory>(()).map(MemoryBoardMessage::Memory)
             }
-            MemoryBoardTarget::Growth => {
+            MemoryBoardSource::Growth => {
                 first_delivery::<MemoryGrowth>(growth_trend_config.clone())
                     .map(MemoryBoardMessage::MemoryGrowth)
             }
-            MemoryBoardTarget::Pressure => {
+            MemoryBoardSource::Pressure => {
                 first_delivery::<MemoryStallPressure>(()).map(MemoryBoardMessage::StallPressure)
             }
-            MemoryBoardTarget::Swap => {
+            MemoryBoardSource::Swap => {
                 first_delivery::<SwapActivity>(()).map(MemoryBoardMessage::SwapActivity)
             }
-            MemoryBoardTarget::Slot(_) => buses.map_or_else(Task::none, |buses| {
-                first_delivery::<HostHardware>(buses.clone())
-                    .map(|delivery| MemoryBoardMessage::Hardware(Box::new(delivery)))
-            }),
-            MemoryBoardTarget::TemperatureSensor(_) => {
-                first_delivery::<MemoryModuleTemperatures>(())
-                    .map(MemoryBoardMessage::ModuleTemperatures)
-            }
+            MemoryBoardSource::ModuleTemperatures => first_delivery::<MemoryModuleTemperatures>(())
+                .map(MemoryBoardMessage::ModuleTemperatures),
         }
     }
 }

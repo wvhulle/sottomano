@@ -17,7 +17,7 @@ mod copilot_cli_monthly_spend;
 mod copilot_free_quota_count;
 mod copilot_quota_gauge;
 
-use std::{convert::identity, path::PathBuf};
+use std::path::PathBuf;
 
 use chrono::WeekdaySet;
 use iced::{Subscription, Task};
@@ -35,7 +35,6 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::group_item::GroupItem,
-    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -50,18 +49,21 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CopilotUsageTarget {
+pub enum CopilotAccountSource {
     Metered,
     Free,
-    Cli,
-    MostUsedModel,
-    MostUsedModelSpend,
 }
 
-impl From<CopilotUsageTarget> for HoverTarget {
-    fn from(target: CopilotUsageTarget) -> Self {
-        HoverTarget::CopilotUsage(target)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CopilotUsageBusRequest {
+    Refresh(CopilotAccountSource),
+}
+
+#[derive(Debug, Clone)]
+pub enum CopilotUsageInteraction {
+    Expansion(WidgetGroupExpansionMessage),
+    RefreshCli,
+    OnBuses(CopilotUsageBusRequest),
 }
 
 pub struct CopilotUsageGroup {
@@ -77,7 +79,7 @@ pub enum CopilotUsageMessage {
     Metered(SnapshotDelivery<CopilotMetered>),
     Free(SnapshotDelivery<CopilotFree>),
     Cli(SnapshotDelivery<CopilotCcusage>),
-    Expansion(WidgetGroupExpansionMessage),
+    Interaction(CopilotUsageInteraction),
 }
 
 impl CopilotUsageGroup {
@@ -103,26 +105,21 @@ impl CopilotUsageGroup {
         })
     }
 
-    pub fn refresh(
+    pub fn on_buses(
         &self,
-        target: CopilotUsageTarget,
-        config: &Config,
-        working_days: WeekdaySet,
-        buses: Option<&DesktopBuses>,
+        request: CopilotUsageBusRequest,
+        buses: &DesktopBuses,
     ) -> Task<CopilotUsageMessage> {
-        let account = buses.and_then(|buses| self.account(buses));
-        match target {
-            CopilotUsageTarget::Metered => account.map_or_else(Task::none, |key| {
-                first_delivery::<CopilotMetered>(key).map(CopilotUsageMessage::Metered)
-            }),
-            CopilotUsageTarget::Free => account.map_or_else(Task::none, |key| {
-                first_delivery::<CopilotFree>(key).map(CopilotUsageMessage::Free)
-            }),
-            CopilotUsageTarget::Cli
-            | CopilotUsageTarget::MostUsedModel
-            | CopilotUsageTarget::MostUsedModelSpend => {
-                first_delivery::<CopilotCcusage>(cli_budget(config, working_days))
-                    .map(CopilotUsageMessage::Cli)
+        let CopilotUsageBusRequest::Refresh(source) = request;
+        let Some(account) = self.account(buses) else {
+            return Task::none();
+        };
+        match source {
+            CopilotAccountSource::Metered => {
+                first_delivery::<CopilotMetered>(account).map(CopilotUsageMessage::Metered)
+            }
+            CopilotAccountSource::Free => {
+                first_delivery::<CopilotFree>(account).map(CopilotUsageMessage::Free)
             }
         }
     }
@@ -148,15 +145,24 @@ impl CopilotUsageGroup {
     pub fn update(
         &mut self,
         message: CopilotUsageMessage,
+        config: &Config,
+        working_days: WeekdaySet,
         clock: Clock,
     ) -> Task<CopilotUsageMessage> {
         match message {
             CopilotUsageMessage::Metered(reading) => self.metered.receive(reading, clock),
             CopilotUsageMessage::Free(reading) => self.free.receive(reading, clock),
             CopilotUsageMessage::Cli(reading) => self.cli.receive(reading, clock),
-            CopilotUsageMessage::Expansion(expansion_message) => {
+            CopilotUsageMessage::Interaction(CopilotUsageInteraction::Expansion(
+                expansion_message,
+            )) => {
                 self.expansion.update(expansion_message);
             }
+            CopilotUsageMessage::Interaction(CopilotUsageInteraction::RefreshCli) => {
+                return first_delivery::<CopilotCcusage>(cli_budget(config, working_days))
+                    .map(CopilotUsageMessage::Cli);
+            }
+            CopilotUsageMessage::Interaction(CopilotUsageInteraction::OnBuses(_)) => {}
         }
         Task::none()
     }
@@ -172,20 +178,18 @@ impl CopilotUsageGroup {
         )
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
+    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, CopilotUsageInteraction> {
+        let refresh_account =
+            |source| CopilotUsageInteraction::OnBuses(CopilotUsageBusRequest::Refresh(source));
         WidgetGroupContent::expandable(
             WidgetGroupFamily::CopilotUsage,
             &self.expansion,
-            identity,
+            CopilotUsageInteraction::Expansion,
             [
                 self.metered
                     .group_item(
                         COPILOT_METERED_FALLBACK_GLYPH,
                         |snapshot| copilot_metered_reading_row(snapshot, clock),
-                        CopilotUsageTarget::Metered,
                         clock,
                     )
                     .map(|item| {
@@ -194,50 +198,47 @@ impl CopilotUsageGroup {
                                 .sections_described_by(copilot_metered_hover_card)
                         }))
                         .previewed_on_handle()
+                        .refreshed_by(refresh_account(CopilotAccountSource::Metered))
                     }),
                 self.free
                     .group_item(
                         COPILOT_FREE_FALLBACK_GLYPH,
                         |snapshot| copilot_free_reading_row(snapshot),
-                        CopilotUsageTarget::Free,
                         clock,
                     )
                     .map(|item| {
                         item.with_hover_card(Box::new(move |_| {
                             self.free.sections_described_by(copilot_free_hover_card)
                         }))
+                        .refreshed_by(refresh_account(CopilotAccountSource::Free))
                     }),
                 self.cli
                     .group_item(
                         COPILOT_CCUSAGE_FALLBACK_GLYPH,
                         |snapshot| copilot_ccusage_reading_row(snapshot, clock),
-                        CopilotUsageTarget::Cli,
                         clock,
                     )
                     .map(|item| {
                         item.with_hover_card(Box::new(move |_| {
                             self.cli.sections_described_by(copilot_ccusage_hover_card)
                         }))
+                        .refreshed_by(CopilotUsageInteraction::RefreshCli)
                     }),
             ]
             .into_iter()
             .flatten()
             .chain(self.model_ranking().into_iter().flat_map(|ranking| {
                 [
-                    GroupItem::reading(
-                        ranking.most_used_model_row(),
-                        CopilotUsageTarget::MostUsedModel,
-                    )
-                    .with_hover_card(Box::new(move |_| {
-                        self.cli.hover_card_with(ranking.hover_card())
-                    })),
-                    GroupItem::reading(
-                        ranking.most_used_spend_row(),
-                        CopilotUsageTarget::MostUsedModelSpend,
-                    )
-                    .with_hover_card(Box::new(move |_| {
-                        self.cli.hover_card_with(ranking.top_model_share())
-                    })),
+                    GroupItem::reading(ranking.most_used_model_row())
+                        .with_hover_card(Box::new(move |_| {
+                            self.cli.hover_card_with(ranking.hover_card())
+                        }))
+                        .refreshed_by(CopilotUsageInteraction::RefreshCli),
+                    GroupItem::reading(ranking.most_used_spend_row())
+                        .with_hover_card(Box::new(move |_| {
+                            self.cli.hover_card_with(ranking.top_model_share())
+                        }))
+                        .refreshed_by(CopilotUsageInteraction::RefreshCli),
                 ]
             })),
         )

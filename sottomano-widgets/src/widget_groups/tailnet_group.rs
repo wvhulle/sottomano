@@ -1,4 +1,4 @@
-use std::{borrow::Cow, path::PathBuf};
+use std::path::PathBuf;
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::tailscale_cli_switches::{
@@ -32,7 +32,7 @@ use crate::{
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::hover_card_body::Section,
     widget_groups::{
         tailnet_group::{
             tailscale_access_hover_card::{
@@ -59,22 +59,9 @@ mod tailscale_exit_node_hover_card;
 mod tailscale_exit_offer_hover_card;
 mod tailscale_mesh_hover_card;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TailnetTarget {
-    Membership,
-    OwnNode,
-    InboundAccess,
-    PolicyFile,
-    ExitOffer,
-    ExitNodeChoice { exit_node_ip: Cow<'static, str> },
-    ExitNodeLanAccess,
-    ExitNodeListFailure,
-}
-
-impl From<TailnetTarget> for HoverTarget {
-    fn from(target: TailnetTarget) -> Self {
-        HoverTarget::Tailnet(target)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TailnetBusRequest {
+    StartPolicyFileFetch,
 }
 
 enum PolicyFileAccess {
@@ -132,6 +119,10 @@ pub enum TailnetInteraction {
     SwitchExitOffer(ExitOfferSwitch),
     SwitchExitRouting(ExitRoutingSwitch),
     OpenAdminConsole,
+    StartInboundAccessFetch,
+    StopHoverFetches,
+    Refresh,
+    OnBuses(TailnetBusRequest),
 }
 
 fn refreshed_after_switch(
@@ -186,14 +177,19 @@ impl TailnetGroup {
         ])
     }
 
-    pub fn refresh() -> Task<TailnetMessage> {
+    fn refresh() -> Task<TailnetMessage> {
         Task::batch([
             first_delivery::<Tailscale>(()).map(TailnetMessage::Tailscale),
             first_delivery::<TailscaleExitNodes>(()).map(TailnetMessage::ExitNodesDelivered),
         ])
     }
 
-    pub fn update(&mut self, message: TailnetMessage, clock: Clock) -> Task<TailnetMessage> {
+    pub fn update(
+        &mut self,
+        message: TailnetMessage,
+        config: &Config,
+        clock: Clock,
+    ) -> Task<TailnetMessage> {
         match message {
             TailnetMessage::Tailscale(delivery) => self.tailscale.receive(delivery, clock),
             TailnetMessage::ExitNodesDelivered(delivery) => {
@@ -237,46 +233,48 @@ impl TailnetGroup {
                 }))
                 .discard();
             }
+            TailnetMessage::Interaction(TailnetInteraction::StartInboundAccessFetch) => {
+                return self.inbound_access.start_hover_fetch(
+                    (),
+                    TailnetMessage::InboundAccessFetched,
+                    config,
+                    clock,
+                );
+            }
+            TailnetMessage::Interaction(TailnetInteraction::StopHoverFetches) => {
+                self.inbound_access.stop();
+                self.policy_file_access.stop_hover_fetch();
+            }
+            TailnetMessage::Interaction(TailnetInteraction::Refresh) => return Self::refresh(),
+            TailnetMessage::Interaction(TailnetInteraction::OnBuses(_)) => {}
         }
         Task::none()
     }
 
-    pub fn hover(
+    pub fn on_buses(
         &mut self,
-        hovered: Option<&HoverTarget>,
+        request: TailnetBusRequest,
         config: &Config,
-        buses: Option<&DesktopBuses>,
+        buses: &DesktopBuses,
         clock: Clock,
     ) -> Task<TailnetMessage> {
-        self.inbound_access.stop();
-        self.policy_file_access.stop_hover_fetch();
-        match hovered {
-            Some(HoverTarget::Tailnet(TailnetTarget::InboundAccess)) => self
-                .inbound_access
-                .start_hover_fetch((), TailnetMessage::InboundAccessFetched, config, clock),
-            Some(HoverTarget::Tailnet(TailnetTarget::PolicyFile)) => {
-                let (
-                    PolicyFileAccess::ApiToken {
-                        token_path,
-                        policy_file,
-                    },
-                    Some(buses),
-                ) = (&mut self.policy_file_access, buses)
-                else {
-                    return Task::none();
-                };
-                policy_file.start_hover_fetch(
-                    OnBus {
-                        buses: buses.clone(),
-                        inputs: token_path.clone(),
-                    },
-                    TailnetMessage::PolicyFileFetched,
-                    config,
-                    clock,
-                )
-            }
-            _ => Task::none(),
-        }
+        let TailnetBusRequest::StartPolicyFileFetch = request;
+        let PolicyFileAccess::ApiToken {
+            token_path,
+            policy_file,
+        } = &mut self.policy_file_access
+        else {
+            return Task::none();
+        };
+        policy_file.start_hover_fetch(
+            OnBus {
+                buses: buses.clone(),
+                inputs: token_path.clone(),
+            },
+            TailnetMessage::PolicyFileFetched,
+            config,
+            clock,
+        )
     }
 
     fn membership_item(&self, clock: Clock) -> Option<GroupItem<'_, TailnetInteraction>> {
@@ -285,7 +283,7 @@ impl TailnetGroup {
             |snapshot| tailscale_reading_row(snapshot, clock),
             clock,
         )?;
-        let item = GroupItem::reading(membership_row, TailnetTarget::Membership)
+        let item = GroupItem::reading(membership_row)
             .on_right_press(
                 "open the Tailscale admin console",
                 TailnetInteraction::OpenAdminConsole,
@@ -321,17 +319,18 @@ impl TailnetGroup {
         match self.policy_file_access {
             PolicyFileAccess::NoApiToken => None,
             PolicyFileAccess::ApiToken { .. } => Some(
-                GroupItem::reading(PolicyFileRow::reading_row(), TailnetTarget::PolicyFile)
-                    .with_hover_card(Box::new(move |_| self.policy_file_access.sections())),
+                GroupItem::reading(PolicyFileRow::reading_row())
+                    .with_hover_card(Box::new(move |_| self.policy_file_access.sections()))
+                    .fetching_on_hover(
+                        TailnetInteraction::OnBuses(TailnetBusRequest::StartPolicyFileFetch),
+                        TailnetInteraction::StopHoverFetches,
+                    ),
             ),
         }
     }
 
     fn exit_offer_item(tailnet: &Tailnet) -> GroupItem<'_, TailnetInteraction> {
-        let item = GroupItem::reading(
-            ExitOfferRow { tailnet }.reading_row(),
-            TailnetTarget::ExitOffer,
-        );
+        let item = GroupItem::reading(ExitOfferRow { tailnet }.reading_row());
         match tailnet.offer_control() {
             ExitOfferControl::Switchable(exit_offer_switch @ ExitOfferSwitch::StopOffering) => item
                 .on_switch_press(
@@ -367,9 +366,6 @@ impl TailnetGroup {
                 exit_node_choices,
             }
             .reading_row(),
-            TailnetTarget::ExitNodeChoice {
-                exit_node_ip: Cow::Owned(exit_node_option.ip.clone()),
-            },
         );
         let exit_node_item = match exit_node_option.node_use {
             ExitNodeUse::InUse => exit_node_item.previewed_on_handle(),
@@ -391,18 +387,15 @@ impl TailnetGroup {
     fn exit_node_lan_access_item(
         exit_node_choices: &ExitNodeChoices,
     ) -> GroupItem<'_, TailnetInteraction> {
-        GroupItem::reading(
-            ExitNodeLanAccessRow { exit_node_choices }.reading_row(),
-            TailnetTarget::ExitNodeLanAccess,
-        )
-        .on_switch_press(
-            exit_node_choices.lan_access,
-            match exit_node_choices.lan_access {
-                ExitNodeLanAccess::Allowed => "cut local network access through exit nodes",
-                ExitNodeLanAccess::Blocked => "keep local network access through exit nodes",
-            },
-            TailnetInteraction::SwitchExitRouting(exit_node_choices.lan_access_switch()),
-        )
+        GroupItem::reading(ExitNodeLanAccessRow { exit_node_choices }.reading_row())
+            .on_switch_press(
+                exit_node_choices.lan_access,
+                match exit_node_choices.lan_access {
+                    ExitNodeLanAccess::Allowed => "cut local network access through exit nodes",
+                    ExitNodeLanAccess::Blocked => "keep local network access through exit nodes",
+                },
+                TailnetInteraction::SwitchExitRouting(exit_node_choices.lan_access_switch()),
+            )
     }
 
     fn exit_node_choice_items(&self) -> Vec<GroupItem<'_, TailnetInteraction>> {
@@ -443,20 +436,20 @@ impl TailnetGroup {
             .get()
             .and_then(OwnNodeRow::running_own_node)
             .map(|own_node_row| {
-                GroupItem::reading(own_node_row.reading_row(), TailnetTarget::OwnNode)
-                    .with_hover_card(Box::new(move |_| {
-                        self.tailscale.hover_card_with(own_node_row.hover_card())
-                    }))
+                GroupItem::reading(own_node_row.reading_row()).with_hover_card(Box::new(
+                    move |_| self.tailscale.hover_card_with(own_node_row.hover_card()),
+                ))
             });
         let inbound_access_item = self.running_tailnet().map(|_| {
-            GroupItem::reading(
-                InboundAccessRow::reading_row(),
-                TailnetTarget::InboundAccess,
-            )
-            .with_hover_card(Box::new(move |_| {
-                self.inbound_access
-                    .sections_described_by(tailscale_inbound_access_sections)
-            }))
+            GroupItem::reading(InboundAccessRow::reading_row())
+                .with_hover_card(Box::new(move |_| {
+                    self.inbound_access
+                        .sections_described_by(tailscale_inbound_access_sections)
+                }))
+                .fetching_on_hover(
+                    TailnetInteraction::StartInboundAccessFetch,
+                    TailnetInteraction::StopHoverFetches,
+                )
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Tailnet,
@@ -475,15 +468,13 @@ impl TailnetGroup {
                 }))
                 .chain(self.exit_node_choice_items())
                 .chain(self.tailscale_exit_nodes.failure().map(|failure_reading| {
-                    GroupItem::reading(
-                        failure_reading.reading_row(IconGlyph::default()),
-                        TailnetTarget::ExitNodeListFailure,
-                    )
-                    .with_hover_card(Box::new(move |_| {
-                        self.tailscale_exit_nodes
-                            .sections_described_by(|_| Vec::new())
-                    }))
-                })),
+                    GroupItem::reading(failure_reading.reading_row(IconGlyph::default()))
+                        .with_hover_card(Box::new(move |_| {
+                            self.tailscale_exit_nodes
+                                .sections_described_by(|_| Vec::new())
+                        }))
+                }))
+                .map(|tailnet_item| tailnet_item.refreshed_by(TailnetInteraction::Refresh)),
         )
         .face(WidgetGroupFace::Glyph {
             glyph: SimpleIcon::Tailscale.into(),
@@ -542,6 +533,7 @@ mod tests {
                     ExitNodeUse::Unused,
                 )),
             )))),
+            &Config::default(),
             Clock::real(),
         );
         running_group

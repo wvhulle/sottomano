@@ -16,7 +16,7 @@ use crate::{
     group_items::{
         group_item::GroupItem, reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
     },
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::hover_card_body::Section,
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -204,13 +204,10 @@ impl<S: ToggleableSource> ToggleControl<S> {
         &'s self,
         fallback_icon: IconGlyph,
         describe: impl FnOnce(&'s S) -> ReadingRow<'s>,
-        target: impl Into<HoverTarget>,
         on_press: M,
         clock: Clock,
     ) -> Option<GroupItem<'s, M>> {
-        let shown = self
-            .reading
-            .group_item(fallback_icon, describe, target, clock)?;
+        let shown = self.reading.group_item(fallback_icon, describe, clock)?;
         Some(match self.reading.get() {
             Some(current) => shown.on_switch_press(
                 current.switch_position(),
@@ -233,9 +230,7 @@ mod tests {
     use super::*;
     use crate::{
         hover_cards::hover_card_body::hover_card_source_delivery::{SectionSource, SourceDelivery},
-        widget_groups::compute_group::{
-            ComputeTarget, x3d_cache_preference_toggle::x3d_cache_preference_reading_row,
-        },
+        widget_groups::compute_group::x3d_cache_preference_toggle::x3d_cache_preference_reading_row,
     };
 
     fn refused_write() -> FileReadError {
@@ -274,7 +269,6 @@ mod tests {
                 .group_item(
                     IconGlyph::default(),
                     |snapshot| x3d_cache_preference_reading_row(snapshot),
-                    HoverTarget::Compute(ComputeTarget::X3dCachePreference),
                     (),
                     clock,
                 )

@@ -8,7 +8,6 @@ use crate::{
         reading_display_state::ReadingDisplayState,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    hover_cards::HoverTarget,
     widget_groups::{
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
@@ -18,7 +17,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
+        layer_appearance_controls::{AppearanceMessage, LayerAppearanceControls},
         phosphor::{Phosphor, Weight},
         shell_layer_appearance::ShellLayer,
     },
@@ -75,18 +74,6 @@ fn toast_spatial_layout_toggle(toast_arrangement: ToastArrangement) -> IconToggl
     )
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OverlaySettingsTarget {
-    ToastSpatialLayout,
-    Appearance(AppearanceTarget),
-}
-
-impl From<OverlaySettingsTarget> for HoverTarget {
-    fn from(target: OverlaySettingsTarget) -> Self {
-        HoverTarget::OverlaySettings(target)
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum OverlaySettingsMessage {
     Expansion(WidgetGroupExpansionMessage),
@@ -106,9 +93,7 @@ impl Default for OverlaySettingsGroup {
         Self {
             expansion: WidgetGroupExpansion::default(),
             toast_arrangement: ToastArrangement::BesideSender,
-            layer: LayerAppearanceControls::new(ShellLayer::Overlays, |target| {
-                OverlaySettingsTarget::Appearance(target).into()
-            }),
+            layer: LayerAppearanceControls::new(ShellLayer::Overlays),
         }
     }
 }
@@ -173,7 +158,6 @@ impl OverlaySettingsGroup {
             OverlaySettingsMessage::Expansion,
             [GroupItem::toggle(
                 toast_spatial_layout_toggle(self.toast_arrangement),
-                OverlaySettingsTarget::ToastSpatialLayout,
                 OverlaySettingsMessage::ToggleToastSpatialLayout,
             )]
             .into_iter()

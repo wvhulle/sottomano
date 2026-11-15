@@ -1,6 +1,5 @@
 mod group_actions;
 mod group_hover_cards;
-mod group_readings;
 mod group_subscriptions;
 
 use iced::Task;
@@ -8,6 +7,7 @@ use sottomano_desktop_sinks::compositor_window_requests::compositor_rule_files::
 use sottomano_desktop_sources::{
     compositor_window_ipc::compositor_window_state::CompositorWindowState,
     desktop_windows_apps::desktop_entry_app_icons::DesktopEntries,
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use sottomano_toml_config::{Config, SecretPaths};
 use sottomano_widgets::{
@@ -24,15 +24,19 @@ use sottomano_widgets::{
         caldav_group::CaldavGroup,
         cgroup_memory_limits_group::CgroupMemoryLimitsGroup,
         ci_runs_group::CiRunsGroup,
-        claude_usage_group::ClaudeUsageGroup,
+        claude_usage_group::{ClaudeUsageGroup, ClaudeUsageInteraction, ClaudeUsageMessage},
         clock_group::ClockGroup,
-        color_temperature_group::ColorTemperatureGroup,
+        color_temperature_group::{
+            ColorTemperatureGroup, ColorTemperatureInteraction, ColorTemperatureMessage,
+        },
         compositor_styling_group::CompositorStylingGroup,
         compute_group::ComputeGroup,
-        copilot_usage_group::CopilotUsageGroup,
+        copilot_usage_group::{CopilotUsageGroup, CopilotUsageInteraction, CopilotUsageMessage},
         dark_mode_group::{DarkModeGroup, DarkModeInteraction, DarkModeMessage},
         docker_engines_group::DockerEnginesGroup,
-        ethernet_ports_group::EthernetPortsGroup,
+        ethernet_ports_group::{
+            EthernetPortsGroup, EthernetPortsInteraction, EthernetPortsMessage,
+        },
         flatpak_sandboxes_group::FlatpakSandboxesGroup,
         gamepad_group::GamepadGroup,
         global_menu_group::GlobalMenuGroup,
@@ -41,42 +45,50 @@ use sottomano_widgets::{
         incus_instances_group::IncusInstancesGroup,
         journal_events_group::JournalEventsGroup,
         llama_server_group::LlamaServerGroup,
-        login_session_group::LoginSessionGroup,
+        login_session_group::{LoginSessionGroup, LoginSessionInteraction, LoginSessionMessage},
         lxc_containers_group::LxcContainersGroup,
         media_group::MediaGroup,
         memory_board_group::MemoryBoardGroup,
         microvm_guests_group::MicrovmGuestsGroup,
         mobile_modems_group::MobileModemsGroup,
-        monitor_group::MonitorGroup,
-        network_manager_vpn_group::NetworkManagerVpnGroup,
+        monitor_group::{MonitorGroup, MonitorInteraction, MonitorMessage},
+        network_manager_vpn_group::{
+            NetworkManagerVpnGroup, NetworkManagerVpnInteraction, NetworkManagerVpnMessage,
+        },
         notification_group::NotificationGroup,
         nspawn_containers_group::NspawnContainersGroup,
-        openrouter_credit_group::OpenRouterCreditGroup,
+        openrouter_credit_group::{
+            OpenRouterCreditGroup, OpenRouterCreditInteraction, OpenRouterCreditMessage,
+        },
         overlay_settings_group::{OverlaySettingsGroup, OverlaySettingsMessage},
         panel_settings_group::{GroupCollapsing, PanelSettingsGroup, PanelSettingsMessage},
         pending_upgrades_group::PendingUpgradesGroup,
         physical_drive_group::PhysicalDriveGroup,
         podman_engines_group::PodmanEnginesGroup,
-        power_group::PowerGroup,
+        power_group::{PowerGroup, PowerInteraction, PowerMessage},
         quiet_schedule_group::QuietScheduleGroup,
-        reachability_group::ReachabilityGroup,
+        reachability_group::{ReachabilityGroup, ReachabilityInteraction, ReachabilityMessage},
         session_focus_group::SessionFocusGroup,
         session_power_group::SessionPowerGroup,
         sidebar_settings_group::{SidebarSettingsGroup, SidebarSettingsMessage},
         storage_space_group::StorageSpaceGroup,
         systemd_manager_group::SystemdManagerGroup,
-        tailnet_group::TailnetGroup,
+        tailnet_group::{TailnetGroup, TailnetInteraction, TailnetMessage},
         tray_group::TrayGroup,
         virtual_machines_group::VirtualMachinesGroup,
         virtualbox_machines_group::VirtualBoxMachinesGroup,
         vmware_machines_group::VmwareMachinesGroup,
-        voice_dictation_group::VoiceDictationGroup,
+        voice_dictation_group::{
+            VoiceDictationGroup, VoiceDictationInteraction, VoiceDictationMessage,
+        },
         wallpaper_group::WallpaperGroup,
         waydroid_container_group::WaydroidContainerGroup,
-        weather_group::WeatherGroup,
-        wifi_adapters_group::WifiAdaptersGroup,
+        weather_group::{WeatherGroup, WeatherInteraction, WeatherMessage},
+        wifi_adapters_group::{WifiAdaptersGroup, WifiAdaptersInteraction, WifiAdaptersMessage},
         window_group::WindowGroup,
-        wireguard_tunnels_group::WireguardTunnelsGroup,
+        wireguard_tunnels_group::{
+            WireguardTunnelsGroup, WireguardTunnelsInteraction, WireguardTunnelsMessage,
+        },
     },
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
@@ -254,8 +266,158 @@ impl ShellWidgetGroups {
         ])
     }
 
+    pub fn route(
+        &mut self,
+        message: Message,
+        config: &Config,
+        buses: Option<&DesktopBuses>,
+        clock: Clock,
+    ) -> Task<Message> {
+        let working_days = self.quiet_schedule_group.working_days();
+        match message {
+            Message::WifiAdapters(WifiAdaptersMessage::Interaction(
+                WifiAdaptersInteraction::OnBuses(request),
+            )) => {
+                let Some(buses) = buses else {
+                    return Task::none();
+                };
+                self.wifi_adapters_group
+                    .on_buses(request, config, buses, clock)
+                    .map(Message::WifiAdapters)
+            }
+            Message::EthernetPorts(EthernetPortsMessage::Interaction(
+                EthernetPortsInteraction::OnBuses(request),
+            )) => {
+                let Some(buses) = buses else {
+                    return Task::none();
+                };
+                self.ethernet_ports_group
+                    .on_buses(request, config, buses, clock)
+                    .map(Message::EthernetPorts)
+            }
+            Message::Power(PowerMessage::Interaction(PowerInteraction::OnBuses(request))) => {
+                let Some(buses) = buses else {
+                    return Task::none();
+                };
+                self.power_group
+                    .on_buses(request, config, buses, clock)
+                    .map(Message::Power)
+            }
+            Message::ClaudeUsage(ClaudeUsageMessage::Interaction(
+                ClaudeUsageInteraction::OnBuses(request),
+            )) => {
+                let Some(buses) = buses else {
+                    return Task::none();
+                };
+                self.claude_usage_group
+                    .on_buses(request, config, working_days, buses, clock)
+                    .map(Message::ClaudeUsage)
+            }
+            Message::LoginSession(LoginSessionMessage::Interaction(
+                LoginSessionInteraction::OnBuses(request),
+            )) => {
+                let Some(buses) = buses else {
+                    return Task::none();
+                };
+                self.login_session_group
+                    .on_buses(request, config, buses, clock)
+                    .map(Message::LoginSession)
+            }
+            Message::VoiceDictation(VoiceDictationMessage::Interaction(
+                VoiceDictationInteraction::OnBuses(request),
+            )) => {
+                let Some(buses) = buses else {
+                    return Task::none();
+                };
+                VoiceDictationGroup::on_buses(request, buses).map(Message::VoiceDictation)
+            }
+            Message::Tailnet(TailnetMessage::Interaction(TailnetInteraction::OnBuses(request))) => {
+                let Some(buses) = buses else {
+                    return Task::none();
+                };
+                self.tailnet_group
+                    .on_buses(request, config, buses, clock)
+                    .map(Message::Tailnet)
+            }
+            Message::WireguardTunnels(WireguardTunnelsMessage::Interaction(
+                WireguardTunnelsInteraction::OnBuses(request),
+            )) => {
+                let Some(buses) = buses else {
+                    return Task::none();
+                };
+                self.wireguard_tunnels_group
+                    .on_buses(request, config, buses, clock)
+                    .map(Message::WireguardTunnels)
+            }
+            Message::Weather(WeatherMessage::Interaction(WeatherInteraction::OnBuses(request))) => {
+                let Some(buses) = buses else {
+                    return Task::none();
+                };
+                self.weather_group
+                    .on_buses(request, buses)
+                    .map(Message::Weather)
+            }
+            Message::CopilotUsage(CopilotUsageMessage::Interaction(
+                CopilotUsageInteraction::OnBuses(request),
+            )) => {
+                let Some(buses) = buses else {
+                    return Task::none();
+                };
+                self.copilot_usage_group
+                    .on_buses(request, buses)
+                    .map(Message::CopilotUsage)
+            }
+            Message::OpenRouterCredit(OpenRouterCreditMessage::Interaction(
+                OpenRouterCreditInteraction::OnBuses(request),
+            )) => {
+                let Some(buses) = buses else {
+                    return Task::none();
+                };
+                self.openrouter_credit_group
+                    .on_buses(request, config, buses)
+                    .map(Message::OpenRouterCredit)
+            }
+            Message::Reachability(ReachabilityMessage::Interaction(
+                ReachabilityInteraction::OnBuses(request),
+            )) => {
+                let Some(buses) = buses else {
+                    return Task::none();
+                };
+                ReachabilityGroup::on_buses(request, buses).map(Message::Reachability)
+            }
+            Message::NetworkManagerVpns(NetworkManagerVpnMessage::Interaction(
+                NetworkManagerVpnInteraction::OnBuses(request),
+            )) => {
+                let Some(buses) = buses else {
+                    return Task::none();
+                };
+                NetworkManagerVpnGroup::on_buses(request, buses).map(Message::NetworkManagerVpns)
+            }
+            Message::Monitor(MonitorMessage::Interaction(MonitorInteraction::OnBuses(request))) => {
+                let Some(buses) = buses else {
+                    return Task::none();
+                };
+                MonitorGroup::on_buses(request, buses).map(Message::Monitor)
+            }
+            Message::ColorTemperature(ColorTemperatureMessage::Interaction(
+                ColorTemperatureInteraction::OnBuses(request),
+            )) => {
+                let Some(buses) = buses else {
+                    return Task::none();
+                };
+                ColorTemperatureGroup::on_buses(request, buses).map(Message::ColorTemperature)
+            }
+            other => self.route_group_message(other, config, clock),
+        }
+    }
+
     #[allow(clippy::too_many_lines)]
-    pub fn route(&mut self, message: Message, config: &Config, clock: Clock) -> Task<Message> {
+    fn route_group_message(
+        &mut self,
+        message: Message,
+        config: &Config,
+        clock: Clock,
+    ) -> Task<Message> {
         match message {
             Message::Weather(msg) => self.weather_group.update(msg, clock).map(Message::Weather),
             Message::Wallpaper(msg) => self
@@ -263,20 +425,26 @@ impl ShellWidgetGroups {
                 .update(msg, clock)
                 .map(Message::Wallpaper),
             Message::Caldav(msg) => self.caldav_group.update(msg, clock).map(Message::Caldav),
-            Message::Power(msg) => self.power_group.update(msg, clock).map(Message::Power),
-            Message::Compute(msg) => self.compute_group.update(msg, clock).map(Message::Compute),
+            Message::Power(msg) => self
+                .power_group
+                .update(msg, config, clock)
+                .map(Message::Power),
+            Message::Compute(msg) => self
+                .compute_group
+                .update(msg, config, clock)
+                .map(Message::Compute),
             Message::MemoryBoard(msg) => self
                 .memory_board_group
-                .update(msg, clock)
+                .update(msg, config, clock)
                 .map(Message::MemoryBoard),
-            Message::Gpu(msg) => self.gpu_group.update(msg, clock).map(Message::Gpu),
+            Message::Gpu(msg) => self.gpu_group.update(msg, config, clock).map(Message::Gpu),
             Message::Storage(msg) => self
                 .storage_space_group
                 .update(msg, clock)
                 .map(Message::Storage),
             Message::Drive(msg) => self
                 .physical_drive_group
-                .update(msg, clock)
+                .update(msg, config, clock)
                 .map(Message::Drive),
             Message::SidebarSettings(msg) => self
                 .sidebar_settings_group
@@ -319,7 +487,10 @@ impl ShellWidgetGroups {
                 .reachability_group
                 .update(msg, &config.widget_groups.reachability, clock)
                 .map(Message::Reachability),
-            Message::Tailnet(msg) => self.tailnet_group.update(msg, clock).map(Message::Tailnet),
+            Message::Tailnet(msg) => self
+                .tailnet_group
+                .update(msg, config, clock)
+                .map(Message::Tailnet),
             Message::WireguardTunnels(msg) => self
                 .wireguard_tunnels_group
                 .update(msg, clock)
@@ -339,17 +510,19 @@ impl ShellWidgetGroups {
                 .map(Message::DarkMode),
             Message::VoiceDictation(msg) => self
                 .voice_dictation_group
-                .update(msg, clock)
+                .update(msg, config, clock)
                 .map(Message::VoiceDictation),
             Message::Audio(msg) => self.audio_group.update(msg, clock).map(Message::Audio),
             Message::ClaudeUsage(msg) => self
                 .claude_usage_group
-                .update(msg, clock)
+                .update(msg, config, clock)
                 .map(Message::ClaudeUsage),
-            Message::CopilotUsage(msg) => self
-                .copilot_usage_group
-                .update(msg, clock)
-                .map(Message::CopilotUsage),
+            Message::CopilotUsage(msg) => {
+                let working_days = self.quiet_schedule_group.working_days();
+                self.copilot_usage_group
+                    .update(msg, config, working_days, clock)
+                    .map(Message::CopilotUsage)
+            }
             Message::OpenRouterCredit(msg) => self
                 .openrouter_credit_group
                 .update(msg, clock)
@@ -416,7 +589,7 @@ impl ShellWidgetGroups {
                 .map(Message::SessionFocus),
             Message::LoginSession(msg) => self
                 .login_session_group
-                .update(msg, clock)
+                .update(msg, config, clock)
                 .map(Message::LoginSession),
             unrouted => {
                 tracing::warn!(?unrouted, "not a widget group message");

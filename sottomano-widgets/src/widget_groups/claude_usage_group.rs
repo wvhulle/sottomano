@@ -24,7 +24,7 @@ mod claude_code_period_spend;
 mod claude_enterprise_credit_spend;
 mod claude_usage_window_gauge;
 
-use std::{convert::identity, path::PathBuf};
+use std::path::PathBuf;
 
 use chrono::WeekdaySet;
 use iced::{Subscription, Task};
@@ -46,7 +46,6 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::group_item::GroupItem,
-    hover_cards::HoverTarget,
     widget_groups::{
         claude_usage_group::claude_enterprise_credit_spend::claude_organization_sections,
         widget_group_content::{
@@ -63,19 +62,25 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ClaudeUsageTarget {
-    UsageWindows,
-    EnterpriseSpend,
+pub enum ClaudeLocalSource {
     CcusagePeriods,
     CcusageBlock,
-    MostUsedModel,
-    MostUsedModelSpend,
+    CcusageModels,
 }
 
-impl From<ClaudeUsageTarget> for HoverTarget {
-    fn from(target: ClaudeUsageTarget) -> Self {
-        HoverTarget::ClaudeUsage(target)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClaudeUsageBusRequest {
+    StartOrganizationFetch,
+    RefreshUsageWindows,
+    RefreshEnterpriseSpend,
+}
+
+#[derive(Debug, Clone)]
+pub enum ClaudeUsageInteraction {
+    Expansion(WidgetGroupExpansionMessage),
+    StopHoverFetches,
+    Refresh(ClaudeLocalSource),
+    OnBuses(ClaudeUsageBusRequest),
 }
 
 pub struct ClaudeUsageGroup {
@@ -97,7 +102,7 @@ pub enum ClaudeUsageMessage {
     CcusagePeriods(SnapshotDelivery<ClaudeCcusagePeriods>),
     CcusageBlock(SnapshotDelivery<ClaudeCcusageBlock>),
     CcusageModels(SnapshotDelivery<ClaudeCcusageModels>),
-    Expansion(WidgetGroupExpansionMessage),
+    Interaction(ClaudeUsageInteraction),
 }
 
 impl ClaudeUsageGroup {
@@ -119,29 +124,44 @@ impl ClaudeUsageGroup {
         }
     }
 
-    pub fn hover(
+    pub fn on_buses(
         &mut self,
-        hovered: Option<&HoverTarget>,
+        request: ClaudeUsageBusRequest,
         config: &Config,
-        buses: Option<&DesktopBuses>,
+        working_days: WeekdaySet,
+        buses: &DesktopBuses,
         clock: Clock,
     ) -> Task<ClaudeUsageMessage> {
-        self.organization.stop();
-        let Some(HoverTarget::ClaudeUsage(ClaudeUsageTarget::EnterpriseSpend)) = hovered else {
+        let Some(credentials) = self.oauth_credentials.clone() else {
             return Task::none();
         };
-        let (Some(credentials), Some(buses)) = (self.oauth_credentials.clone(), buses) else {
-            return Task::none();
-        };
-        self.organization.start_hover_fetch(
-            OnBus {
-                buses: buses.clone(),
-                inputs: credentials,
-            },
-            ClaudeUsageMessage::OrganizationFetched,
-            config,
-            clock,
-        )
+        match request {
+            ClaudeUsageBusRequest::StartOrganizationFetch => self.organization.start_hover_fetch(
+                OnBus {
+                    buses: buses.clone(),
+                    inputs: credentials,
+                },
+                ClaudeUsageMessage::OrganizationFetched,
+                config,
+                clock,
+            ),
+            ClaudeUsageBusRequest::RefreshUsageWindows => {
+                first_delivery::<ClaudeUsageWindows>(OnBus {
+                    buses: buses.clone(),
+                    inputs: credentials,
+                })
+                .map(|reading| ClaudeUsageMessage::UsageWindows(Box::new(reading)))
+            }
+            ClaudeUsageBusRequest::RefreshEnterpriseSpend => {
+                first_delivery::<ClaudeEnterpriseSpend>(enterprise_account(
+                    credentials,
+                    config,
+                    working_days,
+                    buses,
+                ))
+                .map(ClaudeUsageMessage::EnterpriseSpend)
+            }
+        }
     }
 
     fn local_logs(&self, config: &Config) -> ClaudeLocalLogs {
@@ -154,42 +174,17 @@ impl ClaudeUsageGroup {
         }
     }
 
-    pub fn refresh(
-        &self,
-        target: ClaudeUsageTarget,
-        config: &Config,
-        working_days: WeekdaySet,
-        buses: Option<&DesktopBuses>,
-    ) -> Task<ClaudeUsageMessage> {
-        let account = self.oauth_credentials.clone().zip(buses);
-        match target {
-            ClaudeUsageTarget::UsageWindows => account.map_or_else(Task::none, |(key, buses)| {
-                first_delivery::<ClaudeUsageWindows>(OnBus {
-                    buses: buses.clone(),
-                    inputs: key,
-                })
-                .map(|reading| ClaudeUsageMessage::UsageWindows(Box::new(reading)))
-            }),
-            ClaudeUsageTarget::EnterpriseSpend => {
-                account.map_or_else(Task::none, |(key, buses)| {
-                    first_delivery::<ClaudeEnterpriseSpend>(enterprise_account(
-                        key,
-                        config,
-                        working_days,
-                        buses,
-                    ))
-                    .map(ClaudeUsageMessage::EnterpriseSpend)
-                })
-            }
-            ClaudeUsageTarget::CcusagePeriods => {
+    fn refresh(&self, source: ClaudeLocalSource, config: &Config) -> Task<ClaudeUsageMessage> {
+        match source {
+            ClaudeLocalSource::CcusagePeriods => {
                 first_delivery::<ClaudeCcusagePeriods>(self.local_logs(config))
                     .map(ClaudeUsageMessage::CcusagePeriods)
             }
-            ClaudeUsageTarget::MostUsedModel | ClaudeUsageTarget::MostUsedModelSpend => {
+            ClaudeLocalSource::CcusageModels => {
                 first_delivery::<ClaudeCcusageModels>(self.oauth_credentials.clone())
                     .map(ClaudeUsageMessage::CcusageModels)
             }
-            ClaudeUsageTarget::CcusageBlock => {
+            ClaudeLocalSource::CcusageBlock => {
                 first_delivery::<ClaudeCcusageBlock>(self.local_logs(config))
                     .map(ClaudeUsageMessage::CcusageBlock)
             }
@@ -239,6 +234,7 @@ impl ClaudeUsageGroup {
     pub fn update(
         &mut self,
         message: ClaudeUsageMessage,
+        config: &Config,
         clock: Clock,
     ) -> Task<ClaudeUsageMessage> {
         match message {
@@ -260,9 +256,18 @@ impl ClaudeUsageGroup {
             ClaudeUsageMessage::CcusageModels(reading) => {
                 self.ccusage_models.receive(reading, clock);
             }
-            ClaudeUsageMessage::Expansion(expansion_message) => {
+            ClaudeUsageMessage::Interaction(ClaudeUsageInteraction::Expansion(
+                expansion_message,
+            )) => {
                 self.expansion.update(expansion_message);
             }
+            ClaudeUsageMessage::Interaction(ClaudeUsageInteraction::StopHoverFetches) => {
+                self.organization.stop();
+            }
+            ClaudeUsageMessage::Interaction(ClaudeUsageInteraction::Refresh(source)) => {
+                return self.refresh(source, config);
+            }
+            ClaudeUsageMessage::Interaction(ClaudeUsageInteraction::OnBuses(_)) => {}
         }
         Task::none()
     }
@@ -295,20 +300,16 @@ impl ClaudeUsageGroup {
         )
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
+    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, ClaudeUsageInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::ClaudeUsage,
             &self.expansion,
-            identity,
+            ClaudeUsageInteraction::Expansion,
             [
                 self.usage_windows
                     .group_item(
                         CLAUDE_USAGE_WINDOWS_FALLBACK_GLYPH,
                         |snapshot| claude_usage_windows_reading_row(snapshot, clock),
-                        ClaudeUsageTarget::UsageWindows,
                         clock,
                     )
                     .map(|item| {
@@ -317,13 +318,15 @@ impl ClaudeUsageGroup {
                                 claude_usage_windows_hover_card(snapshot, card_clock)
                             })
                         }))
+                        .refreshed_by(ClaudeUsageInteraction::OnBuses(
+                            ClaudeUsageBusRequest::RefreshUsageWindows,
+                        ))
                         .previewed_on_handle()
                     }),
                 self.enterprise_spend
                     .group_item(
                         CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH,
                         |snapshot| claude_enterprise_reading_row(snapshot, clock),
-                        ClaudeUsageTarget::EnterpriseSpend,
                         clock,
                     )
                     .map(|item| {
@@ -337,12 +340,20 @@ impl ClaudeUsageGroup {
                             );
                             sections
                         }))
+                        .fetching_on_hover(
+                            ClaudeUsageInteraction::OnBuses(
+                                ClaudeUsageBusRequest::StartOrganizationFetch,
+                            ),
+                            ClaudeUsageInteraction::StopHoverFetches,
+                        )
+                        .refreshed_by(ClaudeUsageInteraction::OnBuses(
+                            ClaudeUsageBusRequest::RefreshEnterpriseSpend,
+                        ))
                     }),
                 self.ccusage_periods
                     .group_item(
                         CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH,
                         |snapshot| claude_ccusage_periods_reading_row(snapshot, clock),
-                        ClaudeUsageTarget::CcusagePeriods,
                         clock,
                     )
                     .map(|item| {
@@ -351,12 +362,14 @@ impl ClaudeUsageGroup {
                                 claude_ccusage_periods_hover_card(snapshot, card_clock)
                             })
                         }))
+                        .refreshed_by(ClaudeUsageInteraction::Refresh(
+                            ClaudeLocalSource::CcusagePeriods,
+                        ))
                     }),
                 self.ccusage_block
                     .group_item(
                         CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH,
                         |snapshot| claude_ccusage_block_reading_row(snapshot),
-                        ClaudeUsageTarget::CcusageBlock,
                         clock,
                     )
                     .map(|item| {
@@ -365,28 +378,31 @@ impl ClaudeUsageGroup {
                                 claude_ccusage_block_hover_card(snapshot, card_clock)
                             })
                         }))
+                        .refreshed_by(ClaudeUsageInteraction::Refresh(
+                            ClaudeLocalSource::CcusageBlock,
+                        ))
                     }),
             ]
             .into_iter()
             .flatten()
             .chain(self.model_ranking().map(|ranking| {
-                GroupItem::reading(
-                    ranking.most_used_model_row(),
-                    ClaudeUsageTarget::MostUsedModel,
-                )
-                .with_hover_card(Box::new(move |_| {
-                    self.ccusage_models.hover_card_with(ranking.hover_card())
-                }))
+                GroupItem::reading(ranking.most_used_model_row())
+                    .with_hover_card(Box::new(move |_| {
+                        self.ccusage_models.hover_card_with(ranking.hover_card())
+                    }))
+                    .refreshed_by(ClaudeUsageInteraction::Refresh(
+                        ClaudeLocalSource::CcusageModels,
+                    ))
             }))
             .chain(self.billed_model_ranking().map(|ranking| {
-                GroupItem::reading(
-                    ranking.most_used_spend_row(),
-                    ClaudeUsageTarget::MostUsedModelSpend,
-                )
-                .with_hover_card(Box::new(move |_| {
-                    self.ccusage_models
-                        .hover_card_with(ranking.top_model_share())
-                }))
+                GroupItem::reading(ranking.most_used_spend_row())
+                    .with_hover_card(Box::new(move |_| {
+                        self.ccusage_models
+                            .hover_card_with(ranking.top_model_share())
+                    }))
+                    .refreshed_by(ClaudeUsageInteraction::Refresh(
+                        ClaudeLocalSource::CcusageModels,
+                    ))
             })),
         )
         .face(WidgetGroupFace::Glyph {

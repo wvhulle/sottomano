@@ -9,12 +9,9 @@ use crate::{
         source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
-        quiet_schedule_group::{QuietScheduleGroup, QuietScheduleTarget, quiet_window::QuietPhase},
+        quiet_schedule_group::{QuietScheduleGroup, quiet_window::QuietPhase},
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -64,18 +61,6 @@ impl From<AlertSound> for SwitchPosition {
             AlertSound::Audible => SwitchPosition::On,
             AlertSound::Silent => SwitchPosition::Off,
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NotificationTarget {
-    Status,
-    Sound,
-}
-
-impl From<NotificationTarget> for HoverTarget {
-    fn from(target: NotificationTarget) -> Self {
-        HoverTarget::Notification(target)
     }
 }
 
@@ -162,11 +147,10 @@ impl NotificationGroup {
             &self.expansion,
             NotificationGroupMessage::Expansion,
             [
-                GroupItem::reading(status.reading_row(), NotificationTarget::Status),
-                GroupItem::reading(
-                    do_not_disturb_reading_row(DoNotDisturbStatus { quiet_phase }),
-                    QuietScheduleTarget::DoNotDisturb,
-                )
+                GroupItem::reading(status.reading_row()),
+                GroupItem::reading(do_not_disturb_reading_row(DoNotDisturbStatus {
+                    quiet_phase,
+                }))
                 .on_switch_press(
                     quiet_phase,
                     match quiet_phase {
@@ -180,7 +164,6 @@ impl NotificationGroup {
                 })),
                 GroupItem::toggle(
                     sound_toggle(self.alert_sound),
-                    NotificationTarget::Sound,
                     NotificationGroupMessage::ToggleSound,
                 ),
             ],

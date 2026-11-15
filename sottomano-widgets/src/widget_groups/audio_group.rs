@@ -27,10 +27,7 @@ use crate::{
             Action, ControlMessage, SeverityDirection, SliderControl, as_percent, percent_f,
         },
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -52,24 +49,6 @@ const SCROLL_STEP: f32 = 5.0;
 pub enum ControlKind {
     Sink,
     Source,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AudioTarget {
-    Control(ControlKind),
-    Connection,
-}
-
-impl From<AudioTarget> for HoverTarget {
-    fn from(target: AudioTarget) -> Self {
-        HoverTarget::Audio(target)
-    }
-}
-
-impl From<ControlKind> for HoverTarget {
-    fn from(kind: ControlKind) -> Self {
-        HoverTarget::Audio(AudioTarget::Control(kind))
-    }
 }
 
 impl ControlKind {
@@ -105,7 +84,6 @@ impl Default for AudioGroup {
             sink_control: SliderControl::new(
                 "Speaker volume",
                 RANGE,
-                ControlKind::Sink,
                 Phosphor::SpeakerHigh(Weight::Regular),
             )
             .scroll_step(SCROLL_STEP)
@@ -117,7 +95,6 @@ impl Default for AudioGroup {
             source_control: SliderControl::new(
                 "Microphone volume",
                 RANGE,
-                ControlKind::Source,
                 Phosphor::Microphone(Weight::Regular),
             )
             .scroll_step(SCROLL_STEP)
@@ -340,12 +317,9 @@ impl AudioGroup {
                         )
                     }))
                 }),
-                self.state.failure().map(|failure| {
-                    GroupItem::reading(
-                        failure.reading_row(IconGlyph::default()),
-                        AudioTarget::Connection,
-                    )
-                }),
+                self.state
+                    .failure()
+                    .map(|failure| GroupItem::reading(failure.reading_row(IconGlyph::default()))),
             ]
             .into_iter()
             .flatten(),

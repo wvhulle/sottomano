@@ -15,7 +15,6 @@ use crate::{
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -32,7 +31,6 @@ pub enum RowPower<PowerRequest> {
 }
 
 pub struct FamilyRow<'a, Family: ContainerFamily> {
-    pub target: Family::Target,
     pub reading: ReadingRow<'a>,
     pub power: RowPower<Family::PowerRequest>,
 }
@@ -41,7 +39,6 @@ pub trait ContainerFamily: Debug + Clone + Sized + 'static {
     type Probe: SnapshotSource<StreamInputs = ()>;
     type Listings: SnapshotSource<StreamInputs = ()>;
     type Detail: SnapshotSource<StreamInputs = ()>;
-    type Target: Into<HoverTarget> + Clone + PartialEq;
     type PowerRequest: Debug + Clone + Send + 'static;
 
     const FAMILY: WidgetGroupFamily;
@@ -241,7 +238,7 @@ fn stamped_by_source<'a, Family: ContainerFamily, Source: SnapshotSource>(
 fn switchable_item<Family: ContainerFamily>(
     row: FamilyRow<'_, Family>,
 ) -> GroupItem<'_, ContainerFamilyInteraction<Family>> {
-    let item = GroupItem::reading(row.reading, row.target);
+    let item = GroupItem::reading(row.reading);
     match row.power {
         RowPower::SwitchedOn(request) => item.on_switch_press(
             SwitchPosition::On,
@@ -280,15 +277,12 @@ mod tests {
     use super::{ContainerFamily, ContainerFamilyGroup, RowPower};
     use crate::{
         clock::Clock,
-        hover_cards::hover_card_body::Section,
+        hover_cards::{HoverTarget, InstrumentKey, hover_card_body::Section},
         widget_groups::{
             lxc_containers_group::LxcFamily,
-            virtualbox_machines_group::{
-                VirtualBoxMachineTarget, VirtualBoxMachinesGroup, VirtualBoxMachinesMessage,
-            },
-            vmware_machines_group::{
-                VmwareMachineTarget, VmwareMachinesGroup, VmwareMachinesMessage,
-            },
+            virtualbox_machines_group::{VirtualBoxMachinesGroup, VirtualBoxMachinesMessage},
+            vmware_machines_group::{VmwareMachinesGroup, VmwareMachinesMessage},
+            widget_group_identity::WidgetGroupIdentity,
         },
     };
 
@@ -304,12 +298,16 @@ mod tests {
 
     fn shown_card_sections<Family: ContainerFamily>(
         group: &ContainerFamilyGroup<Family>,
-        target: Family::Target,
+        row_name: &'static str,
         clock: Clock,
     ) -> Vec<Section> {
+        let instrument = HoverTarget::Instrument(InstrumentKey {
+            group: WidgetGroupIdentity::sole(Family::FAMILY),
+            name: row_name.into(),
+        });
         group
             .group_content()
-            .row_hover_card(&target.into(), clock)
+            .hover_card(&instrument, clock)
             .map(|row_card| row_card.sections)
             .unwrap_or_default()
     }
@@ -351,9 +349,7 @@ mod tests {
         let clock = Clock::real();
         let group = group_with_listing(clock);
         assert_eq!(group.group_rows().len(), 1);
-        assert!(
-            !shown_card_sections(&group, VmwareMachineTarget { pid: LISTED_PID }, clock).is_empty()
-        );
+        assert!(!shown_card_sections(&group, "listed", clock).is_empty());
     }
 
     #[test]
@@ -365,13 +361,8 @@ mod tests {
             clock,
         );
         assert_eq!(group.group_rows().len(), 1);
-        assert!(
-            !shown_card_sections(&group, VmwareMachineTarget { pid: DETAILED_PID }, clock)
-                .is_empty()
-        );
-        assert!(
-            shown_card_sections(&group, VmwareMachineTarget { pid: LISTED_PID }, clock).is_empty()
-        );
+        assert!(!shown_card_sections(&group, "detailed", clock).is_empty());
+        assert!(shown_card_sections(&group, "listed", clock).is_empty());
     }
 
     #[test]
@@ -433,15 +424,6 @@ mod tests {
             clock,
         );
         assert_eq!(group.group_rows().len(), 2);
-        assert!(
-            !shown_card_sections(
-                &group,
-                VirtualBoxMachineTarget::StoppedMachine {
-                    machine_uuid: "0b1c2d3e".into(),
-                },
-                clock
-            )
-            .is_empty()
-        );
+        assert!(!shown_card_sections(&group, "ubuntu 0b1c2d3e", clock).is_empty());
     }
 }

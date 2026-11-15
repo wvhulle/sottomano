@@ -1,9 +1,7 @@
 use iced::time::Instant;
 
 use crate::{
-    hover_cards::{
-        HoverAnnouncement, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
-    },
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     layer_surfaces::PanelEdge,
 };
 
@@ -17,7 +15,6 @@ pub enum CardRetention {
 
 pub struct Occupant {
     pub target: HoverTarget,
-    pub announcement: HoverAnnouncement,
     pub placement: PanelEdge,
     pub retention: CardRetention,
 }
@@ -135,14 +132,6 @@ impl HoverCardTransition {
         match self.stage {
             Stage::Showing { leave_intent, .. } => leave_intent,
             Stage::Idle | Stage::Hiding { .. } => LeaveIntent::Staying,
-        }
-    }
-
-    pub fn revise_announcement(&mut self, target: &HoverTarget, announcement: HoverAnnouncement) {
-        if let Stage::Showing { current, .. } = &mut self.stage
-            && current.target == *target
-        {
-            current.announcement = announcement;
         }
     }
 

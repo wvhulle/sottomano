@@ -32,10 +32,7 @@ use crate::{
         source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::SwitchPosition,
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         process_usage_cells::{approximate_memory_text, cpu_share_quantity, uptime_entry},
         widget_group_content::{
@@ -54,18 +51,6 @@ use crate::{
 const FOCUS_WINDOW_HINT: &str = "Focus its window";
 const POWER_OFF_HINT: &str = "Power off";
 const POWER_ON_HINT: &str = "Power on";
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum VirtualMachineTarget {
-    RunningProcess { pid: i32 },
-    InactiveDomain { domain_name: Cow<'static, str> },
-}
-
-impl From<VirtualMachineTarget> for HoverTarget {
-    fn from(target: VirtualMachineTarget) -> Self {
-        HoverTarget::VirtualMachine(target)
-    }
-}
 
 fn origin_text(origin: &VirtualMachineOrigin) -> Cow<'static, str> {
     match origin {
@@ -369,14 +354,11 @@ impl VirtualMachinesGroup {
             .map(|readout| readout.machines.as_slice())
             .unwrap_or_default();
         let rows = machines.iter().map(|machine| {
-            let row = GroupItem::reading(
-                VirtualMachineRow { machine }.reading_row(),
-                VirtualMachineTarget::RunningProcess { pid: machine.pid },
-            )
-            .with_hover_card(Box::new(move |clock| {
-                self.readout
-                    .hover_card_with(VirtualMachineRow { machine }.hover_card(clock))
-            }));
+            let row = GroupItem::reading(VirtualMachineRow { machine }.reading_row())
+                .with_hover_card(Box::new(move |clock| {
+                    self.readout
+                        .hover_card_with(VirtualMachineRow { machine }.hover_card(clock))
+                }));
             let row = match machine.launch.display {
                 GuestDisplay::Windowed => row.on_right_press(
                     FOCUS_WINDOW_HINT,
@@ -403,21 +385,16 @@ impl VirtualMachinesGroup {
             .map(|readout| readout.inactive_domains.as_slice())
             .unwrap_or_default();
         let inactive_rows = inactive_domains.iter().map(|domain_name| {
-            GroupItem::reading(
-                InactiveDomainRow { domain_name }.reading_row(),
-                VirtualMachineTarget::InactiveDomain {
-                    domain_name: Cow::Owned(domain_name.clone()),
-                },
-            )
-            .with_hover_card(Box::new(|_| {
-                self.readout
-                    .hover_card_with(InactiveDomainRow::hover_card())
-            }))
-            .on_switch_press(
-                SwitchPosition::Off,
-                POWER_ON_HINT,
-                VirtualMachinesInteraction::PowerOn(domain_name.clone()),
-            )
+            GroupItem::reading(InactiveDomainRow { domain_name }.reading_row())
+                .with_hover_card(Box::new(|_| {
+                    self.readout
+                        .hover_card_with(InactiveDomainRow::hover_card())
+                }))
+                .on_switch_press(
+                    SwitchPosition::Off,
+                    POWER_ON_HINT,
+                    VirtualMachinesInteraction::PowerOn(domain_name.clone()),
+                )
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::VirtualMachines,
@@ -463,6 +440,11 @@ mod tests {
             DeliveryCadence, PeriodicPolling,
         };
 
+        use crate::{
+            hover_cards::{HoverTarget, InstrumentKey},
+            widget_groups::widget_group_identity::WidgetGroupIdentity,
+        };
+
         let clock = Clock::real();
         let mut group = VirtualMachinesGroup::default();
         let _ = group.update(
@@ -475,19 +457,18 @@ mod tests {
             )),
             clock,
         );
-        let target_of = |domain_name: &'static str| VirtualMachineTarget::InactiveDomain {
-            domain_name: Cow::Borrowed(domain_name),
+        let target_of = |domain_name: &'static str| {
+            HoverTarget::Instrument(InstrumentKey {
+                group: WidgetGroupIdentity::sole(WidgetGroupFamily::VirtualMachines),
+                name: domain_name.into(),
+            })
         };
         let content = group.group_content();
         assert!(
             content
-                .row_hover_card(&target_of("windows-11").into(), clock)
+                .hover_card(&target_of("windows-11"), clock)
                 .is_some_and(|card| !card.sections.is_empty())
         );
-        assert!(
-            content
-                .row_hover_card(&target_of("debian").into(), clock)
-                .is_none()
-        );
+        assert!(content.hover_card(&target_of("debian"), clock).is_none());
     }
 }

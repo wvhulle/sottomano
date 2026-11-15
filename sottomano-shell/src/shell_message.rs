@@ -35,12 +35,12 @@ use sottomano_widgets::{
         caldav_group::CaldavMessage,
         cgroup_memory_limits_group::{CgroupMemoryLimitsInteraction, CgroupMemoryLimitsMessage},
         ci_runs_group::{CiRunsInteraction, CiRunsMessage},
-        claude_usage_group::ClaudeUsageMessage,
-        clock_group::ClockMessage,
+        claude_usage_group::{ClaudeUsageInteraction, ClaudeUsageMessage},
+        clock_group::{ClockInteraction, ClockMessage},
         color_temperature_group::{ColorTemperatureInteraction, ColorTemperatureMessage},
         compositor_styling_group::CompositorStylingMessage,
         compute_group::{ComputeInteraction, ComputeMessage},
-        copilot_usage_group::CopilotUsageMessage,
+        copilot_usage_group::{CopilotUsageInteraction, CopilotUsageMessage},
         dark_mode_group::{DarkModeInteraction, DarkModeMessage},
         docker_engines_group::{DockerEnginesInteraction, DockerEnginesMessage},
         ethernet_ports_group::{EthernetPortsInteraction, EthernetPortsMessage},
@@ -52,17 +52,17 @@ use sottomano_widgets::{
         incus_instances_group::{IncusInstancesInteraction, IncusInstancesMessage},
         journal_events_group::{JournalEventsInteraction, JournalEventsMessage},
         llama_server_group::{LlamaServerInteraction, LlamaServerMessage},
-        login_session_group::LoginSessionMessage,
+        login_session_group::{LoginSessionInteraction, LoginSessionMessage},
         lxc_containers_group::{LxcContainersInteraction, LxcContainersMessage},
         media_group::{MediaInteraction, MediaMessage},
-        memory_board_group::MemoryBoardMessage,
+        memory_board_group::{MemoryBoardInteraction, MemoryBoardMessage},
         microvm_guests_group::{MicrovmGuestsInteraction, MicrovmGuestsMessage},
         mobile_modems_group::{MobileModemsInteraction, MobileModemsMessage},
         monitor_group::{MonitorInteraction, MonitorMessage},
         network_manager_vpn_group::{NetworkManagerVpnInteraction, NetworkManagerVpnMessage},
         notification_group::NotificationGroupMessage,
         nspawn_containers_group::{NspawnContainersInteraction, NspawnContainersMessage},
-        openrouter_credit_group::OpenRouterCreditMessage,
+        openrouter_credit_group::{OpenRouterCreditInteraction, OpenRouterCreditMessage},
         overlay_settings_group::OverlaySettingsMessage,
         panel_settings_group::PanelSettingsMessage,
         pending_upgrades_group::{PendingUpgradesInteraction, PendingUpgradesMessage},
@@ -70,7 +70,7 @@ use sottomano_widgets::{
         podman_engines_group::{PodmanEnginesInteraction, PodmanEnginesMessage},
         power_group::{PowerInteraction, PowerMessage},
         quiet_schedule_group::QuietScheduleMessage,
-        reachability_group::ReachabilityMessage,
+        reachability_group::{ReachabilityInteraction, ReachabilityMessage},
         session_focus_group::SessionFocusMessage,
         session_power_group::SessionMessage,
         sidebar_settings_group::SidebarSettingsMessage,
@@ -84,7 +84,7 @@ use sottomano_widgets::{
         voice_dictation_group::{VoiceDictationInteraction, VoiceDictationMessage},
         wallpaper_group::WallpaperMessage,
         waydroid_container_group::{WaydroidContainerInteraction, WaydroidContainerMessage},
-        weather_group::WeatherMessage,
+        weather_group::{WeatherInteraction, WeatherMessage},
         widget_group_content::{GroupEvent, WidgetGroupExpansionMessage},
         wifi_adapters_group::{WifiAdaptersInteraction, WifiAdaptersMessage},
         window_group::{WindowGroupInteraction, WindowGroupMessage},
@@ -276,12 +276,12 @@ impl From<WorkspacesMessage> for Message {
 
 #[derive(Debug, Clone)]
 pub enum ShellInteraction {
-    Weather(WidgetGroupExpansionMessage),
+    Weather(WeatherInteraction),
     Wallpaper(WidgetGroupExpansionMessage),
     Caldav(WidgetGroupExpansionMessage),
     Power(PowerInteraction),
     Compute(ComputeInteraction),
-    MemoryBoard(WidgetGroupExpansionMessage),
+    MemoryBoard(MemoryBoardInteraction),
     Gamepad(GamepadInteraction),
     Gpu(GpuInteraction),
     Storage(StorageInteraction),
@@ -291,14 +291,14 @@ pub enum ShellInteraction {
     AppearancePresets(AppearancePresetsMessage),
     OverlaySettings(OverlaySettingsMessage),
     CompositorStyling(CompositorStylingMessage),
-    Clock(WidgetGroupExpansionMessage),
+    Clock(ClockInteraction),
     NotificationGroup(NotificationGroupMessage),
     QuietSchedule(QuietScheduleMessage),
     Session(SessionMessage),
     SystemdManager(SystemdManagerInteraction),
     JournalEvents(JournalEventsInteraction),
     PendingUpgrades(PendingUpgradesInteraction),
-    Reachability(WidgetGroupExpansionMessage),
+    Reachability(ReachabilityInteraction),
     Tailnet(TailnetInteraction),
     WireguardTunnels(WireguardTunnelsInteraction),
     NetworkManagerVpns(NetworkManagerVpnInteraction),
@@ -316,9 +316,9 @@ pub enum ShellInteraction {
     Tray(TrayMessage),
     GlobalMenu(GlobalMenuInteraction),
     Audio(AudioMessage),
-    ClaudeUsage(WidgetGroupExpansionMessage),
-    CopilotUsage(WidgetGroupExpansionMessage),
-    OpenRouterCredit(WidgetGroupExpansionMessage),
+    ClaudeUsage(ClaudeUsageInteraction),
+    CopilotUsage(CopilotUsageInteraction),
+    OpenRouterCredit(OpenRouterCreditInteraction),
     LlamaServer(LlamaServerInteraction),
     PodmanEngines(PodmanEnginesInteraction),
     VirtualMachines(VirtualMachinesInteraction),
@@ -335,7 +335,7 @@ pub enum ShellInteraction {
     MicrovmGuests(MicrovmGuestsInteraction),
     CiRuns(CiRunsInteraction),
     SessionFocus(SessionFocusMessage),
-    LoginSession(WidgetGroupExpansionMessage),
+    LoginSession(LoginSessionInteraction),
     WindowGroup(WindowGroupInteraction),
     AppLauncher(AppLauncherMessage),
     ReleaseFromPanel(PanelPin),
@@ -355,8 +355,8 @@ pub enum ShellInteraction {
 impl From<ShellInteraction> for Message {
     fn from(interaction: ShellInteraction) -> Self {
         match interaction {
-            ShellInteraction::Weather(expansion) => {
-                Message::Weather(WeatherMessage::Expansion(expansion))
+            ShellInteraction::Weather(interaction) => {
+                Message::Weather(WeatherMessage::Interaction(interaction))
             }
             ShellInteraction::Wallpaper(expansion) => {
                 Message::Wallpaper(WallpaperMessage::Expansion(expansion))
@@ -370,8 +370,8 @@ impl From<ShellInteraction> for Message {
             ShellInteraction::Compute(interaction) => {
                 Message::Compute(ComputeMessage::Interaction(interaction))
             }
-            ShellInteraction::MemoryBoard(expansion) => {
-                Message::MemoryBoard(MemoryBoardMessage::Expansion(expansion))
+            ShellInteraction::MemoryBoard(interaction) => {
+                Message::MemoryBoard(MemoryBoardMessage::Interaction(interaction))
             }
             ShellInteraction::Gamepad(interaction) => {
                 Message::Gamepad(GamepadMessage::Interaction(interaction))
@@ -390,8 +390,8 @@ impl From<ShellInteraction> for Message {
             ShellInteraction::AppearancePresets(message) => Message::AppearancePresets(message),
             ShellInteraction::OverlaySettings(message) => Message::OverlaySettings(message),
             ShellInteraction::CompositorStyling(message) => Message::CompositorStyling(message),
-            ShellInteraction::Clock(expansion) => {
-                Message::Clock(ClockMessage::Expansion(expansion))
+            ShellInteraction::Clock(interaction) => {
+                Message::Clock(ClockMessage::Interaction(interaction))
             }
             ShellInteraction::NotificationGroup(message) => Message::NotificationGroup(message),
             ShellInteraction::QuietSchedule(message) => Message::QuietSchedule(message),
@@ -405,8 +405,8 @@ impl From<ShellInteraction> for Message {
             ShellInteraction::PendingUpgrades(interaction) => {
                 Message::PendingUpgrades(PendingUpgradesMessage::Interaction(interaction))
             }
-            ShellInteraction::Reachability(expansion) => {
-                Message::Reachability(ReachabilityMessage::Expansion(expansion))
+            ShellInteraction::Reachability(interaction) => {
+                Message::Reachability(ReachabilityMessage::Interaction(interaction))
             }
             ShellInteraction::Tailnet(interaction) => {
                 Message::Tailnet(TailnetMessage::Interaction(interaction))
@@ -453,14 +453,14 @@ impl From<ShellInteraction> for Message {
                 Message::GlobalMenu(GlobalMenuMessage::Interaction(interaction))
             }
             ShellInteraction::Audio(message) => Message::Audio(message),
-            ShellInteraction::ClaudeUsage(expansion) => {
-                Message::ClaudeUsage(ClaudeUsageMessage::Expansion(expansion))
+            ShellInteraction::ClaudeUsage(interaction) => {
+                Message::ClaudeUsage(ClaudeUsageMessage::Interaction(interaction))
             }
-            ShellInteraction::CopilotUsage(expansion) => {
-                Message::CopilotUsage(CopilotUsageMessage::Expansion(expansion))
+            ShellInteraction::CopilotUsage(interaction) => {
+                Message::CopilotUsage(CopilotUsageMessage::Interaction(interaction))
             }
-            ShellInteraction::OpenRouterCredit(expansion) => {
-                Message::OpenRouterCredit(OpenRouterCreditMessage::Expansion(expansion))
+            ShellInteraction::OpenRouterCredit(interaction) => {
+                Message::OpenRouterCredit(OpenRouterCreditMessage::Interaction(interaction))
             }
             ShellInteraction::LlamaServer(interaction) => {
                 Message::LlamaServer(LlamaServerMessage::Interaction(interaction))
@@ -508,8 +508,8 @@ impl From<ShellInteraction> for Message {
                 Message::CiRuns(CiRunsMessage::Interaction(interaction))
             }
             ShellInteraction::SessionFocus(message) => Message::SessionFocus(message),
-            ShellInteraction::LoginSession(expansion) => {
-                Message::LoginSession(LoginSessionMessage::Expansion(expansion))
+            ShellInteraction::LoginSession(interaction) => {
+                Message::LoginSession(LoginSessionMessage::Interaction(interaction))
             }
             ShellInteraction::WindowGroup(interaction) => {
                 Message::WindowGroup(WindowGroupMessage::Interaction(interaction))

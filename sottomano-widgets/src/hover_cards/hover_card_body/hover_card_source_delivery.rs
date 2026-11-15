@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use sottomano_desktop_sources::delivery_cadence_drivers::DeliveryCadence;
 
 use super::Section;
-use crate::{clock::Clock, hover_cards::HoverAnnouncement};
+use crate::{clock::Clock, hover_cards::CardHeader};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DeliveryStamp {
@@ -90,17 +90,13 @@ pub enum SectionSource {
 #[derive(Debug, Clone)]
 pub struct HoverCard {
     sections: Vec<Section>,
-    announcement: HoverAnnouncement,
+    header: CardHeader,
 }
 
 impl HoverCard {
-    pub fn new(
-        sections: impl IntoIterator<Item = Section>,
-        announcement: HoverAnnouncement,
-    ) -> Option<Self> {
+    pub fn new(sections: impl IntoIterator<Item = Section>, header: CardHeader) -> Option<Self> {
         let shown_sections: Vec<Section> = sections
             .into_iter()
-            .chain(Section::press_actions(announcement.press_hints))
             .filter(|section| !section.widget().is_empty())
             .collect();
         if shown_sections.is_empty() {
@@ -108,7 +104,7 @@ impl HoverCard {
         }
         Some(Self {
             sections: shown_sections,
-            announcement,
+            header,
         })
     }
 
@@ -117,8 +113,8 @@ impl HoverCard {
     }
 
     #[must_use]
-    pub fn announcement(&self) -> &HoverAnnouncement {
-        &self.announcement
+    pub fn header(&self) -> &CardHeader {
+        &self.header
     }
 }
 
@@ -129,20 +125,23 @@ mod tests {
     };
 
     use super::*;
-    use crate::hover_cards::{PressHints, hover_card_body::SectionWidget};
+    use crate::hover_cards::{MouseGesture, PressAction, hover_card_body::SectionWidget};
 
     #[test]
     fn a_card_needs_a_shown_section() {
-        assert!(HoverCard::new([], HoverAnnouncement::default()).is_none());
+        assert!(HoverCard::new([], CardHeader::Unheaded).is_none());
     }
 
     #[test]
-    fn press_hints_alone_make_a_card() {
-        let announcement = HoverAnnouncement::from(PressHints {
-            left: Some("switch something"),
-            ..PressHints::default()
-        });
-        let hover_card = HoverCard::new([], announcement).expect("an actions section");
+    fn press_actions_alone_make_a_card() {
+        let hover_card = HoverCard::new(
+            Section::press_actions(vec![PressAction::new(
+                MouseGesture::LeftClick,
+                "switch something",
+            )]),
+            CardHeader::Unheaded,
+        )
+        .expect("an actions section");
         assert_eq!(
             hover_card
                 .sections()

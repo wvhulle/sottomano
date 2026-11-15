@@ -17,9 +17,10 @@ use sottomano_desktop_sources::{
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
+use sottomano_toml_config::Config;
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage, ClaudeUsageTarget},
+    widget_groups::claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage},
 };
 use uom::si::{f64::Ratio, ratio::percent};
 
@@ -41,7 +42,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     ]
     .into_iter()
     .for_each(|reading| {
-        let _ = group.update(reading, clock);
+        let _ = group.update(reading, &Config::default(), clock);
     });
     ShowcasedGroup::ClaudeUsage(Box::new(group))
 }
@@ -93,10 +94,6 @@ fn usage_windows(tick: u32, clock: Clock) -> ClaudeUsageWindows {
             )),
         }),
     }
-}
-
-pub fn on_hover(_target: ClaudeUsageTarget) -> Vec<ClaudeUsageMessage> {
-    Vec::new()
 }
 
 const MONTHLY_BUDGET_USD: u32 = 200;

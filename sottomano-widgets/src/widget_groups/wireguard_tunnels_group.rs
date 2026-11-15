@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::network_manager_activations::switch_nm_connection;
 use sottomano_desktop_sources::{
@@ -17,7 +15,6 @@ use crate::{
     clock::Clock,
     group_items::reading_display_state::ReadingDisplayState,
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -36,14 +33,9 @@ use crate::{
 mod wireguard_tunnel_hover_card;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WireguardTunnelTarget {
-    pub interface: Cow<'static, str>,
-}
-
-impl From<WireguardTunnelTarget> for HoverTarget {
-    fn from(target: WireguardTunnelTarget) -> Self {
-        HoverTarget::WireguardTunnel(target)
-    }
+pub enum WireguardTunnelsBusRequest {
+    StartTunnelAddressFetch(String),
+    Refresh,
 }
 
 #[derive(Default)]
@@ -64,6 +56,8 @@ pub enum WireguardTunnelsMessage {
 pub enum WireguardTunnelsInteraction {
     Expansion(WidgetGroupExpansionMessage),
     SwitchTunnel(NmConnectionSwitch),
+    StopHoverFetches,
+    OnBuses(WireguardTunnelsBusRequest),
 }
 
 impl WireguardTunnelsGroup {
@@ -82,8 +76,29 @@ impl WireguardTunnelsGroup {
         )
     }
 
-    pub fn refresh(buses: &DesktopBuses) -> Task<WireguardTunnelsMessage> {
-        first_delivery::<Wireguard>(buses.clone()).map(WireguardTunnelsMessage::Wireguard)
+    pub fn on_buses(
+        &mut self,
+        request: WireguardTunnelsBusRequest,
+        config: &Config,
+        buses: &DesktopBuses,
+        clock: Clock,
+    ) -> Task<WireguardTunnelsMessage> {
+        match request {
+            WireguardTunnelsBusRequest::StartTunnelAddressFetch(interface) => {
+                self.tunnel_address.start_hover_fetch(
+                    OnBus {
+                        buses: buses.clone(),
+                        inputs: interface,
+                    },
+                    WireguardTunnelsMessage::TunnelAddressFetched,
+                    config,
+                    clock,
+                )
+            }
+            WireguardTunnelsBusRequest::Refresh => {
+                first_delivery::<Wireguard>(buses.clone()).map(WireguardTunnelsMessage::Wireguard)
+            }
+        }
     }
 
     pub fn update(
@@ -109,30 +124,12 @@ impl WireguardTunnelsGroup {
                     switch_nm_connection(wireguard_switch),
                 );
             }
+            WireguardTunnelsMessage::Interaction(WireguardTunnelsInteraction::StopHoverFetches) => {
+                self.tunnel_address.stop();
+            }
+            WireguardTunnelsMessage::Interaction(WireguardTunnelsInteraction::OnBuses(_)) => {}
         }
         Task::none()
-    }
-
-    pub fn hover(
-        &mut self,
-        hovered: Option<&HoverTarget>,
-        config: &Config,
-        buses: Option<&DesktopBuses>,
-        clock: Clock,
-    ) -> Task<WireguardTunnelsMessage> {
-        self.tunnel_address.stop();
-        let (Some(HoverTarget::WireguardTunnel(target)), Some(buses)) = (hovered, buses) else {
-            return Task::none();
-        };
-        self.tunnel_address.start_hover_fetch(
-            OnBus {
-                buses: buses.clone(),
-                inputs: target.interface.to_string(),
-            },
-            WireguardTunnelsMessage::TunnelAddressFetched,
-            config,
-            clock,
-        )
     }
 
     fn listed_tunnels(&self) -> impl Iterator<Item = &Tunnel> {
@@ -155,21 +152,28 @@ impl WireguardTunnelsGroup {
             &self.expansion,
             WireguardTunnelsInteraction::Expansion,
             self.listed_tunnels().map(move |tunnel| {
-                let tunnel_item = wireguard_tunnel_item(
-                    tunnel,
-                    WireguardTunnelTarget {
-                        interface: Cow::Owned(tunnel.interface.clone()),
-                    },
-                    WireguardTunnelsInteraction::SwitchTunnel,
-                )
-                .with_hover_card(Box::new(move |_| {
-                    let mut sections = self.wireguard.hover_card_with(tunnel_hover_card(tunnel));
-                    sections.extend(
-                        self.tunnel_address
-                            .sections_described_by(tunnel_address_sections),
-                    );
-                    sections
-                }));
+                let tunnel_item =
+                    wireguard_tunnel_item(tunnel, WireguardTunnelsInteraction::SwitchTunnel)
+                        .with_hover_card(Box::new(move |_| {
+                            let mut sections =
+                                self.wireguard.hover_card_with(tunnel_hover_card(tunnel));
+                            sections.extend(
+                                self.tunnel_address
+                                    .sections_described_by(tunnel_address_sections),
+                            );
+                            sections
+                        }))
+                        .fetching_on_hover(
+                            WireguardTunnelsInteraction::OnBuses(
+                                WireguardTunnelsBusRequest::StartTunnelAddressFetch(
+                                    tunnel.interface.clone(),
+                                ),
+                            ),
+                            WireguardTunnelsInteraction::StopHoverFetches,
+                        )
+                        .refreshed_by(WireguardTunnelsInteraction::OnBuses(
+                            WireguardTunnelsBusRequest::Refresh,
+                        ));
                 if previewed_tunnel_interface == Some(tunnel.interface.as_str()) {
                     tunnel_item.previewed_on_handle()
                 } else {

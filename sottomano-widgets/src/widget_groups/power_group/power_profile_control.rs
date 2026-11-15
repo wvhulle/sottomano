@@ -24,7 +24,6 @@ use crate::{
     group_items::slider_control::{Action, ControlMessage, SliderControl},
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widget_groups::power_group::{
-        PowerTarget,
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
         profile_status_sections::profile_status_sections,
         sqlite_power_draw_regression,
@@ -63,17 +62,12 @@ pub struct PowerProfileControl {
 impl Default for PowerProfileControl {
     fn default() -> Self {
         Self {
-            control: SliderControl::new(
-                "Power profile",
-                RANGE,
-                PowerTarget::Profile,
-                profile_face(Profile::Balanced),
-            )
-            .slider_step(STEP)
-            .scroll_step(STEP)
-            .icon_only()
-            .readout(|value, _| Profile::nearest_position_profile(value).title().to_string())
-            .glyph(|value, _| profile_face(Profile::nearest_position_profile(value))),
+            control: SliderControl::new("Power profile", RANGE, profile_face(Profile::Balanced))
+                .slider_step(STEP)
+                .scroll_step(STEP)
+                .icon_only()
+                .readout(|value, _| Profile::nearest_position_profile(value).title().to_string())
+                .glyph(|value, _| profile_face(Profile::nearest_position_profile(value))),
             status: SubscribedSnapshot::default(),
             conditions: None,
             battery: None,

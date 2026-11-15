@@ -5,10 +5,7 @@ use sottomano_desktop_sources::login_session_presence::idle_session_actions::Idl
 use crate::{
     clock::Clock,
     group_items::slider_control::{Action, ControlMessage, SliderActivity, SliderControl},
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         idle::{ActionTrigger, MAX_POSITION, position, timeout_at},
         localized_durations::duration_text,
@@ -25,7 +22,6 @@ pub enum TimerChange {
 }
 
 pub struct IdleTimer {
-    target: HoverTarget,
     timeout: Option<Duration>,
     control: SliderControl,
     action: IdleAction,
@@ -35,20 +31,15 @@ pub struct IdleTimer {
 impl IdleTimer {
     #[must_use]
     pub fn new(name: &'static str, action: IdleAction) -> Self {
-        let target = HoverTarget::IdleTimeout(action);
         Self {
-            control: SliderControl::new(
-                name,
-                0.0..=MAX_POSITION,
-                target.clone(),
-                Phosphor::Timer(Weight::Regular),
-            )
-            .readout(|value, locale| {
-                timeout_at(value)
-                    .map_or_else(|| "∞".to_owned(), |timeout| duration_text(timeout, locale))
-            })
-            .label(|value, locale| timeout_at(value).map(|timeout| duration_text(timeout, locale))),
-            target,
+            control: SliderControl::new(name, 0.0..=MAX_POSITION, Phosphor::Timer(Weight::Regular))
+                .readout(|value, locale| {
+                    timeout_at(value)
+                        .map_or_else(|| "∞".to_owned(), |timeout| duration_text(timeout, locale))
+                })
+                .label(|value, locale| {
+                    timeout_at(value).map(|timeout| duration_text(timeout, locale))
+                }),
             timeout: None,
             action,
             availability: ActionAvailability::Available,
@@ -96,11 +87,6 @@ impl IdleTimer {
         self.control
             .update(ControlMessage::Reading(position(timeout)));
         self.show_as_off_when_inactive();
-    }
-
-    #[must_use]
-    pub fn target(&self) -> &HoverTarget {
-        &self.target
     }
 
     pub fn close(&mut self) {

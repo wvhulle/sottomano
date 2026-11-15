@@ -26,19 +26,16 @@ use crate::{
     background_work::logged_failure_task,
     clock::Clock,
     group_items::{
-        group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
+        group_item::{GroupItem, GroupItemValue},
         slider_control::{Action, ControlMessage, SliderActivity, SliderControl},
         source_reading::GroupItemIcon,
         toggle_control::{IconToggle, SwitchPresses},
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         quiet_schedule_group::{
             quiet_window::{QuietPhase, QuietScheduleAdherence, QuietWindow},
-            weekday_picker::{WeekdayPicker, WeekdayPickerMessages},
+            weekday_picker::{WeekdayPicker, WeekdayPickerMessages, weekday_press_actions},
         },
         widget_group_content::{
             ExpansionChange, GroupEvent, WidgetGroupContent, WidgetGroupExpansion,
@@ -59,24 +56,11 @@ use crate::{
 const MINUTES_PER_DAY: f32 = 24.0 * 60.0;
 const CLOCK_STEP_MINUTES: f32 = 15.0;
 const CLOCK_MINUTES: RangeInclusive<f32> = 0.0..=(MINUTES_PER_DAY - CLOCK_STEP_MINUTES);
+const WORKING_DAY_PRESSES: SwitchPresses = SwitchPresses {
+    turning_on: "count as a working day",
+    turning_off: "count as a day off",
+};
 const EDGE_TIMER_MARGIN: Duration = Duration::from_secs(1);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum QuietScheduleTarget {
-    DoNotDisturb,
-    FollowSchedule,
-    Start,
-    End,
-    ScreenOff,
-    WorkingDays,
-    WorkingDay(Weekday),
-}
-
-impl From<QuietScheduleTarget> for HoverTarget {
-    fn from(target: QuietScheduleTarget) -> Self {
-        HoverTarget::QuietSchedule(target)
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuietSlider {
@@ -138,20 +122,11 @@ impl Default for QuietScheduleGroup {
         let mut quiet_schedule_group = Self {
             schedule_adherence: defaults.schedule_adherence,
             working_days: MONDAY_TO_FRIDAY,
-            start_slider: new_clock_slider(
-                "Quiet from",
-                QuietScheduleTarget::Start,
-                WeatherIcon::Sunset,
-            ),
-            end_slider: new_clock_slider(
-                "Quiet until",
-                QuietScheduleTarget::End,
-                WeatherIcon::Sunrise,
-            ),
+            start_slider: new_clock_slider("Quiet from", WeatherIcon::Sunset),
+            end_slider: new_clock_slider("Quiet until", WeatherIcon::Sunrise),
             screen_off_slider: SliderControl::new(
                 "Screen off while quiet",
                 0.0..=MAX_POSITION,
-                QuietScheduleTarget::ScreenOff,
                 Phosphor::Monitor(Weight::Regular),
             )
             .readout(|value, locale| {
@@ -523,7 +498,6 @@ impl QuietScheduleGroup {
             [
                 GroupItem::toggle(
                     self.follow_schedule_toggle(),
-                    QuietScheduleTarget::FollowSchedule,
                     QuietScheduleMessage::ToggleFollowsSchedule,
                 ),
                 slider(QuietSlider::Start),
@@ -532,34 +506,26 @@ impl QuietScheduleGroup {
                 GroupItem::composed(
                     "Working days",
                     GroupItemIcon::Absent,
-                    GroupItemHoverArea::ByChildren {
-                        row_target: QuietScheduleTarget::WorkingDays.into(),
-                        child_targets: WeekdaySet::ALL
-                            .iter(Weekday::Mon)
-                            .map(|day| QuietScheduleTarget::WorkingDay(day).into())
-                            .collect(),
-                    },
                     GroupItemValue::drawn(move |reveal| {
                         WeekdayPicker::new(
                             config,
                             self.working_days(),
-                            SwitchPresses {
-                                turning_on: "count as a working day",
-                                turning_off: "count as a day off",
-                            },
                             reveal,
                             WeekdayPickerMessages {
-                                target: |day| QuietScheduleTarget::WorkingDay(day).into(),
                                 on_toggle: |day| {
                                     GroupEvent::Group(QuietScheduleMessage::ToggleWorkingDay(day))
                                 },
-                                on_hover_card: GroupEvent::HoverCard,
                             },
                         )
                         .into()
                     }),
                     Box::new(move |_| self.working_days_hover_card(config.calendar.locale)),
-                ),
+                )
+                .with_button_actions(weekday_press_actions(
+                    self.working_days(),
+                    WORKING_DAY_PRESSES,
+                    config.calendar.locale,
+                )),
             ],
         )
         .face(WidgetGroupFace::Glyph {

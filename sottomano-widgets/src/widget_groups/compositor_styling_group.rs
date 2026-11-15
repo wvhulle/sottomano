@@ -29,10 +29,7 @@ use crate::{
         },
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         compositor_styling_group::switch_heat_borders::{SwitchHeatBorders, SwitchHeatVisibility},
         widget_group_content::{
@@ -68,20 +65,6 @@ fn xray_toggle(blur_depth: ShellBlurDepth) -> IconToggle {
             turning_off: "blur the windows behind the shell too",
         },
     )
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompositorStylingTarget {
-    CornerRadius,
-    Gaps,
-    Xray,
-    SwitchHeat,
-}
-
-impl From<CompositorStylingTarget> for HoverTarget {
-    fn from(target: CompositorStylingTarget) -> Self {
-        HoverTarget::CompositorStyling(target)
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -172,7 +155,6 @@ impl CompositorStylingGroup {
             corner_radius: SliderControl::new(
                 "Window corner radius",
                 0.0..=24.0,
-                CompositorStylingTarget::CornerRadius,
                 Phosphor::FrameCorners(Weight::Regular),
             )
             .icon_only()
@@ -180,7 +162,6 @@ impl CompositorStylingGroup {
             gaps: SliderControl::new(
                 "Window gaps",
                 0.0..=48.0,
-                CompositorStylingTarget::Gaps,
                 Phosphor::Columns(Weight::Regular),
             )
             .icon_only()
@@ -404,7 +385,6 @@ impl CompositorStylingGroup {
                 StylingControl::ShellBlurDepth,
                 GroupItem::toggle(
                     xray_toggle(self.blur_depth),
-                    CompositorStylingTarget::Xray,
                     CompositorStylingMessage::ToggleXray,
                 ),
             ),
@@ -412,7 +392,6 @@ impl CompositorStylingGroup {
                 StylingControl::SwitchHeatBorders,
                 GroupItem::toggle(
                     self.switch_heat.toggle(),
-                    CompositorStylingTarget::SwitchHeat,
                     CompositorStylingMessage::ToggleSwitchHeat,
                 ),
             ),

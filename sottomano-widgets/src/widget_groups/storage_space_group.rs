@@ -40,10 +40,7 @@ use crate::{
         reading_display_state::ReadingDisplayState,
         reading_row::{PanelVisibility, ReadingRow},
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -61,25 +58,10 @@ use crate::{
 const BCACHEFS_FS_TYPE: &str = "bcachefs";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum StorageTarget {
+pub enum StorageSource {
     MountDiscovery,
     Usage(PathBuf),
-    Property {
-        filesystem: PathBuf,
-        property: FilesystemProperty,
-    },
     SubvolumeUsage(PathBuf),
-    Subvolume {
-        filesystem: PathBuf,
-        subvolume_path: PathBuf,
-    },
-    SnapshotDeletion(PathBuf),
-}
-
-impl From<StorageTarget> for HoverTarget {
-    fn from(target: StorageTarget) -> Self {
-        HoverTarget::Storage(target)
-    }
 }
 
 pub(crate) fn block_filesystem_discovery_reading_row(
@@ -143,6 +125,7 @@ pub enum StorageInteraction {
         mount_point: PathBuf,
         expansion: WidgetGroupExpansionMessage,
     },
+    Refresh(StorageSource),
 }
 
 impl StorageSpaceGroup {
@@ -181,34 +164,23 @@ impl StorageSpaceGroup {
         )
     }
 
-    pub fn refresh(&self, target: &StorageTarget) -> Task<StorageMessage> {
+    fn refresh(&self, source: StorageSource) -> Task<StorageMessage> {
         let discover =
             || first_delivery::<BlockFilesystemDiscovery>(()).map(StorageMessage::Discovered);
-        match target {
-            StorageTarget::MountDiscovery => discover(),
-            StorageTarget::Usage(primary_mount_point)
-            | StorageTarget::Property {
-                filesystem: primary_mount_point,
-                ..
-            }
-            | StorageTarget::SnapshotDeletion(primary_mount_point) => {
-                let Some(filesystem) = self.filesystems.get(primary_mount_point) else {
+        match source {
+            StorageSource::MountDiscovery => discover(),
+            StorageSource::Usage(primary_mount_point) => {
+                let Some(filesystem) = self.filesystems.get(&primary_mount_point) else {
                     return discover();
                 };
-                let primary_mount_point = primary_mount_point.clone();
                 first_delivery::<FilesystemUsage>(filesystem.mount.clone()).map(move |reading| {
                     StorageMessage::Usage(primary_mount_point.clone(), Box::new(reading))
                 })
             }
-            StorageTarget::SubvolumeUsage(primary_mount_point)
-            | StorageTarget::Subvolume {
-                filesystem: primary_mount_point,
-                ..
-            } => {
-                let Some(filesystem) = self.filesystems.get(primary_mount_point) else {
+            StorageSource::SubvolumeUsage(primary_mount_point) => {
+                let Some(filesystem) = self.filesystems.get(&primary_mount_point) else {
                     return discover();
                 };
-                let primary_mount_point = primary_mount_point.clone();
                 first_delivery::<BcachefsSubvolumeUsage>(filesystem.mount.clone()).map(
                     move |reading| {
                         StorageMessage::SubvolumeUsage(
@@ -268,6 +240,9 @@ impl StorageSpaceGroup {
                     filesystem.expansion.update(expansion);
                 }
             }
+            StorageMessage::Interaction(StorageInteraction::Refresh(source)) => {
+                return self.refresh(source);
+            }
         }
         Task::none()
     }
@@ -284,18 +259,15 @@ impl StorageSpaceGroup {
                     let row = property.row(usage)?;
                     let card_property = property.clone();
                     Some(
-                        row.group_item(
-                            StorageTarget::Property {
-                                filesystem: primary_mount_point.to_path_buf(),
-                                property,
-                            },
-                            locale,
-                        )
-                        .with_hover_card(Box::new(move |_| {
-                            card_property.row(usage).map_or_else(Vec::new, |card_row| {
-                                filesystem.usage.hover_card_with(card_row.hover_card())
-                            })
-                        })),
+                        row.group_item(locale)
+                            .with_hover_card(Box::new(move |_| {
+                                card_property.row(usage).map_or_else(Vec::new, |card_row| {
+                                    filesystem.usage.hover_card_with(card_row.hover_card())
+                                })
+                            }))
+                            .refreshed_by(StorageInteraction::Refresh(StorageSource::Usage(
+                                primary_mount_point.to_path_buf(),
+                            ))),
                     )
                 })
         })
@@ -319,10 +291,6 @@ impl StorageSpaceGroup {
                             pool_total: usage.total,
                         }
                         .reading_row(locale),
-                        StorageTarget::Subvolume {
-                            filesystem: primary_mount_point.to_path_buf(),
-                            subvolume_path: subvolume.path.clone(),
-                        },
                     )
                     .with_hover_card(Box::new(move |_| {
                         filesystem.subvolume_usage.hover_card_with(
@@ -333,6 +301,9 @@ impl StorageSpaceGroup {
                             .hover_card(),
                         )
                     }))
+                    .refreshed_by(StorageInteraction::Refresh(StorageSource::SubvolumeUsage(
+                        primary_mount_point.to_path_buf(),
+                    )))
                 })
             })
     }
@@ -345,15 +316,15 @@ impl StorageSpaceGroup {
         let primary_mount_point = filesystem.mount.primary_mount_point();
         let usage = filesystem.usage.get();
         let subvolume_failure_item = filesystem.subvolume_usage.failure().map(|failure| {
-            GroupItem::reading(
-                failure.reading_row(IconGlyph::default()),
-                StorageTarget::SubvolumeUsage(primary_mount_point.to_path_buf()),
-            )
-            .with_hover_card(Box::new(move |_| {
-                filesystem
-                    .subvolume_usage
-                    .sections_described_by(subvolume_usage_hover_card)
-            }))
+            GroupItem::reading(failure.reading_row(IconGlyph::default()))
+                .with_hover_card(Box::new(move |_| {
+                    filesystem
+                        .subvolume_usage
+                        .sections_described_by(subvolume_usage_hover_card)
+                }))
+                .refreshed_by(StorageInteraction::Refresh(StorageSource::SubvolumeUsage(
+                    primary_mount_point.to_path_buf(),
+                )))
         });
         let snapshot_deletion_item =
             usage
@@ -364,15 +335,15 @@ impl StorageSpaceGroup {
                     )
                 })
                 .map(|_| {
-                    GroupItem::reading(
-                        SnapshotDeletionRow::reading_row(),
-                        StorageTarget::SnapshotDeletion(primary_mount_point.to_path_buf()),
-                    )
+                    GroupItem::reading(SnapshotDeletionRow::reading_row())
                     .with_hover_card(Box::new(move |_| {
                         filesystem
                             .usage
                             .hover_card_with(SnapshotDeletionRow::hover_card())
                     }))
+                    .refreshed_by(StorageInteraction::Refresh(StorageSource::Usage(
+                        primary_mount_point.to_path_buf(),
+                    )))
                 });
         let owned_mount_point = primary_mount_point.to_path_buf();
         WidgetGroupContent::expandable_instance(
@@ -391,15 +362,18 @@ impl StorageSpaceGroup {
                 .group_item(
                     IconGlyph::default(),
                     |snapshot| filesystem_usage_reading_row(snapshot),
-                    StorageTarget::Usage(primary_mount_point.to_path_buf()),
                     clock,
                 )
                 .map(|usage_item| {
-                    usage_item.with_hover_card(Box::new(move |_| {
-                        filesystem
-                            .usage
-                            .sections_described_by(filesystem_usage_hover_card)
-                    }))
+                    usage_item
+                        .with_hover_card(Box::new(move |_| {
+                            filesystem
+                                .usage
+                                .sections_described_by(filesystem_usage_hover_card)
+                        }))
+                        .refreshed_by(StorageInteraction::Refresh(StorageSource::Usage(
+                            primary_mount_point.to_path_buf(),
+                        )))
                 })
                 .into_iter()
                 .chain(Self::property_items(filesystem, locale))
@@ -430,14 +404,15 @@ impl StorageSpaceGroup {
                 .group_item(
                     IconGlyph::default(),
                     |snapshot| block_filesystem_discovery_reading_row(snapshot),
-                    StorageTarget::MountDiscovery,
                     clock,
                 )
                 .map(|discovery_item| {
-                    discovery_item.with_hover_card(Box::new(move |_| {
-                        self.discovery
-                            .sections_described_by(block_filesystem_discovery_hover_card)
-                    }))
+                    discovery_item
+                        .with_hover_card(Box::new(move |_| {
+                            self.discovery
+                                .sections_described_by(block_filesystem_discovery_hover_card)
+                        }))
+                        .refreshed_by(StorageInteraction::Refresh(StorageSource::MountDiscovery))
                 }),
         )]
     }

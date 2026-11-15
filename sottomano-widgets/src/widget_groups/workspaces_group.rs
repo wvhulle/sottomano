@@ -25,7 +25,7 @@ use crate::{
         panel_slot::dragged_slot_content,
         panel_slot_drag::{DragMessage, PanelSlotContext, SlotDragEvent},
     },
-    hover_cards::{HoverCardMessage, HoverTarget, PressHints, hoverable},
+    hover_cards::{HoverCardMessage, HoverTarget, MouseGesture, PressAction, hoverable},
     widgets::{
         glyph_button,
         icon_glyph::IconGlyph,
@@ -83,6 +83,16 @@ pub struct EmptyWorkspaceFolding {
 }
 
 impl EmptyWorkspaceFolding {
+    #[must_use]
+    pub fn press_actions(&self) -> Vec<PressAction> {
+        let does = if self.temporarily_revealed {
+            "hide the empty workspaces"
+        } else {
+            "show the empty workspaces until the next workspace switch"
+        };
+        vec![PressAction::new(MouseGesture::LeftClick, does)]
+    }
+
     #[must_use]
     pub fn new(mode: EmptyWorkspaces) -> Self {
         Self {
@@ -291,11 +301,6 @@ fn empty_workspaces_toggle<'a>(
             })
             .into()
     };
-    let does = if folding.temporarily_revealed {
-        "hide the empty workspaces"
-    } else {
-        "show the empty workspaces until the next workspace switch"
-    };
     Some(hoverable(
         NestedMenuOpenTrigger::Hover,
         button(face)
@@ -304,10 +309,6 @@ fn empty_workspaces_toggle<'a>(
             .on_press(WorkspacesMessage::ToggleEmptyWorkspaces)
             .into(),
         HoverTarget::WorkspaceFolding,
-        PressHints {
-            left: Some(does),
-            ..PressHints::default()
-        },
         WorkspacesMessage::HoverCard,
     ))
 }
@@ -340,6 +341,14 @@ fn dragged(event: SlotDragEvent) -> WorkspacesMessage {
     WorkspacesMessage::Drag(DragMessage::Pointer(event))
 }
 
+#[must_use]
+pub fn workspace_order_press_actions() -> Vec<PressAction> {
+    vec![PressAction::new(
+        MouseGesture::LeftClick,
+        "restore the order from niri's config",
+    )]
+}
+
 fn order_restore<'a>(
     configured: Option<&ConfiguredWorkspaces>,
     workspaces: &[workspace_window_snapshot::WorkspaceIndicator],
@@ -360,10 +369,6 @@ fn order_restore<'a>(
             },
         ),
         HoverTarget::WorkspaceOrder,
-        PressHints {
-            left: Some("restore the order from niri's config"),
-            ..PressHints::default()
-        },
         WorkspacesMessage::HoverCard,
     ))
 }

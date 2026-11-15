@@ -22,7 +22,7 @@ use sottomano_toml_config::Config;
 use crate::{
     clock::Clock,
     group_items::{toggle_control::SwitchPresses, unit_switch::UnitSwitchFace},
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::hover_card_body::Section,
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -30,7 +30,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        hover_fetched_snapshot::{HoverFetch, HoverFetchedSnapshot},
+        hover_fetched_snapshot::{HoverFetchedSnapshot, SnapshotFetchStage},
         phosphor::{Phosphor, Weight},
     },
 };
@@ -51,26 +51,10 @@ use crate::{
     widgets::huggingface_hub_sections::hugging_face_model_card_sections,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LlamaServerReading {
-    Switch,
-    Model,
-    GenerationRate,
-    Slots,
-    ContextFill,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LlamaServerTarget {
-    bus: Bus,
-    unit: String,
-    reading: LlamaServerReading,
-}
-
-impl From<LlamaServerTarget> for HoverTarget {
-    fn from(target: LlamaServerTarget) -> Self {
-        HoverTarget::LlamaServer(target)
-    }
+pub struct ServedModelUnit {
+    pub(crate) bus: Bus,
+    pub(crate) unit: String,
 }
 
 pub struct LlamaServerGroup {
@@ -110,6 +94,8 @@ pub enum LlamaServerInteraction {
     User(ScopedServersInteraction),
     System(ScopedServersInteraction),
     Expansion(WidgetGroupExpansionMessage),
+    StartModelFetches(ServedModelUnit),
+    StopHoverFetches,
 }
 
 impl LlamaServerGroup {
@@ -126,29 +112,25 @@ impl LlamaServerGroup {
         ])
     }
 
-    pub fn hover(
-        &mut self,
-        hovered: Option<&HoverTarget>,
-        config: &Config,
-        clock: Clock,
-    ) -> Task<LlamaServerMessage> {
+    fn stop_hover_fetches(&mut self) {
         self.model_props.stop();
         self.gguf_card.stop();
         self.base_model_card.stop();
-        let Some(HoverTarget::LlamaServer(
-            target @ LlamaServerTarget {
-                reading: LlamaServerReading::Model,
-                ..
-            },
-        )) = hovered
-        else {
-            return Task::none();
-        };
-        let servers = match target.bus {
+    }
+
+    fn start_model_fetches(
+        &mut self,
+        served_model: &ServedModelUnit,
+        config: &Config,
+        clock: Clock,
+    ) -> Task<LlamaServerMessage> {
+        let servers = match served_model.bus {
             Bus::Session => &self.user,
             Bus::System => &self.system,
         };
-        let props_fetch = servers.resident_instance(&target.unit).map(|instance| {
+        let resident_instance = servers.resident_instance(&served_model.unit);
+        let resident_model_file = servers.resident_model_file(&served_model.unit);
+        let props_fetch = resident_instance.map(|instance| {
             self.model_props.start_hover_fetch(
                 instance,
                 LlamaServerMessage::ModelPropsFetched,
@@ -156,7 +138,7 @@ impl LlamaServerGroup {
                 clock,
             )
         });
-        let card_read = servers.resident_model_file(&target.unit).map(|model_file| {
+        let card_read = resident_model_file.map(|model_file| {
             self.gguf_card.start_hover_fetch(
                 model_file,
                 LlamaServerMessage::GgufCardRead,
@@ -168,7 +150,7 @@ impl LlamaServerGroup {
     }
 
     fn fetch_base_model_card(&mut self, config: &Config, clock: Clock) -> Task<LlamaServerMessage> {
-        if matches!(self.gguf_card.hover_fetch(), HoverFetch::Idle) {
+        if matches!(self.gguf_card.fetch_stage(), SnapshotFetchStage::Idle) {
             return Task::none();
         }
         let Some(repository) = self
@@ -224,6 +206,13 @@ impl LlamaServerGroup {
                 .map(LlamaServerMessage::System),
             LlamaServerMessage::Interaction(LlamaServerInteraction::Expansion(message)) => {
                 self.expansion.update(message);
+                Task::none()
+            }
+            LlamaServerMessage::Interaction(LlamaServerInteraction::StartModelFetches(
+                served_model,
+            )) => self.start_model_fetches(&served_model, config, clock),
+            LlamaServerMessage::Interaction(LlamaServerInteraction::StopHoverFetches) => {
+                self.stop_hover_fetches();
                 Task::none()
             }
         }

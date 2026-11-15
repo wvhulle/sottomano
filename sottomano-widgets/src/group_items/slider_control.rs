@@ -9,7 +9,6 @@ use std::{
 use chrono::Locale;
 use corredo::{
     changing_text::{MeasuredReadout, ReadoutLabels, steady_width_text},
-    popovers::NestedMenuOpenTrigger,
     transitions::ExpansionState,
     value_controls::{
         ExpandingSlider, ExpandingSliderParts, ScrollWrites, SecondaryPress, SliderEffect,
@@ -35,9 +34,8 @@ use crate::{
         },
     },
     hover_cards::{
-        HoverAnnouncement, HoverCardMessage, HoverOrigin, HoverTarget, PressHints,
+        MouseGesture, PressAction,
         hover_card_body::{Section, dictionary_table},
-        hoverable,
     },
     widgets::{
         announced_level::{LevelAnnouncement, LevelChangeOrigin},
@@ -79,7 +77,6 @@ pub struct SliderControl {
     icon: IconGlyph,
     glyph: Option<fn(f32, SliderActivity) -> Phosphor>,
     thresholds: Option<SeverityThresholds>,
-    target: HoverTarget,
     right_click: Option<&'static str>,
     level_announcement: Option<LevelAnnouncement>,
 }
@@ -126,7 +123,6 @@ pub enum ControlMessage {
     Level(f32),
     Activity(SliderActivity),
     Right,
-    HoverCard(HoverCardMessage),
 }
 
 #[derive(Debug, Clone)]
@@ -188,7 +184,6 @@ impl SliderControl {
     pub fn new(
         name: impl Into<Cow<'static, str>>,
         range: RangeInclusive<f32>,
-        target: impl Into<HoverTarget>,
         icon: impl Into<IconGlyph>,
     ) -> Self {
         Self {
@@ -202,7 +197,6 @@ impl SliderControl {
             icon: icon.into(),
             glyph: None,
             thresholds: None,
-            target: target.into(),
             right_click: None,
             level_announcement: None,
         }
@@ -304,8 +298,21 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn target(&self) -> &HoverTarget {
-        &self.target
+    pub fn press_actions(&self) -> Vec<PressAction> {
+        let open_or_close = match self.expanding_slider.expansion_state() {
+            ExpansionState::Collapsed => "open the slider",
+            ExpansionState::Expanded => "close the slider",
+        };
+        [
+            PressAction::new(MouseGesture::LeftClick, open_or_close),
+            PressAction::new(MouseGesture::Scroll, "adjust"),
+        ]
+        .into_iter()
+        .chain(
+            self.right_click
+                .map(|does| PressAction::new(MouseGesture::RightClick, does)),
+        )
+        .collect()
     }
 
     pub fn set_icon(&mut self, icon: impl Into<IconGlyph>) {
@@ -507,7 +514,6 @@ impl SliderControl {
                 Action::None
             }
             ControlMessage::Right => Action::Right,
-            ControlMessage::HoverCard(_) => Action::None,
         }
     }
 
@@ -524,10 +530,7 @@ impl SliderControl {
         config: &'a Config,
         shown_reading: SliderShownReading,
         reveal: f32,
-        hover_origin: &HoverOrigin,
     ) -> Element<'a, ControlMessage> {
-        let hover_origin = hover_origin.clone();
-        let right_click = self.right_click;
         let SliderShownReading { face, readout } = shown_reading;
         self.expanding_slider.view(
             ExpandingSliderParts {
@@ -538,27 +541,7 @@ impl SliderControl {
                 face: Box::new(move || self.state_glyph(config)),
                 readout: Box::new(move || self.readout_view(config)),
                 look: Box::new(move || slider_look(config, self.severity())),
-                decorate: Box::new(move |content, expansion_state| {
-                    let left = match expansion_state {
-                        ExpansionState::Collapsed => "open the slider",
-                        ExpansionState::Expanded => "close the slider",
-                    };
-                    hoverable(
-                        NestedMenuOpenTrigger::Hover,
-                        content,
-                        self.target.clone(),
-                        HoverAnnouncement {
-                            press_hints: PressHints {
-                                left: Some(left),
-                                right: right_click,
-                                scroll: Some("adjust"),
-                                ..PressHints::default()
-                            },
-                            origin: hover_origin.clone(),
-                        },
-                        ControlMessage::HoverCard,
-                    )
-                }),
+                decorate: Box::new(|content, _| content),
                 gap_px: config.theme.spacing.item_gap,
                 expansion_duration: config.group_items.slider_expansion_duration,
             },
@@ -601,7 +584,7 @@ impl SliderControl {
         steady_width_text(
             MeasuredReadout::new(
                 ReadoutLabels {
-                    owner: self.target.clone(),
+                    owner: self.name.clone(),
                     range: self.expanding_slider.range(),
                     step: self.expanding_slider.slider_step_size(),
                     format: self.readout,

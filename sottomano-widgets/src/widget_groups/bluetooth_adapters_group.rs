@@ -26,7 +26,6 @@ use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_items::{group_item::GroupItem, reading_display_state::ReadingDisplayState},
-    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
@@ -35,26 +34,6 @@ use crate::{
         input_report_sections::MeasuredReportTiming, subscribed_snapshot::SubscribedSnapshot,
     },
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BluetoothTarget {
-    Adapter {
-        controller_name: String,
-    },
-    PowerSwitch {
-        controller_name: String,
-    },
-    Device {
-        controller_name: String,
-        object_path: OwnedObjectPath,
-    },
-}
-
-impl From<BluetoothTarget> for HoverTarget {
-    fn from(target: BluetoothTarget) -> Self {
-        HoverTarget::Bluetooth(target)
-    }
-}
 
 #[derive(Debug)]
 pub enum BluetoothMessage {
@@ -214,33 +193,23 @@ impl BluetoothAdaptersGroup {
         clock: Clock,
     ) -> Option<WidgetGroupContent<'a, BluetoothInteraction>> {
         let expansion = self.expansions.get(&adapter.controller_name)?;
-        let summary_item = GroupItem::reading(
-            self.adapter_reading(adapter).reading_row(),
-            BluetoothTarget::Adapter {
-                controller_name: adapter.controller_name.clone(),
-            },
-        )
-        .with_hover_card(Box::new(move |_| {
-            self.bluetooth
-                .hover_card_with(self.adapter_reading(adapter).hover_card())
-        }));
+        let summary_item = GroupItem::reading(self.adapter_reading(adapter).reading_row())
+            .with_hover_card(Box::new(move |_| {
+                self.bluetooth
+                    .hover_card_with(self.adapter_reading(adapter).hover_card())
+            }));
         let power_switch = AdapterPowerSwitch { adapter };
         let power_press_does = power_switch.press_does();
-        let power_item = GroupItem::reading(
-            power_switch.reading_row(),
-            BluetoothTarget::PowerSwitch {
-                controller_name: adapter.controller_name.clone(),
-            },
-        )
-        .on_switch_press(
-            &adapter.power,
-            power_press_does,
-            BluetoothInteraction::ToggleAdapterPower(adapter.object_path.clone()),
-        )
-        .with_hover_card(Box::new(move |_| {
-            self.bluetooth
-                .hover_card_with(AdapterPowerSwitch { adapter }.hover_card())
-        }));
+        let power_item = GroupItem::reading(power_switch.reading_row())
+            .on_switch_press(
+                &adapter.power,
+                power_press_does,
+                BluetoothInteraction::ToggleAdapterPower(adapter.object_path.clone()),
+            )
+            .with_hover_card(Box::new(move |_| {
+                self.bluetooth
+                    .hover_card_with(AdapterPowerSwitch { adapter }.hover_card())
+            }));
         let siblings = adapter.power.connected_devices();
         let device_items: Vec<GroupItem<'a, BluetoothInteraction>> = siblings
             .iter()
@@ -252,23 +221,17 @@ impl BluetoothAdaptersGroup {
                 let reading = self.device_reading(device, siblings, input_reports, clock);
                 let device_row = reading.reading_row();
                 let reading_state = device_row.shown_state();
-                let device_item = GroupItem::reading(
-                    device_row,
-                    BluetoothTarget::Device {
-                        controller_name: adapter.controller_name.clone(),
-                        object_path: device.object_path.clone(),
-                    },
-                )
-                .on_press(
-                    ConnectedDeviceReading::PRESS_DOES,
-                    BluetoothInteraction::Disconnect(device.object_path.clone()),
-                )
-                .with_hover_card(Box::new(move |card_clock| {
-                    self.bluetooth.hover_card_with(
-                        self.device_reading(device, siblings, input_reports, card_clock)
-                            .hover_card(),
+                let device_item = GroupItem::reading(device_row)
+                    .on_press(
+                        ConnectedDeviceReading::PRESS_DOES,
+                        BluetoothInteraction::Disconnect(device.object_path.clone()),
                     )
-                }));
+                    .with_hover_card(Box::new(move |card_clock| {
+                        self.bluetooth.hover_card_with(
+                            self.device_reading(device, siblings, input_reports, card_clock)
+                                .hover_card(),
+                        )
+                    }));
                 match reading_state {
                     ReadingDisplayState::Critical => device_item.previewed_on_handle(),
                     _ => device_item,

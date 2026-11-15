@@ -26,7 +26,7 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::{group_item::GroupItem, reading_display_state::ReadingDisplayState},
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::hover_card_body::Section,
     widget_groups::{
         terminal_command::TerminalCommand,
         widget_group_content::{
@@ -38,18 +38,6 @@ use crate::{
         subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue,
     },
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PendingUpgradesTarget {
-    Summary,
-    Firmware,
-}
-
-impl From<PendingUpgradesTarget> for HoverTarget {
-    fn from(target: PendingUpgradesTarget) -> Self {
-        HoverTarget::PendingUpgrades(target)
-    }
-}
 
 #[derive(Default)]
 pub struct PendingUpgradesGroup {
@@ -113,22 +101,19 @@ impl PendingUpgradesGroup {
             PendingUpgradesInteraction::Expansion,
             [
                 has_categories.then(|| {
-                    GroupItem::reading(self.reading_row(clock), PendingUpgradesTarget::Summary)
-                        .with_hover_card(Box::new(move |_| {
-                            self.firmware.hover_card_with(self.hover_card())
-                        }))
+                    GroupItem::reading(self.reading_row(clock)).with_hover_card(Box::new(
+                        move |_| self.firmware.hover_card_with(self.hover_card()),
+                    ))
                 }),
                 self.firmware_upgrade_item(config),
                 self.firmware.failure().map(|failure| {
-                    GroupItem::reading(
-                        failure.reading_row(IconGlyph::default()),
-                        PendingUpgradesTarget::Firmware,
+                    GroupItem::reading(failure.reading_row(IconGlyph::default())).with_hover_card(
+                        Box::new(move |_| {
+                            self.firmware.sections_described_by(|snapshot| {
+                                firmware_upgrades_hover_card(snapshot)
+                            })
+                        }),
                     )
-                    .with_hover_card(Box::new(move |_| {
-                        self.firmware.sections_described_by(|snapshot| {
-                            firmware_upgrades_hover_card(snapshot)
-                        })
-                    }))
                 }),
             ]
             .into_iter()

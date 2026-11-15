@@ -20,10 +20,7 @@ use crate::{
         reading_row::ReadingRow,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -225,13 +222,11 @@ impl UnitSwitch {
     pub fn group_item<'a, M: 'a>(
         &self,
         service_readiness: ServiceReadiness,
-        target: impl Into<HoverTarget>,
         pressed: M,
     ) -> Option<GroupItem<'a, M>> {
         self.group_item_with_glyph(
             self.face.icon.with_weight(Weight::Regular).into(),
             service_readiness,
-            target,
             pressed,
         )
     }
@@ -256,7 +251,6 @@ impl UnitSwitch {
         &self,
         shown_glyph: IconGlyph,
         service_readiness: ServiceReadiness,
-        target: impl Into<HoverTarget>,
         pressed: M,
     ) -> Option<GroupItem<'a, M>> {
         let reading = UnitSwitchReading {
@@ -265,12 +259,10 @@ impl UnitSwitch {
         };
         let switch_position = reading.toggle.switch_position;
         let press_does = reading.toggle.press_does();
-        Some(
-            GroupItem::reading(reading.reading_row(), target).on_switch_press(
-                switch_position,
-                press_does,
-                pressed,
-            ),
-        )
+        Some(GroupItem::reading(reading.reading_row()).on_switch_press(
+            switch_position,
+            press_does,
+            pressed,
+        ))
     }
 }

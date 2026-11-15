@@ -1,9 +1,6 @@
 use std::collections::HashSet;
 
-use corredo::{
-    gauges::activity_line, orientation::Axis, popovers::NestedMenuOpenTrigger,
-    theming::primary_color,
-};
+use corredo::{gauges::activity_line, orientation::Axis, theming::primary_color};
 use iced::{
     Alignment, Element, Task,
     border::Radius,
@@ -32,14 +29,13 @@ use crate::{
     background_work::logged_failure_task,
     clock::Clock,
     group_items::{
-        group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
+        group_item::{GroupItem, GroupItemValue},
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         source_reading::GroupItemIcon,
     },
     hover_cards::{
-        HoverTarget, PressHints,
+        MouseGesture, PressAction,
         hover_card_body::{Section, SectionWidget},
-        hoverable,
     },
     layer_surfaces::ActivationTokenOutcome,
     widget_groups::{
@@ -208,9 +204,9 @@ impl TrayGroup {
     }
 
     #[must_use]
-    pub fn menu_panel<'a>(
+    pub fn menu_panel_named<'a>(
         &'a self,
-        address: &str,
+        item_name: &str,
         config: &'a Config,
         popup_corners: Radius,
     ) -> Option<Element<'a, TrayMessage>> {
@@ -219,7 +215,7 @@ impl TrayGroup {
             .get()
             .into_iter()
             .flatten()
-            .find(|item| item.address == address && !item.menu.is_empty())?;
+            .find(|item| item.name() == item_name && !item.menu.is_empty())?;
         let menu_path = item.menu_path.clone()?;
         let item_address = item.address.clone();
         let on_activate = move |id| TrayMessage::MenuItemClicked {
@@ -280,18 +276,17 @@ impl TrayGroup {
                     item,
                     window_matches,
                 );
+                let item_rule = config.widget_groups.tray.rule(&item.id);
+                let press_actions = item_press_actions(&item_rule, &item_window);
                 GroupItem::composed(
                     item.name().to_owned(),
                     GroupItemIcon::Absent,
-                    GroupItemHoverArea::ByChildren {
-                        row_target: HoverTarget::Tray(item.address.clone()),
-                        child_targets: Vec::new(),
-                    },
                     GroupItemValue::drawn(move |reveal| {
                         item_view(config, &self.pixmap_handles, item, &item_window, reveal)
                     }),
                     Box::new(move |_| self.items.hover_card_with(Self::item_hover_card(item))),
                 )
+                .with_button_actions(press_actions)
             })
             .collect();
         WidgetGroupContent::expandable(
@@ -336,6 +331,18 @@ const fn click_hint(action: ClickAction, item_window: &TrayItemWindow) -> &'stat
         }
         _ => action.press_hint(),
     }
+}
+
+fn item_press_actions(rule: &TrayRule, item_window: &TrayItemWindow) -> Vec<PressAction> {
+    [
+        (MouseGesture::LeftClick, rule.left_click),
+        (MouseGesture::MiddleClick, rule.middle_click),
+        (MouseGesture::RightClick, rule.right_click),
+    ]
+    .into_iter()
+    .filter(|(_, click_action)| *click_action != ClickAction::Ignore)
+    .map(|(gesture, click_action)| PressAction::new(gesture, click_hint(click_action, item_window)))
+    .collect()
 }
 
 fn item_view<'a>(
@@ -384,26 +391,7 @@ fn item_view<'a>(
     let left = click_message(rule.left_click, item_window, item);
     let middle = click_message(rule.middle_click, item_window, item);
     let right = click_message(rule.right_click, item_window, item);
-    let press_hints = PressHints {
-        left: left
-            .as_ref()
-            .map(|_| click_hint(rule.left_click, item_window)),
-        middle: middle
-            .as_ref()
-            .map(|_| click_hint(rule.middle_click, item_window)),
-        right: right
-            .as_ref()
-            .map(|_| click_hint(rule.right_click, item_window)),
-        ..PressHints::default()
-    };
-    let hover = hoverable(
-        NestedMenuOpenTrigger::Hover,
-        marked,
-        HoverTarget::Tray(item.address.clone()),
-        press_hints,
-        GroupEvent::HoverCard,
-    );
-    let mut clickable = mouse_area(hover);
+    let mut clickable = mouse_area(marked);
     if let Some(message) = left {
         clickable = clickable.on_press(GroupEvent::Group(message));
     }

@@ -2,7 +2,6 @@ use std::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     rc::Rc,
-    slice,
 };
 
 use chrono::Locale;
@@ -26,9 +25,7 @@ use crate::{
     desktop_panels::panel_slot::PanelSlot,
     group_items::{
         aligned_quantity::ItemAlignment,
-        group_item::{
-            GroupItem, GroupItemHoverArea, GroupItemValue, MenuParts, RowHoverCard, RowScroll,
-        },
+        group_item::{GroupItem, GroupItemValue, MenuParts, RowHoverCard, RowScroll},
         group_item_gestures::GroupItemGestures,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         source_reading::{GroupItemIcon, reading_value},
@@ -44,9 +41,10 @@ use crate::{
         },
     },
     hover_cards::{
-        HoverAnnouncement, HoverCardMessage, HoverOrigin, HoverTarget, MenuHandleIndicator,
-        PanelPinOrigin, PointerPresence, PressHints,
-        hover_card_body::hover_card_source_delivery::SectionSource, hoverable,
+        CardHeader, HoverCardMessage, HoverTarget, InstrumentKey, MenuHandleIndicator,
+        MouseGesture, PanelPinOrigin, PointerPresence, PressAction,
+        hover_card_body::{Section, hover_card_source_delivery::SectionSource},
+        hoverable,
     },
     widget_groups::widget_group_identity::{
         WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle,
@@ -201,28 +199,14 @@ pub enum WidgetGroupFace {
 }
 
 impl WidgetGroupFace {
-    fn hover_target(&self, group_identity: &WidgetGroupIdentity) -> Option<HoverTarget> {
-        match self {
-            WidgetGroupFace::Glyph { .. } => {
-                Some(HoverTarget::GroupFace(Box::new(group_identity.clone())))
-            }
-            WidgetGroupFace::FirstItem => None,
-        }
-    }
-
     fn glyph_face_item<'a, M: Clone + 'a>(
         glyph: IconGlyph,
         state: ReadingDisplayState,
-        group_identity: &WidgetGroupIdentity,
         group_title: &WidgetGroupTitle,
     ) -> GroupItem<'a, M> {
         GroupItem::composed(
             group_title.to_string(),
             GroupItemIcon::IconGlyph { glyph, state },
-            GroupItemHoverArea::ByChildren {
-                row_target: HoverTarget::GroupFace(Box::new(group_identity.clone())),
-                child_targets: Vec::new(),
-            },
             GroupItemValue::Nothing,
             Box::new(|_| Vec::new()),
         )
@@ -230,22 +214,19 @@ impl WidgetGroupFace {
 
     fn into_face_item<'a, M: Clone + 'a>(
         self,
-        group_identity: &WidgetGroupIdentity,
         group_title: &WidgetGroupTitle,
         items: &mut Vec<GroupItem<'a, M>>,
-        handle_announcement: HoverAnnouncement,
     ) -> GroupItem<'a, M> {
         match self {
             WidgetGroupFace::Glyph { glyph, state } => {
-                Self::glyph_face_item(glyph, state, group_identity, group_title)
+                Self::glyph_face_item(glyph, state, group_title)
             }
-            WidgetGroupFace::FirstItem => items.remove(0).acting_as_handle(handle_announcement),
+            WidgetGroupFace::FirstItem => items.remove(0),
         }
     }
 
     fn into_menu_parts<'a, M: Clone + 'a>(
         self,
-        group_identity: &WidgetGroupIdentity,
         group_title: &WidgetGroupTitle,
         config: &'a Config,
         items: &[GroupItem<'a, M>],
@@ -253,7 +234,7 @@ impl WidgetGroupFace {
     ) -> MenuParts<'a, M> {
         match self {
             WidgetGroupFace::Glyph { glyph, state } => MenuParts {
-                icon: Self::glyph_face_item(glyph, state, group_identity, group_title)
+                icon: Self::glyph_face_item(glyph, state, group_title)
                     .menu_parts(config, clock)
                     .icon,
                 value: collapsing_previewed_value(config, items, 0.0),
@@ -296,7 +277,7 @@ impl<M> FromIterator<GroupToastRequests<M>> for GroupToastRequests<M> {
 pub(crate) struct GroupMenuItemRow<'a, M> {
     pub name: Cow<'static, str>,
     pub pin: ItemPin,
-    pub inspected_target: HoverTarget,
+    pub instrument: InstrumentKey,
     pub gestures: GroupItemGestures<M>,
     pub row_scroll: RowScroll<'a, M>,
     pub parts: MenuParts<'a, M>,
@@ -305,9 +286,9 @@ pub(crate) struct GroupMenuItemRow<'a, M> {
 impl<M> GroupMenuItemRow<'_, M> {
     pub(crate) fn row_emphasis(
         &self,
-        inspected_target: Option<&HoverTarget>,
+        inspected_instrument: Option<&InstrumentKey>,
     ) -> NestedMenuRowEmphasis {
-        if inspected_target == Some(&self.inspected_target) {
+        if inspected_instrument == Some(&self.instrument) {
             NestedMenuRowEmphasis::Selected
         } else {
             NestedMenuRowEmphasis::Plain
@@ -485,7 +466,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         let expand = (self.on_expansion)(WidgetGroupExpansionMessage::Expand);
         self.items
             .iter()
-            .map(|item| item.toast_requests(expand.clone(), locale, clock))
+            .map(|item| item.toast_requests(&self.group_identity, expand.clone(), locale, clock))
             .collect()
     }
 
@@ -498,11 +479,101 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     }
 
     #[must_use]
-    pub fn row_hover_card(&self, target: &HoverTarget, clock: Clock) -> Option<RowHoverCard> {
+    pub fn instrument(&self, instrument_key: &InstrumentKey) -> Option<&GroupItem<'a, M>> {
+        if instrument_key.group != self.group_identity {
+            return None;
+        }
         self.items
             .iter()
-            .find(|item| item.owns_target(target))
-            .map(|item| item.row_hover_card(clock))
+            .find(|item| item.item_in_group_name() == instrument_key.name)
+    }
+
+    #[must_use]
+    pub fn instrument_keys(&self) -> Vec<InstrumentKey> {
+        self.items
+            .iter()
+            .map(|item| item.instrument_key(&self.group_identity))
+            .collect()
+    }
+
+    fn face_row(&self) -> Option<&GroupItem<'a, M>> {
+        self.items
+            .iter()
+            .find(|item| item.handle_preview().is_some())
+            .or_else(|| match self.face {
+                WidgetGroupFace::FirstItem => self.items.first(),
+                WidgetGroupFace::Glyph { .. } => None,
+            })
+    }
+
+    #[must_use]
+    pub fn hovered_instrument(&self, target: &HoverTarget) -> Option<&GroupItem<'a, M>> {
+        match target.faced_group() {
+            Some(group_identity) if *group_identity == self.group_identity => self.face_row(),
+            Some(_) => None,
+            None => target
+                .instrument_key()
+                .and_then(|instrument_key| self.instrument(instrument_key)),
+        }
+    }
+
+    fn handle_actions(&self) -> Vec<PressAction> {
+        let face_actions = match self.face {
+            WidgetGroupFace::FirstItem => self
+                .items
+                .first()
+                .map(GroupItem::press_actions)
+                .unwrap_or_default(),
+            WidgetGroupFace::Glyph { .. } => Vec::new(),
+        };
+        let handle_actions: Vec<PressAction> = [PressAction::group_handle(self.expansion.state)]
+            .into_iter()
+            .chain(
+                self.scroll_does
+                    .map(|scroll_does| PressAction::new(MouseGesture::Scroll, scroll_does)),
+            )
+            .filter(|handle_action| {
+                face_actions
+                    .iter()
+                    .all(|face_action| face_action.gesture != handle_action.gesture)
+            })
+            .collect();
+        face_actions.into_iter().chain(handle_actions).collect()
+    }
+
+    fn face_card(&self, clock: Clock) -> Vec<Section> {
+        self.face_row()
+            .map(|face_row| face_row.hover_card(clock))
+            .unwrap_or_default()
+            .into_iter()
+            .chain(Section::press_actions(self.handle_actions()))
+            .collect()
+    }
+
+    #[must_use]
+    pub fn hover_card(&self, target: &HoverTarget, clock: Clock) -> Option<RowHoverCard> {
+        let sections = match target.faced_group() {
+            Some(group_identity) if *group_identity == self.group_identity => self.face_card(clock),
+            Some(_) => return None,
+            None => self
+                .instrument(target.instrument_key()?)?
+                .card_with_actions(clock),
+        };
+        let header = match target {
+            HoverTarget::PinnedOnPanel(panel_pin) => CardHeader::Pinned {
+                group_title: self.group_title.clone(),
+                pin: panel_pin.clone(),
+            },
+            HoverTarget::Instrument(_)
+            | HoverTarget::GroupFace(_)
+            | HoverTarget::GroupMenu(_)
+            | HoverTarget::SessionMenu
+            | HoverTarget::Window(_)
+            | HoverTarget::Workspace(_)
+            | HoverTarget::WorkspaceOrder
+            | HoverTarget::WorkspaceFolding => CardHeader::Unheaded,
+        };
+        Some(RowHoverCard { sections, header })
     }
 
     pub(crate) fn group_identity(&self) -> &WidgetGroupIdentity {
@@ -539,7 +610,6 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     {
         let WidgetGroupContent {
             group_identity,
-            group_title,
             items,
             ..
         } = self;
@@ -552,17 +622,10 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 else {
                     return None;
                 };
-                let pinned_announcement = HoverAnnouncement {
-                    press_hints: PressHints::default(),
-                    origin: HoverOrigin::GroupHandle {
-                        item_group_name: Box::new(group_title.clone()),
-                        panel_pin: PanelPinOrigin::Pinned(Box::new(panel_pin)),
-                    },
-                };
-                let item = item.acting_as_handle(pinned_announcement);
                 Some(
                     fixed_view(
-                        slice::from_ref(&item),
+                        &item,
+                        HoverTarget::PinnedOnPanel(Box::new(panel_pin)),
                         item.shown_alert_severity().unwrap_or_default(),
                         MenuHandleIndicator::default(),
                         config,
@@ -590,7 +653,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             items,
             ..
         } = self;
-        let face = face.into_menu_parts(&group_identity, &group_title, config, &items, clock);
+        let face = face.into_menu_parts(&group_title, config, &items, clock);
         let aligned = items.iter().fold(BTreeMap::new(), |mut aligned, item| {
             if let ItemAlignment::Aligned(quantity) = item.alignment() {
                 aligned.insert(quantity, item.table_cell_view(config, clock));
@@ -608,7 +671,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                     item,
                     config.group_menus.alert_promotion_severity,
                 ),
-                inspected_target: item.inspected_target().clone(),
+                instrument: item.instrument_key(&group_identity),
                 gestures: item.gestures(),
                 row_scroll: item.row_scroll(),
                 parts: item.item_row_parts(config, clock),
@@ -667,26 +730,12 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             panel_pin,
             ..
         } = self;
-        let handle_announcement = HoverAnnouncement {
-            press_hints: PressHints::group_handle(expansion.state, scroll_does),
-            origin: HoverOrigin::GroupHandle {
-                item_group_name: Box::new(group_title.clone()),
-                panel_pin,
-            },
+        let handle_target = match panel_pin {
+            PanelPinOrigin::Pinned(panel_pin) => HoverTarget::PinnedOnPanel(panel_pin),
+            PanelPinOrigin::Unpinned => HoverTarget::GroupFace(Box::new(group_identity.clone())),
         };
-        let face_target = face.hover_target(&group_identity);
-        let face = face.into_face_item(
-            &group_identity,
-            &group_title,
-            &mut items,
-            handle_announcement.clone(),
-        );
-        let handle_target = items
-            .iter()
-            .find_map(GroupItem::handle_preview)
-            .map(|preview| preview.target.clone())
-            .or(face_target);
-        let draw_face = move || face.view(config, 1.0, clock);
+        let face = face.into_face_item(&group_title, &mut items);
+        let draw_face = move || face.unhovered_view(config, 1.0, clock);
         let expansion_event = move |message| GroupEvent::Group(on_expansion(message));
         let toggle = expansion_event(WidgetGroupExpansionMessage::Toggle);
         let on_enter = expansion_event(WidgetGroupExpansionMessage::CursorEntered);
@@ -708,16 +757,12 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             .style(flat_button(text_color))
             .on_press(toggle.clone())
             .into();
-            let handle = match &handle_target {
-                Some(target) => hoverable(
-                    NestedMenuOpenTrigger::Hover,
-                    handle,
-                    target.clone(),
-                    handle_announcement.clone(),
-                    GroupEvent::HoverCard,
-                ),
-                None => handle,
-            };
+            let handle = hoverable(
+                NestedMenuOpenTrigger::Hover,
+                handle,
+                handle_target.clone(),
+                GroupEvent::HoverCard,
+            );
             let handle = if scroll_does.is_some() {
                 let expansion_event = expansion_event.clone();
                 mouse_area(handle)
@@ -731,7 +776,11 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             let inner = Row::new()
                 .push(handle)
                 .extend((reveal > 0.0).then(|| {
-                    revealed_content(config, reveal, items_row(config, &items, reveal, clock))
+                    revealed_content(
+                        config,
+                        reveal,
+                        items_row(config, &group_identity, &items, reveal, clock),
+                    )
                 }))
                 .align_y(Alignment::Center);
             PanelSlot::new(inner.into(), edge_indicator.view(reveal)).view(panel_position)
@@ -743,14 +792,15 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
 }
 
 pub(crate) fn fixed_view<'a, M: Clone + 'a>(
-    items: &[GroupItem<'a, M>],
+    item: &GroupItem<'a, M>,
+    hover_target: HoverTarget,
     highest_alert_severity: Severity,
     handle_indicator: MenuHandleIndicator,
     config: &'a Config,
     panel_position: Position,
     clock: Clock,
 ) -> Element<'a, GroupEvent<M>> {
-    let row = Row::with_children(items.iter().map(|item| item.view(config, 1.0, clock)))
+    let row = Row::with_children([item.view(config, 1.0, clock, hover_target)])
         .spacing(config.theme.spacing.item_gap)
         .align_y(Alignment::Center);
     let indicator = EdgeIndicator::menu_handle_view(highest_alert_severity, handle_indicator);
@@ -824,14 +874,22 @@ impl EdgeIndicator {
 
 fn items_row<'a, M: Clone + 'a>(
     config: &Config,
+    group_identity: &WidgetGroupIdentity,
     items: &[GroupItem<'a, M>],
     reveal: f32,
     clock: Clock,
 ) -> Element<'a, GroupEvent<M>> {
-    Row::with_children(items.iter().map(|item| item.view(config, reveal, clock)))
-        .spacing(config.theme.spacing.item_gap)
-        .align_y(Alignment::Center)
-        .into()
+    Row::with_children(items.iter().map(|item| {
+        item.view(
+            config,
+            reveal,
+            clock,
+            HoverTarget::Instrument(item.instrument_key(group_identity)),
+        )
+    }))
+    .spacing(config.theme.spacing.item_gap)
+    .align_y(Alignment::Center)
+    .into()
 }
 
 fn collapsing_previewed_value<'a, M: 'a, Message: 'a>(
@@ -882,7 +940,7 @@ mod tests {
             reading_row::ReadingRow,
         },
         group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic, PanelRaise},
-        hover_cards::HoverTarget,
+        hover_cards::{HoverTarget, InstrumentKey, MouseGesture, PressAction},
         widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         widgets::icon_glyph::IconGlyph,
     };
@@ -904,10 +962,7 @@ mod tests {
             WidgetGroupFamily::Weather,
             expansion,
             |_| (),
-            [GroupItem::reading(
-                shown_state_row(shown_state),
-                HoverTarget::Workspace(7),
-            )],
+            [GroupItem::reading(shown_state_row(shown_state))],
         )
     }
 
@@ -919,10 +974,10 @@ mod tests {
             group.panel_raises(GroupMenuTopic::Media, Severity::Critical),
             vec![PanelRaise {
                 menu: GroupMenuTopic::Media,
-                entry: GroupMenuPin::Item {
+                entry: GroupMenuPin::Item(InstrumentKey {
                     group: WidgetGroupIdentity::sole(WidgetGroupFamily::Weather),
-                    item_in_group_name: "Shown state reading".into(),
-                },
+                    name: "Shown state reading".into(),
+                }),
             }]
         );
     }
@@ -939,26 +994,45 @@ mod tests {
     }
 
     #[test]
-    fn an_item_announcement_follows_the_current_press() {
+    fn an_item_card_lists_the_current_press() {
         let expansion = WidgetGroupExpansion::default();
         let group_pressing = |description| {
             WidgetGroupContent::expandable(
                 WidgetGroupFamily::NetworkManagerVpns,
                 &expansion,
                 |_| (),
-                [GroupItem::reading(
-                    shown_state_row(ReadingDisplayState::Idle),
-                    HoverTarget::Workspace(7),
-                )
-                .on_press(description, ())],
+                [
+                    GroupItem::reading(shown_state_row(ReadingDisplayState::Idle))
+                        .on_press(description, ()),
+                ],
             )
         };
-        let left_hint = |description| {
-            group_pressing(description)
-                .row_hover_card(&HoverTarget::Workspace(7), Clock::real())
-                .and_then(|row_card| row_card.announcement.press_hints.left)
+        let reading_key = InstrumentKey {
+            group: WidgetGroupIdentity::sole(WidgetGroupFamily::NetworkManagerVpns),
+            name: "Shown state reading".into(),
         };
-        assert_eq!(left_hint("connect the VPN"), Some("connect the VPN"));
-        assert_eq!(left_hint("disconnect the VPN"), Some("disconnect the VPN"));
+        let listed_actions = |description| {
+            let group = group_pressing(description);
+            assert!(
+                group
+                    .hover_card(&HoverTarget::Instrument(reading_key.clone()), Clock::real())
+                    .is_some()
+            );
+            group.instrument(&reading_key).map(GroupItem::press_actions)
+        };
+        assert_eq!(
+            listed_actions("connect the VPN"),
+            Some(vec![PressAction::new(
+                MouseGesture::LeftClick,
+                "connect the VPN"
+            )])
+        );
+        assert_eq!(
+            listed_actions("disconnect the VPN"),
+            Some(vec![PressAction::new(
+                MouseGesture::LeftClick,
+                "disconnect the VPN"
+            )])
+        );
     }
 }

@@ -11,7 +11,6 @@ use crate::{
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    hover_cards::HoverTarget,
     widget_groups::{
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
@@ -22,7 +21,7 @@ use crate::{
         window_group::{WindowRowLayout, WindowTitleLength},
     },
     widgets::{
-        layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
+        layer_appearance_controls::{AppearanceMessage, LayerAppearanceControls},
         phosphor::{Phosphor, Weight},
         shell_layer_appearance::ShellLayer,
     },
@@ -178,22 +177,6 @@ fn window_title_length_toggle(window_title_length: WindowTitleLength) -> IconTog
     )
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PanelSettingsTarget {
-    DisconnectedGroups,
-    AutoCollapseGroups,
-    WindowRowLayout,
-    WindowTitleLength,
-    FloatOffset,
-    Appearance(AppearanceTarget),
-}
-
-impl From<PanelSettingsTarget> for HoverTarget {
-    fn from(target: PanelSettingsTarget) -> Self {
-        HoverTarget::PanelSettings(target)
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum PanelSettingsMessage {
     Expansion(WidgetGroupExpansionMessage),
@@ -230,14 +213,11 @@ impl Default for PanelSettingsGroup {
             float_offset: SliderControl::new(
                 "Float offset",
                 0.0..=24.0,
-                PanelSettingsTarget::FloatOffset,
                 Phosphor::ArrowsIn(Weight::Regular),
             )
             .icon_only()
             .readout(|value, _| format!("{} px", value.round())),
-            layer: LayerAppearanceControls::new(ShellLayer::Panels, |target| {
-                PanelSettingsTarget::Appearance(target).into()
-            }),
+            layer: LayerAppearanceControls::new(ShellLayer::Panels),
         };
         panel_settings_group.adopt_layout(defaults);
         panel_settings_group
@@ -409,22 +389,18 @@ impl PanelSettingsGroup {
             [
                 GroupItem::toggle(
                     disconnected_toggle(self.group_framing),
-                    PanelSettingsTarget::DisconnectedGroups,
                     PanelSettingsMessage::ToggleDisconnectedGroups,
                 ),
                 GroupItem::toggle(
                     pinned_groups_toggle(self.group_collapsing),
-                    PanelSettingsTarget::AutoCollapseGroups,
                     PanelSettingsMessage::ToggleAutoCollapseGroups,
                 ),
                 GroupItem::toggle(
                     window_row_layout_toggle(self.window_row_layout),
-                    PanelSettingsTarget::WindowRowLayout,
                     PanelSettingsMessage::ToggleWindowRowLayout,
                 ),
                 GroupItem::toggle(
                     window_title_length_toggle(self.window_title_length),
-                    PanelSettingsTarget::WindowTitleLength,
                     PanelSettingsMessage::ToggleWindowTitleLength,
                 ),
                 GroupItem::slider(

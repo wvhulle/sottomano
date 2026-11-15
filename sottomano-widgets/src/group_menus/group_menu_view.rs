@@ -17,7 +17,7 @@ use sottomano_toml_config::{Config, screen_edges::Position, severity::Severity};
 use crate::{
     clock::Clock,
     desktop_panels::panel_slot::PanelSlot,
-    group_items::group_item::RowHoverCard,
+    group_items::group_item::{GroupItem, RowHoverCard},
     group_menus::{
         cascading_layout::menu_satellite_regions::{SatelliteBlur, satellite_with_regions},
         group_menu_state::{
@@ -34,8 +34,7 @@ use crate::{
         },
     },
     hover_cards::{
-        HoverAnnouncement, HoverOrigin, HoverTarget, MenuHandleIndicator, PanelPinOrigin,
-        PopupMessage, PressHints,
+        CardHeader, HoverTarget, InstrumentKey, MenuHandleIndicator, PanelPinOrigin, PopupMessage,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
         hover_card_content::HoverCardContent,
         hoverable,
@@ -63,7 +62,6 @@ pub struct GroupMenuCascadeSurfaces<'a, Message> {
 
 pub struct InspectionCard<'c, 'a> {
     pub sections: &'c [Section],
-    pub announcement: HoverAnnouncement,
     pub card_appearance: LayerAppearance,
     pub assets: WindowAssets<'a>,
     pub clock: Clock,
@@ -71,7 +69,7 @@ pub struct InspectionCard<'c, 'a> {
 
 impl InspectionCard<'_, '_> {
     pub(crate) fn view(&self, config: &Config) -> Option<Element<'static, PopupMessage>> {
-        let hover_card = HoverCard::new(self.sections.to_vec(), self.announcement.clone())?;
+        let hover_card = HoverCard::new(self.sections.to_vec(), CardHeader::Unheaded)?;
         Some(HoverCardContent::new(&hover_card, config, self.assets, self.clock).view())
     }
 }
@@ -140,10 +138,10 @@ impl<M> GroupMenuMessenger<M> {
         }
     }
 
-    pub(crate) fn inspect_row(&self, target: HoverTarget) -> GroupEvent<M> {
+    pub(crate) fn inspect_row(&self, instrument: InstrumentKey) -> GroupEvent<M> {
         self.sent(GroupMenuMessage::InspectRow {
             menu: self.topic,
-            target,
+            instrument,
         })
     }
 }
@@ -180,10 +178,31 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
     }
 
     #[must_use]
-    pub fn row_hover_card(&self, target: &HoverTarget, clock: Clock) -> Option<RowHoverCard> {
+    pub fn instrument(&self, instrument_key: &InstrumentKey) -> Option<&GroupItem<'a, M>> {
         self.groups
             .iter()
-            .find_map(|group| group.row_hover_card(target, clock))
+            .find_map(|group| group.instrument(instrument_key))
+    }
+
+    #[must_use]
+    pub fn hovered_instrument(&self, target: &HoverTarget) -> Option<&GroupItem<'a, M>> {
+        self.groups
+            .iter()
+            .find_map(|group| group.hovered_instrument(target))
+    }
+
+    #[must_use]
+    pub fn hover_card(&self, target: &HoverTarget, clock: Clock) -> Option<RowHoverCard> {
+        self.groups
+            .iter()
+            .find_map(|group| group.hover_card(target, clock))
+    }
+
+    #[must_use]
+    pub fn row_hover_card(&self, instrument_key: &InstrumentKey, clock: Clock) -> Vec<Section> {
+        self.instrument(instrument_key)
+            .map(|item| item.card_with_actions(clock))
+            .unwrap_or_default()
     }
 
     #[must_use]
@@ -235,16 +254,10 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             .unwrap_or_default();
         let glyph = IconGlyph::from(self.messenger.topic.glyph())
             .view(config.theme.font.icon_size_px, text_color);
-        let target = HoverTarget::GroupMenu(self.messenger.topic);
-        let announcement = HoverAnnouncement {
-            press_hints: PressHints::default(),
-            origin: HoverOrigin::MenuHandle(self.messenger.topic),
-        };
         let handle = hoverable(
             self.group_menus.presentation().open_trigger,
             glyph,
-            target,
-            announcement,
+            HoverTarget::GroupMenu(self.messenger.topic),
             GroupEvent::HoverCard,
         );
         let indicator = EdgeIndicator::menu_handle_view(highest_alert_severity, handle_indicator);
@@ -394,10 +407,10 @@ fn nested_menu_groups<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 
     row_context: &GroupMenuRowContext<'_, M>,
     group_rows: Vec<GroupMenuGroupRow<'a, M>>,
     card: &InspectionCard<'_, 'a>,
-) -> Vec<NestedMenuGroup<'a, HoverTarget, M>> {
+) -> Vec<NestedMenuGroup<'a, InstrumentKey, M>> {
     let topic = row_context.menu.topic;
     let open_groups = row_context.group_menus.open_groups(topic);
-    let inspected_target = row_context.group_menus.inspected_target(topic);
+    let inspected_instrument = row_context.group_menus.inspected_instrument(topic);
     one_row_per_identity(group_rows)
         .into_iter()
         .map(|entry| {
@@ -426,7 +439,7 @@ fn nested_menu_groups<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 
                 .items
                 .into_iter()
                 .map(|item| {
-                    let beside = match item.row_emphasis(inspected_target) {
+                    let beside = match item.row_emphasis(inspected_instrument) {
                         NestedMenuRowEmphasis::Selected => card
                             .view(row_context.config)
                             .map_or(BesideRow::Nothing, |card_view| {
@@ -468,7 +481,7 @@ mod tests {
         clock::Clock,
         desktop_index::DesktopIndex,
         group_items::{
-            group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
+            group_item::{GroupItem, GroupItemValue},
             reading_display_state::ReadingDisplayState,
             reading_row::named_test_row,
             source_reading::GroupItemIcon,
@@ -478,7 +491,8 @@ mod tests {
             menu_rows::menu_row::menu_row_height,
         },
         hover_cards::{
-            HoverAnnouncement, HoverTarget, MenuHandleIndicator, PopupMessage, PressHints,
+            InstrumentKey, MenuHandleIndicator, MouseGesture, PopupMessage, PressAction,
+            hover_card_body::Section,
         },
         widget_groups::{
             widget_group_content::{WidgetGroupContent, WidgetGroupExpansion, WidgetGroupFace},
@@ -492,7 +506,7 @@ mod tests {
 
     struct MenuTestBench {
         config: Config,
-        announcement: HoverAnnouncement,
+        sections: Vec<Section>,
         entries: DesktopIndex,
         favicons: Favicons,
         controller_artwork: ControllerArtwork,
@@ -503,7 +517,7 @@ mod tests {
         fn default() -> Self {
             MenuTestBench {
                 config: Config::default(),
-                announcement: HoverAnnouncement::default(),
+                sections: Vec::new(),
                 entries: DesktopIndex::default(),
                 favicons: Favicons::default(),
                 controller_artwork: ControllerArtwork::decoded(),
@@ -515,8 +529,7 @@ mod tests {
     impl MenuTestBench {
         fn inspection_card(&self) -> InspectionCard<'_, '_> {
             InspectionCard {
-                sections: &[],
-                announcement: self.announcement.clone(),
+                sections: &self.sections,
                 card_appearance: ShellLayer::Overlays.default_appearance(),
                 assets: WindowAssets {
                     entries: &self.entries,
@@ -616,10 +629,7 @@ mod tests {
             WidgetGroupFamily::Gpu,
             &expansion,
             |_| SmokeMessage,
-            [GroupItem::reading(
-                named_test_row("Smoke item"),
-                HoverTarget::Workspace(7),
-            )],
+            [GroupItem::reading(named_test_row("Smoke item"))],
         );
         let surfaces = GroupMenuView::new(
             GroupMenuTopic::Hardware,
@@ -719,7 +729,6 @@ mod tests {
             GroupItem::composed(
                 format!("Row {position}"),
                 GroupItemIcon::Absent,
-                GroupItemHoverArea::WholeItem(HoverTarget::Workspace(position)),
                 GroupItemValue::Nothing,
                 Box::new(|_| Vec::new()),
             )
@@ -789,33 +798,31 @@ mod tests {
         assert!((first_row_of_the_last_page - first_row_top).abs() < 1.0);
     }
 
-    fn inspection_card_view(
-        announcement: HoverAnnouncement,
-    ) -> Option<Element<'static, PopupMessage>> {
+    fn inspection_card_view(sections: Vec<Section>) -> Option<Element<'static, PopupMessage>> {
         let bench = MenuTestBench {
-            announcement,
+            sections,
             ..MenuTestBench::default()
         };
         bench.inspection_card().view(&bench.config)
     }
 
     #[test]
-    fn an_announcement_only_card_is_shown_in_a_menu() {
-        let announced = HoverAnnouncement::from(PressHints {
-            left: Some("switch something"),
-            ..PressHints::default()
-        });
-        assert!(inspection_card_view(announced).is_some());
+    fn an_actions_only_card_is_shown_in_a_menu() {
+        let actions_only = Section::press_actions(vec![PressAction::new(
+            MouseGesture::LeftClick,
+            "switch something",
+        )]);
+        assert!(inspection_card_view(actions_only.into_iter().collect()).is_some());
     }
 
     #[test]
-    fn a_card_without_sections_or_announcement_stays_hidden() {
-        assert!(inspection_card_view(HoverAnnouncement::default()).is_none());
+    fn a_card_without_sections_stays_hidden() {
+        assert!(inspection_card_view(Vec::new()).is_none());
     }
 
     #[derive(Debug, Clone, PartialEq)]
     enum RowPointerMessage {
-        RowInspected(HoverTarget),
+        RowInspected(InstrumentKey),
         RowAction,
         Revealed(WidgetGroupIdentity),
         RevealIntended(WidgetGroupIdentity),
@@ -838,7 +845,12 @@ mod tests {
         }
     }
 
-    const POINTED_ROW: HoverTarget = HoverTarget::Workspace(7);
+    fn pointed_row() -> InstrumentKey {
+        InstrumentKey {
+            group: WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu),
+            name: "Smoke item".into(),
+        }
+    }
 
     #[derive(Clone, Copy)]
     enum PointedRowPress {
@@ -866,21 +878,17 @@ mod tests {
             &expansion,
             |_| RowPointerMessage::Unrelated,
             [match row_press {
-                PointedRowPress::PerformsAction => {
-                    GroupItem::reading(named_test_row("Smoke item"), POINTED_ROW)
-                        .on_press("act", RowPointerMessage::RowAction)
-                }
-                PointedRowPress::ReadOnly => {
-                    GroupItem::reading(named_test_row("Smoke item"), POINTED_ROW)
-                }
+                PointedRowPress::PerformsAction => GroupItem::reading(named_test_row("Smoke item"))
+                    .on_press("act", RowPointerMessage::RowAction),
+                PointedRowPress::ReadOnly => GroupItem::reading(named_test_row("Smoke item")),
             }],
         );
         let surfaces = GroupMenuView::new(
             GroupMenuTopic::Hardware,
             &group_menus,
             |message| match message {
-                GroupMenuMessage::InspectRow { target, .. } => {
-                    RowPointerMessage::RowInspected(target)
+                GroupMenuMessage::InspectRow { instrument, .. } => {
+                    RowPointerMessage::RowInspected(instrument)
                 }
                 _ => RowPointerMessage::Unrelated,
             },
@@ -932,10 +940,7 @@ mod tests {
                 family,
                 &expansion,
                 |_| RowPointerMessage::Unrelated,
-                [GroupItem::reading(
-                    named_test_row("Smoke item"),
-                    POINTED_ROW,
-                )],
+                [GroupItem::reading(named_test_row("Smoke item"))],
             )
         });
         let surfaces = GroupMenuView::new(
@@ -1041,7 +1046,7 @@ mod tests {
     fn hovering_the_row_name_inspects_the_row() {
         assert!(
             messages_after_pointing(row_name_center, false)
-                .contains(&RowPointerMessage::RowInspected(POINTED_ROW))
+                .contains(&RowPointerMessage::RowInspected(pointed_row()))
         );
     }
 
@@ -1063,7 +1068,7 @@ mod tests {
     fn hovering_a_read_only_row_inspects_it() {
         assert!(
             messages_after_pointing_at_row(PointedRowPress::ReadOnly, row_name_center, false)
-                .contains(&RowPointerMessage::RowInspected(POINTED_ROW))
+                .contains(&RowPointerMessage::RowInspected(pointed_row()))
         );
     }
 
@@ -1071,14 +1076,13 @@ mod tests {
     fn a_pinned_composed_item_draws_its_value_on_the_panel() {
         let config = Config::default();
         let clock = Clock::real();
-        let target = HoverTarget::Workspace(7);
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(GroupMenuMessage::TogglePin {
             menu: GroupMenuTopic::Media,
-            entry: GroupMenuPin::Item {
+            entry: GroupMenuPin::Item(InstrumentKey {
                 group: WidgetGroupIdentity::sole(WidgetGroupFamily::Media),
-                item_in_group_name: "Lyrics".into(),
-            },
+                name: "Lyrics".into(),
+            }),
         });
         let expansion = WidgetGroupExpansion::default();
         let group = WidgetGroupContent::expandable(
@@ -1088,7 +1092,6 @@ mod tests {
             [GroupItem::composed_pinnable(
                 "Lyrics",
                 GroupItemIcon::Absent,
-                target,
                 GroupItemValue::drawn(|_| text("the sung line").into()),
                 Box::new(|_| Vec::new()),
             )],

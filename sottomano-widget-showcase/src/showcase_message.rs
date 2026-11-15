@@ -13,17 +13,17 @@ use sottomano_widgets::{
         caldav_group::CaldavMessage,
         cgroup_memory_limits_group::{CgroupMemoryLimitsInteraction, CgroupMemoryLimitsMessage},
         ci_runs_group::{CiRunsInteraction, CiRunsMessage},
-        claude_usage_group::ClaudeUsageMessage,
+        claude_usage_group::{ClaudeUsageInteraction, ClaudeUsageMessage},
         compute_group::{ComputeInteraction, ComputeMessage},
         docker_engines_group::{DockerEnginesInteraction, DockerEnginesMessage},
         flatpak_sandboxes_group::{FlatpakSandboxesInteraction, FlatpakSandboxesMessage},
         gamepad_group::{GamepadInteraction, GamepadMessage},
         idle_pause_groups::{IdlePauseInteraction, IdlePauseMessage},
         incus_instances_group::{IncusInstancesInteraction, IncusInstancesMessage},
-        login_session_group::LoginSessionMessage,
+        login_session_group::{LoginSessionInteraction, LoginSessionMessage},
         lxc_containers_group::{LxcContainersInteraction, LxcContainersMessage},
         media_group::{MediaInteraction, MediaMessage},
-        memory_board_group::MemoryBoardMessage,
+        memory_board_group::{MemoryBoardInteraction, MemoryBoardMessage},
         microvm_guests_group::{MicrovmGuestsInteraction, MicrovmGuestsMessage},
         nspawn_containers_group::{NspawnContainersInteraction, NspawnContainersMessage},
         podman_engines_group::{PodmanEnginesInteraction, PodmanEnginesMessage},
@@ -34,7 +34,7 @@ use sottomano_widgets::{
         voice_dictation_group::{VoiceDictationInteraction, VoiceDictationMessage},
         wallpaper_group::WallpaperMessage,
         waydroid_container_group::{WaydroidContainerInteraction, WaydroidContainerMessage},
-        weather_group::WeatherMessage,
+        weather_group::{WeatherInteraction, WeatherMessage},
         widget_group_content::{GroupEvent, WidgetGroupExpansionMessage},
         window_group::{WindowGroupInteraction, WindowGroupMessage},
         wireguard_tunnels_group::{WireguardTunnelsInteraction, WireguardTunnelsMessage},
@@ -86,9 +86,9 @@ pub enum ShowcaseMessage {
 #[derive(Debug, Clone)]
 pub enum ShowcaseInteraction {
     Compute(ComputeInteraction),
-    MemoryBoard(WidgetGroupExpansionMessage),
-    Weather(WidgetGroupExpansionMessage),
-    ClaudeUsage(WidgetGroupExpansionMessage),
+    MemoryBoard(MemoryBoardInteraction),
+    Weather(WeatherInteraction),
+    ClaudeUsage(ClaudeUsageInteraction),
     Media(MediaInteraction),
     IdleTimeouts(IdlePauseInteraction),
     Wallpaper(WidgetGroupExpansionMessage),
@@ -112,7 +112,7 @@ pub enum ShowcaseInteraction {
     CiRuns(CiRunsInteraction),
     Tailnet(TailnetInteraction),
     WireguardTunnels(WireguardTunnelsInteraction),
-    LoginSession(WidgetGroupExpansionMessage),
+    LoginSession(LoginSessionInteraction),
     WindowGroup(WindowGroupInteraction),
     AppearancePresets(AppearancePresetsMessage),
     GroupMenuState(GroupMenuMessage),
@@ -127,14 +127,14 @@ impl From<ShowcaseInteraction> for ShowcaseMessage {
             ShowcaseInteraction::Compute(interaction) => {
                 ShowcaseMessage::Compute(ComputeMessage::Interaction(interaction))
             }
-            ShowcaseInteraction::MemoryBoard(expansion) => {
-                ShowcaseMessage::MemoryBoard(MemoryBoardMessage::Expansion(expansion))
+            ShowcaseInteraction::MemoryBoard(interaction) => {
+                ShowcaseMessage::MemoryBoard(MemoryBoardMessage::Interaction(interaction))
             }
-            ShowcaseInteraction::Weather(expansion) => {
-                ShowcaseMessage::Weather(WeatherMessage::Expansion(expansion))
+            ShowcaseInteraction::Weather(interaction) => {
+                ShowcaseMessage::Weather(WeatherMessage::Interaction(interaction))
             }
-            ShowcaseInteraction::ClaudeUsage(expansion) => {
-                ShowcaseMessage::ClaudeUsage(ClaudeUsageMessage::Expansion(expansion))
+            ShowcaseInteraction::ClaudeUsage(interaction) => {
+                ShowcaseMessage::ClaudeUsage(ClaudeUsageMessage::Interaction(interaction))
             }
             ShowcaseInteraction::Media(interaction) => {
                 ShowcaseMessage::Media(MediaMessage::Interaction(interaction))
@@ -211,8 +211,8 @@ impl From<ShowcaseInteraction> for ShowcaseMessage {
             ShowcaseInteraction::WireguardTunnels(interaction) => {
                 ShowcaseMessage::WireguardTunnels(WireguardTunnelsMessage::Interaction(interaction))
             }
-            ShowcaseInteraction::LoginSession(expansion) => {
-                ShowcaseMessage::LoginSession(LoginSessionMessage::Expansion(expansion))
+            ShowcaseInteraction::LoginSession(interaction) => {
+                ShowcaseMessage::LoginSession(LoginSessionMessage::Interaction(interaction))
             }
             ShowcaseInteraction::WindowGroup(interaction) => {
                 ShowcaseMessage::WindowGroup(WindowGroupMessage::Interaction(interaction))

@@ -39,6 +39,7 @@ use sottomano_widgets::{
     background_work::{compositor_request, copy_to_clipboard},
     clock::Clock,
     desktop_index::DesktopIndex,
+    group_items::group_item::HoverFetch,
     group_menus::{
         cascading_layout::popup_growth::growth_away_from,
         group_menu_state::{
@@ -47,16 +48,16 @@ use sottomano_widgets::{
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
     },
     hover_cards::{
-        HoverAnnouncement, HoverCardHost, HoverTarget,
-        hover_card_body::hover_card_source_delivery::HoverCard, hover_card_surfaces::HoverContent,
+        HoverCardHost, HoverTarget, hover_card_surfaces::HoverContent,
         hover_card_transition::CardRetention,
     },
     notification_toasts::{
         NotificationLayer, ToastSurfaceStyle, toast_updates::StoppedChangeWatch,
     },
     widget_groups::{
-        appearance_presets_group::AppearancePresetsMessage, idle_pause_groups::IdlePauseMessage,
-        session_power_group,
+        appearance_presets_group::AppearancePresetsMessage,
+        idle_pause_groups::IdlePauseMessage,
+        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
     },
     widgets::{
         configured_theme::configured_theme,
@@ -93,6 +94,7 @@ pub struct DesktopShell {
     pub backdrops: BTreeMap<Id, Position>,
     pub sidebar_widths: HashMap<Id, f32>,
     pub hover_card: HoverCardHost,
+    pub active_hover_fetch: HoverFetch<ShellInteraction>,
     pub notifications: NotificationLayer<ShellInteraction>,
     pub desktop_entries: DesktopIndex,
     pub favicons: Favicons,
@@ -127,6 +129,7 @@ impl DesktopShell {
             backdrops: BTreeMap::new(),
             sidebar_widths: HashMap::new(),
             hover_card: HoverCardHost::default(),
+            active_hover_fetch: HoverFetch::NothingToFetch,
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
             favicons: Favicons::default(),
@@ -168,7 +171,7 @@ impl DesktopShell {
         let _span = tracing::trace_span!("update", ?message).entered();
         self.clock = Clock::real();
         let hover_card_target_before = self.hover_card.target().cloned();
-        let hovered_before = self.hovered_reading_target().cloned();
+        let hovered_before = self.hovered_reading_target();
         let heat_effect = switch_heat_effect(&message);
         let alert_rescan = alert_rescan_need(&message);
         let dispatched = self.dispatch_message(message);
@@ -187,7 +190,7 @@ impl DesktopShell {
                 .group_menus
                 .update(GroupMenuMessage::Closed);
         }
-        let hover_readings = if self.hovered_reading_target() == hovered_before.as_ref() {
+        let hover_readings = if self.hovered_reading_target() == hovered_before {
             Task::none()
         } else {
             self.retarget_hover_readings()
@@ -239,7 +242,7 @@ impl DesktopShell {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn dispatch_message(&mut self, message: Message) -> Task<Message> {
+    pub(crate) fn dispatch_message(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Output(change) => self.apply_output_change(change),
             Message::WindowGroup(msg) => self.update_window_group(msg),
@@ -395,10 +398,7 @@ impl DesktopShell {
             }
             Message::CopyText(text) => copy_to_clipboard(text),
             Message::OpenUrl(url) => self.open_url(url),
-            Message::RefreshHoveredReading => Task::batch([
-                self.refresh_hovered_reading(),
-                self.retarget_hover_readings(),
-            ]),
+            Message::RefreshHoveredReading => self.refresh_hovered_reading(),
             Message::FocusWindow(window) => Task::batch([
                 self.dismiss_hover_card(),
                 compositor_request(CompositorRequest::FocusWindow(window)),
@@ -466,10 +466,12 @@ impl DesktopShell {
             | Message::CiRuns(_)
             | Message::SessionFocus(_)
             | Message::LoginSession(_)
-            | Message::DarkMode(_)) => {
-                self.widget_groups
-                    .route(group_message, &self.config, self.clock)
-            }
+            | Message::DarkMode(_)) => self.widget_groups.route(
+                group_message,
+                &self.config,
+                self.desktop_buses.as_ref(),
+                self.clock,
+            ),
             Message::HoverCardFadeElapsed
             | Message::LayoutChange { .. }
             | Message::BlurOptionChange { .. }
@@ -498,7 +500,6 @@ impl DesktopShell {
     pub(crate) fn hover_content(
         &self,
         target: &HoverTarget,
-        announcement: HoverAnnouncement,
     ) -> Option<HoverContent<'_, ShellInteraction>> {
         if let Some(GroupMenuCascadeSurfaces {
             primary,
@@ -513,7 +514,8 @@ impl DesktopShell {
         }
         match self.interactive_panel(target) {
             Some(panel) => Some(HoverContent::Interactive { panel }),
-            None => HoverCard::new(self.hover_card_sections(target), announcement)
+            None => self
+                .described_hover_card(target)
                 .map(HoverContent::Described),
         }
     }
@@ -557,11 +559,11 @@ impl DesktopShell {
             return None;
         };
         let group_menu = self.group_menu_of(*topic, self.hovered_output());
-        let inspected_card = self
+        let inspected_sections = self
             .widget_groups
             .group_menus
-            .inspected_target(*topic)
-            .and_then(|target| group_menu.row_hover_card(target, self.clock))
+            .inspected_instrument(*topic)
+            .map(|instrument_key| group_menu.row_hover_card(instrument_key, self.clock))
             .unwrap_or_default();
         let satellite_fade_level = self.hover_card_output().map_or(0.0, |output| {
             self.card_background_fade(output).fade_level_anywhere()
@@ -575,8 +577,7 @@ impl DesktopShell {
                 .appearance()
                 .with_background_faded(satellite_fade_level),
             &InspectionCard {
-                sections: &inspected_card.sections,
-                announcement: inspected_card.announcement,
+                sections: &inspected_sections,
                 card_appearance: self
                     .widget_groups
                     .overlay_settings_group
@@ -600,12 +601,15 @@ impl DesktopShell {
                 .corner_radius_px,
         );
         match target {
-            HoverTarget::Tray(address) => self
-                .widget_groups
-                .tray_group
-                .menu_panel(address, &self.config, popup_corners)
-                .map(|panel| panel.map(ShellInteraction::Tray)),
-            HoverTarget::Session(session_power_group::SessionTarget::Menu) => Some(
+            HoverTarget::Instrument(instrument_key)
+                if instrument_key.group == WidgetGroupIdentity::sole(WidgetGroupFamily::Tray) =>
+            {
+                self.widget_groups
+                    .tray_group
+                    .menu_panel_named(&instrument_key.name, &self.config, popup_corners)
+                    .map(|panel| panel.map(ShellInteraction::Tray))
+            }
+            HoverTarget::SessionMenu => Some(
                 self.widget_groups
                     .session_power_group
                     .menu_panel(
@@ -644,7 +648,7 @@ impl DesktopShell {
             self.widget_groups
                 .hover_card_surface_style(self.card_background_fade(output)),
             self.window_assets(),
-            |target: &HoverTarget, announcement| self.hover_content(target, announcement),
+            |target: &HoverTarget| self.hover_content(target),
             self.clock,
         )
     }

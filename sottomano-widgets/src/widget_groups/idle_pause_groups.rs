@@ -31,7 +31,7 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::{group_item::GroupItem, slider_control::ControlMessage},
-    hover_cards::{HoverTarget, PauseBlockerTarget, hover_card_body::Section},
+    hover_cards::hover_card_body::Section,
     widget_groups::{
         idle_pause_groups::pause_blocker_rows::TimerArming,
         widget_group_content::{
@@ -392,14 +392,8 @@ impl IdlePauseGroups {
             .blockers_of(pause)
             .enumerate()
             .map(move |(position, blocker)| {
-                let blocker_item = GroupItem::reading(
-                    blocker.reading_row(),
-                    HoverTarget::PauseBlocker(PauseBlockerTarget {
-                        pause,
-                        holder: blocker.holder.clone(),
-                    }),
-                )
-                .with_hover_card(Box::new(move |_| self.blocker_group_sections(pause)));
+                let blocker_item = GroupItem::reading(blocker.reading_row())
+                    .with_hover_card(Box::new(move |_| self.blocker_group_sections(pause)));
                 match position {
                     0 => blocker_item.previewed_on_handle(),
                     _ => blocker_item,
@@ -411,13 +405,9 @@ impl IdlePauseGroups {
             .filter(|_| pause == IdleAction::Sleep)
             .and_then(SleepObstacles::sleep_state_that_runs)
             .map(|state| {
-                GroupItem::reading(
-                    NextSleepStateRow { state }.reading_row(),
-                    HoverTarget::IdleOutcome(IdleAction::Sleep),
+                GroupItem::reading(NextSleepStateRow { state }.reading_row()).with_hover_card(
+                    Box::new(move |card_clock| self.pause_sections(IdleAction::Sleep, card_clock)),
                 )
-                .with_hover_card(Box::new(move |card_clock| {
-                    self.pause_sections(IdleAction::Sleep, card_clock)
-                }))
             });
         let scheduled_shutdown = self
             .sleep_obstacles
@@ -425,13 +415,10 @@ impl IdlePauseGroups {
             .filter(|_| pause == IdleAction::PowerOff)
             .and_then(|obstacles| obstacles.scheduled_shutdown.as_ref())
             .map(|shutdown| {
-                GroupItem::reading(
-                    ScheduledShutdownRow { shutdown }.reading_row(clock, locale),
-                    HoverTarget::IdleOutcome(IdleAction::PowerOff),
-                )
-                .with_hover_card(Box::new(move |card_clock| {
-                    self.pause_sections(IdleAction::PowerOff, card_clock)
-                }))
+                GroupItem::reading(ScheduledShutdownRow { shutdown }.reading_row(clock, locale))
+                    .with_hover_card(Box::new(move |card_clock| {
+                        self.pause_sections(IdleAction::PowerOff, card_clock)
+                    }))
             });
         let glyph = pause_glyph(pause).into();
         let face = match first_blocker {

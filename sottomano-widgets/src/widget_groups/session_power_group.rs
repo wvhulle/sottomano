@@ -16,7 +16,7 @@ use tokio::time::sleep;
 use crate::{
     background_work::logged_failure_task,
     group_items::{
-        group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
+        group_item::{GroupItem, GroupItemValue},
         reading_display_state::ReadingDisplayState,
         source_reading::GroupItemIcon,
     },
@@ -68,11 +68,6 @@ impl SessionMenuEntry {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SessionTarget {
-    Menu,
-}
-
 #[must_use]
 pub fn session_action_icon(action: SessionAction) -> Phosphor {
     {
@@ -95,12 +90,6 @@ pub fn session_action_icon(action: SessionAction) -> Phosphor {
             SessionAction::TerminateSession => Phosphor::DoorOpen(weight),
             SessionAction::RestartShell => Phosphor::ArrowClockwise(weight),
         }
-    }
-}
-
-impl From<SessionTarget> for HoverTarget {
-    fn from(target: SessionTarget) -> Self {
-        HoverTarget::Session(target)
     }
 }
 
@@ -178,17 +167,20 @@ impl SessionPowerGroup {
 
     #[must_use]
     pub fn group_content<'a>(&self) -> FixedPanelGroup<'a, SessionMessage> {
-        FixedPanelGroup::new((!self.permissions.allowed.is_empty()).then(|| {
-            GroupItem::composed(
+        if self.permissions.allowed.is_empty() {
+            return FixedPanelGroup::Empty;
+        }
+        FixedPanelGroup::Shown {
+            item: Box::new(GroupItem::composed(
                 "Session",
                 GroupItemIcon::IconGlyph {
                     glyph: Phosphor::Power(Weight::Regular).into(),
                     state: ReadingDisplayState::Idle,
                 },
-                GroupItemHoverArea::WholeItem(SessionTarget::Menu.into()),
                 GroupItemValue::Nothing,
                 Box::new(|_| Vec::new()),
-            )
-        }))
+            )),
+            hover_target: HoverTarget::SessionMenu,
+        }
     }
 }

@@ -1,6 +1,14 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use sottomano_widgets::clock::Clock;
+use sottomano_widgets::{
+    clock::Clock,
+    widget_groups::{
+        compute_group::ComputeMessage, login_session_group::LoginSessionMessage,
+        memory_board_group::MemoryBoardMessage, tailnet_group::TailnetMessage,
+        voice_dictation_group::VoiceDictationMessage,
+        wireguard_tunnels_group::WireguardTunnelsMessage,
+    },
+};
 
 use crate::showcase_message::ShowcaseMessage;
 
@@ -65,3 +73,46 @@ pub mod wallpaper;
 pub mod waydroid_container;
 pub mod weather;
 pub mod wireguard_tunnels;
+
+#[must_use]
+pub fn hover_fetch_replies(started_fetch: &ShowcaseMessage) -> Vec<ShowcaseMessage> {
+    match started_fetch {
+        ShowcaseMessage::Compute(ComputeMessage::Interaction(interaction)) => {
+            compute::on_hover(interaction)
+                .into_iter()
+                .map(ShowcaseMessage::Compute)
+                .collect()
+        }
+        ShowcaseMessage::MemoryBoard(MemoryBoardMessage::Interaction(interaction)) => {
+            memory_board::on_hover(interaction)
+                .into_iter()
+                .map(ShowcaseMessage::MemoryBoard)
+                .collect()
+        }
+        ShowcaseMessage::VoiceDictation(VoiceDictationMessage::Interaction(interaction)) => {
+            voice_dictation::on_hover(interaction)
+                .into_iter()
+                .map(ShowcaseMessage::VoiceDictation)
+                .collect()
+        }
+        ShowcaseMessage::Tailnet(TailnetMessage::Interaction(interaction)) => {
+            tailnet::on_hover(interaction)
+                .into_iter()
+                .map(ShowcaseMessage::Tailnet)
+                .collect()
+        }
+        ShowcaseMessage::WireguardTunnels(WireguardTunnelsMessage::Interaction(interaction)) => {
+            wireguard_tunnels::on_hover(interaction)
+                .into_iter()
+                .map(ShowcaseMessage::WireguardTunnels)
+                .collect()
+        }
+        ShowcaseMessage::LoginSession(LoginSessionMessage::Interaction(interaction)) => {
+            login_session::on_hover(interaction)
+                .into_iter()
+                .map(ShowcaseMessage::LoginSession)
+                .collect()
+        }
+        _ => Vec::new(),
+    }
+}

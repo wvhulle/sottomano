@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use iced::{Subscription, Task};
 
 use crate::{clock::Clock, widget_groups::widget_group_identity::WidgetGroupFamily};
@@ -33,15 +35,17 @@ use sottomano_toml_config::{Config, widget_groups::systemd_manager::SystemdManag
 use crate::{
     background_work::{copy_to_clipboard, logged_failure_task, snapshot_subscription},
     group_items::{group_item::GroupItem, reading_display_state::ReadingDisplayState},
-    hover_cards::HoverTarget,
+    hover_cards::InstrumentKey,
     widget_groups::{
         terminal_command::TerminalCommand,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
+        widget_group_identity::WidgetGroupIdentity,
     },
     widgets::{
         icon_glyph::IconGlyph,
+        ongoing_toast::OngoingKey,
         phosphor::{Phosphor, Weight},
         subscribed_snapshot::SubscribedSnapshot,
     },
@@ -54,60 +58,18 @@ fn unit_scope_icon(scope: SystemdUnitScope) -> Phosphor {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SystemdTarget {
-    BootPhases,
-    StartupUnits,
-    FailedSystemUnits,
-    FailedUserUnits,
-    FailedSystemUnit(String),
-    FailedUserUnit(String),
-    SlowSystemJobs,
-    SlowUserJobs,
-    SlowSystemJob(String),
-    SlowUserJob(String),
-    LastShutdown,
-}
-
-impl SystemdTarget {
-    fn failed_units(scope: SystemdUnitScope) -> Self {
-        match scope {
-            SystemdUnitScope::UserSession => SystemdTarget::FailedUserUnits,
-            SystemdUnitScope::SystemWide => SystemdTarget::FailedSystemUnits,
-        }
-    }
-
-    fn slow_jobs(scope: SystemdUnitScope) -> Self {
-        match scope {
-            SystemdUnitScope::UserSession => SystemdTarget::SlowUserJobs,
-            SystemdUnitScope::SystemWide => SystemdTarget::SlowSystemJobs,
-        }
-    }
-
-    fn failed_unit(scope: SystemdUnitScope, name: String) -> Self {
-        match scope {
-            SystemdUnitScope::UserSession => SystemdTarget::FailedUserUnit(name),
-            SystemdUnitScope::SystemWide => SystemdTarget::FailedSystemUnit(name),
-        }
-    }
-
-    fn slow_job(scope: SystemdUnitScope, name: String) -> Self {
-        match scope {
-            SystemdUnitScope::UserSession => SystemdTarget::SlowUserJob(name),
-            SystemdUnitScope::SystemWide => SystemdTarget::SlowSystemJob(name),
-        }
-    }
-}
-
-impl From<SystemdTarget> for HoverTarget {
-    fn from(target: SystemdTarget) -> Self {
-        HoverTarget::Systemd(target)
+fn unit_toast_key(row_name: Cow<'static, str>, unit_name: String) -> OngoingKey {
+    OngoingKey::ReadingDetail {
+        instrument: InstrumentKey {
+            group: WidgetGroupIdentity::sole(WidgetGroupFamily::SystemdManager),
+            name: row_name,
+        },
+        detail: Cow::Owned(unit_name),
     }
 }
 
 fn slow_jobs_entry<'a>(
     snapshot: &'a SubscribedSnapshot<SlowJobs>,
-    target: SystemdTarget,
     config: &'a Config,
     clock: Clock,
 ) -> Option<GroupItem<'a, SystemdManagerInteraction>> {
@@ -122,7 +84,6 @@ fn slow_jobs_entry<'a>(
             snapshot.group_item(
                 IconGlyph::default(),
                 |slow_jobs| slow_jobs_reading_row(slow_jobs),
-                target,
                 clock,
             )
         })
@@ -130,7 +91,6 @@ fn slow_jobs_entry<'a>(
 
 fn failed_units_entry<'a>(
     snapshot: &'a SubscribedSnapshot<FailedUnits>,
-    target: SystemdTarget,
     config: &'a Config,
     clock: Clock,
 ) -> Option<GroupItem<'a, SystemdManagerInteraction>> {
@@ -145,7 +105,6 @@ fn failed_units_entry<'a>(
             snapshot.group_item(
                 IconGlyph::default(),
                 |failed_units| failed_units_reading_row(failed_units),
-                target,
                 clock,
             )
         })
@@ -287,73 +246,44 @@ impl SystemdManagerGroup {
             SystemdManagerInteraction::Expansion,
             [
                 boot.map(|boot| {
-                    GroupItem::reading(
-                        boot_timeline_reading_row(boot, locale),
-                        SystemdTarget::BootPhases,
-                    )
-                    .previewed_on_handle()
-                    .with_hover_card(Box::new(move |_| {
-                        self.boot.sections_described_by(boot_timeline_hover_card)
-                    }))
+                    GroupItem::reading(boot_timeline_reading_row(boot, locale))
+                        .previewed_on_handle()
+                        .with_hover_card(Box::new(move |_| {
+                            self.boot.sections_described_by(boot_timeline_hover_card)
+                        }))
                 }),
                 boot.map(|timeline| {
-                    GroupItem::reading(
-                        StartupUnits { timeline }.reading_row(),
-                        SystemdTarget::StartupUnits,
+                    GroupItem::reading(StartupUnits { timeline }.reading_row()).with_hover_card(
+                        Box::new(move |_| {
+                            self.boot
+                                .hover_card_with(StartupUnits { timeline }.hover_card())
+                        }),
                     )
-                    .with_hover_card(Box::new(move |_| {
-                        self.boot
-                            .hover_card_with(StartupUnits { timeline }.hover_card())
-                    }))
                 }),
-                slow_jobs_entry(
-                    &self.slow_system_jobs,
-                    SystemdTarget::SlowSystemJobs,
-                    config,
-                    clock,
-                ),
-                slow_jobs_entry(
-                    &self.slow_user_jobs,
-                    SystemdTarget::SlowUserJobs,
-                    config,
-                    clock,
-                ),
-                failed_units_entry(
-                    &self.failed_system,
-                    SystemdTarget::FailedSystemUnits,
-                    config,
-                    clock,
-                ),
-                failed_units_entry(
-                    &self.failed_user,
-                    SystemdTarget::FailedUserUnits,
-                    config,
-                    clock,
-                ),
+                slow_jobs_entry(&self.slow_system_jobs, config, clock),
+                slow_jobs_entry(&self.slow_user_jobs, config, clock),
+                failed_units_entry(&self.failed_system, config, clock),
+                failed_units_entry(&self.failed_user, config, clock),
                 self.last_shutdown
                     .get()
                     .map(|last| {
-                        GroupItem::reading(
-                            last_shutdown_reading_row(last, locale),
-                            SystemdTarget::LastShutdown,
-                        )
-                        .on_press(
-                            TerminalCommand::JOURNAL_PRESS_HINT,
-                            SystemdManagerInteraction::OpenLog(TerminalCommand::journal(
-                                config,
-                                last.follow_log_args(),
-                            )),
-                        )
-                        .with_hover_card(Box::new(move |_| {
-                            self.last_shutdown
-                                .sections_described_by(last_shutdown_hover_card)
-                        }))
+                        GroupItem::reading(last_shutdown_reading_row(last, locale))
+                            .on_press(
+                                TerminalCommand::JOURNAL_PRESS_HINT,
+                                SystemdManagerInteraction::OpenLog(TerminalCommand::journal(
+                                    config,
+                                    last.follow_log_args(),
+                                )),
+                            )
+                            .with_hover_card(Box::new(move |_| {
+                                self.last_shutdown
+                                    .sections_described_by(last_shutdown_hover_card)
+                            }))
                     })
                     .or_else(|| {
                         self.last_shutdown.group_item(
                             IconGlyph::default(),
                             |snapshot| last_shutdown_reading_row(snapshot, locale),
-                            SystemdTarget::LastShutdown,
                             clock,
                         )
                     }),

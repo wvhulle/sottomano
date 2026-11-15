@@ -15,11 +15,12 @@ use sottomano_desktop_sources::{
         notulist_dbus_pipeline_activity::NotulistPipeline,
     },
 };
+use sottomano_toml_config::Config;
 use sottomano_widgets::{
     clock::Clock,
     group_items::unit_switch::UnitSwitchMessage,
     widget_groups::voice_dictation_group::{
-        VoiceDictationGroup, VoiceDictationMessage, VoiceDictationTarget,
+        VoiceDictationGroup, VoiceDictationInteraction, VoiceDictationMessage,
     },
 };
 
@@ -29,7 +30,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     ShowcasedGroup::VoiceDictation(Box::new(dictation_readings().into_iter().fold(
         VoiceDictationGroup::default(),
         |mut group, reading| {
-            let _ = group.update(reading, clock);
+            let _ = group.update(reading, &Config::default(), clock);
             group
         },
     )))
@@ -124,18 +125,14 @@ fn loaded_whisper_engine() -> DictationEngine {
     }
 }
 
-pub fn on_hover(target: VoiceDictationTarget) -> Vec<VoiceDictationMessage> {
-    match target {
-        VoiceDictationTarget::SpeechModel => vec![VoiceDictationMessage::ModelCardFetched(
-            SnapshotDelivery::single_read(Ok(whisper_model_card())),
-        )],
-        VoiceDictationTarget::InterfaceMismatch
-        | VoiceDictationTarget::Dictation
-        | VoiceDictationTarget::Pipeline
-        | VoiceDictationTarget::Runtime
-        | VoiceDictationTarget::RuntimeConfiguration
-        | VoiceDictationTarget::InferenceHardware
-        | VoiceDictationTarget::TypingOutput => Vec::new(),
+pub fn on_hover(started_fetch: &VoiceDictationInteraction) -> Vec<VoiceDictationMessage> {
+    match started_fetch {
+        VoiceDictationInteraction::StartModelCardFetch(_) => {
+            vec![VoiceDictationMessage::ModelCardFetched(
+                SnapshotDelivery::single_read(Ok(whisper_model_card())),
+            )]
+        }
+        _ => Vec::new(),
     }
 }
 

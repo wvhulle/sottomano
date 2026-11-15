@@ -8,31 +8,12 @@ use crate::{
         toggle_control::{IconToggle, SwitchPresses},
     },
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuState},
-    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{WidgetGroupContent, WidgetGroupFace},
         widget_group_identity::WidgetGroupFamily,
     },
-    widgets::{
-        layer_appearance_controls::AppearanceTarget,
-        phosphor::{Phosphor, Weight},
-    },
+    widgets::phosphor::{Phosphor, Weight},
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GroupMenuSettingsTarget {
-    AccordionLayout,
-    ClickToOpenMenus,
-    KeepOneGroupOpen,
-    SubmenuConnector,
-    Appearance(AppearanceTarget),
-}
-
-impl From<GroupMenuSettingsTarget> for HoverTarget {
-    fn from(target: GroupMenuSettingsTarget) -> Self {
-        HoverTarget::GroupMenuSettings(target)
-    }
-}
 
 fn accordion_layout_toggle(presentation: NestedMenuPresentation) -> IconToggle {
     IconToggle::new(
@@ -92,7 +73,6 @@ impl GroupMenuState {
         let accordion_only_item = (presentation.layout == NestedMenuLayout::Accordion).then(|| {
             GroupItem::toggle(
                 keep_one_group_open_toggle(presentation),
-                GroupMenuSettingsTarget::KeepOneGroupOpen,
                 GroupMenuMessage::SwitchPresentation(presentation.with_open_limit_toggled()),
             )
         });
@@ -103,17 +83,14 @@ impl GroupMenuState {
             [
                 GroupItem::toggle(
                     accordion_layout_toggle(presentation),
-                    GroupMenuSettingsTarget::AccordionLayout,
                     GroupMenuMessage::SwitchPresentation(presentation.with_layout_toggled()),
                 ),
                 GroupItem::toggle(
                     click_to_open_menus_toggle(presentation),
-                    GroupMenuSettingsTarget::ClickToOpenMenus,
                     GroupMenuMessage::SwitchPresentation(presentation.with_open_trigger_toggled()),
                 ),
                 GroupItem::toggle(
                     submenu_connector_toggle(presentation),
-                    GroupMenuSettingsTarget::SubmenuConnector,
                     GroupMenuMessage::SwitchPresentation(
                         presentation.with_submenu_connector_toggled(),
                     ),

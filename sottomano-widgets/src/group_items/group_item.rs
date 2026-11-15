@@ -1,4 +1,4 @@
-use std::{borrow::Cow, iter::once, rc::Rc};
+use std::{borrow::Cow, convert::identity, iter::once, rc::Rc};
 
 use chrono::Locale;
 use corredo::{
@@ -30,8 +30,8 @@ use crate::{
     },
     group_menus::group_menu_state::{AlertPromotion, GroupMenuPin},
     hover_cards::{
-        HoverAnnouncement, HoverOrigin, HoverTarget, PressHints, hover_card_body::Section,
-        hoverable,
+        CardHeader, HoverTarget, InstrumentKey, MouseGesture, PressAction,
+        hover_card_body::Section, hoverable,
     },
     widget_groups::{
         widget_group_content::{GroupEvent, GroupToastRequests},
@@ -48,8 +48,7 @@ use crate::{
 };
 
 type DrawItem<'a, M> = Box<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
-type DrawControl<'a, M> =
-    Box<dyn Fn(f32, Clock, ItemPlacement, &HoverOrigin) -> Element<'a, GroupEvent<M>> + 'a>;
+type DrawControl<'a, M> = Box<dyn Fn(f32, Clock, ItemPlacement) -> Element<'a, GroupEvent<M>> + 'a>;
 
 type AdjustByScroll<'a, M> = Rc<dyn Fn(ScrollDelta) -> M + 'a>;
 
@@ -84,39 +83,42 @@ enum ItemHandlePreview {
     Absent,
 }
 
-pub enum GroupItemHoverArea {
-    WholeItem(HoverTarget),
-    ByChildren {
-        row_target: HoverTarget,
-        child_targets: Vec<HoverTarget>,
-    },
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HoverFetch<M> {
+    NothingToFetch,
+    Fetch { start: M, stop: M },
 }
 
-impl GroupItemHoverArea {
-    fn target(&self) -> &HoverTarget {
+impl<M> HoverFetch<M> {
+    fn map<Outer>(self, lift: fn(M) -> Outer) -> HoverFetch<Outer> {
         match self {
-            GroupItemHoverArea::WholeItem(target)
-            | GroupItemHoverArea::ByChildren {
-                row_target: target, ..
-            } => target,
-        }
-    }
-
-    fn owns_target(&self, hovered_target: &HoverTarget) -> bool {
-        match self {
-            GroupItemHoverArea::WholeItem(target) => target == hovered_target,
-            GroupItemHoverArea::ByChildren {
-                row_target,
-                child_targets,
-            } => row_target == hovered_target || child_targets.contains(hovered_target),
+            HoverFetch::NothingToFetch => HoverFetch::NothingToFetch,
+            HoverFetch::Fetch { start, stop } => HoverFetch::Fetch {
+                start: lift(start),
+                stop: lift(stop),
+            },
         }
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReadingRefresh<M> {
+    Unrefreshable,
+    Refreshes(M),
+}
+
+impl<M> ReadingRefresh<M> {
+    fn map<Outer>(self, lift: fn(M) -> Outer) -> ReadingRefresh<Outer> {
+        match self {
+            ReadingRefresh::Unrefreshable => ReadingRefresh::Unrefreshable,
+            ReadingRefresh::Refreshes(message) => ReadingRefresh::Refreshes(lift(message)),
+        }
+    }
+}
+
 pub struct RowHoverCard {
     pub sections: Vec<Section>,
-    pub announcement: HoverAnnouncement,
+    pub header: CardHeader,
 }
 
 pub enum GroupItemValue<'a, M> {
@@ -166,8 +168,8 @@ impl<'a, M: 'a> RowValueControl<'a, M> {
                 adjust_by_scroll,
             } => RowValueControl::Slider {
                 readout,
-                draw: Box::new(move |reveal, clock, placement, hover_origin| {
-                    draw(reveal, clock, placement, hover_origin).map(move |event| event.map(lift))
+                draw: Box::new(move |reveal, clock, placement| {
+                    draw(reveal, clock, placement).map(move |event| event.map(lift))
                 }),
                 adjust_by_scroll: Rc::new(move |delta| lift(adjust_by_scroll(delta))),
             },
@@ -179,7 +181,6 @@ impl<'a, M: 'a> RowValueControl<'a, M> {
 pub(crate) struct HandlePreview<'p> {
     pub face: &'p RowFace,
     pub readout: &'p RowReadout,
-    pub target: &'p HoverTarget,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -198,13 +199,15 @@ pub(crate) fn reading_toast_severity(row: &ReadingRow<'_>) -> Option<Severity> {
 pub struct GroupItem<'a, M> {
     face: RowFace,
     value: RowValueControl<'a, M>,
-    hover: GroupItemHoverArea,
     pinning: ItemPinning,
     card: DescribeCard<'a>,
     alerts: ReadingAlerts,
     gestures: GroupItemGestures<M>,
+    control_actions: Vec<PressAction>,
+    button_actions: Vec<PressAction>,
+    hover_fetch: HoverFetch<M>,
+    refresh: ReadingRefresh<M>,
     power_control: ItemPowerControl,
-    handle_announcement: HoverAnnouncement,
     handle_preview: ItemHandlePreview,
     ongoing_toast_action_buttons: Vec<OngoingToastActionButton<M>>,
     ongoing_toasts: Vec<OngoingToast<M>>,
@@ -216,7 +219,6 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     fn assembled_row(
         face: RowFace,
         value: RowValueControl<'a, M>,
-        hover: GroupItemHoverArea,
         pinning: ItemPinning,
         card: DescribeCard<'a>,
         alerts: ReadingAlerts,
@@ -224,26 +226,20 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         Self {
             face,
             value,
-            hover,
             pinning,
             card,
             alerts,
             gestures: GroupItemGestures::inert(),
+            control_actions: Vec::new(),
+            button_actions: Vec::new(),
+            hover_fetch: HoverFetch::NothingToFetch,
+            refresh: ReadingRefresh::Unrefreshable,
             power_control: ItemPowerControl::Absent,
-            handle_announcement: HoverAnnouncement::default(),
             handle_preview: ItemHandlePreview::Absent,
             ongoing_toast_action_buttons: Vec::new(),
             ongoing_toasts: Vec::new(),
             alignment: ItemAlignment::Unaligned,
             card_opening_trigger: NestedMenuOpenTrigger::Hover,
-        }
-    }
-
-    #[must_use]
-    pub(crate) fn whole_item_target(&self) -> Option<&HoverTarget> {
-        match &self.hover {
-            GroupItemHoverArea::WholeItem(target) => Some(target),
-            GroupItemHoverArea::ByChildren { .. } => None,
         }
     }
 
@@ -255,7 +251,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    pub fn reading(row: ReadingRow<'a>, target: impl Into<HoverTarget>) -> Self {
+    pub fn reading(row: ReadingRow<'a>) -> Self {
         let ReadingRow {
             face,
             readout,
@@ -266,7 +262,6 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         Self::assembled_row(
             face,
             RowValueControl::RowReadout(readout),
-            GroupItemHoverArea::WholeItem(target.into()),
             ItemPinning::Pinnable,
             card,
             alerts,
@@ -291,42 +286,37 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         };
         let on_control = Rc::new(on_control);
         let scrolled_control = Rc::clone(&on_control);
-        Self::assembled_row(
+        let control_actions = slider.press_actions();
+        let slider_row = Self::assembled_row(
             face,
             RowValueControl::Slider {
                 readout,
                 adjust_by_scroll: Rc::new(move |delta| {
                     scrolled_control(ControlMessage::Scroll(delta))
                 }),
-                draw: Box::new(move |reveal, _, placement, hover_origin| {
+                draw: Box::new(move |reveal, _, placement| {
                     let on_control = Rc::clone(&on_control);
                     let slider_view = match placement {
-                        ItemPlacement::Panel => {
-                            slider.view(config, shown_reading.clone(), reveal, hover_origin)
-                        }
+                        ItemPlacement::Panel => slider.view(config, shown_reading.clone(), reveal),
                         ItemPlacement::Table => slider.always_open_view(config),
                         ItemPlacement::Menu => slider.menu_view(config),
                     };
-                    slider_view.map(move |message| match message {
-                        ControlMessage::HoverCard(hover_card) => GroupEvent::HoverCard(hover_card),
-                        message => GroupEvent::Group(on_control(message)),
-                    })
+                    slider_view.map(move |message| GroupEvent::Group(on_control(message)))
                 }),
-            },
-            GroupItemHoverArea::ByChildren {
-                row_target: slider.target().clone(),
-                child_targets: Vec::new(),
             },
             ItemPinning::Pinnable,
             card,
             alerts,
-        )
+        );
+        Self {
+            control_actions,
+            ..slider_row
+        }
     }
 
     pub fn composed(
         name: impl Into<Cow<'static, str>>,
         icon: GroupItemIcon,
-        hover: GroupItemHoverArea,
         value: GroupItemValue<'a, M>,
         card: DescribeCard<'a>,
     ) -> Self {
@@ -337,7 +327,6 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 ordinal: IdentityOrdinal::Unnumbered,
             },
             RowValueControl::Drawn(value),
-            hover,
             ItemPinning::Unpinnable,
             card,
             ReadingAlerts::default(),
@@ -347,38 +336,19 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     pub fn composed_pinnable(
         name: impl Into<Cow<'static, str>>,
         icon: GroupItemIcon,
-        target: impl Into<HoverTarget>,
         value: GroupItemValue<'a, M>,
         card: DescribeCard<'a>,
     ) -> Self {
         Self {
             pinning: ItemPinning::Pinnable,
-            ..Self::composed(
-                name,
-                icon,
-                GroupItemHoverArea::WholeItem(target.into()),
-                value,
-                card,
-            )
+            ..Self::composed(name, icon, value, card)
         }
     }
 
-    #[must_use]
-    pub(crate) fn acting_as_handle(self, handle_announcement: HoverAnnouncement) -> Self {
-        Self {
-            handle_announcement,
-            ..self
-        }
-    }
-
-    pub fn toggle(toggle: IconToggle, target: impl Into<HoverTarget>, message: M) -> Self {
+    pub fn toggle(toggle: IconToggle, message: M) -> Self {
         let switch_position = toggle.switch_position;
         let press_does = toggle.press_does();
-        Self::reading(toggle.reading_row(), target).on_switch_press(
-            switch_position,
-            press_does,
-            message,
-        )
+        Self::reading(toggle.reading_row()).on_switch_press(switch_position, press_does, message)
     }
 
     #[must_use]
@@ -420,6 +390,61 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             message,
         };
         self
+    }
+
+    #[must_use]
+    pub fn with_button_actions(
+        self,
+        button_actions: impl IntoIterator<Item = PressAction>,
+    ) -> Self {
+        Self {
+            button_actions: button_actions.into_iter().collect(),
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn fetching_on_hover(self, start: M, stop: M) -> Self {
+        Self {
+            hover_fetch: HoverFetch::Fetch { start, stop },
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn refreshed_by(self, refresh: M) -> Self {
+        Self {
+            refresh: ReadingRefresh::Refreshes(refresh),
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn hover_fetch(&self) -> &HoverFetch<M> {
+        &self.hover_fetch
+    }
+
+    #[must_use]
+    pub fn refresh(&self) -> &ReadingRefresh<M> {
+        &self.refresh
+    }
+
+    #[must_use]
+    pub fn press_actions(&self) -> Vec<PressAction> {
+        let gesture_action = |gesture, item_gesture: &GroupItemGesture<M>| {
+            item_gesture
+                .description()
+                .map(|description| PressAction::new(gesture, description))
+        };
+        gesture_action(MouseGesture::LeftClick, &self.gestures.left)
+            .into_iter()
+            .chain(gesture_action(
+                MouseGesture::RightClick,
+                &self.gestures.right,
+            ))
+            .chain(self.control_actions.iter().cloned())
+            .chain(self.button_actions.iter().cloned())
+            .collect()
     }
 
     #[must_use]
@@ -471,28 +496,27 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         Self { card, ..self }
     }
 
-    pub(crate) fn owns_target(&self, hovered_target: &HoverTarget) -> bool {
-        self.hover.owns_target(hovered_target)
-    }
-
-    pub(crate) fn row_hover_card(&self, clock: Clock) -> RowHoverCard {
-        RowHoverCard {
-            sections: self.hover_card(clock),
-            announcement: self.announcement(),
-        }
+    #[must_use]
+    pub fn card_with_actions(&self, clock: Clock) -> Vec<Section> {
+        self.hover_card(clock)
+            .into_iter()
+            .chain(Section::press_actions(self.press_actions()))
+            .collect()
     }
 
     pub(crate) fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> GroupItem<'a, Outer> {
         GroupItem {
             face: self.face,
             value: self.value.map(lift),
-            hover: self.hover,
             pinning: self.pinning,
             card: self.card,
             alerts: self.alerts,
             gestures: self.gestures.map(lift),
+            control_actions: self.control_actions,
+            button_actions: self.button_actions,
+            hover_fetch: self.hover_fetch.map(lift),
+            refresh: self.refresh.map(lift),
             power_control: self.power_control,
-            handle_announcement: self.handle_announcement,
             handle_preview: self.handle_preview,
             card_opening_trigger: self.card_opening_trigger,
             ongoing_toast_action_buttons: self
@@ -509,18 +533,6 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    pub(crate) fn announcement(&self) -> HoverAnnouncement {
-        let handle_hints = self.handle_announcement.press_hints;
-        HoverAnnouncement {
-            press_hints: PressHints {
-                left: self.gestures.left.description().or(handle_hints.left),
-                right: self.gestures.right.description().or(handle_hints.right),
-                ..handle_hints
-            },
-            origin: self.handle_announcement.origin.clone(),
-        }
-    }
-
     pub(crate) fn handle_preview(&self) -> Option<HandlePreview<'_>> {
         if self.handle_preview == ItemHandlePreview::Absent {
             return None;
@@ -534,12 +546,12 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         Some(HandlePreview {
             face: &self.face,
             readout,
-            target: self.hover.target(),
         })
     }
 
     pub(crate) fn toast_requests(
         &self,
+        group: &WidgetGroupIdentity,
         on_body_clicked: M,
         locale: Locale,
         clock: Clock,
@@ -548,7 +560,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         M: Clone,
     {
         let notice = RowNotice {
-            hover_target: self.hover.target().clone(),
+            instrument: self.instrument_key(group),
             widget_name: self.face.name.clone(),
             state: self.face.icon.display_state(),
             alerts: &self.alerts,
@@ -593,11 +605,31 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         config: &Config,
         reveal: f32,
         clock: Clock,
+        hover_target: HoverTarget,
     ) -> Element<'a, GroupEvent<M>>
     where
         M: Clone,
     {
-        self.placed_view(config, reveal, clock, ItemPlacement::Panel)
+        let opening = self.card_opening_trigger;
+        self.placed_view(
+            config,
+            reveal,
+            clock,
+            ItemPlacement::Panel,
+            move |content| hoverable(opening, content, hover_target, GroupEvent::HoverCard),
+        )
+    }
+
+    pub(crate) fn unhovered_view(
+        &self,
+        config: &Config,
+        reveal: f32,
+        clock: Clock,
+    ) -> Element<'a, GroupEvent<M>>
+    where
+        M: Clone,
+    {
+        self.placed_view(config, reveal, clock, ItemPlacement::Panel, identity)
     }
 
     pub(crate) fn table_cell_view(
@@ -608,11 +640,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     where
         M: Clone,
     {
-        self.placed_view(config, 1.0, clock, ItemPlacement::Table)
-    }
-
-    pub(crate) fn inspected_target(&self) -> &HoverTarget {
-        self.hover.target()
+        self.placed_view(config, 1.0, clock, ItemPlacement::Table, identity)
     }
 
     pub(crate) fn gestures(&self) -> GroupItemGestures<M>
@@ -633,9 +661,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 RowValueControl::RowReadout(readout) => {
                     reading_value(config, &self.face, readout, 1.0).unwrap_or_else(empty)
                 }
-                RowValueControl::Slider { draw, .. } => {
-                    draw(1.0, clock, ItemPlacement::Menu, &HoverOrigin::Reading)
-                }
+                RowValueControl::Slider { draw, .. } => draw(1.0, clock, ItemPlacement::Menu),
                 RowValueControl::Drawn(value) => value.view(1.0).unwrap_or_else(empty),
             },
         }
@@ -693,34 +719,21 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 
     pub(crate) fn menu_pin(&self, group: &WidgetGroupIdentity) -> Option<GroupMenuPin> {
         match self.pinning {
-            ItemPinning::Pinnable => Some(GroupMenuPin::Item {
-                group: group.clone(),
-                item_in_group_name: self.face.name.clone(),
-            }),
+            ItemPinning::Pinnable => Some(GroupMenuPin::Item(self.instrument_key(group))),
             ItemPinning::Unpinnable => None,
+        }
+    }
+
+    #[must_use]
+    pub fn instrument_key(&self, group: &WidgetGroupIdentity) -> InstrumentKey {
+        InstrumentKey {
+            group: group.clone(),
+            name: self.face.name.clone(),
         }
     }
 
     pub(crate) fn item_in_group_name(&self) -> Cow<'static, str> {
         self.face.name.clone()
-    }
-
-    fn explained(
-        &self,
-        element: Element<'a, GroupEvent<M>>,
-        target: &HoverTarget,
-        placement: ItemPlacement,
-    ) -> Element<'a, GroupEvent<M>> {
-        match placement {
-            ItemPlacement::Panel => hoverable(
-                self.card_opening_trigger,
-                element,
-                target.clone(),
-                self.announcement(),
-                GroupEvent::HoverCard,
-            ),
-            ItemPlacement::Table | ItemPlacement::Menu => element,
-        }
     }
 
     pub(crate) fn placed_view(
@@ -729,6 +742,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         reveal: f32,
         clock: Clock,
         placement: ItemPlacement,
+        hover_area: impl FnOnce(Element<'a, GroupEvent<M>>) -> Element<'a, GroupEvent<M>>,
     ) -> Element<'a, GroupEvent<M>>
     where
         M: Clone,
@@ -739,9 +753,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 source_reading(config, &self.face, readout, reveal),
                 reveal,
             ),
-            RowValueControl::Slider { draw, .. } => {
-                draw(reveal, clock, placement, &self.handle_announcement.origin)
-            }
+            RowValueControl::Slider { draw, .. } => draw(reveal, clock, placement),
             RowValueControl::Drawn(value) => {
                 let composed_row = Row::with_children(
                     face_icon(config, &self.face, reveal)
@@ -754,10 +766,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 self.with_switch_indicator(config, composed_row, reveal)
             }
         };
-        let mut element = match &self.hover {
-            GroupItemHoverArea::WholeItem(target) => self.explained(content, target, placement),
-            GroupItemHoverArea::ByChildren { .. } => content,
-        };
+        let mut element = hover_area(content);
         if let GroupItemGesture::Performs { message, .. } = self.gestures.left.clone() {
             element = button(element)
                 .padding(0)
@@ -786,53 +795,49 @@ mod tests {
     use crate::{
         group_items::{reading_row::named_test_row, toggle_control::SwitchPresses},
         group_menus::group_menu_state::{GroupMenuTopic, PanelPin, PanelPinDuration},
-        hover_cards::{AnchorEvent, HoverCardMessage, PanelPinOrigin},
-        widget_groups::{
-            dark_mode_group::DarkModeTarget,
-            session_power_group::SessionTarget,
-            widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
-        },
+        hover_cards::{AnchorEvent, HoverCardMessage},
+        widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         widgets::phosphor::{Phosphor, Weight},
     };
 
-    fn composed_with(hover: GroupItemHoverArea) -> GroupItem<'static, ()> {
+    fn composed_row() -> GroupItem<'static, ()> {
         GroupItem::composed(
             "Composed row",
             GroupItemIcon::Absent,
-            hover,
             GroupItemValue::Nothing,
             Box::new(|_| Vec::new()),
         )
     }
 
-    fn whole_item_hover() -> GroupItemHoverArea {
-        GroupItemHoverArea::WholeItem(SessionTarget::Menu.into())
+    fn left_action(item: &GroupItem<'_, ()>) -> Option<Cow<'static, str>> {
+        item.press_actions()
+            .into_iter()
+            .find(|action| action.gesture == MouseGesture::LeftClick)
+            .map(|action| action.does)
     }
 
     #[test]
     fn composed_item_reports_its_identity_name() {
-        assert_eq!(
-            composed_with(whole_item_hover()).item_in_group_name(),
-            "Composed row"
-        );
+        assert_eq!(composed_row().item_in_group_name(), "Composed row");
     }
 
     #[test]
     fn items_without_a_press_have_inert_gestures() {
-        assert_eq!(
-            composed_with(whole_item_hover()).gestures(),
-            GroupItemGestures::inert()
-        );
+        assert_eq!(composed_row().gestures(), GroupItemGestures::inert());
     }
 
     #[test]
-    fn every_announced_gesture_has_a_handler() {
-        let item = composed_with(whole_item_hover())
+    fn every_listed_gesture_has_a_handler() {
+        let item = composed_row()
             .on_press("left action", ())
             .on_right_press("right action", ());
-        let hints = item.announcement().press_hints;
-        assert_eq!(hints.left, item.gestures().left.description());
-        assert_eq!(hints.right, item.gestures().right.description());
+        assert_eq!(
+            item.press_actions(),
+            vec![
+                PressAction::new(MouseGesture::LeftClick, "left action"),
+                PressAction::new(MouseGesture::RightClick, "right action"),
+            ]
+        );
         assert!(matches!(
             item.gestures().right,
             GroupItemGesture::Performs { .. }
@@ -840,13 +845,26 @@ mod tests {
     }
 
     #[test]
+    fn declared_buttons_join_the_row_actions() {
+        let item = composed_row().with_button_actions([PressAction::new(
+            MouseGesture::LeftClick,
+            "Next: skip to the next track",
+        )]);
+        assert_eq!(
+            item.press_actions(),
+            vec![PressAction::new(
+                MouseGesture::LeftClick,
+                "Next: skip to the next track"
+            )]
+        );
+    }
+
+    #[test]
     fn a_composed_item_shares_the_pin_of_the_reading_it_replaces_under_the_same_name() {
-        let reading: GroupItem<'static, ()> =
-            GroupItem::reading(named_test_row("Lyrics"), SessionTarget::Menu);
+        let reading: GroupItem<'static, ()> = GroupItem::reading(named_test_row("Lyrics"));
         let composed: GroupItem<'static, ()> = GroupItem::composed_pinnable(
             "Lyrics",
             GroupItemIcon::Absent,
-            SessionTarget::Menu,
             GroupItemValue::Nothing,
             Box::new(|_| Vec::new()),
         );
@@ -868,7 +886,7 @@ mod tests {
 
     #[test]
     fn an_item_with_only_a_press_action_shows_no_switch() {
-        let launcher_row = composed_with(whole_item_hover()).on_press("launch", ());
+        let launcher_row = composed_row().on_press("launch", ());
         assert_eq!(launcher_row.power_control, ItemPowerControl::Absent);
     }
 
@@ -876,7 +894,7 @@ mod tests {
     fn a_toggle_shows_a_switch_in_its_current_position() {
         let indicator_of = |switch_position| {
             let item: GroupItem<'static, ()> =
-                GroupItem::toggle(toggle_in_position(switch_position), SessionTarget::Menu, ());
+                GroupItem::toggle(toggle_in_position(switch_position), ());
             item.power_control
         };
         assert_eq!(
@@ -890,60 +908,60 @@ mod tests {
     }
 
     #[test]
-    fn a_switch_press_announces_the_same_gesture_as_a_plain_press() {
-        let item =
-            composed_with(whole_item_hover()).on_switch_press(SwitchPosition::On, "turn off", ());
-        assert_eq!(item.announcement().press_hints.left, Some("turn off"));
+    fn a_switch_press_lists_the_same_gesture_as_a_plain_press() {
+        let item = composed_row().on_switch_press(SwitchPosition::On, "turn off", ());
+        assert_eq!(left_action(&item).as_deref(), Some("turn off"));
     }
 
-    fn offset_slider_for(target: DarkModeTarget) -> SliderControl {
-        SliderControl::new(
-            "Offset",
-            -60.0..=60.0,
-            target,
-            Phosphor::Question(Weight::Regular),
-        )
+    fn offset_slider() -> SliderControl {
+        SliderControl::new("Offset", -60.0..=60.0, Phosphor::Question(Weight::Regular))
     }
 
     #[test]
     fn readings_and_sliders_are_pinnable_but_plain_composed_rows_are_not() {
         let config = Config::default();
-        let slider = offset_slider_for(DarkModeTarget::SunriseOffset);
-        let reading: GroupItem<'static, ()> =
-            GroupItem::reading(named_test_row("Named reading"), SessionTarget::Menu);
+        let slider = offset_slider();
+        let reading: GroupItem<'static, ()> = GroupItem::reading(named_test_row("Named reading"));
         assert_eq!(reading.pinning(), ItemPinning::Pinnable);
         assert_eq!(
             GroupItem::slider(&slider, &config, |_| ()).pinning(),
             ItemPinning::Pinnable
         );
-        assert_eq!(
-            composed_with(whole_item_hover()).pinning(),
-            ItemPinning::Unpinnable
-        );
+        assert_eq!(composed_row().pinning(), ItemPinning::Unpinnable);
     }
 
     #[test]
     fn a_slider_in_group_name_is_its_shown_name() {
         let config = Config::default();
-        let slider = offset_slider_for(DarkModeTarget::SunriseOffset);
+        let slider = offset_slider();
         assert_eq!(
             GroupItem::slider(&slider, &config, |_| ()).item_in_group_name(),
             slider.name()
         );
     }
 
-    fn pinned_slider_origin() -> HoverOrigin {
-        HoverOrigin::GroupHandle {
-            item_group_name: Box::new(WidgetGroupTitle::Named("Dark mode".into())),
-            panel_pin: PanelPinOrigin::Pinned(Box::new(PanelPin {
-                menu: GroupMenuTopic::Media,
-                entry: GroupMenuPin::Item {
-                    group: WidgetGroupIdentity::sole(WidgetGroupFamily::Media),
-                    item_in_group_name: "pinned slider".into(),
-                },
-                duration: PanelPinDuration::Permanent,
-            })),
-        }
+    #[test]
+    fn a_slider_lists_its_open_and_scroll_actions() {
+        let config = Config::default();
+        let slider = offset_slider();
+        assert_eq!(
+            GroupItem::slider(&slider, &config, |_| ()).press_actions(),
+            vec![
+                PressAction::new(MouseGesture::LeftClick, "open the slider"),
+                PressAction::new(MouseGesture::Scroll, "adjust"),
+            ]
+        );
+    }
+
+    fn pinned_slider_target() -> HoverTarget {
+        HoverTarget::PinnedOnPanel(Box::new(PanelPin {
+            menu: GroupMenuTopic::Media,
+            entry: GroupMenuPin::Item(InstrumentKey {
+                group: WidgetGroupIdentity::sole(WidgetGroupFamily::Media),
+                name: "pinned slider".into(),
+            }),
+            duration: PanelPinDuration::Permanent,
+        }))
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -956,17 +974,12 @@ mod tests {
         slider_pointing: SliderPointing,
     ) -> Vec<GroupEvent<ControlMessage>> {
         let config = Config::default();
-        let slider = offset_slider_for(DarkModeTarget::SunriseOffset);
-        let item = GroupItem::slider(&slider, &config, |message| message).acting_as_handle(
-            HoverAnnouncement {
-                press_hints: PressHints::default(),
-                origin: pinned_slider_origin(),
-            },
-        );
+        let slider = offset_slider();
+        let item = GroupItem::slider(&slider, &config, |message| message);
         let mut panel = Simulator::with_size(
             Settings::default(),
             Size::new(200.0, 100.0),
-            item.view(&config, 1.0, Clock::real()),
+            item.view(&config, 1.0, Clock::real(), pinned_slider_target()),
         );
         let inside_slider = Point::new(5.0, 5.0);
         panel.point_at(inside_slider);
@@ -981,22 +994,18 @@ mod tests {
     }
 
     #[test]
-    fn hovering_a_pinned_slider_announces_its_pin_and_keeps_its_press_hints() {
-        let entered_announcement = events_from_pointing_at_pinned_slider(SliderPointing::Hover)
-            .into_iter()
-            .find_map(|event| match event {
-                GroupEvent::HoverCard(HoverCardMessage::Anchor(AnchorEvent::Entered {
-                    announcement,
-                    ..
-                })) => Some(announcement),
-                _ => None,
-            })
-            .expect("hovering opens the hover card");
-        assert_eq!(entered_announcement.origin, pinned_slider_origin());
-        assert_eq!(
-            entered_announcement.press_hints.left,
-            Some("open the slider")
-        );
+    fn hovering_a_pinned_slider_enters_its_one_pinned_hover_area() {
+        let entered_targets: Vec<HoverTarget> =
+            events_from_pointing_at_pinned_slider(SliderPointing::Hover)
+                .into_iter()
+                .filter_map(|event| match event {
+                    GroupEvent::HoverCard(HoverCardMessage::Anchor(AnchorEvent::Entered {
+                        target,
+                    })) => Some(target),
+                    _ => None,
+                })
+                .collect();
+        assert_eq!(entered_targets, vec![pinned_slider_target()]);
     }
 
     #[test]
@@ -1010,17 +1019,14 @@ mod tests {
 
     #[test]
     fn a_stop_press_shows_a_stop_glyph_and_an_inert_switch_has_no_press() {
-        let stoppable = composed_with(whole_item_hover()).on_stop_press("stop the machine", ());
+        let stoppable = composed_row().on_stop_press("stop the machine", ());
         assert_eq!(stoppable.power_control, ItemPowerControl::StopGlyph);
-        assert_eq!(
-            stoppable.announcement().press_hints.left,
-            Some("stop the machine")
-        );
-        let uncontrolled = composed_with(whole_item_hover()).inert_switch(SwitchPosition::On);
+        assert_eq!(left_action(&stoppable).as_deref(), Some("stop the machine"));
+        let uncontrolled = composed_row().inert_switch(SwitchPosition::On);
         assert_eq!(
             uncontrolled.power_control,
             ItemPowerControl::InertSwitch(SwitchPosition::On)
         );
-        assert_eq!(uncontrolled.announcement().press_hints.left, None);
+        assert_eq!(left_action(&uncontrolled), None);
     }
 }

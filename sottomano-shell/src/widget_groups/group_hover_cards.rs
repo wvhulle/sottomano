@@ -1,57 +1,111 @@
+use std::collections::HashMap;
+
 use sottomano_widgets::{
-    group_items::group_item::RowHoverCard,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    group_items::group_item::{GroupItem, HoverFetch, ReadingRefresh, RowHoverCard},
+    hover_cards::{
+        CardHeader, HoverTarget, PressAction,
+        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
+    },
     widget_groups::{
         window_group::{WindowGroup, WindowTarget},
-        workspaces_group::workspace_hover_card,
+        workspaces_group::{workspace_hover_card, workspace_order_press_actions},
     },
 };
 
 use crate::{
     desktop_shell::DesktopShell,
     panels::{PanelZoneEntry, all_panel_entries},
+    shell_message::ShellInteraction,
 };
 
+pub struct HoveredRowRequests {
+    pub hover_fetch: HoverFetch<ShellInteraction>,
+    pub refresh: ReadingRefresh<ShellInteraction>,
+}
+
+impl From<&GroupItem<'_, ShellInteraction>> for HoveredRowRequests {
+    fn from(hovered_row: &GroupItem<'_, ShellInteraction>) -> Self {
+        Self {
+            hover_fetch: hovered_row.hover_fetch().clone(),
+            refresh: hovered_row.refresh().clone(),
+        }
+    }
+}
+
 impl DesktopShell {
-    #[must_use]
-    pub fn row_hover_card(&self, target: &HoverTarget) -> Option<RowHoverCard> {
+    fn row_hover_card(&self, target: &HoverTarget) -> Option<RowHoverCard> {
         let output = self.hovered_output();
         all_panel_entries().find_map(|entry| match entry {
             PanelZoneEntry::Menu(topic) => self
                 .group_menu_of(topic, output)
-                .row_hover_card(target, self.clock),
-            PanelZoneEntry::Standalone(group) => self
-                .standalone_group(group)
-                .row_hover_card(target, self.clock),
+                .hover_card(target, self.clock),
+            PanelZoneEntry::Standalone(group) => {
+                self.standalone_group(group).hover_card(target, self.clock)
+            }
             PanelZoneEntry::Fixed(fixed_entry) => self
                 .fixed_panel_group(fixed_entry)
-                .row_hover_card(target, self.clock),
+                .hover_card(target, self.clock),
             PanelZoneEntry::InlineWorkspaces | PanelZoneEntry::OutputWindows => None,
         })
     }
 
     #[must_use]
-    pub fn hover_card_sections(&self, target: &HoverTarget) -> Vec<Section> {
-        self.row_hover_card(target).map_or_else(
-            || self.standalone_hover_card(target),
-            |row_card| row_card.sections,
+    pub(crate) fn hovered_row_requests(&self, target: &HoverTarget) -> Option<HoveredRowRequests> {
+        let output = self.hovered_output();
+        all_panel_entries().find_map(|entry| match entry {
+            PanelZoneEntry::Menu(topic) => self
+                .group_menu_of(topic, output)
+                .hovered_instrument(target)
+                .map(HoveredRowRequests::from),
+            PanelZoneEntry::Standalone(group) => self
+                .standalone_group(group)
+                .hovered_instrument(target)
+                .map(HoveredRowRequests::from),
+            PanelZoneEntry::Fixed(_)
+            | PanelZoneEntry::InlineWorkspaces
+            | PanelZoneEntry::OutputWindows => None,
+        })
+    }
+
+    #[must_use]
+    pub fn described_hover_card(&self, target: &HoverTarget) -> Option<HoverCard> {
+        match self.row_hover_card(target) {
+            Some(row_card) => HoverCard::new(row_card.sections, row_card.header),
+            None => HoverCard::new(self.standalone_hover_card(target), CardHeader::Unheaded),
+        }
+    }
+
+    fn window_press_actions(&self, window: u64) -> Vec<PressAction> {
+        let silent_windows = HashMap::new();
+        self.widget_groups.window_group.window_press_actions(
+            &self.window_snapshot,
+            self.widget_groups
+                .audio_group
+                .window_audio()
+                .unwrap_or(&silent_windows),
+            window,
+            &self.config,
         )
     }
 
     fn standalone_hover_card(&self, target: &HoverTarget) -> Vec<Section> {
+        let window_group = &self.widget_groups.window_group;
         match target {
-            HoverTarget::Window(WindowTarget::Inspect(_)) => {
-                self.widget_groups.window_group.inspect_hover_card()
-            }
+            HoverTarget::Window(WindowTarget::Inspect(window)) => window_group
+                .inspect_hover_card()
+                .into_iter()
+                .chain(Section::press_actions(self.window_press_actions(*window)))
+                .collect(),
             HoverTarget::Window(WindowTarget::Usage(window)) => {
-                let mut window_sections =
-                    WindowGroup::window_identity_hover_card(&self.compositor, *window, self.clock);
-                window_sections.extend(
-                    self.widget_groups
-                        .session_focus_group
-                        .window_usage_hover_card(*window, &self.config, self.clock),
-                );
-                window_sections
+                WindowGroup::window_identity_hover_card(&self.compositor, *window, self.clock)
+                    .into_iter()
+                    .chain(
+                        self.widget_groups
+                            .session_focus_group
+                            .window_usage_hover_card(*window, &self.config, self.clock),
+                    )
+                    .chain(Section::press_actions(self.window_press_actions(*window)))
+                    .collect()
             }
             HoverTarget::Workspace(workspace) => workspace_hover_card::hover_card(
                 &self.window_snapshot,
@@ -61,7 +115,22 @@ impl DesktopShell {
                     .app_window_layout(),
                 *workspace,
             ),
-            _ => Vec::new(),
+            HoverTarget::WorkspaceOrder => Section::press_actions(workspace_order_press_actions())
+                .into_iter()
+                .collect(),
+            HoverTarget::WorkspaceFolding => Section::press_actions(
+                self.widget_groups
+                    .sidebar_settings_group
+                    .empty_workspace_folding()
+                    .press_actions(),
+            )
+            .into_iter()
+            .collect(),
+            HoverTarget::Instrument(_)
+            | HoverTarget::PinnedOnPanel(_)
+            | HoverTarget::GroupFace(_)
+            | HoverTarget::GroupMenu(_)
+            | HoverTarget::SessionMenu => Vec::new(),
         }
     }
 }

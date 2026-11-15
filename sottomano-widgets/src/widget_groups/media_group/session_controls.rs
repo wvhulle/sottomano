@@ -1,17 +1,12 @@
-use corredo::{
-    popovers::NestedMenuOpenTrigger,
-    press_actions::{ConfirmButton, ConfirmStage},
-};
+use corredo::press_actions::{ConfirmButton, ConfirmStage};
 use iced::{Alignment, Element, widget::Row};
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{Command, Media, Status};
 use sottomano_toml_config::Config;
 
 use crate::{
     group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
-    hover_cards::{HoverCardMessage, PressHints, hoverable},
-    widget_groups::media_group::{
-        MediaTarget, PlayerTarget, confirm_button::configured_confirm_button,
-    },
+    hover_cards::{MouseGesture, PressAction},
+    widget_groups::media_group::confirm_button::configured_confirm_button,
     widgets::{
         glyph_button,
         phosphor::{Phosphor, Weight},
@@ -22,7 +17,6 @@ pub struct SessionMessages<Message> {
     pub command: fn(Command) -> Message,
     pub quit: Message,
     pub cancel_quit: Message,
-    pub hover_card: fn(HoverCardMessage) -> Message,
 }
 
 pub struct SessionControls<'c, Message> {
@@ -33,7 +27,6 @@ pub struct SessionControls<'c, Message> {
     on_command: fn(Command) -> Message,
     on_quit: Message,
     on_cancel_quit: Message,
-    on_hover_card: fn(HoverCardMessage) -> Message,
 }
 
 impl<'c, Message: Clone> SessionControls<'c, Message> {
@@ -52,38 +45,45 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
             on_command: messages.command,
             on_quit: messages.quit,
             on_cancel_quit: messages.cancel_quit,
-            on_hover_card: messages.hover_card,
         }
+    }
+
+    fn offers_stop(&self) -> bool {
+        self.media.capabilities.stop && self.media.status != Status::Stopped
+    }
+
+    #[must_use]
+    pub fn press_actions(&self) -> Vec<PressAction> {
+        let stop_action = self
+            .offers_stop()
+            .then(|| PressAction::new(MouseGesture::LeftClick, "Stop: stop playback"));
+        let quit_action = self.media.capabilities.quit.then(|| {
+            PressAction::new(
+                MouseGesture::LeftClick,
+                match self.quit_button.stage() {
+                    ConfirmStage::Armed => "Quit: confirm quitting the player",
+                    ConfirmStage::Idle => "Quit: quit the player",
+                },
+            )
+        });
+        stop_action.into_iter().chain(quit_action).collect()
     }
 
     fn stop<'a>(&self) -> Option<Element<'a, Message>>
     where
         Message: 'a,
     {
-        (self.media.capabilities.stop && self.media.status != Status::Stopped).then(|| {
+        self.offers_stop().then(|| {
             let state = ReadingDisplayState::Off;
             let tint = ReadingStateTint {
                 state,
                 opacity: self.reveal,
             };
-            hoverable(
-                NestedMenuOpenTrigger::Hover,
-                glyph_button(
-                    Phosphor::Stop(state.weight()),
-                    self.config.theme.font.icon_size_px,
-                    move |theme| tint.color(theme),
-                    (self.on_command)(Command::Stop),
-                ),
-                PlayerTarget {
-                    bus: self.media.bus.clone().into(),
-                    control: MediaTarget::Stop,
-                }
-                .into(),
-                PressHints {
-                    left: Some("stop playback"),
-                    ..PressHints::default()
-                },
-                self.on_hover_card,
+            glyph_button(
+                Phosphor::Stop(state.weight()),
+                self.config.theme.font.icon_size_px,
+                move |theme| tint.color(theme),
+                (self.on_command)(Command::Stop),
             )
         })
     }
@@ -93,29 +93,13 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
         Message: 'a,
     {
         self.media.capabilities.quit.then(|| {
-            hoverable(
-                NestedMenuOpenTrigger::Hover,
-                configured_confirm_button(
-                    self.quit_button,
-                    self.config,
-                    self.reveal,
-                    Phosphor::Power(Weight::Regular),
-                    self.on_quit.clone(),
-                    self.on_cancel_quit.clone(),
-                ),
-                PlayerTarget {
-                    bus: self.media.bus.clone().into(),
-                    control: MediaTarget::Quit,
-                }
-                .into(),
-                PressHints {
-                    left: Some(match self.quit_button.stage() {
-                        ConfirmStage::Armed => "confirm quitting the player",
-                        ConfirmStage::Idle => "quit the player",
-                    }),
-                    ..PressHints::default()
-                },
-                self.on_hover_card,
+            configured_confirm_button(
+                self.quit_button,
+                self.config,
+                self.reveal,
+                Phosphor::Power(Weight::Regular),
+                self.on_quit.clone(),
+                self.on_cancel_quit.clone(),
             )
         })
     }

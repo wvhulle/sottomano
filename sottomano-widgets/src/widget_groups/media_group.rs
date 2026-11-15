@@ -1,12 +1,10 @@
 use std::{
-    borrow::Cow,
     collections::HashMap,
     iter,
     time::{Duration, Instant},
 };
 
 use corredo::{
-    popovers::NestedMenuOpenTrigger,
     press_actions::{ConfirmButton, ConfirmPolicy, ConfirmPress},
     transitions::ExpansionState,
     value_controls::SeekMessage,
@@ -32,16 +30,15 @@ use crate::{
     clock::Clock,
     desktop_index::DesktopIndex,
     group_items::{
-        group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
+        group_item::{GroupItem, GroupItemValue},
         reading_display_state::ReadingDisplayState,
         reading_row::DescribeCard,
         source_reading::GroupItemIcon,
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
-        HoverTarget, PressHints,
+        MouseGesture, PressAction,
         hover_card_body::{Section, dictionary_table},
-        hoverable,
     },
     widget_groups::{
         media_group::seek_bar::SeekAvailability,
@@ -82,35 +79,6 @@ use self::{
 const PROGRESS_TICK: Duration = Duration::from_secs(1);
 const LYRICS_TICK: Duration = Duration::from_millis(250);
 const RAISE_PLAYER_HINT: &str = "bring the player's window forward";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MediaTarget {
-    Player,
-    Track,
-    Lyrics,
-    Seek,
-    Shuffle,
-    Previous,
-    PlayPause,
-    Next,
-    Loop,
-    Transport,
-    Stop,
-    Quit,
-    SessionControls,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlayerTarget {
-    pub bus: Cow<'static, str>,
-    pub control: MediaTarget,
-}
-
-impl From<PlayerTarget> for HoverTarget {
-    fn from(target: PlayerTarget) -> Self {
-        HoverTarget::Media(target)
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PlaybackPace {
@@ -498,19 +466,12 @@ fn session_buttons_item<'a>(
         GroupItem::composed(
             "Session",
             GroupItemIcon::Absent,
-            GroupItemHoverArea::ByChildren {
-                row_target: PlayerTarget {
-                    bus: bus.to_owned().into(),
-                    control: MediaTarget::SessionControls,
-                }
-                .into(),
-                child_targets: Vec::new(),
-            },
             GroupItemValue::drawn(move |reveal| {
                 lifted_to_player(bus, session_controls(config, media, session, reveal).into())
             }),
             Box::new(|_| Vec::new()),
         )
+        .with_button_actions(session_controls(config, media, session, 1.0).press_actions())
     })
 }
 
@@ -518,14 +479,6 @@ struct PlayerCards<'a> {
     player: DescribeCard<'a>,
     track: DescribeCard<'a>,
     lyrics: DescribeCard<'a>,
-}
-
-fn player_hover_target(bus: &str, control: MediaTarget) -> HoverTarget {
-    PlayerTarget {
-        bus: bus.to_owned().into(),
-        control,
-    }
-    .into()
 }
 
 fn seek_position_item<'a>(
@@ -541,10 +494,6 @@ fn seek_position_item<'a>(
             glyph: Phosphor::HourglassMedium(Weight::Regular).into(),
             state: ReadingDisplayState::Idle,
         },
-        GroupItemHoverArea::ByChildren {
-            row_target: player_hover_target(bus, MediaTarget::Seek),
-            child_targets: Vec::new(),
-        },
         GroupItemValue::drawn(move |_| {
             let bar = session
                 .seek_bar
@@ -553,23 +502,14 @@ fn seek_position_item<'a>(
                     || Row::new().into(),
                     |bar| bar.map(|seek| GroupEvent::Group(PlayerInteraction::Seek(seek))),
                 );
-            lifted_to_player(
-                bus,
-                hoverable(
-                    NestedMenuOpenTrigger::Hover,
-                    bar,
-                    player_hover_target(bus, MediaTarget::Seek),
-                    PressHints {
-                        left: Some("jump to this point"),
-                        scroll: Some("seek"),
-                        ..PressHints::default()
-                    },
-                    GroupEvent::HoverCard,
-                ),
-            )
+            lifted_to_player(bus, bar)
         }),
         Box::new(|_| Vec::new()),
     )
+    .with_button_actions([
+        PressAction::new(MouseGesture::LeftClick, "Seek bar: jump to this point"),
+        PressAction::new(MouseGesture::Scroll, "Seek bar: seek"),
+    ])
 }
 
 fn transport_controls_item<'a>(
@@ -577,28 +517,23 @@ fn transport_controls_item<'a>(
     media: &'a Media,
 ) -> GroupItem<'a, MediaInteraction> {
     let bus = media.bus.as_str();
+    let press_actions =
+        TransportControls::new(config, media, 1.0, PlayerInteraction::Command).press_actions();
     GroupItem::composed(
         "Playback",
         GroupItemIcon::Absent,
-        GroupItemHoverArea::ByChildren {
-            row_target: player_hover_target(bus, MediaTarget::Transport),
-            child_targets: Vec::new(),
-        },
         GroupItemValue::drawn(move |reveal| {
             lifted_to_player(
                 bus,
-                TransportControls::new(
-                    config,
-                    media,
-                    reveal,
-                    |command| GroupEvent::Group(PlayerInteraction::Command(command)),
-                    GroupEvent::HoverCard,
-                )
+                TransportControls::new(config, media, reveal, |command| {
+                    GroupEvent::Group(PlayerInteraction::Command(command))
+                })
                 .into(),
             )
         }),
         Box::new(|_| Vec::new()),
     )
+    .with_button_actions(press_actions)
 }
 
 fn player_group<'a>(
@@ -669,7 +604,6 @@ fn session_controls<'a>(
             command: |command| GroupEvent::Group(PlayerInteraction::Command(command)),
             quit: GroupEvent::Group(PlayerInteraction::Quit),
             cancel_quit: GroupEvent::Group(PlayerInteraction::CancelQuit),
-            hover_card: GroupEvent::HoverCard,
         },
     )
 }

@@ -705,8 +705,10 @@ mod tests {
     use super::*;
     use crate::{
         group_items::{group_item::GroupItem, reading_row::PanelVisibility},
-        hover_cards::HoverTarget,
-        widget_groups::weather_group::{WeatherTarget, rain_forecast_ranking::RADAR_FRAME_LENGTH},
+        widget_groups::{
+            weather_group::rain_forecast_ranking::RADAR_FRAME_LENGTH,
+            widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
+        },
         widgets::keyed_record_table::RecordCells,
     };
 
@@ -866,10 +868,14 @@ mod tests {
                 alerts: &DEFAULT_RAIN_ALERTS,
             }
             .reading_row(clock, Locale::default()),
-            HoverTarget::Weather(WeatherTarget::Rain),
         );
         let toast = rain_item
-            .toast_requests(0, Locale::default(), clock)
+            .toast_requests(
+                &WidgetGroupIdentity::sole(WidgetGroupFamily::Weather),
+                0,
+                Locale::default(),
+                clock,
+            )
             .ongoing_toasts
             .into_iter()
             .next();

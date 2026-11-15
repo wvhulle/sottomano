@@ -18,7 +18,6 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::group_item::GroupItem,
-    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -27,20 +26,6 @@ use crate::{
     },
     widgets::subscribed_snapshot::SubscribedSnapshot,
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WallpaperTarget {
-    Lookup,
-    Place,
-    Article,
-    Photo,
-}
-
-impl From<WallpaperTarget> for HoverTarget {
-    fn from(target: WallpaperTarget) -> Self {
-        HoverTarget::Wallpaper(target)
-    }
-}
 
 pub struct WallpaperGroup {
     lookup: SubscribedSnapshot<Lookup>,
@@ -105,30 +90,26 @@ impl WallpaperGroup {
                 self.lookup.group_item(
                     IconGlyph::default(),
                     |snapshot| snapshot.reading_row(),
-                    WallpaperTarget::Lookup,
                     clock,
                 ),
                 lookup
                     .and_then(|lookup| lookup.place.as_ref())
                     .map(|place| {
-                        GroupItem::reading(place.reading_row(), WallpaperTarget::Place)
-                            .with_hover_card(Box::new(move |_| {
-                                self.lookup.hover_card_with(place.hover_card())
-                            }))
+                        GroupItem::reading(place.reading_row()).with_hover_card(Box::new(
+                            move |_| self.lookup.hover_card_with(place.hover_card()),
+                        ))
                     }),
                 lookup
                     .and_then(|lookup| lookup.article.as_ref())
                     .map(|article| {
-                        GroupItem::reading(article.reading_row(), WallpaperTarget::Article)
-                            .with_hover_card(Box::new(move |_| {
-                                self.lookup.hover_card_with(article.hover_card())
-                            }))
+                        GroupItem::reading(article.reading_row()).with_hover_card(Box::new(
+                            move |_| self.lookup.hover_card_with(article.hover_card()),
+                        ))
                     }),
                 lookup.map(|lookup| {
-                    GroupItem::reading(lookup.photo.reading_row(), WallpaperTarget::Photo)
-                        .with_hover_card(Box::new(move |_| {
-                            self.lookup.hover_card_with(lookup.photo.hover_card())
-                        }))
+                    GroupItem::reading(lookup.photo.reading_row()).with_hover_card(Box::new(
+                        move |_| self.lookup.hover_card_with(lookup.photo.hover_card()),
+                    ))
                 }),
             ]
             .into_iter()

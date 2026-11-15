@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use sottomano_desktop_sinks::{
     lxc_containers::change_lxc_container, sink_write_errors::GuestPowerError,
 };
@@ -14,10 +12,7 @@ use crate::{
         reading_row::ReadingRow,
         source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         container_family_group::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
@@ -32,17 +27,6 @@ use crate::{
         value_cells::LabeledValue,
     },
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LxcContainerTarget {
-    pub container_name: Cow<'static, str>,
-}
-
-impl From<LxcContainerTarget> for HoverTarget {
-    fn from(target: LxcContainerTarget) -> Self {
-        HoverTarget::LxcContainer(target)
-    }
-}
 
 pub struct LxcContainerListingRow<'a> {
     listing: &'a LxcContainerListing,
@@ -139,7 +123,6 @@ impl ContainerFamily for LxcFamily {
     type Probe = LxcProbe;
     type Listings = FamilyListings<LxcContainerListing>;
     type Detail = FamilyDetails<LxcContainer>;
-    type Target = LxcContainerTarget;
     type PowerRequest = String;
 
     const FAMILY: WidgetGroupFamily = WidgetGroupFamily::LxcContainers;
@@ -160,9 +143,6 @@ impl ContainerFamily for LxcFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                target: LxcContainerTarget {
-                    container_name: Cow::Owned(listing.container_name.clone()),
-                },
                 reading: LxcContainerListingRow { listing }.reading_row(),
                 power: container_power(listing),
             })
@@ -174,9 +154,6 @@ impl ContainerFamily for LxcFamily {
             .details
             .iter()
             .map(|container| FamilyRow {
-                target: LxcContainerTarget {
-                    container_name: Cow::Owned(container.listing.container_name.clone()),
-                },
                 reading: LxcContainerRow { container }.reading_row(),
                 power: container_power(&container.listing),
             })

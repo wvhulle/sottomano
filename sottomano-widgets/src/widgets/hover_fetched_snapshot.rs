@@ -45,7 +45,7 @@ pub enum HoverFetchProgress<S: SnapshotSource> {
 }
 
 #[derive(Debug)]
-pub enum HoverFetch<S: SnapshotSource> {
+pub enum SnapshotFetchStage<S: SnapshotSource> {
     Idle,
     Fetching {
         inputs: S::StreamInputs,
@@ -57,14 +57,14 @@ pub enum HoverFetch<S: SnapshotSource> {
 #[derive(Debug)]
 pub struct HoverFetchedSnapshot<S: SnapshotSource> {
     remembered_by_inputs: HashMap<S::StreamInputs, RememberedSnapshot<S>>,
-    hover_fetch: HoverFetch<S>,
+    hover_fetch: SnapshotFetchStage<S>,
 }
 
 impl<S: SnapshotSource> Default for HoverFetchedSnapshot<S> {
     fn default() -> Self {
         Self {
             remembered_by_inputs: HashMap::new(),
-            hover_fetch: HoverFetch::Idle,
+            hover_fetch: SnapshotFetchStage::Idle,
         }
     }
 }
@@ -138,7 +138,7 @@ where
         })
         .flatten();
         let (task, fetching) = Task::run(delayed, delivered).abortable();
-        self.hover_fetch = HoverFetch::Fetching {
+        self.hover_fetch = SnapshotFetchStage::Fetching {
             inputs,
             fetch_handle: fetching.abort_on_drop(),
             progress: match schedule {
@@ -150,20 +150,20 @@ where
     }
 
     pub fn stop(&mut self) {
-        self.hover_fetch = HoverFetch::Idle;
+        self.hover_fetch = SnapshotFetchStage::Idle;
     }
 
     #[must_use]
-    pub fn hover_fetch(&self) -> &HoverFetch<S> {
+    pub fn fetch_stage(&self) -> &SnapshotFetchStage<S> {
         &self.hover_fetch
     }
 
     pub fn receive(&mut self, delivery: SnapshotDelivery<S>, clock: Clock) {
-        let HoverFetch::Fetching {
+        let SnapshotFetchStage::Fetching {
             inputs,
             fetch_handle,
             progress,
-        } = replace(&mut self.hover_fetch, HoverFetch::Idle)
+        } = replace(&mut self.hover_fetch, SnapshotFetchStage::Idle)
         else {
             return;
         };
@@ -192,7 +192,7 @@ where
                 ..
             } => {}
         }
-        self.hover_fetch = HoverFetch::Fetching {
+        self.hover_fetch = SnapshotFetchStage::Fetching {
             inputs,
             fetch_handle,
             progress,
@@ -200,7 +200,7 @@ where
     }
 
     pub fn reading(&self) -> Option<&S> {
-        let HoverFetch::Fetching {
+        let SnapshotFetchStage::Fetching {
             inputs, progress, ..
         } = &self.hover_fetch
         else {
@@ -226,7 +226,7 @@ where
     }
 
     pub fn sections_described_by(&self, describe: impl Fn(&S) -> Vec<Section>) -> Vec<Section> {
-        let HoverFetch::Fetching {
+        let SnapshotFetchStage::Fetching {
             inputs, progress, ..
         } = &self.hover_fetch
         else {

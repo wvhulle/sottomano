@@ -5,7 +5,7 @@ mod local_date;
 mod local_time;
 mod zone_time;
 
-use std::{convert::identity, time::Duration};
+use std::time::Duration;
 
 use chrono_tz::Tz;
 use iced::{Subscription, Task};
@@ -17,7 +17,6 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -29,17 +28,17 @@ use crate::{
 
 pub const TICK: Duration = Duration::from_secs(1);
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ClockTarget {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ClockSource {
     LocalTime,
     LocalDate,
     ZoneTime(Tz),
 }
 
-impl From<ClockTarget> for HoverTarget {
-    fn from(target: ClockTarget) -> Self {
-        HoverTarget::Clock(target)
-    }
+#[derive(Debug, Clone)]
+pub enum ClockInteraction {
+    Expansion(WidgetGroupExpansionMessage),
+    Refresh(ClockSource),
 }
 
 #[derive(Default)]
@@ -55,7 +54,7 @@ pub enum ClockMessage {
     Time(SnapshotDelivery<LocalTime>),
     Date(SnapshotDelivery<LocalDate>),
     Zone(Tz, SnapshotDelivery<ZoneTime>),
-    Expansion(WidgetGroupExpansionMessage),
+    Interaction(ClockInteraction),
 }
 
 impl ClockGroup {
@@ -70,8 +69,11 @@ impl ClockGroup {
             ClockMessage::Zone(zone, reading) => {
                 self.zone_time_mut(zone).receive(reading, clock);
             }
-            ClockMessage::Expansion(expansion_message) => {
+            ClockMessage::Interaction(ClockInteraction::Expansion(expansion_message)) => {
                 self.expansion.update(expansion_message);
+            }
+            ClockMessage::Interaction(ClockInteraction::Refresh(source)) => {
+                return Self::refresh(source);
             }
         }
         Task::none()
@@ -100,11 +102,11 @@ impl ClockGroup {
         )
     }
 
-    pub fn refresh(target: &ClockTarget) -> Task<ClockMessage> {
-        match *target {
-            ClockTarget::LocalTime => first_delivery::<LocalTime>(()).map(ClockMessage::Time),
-            ClockTarget::LocalDate => first_delivery::<LocalDate>(()).map(ClockMessage::Date),
-            ClockTarget::ZoneTime(zone) => first_delivery::<ZoneTime>(zone)
+    fn refresh(source: ClockSource) -> Task<ClockMessage> {
+        match source {
+            ClockSource::LocalTime => first_delivery::<LocalTime>(()).map(ClockMessage::Time),
+            ClockSource::LocalDate => first_delivery::<LocalDate>(()).map(ClockMessage::Date),
+            ClockSource::ZoneTime(zone) => first_delivery::<ZoneTime>(zone)
                 .map(move |reading| ClockMessage::Zone(zone, reading)),
         }
     }
@@ -125,17 +127,16 @@ impl ClockGroup {
         &self,
         clock: Clock,
         locale: Locale,
-    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
+    ) -> WidgetGroupContent<'_, ClockInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Clock,
             &self.expansion,
-            identity,
+            ClockInteraction::Expansion,
             [
                 self.time
                     .group_item(
                         IconGlyph::default(),
                         |_| LocalTime::reading_row(clock, locale),
-                        ClockTarget::LocalTime,
                         clock,
                     )
                     .map(|item| {
@@ -143,12 +144,12 @@ impl ClockGroup {
                             self.time
                                 .sections_described_by(|_| LocalTime::hover_card(card_clock))
                         }))
+                        .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalTime))
                     }),
                 self.date
                     .group_item(
                         IconGlyph::default(),
                         |_| LocalDate::reading_row(clock, locale),
-                        ClockTarget::LocalDate,
                         clock,
                     )
                     .map(|item| {
@@ -156,6 +157,7 @@ impl ClockGroup {
                             self.date
                                 .sections_described_by(|_| LocalDate::hover_card(card_clock))
                         }))
+                        .refreshed_by(ClockInteraction::Refresh(ClockSource::LocalDate))
                     }),
             ]
             .into_iter()
@@ -164,7 +166,6 @@ impl ClockGroup {
                     .group_item(
                         IconGlyph::default(),
                         |snapshot| snapshot.reading_row(clock, locale),
-                        ClockTarget::ZoneTime(*zone),
                         clock,
                     )
                     .map(|item| {
@@ -172,6 +173,7 @@ impl ClockGroup {
                             zone_time
                                 .sections_described_by(|snapshot| snapshot.hover_card(card_clock))
                         }))
+                        .refreshed_by(ClockInteraction::Refresh(ClockSource::ZoneTime(*zone)))
                     })
             }))
             .flatten(),

@@ -21,7 +21,6 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::reading_row::PanelVisibility,
-    hover_cards::HoverTarget,
     widget_groups::{
         terminal_command::TerminalCommand,
         widget_group_content::{
@@ -43,20 +42,6 @@ pub(super) fn shown_while_alerting(
         PanelVisibility::Shown
     } else {
         PanelVisibility::Hidden
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JournalTarget {
-    Kernel,
-    ServiceErrors(SystemdUnitScope),
-    Coredumps(SystemdUnitScope),
-    OomKills(SystemdUnitScope),
-}
-
-impl From<JournalTarget> for HoverTarget {
-    fn from(target: JournalTarget) -> Self {
-        HoverTarget::Journal(target)
     }
 }
 

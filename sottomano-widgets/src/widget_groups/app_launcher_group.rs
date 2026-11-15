@@ -14,15 +14,12 @@ use crate::{
     background_work::logged_failure_task,
     desktop_index::DesktopIndex,
     group_items::{
-        group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
+        group_item::{GroupItem, GroupItemValue},
         reading_display_state::ReadingDisplayState,
         source_reading::GroupItemIcon,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         terminal_command::TerminalCommand,
@@ -44,19 +41,6 @@ const MAX_FREQUENT_APPS: usize = 8;
 const FREQUENT_GROUP_NAME: &str = "frequent";
 const OPTIONS_GROUP_NAME: &str = "options";
 const JUMP_PRESS_HINT: &str = "focus its most recently used window";
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AppLauncherTarget {
-    App(String),
-    HideOpenApps,
-    SortByUsage,
-}
-
-impl From<AppLauncherTarget> for HoverTarget {
-    fn from(target: AppLauncherTarget) -> Self {
-        HoverTarget::AppLauncher(target)
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorkspaceWindowPresence {
@@ -502,7 +486,6 @@ impl AppLauncherGroup {
             GroupItem::composed(
                 app.name.clone(),
                 Self::app_icon(app, index),
-                GroupItemHoverArea::WholeItem(AppLauncherTarget::App(app.app_id.clone()).into()),
                 self.jump_indicator(app, config),
                 Box::new(|_| Vec::new()),
             )
@@ -522,7 +505,6 @@ impl AppLauncherGroup {
             GroupItem::composed_pinnable(
                 app.name.clone(),
                 Self::app_icon(app, index),
-                AppLauncherTarget::App(app.app_id.clone()),
                 self.jump_indicator(app, config),
                 Box::new(|_| Vec::new()),
             )
@@ -592,12 +574,10 @@ impl AppLauncherGroup {
             [
                 GroupItem::toggle(
                     hide_open_apps_toggle(self.open_app_listing),
-                    AppLauncherTarget::HideOpenApps,
                     AppLauncherMessage::ToggleHideOpenApps,
                 ),
                 GroupItem::toggle(
                     sort_by_usage_toggle(self.category_app_order),
-                    AppLauncherTarget::SortByUsage,
                     AppLauncherMessage::ToggleSortByUsage,
                 ),
             ],

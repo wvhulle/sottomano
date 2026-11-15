@@ -24,13 +24,10 @@ use crate::{
         source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, SectionWidget, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widget_groups::{
         engine_container_rows::{
-            EngineContainerInteraction, EngineContainerTarget, EngineContainers,
+            EngineContainerAddress, EngineContainerInteraction, EngineContainers,
             RunningContainerRow, StoppedContainerRow, container_switch_task, engine_container_name,
             engine_failure_label, rows_ending_in_hidden_count, with_container_switch,
         },
@@ -42,31 +39,6 @@ use crate::{
         value_cells::LabeledValue,
     },
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DockerEngineTarget {
-    Engine { socket_path: Cow<'static, str> },
-    Container(EngineContainerTarget),
-    HiddenContainers,
-}
-
-impl From<&DockerEngineSocket> for DockerEngineTarget {
-    fn from(engine: &DockerEngineSocket) -> Self {
-        Self::Engine {
-            socket_path: Cow::Owned(engine.socket_path.display().to_string()),
-        }
-    }
-}
-
-impl From<DockerEngineTarget> for HoverTarget {
-    fn from(target: DockerEngineTarget) -> Self {
-        HoverTarget::DockerEngine(target)
-    }
-}
-
-fn container_hover_target(target: EngineContainerTarget) -> HoverTarget {
-    DockerEngineTarget::Container(target).into()
-}
 
 struct UnreadableEngineRow<'a> {
     engine: &'a DockerEngineSocket,
@@ -298,10 +270,7 @@ impl DockerEnginesGroup {
             listing,
         };
         engine_containers
-            .running_rows(
-                container_hover_target,
-                EngineContainerInteraction::SwitchContainer,
-            )
+            .running_rows(EngineContainerInteraction::SwitchContainer)
             .into_iter()
             .zip(&listing.running.containers)
             .map(|(row, container)| {
@@ -329,10 +298,7 @@ impl DockerEnginesGroup {
             listing,
         };
         engine_containers
-            .stopped_rows(
-                container_hover_target,
-                EngineContainerInteraction::SwitchContainer,
-            )
+            .stopped_rows(EngineContainerInteraction::SwitchContainer)
             .into_iter()
             .zip(&listing.stopped)
             .map(|(row, container)| {
@@ -374,15 +340,12 @@ impl DockerEnginesGroup {
             .unwrap_or_default()
             .iter()
             .map(|listed| {
-                let target = EngineContainerTarget {
+                let target = EngineContainerAddress {
                     socket_path: Cow::Owned(engine.socket_path.display().to_string()),
                     container_id: Cow::Owned(listed.id.clone()),
                 };
                 with_container_switch(
-                    GroupItem::reading(
-                        ListedContainerRow { engine, listed }.reading_row(),
-                        container_hover_target(target.clone()),
-                    ),
+                    GroupItem::reading(ListedContainerRow { engine, listed }.reading_row()),
                     listed.run_state,
                     target,
                     EngineContainerInteraction::SwitchContainer,
@@ -420,17 +383,13 @@ impl DockerEnginesGroup {
                         read_failure,
                     }
                     .reading_row(),
-                    DockerEngineTarget::from(engine),
                 ));
             } else {
                 running_rows.extend(self.listed_rows(engine));
             }
         }
         running_rows.extend(stopped_rows);
-        failure_rows.extend(rows_ending_in_hidden_count(
-            running_rows,
-            DockerEngineTarget::HiddenContainers.into(),
-        ));
+        failure_rows.extend(rows_ending_in_hidden_count(running_rows));
         failure_rows
     }
 }
@@ -463,6 +422,10 @@ mod tests {
     };
 
     use super::*;
+    use crate::{
+        hover_cards::{HoverTarget, InstrumentKey},
+        widget_groups::widget_group_identity::WidgetGroupIdentity,
+    };
 
     fn delivered(
         engine_read: Result<EngineListing, EngineReadError>,
@@ -494,13 +457,14 @@ mod tests {
             Clock::real(),
         );
         assert_eq!(group.container_rows().len(), 1);
+        let failure_row = HoverTarget::Instrument(InstrumentKey {
+            group: WidgetGroupIdentity::sole(WidgetGroupFamily::DockerEngines),
+            name: group.container_rows()[0].item_in_group_name(),
+        });
         assert!(
             group
                 .group_content()
-                .row_hover_card(
-                    &DockerEngineTarget::from(&group.engines[0]).into(),
-                    Clock::real()
-                )
+                .hover_card(&failure_row, Clock::real())
                 .is_some_and(|card| !card.sections.is_empty())
         );
     }

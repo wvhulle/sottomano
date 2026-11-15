@@ -9,10 +9,7 @@ use super::{
     metadata_room_row::MetadataRoomRow, mount_access_row::MountAccessRow,
     volume_identity_row::VolumeIdentityRow,
 };
-use crate::{
-    group_items::group_item::GroupItem,
-    hover_cards::{HoverTarget, hover_card_body::Section},
-};
+use crate::{group_items::group_item::GroupItem, hover_cards::hover_card_body::Section};
 
 const LISTED_PROPERTIES: [FilesystemProperty; 7] = [
     FilesystemProperty::Mount,
@@ -103,29 +100,15 @@ pub(super) enum FilesystemPropertyRow<'a> {
 }
 
 impl<'a> FilesystemPropertyRow<'a> {
-    pub(super) fn group_item<M: 'a>(
-        self,
-        target: impl Into<HoverTarget>,
-        locale: Locale,
-    ) -> GroupItem<'a, M> {
+    pub(super) fn group_item<M: 'a>(self, locale: Locale) -> GroupItem<'a, M> {
         match self {
-            FilesystemPropertyRow::Mount(row) => GroupItem::reading(row.reading_row(), target),
-            FilesystemPropertyRow::Volume(row) => GroupItem::reading(row.reading_row(), target),
-            FilesystemPropertyRow::Inodes(row) => {
-                GroupItem::reading(row.reading_row(locale), target)
-            }
-            FilesystemPropertyRow::MetadataRoom(row) => {
-                GroupItem::reading(row.reading_row(locale), target)
-            }
-            FilesystemPropertyRow::Compression(row) => {
-                GroupItem::reading(row.reading_row(locale), target)
-            }
-            FilesystemPropertyRow::Ext4Errors(row) => {
-                GroupItem::reading(row.reading_row(locale), target)
-            }
-            FilesystemPropertyRow::Ext4Writes(row) => {
-                GroupItem::reading(row.reading_row(locale), target)
-            }
+            FilesystemPropertyRow::Mount(row) => GroupItem::reading(row.reading_row()),
+            FilesystemPropertyRow::Volume(row) => GroupItem::reading(row.reading_row()),
+            FilesystemPropertyRow::Inodes(row) => GroupItem::reading(row.reading_row(locale)),
+            FilesystemPropertyRow::MetadataRoom(row) => GroupItem::reading(row.reading_row(locale)),
+            FilesystemPropertyRow::Compression(row) => GroupItem::reading(row.reading_row(locale)),
+            FilesystemPropertyRow::Ext4Errors(row) => GroupItem::reading(row.reading_row(locale)),
+            FilesystemPropertyRow::Ext4Writes(row) => GroupItem::reading(row.reading_row(locale)),
         }
     }
 

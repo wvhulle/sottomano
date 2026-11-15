@@ -1,4 +1,4 @@
-use std::ops::ControlFlow;
+use std::{collections::HashMap, ops::ControlFlow};
 
 use corredo::theming::{background_color, primary_color, secondary_text_color, success_color};
 use iced::{
@@ -21,9 +21,12 @@ use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
     desktop_panels::{panel_frame::outlined_sides_inward_of, panel_slot_drag::PanelSlotContext},
-    group_items::group_item::RowHoverCard,
+    group_items::group_item::HoverFetch,
     group_menus::group_menu_state::GroupMenuState,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::{
+        CardHeader, HoverTarget,
+        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
+    },
     widget_groups::{
         app_launcher_group::AppLauncherGroup,
         appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsMessage},
@@ -59,7 +62,9 @@ use sottomano_widgets::{
         waydroid_container_group::WaydroidContainerGroup,
         weather_group::WeatherGroup,
         widget_group_content::WidgetGroupContent,
-        window_group::{WindowGroup, WindowRowLayout, WindowTarget, WindowTitleLength},
+        window_group::{
+            WindowGroup, WindowInspection, WindowRowLayout, WindowTarget, WindowTitleLength,
+        },
         wireguard_tunnels_group::WireguardTunnelsGroup,
         workspaces_group::{
             EmptyWorkspaceFolding, EmptyWorkspaces, inline_strip, sidebar_column,
@@ -75,10 +80,7 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    fixtures::{
-        claude_usage, compute, desktop_session, login_session, memory_board, tailnet,
-        voice_dictation, wireguard_tunnels,
-    },
+    fixtures::{desktop_session, hover_fetch_replies},
     showcase_message::{ShowcaseInteraction, ShowcaseMessage},
     showcase_program::SHOWCASE_FLOAT_OFFSET_PX,
 };
@@ -379,12 +381,30 @@ impl ShowcasedDesktopSession {
         workspaces.into_iter().chain(windows).collect()
     }
 
-    fn standalone_hover_card(&self, target: &HoverTarget, clock: Clock) -> Vec<Section> {
+    fn standalone_hover_card(
+        &self,
+        target: &HoverTarget,
+        config: &Config,
+        clock: Clock,
+    ) -> Vec<Section> {
+        let silent_windows = HashMap::new();
+        let window_press_actions = |window: u64| {
+            self.window_group
+                .window_press_actions(&self.snapshot, &silent_windows, window, config)
+        };
         match target {
             HoverTarget::Window(WindowTarget::Usage(window)) => {
                 WindowGroup::window_identity_hover_card(&self.compositor, *window, clock)
+                    .into_iter()
+                    .chain(Section::press_actions(window_press_actions(*window)))
+                    .collect()
             }
-            HoverTarget::Window(WindowTarget::Inspect(_)) => self.window_group.inspect_hover_card(),
+            HoverTarget::Window(WindowTarget::Inspect(window)) => self
+                .window_group
+                .inspect_hover_card()
+                .into_iter()
+                .chain(Section::press_actions(window_press_actions(*window)))
+                .collect(),
             HoverTarget::Workspace(workspace) => workspace_hover_card::hover_card(
                 &self.snapshot,
                 &self.desktop_entries,
@@ -638,8 +658,9 @@ impl ShowcasedGroup {
     fn update_paired_group(
         &mut self,
         message: ShowcaseMessage,
+        config: &Config,
         clock: Clock,
-    ) -> Result<(), ShowcaseMessage> {
+    ) -> Result<(), Box<ShowcaseMessage>> {
         match (self, message) {
             (ShowcasedGroup::PodmanEngines(group), ShowcaseMessage::PodmanEngines(message)) => {
                 let _ = group.update(message, clock);
@@ -723,12 +744,12 @@ impl ShowcasedGroup {
                 let _ = group.update(message, clock);
             }
             (ShowcasedGroup::Tailnet(group), ShowcaseMessage::Tailnet(message)) => {
-                let _ = group.update(message, clock);
+                let _ = group.update(message, config, clock);
             }
             (ShowcasedGroup::LoginSession(group), ShowcaseMessage::LoginSession(message)) => {
-                let _ = group.update(message, clock);
+                let _ = group.update(message, config, clock);
             }
-            (_, unclaimed) => return Err(unclaimed),
+            (_, unclaimed) => return Err(Box::new(unclaimed)),
         }
         Ok(())
     }
@@ -736,77 +757,78 @@ impl ShowcasedGroup {
     pub fn update(
         &mut self,
         message: ShowcaseMessage,
+        config: &Config,
         clock: Clock,
-    ) -> Result<(), ShowcaseMessage> {
+    ) -> Result<(), Box<ShowcaseMessage>> {
         match self {
             ShowcasedGroup::Compute(group) => {
                 if let ShowcaseMessage::Compute(message) = message {
-                    let _ = group.update(message, clock);
+                    let _ = group.update(message, config, clock);
                 } else {
-                    return Err(message);
+                    return Err(Box::new(message));
                 }
             }
             ShowcasedGroup::MemoryBoard(group) => {
                 if let ShowcaseMessage::MemoryBoard(message) = message {
-                    let _ = group.update(message, clock);
+                    let _ = group.update(message, config, clock);
                 } else {
-                    return Err(message);
+                    return Err(Box::new(message));
                 }
             }
             ShowcasedGroup::Weather(group) => {
                 if let ShowcaseMessage::Weather(message) = message {
                     let _ = group.update(message, clock);
                 } else {
-                    return Err(message);
+                    return Err(Box::new(message));
                 }
             }
             ShowcasedGroup::ClaudeUsage(group) => {
                 if let ShowcaseMessage::ClaudeUsage(message) = message {
-                    let _ = group.update(message, clock);
+                    let _ = group.update(message, config, clock);
                 } else {
-                    return Err(message);
+                    return Err(Box::new(message));
                 }
             }
             ShowcasedGroup::Media(media) => {
                 if let ShowcaseMessage::Media(message) = message {
                     let _ = media.group.update(message, clock);
                 } else {
-                    return Err(message);
+                    return Err(Box::new(message));
                 }
             }
             ShowcasedGroup::IdleTimeouts(group) => {
                 if let ShowcaseMessage::IdleTimeouts(message) = message {
                     let _ = group.update(message, clock);
                 } else {
-                    return Err(message);
+                    return Err(Box::new(message));
                 }
             }
             ShowcasedGroup::Wallpaper(group) => {
                 if let ShowcaseMessage::Wallpaper(message) = message {
                     let _ = group.update(message, clock);
                 } else {
-                    return Err(message);
+                    return Err(Box::new(message));
                 }
             }
             ShowcasedGroup::Audio(group) => {
                 if let ShowcaseMessage::Audio(message) = message {
                     let _ = group.update(message, clock);
                 } else {
-                    return Err(message);
+                    return Err(Box::new(message));
                 }
             }
             ShowcasedGroup::Gamepad(gamepad) => {
                 if let ShowcaseMessage::Gamepad(message) = message {
                     let _ = gamepad.group.update(message, &gamepad.bindings);
                 } else {
-                    return Err(message);
+                    return Err(Box::new(message));
                 }
             }
             ShowcasedGroup::VoiceDictation(group) => {
                 if let ShowcaseMessage::VoiceDictation(message) = message {
-                    let _ = group.update(message, clock);
+                    let _ = group.update(message, config, clock);
                 } else {
-                    return Err(message);
+                    return Err(Box::new(message));
                 }
             }
             ShowcasedGroup::PodmanEngines(_)
@@ -826,25 +848,27 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Caldav(_)
             | ShowcasedGroup::WireguardTunnels(_)
             | ShowcasedGroup::Tailnet(_)
-            | ShowcasedGroup::LoginSession(_) => return self.update_paired_group(message, clock),
+            | ShowcasedGroup::LoginSession(_) => {
+                return self.update_paired_group(message, config, clock);
+            }
             ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 if let ShowcaseMessage::WindowGroup(message) = message {
                     let _ = session.window_group.update(message, clock);
                 } else {
-                    return Err(message);
+                    return Err(Box::new(message));
                 }
             }
             ShowcasedGroup::MenuMembers(groups) => {
                 return groups
                     .iter_mut()
                     .try_fold(message, |unclaimed, member| {
-                        match member.update(unclaimed, clock) {
+                        match member.update(unclaimed, config, clock) {
                             Ok(()) => ControlFlow::Break(()),
-                            Err(still_unclaimed) => ControlFlow::Continue(still_unclaimed),
+                            Err(still_unclaimed) => ControlFlow::Continue(*still_unclaimed),
                         }
                     })
                     .continue_value()
-                    .map_or(Ok(()), Err);
+                    .map_or(Ok(()), |unclaimed| Err(Box::new(unclaimed)));
             }
             ShowcasedGroup::AppearancePresets(presets) => match message {
                 ShowcaseMessage::AppearancePresets(AppearancePresetsMessage::Apply(preset)) => {
@@ -853,161 +877,69 @@ impl ShowcasedGroup {
                 ShowcaseMessage::AppearancePresets(AppearancePresetsMessage::Expansion(
                     expansion,
                 )) => presets.group.update_expansion(expansion),
-                unclaimed => return Err(unclaimed),
+                unclaimed => return Err(Box::new(unclaimed)),
             },
             ShowcasedGroup::AppLauncher(_)
             | ShowcasedGroup::Toasts(_)
-            | ShowcasedGroup::ShellSettings(_) => return Err(message),
+            | ShowcasedGroup::ShellSettings(_) => return Err(Box::new(message)),
         }
         Ok(())
     }
 
-    #[allow(clippy::too_many_lines)]
-    pub fn hover(
+    pub fn start_hovered_fetch(
         &mut self,
         target: &HoverTarget,
         config: &Config,
         clock: Clock,
     ) -> Vec<ShowcaseMessage> {
-        match self {
-            ShowcasedGroup::Compute(group) => {
-                let _ = group.hover(Some(target), config, clock);
-                let HoverTarget::Compute(target) = target else {
-                    return Vec::new();
-                };
-                compute::on_hover(*target)
-                    .into_iter()
-                    .map(ShowcaseMessage::Compute)
-                    .collect()
-            }
-            ShowcasedGroup::MemoryBoard(group) => {
-                let _ = group.hover(Some(target), config, clock);
-                let HoverTarget::MemoryBoard(target) = target else {
-                    return Vec::new();
-                };
-                memory_board::on_hover(target)
-                    .into_iter()
-                    .map(ShowcaseMessage::MemoryBoard)
-                    .collect()
-            }
-            ShowcasedGroup::ClaudeUsage(group) => {
-                let _ = group.hover(Some(target), config, None, clock);
-                let HoverTarget::ClaudeUsage(target) = target else {
-                    return Vec::new();
-                };
-                claude_usage::on_hover(*target)
-                    .into_iter()
-                    .map(ShowcaseMessage::ClaudeUsage)
-                    .collect()
-            }
-            ShowcasedGroup::VoiceDictation(group) => {
-                let _ = group.hover(Some(target), config, clock);
-                let HoverTarget::VoiceDictation(target) = target else {
-                    return Vec::new();
-                };
-                voice_dictation::on_hover(*target)
-                    .into_iter()
-                    .map(ShowcaseMessage::VoiceDictation)
-                    .collect()
-            }
-            ShowcasedGroup::WireguardTunnels(group) => {
-                let _ = group.hover(Some(target), config, None, clock);
-                let HoverTarget::WireguardTunnel(target) = target else {
-                    return Vec::new();
-                };
-                wireguard_tunnels::on_hover(target)
-                    .into_iter()
-                    .map(ShowcaseMessage::WireguardTunnels)
-                    .collect()
-            }
-            ShowcasedGroup::Tailnet(group) => {
-                let _ = group.hover(Some(target), config, None, clock);
-                let HoverTarget::Tailnet(target) = target else {
-                    return Vec::new();
-                };
-                tailnet::on_hover(target)
-                    .into_iter()
-                    .map(ShowcaseMessage::Tailnet)
-                    .collect()
-            }
-            ShowcasedGroup::LoginSession(group) => {
-                let _ = group.hover(Some(target), config, None, clock);
-                let HoverTarget::LoginSession(target) = target else {
-                    return Vec::new();
-                };
-                login_session::on_hover(*target)
-                    .into_iter()
-                    .map(ShowcaseMessage::LoginSession)
-                    .collect()
-            }
-            ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
-                let _ =
-                    session
-                        .window_group
-                        .hover(&session.compositor, Some(target), config, clock);
-                desktop_session::on_hover(target)
-                    .into_iter()
-                    .map(ShowcaseMessage::WindowGroup)
-                    .collect()
-            }
-            ShowcasedGroup::MenuMembers(groups) => groups
-                .iter_mut()
-                .flat_map(|member| member.hover(target, config, clock))
-                .collect(),
-            ShowcasedGroup::AppLauncher(_)
-            | ShowcasedGroup::Weather(_)
-            | ShowcasedGroup::Media(_)
-            | ShowcasedGroup::IdleTimeouts(_)
-            | ShowcasedGroup::Wallpaper(_)
-            | ShowcasedGroup::Audio(_)
-            | ShowcasedGroup::Gamepad(_)
-            | ShowcasedGroup::Caldav(_)
-            | ShowcasedGroup::PodmanEngines(_)
-            | ShowcasedGroup::VirtualMachines(_)
-            | ShowcasedGroup::NspawnContainers(_)
-            | ShowcasedGroup::CgroupMemoryLimits(_)
-            | ShowcasedGroup::DockerEngines(_)
-            | ShowcasedGroup::ApptainerContainers(_)
-            | ShowcasedGroup::VmwareMachines(_)
-            | ShowcasedGroup::VirtualBoxMachines(_)
-            | ShowcasedGroup::WaydroidContainer(_)
-            | ShowcasedGroup::FlatpakSandboxes(_)
-            | ShowcasedGroup::LxcContainers(_)
-            | ShowcasedGroup::IncusInstances(_)
-            | ShowcasedGroup::MicrovmGuests(_)
-            | ShowcasedGroup::CiRuns(_)
-            | ShowcasedGroup::AppearancePresets(_)
-            | ShowcasedGroup::ShellSettings(_)
-            | ShowcasedGroup::Toasts(_) => Vec::new(),
+        if let ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) =
+            self
+        {
+            let _watched_window = session.window_group.follow_window_inspection(
+                &session.compositor,
+                WindowInspection::from(Some(target)),
+                config,
+                clock,
+            );
+            return desktop_session::on_hover(target)
+                .into_iter()
+                .map(ShowcaseMessage::WindowGroup)
+                .collect();
         }
-    }
-
-    pub fn row_hover_card(
-        &self,
-        target: &HoverTarget,
-        config: &Config,
-        clock: Clock,
-    ) -> Option<RowHoverCard> {
-        self.group_contents(config, clock)
+        let hovered_fetch = self
+            .group_contents(config, clock)
             .iter()
-            .find_map(|group| group.row_hover_card(target, clock))
+            .find_map(|group| group.hovered_instrument(target))
+            .map(|hovered_row| hovered_row.hover_fetch().clone());
+        let Some(HoverFetch::Fetch { start, .. }) = hovered_fetch else {
+            return Vec::new();
+        };
+        let started_fetch = ShowcaseMessage::from(start);
+        let fetch_replies = hover_fetch_replies(&started_fetch);
+        let _started = self.update(started_fetch, config, clock);
+        fetch_replies
     }
 
-    pub fn hover_card_sections(
+    pub fn described_hover_card(
         &self,
         target: &HoverTarget,
         config: &Config,
         clock: Clock,
-    ) -> Vec<Section> {
-        if let Some(row_card) = self.row_hover_card(target, config, clock) {
-            return row_card.sections;
+    ) -> Option<HoverCard> {
+        let row_card = self
+            .group_contents(config, clock)
+            .iter()
+            .find_map(|group| group.hover_card(target, clock));
+        if let Some(row_card) = row_card {
+            return HoverCard::new(row_card.sections, row_card.header);
         }
-        match self {
+        let standalone_sections = match self {
             ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
-                session.standalone_hover_card(target, clock)
+                session.standalone_hover_card(target, config, clock)
             }
             _ => Vec::new(),
-        }
+        };
+        HoverCard::new(standalone_sections, CardHeader::Unheaded)
     }
 
     pub fn compositor(&self) -> Option<&CompositorWindowState> {

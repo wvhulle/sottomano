@@ -1,5 +1,3 @@
-use std::convert::identity;
-
 use iced::{Subscription, Task};
 use sottomano_toml_config::Config;
 
@@ -32,12 +30,9 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
     weather::{
-        buienradar_rain::Rain,
-        open_meteo_pollen::{Allergen, Pollen},
-        open_meteo_precipitation_model::PrecipitationModel,
-        open_meteo_temperature::Temperature,
-        open_meteo_wind::Wind,
-        situo_location_fix::Location,
+        buienradar_rain::Rain, open_meteo_pollen::Pollen,
+        open_meteo_precipitation_model::PrecipitationModel, open_meteo_temperature::Temperature,
+        open_meteo_wind::Wind, situo_location_fix::Location,
     },
 };
 
@@ -46,7 +41,7 @@ use crate::{
     clock::Clock,
     group_items::group_item::GroupItem,
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::hover_card_body::Section,
     widget_groups::{
         weather_group::rain_intensity::{RainForecast, RainSources},
         widget_group_content::{
@@ -56,20 +51,24 @@ use crate::{
     widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum WeatherTarget {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WeatherSource {
     Temperature,
     Wind,
     Rain,
     Pollen,
-    Allergen(Allergen),
-    Location,
 }
 
-impl From<WeatherTarget> for HoverTarget {
-    fn from(target: WeatherTarget) -> Self {
-        HoverTarget::Weather(target)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WeatherBusRequest {
+    Refresh(WeatherSource),
+}
+
+#[derive(Debug, Clone)]
+pub enum WeatherInteraction {
+    Expansion(WidgetGroupExpansionMessage),
+    RefreshLocation,
+    OnBuses(WeatherBusRequest),
 }
 
 #[derive(Default)]
@@ -91,7 +90,7 @@ pub enum WeatherMessage {
     PrecipitationModel(SnapshotDelivery<PrecipitationModel>),
     Pollen(SnapshotDelivery<Pollen>),
     Location(SnapshotDelivery<Location>),
-    Expansion(WidgetGroupExpansionMessage),
+    Interaction(WeatherInteraction),
 }
 
 impl WeatherGroup {
@@ -140,45 +139,43 @@ impl WeatherGroup {
             WeatherMessage::Location(reading) => {
                 self.location.receive(reading, clock);
             }
-            WeatherMessage::Expansion(expansion_message) => {
+            WeatherMessage::Interaction(WeatherInteraction::Expansion(expansion_message)) => {
                 self.expansion.update(expansion_message);
             }
+            WeatherMessage::Interaction(WeatherInteraction::RefreshLocation) => {
+                return first_delivery::<Location>(()).map(WeatherMessage::Location);
+            }
+            WeatherMessage::Interaction(WeatherInteraction::OnBuses(_)) => {}
         }
         Task::none()
     }
 
-    pub fn refresh(
+    pub fn on_buses(
         &self,
-        target: WeatherTarget,
-        buses: Option<&DesktopBuses>,
+        request: WeatherBusRequest,
+        buses: &DesktopBuses,
     ) -> Task<WeatherMessage> {
+        let WeatherBusRequest::Refresh(source) = request;
         let Some(here) = self.location.get().map(Location::position) else {
             return first_delivery::<Location>(()).map(WeatherMessage::Location);
-        };
-        if let WeatherTarget::Location = target {
-            return first_delivery::<Location>(()).map(WeatherMessage::Location);
-        }
-        let Some(buses) = buses else {
-            return Task::none();
         };
         let online_here = || OnBus {
             buses: buses.clone(),
             inputs: here,
         };
-        match target {
-            WeatherTarget::Temperature => {
+        match source {
+            WeatherSource::Temperature => {
                 first_delivery::<Temperature>(online_here()).map(WeatherMessage::Temperature)
             }
-            WeatherTarget::Wind => first_delivery::<Wind>(online_here()).map(WeatherMessage::Wind),
-            WeatherTarget::Rain => Task::batch([
+            WeatherSource::Wind => first_delivery::<Wind>(online_here()).map(WeatherMessage::Wind),
+            WeatherSource::Rain => Task::batch([
                 first_delivery::<Rain>(online_here()).map(WeatherMessage::Rain),
                 first_delivery::<PrecipitationModel>(online_here())
                     .map(WeatherMessage::PrecipitationModel),
             ]),
-            WeatherTarget::Pollen | WeatherTarget::Allergen(_) => {
+            WeatherSource::Pollen => {
                 first_delivery::<Pollen>(online_here()).map(WeatherMessage::Pollen)
             }
-            WeatherTarget::Location => Task::none(),
         }
     }
 
@@ -227,26 +224,21 @@ impl WeatherGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> Option<GroupItem<'a, WidgetGroupExpansionMessage>> {
+    ) -> Option<GroupItem<'a, WeatherInteraction>> {
         let locale = config.calendar.locale;
         let rain_item = match self.rain_forecast(config) {
-            Some(forecast) => Some(GroupItem::reading(
-                forecast.reading_row(clock, locale),
-                WeatherTarget::Rain,
-            )),
+            Some(forecast) => Some(GroupItem::reading(forecast.reading_row(clock, locale))),
             None => self
                 .rain
                 .group_item(
                     RAIN_FALLBACK_GLYPH,
                     |snapshot| rain_reading_row(snapshot, clock, locale),
-                    WeatherTarget::Rain,
                     clock,
                 )
                 .or_else(|| {
                     self.precipitation_model.group_item(
                         PRECIPITATION_MODEL_FALLBACK_GLYPH,
                         |snapshot| precipitation_model_reading_row(snapshot, clock, locale),
-                        WeatherTarget::Rain,
                         clock,
                     )
                 }),
@@ -255,6 +247,7 @@ impl WeatherGroup {
             item.with_hover_card(Box::new(move |card_clock| {
                 self.rain_hover_card(config, card_clock)
             }))
+            .refreshed_by(refresh_online(WeatherSource::Rain))
         })
     }
 
@@ -262,29 +255,26 @@ impl WeatherGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> WidgetGroupContent<'a, WidgetGroupExpansionMessage> {
+    ) -> WidgetGroupContent<'a, WeatherInteraction> {
         let airborne_items = self.pollen.get().into_iter().flat_map(|pollen| {
             pollen.airborne().map(|concentration| {
-                GroupItem::reading(
-                    allergen_reading_row(concentration),
-                    WeatherTarget::Allergen(concentration.allergen),
-                )
-                .with_hover_card(Box::new(move |_| {
-                    self.pollen
-                        .hover_card_with(allergen_hover_card(concentration))
-                }))
+                GroupItem::reading(allergen_reading_row(concentration))
+                    .with_hover_card(Box::new(move |_| {
+                        self.pollen
+                            .hover_card_with(allergen_hover_card(concentration))
+                    }))
+                    .refreshed_by(refresh_online(WeatherSource::Pollen))
             })
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Weather,
             &self.expansion,
-            identity,
+            WeatherInteraction::Expansion,
             [
                 self.temperature
                     .group_item(
                         TEMPERATURE_FALLBACK_GLYPH,
                         |snapshot| temperature_reading_row(snapshot),
-                        WeatherTarget::Temperature,
                         clock,
                     )
                     .map(|item| {
@@ -292,19 +282,20 @@ impl WeatherGroup {
                             self.temperature
                                 .sections_described_by(temperature_hover_card)
                         }))
+                        .refreshed_by(refresh_online(WeatherSource::Temperature))
                     }),
                 self.rain_item(config, clock),
                 self.wind
                     .group_item(
                         WIND_FALLBACK_GLYPH,
                         |snapshot| wind_reading_row(snapshot),
-                        WeatherTarget::Wind,
                         clock,
                     )
                     .map(|item| {
                         item.with_hover_card(Box::new(move |_| {
                             self.wind.sections_described_by(wind_hover_card)
                         }))
+                        .refreshed_by(refresh_online(WeatherSource::Wind))
                     }),
             ]
             .into_iter()
@@ -313,25 +304,23 @@ impl WeatherGroup {
             .chain(
                 [
                     self.pollen.failure().map(|widget| {
-                        GroupItem::reading(
-                            widget.reading_row(POLLEN_FALLBACK_GLYPH),
-                            WeatherTarget::Pollen,
-                        )
-                        .with_hover_card(Box::new(move |_| {
-                            self.pollen.sections_described_by(|_pollen| Vec::new())
-                        }))
+                        GroupItem::reading(widget.reading_row(POLLEN_FALLBACK_GLYPH))
+                            .with_hover_card(Box::new(move |_| {
+                                self.pollen.sections_described_by(|_pollen| Vec::new())
+                            }))
+                            .refreshed_by(refresh_online(WeatherSource::Pollen))
                     }),
                     self.location
                         .group_item(
                             LOCATION_FALLBACK_GLYPH,
                             |snapshot| location_reading_row(snapshot),
-                            WeatherTarget::Location,
                             clock,
                         )
                         .map(|item| {
                             item.with_hover_card(Box::new(move |_| {
                                 self.location.sections_described_by(location_hover_card)
                             }))
+                            .refreshed_by(WeatherInteraction::RefreshLocation)
                         }),
                 ]
                 .into_iter()
@@ -339,6 +328,10 @@ impl WeatherGroup {
             ),
         )
     }
+}
+
+fn refresh_online(source: WeatherSource) -> WeatherInteraction {
+    WeatherInteraction::OnBuses(WeatherBusRequest::Refresh(source))
 }
 
 #[cfg(test)]

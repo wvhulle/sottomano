@@ -37,10 +37,7 @@ use crate::{
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, SectionWidget},
-    },
+    hover_cards::hover_card_body::{Section, SectionWidget},
     widget_groups::{
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
@@ -106,19 +103,6 @@ fn global_menu_use_toggle(global_menu_use: GlobalMenuUse) -> IconToggle {
             turning_off: "leave menus inside their windows",
         },
     )
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GlobalMenuTarget {
-    Use,
-    LookupFailure,
-    Entry { app_id: String, label_path: String },
-}
-
-impl From<GlobalMenuTarget> for HoverTarget {
-    fn from(target: GlobalMenuTarget) -> Self {
-        HoverTarget::GlobalMenu(target)
-    }
 }
 
 struct MenuLookupFailureReading<'failure> {
@@ -511,10 +495,7 @@ impl GlobalMenuGroup {
 
     pub fn switch_content(&self) -> WidgetGroupContent<'_, GlobalMenuInteraction> {
         let lookup_failure_row = self.lookup_failure().map(|lookup_failure| {
-            GroupItem::reading(
-                MenuLookupFailureReading { lookup_failure }.reading_row(),
-                GlobalMenuTarget::LookupFailure,
-            )
+            GroupItem::reading(MenuLookupFailureReading { lookup_failure }.reading_row())
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::GlobalMenuSwitch,
@@ -522,7 +503,6 @@ impl GlobalMenuGroup {
             GlobalMenuInteraction::SwitchExpansion,
             [GroupItem::toggle(
                 global_menu_use_toggle(self.global_menu_use),
-                GlobalMenuTarget::Use,
                 GlobalMenuInteraction::ToggleUse,
             )]
             .into_iter()
@@ -556,12 +536,8 @@ impl GlobalMenuGroup {
         };
         let card_label_path = entry.label_path.clone();
         let entry_item = GroupItem::composed_pinnable(
-            entry.label_path.clone(),
+            entry.label_path,
             icon,
-            GlobalMenuTarget::Entry {
-                app_id: self.application_id().to_owned(),
-                label_path: entry.label_path,
-            },
             GroupItemValue::Nothing,
             Box::new(|_| Vec::new()),
         )

@@ -6,7 +6,7 @@ use sottomano_desktop_sources::desktop_notifications::notification_data::{
 use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 
-use crate::{hover_cards::HoverTarget, widgets::icon_glyph::IconGlyph};
+use crate::{hover_cards::InstrumentKey, widgets::icon_glyph::IconGlyph};
 
 const LEVEL_TOAST_LIFETIME: Duration = Duration::from_millis(1_500);
 
@@ -20,7 +20,7 @@ pub struct AnnouncedLevel {
 
 #[derive(Debug, Clone)]
 pub struct LevelReading<Message> {
-    pub hover_target: HoverTarget,
+    pub instrument: InstrumentKey,
     pub glyph: IconGlyph,
     pub level: AnnouncedLevel,
     pub on_body_clicked: Message,
@@ -29,7 +29,7 @@ pub struct LevelReading<Message> {
 impl<Message> LevelReading<Message> {
     pub fn change_since(&self, previous: &[LevelReading<Message>]) -> LevelReadingChange {
         if previous.iter().any(|seen| {
-            seen.hover_target == self.hover_target
+            seen.instrument == self.instrument
                 && seen.level.external_change_count != self.level.external_change_count
         }) {
             LevelReadingChange::Changed
@@ -106,7 +106,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        widget_groups::audio_group::ControlKind,
+        widget_groups::{
+            audio_group::ControlKind,
+            widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
+        },
         widgets::phosphor::{Phosphor, Weight},
     };
 
@@ -122,7 +125,10 @@ mod tests {
 
     fn reading(kind: ControlKind, external_change_count: u64) -> LevelReading<()> {
         LevelReading {
-            hover_target: kind.into(),
+            instrument: InstrumentKey {
+                group: WidgetGroupIdentity::sole(WidgetGroupFamily::Audio),
+                name: format!("{kind:?}").into(),
+            },
             glyph: Phosphor::SpeakerHigh(Weight::Regular).into(),
             level: AnnouncedLevel {
                 summary_text: "Speaker",

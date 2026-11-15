@@ -1,5 +1,3 @@
-use std::convert::identity;
-
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::network_connectivity::network_manager_proxies::Metering;
 
@@ -40,7 +38,7 @@ use crate::{
     clock::Clock,
     group_items::group_item::GroupItem,
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::hover_card_body::Section,
     widget_groups::{
         reachability_group::{
             metered_volume_tally::{MeteredVolumeTally, TallyFollowUp},
@@ -58,18 +56,15 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ReachabilityTarget {
-    Down,
-    Up,
-    Throughput,
-    Latency,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReachabilityBusRequest {
+    Refresh,
 }
 
-impl From<ReachabilityTarget> for HoverTarget {
-    fn from(target: ReachabilityTarget) -> Self {
-        HoverTarget::Reachability(target)
-    }
+#[derive(Debug, Clone)]
+pub enum ReachabilityInteraction {
+    Expansion(WidgetGroupExpansionMessage),
+    OnBuses(ReachabilityBusRequest),
 }
 
 #[derive(Default)]
@@ -87,7 +82,7 @@ pub enum ReachabilityMessage {
     Latency(SnapshotDelivery<InternetLatency>),
     Connectivity(SnapshotDelivery<UplinkConnectivity>),
     MeteredTotalsLoaded(Option<MeteredVolumeTotals>),
-    Expansion(WidgetGroupExpansionMessage),
+    Interaction(ReachabilityInteraction),
 }
 
 impl ReachabilityGroup {
@@ -116,7 +111,11 @@ impl ReachabilityGroup {
         ])
     }
 
-    pub fn refresh(buses: &DesktopBuses) -> Task<ReachabilityMessage> {
+    pub fn on_buses(
+        request: ReachabilityBusRequest,
+        buses: &DesktopBuses,
+    ) -> Task<ReachabilityMessage> {
+        let ReachabilityBusRequest::Refresh = request;
         first_delivery::<InterfaceThroughput>(buses.clone()).map(ReachabilityMessage::Throughput)
     }
 
@@ -142,9 +141,12 @@ impl ReachabilityGroup {
                     clock.instant,
                 );
             }
-            ReachabilityMessage::Expansion(expansion_message) => {
+            ReachabilityMessage::Interaction(ReachabilityInteraction::Expansion(
+                expansion_message,
+            )) => {
                 self.expansion.update(expansion_message);
             }
+            ReachabilityMessage::Interaction(ReachabilityInteraction::OnBuses(_)) => {}
         }
         Task::none()
     }
@@ -206,46 +208,42 @@ impl ReachabilityGroup {
         }
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
+    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, ReachabilityInteraction> {
         let throughput = self.throughput.get();
+        let refresh_throughput =
+            || ReachabilityInteraction::OnBuses(ReachabilityBusRequest::Refresh);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Reachability,
             &self.expansion,
-            identity,
+            ReachabilityInteraction::Expansion,
             self.throughput
                 .group_item(
                     IconGlyph::default(),
                     |snapshot| interface_throughput_reading_row(snapshot),
-                    ReachabilityTarget::Throughput,
                     clock,
                 )
                 .map(|throughput_item| {
-                    throughput_item.with_hover_card(Box::new(move |_| {
-                        self.throughput
-                            .sections_described_by(interface_throughput_hover_card)
-                    }))
+                    throughput_item
+                        .with_hover_card(Box::new(move |_| {
+                            self.throughput
+                                .sections_described_by(interface_throughput_hover_card)
+                        }))
+                        .refreshed_by(refresh_throughput())
                 })
                 .into_iter()
                 .chain(throughput.into_iter().flat_map(move |readings| {
                     [
-                        GroupItem::reading(
-                            throughput_reading_row(&readings.down),
-                            ReachabilityTarget::Down,
-                        )
-                        .previewed_on_handle()
-                        .with_hover_card(Box::new(move |_| {
-                            self.direction_hover_card(&readings.down)
-                        })),
-                        GroupItem::reading(
-                            throughput_reading_row(&readings.up),
-                            ReachabilityTarget::Up,
-                        )
-                        .with_hover_card(Box::new(move |_| {
-                            self.direction_hover_card(&readings.up)
-                        })),
+                        GroupItem::reading(throughput_reading_row(&readings.down))
+                            .previewed_on_handle()
+                            .with_hover_card(Box::new(move |_| {
+                                self.direction_hover_card(&readings.down)
+                            }))
+                            .refreshed_by(refresh_throughput()),
+                        GroupItem::reading(throughput_reading_row(&readings.up))
+                            .with_hover_card(Box::new(move |_| {
+                                self.direction_hover_card(&readings.up)
+                            }))
+                            .refreshed_by(refresh_throughput()),
                     ]
                 }))
                 .chain(
@@ -253,14 +251,15 @@ impl ReachabilityGroup {
                         .group_item(
                             IconGlyph::default(),
                             |snapshot| internet_latency_reading_row(snapshot),
-                            ReachabilityTarget::Latency,
                             clock,
                         )
                         .map(|latency_item| {
-                            latency_item.with_hover_card(Box::new(move |_| {
-                                self.latency
-                                    .sections_described_by(internet_latency_hover_card)
-                            }))
+                            latency_item
+                                .with_hover_card(Box::new(move |_| {
+                                    self.latency
+                                        .sections_described_by(internet_latency_hover_card)
+                                }))
+                                .refreshed_by(refresh_throughput())
                         }),
                 ),
         )

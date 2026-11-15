@@ -34,7 +34,6 @@ use crate::{
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage},
     },
-    hover_cards::HoverTarget,
     widget_groups::{
         dark_mode_group::auto_switch_toggle::{AutoSwitchToggle, ScheduleStatus, SwitchDecision},
         widget_group_content::{
@@ -55,17 +54,9 @@ const OFFSET_STEP_MINUTES: f32 = 5.0;
 const SWITCH_TIMER_MARGIN: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DarkModeTarget {
+pub enum DarkModeSource {
     Mode,
-    Schedule,
-    SunriseOffset,
-    SunsetOffset,
-}
-
-impl From<DarkModeTarget> for HoverTarget {
-    fn from(target: DarkModeTarget) -> Self {
-        HoverTarget::DarkMode(target)
-    }
+    Location,
 }
 
 pub struct DarkModeGroup {
@@ -98,6 +89,7 @@ pub enum DarkModeInteraction {
     OffsetSlider(ColorMode, ControlMessage),
     Expansion(WidgetGroupExpansionMessage),
     SwitchScheme(ColorMode),
+    Refresh(DarkModeSource),
 }
 
 impl DarkModeGroup {
@@ -106,16 +98,8 @@ impl DarkModeGroup {
         Self {
             mode_toggle: ToggleControl::default(),
             auto_switch_toggle: AutoSwitchToggle::new(clock),
-            sunrise_offset_slider: new_offset_slider(
-                "Sunrise offset",
-                DarkModeTarget::SunriseOffset,
-                WeatherIcon::Sunrise,
-            ),
-            sunset_offset_slider: new_offset_slider(
-                "Sunset offset",
-                DarkModeTarget::SunsetOffset,
-                WeatherIcon::Sunset,
-            ),
+            sunrise_offset_slider: new_offset_slider("Sunrise offset", WeatherIcon::Sunrise),
+            sunset_offset_slider: new_offset_slider("Sunset offset", WeatherIcon::Sunset),
             armed_switch: None,
             expansion: WidgetGroupExpansion::default(),
         }
@@ -142,14 +126,12 @@ impl DarkModeGroup {
             .map(|()| DarkModeMessage::SwitchDue)
     }
 
-    pub fn refresh(target: DarkModeTarget) -> Task<DarkModeMessage> {
-        match target {
-            DarkModeTarget::Mode => {
+    fn refresh(source: DarkModeSource) -> Task<DarkModeMessage> {
+        match source {
+            DarkModeSource::Mode => {
                 ToggleControl::<DarkMode>::refresh(()).map(DarkModeMessage::ModeToggle)
             }
-            DarkModeTarget::Schedule
-            | DarkModeTarget::SunriseOffset
-            | DarkModeTarget::SunsetOffset => {
+            DarkModeSource::Location => {
                 first_delivery::<Location>(()).map(DarkModeMessage::LocationFix)
             }
         }
@@ -257,6 +239,9 @@ impl DarkModeGroup {
             DarkModeMessage::Interaction(DarkModeInteraction::SwitchScheme(mode)) => {
                 self.apply_color_mode(mode)
             }
+            DarkModeMessage::Interaction(DarkModeInteraction::Refresh(source)) => {
+                Self::refresh(source)
+            }
         }
     }
 
@@ -346,6 +331,7 @@ impl DarkModeGroup {
                 config,
                 DarkModeInteraction::OffsetSlider.with(edge),
             )
+            .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Location))
         };
         WidgetGroupContent::expandable(
             WidgetGroupFamily::DarkMode,
@@ -356,7 +342,6 @@ impl DarkModeGroup {
                     .group_item(
                         IconGlyph::default(),
                         dark_mode_reading_row,
-                        DarkModeTarget::Mode,
                         DarkModeInteraction::ModeTogglePressed,
                         clock,
                     )
@@ -364,17 +349,16 @@ impl DarkModeGroup {
                         mode_item
                             .previewed_on_handle()
                             .with_hover_card(Box::new(move |_| self.mode_toggle.hover_card()))
+                            .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Mode))
                     }),
                 mode_known.then(|| {
-                    GroupItem::reading(
-                        self.auto_switch_toggle.reading_row(clock, locale),
-                        DarkModeTarget::Schedule,
-                    )
-                    .on_switch_press(
-                        self.auto_switch_toggle.saved_schedule.auto_switch_arming,
-                        self.auto_switch_toggle.press_does(),
-                        DarkModeInteraction::ToggleAutoSwitch,
-                    )
+                    GroupItem::reading(self.auto_switch_toggle.reading_row(clock, locale))
+                        .on_switch_press(
+                            self.auto_switch_toggle.saved_schedule.auto_switch_arming,
+                            self.auto_switch_toggle.press_does(),
+                            DarkModeInteraction::ToggleAutoSwitch,
+                        )
+                        .refreshed_by(DarkModeInteraction::Refresh(DarkModeSource::Location))
                 }),
                 mode_known.then(|| offset_slider(ColorMode::Light)),
                 mode_known.then(|| offset_slider(ColorMode::Dark)),

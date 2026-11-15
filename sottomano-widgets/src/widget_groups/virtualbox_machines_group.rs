@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use sottomano_desktop_sinks::{
     sink_write_errors::GuestPowerError,
     virtualbox_machines::{press_virtualbox_power_button, start_virtualbox_machine},
@@ -20,10 +18,7 @@ use crate::{
         reading_row::ReadingRow,
         source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         container_family_group::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
@@ -34,18 +29,6 @@ use crate::{
     },
     widgets::{icon_glyph::IconGlyph, simple_icons::SimpleIcon, value_cells::LabeledValue},
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum VirtualBoxMachineTarget {
-    RunningProcess { pid: i32 },
-    StoppedMachine { machine_uuid: Cow<'static, str> },
-}
-
-impl From<VirtualBoxMachineTarget> for HoverTarget {
-    fn from(target: VirtualBoxMachineTarget) -> Self {
-        HoverTarget::VirtualBoxMachine(target)
-    }
-}
 
 pub enum VirtualBoxListedRow<'a> {
     Running(&'a VirtualBoxMachineListing),
@@ -177,7 +160,6 @@ impl ContainerFamily for VirtualBoxFamily {
     type Probe = VirtualBoxMachineProbe;
     type Listings = VirtualBoxMachineListings;
     type Detail = FamilyDetails<VirtualBoxMachine>;
-    type Target = VirtualBoxMachineTarget;
     type PowerRequest = String;
 
     const FAMILY: WidgetGroupFamily = WidgetGroupFamily::VirtualBoxMachines;
@@ -198,7 +180,6 @@ impl ContainerFamily for VirtualBoxFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                target: VirtualBoxMachineTarget::RunningProcess { pid: listing.pid },
                 reading: VirtualBoxListedRow::Running(listing).reading_row(),
                 power: RowPower::SwitchedOn(listing.machine_reference.clone()),
             })
@@ -210,9 +191,6 @@ impl ContainerFamily for VirtualBoxFamily {
             .details
             .iter()
             .map(|machine| FamilyRow {
-                target: VirtualBoxMachineTarget::RunningProcess {
-                    pid: machine.listing.pid,
-                },
                 reading: VirtualBoxMachineRow { machine }.reading_row(),
                 power: RowPower::SwitchedOn(machine.listing.machine_reference.clone()),
             })
@@ -224,9 +202,6 @@ impl ContainerFamily for VirtualBoxFamily {
             .stopped_machines
             .iter()
             .map(|machine| FamilyRow {
-                target: VirtualBoxMachineTarget::StoppedMachine {
-                    machine_uuid: Cow::Owned(machine.machine_uuid.clone()),
-                },
                 reading: VirtualBoxListedRow::Stopped(machine).reading_row(),
                 power: RowPower::SwitchedOff(machine.machine_uuid.clone()),
             })

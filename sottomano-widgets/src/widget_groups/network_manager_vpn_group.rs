@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::network_manager_activations::switch_nm_connection;
 use sottomano_desktop_sources::{
@@ -19,7 +17,6 @@ use crate::{
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -35,15 +32,9 @@ use crate::{
 mod network_manager_vpn_hover_card;
 use network_manager_vpn_hover_card::{vpn_connection_hover_card, vpn_connection_reading_row};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NetworkManagerVpnTarget {
-    pub connection_name: Cow<'static, str>,
-}
-
-impl From<NetworkManagerVpnTarget> for HoverTarget {
-    fn from(target: NetworkManagerVpnTarget) -> Self {
-        HoverTarget::NetworkManagerVpn(target)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NetworkManagerVpnBusRequest {
+    Refresh,
 }
 
 #[derive(Default)]
@@ -62,6 +53,7 @@ pub enum NetworkManagerVpnMessage {
 pub enum NetworkManagerVpnInteraction {
     Expansion(WidgetGroupExpansionMessage),
     SwitchVpn(NmConnectionSwitch),
+    OnBuses(NetworkManagerVpnBusRequest),
 }
 
 impl NetworkManagerVpnGroup {
@@ -80,7 +72,11 @@ impl NetworkManagerVpnGroup {
         )
     }
 
-    pub fn refresh(buses: &DesktopBuses) -> Task<NetworkManagerVpnMessage> {
+    pub fn on_buses(
+        request: NetworkManagerVpnBusRequest,
+        buses: &DesktopBuses,
+    ) -> Task<NetworkManagerVpnMessage> {
+        let NetworkManagerVpnBusRequest::Refresh = request;
         first_delivery::<NetworkManagerVpns>(buses.clone())
             .map(NetworkManagerVpnMessage::NetworkManagerVpns)
     }
@@ -107,6 +103,9 @@ impl NetworkManagerVpnGroup {
                 format!("NetworkManager VPN {vpn_switch:?}"),
                 switch_nm_connection(vpn_switch),
             ),
+            NetworkManagerVpnMessage::Interaction(NetworkManagerVpnInteraction::OnBuses(_)) => {
+                Task::none()
+            }
         }
     }
 
@@ -121,27 +120,25 @@ impl NetworkManagerVpnGroup {
         vpn_connection: &'a VpnConnection,
     ) -> GroupItem<'a, NetworkManagerVpnInteraction> {
         let vpn_switch = vpn_connection.switch();
-        GroupItem::reading(
-            vpn_connection_reading_row(vpn_connection),
-            NetworkManagerVpnTarget {
-                connection_name: Cow::Owned(vpn_connection.name.clone()),
-            },
-        )
-        .on_switch_press(
-            match vpn_switch {
-                NmConnectionSwitch::Connect(_) => SwitchPosition::Off,
-                NmConnectionSwitch::Disconnect(_) => SwitchPosition::On,
-            },
-            match vpn_switch {
-                NmConnectionSwitch::Connect(_) => "connect the VPN",
-                NmConnectionSwitch::Disconnect(_) => "disconnect the VPN",
-            },
-            NetworkManagerVpnInteraction::SwitchVpn(vpn_switch),
-        )
-        .with_hover_card(Box::new(move |_| {
-            self.network_manager_vpns
-                .hover_card_with(vpn_connection_hover_card(vpn_connection))
-        }))
+        GroupItem::reading(vpn_connection_reading_row(vpn_connection))
+            .on_switch_press(
+                match vpn_switch {
+                    NmConnectionSwitch::Connect(_) => SwitchPosition::Off,
+                    NmConnectionSwitch::Disconnect(_) => SwitchPosition::On,
+                },
+                match vpn_switch {
+                    NmConnectionSwitch::Connect(_) => "connect the VPN",
+                    NmConnectionSwitch::Disconnect(_) => "disconnect the VPN",
+                },
+                NetworkManagerVpnInteraction::SwitchVpn(vpn_switch),
+            )
+            .with_hover_card(Box::new(move |_| {
+                self.network_manager_vpns
+                    .hover_card_with(vpn_connection_hover_card(vpn_connection))
+            }))
+            .refreshed_by(NetworkManagerVpnInteraction::OnBuses(
+                NetworkManagerVpnBusRequest::Refresh,
+            ))
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, NetworkManagerVpnInteraction> {

@@ -11,7 +11,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::Config;
 
-use super::{MediaInteraction, MediaTarget, PlayerTarget};
+use super::MediaInteraction;
 use crate::{
     clock::Clock,
     group_items::{
@@ -144,10 +144,6 @@ pub(super) fn lyrics_item<'a>(
         return lyrics_snapshot.group_item(
             TRACK_LYRICS_FALLBACK_GLYPH,
             track_lyrics_reading_row,
-            PlayerTarget {
-                bus: media.bus.clone().into(),
-                control: MediaTarget::Lyrics,
-            },
             clock,
         );
     };
@@ -184,16 +180,7 @@ fn current_lyric_line<'a>(
         )
         .into()
     });
-    GroupItem::composed_pinnable(
-        "Lyrics",
-        icon,
-        PlayerTarget {
-            bus: media.bus.clone().into(),
-            control: MediaTarget::Lyrics,
-        },
-        value,
-        Box::new(|_| Vec::new()),
-    )
+    GroupItem::composed_pinnable("Lyrics", icon, value, Box::new(|_| Vec::new()))
 }
 
 #[cfg(test)]

@@ -12,10 +12,12 @@ use sottomano_desktop_sources::{
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
-use sottomano_toml_config::severity::Severity;
+use sottomano_toml_config::{Config, severity::Severity};
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::memory_board_group::{MemoryBoardGroup, MemoryBoardMessage, MemoryBoardTarget},
+    widget_groups::memory_board_group::{
+        MemoryBoardGroup, MemoryBoardInteraction, MemoryBoardMessage,
+    },
 };
 use uom::si::{
     f64::{Ratio, ThermodynamicTemperature},
@@ -37,10 +39,11 @@ const GROWING_TICK: u32 = 2;
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = MemoryBoardGroup::default();
     for message in memory_readings(0) {
-        let _ = group.update(message, clock);
+        let _ = group.update(message, &Config::default(), clock);
     }
     let _ = group.update(
         MemoryBoardMessage::Hardware(host_hardware::ryzen_workstation_delivery()),
+        &Config::default(),
         clock,
     );
     ShowcasedGroup::MemoryBoard(Box::new(group))
@@ -51,15 +54,15 @@ pub fn live(clock: Clock) -> Vec<ShowcaseMessage> {
     memory_readings(tick)
         .into_iter()
         .chain(hover_fetched_snapshot_messages(
-            &MemoryBoardTarget::Memory,
+            &MemoryBoardInteraction::StartMemoryProcessesFetch,
             tick,
         ))
         .map(ShowcaseMessage::MemoryBoard)
         .collect()
 }
 
-pub fn on_hover(target: &MemoryBoardTarget) -> Vec<MemoryBoardMessage> {
-    hover_fetched_snapshot_messages(target, 0)
+pub fn on_hover(started_fetch: &MemoryBoardInteraction) -> Vec<MemoryBoardMessage> {
+    hover_fetched_snapshot_messages(started_fetch, 0)
 }
 
 fn polled_every(seconds: u64) -> DeliveryCadence {
@@ -142,54 +145,61 @@ fn stall_pressure(tick: u32) -> MemoryStallPressure {
 }
 
 fn hover_fetched_snapshot_messages(
-    target: &MemoryBoardTarget,
+    started_fetch: &MemoryBoardInteraction,
     tick: u32,
 ) -> Vec<MemoryBoardMessage> {
-    match target {
-        MemoryBoardTarget::Memory => vec![MemoryBoardMessage::MemoryProcessesFetched(
-            SnapshotDelivery::fixture_delivered(
-                Ok(MemoryProcesses {
-                    processes: [
-                        ("firefox", 5_800 + u64::from(tick % 4) * 120),
-                        ("rust-analyzer", 3_100 + u64::from(tick % 3) * 90),
-                        ("sottomano", 180),
-                    ]
-                    .into_iter()
-                    .zip(1000..)
-                    .map(|((name, mebibytes), pid)| MemoryProcess {
-                        pid,
-                        name: name.to_owned(),
-                        resident: ByteSize::mib(mebibytes),
-                    })
-                    .collect(),
-                }),
-                DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(3))),
-            ),
-        )],
-        MemoryBoardTarget::Swap => vec![MemoryBoardMessage::SwappedProcessesFetched(
-            SnapshotDelivery::fixture_delivered(
-                Ok(SwappedProcesses {
-                    processes: [
-                        ("firefox", 1_400 + u64::from(tick % 4) * 60),
-                        ("rust-analyzer", 620 + u64::from(tick % 3) * 40),
-                        ("Xwayland", 85),
-                    ]
-                    .into_iter()
-                    .zip(3000..)
-                    .map(|((name, mebibytes), pid)| SwappedProcess {
-                        pid,
-                        name: name.to_owned(),
-                        swapped: ByteSize::mib(mebibytes),
-                    })
-                    .collect(),
-                }),
-                DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(3))),
-            ),
-        )],
-        MemoryBoardTarget::Growth
-        | MemoryBoardTarget::Pressure
-        | MemoryBoardTarget::Slot(_)
-        | MemoryBoardTarget::TemperatureSensor(_) => Vec::new(),
+    match started_fetch {
+        MemoryBoardInteraction::StartMemoryProcessesFetch => {
+            vec![MemoryBoardMessage::MemoryProcessesFetched(
+                SnapshotDelivery::fixture_delivered(
+                    Ok(MemoryProcesses {
+                        processes: [
+                            ("firefox", 5_800 + u64::from(tick % 4) * 120),
+                            ("rust-analyzer", 3_100 + u64::from(tick % 3) * 90),
+                            ("sottomano", 180),
+                        ]
+                        .into_iter()
+                        .zip(1000..)
+                        .map(|((name, mebibytes), pid)| MemoryProcess {
+                            pid,
+                            name: name.to_owned(),
+                            resident: ByteSize::mib(mebibytes),
+                        })
+                        .collect(),
+                    }),
+                    DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(
+                        3,
+                    ))),
+                ),
+            )]
+        }
+        MemoryBoardInteraction::StartSwappedProcessesFetch => {
+            vec![MemoryBoardMessage::SwappedProcessesFetched(
+                SnapshotDelivery::fixture_delivered(
+                    Ok(SwappedProcesses {
+                        processes: [
+                            ("firefox", 1_400 + u64::from(tick % 4) * 60),
+                            ("rust-analyzer", 620 + u64::from(tick % 3) * 40),
+                            ("Xwayland", 85),
+                        ]
+                        .into_iter()
+                        .zip(3000..)
+                        .map(|((name, mebibytes), pid)| SwappedProcess {
+                            pid,
+                            name: name.to_owned(),
+                            swapped: ByteSize::mib(mebibytes),
+                        })
+                        .collect(),
+                    }),
+                    DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(
+                        3,
+                    ))),
+                ),
+            )]
+        }
+        MemoryBoardInteraction::Expansion(_)
+        | MemoryBoardInteraction::StopHoverFetches
+        | MemoryBoardInteraction::Refresh(_) => Vec::new(),
     }
 }
 

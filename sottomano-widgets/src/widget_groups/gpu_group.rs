@@ -29,7 +29,7 @@ use crate::{
         group_item::GroupItem,
         offline_internet_reading::{PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble},
     },
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::hover_card_body::Section,
     widget_groups::{
         gpu_group::{
             gpu_clock_label::gpu_clocks_sections,
@@ -45,25 +45,17 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+enum HoveredGpu {
+    #[default]
+    NothingHovered,
+    Hovered(PciBusId),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GpuReading {
-    Load,
-    Clock,
-    Memory,
-    Temperature,
-    Power,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GpuTarget {
-    bus: PciBusId,
-    reading: GpuReading,
-}
-
-impl From<GpuTarget> for HoverTarget {
-    fn from(target: GpuTarget) -> Self {
-        HoverTarget::Gpu(target)
-    }
+enum GpuFetchedDetail {
+    Clocks,
+    Processes,
 }
 
 enum GpuDeviceAccess {
@@ -131,7 +123,7 @@ fn gpu_group_identity(bus: &PciBusId) -> WidgetGroupIdentity {
 pub struct GpuGroup {
     discovery: SubscribedSnapshot<GpuDiscovery>,
     devices: BTreeMap<PciBusId, GpuDevice>,
-    hovered_bus: Option<PciBusId>,
+    hovered_gpu: HoveredGpu,
     clocks: HoverFetchedSnapshot<GpuClocks>,
     processes: HoverFetchedSnapshot<GpuProcesses>,
 }
@@ -149,6 +141,10 @@ pub enum GpuMessage {
 #[derive(Debug, Clone)]
 pub enum GpuInteraction {
     Expansion(PciBusId, WidgetGroupExpansionMessage),
+    StartClocksFetch(PciBusId),
+    StartProcessesFetch(PciBusId),
+    StopHoverFetches,
+    Refresh(PciBusId),
 }
 
 impl GpuGroup {
@@ -183,38 +179,38 @@ impl GpuGroup {
         )
     }
 
-    pub fn hover(
+    fn stop_hover_fetches(&mut self) {
+        self.clocks.stop();
+        self.processes.stop();
+        self.hovered_gpu = HoveredGpu::NothingHovered;
+    }
+
+    fn start_detail_fetch(
         &mut self,
-        hovered: Option<&HoverTarget>,
+        bus: PciBusId,
+        detail: GpuFetchedDetail,
         config: &Config,
         clock: Clock,
     ) -> Task<GpuMessage> {
-        self.clocks.stop();
-        self.processes.stop();
-        let Some(HoverTarget::Gpu(target)) = hovered else {
-            self.hovered_bus = None;
-            return Task::none();
-        };
-        self.hovered_bus = Some(target.bus.clone());
-        let Some(handle) = self
+        let readable_handle = self
             .devices
-            .get(&target.bus)
-            .and_then(|device| device.readable_handle().cloned())
-        else {
+            .get(&bus)
+            .and_then(|device| device.readable_handle().cloned());
+        self.hovered_gpu = HoveredGpu::Hovered(bus);
+        let Some(handle) = readable_handle else {
             return Task::none();
         };
-        match target.reading {
-            GpuReading::Clock => {
+        match detail {
+            GpuFetchedDetail::Clocks => {
                 self.clocks
                     .start_hover_fetch(handle, GpuMessage::ClocksFetched, config, clock)
             }
-            GpuReading::Memory => self.processes.start_hover_fetch(
+            GpuFetchedDetail::Processes => self.processes.start_hover_fetch(
                 handle,
                 GpuMessage::ProcessesFetched,
                 config,
                 clock,
             ),
-            GpuReading::Load | GpuReading::Temperature | GpuReading::Power => Task::none(),
         }
     }
 
@@ -223,14 +219,14 @@ impl GpuGroup {
         bus: &PciBusId,
         sections: impl FnOnce(&Self) -> Vec<Section>,
     ) -> Vec<Section> {
-        if self.hovered_bus.as_ref() == Some(bus) {
+        if self.hovered_gpu == HoveredGpu::Hovered(bus.clone()) {
             sections(self)
         } else {
             Vec::new()
         }
     }
 
-    pub fn update(&mut self, msg: GpuMessage, clock: Clock) -> Task<GpuMessage> {
+    pub fn update(&mut self, msg: GpuMessage, config: &Config, clock: Clock) -> Task<GpuMessage> {
         match msg {
             GpuMessage::Discovered(reading) => {
                 self.discovery.receive(reading, clock);
@@ -294,6 +290,18 @@ impl GpuGroup {
                     device.expansion.update(expansion_message);
                 }
             }
+            GpuMessage::Interaction(GpuInteraction::StartClocksFetch(bus)) => {
+                return self.start_detail_fetch(bus, GpuFetchedDetail::Clocks, config, clock);
+            }
+            GpuMessage::Interaction(GpuInteraction::StartProcessesFetch(bus)) => {
+                return self.start_detail_fetch(bus, GpuFetchedDetail::Processes, config, clock);
+            }
+            GpuMessage::Interaction(GpuInteraction::StopHoverFetches) => {
+                self.stop_hover_fetches();
+            }
+            GpuMessage::Interaction(GpuInteraction::Refresh(bus)) => {
+                return self.refresh(bus);
+            }
         }
         Task::none()
     }
@@ -304,10 +312,7 @@ impl GpuGroup {
         device: &'a GpuDevice,
         clock: Clock,
     ) -> [Option<GroupItem<'a, GpuInteraction>>; 5] {
-        let target = |reading| GpuTarget {
-            bus: bus.clone(),
-            reading,
-        };
+        let refresh = || GpuInteraction::Refresh(bus.clone());
         let model_sections = move || {
             self.discovery
                 .sections_described_by(|_| vec![Section::from(&device.model)])
@@ -319,38 +324,33 @@ impl GpuGroup {
         [
             match &device.access {
                 GpuDeviceAccess::Readable { snapshot, .. } => snapshot
-                    .group_item(
-                        GPU_SNAPSHOT_FALLBACK_GLYPH,
-                        gpu_load_reading_row,
-                        target(GpuReading::Load),
-                        clock,
-                    )
+                    .group_item(GPU_SNAPSHOT_FALLBACK_GLYPH, gpu_load_reading_row, clock)
                     .map(|load_item| {
-                        load_item.with_hover_card(Box::new(move |_| {
-                            snapshot
-                                .sections_described_by(gpu_load_hover_card)
+                        load_item
+                            .with_hover_card(Box::new(move |_| {
+                                snapshot
+                                    .sections_described_by(gpu_load_hover_card)
+                                    .into_iter()
+                                    .chain(model_sections())
+                                    .collect()
+                            }))
+                            .refreshed_by(refresh())
+                    }),
+                GpuDeviceAccess::Unreadable { handle_failure } => Some(
+                    GroupItem::reading(handle_failure.reading_row(GPU_SNAPSHOT_FALLBACK_GLYPH))
+                        .with_hover_card(Box::new(move |_| {
+                            [handle_failure.source_state()]
                                 .into_iter()
                                 .chain(model_sections())
                                 .collect()
                         }))
-                    }),
-                GpuDeviceAccess::Unreadable { handle_failure } => Some(
-                    GroupItem::reading(
-                        handle_failure.reading_row(GPU_SNAPSHOT_FALLBACK_GLYPH),
-                        target(GpuReading::Load),
-                    )
-                    .with_hover_card(Box::new(move |_| {
-                        [handle_failure.source_state()]
-                            .into_iter()
-                            .chain(model_sections())
-                            .collect()
-                    })),
+                        .refreshed_by(refresh()),
                 ),
             },
             readable_snapshot
                 .zip(device.clock_label())
                 .map(|(snapshot, label)| {
-                    GroupItem::reading(label.reading_row(), target(GpuReading::Clock))
+                    GroupItem::reading(label.reading_row())
                         .with_hover_card(Box::new(move |_| {
                             let mut sections = snapshot.hover_card_with(label.hover_card());
                             sections.extend(self.hovered_sections(bus, |group| {
@@ -358,12 +358,17 @@ impl GpuGroup {
                             }));
                             sections
                         }))
+                        .fetching_on_hover(
+                            GpuInteraction::StartClocksFetch(bus.clone()),
+                            GpuInteraction::StopHoverFetches,
+                        )
+                        .refreshed_by(refresh())
                 }),
             readable_snapshot
                 .zip(device.memory())
                 .map(|(snapshot, memory)| {
                     let card_memory = memory.clone();
-                    GroupItem::reading(gpu_memory_reading_row(memory), target(GpuReading::Memory))
+                    GroupItem::reading(gpu_memory_reading_row(memory))
                         .with_hover_card(Box::new(move |_| {
                             let mut sections =
                                 snapshot.hover_card_with(gpu_memory_sections(&card_memory));
@@ -374,22 +379,29 @@ impl GpuGroup {
                             }));
                             sections
                         }))
+                        .fetching_on_hover(
+                            GpuInteraction::StartProcessesFetch(bus.clone()),
+                            GpuInteraction::StopHoverFetches,
+                        )
+                        .refreshed_by(refresh())
                 }),
             readable_snapshot
                 .zip(device.temperature_label())
                 .map(|(snapshot, label)| {
-                    GroupItem::reading(label.reading_row(), target(GpuReading::Temperature))
+                    GroupItem::reading(label.reading_row())
                         .with_hover_card(Box::new(move |_| {
                             snapshot.hover_card_with(label.hover_card())
                         }))
+                        .refreshed_by(refresh())
                 }),
             readable_snapshot
                 .zip(device.power_label())
                 .map(|(snapshot, label)| {
-                    GroupItem::reading(gpu_power_reading_row(label), target(GpuReading::Power))
+                    GroupItem::reading(gpu_power_reading_row(label))
                         .with_hover_card(Box::new(move |_| {
                             snapshot.hover_card_with(gpu_power_hover_card(&label))
                         }))
+                        .refreshed_by(refresh())
                 }),
         ]
     }
@@ -418,8 +430,8 @@ impl GpuGroup {
             })
     }
 
-    pub fn refresh(&self, target: &GpuTarget) -> Task<GpuMessage> {
-        let Some(device) = self.devices.get(&target.bus) else {
+    fn refresh(&self, bus: PciBusId) -> Task<GpuMessage> {
+        let Some(device) = self.devices.get(&bus) else {
             return first_delivery::<GpuDiscovery>(()).map(GpuMessage::Discovered);
         };
         if device.runtime_power != GpuRuntimePower::Awake {
@@ -428,7 +440,6 @@ impl GpuGroup {
         let Some(handle) = device.readable_handle().cloned() else {
             return first_delivery::<GpuDiscovery>(()).map(GpuMessage::Discovered);
         };
-        let bus = target.bus.clone();
         first_delivery::<GpuSnapshot>(handle)
             .map(move |reading| GpuMessage::Snapshot(bus.clone(), reading))
     }

@@ -26,10 +26,7 @@ use crate::{
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         engine_container_rows::engine_failure_label,
         process_usage_cells::approximate_memory_text,
@@ -49,18 +46,6 @@ use crate::{
 const WATCHED_DAEMONS: [InstanceDaemon; 2] = [InstanceDaemon::Incus, InstanceDaemon::Lxd];
 const START_HINT: &str = "start the instance";
 const STOP_HINT: &str = "stop the instance";
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IncusInstanceTarget {
-    pub instance_daemon: InstanceDaemon,
-    pub instance_name: Cow<'static, str>,
-}
-
-impl From<IncusInstanceTarget> for HoverTarget {
-    fn from(target: IncusInstanceTarget) -> Self {
-        HoverTarget::IncusInstance(target)
-    }
-}
 
 fn kind_text(kind: InstanceKind) -> &'static str {
     match kind {
@@ -412,10 +397,6 @@ impl IncusInstancesGroup {
                             instance,
                         }
                         .reading_row(),
-                        IncusInstanceTarget {
-                            instance_daemon,
-                            instance_name: Cow::Owned(instance.listing.instance_name.clone()),
-                        },
                     );
                     instance_power_switch(row, instance_daemon, &instance.listing).with_hover_card(
                         Box::new(move |_| {
@@ -441,10 +422,6 @@ impl IncusInstancesGroup {
                     read_failure,
                 }
                 .reading_row(),
-                IncusInstanceTarget {
-                    instance_daemon,
-                    instance_name: Cow::Borrowed(instance_daemon.product_name()),
-                },
             )];
         }
         listing_reading
@@ -459,10 +436,6 @@ impl IncusInstancesGroup {
                         listing,
                     }
                     .reading_row(),
-                    IncusInstanceTarget {
-                        instance_daemon,
-                        instance_name: Cow::Owned(listing.instance_name.clone()),
-                    },
                 );
                 instance_power_switch(row, instance_daemon, listing).with_hover_card(Box::new(
                     move |_| {

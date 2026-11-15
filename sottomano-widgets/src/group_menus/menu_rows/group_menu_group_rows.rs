@@ -18,7 +18,7 @@ use crate::{
         group_menu_view::GroupMenuMessenger,
         menu_rows::menu_row::{MenuRowContent, menu_row_content},
     },
-    hover_cards::{HoverTarget, marked_by_menu_pin},
+    hover_cards::{InstrumentKey, marked_by_menu_pin},
     widget_groups::{
         widget_group_content::{GroupEvent, GroupMenuItemRow},
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
@@ -169,8 +169,8 @@ pub(crate) fn item_entry<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     layout: &GroupMenuRowContext<'_, M>,
     item: GroupMenuItemRow<'a, M>,
     beside: BesideRow<'a, M>,
-) -> NestedMenuItem<'a, HoverTarget, M> {
-    let emphasis = item.row_emphasis(layout.group_menus.inspected_target(layout.menu.topic));
+) -> NestedMenuItem<'a, InstrumentKey, M> {
+    let emphasis = item.row_emphasis(layout.group_menus.inspected_instrument(layout.menu.topic));
     let pin_button = |entry, pin_weight, pin_color: fn(&iced::Theme) -> iced::Color| {
         glyph_button(
             Phosphor::PushPin(pin_weight),
@@ -230,13 +230,13 @@ pub(crate) fn item_entry<'a, M: Clone + From<GroupEvent<M>> + 'a>(
         RowScroll::Inert => RowGesture::Inert,
     };
     NestedMenuItem {
-        key: item.inspected_target.clone(),
+        key: item.instrument.clone(),
         row: NestedMenuRow {
             content,
             emphasis,
             press,
             hover_reaction: RowHoverReaction::Highlights,
-            entered: RowGesture::Publishes(M::from(layout.menu.inspect_row(item.inspected_target))),
+            entered: RowGesture::Publishes(M::from(layout.menu.inspect_row(item.instrument))),
             right_pressed,
             scrolled,
         },

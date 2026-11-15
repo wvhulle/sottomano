@@ -24,10 +24,7 @@ use crate::{
         source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::SwitchPosition,
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         process_usage_cells::{approximate_memory_text, cpu_share_quantity, uptime_entry},
         widget_group_content::WidgetGroupExpansionMessage,
@@ -43,16 +40,14 @@ const START_HINT: &str = "start the container";
 const STOP_HINT: &str = "stop the container";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EngineContainerTarget {
+pub struct EngineContainerAddress {
     pub socket_path: Cow<'static, str>,
     pub container_id: Cow<'static, str>,
 }
 
-impl EngineContainerTarget {}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContainerSwitchRequest {
-    pub target: EngineContainerTarget,
+    pub container: EngineContainerAddress,
     pub change: RunChange,
 }
 
@@ -68,10 +63,10 @@ pub(crate) fn container_switch_task<Message: Send + 'static>(
     refused: fn(GuestPowerError) -> Message,
 ) -> Task<Message> {
     Task::future(async move {
-        let EngineContainerTarget {
+        let EngineContainerAddress {
             socket_path,
             container_id,
-        } = request.target;
+        } = request.container;
         let socket_path = Path::new(socket_path.as_ref());
         let switched = match request.change {
             RunChange::Start => start_container(engine_api, socket_path, &container_id).await,
@@ -214,8 +209,8 @@ pub(crate) struct EngineContainers<'a> {
 }
 
 impl<'a> EngineContainers<'a> {
-    fn target_of(&self, container_id: &str) -> EngineContainerTarget {
-        EngineContainerTarget {
+    fn container_address(&self, container_id: &str) -> EngineContainerAddress {
+        EngineContainerAddress {
             socket_path: Cow::Owned(self.socket_path.display().to_string()),
             container_id: Cow::Owned(container_id.to_owned()),
         }
@@ -223,7 +218,6 @@ impl<'a> EngineContainers<'a> {
 
     pub(crate) fn running_rows<Message: 'a>(
         &self,
-        target_of: fn(EngineContainerTarget) -> HoverTarget,
         switched: fn(ContainerSwitchRequest) -> Message,
     ) -> Vec<GroupItem<'a, Message>> {
         let owner = self.owner;
@@ -232,14 +226,10 @@ impl<'a> EngineContainers<'a> {
             .containers
             .iter()
             .map(|container| {
-                let target = self.target_of(&container.id);
                 with_container_switch(
-                    GroupItem::reading(
-                        RunningContainerRow { container, owner }.reading_row(),
-                        target_of(target.clone()),
-                    ),
+                    GroupItem::reading(RunningContainerRow { container, owner }.reading_row()),
                     ContainerRunState::Running,
-                    target,
+                    self.container_address(&container.id),
                     switched,
                 )
             })
@@ -248,7 +238,6 @@ impl<'a> EngineContainers<'a> {
 
     pub(crate) fn stopped_rows<Message: 'a>(
         &self,
-        target_of: fn(EngineContainerTarget) -> HoverTarget,
         switched: fn(ContainerSwitchRequest) -> Message,
     ) -> Vec<GroupItem<'a, Message>> {
         let owner = self.owner;
@@ -256,14 +245,10 @@ impl<'a> EngineContainers<'a> {
             .stopped
             .iter()
             .map(|container| {
-                let target = self.target_of(&container.id);
                 with_container_switch(
-                    GroupItem::reading(
-                        StoppedContainerRow { container, owner }.reading_row(),
-                        target_of(target.clone()),
-                    ),
+                    GroupItem::reading(StoppedContainerRow { container, owner }.reading_row()),
                     ContainerRunState::Stopped,
-                    target,
+                    self.container_address(&container.id),
                     switched,
                 )
             })
@@ -274,7 +259,7 @@ impl<'a> EngineContainers<'a> {
 pub(crate) fn with_container_switch<'a, Message: 'a>(
     row: GroupItem<'a, Message>,
     run_state: ContainerRunState,
-    target: EngineContainerTarget,
+    container: EngineContainerAddress,
     switched: fn(ContainerSwitchRequest) -> Message,
 ) -> GroupItem<'a, Message> {
     match run_state {
@@ -282,7 +267,7 @@ pub(crate) fn with_container_switch<'a, Message: 'a>(
             SwitchPosition::On,
             STOP_HINT,
             switched(ContainerSwitchRequest {
-                target,
+                container,
                 change: RunChange::Stop,
             }),
         ),
@@ -290,7 +275,7 @@ pub(crate) fn with_container_switch<'a, Message: 'a>(
             SwitchPosition::Off,
             START_HINT,
             switched(ContainerSwitchRequest {
-                target,
+                container,
                 change: RunChange::Start,
             }),
         ),
@@ -299,7 +284,6 @@ pub(crate) fn with_container_switch<'a, Message: 'a>(
 
 pub(crate) fn rows_ending_in_hidden_count<'a, Message: 'a>(
     mut rows: Vec<GroupItem<'a, Message>>,
-    hidden_target: HoverTarget,
 ) -> Vec<GroupItem<'a, Message>> {
     if rows.len() <= SHOWN_CONTAINER_ROWS {
         return rows;
@@ -307,7 +291,6 @@ pub(crate) fn rows_ending_in_hidden_count<'a, Message: 'a>(
     let hidden_count = rows.split_off(SHOWN_CONTAINER_ROWS - 1).len();
     rows.push(GroupItem::reading(
         HiddenContainersRow { hidden_count }.reading_row(),
-        hidden_target,
     ));
     rows
 }

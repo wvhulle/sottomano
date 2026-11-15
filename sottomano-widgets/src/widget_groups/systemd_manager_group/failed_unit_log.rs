@@ -26,16 +26,14 @@ use crate::{
     hover_cards::hover_card_body::{Section, SectionTable, SectionTitle, headed_table},
     widget_groups::{
         systemd_manager_group::{
-            SystemdManagerGroup, SystemdManagerInteraction, SystemdTarget, unit_scope_icon,
+            SystemdManagerGroup, SystemdManagerInteraction, unit_scope_icon, unit_toast_key,
         },
         terminal_command::TerminalCommand,
     },
     widgets::{
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
-        ongoing_toast::{
-            OngoingKey, OngoingToast, OngoingToastActionButton, definition_list, moment_text,
-        },
+        ongoing_toast::{OngoingToast, OngoingToastActionButton, definition_list, moment_text},
         phosphor::Weight,
         value_cells::ValueCell,
     },
@@ -90,9 +88,7 @@ pub(super) fn failed_units_item<'a>(
         });
         OngoingToast {
             widget_name: failed_units_name(failed),
-            key: OngoingKey::Reading(
-                SystemdTarget::failed_unit(failed.scope, unit.name.clone()).into(),
-            ),
+            key: unit_toast_key(failed_units_name(failed), unit.name.clone()),
             severity: UNIT_FAILURE_PRIORITY.severity(),
             summary_text: Cow::Owned(format!("{} failed", unit.name)),
             body: failure_summary(unit, clock.utc(), config.calendar.locale),
@@ -128,15 +124,12 @@ pub(super) fn failed_units_item<'a>(
             .collect(),
         }
     });
-    GroupItem::reading(
-        failed_units_reading_row(failed),
-        SystemdTarget::failed_units(failed.scope),
-    )
-    .on_press(
-        TerminalCommand::JOURNAL_PRESS_HINT,
-        open_log(failed.follow_log_args()),
-    )
-    .ongoing_toasts(failed_unit_toasts)
+    GroupItem::reading(failed_units_reading_row(failed))
+        .on_press(
+            TerminalCommand::JOURNAL_PRESS_HINT,
+            open_log(failed.follow_log_args()),
+        )
+        .ongoing_toasts(failed_unit_toasts)
 }
 
 fn service_outcome_reason(outcome: &ServiceOutcome) -> String {

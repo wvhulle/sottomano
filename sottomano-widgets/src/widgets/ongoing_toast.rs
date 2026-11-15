@@ -14,7 +14,7 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     group_items::reading_display_state::ReadingDisplayState,
-    hover_cards::HoverTarget,
+    hover_cards::InstrumentKey,
     widgets::{
         amount_text::percent_text,
         announced_level::{AnnouncedLevel, LevelReading},
@@ -110,7 +110,11 @@ impl<Message> OngoingToastActionButton<Message> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum OngoingKey {
-    Reading(HoverTarget),
+    Reading(InstrumentKey),
+    ReadingDetail {
+        instrument: InstrumentKey,
+        detail: Cow<'static, str>,
+    },
     ConfigFile,
 }
 
@@ -203,7 +207,7 @@ pub fn quota_pace_alert_severity(quota_windows: &[Quota]) -> Option<Severity> {
 }
 
 pub struct RowNotice<'r, Message> {
-    pub hover_target: HoverTarget,
+    pub instrument: InstrumentKey,
     pub widget_name: Cow<'static, str>,
     pub state: ReadingDisplayState,
     pub alerts: &'r ReadingAlerts,
@@ -216,7 +220,7 @@ impl<Message: Clone> RowNotice<'_, Message> {
             return None;
         };
         Some(LevelReading {
-            hover_target: self.hover_target.clone(),
+            instrument: self.instrument.clone(),
             glyph: *glyph,
             level: level.clone(),
             on_body_clicked: self.on_body_clicked.clone(),
@@ -241,7 +245,7 @@ impl<Message> OngoingToast<Message> {
         };
         Some(Self {
             widget_name: reading.widget_name.clone(),
-            key: OngoingKey::Reading(reading.hover_target.clone()),
+            key: OngoingKey::Reading(reading.instrument.clone()),
             severity,
             summary_text: Cow::Borrowed(summary_text),
             body: match body {
@@ -282,7 +286,7 @@ impl<Message> OngoingToast<Message> {
         };
         Some(Self {
             widget_name: reading.widget_name.clone(),
-            key: OngoingKey::Reading(reading.hover_target.clone()),
+            key: OngoingKey::Reading(reading.instrument.clone()),
             severity: worst.severity(),
             summary_text: Cow::Owned(format!("{} {outlook}", worst.label)),
             progress: Some(worst.used),
@@ -345,7 +349,7 @@ mod tests {
     use uom::si::ratio::percent;
 
     use super::*;
-    use crate::widget_groups::power_group::PowerTarget;
+    use crate::widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity};
 
     fn notifying_from(minimum_severity: Severity) -> StateToast {
         StateToast::NotifyFromSeverity {
@@ -363,7 +367,10 @@ mod tests {
         };
         OngoingToast::reading_state_alert(
             &RowNotice {
-                hover_target: HoverTarget::Power(PowerTarget::BatteryTime),
+                instrument: InstrumentKey {
+                    group: WidgetGroupIdentity::sole(WidgetGroupFamily::Power),
+                    name: "Fixed reading".into(),
+                },
                 widget_name: "Fixed reading".into(),
                 state,
                 alerts: &alerts,

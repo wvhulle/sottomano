@@ -59,10 +59,7 @@ use crate::{
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, SectionWidget},
-    },
+    hover_cards::hover_card_body::{Section, SectionWidget},
     widget_groups::{
         gamepad_group::{
             controller_battery_reading::BatteryLevel, controller_link_reading::WifiBand,
@@ -79,22 +76,6 @@ use crate::{
 };
 
 const CONTROLLER_DISCOVERY_GROUP: &str = "controller_discovery";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GamepadTarget {
-    Controller { slot: usize },
-    Battery { slot: usize },
-    Link { slot: usize },
-    UsbCable { slot: usize },
-    CompositorDriving { slot: usize },
-    ControllerDiscovery,
-}
-
-impl From<GamepadTarget> for HoverTarget {
-    fn from(target: GamepadTarget) -> Self {
-        HoverTarget::Gamepad(target)
-    }
-}
 
 #[derive(Debug)]
 pub enum GamepadMessage {
@@ -643,10 +624,7 @@ impl GamepadGroup {
             WidgetGroupTitle::Named(failure_row.face.name.clone()),
             &self.controller_discovery_expansion,
             GamepadInteraction::ControllerDiscoveryExpansion,
-            [GroupItem::reading(
-                failure_row,
-                GamepadTarget::ControllerDiscovery,
-            )],
+            [GroupItem::reading(failure_row)],
         ))
     }
 
@@ -662,24 +640,14 @@ impl GamepadGroup {
         let battery_reading = ControllerBatteryReading {
             power: gamepad.power,
         };
-        let face = GroupItem::reading(
-            self.face_reading(gamepad, link, bindings).reading_row(),
-            GamepadTarget::Controller { slot },
-        );
+        let face = GroupItem::reading(self.face_reading(gamepad, link, bindings).reading_row());
         let shown_in_bluetooth_group = matches!(link.transport, GamepadTransport::Bluetooth { .. });
-        let connection = (!shown_in_bluetooth_group).then(|| {
-            GroupItem::reading(
-                self.link_reading(slot, link).reading_row(),
-                GamepadTarget::Link { slot },
-            )
-        });
+        let connection = (!shown_in_bluetooth_group)
+            .then(|| GroupItem::reading(self.link_reading(slot, link).reading_row()));
         let battery =
             (!shown_in_bluetooth_group && gamepad.power != GamepadPower::NoBattery).then(|| {
                 let battery_running_low = battery_reading.battery_level() == BatteryLevel::Low;
-                let battery_item = GroupItem::reading(
-                    battery_reading.reading_row(),
-                    GamepadTarget::Battery { slot },
-                );
+                let battery_item = GroupItem::reading(battery_reading.reading_row());
                 if battery_running_low {
                     battery_item.previewed_on_handle()
                 } else {
@@ -688,15 +656,11 @@ impl GamepadGroup {
             });
         let compositor_driving = GroupItem::toggle(
             compositor_driving_toggle(self.controller_custody(slot)),
-            GamepadTarget::CompositorDriving { slot },
             GamepadInteraction::ToggleCompositorDriving { slot },
         )
         .with_hover_card(Box::new(move |_| self.compositor_driving_hover_card(slot)));
         let usb_cable = usb_cable_role(link.transport).map(|role| {
-            let item = GroupItem::reading(
-                UsbCableReading { role }.reading_row(),
-                GamepadTarget::UsbCable { slot },
-            );
+            let item = GroupItem::reading(UsbCableReading { role }.reading_row());
             match role {
                 UsbCableRole::ChargingOnly => item.on_press(
                     "disconnect Bluetooth so the cable can take over",

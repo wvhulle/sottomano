@@ -49,7 +49,9 @@ use crate::{
         },
     },
     group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
-    hover_cards::{HoverCardMessage, PressHints, hover_card_body::Section, hoverable},
+    hover_cards::{
+        HoverCardMessage, MouseGesture, PressAction, hover_card_body::Section, hoverable,
+    },
     widget_groups::window_group::{
         WindowRowLayout, WindowTarget, WindowTitleLength,
         flat_window_rows::arranged_flat_rows,
@@ -635,6 +637,26 @@ impl WindowList {
         )
     }
 
+    #[must_use]
+    pub fn window_press_actions(
+        &self,
+        compositor: &workspace_window_snapshot::Snapshot,
+        window_audio: &HashMap<i32, WindowAudio>,
+        window: u64,
+        config: &Config,
+    ) -> Vec<PressAction> {
+        let Some(window_entry) = compositor
+            .all_windows()
+            .find(|window_entry| window_entry.id == window)
+        else {
+            return Vec::new();
+        };
+        slot_press_actions(
+            window_entry,
+            &self.extras(window_entry, Some(window_audio), config),
+        )
+    }
+
     fn extras(
         &self,
         window_entry: &workspace_window_snapshot::WinEntry,
@@ -707,6 +729,39 @@ enum WindowAttention {
     Calm,
 }
 
+fn entry_tile_press(window_entry: &workspace_window_snapshot::WinEntry) -> TilePress {
+    if window_entry.is_focused && !window_entry.layout.is_floating {
+        TilePress::TogglesMaximize
+    } else {
+        TilePress::FocusesWindow
+    }
+}
+
+fn audible_pid(
+    window_entry: &workspace_window_snapshot::WinEntry,
+    extras: &Extras<'_>,
+) -> Option<i32> {
+    window_entry.pid.filter(|_| extras.audio.is_some())
+}
+
+fn slot_press_actions(
+    window_entry: &workspace_window_snapshot::WinEntry,
+    extras: &Extras<'_>,
+) -> Vec<PressAction> {
+    let left_does = if entry_tile_press(window_entry) == TilePress::TogglesMaximize {
+        "maximize or restore"
+    } else {
+        "focus the window"
+    };
+    [PressAction::new(MouseGesture::LeftClick, left_does)]
+        .into_iter()
+        .chain(
+            audible_pid(window_entry, extras)
+                .map(|_| PressAction::new(MouseGesture::MiddleClick, "mute or unmute its audio")),
+        )
+        .collect()
+}
+
 struct WindowSlot<'s> {
     window_entry: &'s workspace_window_snapshot::WinEntry,
     item: DraggedPanelSlot,
@@ -756,29 +811,11 @@ impl WindowSlot<'_> {
     }
 
     fn tile_press(&self) -> TilePress {
-        if self.window_entry.is_focused && !self.window_entry.layout.is_floating {
-            TilePress::TogglesMaximize
-        } else {
-            TilePress::FocusesWindow
-        }
+        entry_tile_press(self.window_entry)
     }
 
     fn audio_pid(&self) -> Option<i32> {
-        self.window_entry
-            .pid
-            .filter(|_| self.extras.audio.is_some())
-    }
-
-    fn press_hints(&self) -> PressHints {
-        PressHints {
-            left: Some(if self.tile_press() == TilePress::TogglesMaximize {
-                "maximize or restore"
-            } else {
-                "focus the window"
-            }),
-            middle: self.audio_pid().map(|_| "mute or unmute its audio"),
-            ..PressHints::default()
-        }
+        audible_pid(self.window_entry, &self.extras)
     }
 
     fn view<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListInteraction> {
@@ -815,13 +852,11 @@ impl WindowSlot<'_> {
     fn panel_slot<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListInteraction> {
         let config = self.slot_context.config;
         let window = self.window_entry.id;
-        let press_hints = self.press_hints();
         let usage = self.window_entry.is_focused.then(|| {
             hoverable(
                 NestedMenuOpenTrigger::Hover,
                 self.secondary_glyph(Phosphor::UserFocus),
                 WindowTarget::Usage(window).into(),
-                press_hints,
                 WindowListInteraction::HoverCard,
             )
         });
@@ -830,7 +865,6 @@ impl WindowSlot<'_> {
                 NestedMenuOpenTrigger::Hover,
                 self.secondary_glyph(Phosphor::Package),
                 WindowTarget::Inspect(window).into(),
-                press_hints,
                 WindowListInteraction::HoverCard,
             )
         });

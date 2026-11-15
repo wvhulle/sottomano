@@ -21,10 +21,7 @@ use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_items::group_item::GroupItem,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         interface_address_sections::{AddressFamily, InterfaceAddressReading},
         widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
@@ -32,30 +29,6 @@ use crate::{
     },
     widgets::{subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue},
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MobileModemTarget {
-    Signal {
-        modem_path: String,
-    },
-    Connection {
-        modem_path: String,
-    },
-    Address {
-        modem_path: String,
-        family: AddressFamily,
-    },
-    Data {
-        modem_path: String,
-    },
-    AllRadios,
-}
-
-impl From<MobileModemTarget> for HoverTarget {
-    fn from(target: MobileModemTarget) -> Self {
-        HoverTarget::MobileModem(target)
-    }
-}
 
 #[derive(Debug)]
 pub enum MobileModemsMessage {
@@ -173,31 +146,21 @@ impl MobileModemsGroup {
     ) -> Option<WidgetGroupContent<'a, MobileModemsInteraction>> {
         let expansion = self.expansions.get(&modem.modem_path)?;
         let modem_path = || modem.modem_path.clone();
-        let signal_item = GroupItem::reading(
-            ModemSignalReading { modem }.reading_row(),
-            MobileModemTarget::Signal {
-                modem_path: modem_path(),
-            },
-        )
-        .with_hover_card(Box::new(move |_| {
-            self.mobile_modems
-                .hover_card_with(ModemSignalReading { modem }.hover_card())
-        }));
+        let signal_item = GroupItem::reading(ModemSignalReading { modem }.reading_row())
+            .with_hover_card(Box::new(move |_| {
+                self.mobile_modems
+                    .hover_card_with(ModemSignalReading { modem }.hover_card())
+            }));
         let connection_item = (modem.radio_power() == RadioPower::On).then(|| {
             let connection_switch = ModemConnectionSwitch { modem };
             let connection_press_does = connection_switch.press_does();
-            GroupItem::reading(
-                connection_switch.reading_row(),
-                MobileModemTarget::Connection {
-                    modem_path: modem_path(),
-                },
-            )
-            .with_hover_card(Box::new(move |_| self.modem_connection_hover_card(modem)))
-            .on_switch_press(
-                modem.link_state(),
-                connection_press_does,
-                MobileModemsInteraction::ToggleModem(modem_path()),
-            )
+            GroupItem::reading(connection_switch.reading_row())
+                .with_hover_card(Box::new(move |_| self.modem_connection_hover_card(modem)))
+                .on_switch_press(
+                    modem.link_state(),
+                    connection_press_does,
+                    MobileModemsInteraction::ToggleModem(modem_path()),
+                )
         });
         let address_items = [AddressFamily::Ipv4, AddressFamily::Ipv6]
             .into_iter()
@@ -206,44 +169,33 @@ impl MobileModemsGroup {
                     && modem_family_address(modem, *family).is_some()
             })
             .map(|family| {
-                GroupItem::reading(
-                    InterfaceAddressReading { family }.reading_row(),
-                    MobileModemTarget::Address {
-                        modem_path: modem_path(),
-                        family,
-                    },
-                )
-                .with_hover_card(Box::new(move |_| {
-                    self.modem_address_hover_card(modem, family)
-                }))
+                GroupItem::reading(InterfaceAddressReading { family }.reading_row())
+                    .with_hover_card(Box::new(move |_| {
+                        self.modem_address_hover_card(modem, family)
+                    }))
             });
         let data_item = (modem.rx.is_some() || modem.tx.is_some()).then(|| {
-            GroupItem::reading(
-                ModemDataReading { modem }.reading_row(),
-                MobileModemTarget::Data {
-                    modem_path: modem_path(),
+            GroupItem::reading(ModemDataReading { modem }.reading_row()).with_hover_card(Box::new(
+                move |_| {
+                    self.mobile_modems
+                        .hover_card_with(ModemDataReading { modem }.hover_card())
                 },
-            )
-            .with_hover_card(Box::new(move |_| {
-                self.mobile_modems
-                    .hover_card_with(ModemDataReading { modem }.hover_card())
-            }))
+            ))
         });
         let any_radio_power = self.any_radio_power();
         let radios_switch = AllMobileRadiosSwitch {
             radio_power: any_radio_power,
         };
         let radios_press_does = radios_switch.press_does();
-        let radios_item =
-            GroupItem::reading(radios_switch.reading_row(), MobileModemTarget::AllRadios)
-                .on_switch_press(
-                    any_radio_power,
-                    radios_press_does,
-                    MobileModemsInteraction::ToggleAllRadios,
-                )
-                .with_hover_card(Box::new(move |_| {
-                    self.all_radios_hover_card(any_radio_power)
-                }));
+        let radios_item = GroupItem::reading(radios_switch.reading_row())
+            .on_switch_press(
+                any_radio_power,
+                radios_press_does,
+                MobileModemsInteraction::ToggleAllRadios,
+            )
+            .with_hover_card(Box::new(move |_| {
+                self.all_radios_hover_card(any_radio_power)
+            }));
         let expanded_modem_path = modem_path();
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::MobileModems, modem_path()),

@@ -17,7 +17,7 @@ use sottomano_toml_config::{
 
 use super::{toast_card::CardIcons, toast_placement::ToastPlacement};
 use crate::{
-    hover_cards::HoverTarget,
+    hover_cards::InstrumentKey,
     widgets::{
         announced_level::LevelReading,
         icon_glyph::IconGlyph,
@@ -61,7 +61,7 @@ pub enum EventSource {
     DbusClient,
     ShellFailure,
     LevelAnnouncement {
-        hover_target: HoverTarget,
+        instrument: InstrumentKey,
         glyph: IconGlyph,
     },
 }
@@ -138,7 +138,7 @@ impl<Routed> ToastContent<Routed> {
             kind: ToastKind::Event {
                 at,
                 source: EventSource::LevelAnnouncement {
-                    hover_target: reading.hover_target,
+                    instrument: reading.instrument,
                     glyph: reading.glyph,
                 },
             },
@@ -237,12 +237,12 @@ impl<Routed> Notification<Routed> {
         }
     }
 
-    pub(super) fn announced_target(&self) -> Option<&HoverTarget> {
+    pub(super) fn announced_instrument(&self) -> Option<&InstrumentKey> {
         match &self.kind {
             ToastKind::Event {
-                source: EventSource::LevelAnnouncement { hover_target, .. },
+                source: EventSource::LevelAnnouncement { instrument, .. },
                 ..
-            } => Some(hover_target),
+            } => Some(instrument),
             ToastKind::Event { .. } | ToastKind::Ongoing { .. } => None,
         }
     }

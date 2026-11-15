@@ -14,9 +14,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, headed_table},
     widget_groups::{
-        pending_upgrades_group::{
-            PendingUpgradesGroup, PendingUpgradesInteraction, PendingUpgradesTarget,
-        },
+        pending_upgrades_group::{PendingUpgradesGroup, PendingUpgradesInteraction},
         terminal_command::TerminalCommand,
     },
     widgets::{
@@ -45,20 +43,17 @@ impl PendingUpgradesGroup {
             ["fwupdmgr", "update"].map(String::from),
         ));
         Some(
-            GroupItem::reading(
-                firmware_upgrades_reading_row(upgrades),
-                PendingUpgradesTarget::Firmware,
-            )
-            .on_press("run fwupdmgr update in a terminal", install.clone())
-            .ongoing_toast_action_buttons([OngoingToastActionButton {
-                button_label: "Install".to_owned(),
-                tint: ActionTint::Proceed,
-                on_button_pressed: install,
-            }])
-            .with_hover_card(Box::new(move |_| {
-                self.firmware
-                    .sections_described_by(|snapshot| firmware_upgrades_hover_card(snapshot))
-            })),
+            GroupItem::reading(firmware_upgrades_reading_row(upgrades))
+                .on_press("run fwupdmgr update in a terminal", install.clone())
+                .ongoing_toast_action_buttons([OngoingToastActionButton {
+                    button_label: "Install".to_owned(),
+                    tint: ActionTint::Proceed,
+                    on_button_pressed: install,
+                }])
+                .with_hover_card(Box::new(move |_| {
+                    self.firmware
+                        .sections_described_by(|snapshot| firmware_upgrades_hover_card(snapshot))
+                })),
         )
     }
 }

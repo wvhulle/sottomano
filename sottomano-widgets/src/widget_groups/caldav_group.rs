@@ -29,7 +29,6 @@ use sottomano_toml_config::{SecretPaths, widget_groups::caldav_account::CaldavAc
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -43,18 +42,6 @@ use crate::{
         subscribed_snapshot::SubscribedSnapshot,
     },
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CaldavTarget {
-    UpcomingEvents,
-    OpenTasks,
-}
-
-impl From<CaldavTarget> for HoverTarget {
-    fn from(target: CaldavTarget) -> Self {
-        HoverTarget::Caldav(target)
-    }
-}
 
 pub struct CaldavGroup {
     upcoming_events: SubscribedSnapshot<UpcomingEventList>,
@@ -159,14 +146,12 @@ impl CaldavGroup {
             self.upcoming_events.group_item_while_pending(
                 UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
                 |snapshot| upcoming_events_reading_row(snapshot, clock, locale),
-                CaldavTarget::UpcomingEvents,
                 clock,
             )
         } else {
             self.upcoming_events.group_item(
                 UPCOMING_EVENT_LIST_FALLBACK_GLYPH,
                 |snapshot| upcoming_events_reading_row(snapshot, clock, locale),
-                CaldavTarget::UpcomingEvents,
                 clock,
             )
         };
@@ -187,7 +172,6 @@ impl CaldavGroup {
                     .group_item(
                         IconGlyph::default(),
                         |snapshot| open_tasks_reading_row(snapshot, clock),
-                        CaldavTarget::OpenTasks,
                         clock,
                     )
                     .map(|item| {

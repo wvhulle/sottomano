@@ -12,9 +12,7 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
-        journal_events_group::{
-            JournalEventsInteraction, JournalScopeGroup, JournalTarget, shown_while_alerting,
-        },
+        journal_events_group::{JournalEventsInteraction, JournalScopeGroup, shown_while_alerting},
         terminal_command::TerminalCommand,
     },
     widgets::{
@@ -58,7 +56,7 @@ impl JournalScopeGroup {
             clock,
         )?;
         Some(
-            GroupItem::reading(coredumps, JournalTarget::Coredumps(self.unit_scope))
+            GroupItem::reading(coredumps)
                 .on_press(
                     TerminalCommand::JOURNAL_PRESS_HINT,
                     JournalEventsInteraction::OpenLog(TerminalCommand::journal(

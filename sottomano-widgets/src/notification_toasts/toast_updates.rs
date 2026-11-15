@@ -240,7 +240,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             .showing()
             .filter(|n| {
                 matches!(&n.kind, ToastKind::Ongoing { key: shown, .. }
-                    if matches!(shown, OngoingKey::Reading(_))
+                    if matches!(shown, OngoingKey::Reading(_) | OngoingKey::ReadingDetail { .. })
                         && !active.iter().any(|toast| toast.key == *shown))
             })
             .map(|n| n.data.id)
@@ -296,7 +296,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     ) -> Task<Routed> {
         let toast_id = self
             .showing()
-            .find(|notif| notif.announced_target() == Some(&reading.hover_target))
+            .find(|notif| notif.announced_instrument() == Some(&reading.instrument))
             .map_or_else(|| self.fresh_shell_toast_id(), |n| n.data.id);
         self.serve(
             ToastContent::level_announcement(reading, toast_id, context.clock.wall),

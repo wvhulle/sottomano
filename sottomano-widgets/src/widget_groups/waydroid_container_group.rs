@@ -26,10 +26,7 @@ use crate::{
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         process_usage_cells::approximate_memory_text,
         widget_group_content::{
@@ -57,18 +54,6 @@ const CONTAINER_SWITCH_FACE: UnitSwitchFace = UnitSwitchFace {
         turning_off: "stop the Android container",
     },
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WaydroidContainerTarget {
-    Container,
-    Session,
-}
-
-impl From<WaydroidContainerTarget> for HoverTarget {
-    fn from(target: WaydroidContainerTarget) -> Self {
-        HoverTarget::WaydroidContainer(target)
-    }
-}
 
 #[derive(Clone, Copy)]
 enum ShownWaydroid<'a> {
@@ -347,13 +332,11 @@ impl WaydroidContainerGroup {
         &'a self,
         shown: ShownWaydroid<'a>,
     ) -> GroupItem<'a, WaydroidContainerInteraction> {
-        let row = GroupItem::reading(
-            WaydroidContainerRow { shown }.reading_row(),
-            WaydroidContainerTarget::Container,
-        )
-        .with_hover_card(Box::new(move |_| {
-            self.stamped_card(shown, WaydroidContainerRow { shown }.hover_card())
-        }));
+        let row = GroupItem::reading(WaydroidContainerRow { shown }.reading_row()).with_hover_card(
+            Box::new(move |_| {
+                self.stamped_card(shown, WaydroidContainerRow { shown }.hover_card())
+            }),
+        );
         match self.container_switch.activity() {
             Some(_) => self
                 .container_switch
@@ -378,7 +361,6 @@ impl WaydroidContainerGroup {
                 state: shown.state(),
             }
             .reading_row(),
-            WaydroidContainerTarget::Session,
         )
         .with_hover_card(Box::new(move |_| {
             self.stamped_card(

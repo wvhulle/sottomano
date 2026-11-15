@@ -12,7 +12,7 @@ use sottomano_desktop_sources::{
 use uom::si::f64::Frequency;
 
 use super::{
-    LlamaServerReading, LlamaServerTarget, SERVER_SWITCH, context_fill_gauge::ContextFill,
+    LlamaServerInteraction, SERVER_SWITCH, ServedModelUnit, context_fill_gauge::ContextFill,
     generation_rate_label::GenerationRate, loaded_model_label::ServedModel,
     slot_occupancy_gauge::SlotOccupancy,
 };
@@ -275,19 +275,14 @@ impl ScopedLlamaServers {
             .clone()
     }
 
-    pub fn items<'a, M: 'a>(
+    pub fn items<'a>(
         &'a self,
-        lift: fn(ScopedServersInteraction) -> M,
+        lift: fn(ScopedServersInteraction) -> LlamaServerInteraction,
         model_sections: impl Fn() -> Vec<Section> + Copy + 'a,
-    ) -> impl Iterator<Item = GroupItem<'a, M>> + 'a {
+    ) -> impl Iterator<Item = GroupItem<'a, LlamaServerInteraction>> + 'a {
         self.servers.values().flat_map(move |readings| {
             let unit = &readings.discovered.unit.unit_name;
             let server_label = readings.server_label.as_str();
-            let target = |reading| LlamaServerTarget {
-                bus: self.scope.bus(),
-                unit: unit.clone(),
-                reading,
-            };
             let running = Some(readings)
                 .filter(|readings| readings.switch.activity() == Some(UnitActivity::Running))
                 .and_then(|readings| readings.server.get());
@@ -301,11 +296,17 @@ impl ScopedLlamaServers {
                             server: server_label,
                         }
                         .reading_row(),
-                        target(LlamaServerReading::Model),
                     )
                     .with_hover_card(Box::new(move |_| {
                         readings.model_hover_card(model_sections())
-                    }));
+                    }))
+                    .fetching_on_hover(
+                        LlamaServerInteraction::StartModelFetches(ServedModelUnit {
+                            bus: self.scope.bus(),
+                            unit: unit.clone(),
+                        }),
+                        LlamaServerInteraction::StopHoverFetches,
+                    );
                     match resident {
                         Some(_) => model_item.previewed_on_handle(),
                         None => model_item,
@@ -318,7 +319,6 @@ impl ScopedLlamaServers {
                             server: server_label,
                         }
                         .reading_row(),
-                        target(LlamaServerReading::GenerationRate),
                     )
                     .with_hover_card(Box::new(move |_| readings.generation_rate_hover_card(rate)))
                 }),
@@ -331,7 +331,6 @@ impl ScopedLlamaServers {
                                 server: server_label,
                             }
                             .reading_row(),
-                            target(LlamaServerReading::Slots),
                         )
                         .with_hover_card(Box::new(move |_| {
                             readings.slot_occupancy_hover_card(server)
@@ -339,17 +338,14 @@ impl ScopedLlamaServers {
                     }),
                 busy.and_then(|server| ContextFill::fullest_busy_slot(&server.slots, server_label))
                     .map(|fill| {
-                        GroupItem::reading(
-                            fill.reading_row(),
-                            target(LlamaServerReading::ContextFill),
-                        )
-                        .with_hover_card(Box::new(move |_| readings.context_fill_hover_card(&fill)))
+                        GroupItem::reading(fill.reading_row()).with_hover_card(Box::new(
+                            move |_| readings.context_fill_hover_card(&fill),
+                        ))
                     }),
                 readings
                     .switch
                     .group_item(
                         readings.service_readiness(),
-                        target(LlamaServerReading::Switch),
                         lift(ScopedServersInteraction::SwitchPressed(unit.clone())),
                     )
                     .map(|switch_item| {

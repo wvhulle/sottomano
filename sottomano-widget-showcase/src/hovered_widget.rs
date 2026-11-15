@@ -1,6 +1,9 @@
 use iced::Rectangle;
 use iced_test::selector::{Candidate, Selector};
-use sottomano_widgets::{group_menus::group_menu_state::GroupMenuPin, hover_cards::HoverTarget};
+use sottomano_widgets::{
+    group_menus::group_menu_state::GroupMenuPin,
+    hover_cards::{HoverTarget, InstrumentKey},
+};
 
 pub struct HoveredWidget(pub HoverTarget);
 
@@ -11,7 +14,14 @@ impl Selector for HoveredWidget {
         let Candidate::Custom { bounds, state, .. } = candidate else {
             return None;
         };
-        (state.downcast_ref::<HoverTarget>() == Some(&self.0)).then_some(bounds)
+        let marks_hovered_row = match &self.0 {
+            HoverTarget::Instrument(instrument_key) => {
+                state.downcast_ref::<InstrumentKey>() == Some(instrument_key)
+            }
+            _ => false,
+        };
+        (marks_hovered_row || state.downcast_ref::<HoverTarget>() == Some(&self.0))
+            .then_some(bounds)
     }
 
     fn description(&self) -> String {

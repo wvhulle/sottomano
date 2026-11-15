@@ -18,13 +18,13 @@ use crate::{
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
-        systemd_manager_group::{SystemdManagerGroup, SystemdManagerInteraction, SystemdTarget},
+        systemd_manager_group::{SystemdManagerGroup, SystemdManagerInteraction, unit_toast_key},
         terminal_command::TerminalCommand,
     },
     widgets::{
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
-        ongoing_toast::{OngoingKey, OngoingToast, definition_list, moment_text},
+        ongoing_toast::{OngoingToast, definition_list, moment_text},
         phosphor::{Phosphor, Weight},
         value_cells::ValueCell,
     },
@@ -70,7 +70,7 @@ pub(super) fn slow_jobs_item<'a>(
         };
         OngoingToast {
             widget_name: slow_jobs_name(jobs),
-            key: OngoingKey::Reading(SystemdTarget::slow_job(jobs.scope, job.unit.clone()).into()),
+            key: unit_toast_key(slow_jobs_name(jobs), job.unit.clone()),
             severity: Severity::Warning,
             summary_text: Cow::Owned(format!("{} {activity} slowly", job.unit)),
             body: Some(definition_list([
@@ -86,15 +86,12 @@ pub(super) fn slow_jobs_item<'a>(
             action_buttons: Vec::new(),
         }
     });
-    GroupItem::reading(
-        slow_jobs_reading_row(jobs),
-        SystemdTarget::slow_jobs(jobs.scope),
-    )
-    .on_press(
-        TerminalCommand::JOURNAL_PRESS_HINT,
-        open_log(jobs.follow_log_args()),
-    )
-    .ongoing_toasts(slow_job_toasts)
+    GroupItem::reading(slow_jobs_reading_row(jobs))
+        .on_press(
+            TerminalCommand::JOURNAL_PRESS_HINT,
+            open_log(jobs.follow_log_args()),
+        )
+        .ongoing_toasts(slow_job_toasts)
 }
 
 pub(super) fn slow_jobs_panel_visibility(jobs: &SlowJobs) -> PanelVisibility {

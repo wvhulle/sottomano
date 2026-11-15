@@ -33,7 +33,7 @@ use crate::{
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
     },
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::hover_card_body::Section,
     widget_groups::{
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -50,16 +50,15 @@ use crate::{
 const PERCENT: RangeInclusive<f32> = 0.0..=100.0;
 const STEP: f32 = 5.0;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MonitorTarget {
-    Backlight(String),
-    ClightAuto,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MonitorSource {
+    Backlights,
+    AutoBrightness,
 }
 
-impl From<MonitorTarget> for HoverTarget {
-    fn from(target: MonitorTarget) -> Self {
-        HoverTarget::Monitor(target)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MonitorBusRequest {
+    Refresh(MonitorSource),
 }
 
 #[derive(Default)]
@@ -83,6 +82,7 @@ pub enum MonitorInteraction {
     Expansion(WidgetGroupExpansionMessage),
     Backlight(String, ControlMessage),
     AutoBrightnessPressed,
+    OnBuses(MonitorBusRequest),
 }
 
 impl MonitorGroup {
@@ -94,13 +94,16 @@ impl MonitorGroup {
         ])
     }
 
-    pub fn refresh(target: &MonitorTarget, buses: &DesktopBuses) -> Task<MonitorMessage> {
-        match target {
-            MonitorTarget::Backlight(_) => {
+    pub fn on_buses(request: MonitorBusRequest, buses: &DesktopBuses) -> Task<MonitorMessage> {
+        let MonitorBusRequest::Refresh(source) = request;
+        match source {
+            MonitorSource::Backlights => {
                 first_delivery::<Vec<Backlight>>(buses.clone()).map(MonitorMessage::Backlights)
             }
-            MonitorTarget::ClightAuto => ToggleControl::<AutoBrightness>::refresh(buses.clone())
-                .map(MonitorMessage::AutoBrightness),
+            MonitorSource::AutoBrightness => {
+                ToggleControl::<AutoBrightness>::refresh(buses.clone())
+                    .map(MonitorMessage::AutoBrightness)
+            }
         }
     }
 
@@ -147,6 +150,7 @@ impl MonitorGroup {
             MonitorMessage::Interaction(MonitorInteraction::AutoBrightnessPressed) => {
                 self.clight.press().map(MonitorMessage::AutoBrightness)
             }
+            MonitorMessage::Interaction(MonitorInteraction::OnBuses(_)) => Task::none(),
         }
     }
 
@@ -170,7 +174,6 @@ impl MonitorGroup {
                     SliderControl::new(
                         format!("Backlight {}", backlight.serial),
                         PERCENT,
-                        MonitorTarget::Backlight(backlight.serial.clone()),
                         backlight_display::face(backlight),
                     )
                     .scroll_step(STEP)
@@ -264,6 +267,9 @@ impl MonitorGroup {
             .with_hover_card(Box::new(move |_| {
                 self.backlight_hover_card(backlight_serial, slider, outputs)
             }))
+            .refreshed_by(MonitorInteraction::OnBuses(MonitorBusRequest::Refresh(
+                MonitorSource::Backlights,
+            )))
         });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Monitor,
@@ -274,7 +280,6 @@ impl MonitorGroup {
                     .group_item(
                         IconGlyph::default(),
                         auto_brightness_reading_row,
-                        MonitorTarget::ClightAuto,
                         MonitorInteraction::AutoBrightnessPressed,
                         clock,
                     )
@@ -282,6 +287,9 @@ impl MonitorGroup {
                         clight_item
                             .previewed_on_handle()
                             .with_hover_card(Box::new(move |_| self.clight.hover_card()))
+                            .refreshed_by(MonitorInteraction::OnBuses(MonitorBusRequest::Refresh(
+                                MonitorSource::AutoBrightness,
+                            )))
                     }),
             ),
         )

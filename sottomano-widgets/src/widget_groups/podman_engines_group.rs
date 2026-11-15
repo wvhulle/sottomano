@@ -22,15 +22,11 @@ use crate::{
         reading_row::ReadingRow,
         source_reading::{ReadoutLabel, RowReadout},
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, SectionWidget, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widget_groups::{
         engine_container_rows::{
-            EngineContainerInteraction, EngineContainerTarget, EngineContainers,
-            RunningContainerRow, StoppedContainerRow, container_switch_task, engine_failure_label,
-            rows_ending_in_hidden_count,
+            EngineContainerInteraction, EngineContainers, RunningContainerRow, StoppedContainerRow,
+            container_switch_task, engine_failure_label, rows_ending_in_hidden_count,
         },
         widget_group_content::{WidgetGroupContent, WidgetGroupExpansion, WidgetGroupFace},
         widget_group_identity::WidgetGroupFamily,
@@ -42,31 +38,6 @@ use crate::{
         value_cells::LabeledValue,
     },
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PodmanEngineTarget {
-    Engine { socket_path: PathBuf },
-    Container(EngineContainerTarget),
-    HiddenContainers,
-}
-
-impl From<&DiscoveredPodmanEngine> for PodmanEngineTarget {
-    fn from(engine: &DiscoveredPodmanEngine) -> Self {
-        Self::Engine {
-            socket_path: engine.socket_path.clone(),
-        }
-    }
-}
-
-impl From<PodmanEngineTarget> for HoverTarget {
-    fn from(target: PodmanEngineTarget) -> Self {
-        HoverTarget::PodmanEngine(target)
-    }
-}
-
-fn container_hover_target(target: EngineContainerTarget) -> HoverTarget {
-    PodmanEngineTarget::Container(target).into()
-}
 
 struct UnreadableEngineRow<'a> {
     engine: &'a DiscoveredPodmanEngine,
@@ -207,10 +178,7 @@ impl PodmanEnginesGroup {
             listing,
         };
         engine_containers
-            .running_rows(
-                container_hover_target,
-                EngineContainerInteraction::SwitchContainer,
-            )
+            .running_rows(EngineContainerInteraction::SwitchContainer)
             .into_iter()
             .zip(&listing.running.containers)
             .map(|(row, container)| {
@@ -238,10 +206,7 @@ impl PodmanEnginesGroup {
             listing,
         };
         engine_containers
-            .stopped_rows(
-                container_hover_target,
-                EngineContainerInteraction::SwitchContainer,
-            )
+            .stopped_rows(EngineContainerInteraction::SwitchContainer)
             .into_iter()
             .zip(&listing.stopped)
             .map(|(row, container)| {
@@ -276,15 +241,11 @@ impl PodmanEnginesGroup {
                         read_failure,
                     }
                     .reading_row(),
-                    PodmanEngineTarget::from(engine),
                 ));
             }
         }
         running_rows.extend(stopped_rows);
-        failure_rows.extend(rows_ending_in_hidden_count(
-            running_rows,
-            PodmanEngineTarget::HiddenContainers.into(),
-        ));
+        failure_rows.extend(rows_ending_in_hidden_count(running_rows));
         failure_rows
     }
 
@@ -363,11 +324,6 @@ mod tests {
         );
         let rows = group.container_rows();
         assert_eq!(rows.len(), 12);
-        assert_eq!(
-            rows.last()
-                .map(GroupItem::announcement)
-                .and_then(|announcement| announcement.press_hints.left),
-            None
-        );
+        assert_eq!(rows.last().map(GroupItem::press_actions), Some(Vec::new()));
     }
 }

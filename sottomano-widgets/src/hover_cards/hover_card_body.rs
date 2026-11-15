@@ -13,7 +13,7 @@ use sottomano_toml_config::severity::Severity;
 
 use self::hover_card_source_delivery::{SectionSource, SourceDelivery};
 use crate::{
-    hover_cards::{PopupMessage, PressHints, hover_card_content::HoverCardContent},
+    hover_cards::{PopupMessage, PressAction, hover_card_content::HoverCardContent},
     widgets::{
         keyed_record_table::{
             ColumnHeading, IntoTableRecord, TableColumns, column_record_table, grouped_record_table,
@@ -156,13 +156,16 @@ impl Section {
         }
     }
 
-    pub(crate) fn press_actions(press_hints: PressHints) -> Option<Self> {
-        (press_hints != PressHints::default()).then(|| {
-            Self::new(
-                "Actions",
-                SectionWidget::drawn(move |card| card.press_actions_table(press_hints)),
-            )
-        })
+    #[must_use]
+    pub fn press_actions(mut actions: Vec<PressAction>) -> Option<Self> {
+        if actions.is_empty() {
+            return None;
+        }
+        actions.sort_by_key(|action| action.gesture);
+        Some(Self::new(
+            "Actions",
+            SectionWidget::drawn(move |card| card.press_actions_table(&actions)),
+        ))
     }
 
     pub(crate) fn source_state<S: SnapshotSource>(

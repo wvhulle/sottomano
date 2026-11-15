@@ -19,10 +19,7 @@ use crate::{
         toggle_control::SwitchPresses,
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage, activity_text},
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -44,17 +41,6 @@ const CONTAINER_SWITCH_FACE: UnitSwitchFace = UnitSwitchFace {
         turning_off: "stop the container",
     },
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NspawnContainerTarget {
-    pub machine_name: Cow<'static, str>,
-}
-
-impl From<NspawnContainerTarget> for HoverTarget {
-    fn from(target: NspawnContainerTarget) -> Self {
-        HoverTarget::NspawnContainer(target)
-    }
-}
 
 fn preferred_address(ip_addresses: &[IpAddr]) -> Option<&IpAddr> {
     ip_addresses
@@ -314,16 +300,11 @@ impl NspawnContainersGroup {
             .map(|readout| readout.containers.as_slice())
             .unwrap_or_default();
         let rows = containers.iter().map(|container| {
-            let row = GroupItem::reading(
-                self.container_row(container).reading_row(),
-                NspawnContainerTarget {
-                    machine_name: Cow::Owned(container.machine_name.clone()),
-                },
-            )
-            .with_hover_card(Box::new(move |clock| {
-                self.listing
-                    .hover_card_with(self.container_row(container).hover_card(clock))
-            }));
+            let row = GroupItem::reading(self.container_row(container).reading_row())
+                .with_hover_card(Box::new(move |clock| {
+                    self.listing
+                        .hover_card_with(self.container_row(container).hover_card(clock))
+                }));
             match self.service_switches.get(&container.machine_name) {
                 Some(service_switch) => service_switch.unit_switch.attach_switch_press(
                     row,

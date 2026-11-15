@@ -1,13 +1,10 @@
 use crate::{
     group_items::{
-        group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
+        group_item::{GroupItem, GroupItemValue},
         reading_display_state::ReadingDisplayState,
         source_reading::GroupItemIcon,
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, SectionWidget},
-    },
+    hover_cards::hover_card_body::{Section, SectionWidget},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -19,17 +16,6 @@ use crate::{
         shell_layer_appearance::LookComparison,
     },
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AppearancePresetsTarget {
-    Preset(AppearancePreset),
-}
-
-impl From<AppearancePresetsTarget> for HoverTarget {
-    fn from(target: AppearancePresetsTarget) -> Self {
-        HoverTarget::AppearancePresets(target)
-    }
-}
 
 #[derive(Debug, Clone)]
 pub enum AppearancePresetsMessage {
@@ -51,7 +37,6 @@ fn preset_group_item<'a>(
             glyph: preset.icon().into(),
             state: display_state,
         },
-        GroupItemHoverArea::WholeItem(AppearancePresetsTarget::Preset(preset).into()),
         GroupItemValue::Nothing,
         Box::new(|_| Vec::new()),
     )

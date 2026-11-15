@@ -35,7 +35,7 @@ use crate::{
     group_items::reading_display_state::ReadingDisplayState,
     group_menus::group_menu_state::{GroupMenuPin, PanelPin, PanelPinDuration},
     hover_cards::{
-        HoverOrigin, MouseGesture, PanelPinOrigin, PopupMessage, PressHints,
+        CardHeader, PopupMessage, PressAction,
         core_grid::CoreCellGrid,
         hover_card_body::{
             Section, SectionTitle, dictionary_table,
@@ -146,25 +146,20 @@ impl<'a> HoverCardContent<'a> {
     }
 
     fn card_header_rows(&self) -> Option<Element<'static, PopupMessage>> {
-        let HoverOrigin::GroupHandle {
-            item_group_name,
-            panel_pin,
-        } = &self.hover_card.announcement().origin
+        let CardHeader::Pinned {
+            group_title,
+            pin: panel_pin,
+        } = self.hover_card.header()
         else {
             return None;
         };
-        let PanelPinOrigin::Pinned(panel_pin) = panel_pin else {
-            return None;
-        };
-        let group_name = self.small_dim_text(item_group_name.to_string());
+        let group_name = self.small_dim_text(group_title.to_string());
         let header: Element<'static, PopupMessage> = match &panel_pin.entry {
             GroupMenuPin::Group(_) => group_name.into(),
-            GroupMenuPin::Item {
-                item_in_group_name, ..
-            } => row([
+            GroupMenuPin::Item(instrument_key) => row([
                 group_name.into(),
                 self.small_dim_text("\u{203a}".to_owned()).into(),
-                self.bold_title(item_in_group_name).into(),
+                self.bold_title(&instrument_key.name).into(),
             ])
             .spacing(self.config.theme.spacing.item_gap)
             .align_y(Vertical::Center)
@@ -280,25 +275,22 @@ impl<'a> HoverCardContent<'a> {
 
     pub(crate) fn press_actions_table(
         &self,
-        press_hints: PressHints,
+        actions: &[PressAction],
     ) -> Element<'static, PopupMessage> {
         let font = &self.config.theme.font;
-        Column::with_children(MouseGesture::ALL.into_iter().filter_map(|gesture| {
-            let does = press_hints.does(gesture)?;
-            Some(
-                row([
-                    container(
-                        IconGlyph::from(gesture.glyph())
-                            .view(font.small_text_size_px, secondary_text_color),
-                    )
-                    .width(font.icon_size_px)
-                    .into(),
-                    self.small_dim_text(does.to_owned()).into(),
-                ])
-                .spacing(self.config.theme.spacing.item_gap)
-                .align_y(Vertical::Center)
+        Column::with_children(actions.iter().map(|action| {
+            row([
+                container(
+                    IconGlyph::from(action.gesture.glyph())
+                        .view(font.small_text_size_px, secondary_text_color),
+                )
+                .width(font.icon_size_px)
                 .into(),
-            )
+                self.small_dim_text(action.does.clone().into_owned()).into(),
+            ])
+            .spacing(self.config.theme.spacing.item_gap)
+            .align_y(Vertical::Center)
+            .into()
         }))
         .spacing(self.config.theme.spacing.item_gap)
         .into()

@@ -5,46 +5,14 @@ use corredo::popovers::{
     SubmenuConnector,
 };
 use iced::Size;
-use sottomano_desktop_sources::{
-    incus_instances::InstanceDaemon, login_session_presence::idle_session_actions::IdleAction,
-};
 use sottomano_widgets::{
     clock::Clock,
     group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic},
-    hover_cards::HoverTarget,
+    hover_cards::{HoverTarget, InstrumentKey},
     widget_groups::{
-        appearance_presets_group::AppearancePresetsTarget,
-        apptainer_containers_group::ApptainerContainerTarget,
-        audio_group::{AudioTarget, ControlKind},
-        caldav_group::CaldavTarget,
-        cgroup_memory_limits_group::CgroupMemoryLimitTarget,
-        ci_runs_group::{CiRunnerKind, CiRunsTarget},
-        claude_usage_group::ClaudeUsageTarget,
-        compute_group::ComputeTarget,
-        docker_engines_group::DockerEngineTarget,
-        engine_container_rows::EngineContainerTarget,
-        flatpak_sandboxes_group::FlatpakSandboxTarget,
-        gamepad_group::GamepadTarget,
-        incus_instances_group::IncusInstanceTarget,
-        login_session_group::LoginSessionTarget,
-        lxc_containers_group::LxcContainerTarget,
-        media_group::{MediaTarget, PlayerTarget},
-        memory_board_group::MemoryBoardTarget,
-        microvm_guests_group::MicrovmGuestTarget,
-        nspawn_containers_group::NspawnContainerTarget,
-        tailnet_group::TailnetTarget,
-        virtual_machines_group::VirtualMachineTarget,
-        virtualbox_machines_group::VirtualBoxMachineTarget,
-        vmware_machines_group::VmwareMachineTarget,
-        voice_dictation_group::VoiceDictationTarget,
-        wallpaper_group::WallpaperTarget,
-        waydroid_container_group::WaydroidContainerTarget,
-        weather_group::WeatherTarget,
-        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
+        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupInstance},
         window_group::WindowTarget,
-        wireguard_tunnels_group::WireguardTunnelTarget,
     },
-    widgets::appearance_presets::AppearancePreset,
 };
 
 use crate::{
@@ -104,12 +72,24 @@ impl DemoBackdrop {
 pub enum Step {
     Hover(HoverTarget),
     Press(HoverTarget),
+    HoverFace(WidgetGroupIdentity),
+    PressFace(WidgetGroupIdentity),
     PressPin(GroupMenuPin),
-    Drag { target: HoverTarget, by: f32 },
+    DragFace { group: WidgetGroupIdentity, by: f32 },
     HoverText(&'static str),
-    HoverApp(&'static str),
     PressText(&'static str),
     RestFor(Duration),
+}
+
+const fn instance_row(group: WidgetGroupIdentity, row_name: &'static str) -> HoverTarget {
+    HoverTarget::Instrument(InstrumentKey {
+        group,
+        name: Cow::Borrowed(row_name),
+    })
+}
+
+const fn instrument_row(family: WidgetGroupFamily, row_name: &'static str) -> HoverTarget {
+    instance_row(WidgetGroupIdentity::sole(family), row_name)
 }
 
 pub const DEMOS: &[Demo] = &[
@@ -122,7 +102,13 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Applications)),
             Step::PressText("Frequently launched on this workspace"),
-            Step::HoverApp("firefox"),
+            Step::Hover(instance_row(
+                WidgetGroupIdentity {
+                    family: WidgetGroupFamily::AppLauncher,
+                    instance: WidgetGroupInstance::Durable(Cow::Borrowed("frequent")),
+                },
+                "Firefox",
+            )),
         ],
     },
     Demo {
@@ -146,7 +132,7 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::PressText("Compute"),
-            Step::Hover(HoverTarget::Compute(ComputeTarget::CpuLoad)),
+            Step::Hover(instrument_row(WidgetGroupFamily::Compute, "CPU load")),
         ],
     },
     Demo {
@@ -158,7 +144,7 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::PressText("Compute"),
-            Step::Hover(HoverTarget::Compute(ComputeTarget::CpuModel)),
+            Step::Hover(instrument_row(WidgetGroupFamily::Compute, "CPU model")),
         ],
     },
     Demo {
@@ -170,7 +156,7 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::PressText("Memory"),
-            Step::Hover(HoverTarget::MemoryBoard(MemoryBoardTarget::Memory)),
+            Step::Hover(instrument_row(WidgetGroupFamily::MemoryBoard, "RAM")),
         ],
     },
     Demo {
@@ -182,9 +168,10 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
             Step::PressText("Tailscale"),
-            Step::Hover(HoverTarget::Tailnet(TailnetTarget::ExitNodeChoice {
-                exit_node_ip: Cow::Borrowed(tailnet::HOME_EXIT_NODE_IP),
-            })),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::Tailnet,
+                "Exit via home-server",
+            )),
         ],
     },
     Demo {
@@ -196,9 +183,10 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
             Step::PressText("WireGuard"),
-            Step::Hover(HoverTarget::WireguardTunnel(WireguardTunnelTarget {
-                interface: Cow::Borrowed(wireguard_tunnels::HOME_SERVER_TUNNEL_NAME),
-            })),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::WireguardTunnels,
+                "wg-home",
+            )),
         ],
     },
     Demo {
@@ -210,7 +198,7 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
             Step::PressText("Tailscale"),
-            Step::Hover(HoverTarget::Tailnet(TailnetTarget::InboundAccess)),
+            Step::Hover(instrument_row(WidgetGroupFamily::Tailnet, "Reachable from")),
         ],
     },
     Demo {
@@ -222,7 +210,10 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
             Step::PressText("Weather"),
-            Step::Hover(HoverTarget::Weather(WeatherTarget::Temperature)),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::Weather,
+                "Temperature forecast",
+            )),
         ],
     },
     Demo {
@@ -234,7 +225,7 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
             Step::PressText("Weather"),
-            Step::Hover(HoverTarget::Weather(WeatherTarget::Rain)),
+            Step::Hover(instrument_row(WidgetGroupFamily::Weather, "Rain")),
         ],
     },
     Demo {
@@ -257,10 +248,9 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("QEMU machines"),
-            Step::Hover(HoverTarget::VirtualMachine(
-                VirtualMachineTarget::RunningProcess {
-                    pid: virtual_machines::INTERACTIVE_VM_PID,
-                },
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::VirtualMachines,
+                "sample-vm-slow-services from bootvine pid 4100",
             )),
         ],
     },
@@ -273,10 +263,9 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("microvm.nix guests"),
-            Step::Hover(HoverTarget::MicrovmGuest(
-                MicrovmGuestTarget::RunningProcess {
-                    pid: microvm_guests::HOVERED_MICROVM_PID,
-                },
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::MicrovmGuests,
+                "ci-builder",
             )),
         ],
     },
@@ -289,9 +278,10 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("nspawn containers"),
-            Step::Hover(HoverTarget::NspawnContainer(NspawnContainerTarget {
-                machine_name: Cow::Borrowed(nspawn_containers::HOVERED_CONTAINER_NAME),
-            })),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::NspawnContainers,
+                "arr-proton",
+            )),
         ],
     },
     Demo {
@@ -303,10 +293,10 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Incus instances"),
-            Step::Hover(HoverTarget::IncusInstance(IncusInstanceTarget {
-                instance_daemon: InstanceDaemon::Incus,
-                instance_name: Cow::Borrowed(incus_instances::HOVERED_INSTANCE_NAME),
-            })),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::IncusInstances,
+                "build-box",
+            )),
         ],
     },
     Demo {
@@ -318,9 +308,7 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("LXC containers"),
-            Step::Hover(HoverTarget::LxcContainer(LxcContainerTarget {
-                container_name: Cow::Borrowed(lxc_containers::HOVERED_CONTAINER_NAME),
-            })),
+            Step::Hover(instrument_row(WidgetGroupFamily::LxcContainers, "media")),
         ],
     },
     Demo {
@@ -332,9 +320,10 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Flatpak apps"),
-            Step::Hover(HoverTarget::FlatpakSandbox(FlatpakSandboxTarget {
-                instance_id: Cow::Borrowed(flatpak_sandboxes::HOVERED_INSTANCE_ID),
-            })),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::FlatpakSandboxes,
+                "com.spotify.Client 1849302754",
+            )),
         ],
     },
     Demo {
@@ -346,8 +335,9 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Waydroid"),
-            Step::Hover(HoverTarget::WaydroidContainer(
-                WaydroidContainerTarget::Session,
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::WaydroidContainer,
+                "Session",
             )),
         ],
     },
@@ -360,10 +350,9 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("VirtualBox machines"),
-            Step::Hover(HoverTarget::VirtualBoxMachine(
-                VirtualBoxMachineTarget::RunningProcess {
-                    pid: virtualbox_machines::HOVERED_MACHINE_PID,
-                },
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::VirtualBoxMachines,
+                "windows11 pid 61402",
             )),
         ],
     },
@@ -376,9 +365,10 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("VMware machines"),
-            Step::Hover(HoverTarget::VmwareMachine(VmwareMachineTarget {
-                pid: vmware_machines::HOVERED_MACHINE_PID,
-            })),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::VmwareMachines,
+                "Ubuntu 26.04",
+            )),
         ],
     },
     Demo {
@@ -390,9 +380,10 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Apptainer containers"),
-            Step::Hover(HoverTarget::ApptainerContainer(ApptainerContainerTarget {
-                runtime_pid: apptainer_containers::HOVERED_RUNTIME_PID,
-            })),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::ApptainerContainers,
+                "pytorch_24.08 pid 70215",
+            )),
         ],
     },
     Demo {
@@ -404,12 +395,10 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Docker containers"),
-            Step::Hover(HoverTarget::DockerEngine(DockerEngineTarget::Container(
-                EngineContainerTarget {
-                    socket_path: Cow::Borrowed(docker_engines::ROOTFUL_DOCKER_SOCKET),
-                    container_id: Cow::Borrowed(docker_engines::HOVERED_CONTAINER_ID),
-                },
-            ))),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::DockerEngines,
+                "postgres as root",
+            )),
         ],
     },
     Demo {
@@ -421,9 +410,10 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Virtualization)),
             Step::PressText("Memory limits"),
-            Step::Hover(HoverTarget::CgroupMemoryLimit(CgroupMemoryLimitTarget {
-                cgroup_path: Cow::Borrowed(cgroup_memory_limits::HOVERED_CGROUP_PATH),
-            })),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::CgroupMemoryLimits,
+                "ci-runners.slice",
+            )),
         ],
     },
     Demo {
@@ -435,11 +425,7 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
             Step::PressText("3 CI runs"),
-            Step::Hover(HoverTarget::CiRuns(CiRunsTarget::run(
-                CiRunnerKind::Woodpecker,
-                ci_runner_tasks::SHOWN_RUNNER,
-                ci_runner_tasks::HOVERED_RUN,
-            ))),
+            Step::Hover(instrument_row(WidgetGroupFamily::CiRuns, "website #185")),
         ],
     },
     Demo {
@@ -451,8 +437,8 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
             Step::PressText("Calendar"),
-            Step::Hover(HoverTarget::Caldav(CaldavTarget::UpcomingEvents)),
-            Step::Hover(HoverTarget::Caldav(CaldavTarget::OpenTasks)),
+            Step::Hover(instrument_row(WidgetGroupFamily::Caldav, "Upcoming events")),
+            Step::Hover(instrument_row(WidgetGroupFamily::Caldav, "Open tasks")),
         ],
     },
     Demo {
@@ -464,7 +450,10 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
             Step::PressText("Claude usage"),
-            Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::UsageWindows)),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::ClaudeUsage,
+                "Subscription windows",
+            )),
         ],
     },
     Demo {
@@ -476,10 +465,16 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
             Step::PressText("Spotify"),
-            Step::Hover(HoverTarget::Media(PlayerTarget {
-                bus: Cow::Borrowed(media::SPOTIFY_BUS),
-                control: MediaTarget::Track,
-            })),
+            Step::Hover(instance_row(
+                WidgetGroupIdentity {
+                    family: WidgetGroupFamily::Media,
+                    instance: WidgetGroupInstance::Session {
+                        durable: Cow::Borrowed("Spotify"),
+                        session: Cow::Borrowed("org.mpris.MediaPlayer2.spotify"),
+                    },
+                },
+                "Track",
+            )),
         ],
     },
     Demo {
@@ -491,7 +486,13 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Session)),
             Step::PressText("Screen off"),
-            Step::Hover(HoverTarget::IdleTimeout(IdleAction::ScreenOff)),
+            Step::Hover(instance_row(
+                WidgetGroupIdentity {
+                    family: WidgetGroupFamily::IdleTimeouts,
+                    instance: WidgetGroupInstance::Durable(Cow::Borrowed("screen_off")),
+                },
+                "Screen-off timeout",
+            )),
         ],
     },
     Demo {
@@ -503,12 +504,14 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Behaviour)),
             Step::PressText("Looks"),
-            Step::Hover(HoverTarget::AppearancePresets(
-                AppearancePresetsTarget::Preset(AppearancePreset::FrostedDark),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::AppearancePresets,
+                "Frosted dark",
             )),
             Step::PressText("Frosted dark"),
-            Step::Hover(HoverTarget::AppearancePresets(
-                AppearancePresetsTarget::Preset(AppearancePreset::ClearDark),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::AppearancePresets,
+                "Clear dark",
             )),
             Step::RestFor(Duration::from_millis(1200)),
         ],
@@ -522,9 +525,13 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
             Step::PressText("DualSense Wireless Controller"),
-            Step::Hover(HoverTarget::Gamepad(GamepadTarget::Controller {
-                slot: gamepad::DUALSENSE_SLOT,
-            })),
+            Step::Hover(instance_row(
+                WidgetGroupIdentity {
+                    family: WidgetGroupFamily::Gamepad,
+                    instance: WidgetGroupInstance::Durable(Cow::Borrowed("d4:2f:4b:69:6b:2f")),
+                },
+                "Game controller",
+            )),
         ],
     },
     Demo {
@@ -534,10 +541,10 @@ pub const DEMOS: &[Demo] = &[
         backdrop: DemoBackdrop::Transparent,
         shown: GroupShown::OnPanel,
         script: &[
-            Step::Press(HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink))),
-            Step::Press(HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink))),
-            Step::Drag {
-                target: HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink)),
+            Step::PressFace(WidgetGroupIdentity::sole(WidgetGroupFamily::Audio)),
+            Step::PressFace(WidgetGroupIdentity::sole(WidgetGroupFamily::Audio)),
+            Step::DragFace {
+                group: WidgetGroupIdentity::sole(WidgetGroupFamily::Audio),
                 by: -24.0,
             },
         ],
@@ -551,8 +558,9 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
             Step::PressText("Voice dictation"),
-            Step::Hover(HoverTarget::VoiceDictation(
-                VoiceDictationTarget::SpeechModel,
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::VoiceDictation,
+                "Speech model",
             )),
         ],
     },
@@ -565,8 +573,11 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Session)),
             Step::PressText("Login session"),
-            Step::Hover(HoverTarget::LoginSession(LoginSessionTarget::Kernel)),
-            Step::Hover(HoverTarget::LoginSession(LoginSessionTarget::Compositor)),
+            Step::Hover(instrument_row(WidgetGroupFamily::LoginSession, "Kernel")),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::LoginSession,
+                "Compositor",
+            )),
         ],
     },
     Demo {
@@ -578,8 +589,14 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Display)),
             Step::PressText("Wallpaper"),
-            Step::Hover(HoverTarget::Wallpaper(WallpaperTarget::Lookup)),
-            Step::Hover(HoverTarget::Wallpaper(WallpaperTarget::Article)),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::Wallpaper,
+                "Wallpaper lookup",
+            )),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::Wallpaper,
+                "Wallpaper article",
+            )),
         ],
     },
     Demo {
@@ -675,9 +692,10 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
             Step::PressText("Spotify"),
             Step::PressText("Audio"),
-            Step::Hover(HoverTarget::Audio(AudioTarget::Control(
-                ControlKind::Source,
-            ))),
+            Step::Hover(instrument_row(
+                WidgetGroupFamily::Audio,
+                "Microphone volume",
+            )),
         ],
     },
     Demo {
@@ -714,8 +732,8 @@ pub const DEMOS: &[Demo] = &[
             group: WidgetGroupIdentity::sole(WidgetGroupFamily::Compute),
         },
         script: &[
-            Step::Hover(HoverTarget::Compute(ComputeTarget::CpuLoad)),
-            Step::Press(HoverTarget::Compute(ComputeTarget::CpuLoad)),
+            Step::HoverFace(WidgetGroupIdentity::sole(WidgetGroupFamily::Compute)),
+            Step::PressFace(WidgetGroupIdentity::sole(WidgetGroupFamily::Compute)),
         ],
     },
 ];
@@ -723,9 +741,12 @@ pub const DEMOS: &[Demo] = &[
 #[cfg(test)]
 mod tests {
     use sottomano_toml_config::Config;
-    use sottomano_widgets::clock::Clock;
+    use sottomano_widgets::{
+        clock::Clock, hover_cards::HoverTarget,
+        widget_groups::widget_group_content::WidgetGroupContent,
+    };
 
-    use super::DEMOS;
+    use super::{DEMOS, Step};
 
     #[test]
     fn every_demo_group_names_its_pinnable_items_apart_from_each_other_and_the_group() {
@@ -763,5 +784,46 @@ mod tests {
             })
             .collect();
         assert_eq!(clashes, Vec::new());
+    }
+
+    #[test]
+    fn every_scripted_row_is_a_row_of_its_demo_group() {
+        let config = Config::default();
+        let clock = Clock::real();
+        let missing: Vec<(String, String, Vec<String>)> = DEMOS
+            .iter()
+            .flat_map(|demo| {
+                let showcased_group = (demo.group)(clock);
+                let contents = showcased_group.group_contents(&config, clock);
+                let known_rows: Vec<String> = contents
+                    .iter()
+                    .flat_map(WidgetGroupContent::instrument_keys)
+                    .map(|instrument_key| format!("{instrument_key:?}"))
+                    .collect();
+                demo.script
+                    .iter()
+                    .filter_map(|step| match step {
+                        Step::Hover(HoverTarget::Instrument(instrument_key))
+                        | Step::Press(HoverTarget::Instrument(instrument_key)) => {
+                            Some(instrument_key)
+                        }
+                        _ => None,
+                    })
+                    .filter(|instrument_key| {
+                        !contents
+                            .iter()
+                            .any(|group| group.instrument(instrument_key).is_some())
+                    })
+                    .map(|instrument_key| {
+                        (
+                            demo.name.to_owned(),
+                            format!("{instrument_key:?}"),
+                            known_rows.clone(),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        assert_eq!(missing, Vec::new());
     }
 }

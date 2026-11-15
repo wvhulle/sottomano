@@ -6,10 +6,11 @@ use sottomano_desktop_sources::{
     login_session_presence::logind_session_facts::SessionIdentity,
     systemd_units_journal::graphical_session_target::GraphicalSession,
 };
+use sottomano_toml_config::Config;
 use sottomano_widgets::{
     clock::Clock,
     widget_groups::login_session_group::{
-        LoginSessionGroup, LoginSessionMessage, LoginSessionTarget,
+        LoginSessionGroup, LoginSessionInteraction, LoginSessionMessage,
     },
 };
 
@@ -19,7 +20,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     ShowcasedGroup::LoginSession(Box::new(session_readings().into_iter().fold(
         LoginSessionGroup::default(),
         |mut group, reading| {
-            let _ = group.update(reading, clock);
+            let _ = group.update(reading, &Config::default(), clock);
             group
         },
     )))
@@ -48,17 +49,14 @@ fn session_readings() -> [LoginSessionMessage; 2] {
     ]
 }
 
-pub fn on_hover(target: LoginSessionTarget) -> Vec<LoginSessionMessage> {
-    match target {
-        LoginSessionTarget::Compositor => vec![LoginSessionMessage::GraphicalFetched(
-            SnapshotDelivery::single_read(Ok(niri_graphical_session())),
-        )],
-        LoginSessionTarget::Kernel
-        | LoginSessionTarget::Seat
-        | LoginSessionTarget::Login
-        | LoginSessionTarget::Account
-        | LoginSessionTarget::ServiceManager
-        | LoginSessionTarget::DesktopServices => Vec::new(),
+pub fn on_hover(started_fetch: &LoginSessionInteraction) -> Vec<LoginSessionMessage> {
+    match started_fetch {
+        LoginSessionInteraction::StartCompositorFetch => {
+            vec![LoginSessionMessage::GraphicalFetched(
+                SnapshotDelivery::single_read(Ok(niri_graphical_session())),
+            )]
+        }
+        _ => Vec::new(),
     }
 }
 

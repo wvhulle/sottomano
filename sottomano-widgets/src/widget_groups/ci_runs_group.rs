@@ -26,7 +26,7 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::group_item::GroupItem,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::hover_card_body::Section,
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -53,38 +53,6 @@ impl From<&WatchedCiRunner<'_>> for CiRunnerReference {
             kind: watched.kind,
             runner_label: Cow::Owned(watched.runner_label.to_owned()),
         }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CiRunsTarget {
-    Runner(CiRunnerReference),
-    Run {
-        runner: CiRunnerReference,
-        run_label: Cow<'static, str>,
-    },
-}
-
-impl CiRunsTarget {
-    #[must_use]
-    pub const fn run(
-        kind: CiRunnerKind,
-        runner_label: &'static str,
-        run_label: &'static str,
-    ) -> Self {
-        CiRunsTarget::Run {
-            runner: CiRunnerReference {
-                kind,
-                runner_label: Cow::Borrowed(runner_label),
-            },
-            run_label: Cow::Borrowed(run_label),
-        }
-    }
-}
-
-impl From<CiRunsTarget> for HoverTarget {
-    fn from(target: CiRunsTarget) -> Self {
-        HoverTarget::CiRuns(target)
     }
 }
 
@@ -247,13 +215,12 @@ impl CiRunsGroup {
             let reference = CiRunnerReference::from(&watched);
             let failure_reference = reference.clone();
             let failure_row = CiRunnerFailureRow::failing_runner(watched).map(|row| {
-                GroupItem::reading(row.reading_row(), CiRunsTarget::Runner(reference.clone()))
-                    .with_hover_card(Box::new(move |_| {
-                        self.runner_hover_card(&failure_reference, |watched_runner| {
-                            CiRunnerFailureRow::failing_runner(watched_runner)
-                                .map(|failing_row| failing_row.hover_card())
-                        })
-                    }))
+                GroupItem::reading(row.reading_row()).with_hover_card(Box::new(move |_| {
+                    self.runner_hover_card(&failure_reference, |watched_runner| {
+                        CiRunnerFailureRow::failing_runner(watched_runner)
+                            .map(|failing_row| failing_row.hover_card())
+                    })
+                }))
             });
             let run_rows = watched.runner.tasks.iter().map(move |task| {
                 let task_reference = reference.clone();
@@ -263,10 +230,6 @@ impl CiRunsGroup {
                         task,
                     }
                     .reading_row(clock, locale),
-                    CiRunsTarget::Run {
-                        runner: reference.clone(),
-                        run_label: Cow::Owned(task.run_label.clone()),
-                    },
                 )
                 .with_hover_card(Box::new(move |_| {
                     self.runner_hover_card(&task_reference, |watched_runner| {

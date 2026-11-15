@@ -24,7 +24,7 @@ use crate::{
             PanelSlotContext, SlotClick, SlotPress, WindowArrival, window_arrival_on,
         },
     },
-    hover_cards::{HoverTarget, PressHints, hoverable},
+    hover_cards::{HoverTarget, hoverable},
     widgets::{
         pointer_drag::DraggedPanelSlot,
         screen_edge::screen_edge_of,
@@ -282,7 +282,6 @@ impl<'s> WorkspaceSlot<'s> {
             NestedMenuOpenTrigger::Hover,
             pressable.into(),
             HoverTarget::Workspace(self.workspace.id),
-            PressHints::default(),
             WorkspacesMessage::HoverCard,
         )
     }

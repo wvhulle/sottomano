@@ -12,12 +12,9 @@ use crate::{
         reading_display_state::ReadingDisplayState,
         reading_row::{PanelVisibility, ReadingRow},
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{
-            Section,
-            hover_card_source_delivery::{DeliveryStamp, SourceDelivery},
-        },
+    hover_cards::hover_card_body::{
+        Section,
+        hover_card_source_delivery::{DeliveryStamp, SourceDelivery},
     },
     widgets::icon_glyph::IconGlyph,
 };
@@ -307,27 +304,24 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
         &'s self,
         fallback_icon: IconGlyph,
         describe: impl FnOnce(&'s S) -> ReadingRow<'s>,
-        target: impl Into<HoverTarget>,
         clock: Clock,
     ) -> Option<GroupItem<'s, M>> {
         self.reading_row(fallback_icon, describe, clock)
-            .map(|row| GroupItem::reading(row, target))
+            .map(GroupItem::reading)
     }
 
     pub fn group_item_while_pending<'s, M: 's>(
         &'s self,
         fallback_icon: IconGlyph,
         describe: impl FnOnce(&'s S) -> ReadingRow<'s>,
-        target: impl Into<HoverTarget>,
         clock: Clock,
     ) -> Option<GroupItem<'s, M>> {
         if matches!(self, SubscribedSnapshot::AwaitingFirstSnapshot) {
-            return Some(GroupItem::reading(
-                SnapshotPlaceholder::<S>::awaiting_row(fallback_icon),
-                target,
-            ));
+            return Some(GroupItem::reading(SnapshotPlaceholder::<S>::awaiting_row(
+                fallback_icon,
+            )));
         }
-        self.group_item(fallback_icon, describe, target, clock)
+        self.group_item(fallback_icon, describe, clock)
     }
 }
 

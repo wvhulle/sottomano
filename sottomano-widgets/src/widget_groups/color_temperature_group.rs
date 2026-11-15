@@ -24,10 +24,7 @@ use crate::{
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         unit_switch::{ServiceReadiness, UnitSwitch, UnitSwitchMessage},
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         widget_group_content::{
             ExpansionChange, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -48,16 +45,8 @@ const WARMTH_RANGE: RangeInclusive<f32> = 3000.0..=6500.0;
 const WARMTH_STEP: f32 = 100.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ColorTemperatureTarget {
-    GammaDim,
-    Temperature,
-    Automatic,
-}
-
-impl From<ColorTemperatureTarget> for HoverTarget {
-    fn from(target: ColorTemperatureTarget) -> Self {
-        HoverTarget::ColorTemperature(target)
-    }
+pub enum ColorTemperatureBusRequest {
+    Refresh,
 }
 
 pub struct ColorTemperatureGroup {
@@ -81,6 +70,7 @@ pub enum ColorTemperatureInteraction {
     Dim(ControlMessage),
     Warmth(ControlMessage),
     AutoPressed,
+    OnBuses(ColorTemperatureBusRequest),
 }
 
 impl ColorTemperatureGroup {
@@ -91,7 +81,6 @@ impl ColorTemperatureGroup {
             dim: SliderControl::new(
                 "Screen dimming",
                 PERCENT,
-                ColorTemperatureTarget::GammaDim,
                 Phosphor::CircleHalf(Weight::Regular),
             )
             .scroll_step(DIM_STEP)
@@ -99,7 +88,6 @@ impl ColorTemperatureGroup {
             warmth: SliderControl::new(
                 "Warmth",
                 WARMTH_RANGE,
-                ColorTemperatureTarget::Temperature,
                 Phosphor::ThermometerSimple(Weight::Regular),
             )
             .scroll_step(WARMTH_STEP)
@@ -127,14 +115,12 @@ impl ColorTemperatureGroup {
         ])
     }
 
-    pub fn refresh(
-        target: ColorTemperatureTarget,
+    pub fn on_buses(
+        request: ColorTemperatureBusRequest,
         buses: &DesktopBuses,
     ) -> Task<ColorTemperatureMessage> {
-        match target {
-            ColorTemperatureTarget::GammaDim
-            | ColorTemperatureTarget::Temperature
-            | ColorTemperatureTarget::Automatic => {
+        match request {
+            ColorTemperatureBusRequest::Refresh => {
                 first_delivery::<ColorTemperature>(buses.clone())
                     .map(ColorTemperatureMessage::ColorTemperature)
             }
@@ -236,6 +222,9 @@ impl ColorTemperatureGroup {
             ColorTemperatureMessage::Interaction(ColorTemperatureInteraction::AutoPressed) => {
                 self.auto.press().map(ColorTemperatureMessage::Auto)
             }
+            ColorTemperatureMessage::Interaction(ColorTemperatureInteraction::OnBuses(_)) => {
+                Task::none()
+            }
         }
     }
 
@@ -261,6 +250,9 @@ impl ColorTemperatureGroup {
                                 )]),
                             )])
                         }))
+                        .refreshed_by(ColorTemperatureInteraction::OnBuses(
+                            ColorTemperatureBusRequest::Refresh,
+                        ))
                 }),
                 gamma_available.then(|| {
                     GroupItem::slider(&self.dim, config, ColorTemperatureInteraction::Dim)
@@ -273,17 +265,23 @@ impl ColorTemperatureGroup {
                                 )]),
                             )])
                         }))
+                        .refreshed_by(ColorTemperatureInteraction::OnBuses(
+                            ColorTemperatureBusRequest::Refresh,
+                        ))
                 }),
                 self.auto
                     .group_item(
                         ServiceReadiness::Serving,
-                        ColorTemperatureTarget::Automatic,
                         ColorTemperatureInteraction::AutoPressed,
                     )
                     .map(|auto_item| {
-                        auto_item.with_hover_card(Box::new(move |_| {
-                            self.auto.hover_card(ServiceReadiness::Serving)
-                        }))
+                        auto_item
+                            .with_hover_card(Box::new(move |_| {
+                                self.auto.hover_card(ServiceReadiness::Serving)
+                            }))
+                            .refreshed_by(ColorTemperatureInteraction::OnBuses(
+                                ColorTemperatureBusRequest::Refresh,
+                            ))
                     }),
             ]
             .into_iter()

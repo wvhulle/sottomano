@@ -13,23 +13,18 @@ use iced::{
 
 use crate::{
     group_menus::group_menu_state::GroupMenuPin,
-    hover_cards::{
-        AnchorEvent, HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence,
-        WidgetAnchor,
-    },
+    hover_cards::{AnchorEvent, HoverCardMessage, HoverTarget, PointerPresence, WidgetAnchor},
 };
 
 pub fn hoverable<'a, M: 'a>(
     opening: NestedMenuOpenTrigger,
     content: Element<'a, M>,
     target: HoverTarget,
-    announcement: impl Into<HoverAnnouncement>,
     wrap: impl Fn(HoverCardMessage) -> M + 'a,
 ) -> Element<'a, M> {
     Element::new(HoverArea {
         content,
         target,
-        announcement: announcement.into(),
         opening,
         wrap: Box::new(wrap),
     })
@@ -38,7 +33,6 @@ pub fn hoverable<'a, M: 'a>(
 struct HoverArea<'a, M> {
     content: Element<'a, M>,
     target: HoverTarget,
-    announcement: HoverAnnouncement,
     opening: NestedMenuOpenTrigger,
     wrap: Box<dyn Fn(HoverCardMessage) -> M + 'a>,
 }
@@ -46,7 +40,6 @@ struct HoverArea<'a, M> {
 struct HoverState {
     target: HoverTarget,
     pointer_presence: PointerPresence,
-    announced: HoverAnnouncement,
     reported_anchor: Option<Rectangle>,
     reported_visible: bool,
     presence: Arc<()>,
@@ -57,7 +50,6 @@ impl From<HoverTarget> for HoverState {
         Self {
             target,
             pointer_presence: PointerPresence::NotPointedAt,
-            announced: HoverAnnouncement::default(),
             reported_anchor: None,
             reported_visible: false,
             presence: Arc::new(()),
@@ -80,7 +72,6 @@ impl<M> HoverArea<'_, M> {
                     HoverCardMessage::Anchor(AnchorEvent::HandlePointed {
                         target: replaced.target,
                         pointing: PointerPresence::NotPointedAt,
-                        announcement: replaced.announced,
                     })
                 }
             })
@@ -116,11 +107,9 @@ impl<M> HoverArea<'_, M> {
         ))))
     }
 
-    fn enter(&self, state: &mut HoverState) -> M {
-        state.announced = self.announcement.clone();
+    fn enter(&self) -> M {
         (self.wrap)(HoverCardMessage::Anchor(AnchorEvent::Entered {
             target: self.target.clone(),
-            announcement: self.announcement.clone(),
         }))
     }
 
@@ -128,14 +117,12 @@ impl<M> HoverArea<'_, M> {
         (self.wrap)(HoverCardMessage::Anchor(AnchorEvent::HandlePointed {
             target: self.target.clone(),
             pointing,
-            announcement: self.announcement.clone(),
         }))
     }
 
     fn menu_handle_pressed(&self) -> M {
         (self.wrap)(HoverCardMessage::Anchor(AnchorEvent::HandlePressed {
             target: self.target.clone(),
-            announcement: self.announcement.clone(),
         }))
     }
 
@@ -143,19 +130,6 @@ impl<M> HoverArea<'_, M> {
         (self.wrap)(HoverCardMessage::Exit {
             target: self.target.clone(),
         })
-    }
-
-    fn revised_announcement(&self, state: &mut HoverState) -> Option<M> {
-        if state.pointer_presence == PointerPresence::NotPointedAt
-            || state.announced == self.announcement
-        {
-            return None;
-        }
-        state.announced = self.announcement.clone();
-        Some((self.wrap)(HoverCardMessage::AnnouncementChanged {
-            target: self.target.clone(),
-            announcement: self.announcement.clone(),
-        }))
     }
 
     fn on_hover_change(
@@ -168,7 +142,7 @@ impl<M> HoverArea<'_, M> {
         }
         state.pointer_presence = pointer_presence;
         match (pointer_presence, self.opening) {
-            (PointerPresence::PointedAt, NestedMenuOpenTrigger::Hover) => Some(self.enter(state)),
+            (PointerPresence::PointedAt, NestedMenuOpenTrigger::Hover) => Some(self.enter()),
             (PointerPresence::NotPointedAt, NestedMenuOpenTrigger::Hover) => Some(self.exit()),
             (pointer_presence, NestedMenuOpenTrigger::Press) => {
                 Some(self.menu_handle_pointed(pointer_presence))
@@ -273,10 +247,7 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
             shell.capture_event();
             return;
         }
-        let published = self
-            .on_hover_change(state, pointer_presence)
-            .or_else(|| self.revised_announcement(state));
-        if let Some(message) = published {
+        if let Some(message) = self.on_hover_change(state, pointer_presence) {
             shell.publish(message);
         }
     }
@@ -362,8 +333,8 @@ mod tests {
 
     use super::{HoverArea, HoverState, hoverable};
     use crate::hover_cards::{
-        AnchorEvent, HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence,
-        WidgetAnchor, laid_out_anchors::WidgetLiveness,
+        AnchorEvent, HoverCardMessage, HoverTarget, PointerPresence, WidgetAnchor,
+        laid_out_anchors::WidgetLiveness,
     };
 
     const INSIDE_AREA: Point = Point::new(10.0, 10.0);
@@ -374,7 +345,6 @@ mod tests {
             NestedMenuOpenTrigger::Press,
             container(Space::new()).width(40.0).height(40.0).into(),
             HoverTarget::Workspace(7),
-            HoverAnnouncement::default(),
             |message| message,
         )
     }
@@ -384,7 +354,6 @@ mod tests {
             NestedMenuOpenTrigger::Hover,
             container(Space::new()).width(40.0).height(40.0).into(),
             HoverTarget::Workspace(7),
-            HoverAnnouncement::default(),
             |message| message,
         )
     }
@@ -474,7 +443,6 @@ mod tests {
         HoverArea {
             content: Space::new().into(),
             target,
-            announcement: HoverAnnouncement::default(),
             opening,
             wrap: Box::new(|message| message),
         }

@@ -12,7 +12,6 @@ use crate::{
         reading_display_state::ReadingDisplayState,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
-    hover_cards::HoverTarget,
     widget_groups::{
         sqlite_singleton_flag::{self, SingletonFlag, SingletonFlagState},
         widget_group_content::{
@@ -23,7 +22,7 @@ use crate::{
         workspaces_group::{EmptyWorkspaceFolding, EmptyWorkspaces, RevealFoldTimer},
     },
     widgets::{
-        layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
+        layer_appearance_controls::{AppearanceMessage, LayerAppearanceControls},
         phosphor::{Phosphor, Weight},
         shell_layer_appearance::ShellLayer,
     },
@@ -101,19 +100,6 @@ fn auto_collapse_workspaces_toggle(empty_workspaces_mode: EmptyWorkspaces) -> Ic
     )
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SidebarSettingsTarget {
-    WorkspacesPlacement,
-    AutoCollapseWorkspaces,
-    Appearance(AppearanceTarget),
-}
-
-impl From<SidebarSettingsTarget> for HoverTarget {
-    fn from(target: SidebarSettingsTarget) -> Self {
-        HoverTarget::SidebarSettings(target)
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum SidebarSettingsMessage {
     Expansion(WidgetGroupExpansionMessage),
@@ -141,9 +127,7 @@ impl Default for SidebarSettingsGroup {
             workspaces_placement: WorkspacesPlacement::Sidebar,
             empty_workspace_folding: EmptyWorkspaceFolding::default(),
             reveal_fold_timer: None,
-            layer: LayerAppearanceControls::new(ShellLayer::Sidebar, |target| {
-                SidebarSettingsTarget::Appearance(target).into()
-            }),
+            layer: LayerAppearanceControls::new(ShellLayer::Sidebar),
         }
     }
 }
@@ -265,12 +249,10 @@ impl SidebarSettingsGroup {
             [
                 GroupItem::toggle(
                     workspaces_sidebar_toggle(self.workspaces_placement),
-                    SidebarSettingsTarget::WorkspacesPlacement,
                     SidebarSettingsMessage::ToggleWorkspacesPlacement,
                 ),
                 GroupItem::toggle(
                     auto_collapse_workspaces_toggle(self.empty_workspace_folding.mode()),
-                    SidebarSettingsTarget::AutoCollapseWorkspaces,
                     SidebarSettingsMessage::ToggleAutoCollapseWorkspaces,
                 ),
             ]

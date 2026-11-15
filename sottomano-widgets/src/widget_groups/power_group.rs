@@ -31,7 +31,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::group_item::GroupItem,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::hover_card_body::Section,
     widget_groups::{
         power_group::{
             cpu_tuning_sections::cpu_tuning_sections,
@@ -52,17 +52,15 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PowerTarget {
+pub enum PowerRefreshedSource {
     Battery,
-    Draw,
-    BatteryTime,
     Profile,
 }
 
-impl From<PowerTarget> for HoverTarget {
-    fn from(target: PowerTarget) -> Self {
-        HoverTarget::Power(target)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PowerBusRequest {
+    StartCpuTuningFetch,
+    Refresh(PowerRefreshedSource),
 }
 
 #[derive(Default)]
@@ -90,6 +88,9 @@ pub enum PowerMessage {
 pub enum PowerInteraction {
     PowerProfile(PowerProfileInteraction),
     Expansion(WidgetGroupExpansionMessage),
+    StartChargerFetch,
+    StopHoverFetches,
+    OnBuses(PowerBusRequest),
 }
 
 impl PowerGroup {
@@ -106,46 +107,35 @@ impl PowerGroup {
         ])
     }
 
-    pub fn refresh(target: PowerTarget, buses: &DesktopBuses) -> Task<PowerMessage> {
-        match target {
-            PowerTarget::Battery | PowerTarget::Draw | PowerTarget::BatteryTime => {
+    pub fn on_buses(
+        &mut self,
+        request: PowerBusRequest,
+        config: &Config,
+        buses: &DesktopBuses,
+        clock: Clock,
+    ) -> Task<PowerMessage> {
+        match request {
+            PowerBusRequest::StartCpuTuningFetch => self.cpu_tuning.start_hover_fetch(
+                buses.clone(),
+                PowerMessage::CpuTuningFetched,
+                config,
+                clock,
+            ),
+            PowerBusRequest::Refresh(PowerRefreshedSource::Battery) => {
                 first_delivery::<Battery>(buses.clone()).map(PowerMessage::Battery)
             }
-            PowerTarget::Profile => {
+            PowerBusRequest::Refresh(PowerRefreshedSource::Profile) => {
                 PowerProfileControl::refresh(buses).map(PowerMessage::PowerProfile)
             }
         }
     }
 
-    pub fn hover(
+    pub fn update(
         &mut self,
-        hovered: Option<&HoverTarget>,
+        power_message: PowerMessage,
         config: &Config,
-        buses: Option<&DesktopBuses>,
         clock: Clock,
     ) -> Task<PowerMessage> {
-        self.charger.stop();
-        self.cpu_tuning.stop();
-        match hovered {
-            Some(HoverTarget::Power(PowerTarget::Draw)) => {
-                self.charger
-                    .start_hover_fetch((), PowerMessage::ChargerFetched, config, clock)
-            }
-            Some(HoverTarget::Power(PowerTarget::Profile)) => {
-                buses.map_or_else(Task::none, |buses| {
-                    self.cpu_tuning.start_hover_fetch(
-                        buses.clone(),
-                        PowerMessage::CpuTuningFetched,
-                        config,
-                        clock,
-                    )
-                })
-            }
-            _ => Task::none(),
-        }
-    }
-
-    pub fn update(&mut self, power_message: PowerMessage, clock: Clock) -> Task<PowerMessage> {
         let task = match power_message {
             PowerMessage::Battery(reading) => {
                 self.battery.receive(reading, clock);
@@ -177,6 +167,15 @@ impl PowerGroup {
                 }
                 Task::none()
             }
+            PowerMessage::Interaction(PowerInteraction::StartChargerFetch) => self
+                .charger
+                .start_hover_fetch((), PowerMessage::ChargerFetched, config, clock),
+            PowerMessage::Interaction(PowerInteraction::StopHoverFetches) => {
+                self.charger.stop();
+                self.cpu_tuning.stop();
+                Task::none()
+            }
+            PowerMessage::Interaction(PowerInteraction::OnBuses(_)) => Task::none(),
         };
         let battery = self.battery.get();
         self.time = battery.and_then(|battery| {
@@ -229,12 +228,7 @@ impl PowerGroup {
             PowerInteraction::Expansion,
             [
                 self.battery
-                    .group_item(
-                        IconGlyph::default(),
-                        battery_reading_row,
-                        PowerTarget::Battery,
-                        clock,
-                    )
+                    .group_item(IconGlyph::default(), battery_reading_row, clock)
                     .map(|item| {
                         item.with_hover_card(Box::new(move |_| {
                             let mut sections =
@@ -245,11 +239,12 @@ impl PowerGroup {
                             );
                             sections
                         }))
+                        .refreshed_by(battery_refresh())
                         .previewed_on_handle()
                     }),
                 self.draw().map(|draw| {
-                    GroupItem::reading(draw.reading_row(), PowerTarget::Draw).with_hover_card(
-                        Box::new(move |_| {
+                    GroupItem::reading(draw.reading_row())
+                        .with_hover_card(Box::new(move |_| {
                             self.draw().map_or_else(Vec::new, |current_draw| {
                                 let mut sections =
                                     self.battery.hover_card_with(current_draw.hover_card());
@@ -260,15 +255,20 @@ impl PowerGroup {
                                 }
                                 sections
                             })
-                        }),
-                    )
+                        }))
+                        .fetching_on_hover(
+                            PowerInteraction::StartChargerFetch,
+                            PowerInteraction::StopHoverFetches,
+                        )
+                        .refreshed_by(battery_refresh())
                 }),
                 self.time.as_ref().map(|time| {
-                    GroupItem::reading(time.reading_row(locale), PowerTarget::BatteryTime)
+                    GroupItem::reading(time.reading_row(locale))
                         .ongoing_toast_action_buttons(switch_to_saving_profiles)
                         .with_hover_card(Box::new(move |_| {
                             self.battery.hover_card_with(time.hover_card())
                         }))
+                        .refreshed_by(battery_refresh())
                 }),
                 self.power_profile.slider().map(|slider| {
                     GroupItem::slider(slider, config, |control_message| {
@@ -281,6 +281,13 @@ impl PowerGroup {
                         sections.extend(self.cpu_tuning.sections_described_by(cpu_tuning_sections));
                         sections
                     }))
+                    .fetching_on_hover(
+                        PowerInteraction::OnBuses(PowerBusRequest::StartCpuTuningFetch),
+                        PowerInteraction::StopHoverFetches,
+                    )
+                    .refreshed_by(PowerInteraction::OnBuses(PowerBusRequest::Refresh(
+                        PowerRefreshedSource::Profile,
+                    )))
                 }),
             ]
             .into_iter()
@@ -291,4 +298,8 @@ impl PowerGroup {
             state: ReadingDisplayState::Idle,
         })
     }
+}
+
+fn battery_refresh() -> PowerInteraction {
+    PowerInteraction::OnBuses(PowerBusRequest::Refresh(PowerRefreshedSource::Battery))
 }

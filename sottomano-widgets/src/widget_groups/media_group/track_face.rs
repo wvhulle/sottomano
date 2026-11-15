@@ -7,14 +7,11 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::Config;
 use uom::si::f64::Ratio;
 
-use super::{
-    MediaInteraction, MediaTarget, PlayerInteraction, PlayerTarget, RAISE_PLAYER_HINT,
-    player_interaction,
-};
+use super::{MediaInteraction, PlayerInteraction, RAISE_PLAYER_HINT, player_interaction};
 use crate::{
     group_items::{
         gauge::Gauge,
-        group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
+        group_item::{GroupItem, GroupItemValue},
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         source_reading::GroupItemIcon,
     },
@@ -51,13 +48,6 @@ pub(super) fn track_item<'a>(
     let track = GroupItem::composed(
         "Track",
         icon,
-        GroupItemHoverArea::WholeItem(
-            PlayerTarget {
-                bus: media.bus.clone().into(),
-                control: MediaTarget::Track,
-            }
-            .into(),
-        ),
         GroupItemValue::drawn(move |reveal| {
             rich_text(label_spans(config, media))
                 .style(
@@ -103,13 +93,6 @@ pub(super) fn player_item<'a>(
     GroupItem::composed(
         "Player",
         GroupItemIcon::IconGlyph { glyph, state },
-        GroupItemHoverArea::WholeItem(
-            PlayerTarget {
-                bus: media.bus.clone().into(),
-                control: MediaTarget::Player,
-            }
-            .into(),
-        ),
         value,
         Box::new(|_| Vec::new()),
     )

@@ -27,7 +27,7 @@ use window_list::{WindowList, WindowListInteraction, WindowListMessage};
 use crate::{
     clock::Clock,
     desktop_panels::panel_slot_drag::PanelSlotContext,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::{HoverTarget, PressAction, hover_card_body::Section},
     widget_groups::widget_group_content::GroupEvent,
     widgets::window_icon::WindowAssets,
 };
@@ -72,6 +72,23 @@ pub enum WindowTarget {
     Inspect(u64),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowInspection {
+    Inspecting(u64),
+    Idle,
+}
+
+impl From<Option<&HoverTarget>> for WindowInspection {
+    fn from(hovered_target: Option<&HoverTarget>) -> Self {
+        match hovered_target {
+            Some(HoverTarget::Window(WindowTarget::Inspect(window))) => {
+                WindowInspection::Inspecting(*window)
+            }
+            Some(_) | None => WindowInspection::Idle,
+        }
+    }
+}
+
 impl From<WindowTarget> for HoverTarget {
     fn from(target: WindowTarget) -> Self {
         HoverTarget::Window(target)
@@ -87,22 +104,32 @@ impl WindowGroup {
         WindowList::launcher_entry_subscription(buses).map(WindowGroupMessage::WindowList)
     }
 
-    pub fn hover(
+    pub fn follow_window_inspection(
         &mut self,
         compositor: &CompositorWindowState,
-        hovered: Option<&HoverTarget>,
+        inspection: WindowInspection,
         config: &Config,
         clock: Clock,
     ) -> Task<WindowGroupMessage> {
-        let watched = match hovered {
-            Some(HoverTarget::Window(WindowTarget::Inspect(window))) => {
-                watched(compositor, *window)
-            }
-            _ => None,
+        let watched = match inspection {
+            WindowInspection::Inspecting(window) => watched(compositor, window),
+            WindowInspection::Idle => None,
         };
         self.window_list
             .hover_process(watched, config, clock)
             .map(WindowGroupMessage::WindowList)
+    }
+
+    #[must_use]
+    pub fn window_press_actions(
+        &self,
+        compositor: &workspace_window_snapshot::Snapshot,
+        window_audio: &HashMap<i32, WindowAudio>,
+        window: u64,
+        config: &Config,
+    ) -> Vec<PressAction> {
+        self.window_list
+            .window_press_actions(compositor, window_audio, window, config)
     }
 
     #[must_use]

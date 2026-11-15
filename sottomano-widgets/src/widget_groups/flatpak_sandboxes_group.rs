@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use sottomano_desktop_sinks::{
     flatpak_sandboxes::stop_flatpak_instance, sink_write_errors::GuestPowerError,
 };
@@ -16,10 +14,7 @@ use crate::{
         reading_row::ReadingRow,
         source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         container_family_group::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
@@ -34,17 +29,6 @@ use crate::{
         value_cells::{LabeledValue, ValueCell},
     },
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FlatpakSandboxTarget {
-    pub instance_id: Cow<'static, str>,
-}
-
-impl From<FlatpakSandboxTarget> for HoverTarget {
-    fn from(target: FlatpakSandboxTarget) -> Self {
-        HoverTarget::FlatpakSandbox(target)
-    }
-}
 
 fn sandbox_icon() -> IconGlyph {
     IconGlyph::SimpleIcon(SimpleIcon::Flatpak)
@@ -164,7 +148,6 @@ impl ContainerFamily for FlatpakFamily {
     type Probe = FlatpakProbe;
     type Listings = FamilyListings<FlatpakSandboxListing>;
     type Detail = FamilyDetails<FlatpakSandbox>;
-    type Target = FlatpakSandboxTarget;
     type PowerRequest = String;
 
     const FAMILY: WidgetGroupFamily = WidgetGroupFamily::FlatpakSandboxes;
@@ -184,9 +167,6 @@ impl ContainerFamily for FlatpakFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                target: FlatpakSandboxTarget {
-                    instance_id: Cow::Owned(listing.instance_id.clone()),
-                },
                 reading: FlatpakSandboxListingRow { listing }.reading_row(),
                 power: RowPower::Stoppable(listing.instance_id.clone()),
             })
@@ -198,9 +178,6 @@ impl ContainerFamily for FlatpakFamily {
             .details
             .iter()
             .map(|sandbox| FamilyRow {
-                target: FlatpakSandboxTarget {
-                    instance_id: Cow::Owned(sandbox.listing.instance_id.clone()),
-                },
                 reading: FlatpakSandboxRow { sandbox }.reading_row(),
                 power: RowPower::Stoppable(sandbox.listing.instance_id.clone()),
             })

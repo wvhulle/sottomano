@@ -28,7 +28,7 @@ use crate::{
     background_work::logged_failure_task,
     clock::Clock,
     group_items::group_item::GroupItem,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::hover_card_body::Section,
     widget_groups::{
         session_focus_group::{
             break_log::BreakLog,
@@ -46,21 +46,6 @@ use crate::{
     },
     widgets::ongoing_toast::OngoingToastActionButton,
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SessionFocusTarget {
-    Session,
-    Breaks,
-    FocusRun,
-    DailyTotals,
-    ContextSwitches,
-}
-
-impl From<SessionFocusTarget> for HoverTarget {
-    fn from(target: SessionFocusTarget) -> Self {
-        HoverTarget::SessionFocus(target)
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WarningSnooze {
@@ -270,43 +255,28 @@ impl SessionFocusGroup {
         clock: Clock,
     ) -> WidgetGroupContent<'a, SessionFocusMessage> {
         let locale = config.calendar.locale;
-        let session = GroupItem::reading(
-            self.session_face(config).reading_row(clock, locale),
-            SessionFocusTarget::Session,
-        )
-        .ongoing_toast_action_buttons([
-            OngoingToastActionButton {
-                button_label: "Lock screen".to_owned(),
-                tint: ActionTint::Proceed,
-                on_button_pressed: SessionFocusMessage::BreakStarted(SessionAction::Lock),
-            },
-            OngoingToastActionButton {
-                button_label: "Screen off".to_owned(),
-                tint: ActionTint::Proceed,
-                on_button_pressed: SessionFocusMessage::BreakStarted(SessionAction::ScreenOff),
-            },
-            OngoingToastActionButton {
-                button_label: "Snooze".to_owned(),
-                tint: ActionTint::Hold,
-                on_button_pressed: SessionFocusMessage::WarningSnoozed,
-            },
-        ]);
-        let breaks = GroupItem::reading(
-            self.break_log(config).reading_row(clock),
-            SessionFocusTarget::Breaks,
-        );
-        let focus_run = GroupItem::reading(
-            self.focus_run_reading(config).reading_row(clock),
-            SessionFocusTarget::FocusRun,
-        );
-        let totals = GroupItem::reading(
-            self.daily_totals.reading_row(locale),
-            SessionFocusTarget::DailyTotals,
-        );
-        let switches = GroupItem::reading(
-            self.context_switch_rate(config).reading_row(clock),
-            SessionFocusTarget::ContextSwitches,
-        );
+        let session = GroupItem::reading(self.session_face(config).reading_row(clock, locale))
+            .ongoing_toast_action_buttons([
+                OngoingToastActionButton {
+                    button_label: "Lock screen".to_owned(),
+                    tint: ActionTint::Proceed,
+                    on_button_pressed: SessionFocusMessage::BreakStarted(SessionAction::Lock),
+                },
+                OngoingToastActionButton {
+                    button_label: "Screen off".to_owned(),
+                    tint: ActionTint::Proceed,
+                    on_button_pressed: SessionFocusMessage::BreakStarted(SessionAction::ScreenOff),
+                },
+                OngoingToastActionButton {
+                    button_label: "Snooze".to_owned(),
+                    tint: ActionTint::Hold,
+                    on_button_pressed: SessionFocusMessage::WarningSnoozed,
+                },
+            ]);
+        let breaks = GroupItem::reading(self.break_log(config).reading_row(clock));
+        let focus_run = GroupItem::reading(self.focus_run_reading(config).reading_row(clock));
+        let totals = GroupItem::reading(self.daily_totals.reading_row(locale));
+        let switches = GroupItem::reading(self.context_switch_rate(config).reading_row(clock));
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SessionFocus,
             &self.expansion,

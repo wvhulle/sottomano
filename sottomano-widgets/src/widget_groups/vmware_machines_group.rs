@@ -15,10 +15,7 @@ use crate::{
         reading_row::ReadingRow,
         source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::{
         container_family_group::{
             ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
@@ -33,17 +30,6 @@ use crate::{
         value_cells::LabeledValue,
     },
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct VmwareMachineTarget {
-    pub pid: i32,
-}
-
-impl From<VmwareMachineTarget> for HoverTarget {
-    fn from(target: VmwareMachineTarget) -> Self {
-        HoverTarget::VmwareMachine(target)
-    }
-}
 
 pub struct VmwareMachineListingRow<'a> {
     listing: &'a VmwareMachineListing,
@@ -140,7 +126,6 @@ impl ContainerFamily for VmwareFamily {
     type Probe = VmwareMachineProbe;
     type Listings = FamilyListings<VmwareMachineListing>;
     type Detail = FamilyDetails<VmwareMachine>;
-    type Target = VmwareMachineTarget;
     type PowerRequest = PathBuf;
 
     const FAMILY: WidgetGroupFamily = WidgetGroupFamily::VmwareMachines;
@@ -160,7 +145,6 @@ impl ContainerFamily for VmwareFamily {
             .listings
             .iter()
             .map(|listing| FamilyRow {
-                target: VmwareMachineTarget { pid: listing.pid },
                 reading: VmwareMachineListingRow { listing }.reading_row(),
                 power: RowPower::Stoppable(listing.configuration_file.clone()),
             })
@@ -172,9 +156,6 @@ impl ContainerFamily for VmwareFamily {
             .details
             .iter()
             .map(|machine| FamilyRow {
-                target: VmwareMachineTarget {
-                    pid: machine.listing.pid,
-                },
                 reading: VmwareMachineRow { machine }.reading_row(),
                 power: RowPower::Stoppable(machine.listing.configuration_file.clone()),
             })

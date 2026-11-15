@@ -18,9 +18,10 @@ use sottomano_desktop_sources::{
         },
     },
 };
+use sottomano_toml_config::Config;
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::tailnet_group::{TailnetGroup, TailnetMessage, TailnetTarget},
+    widget_groups::tailnet_group::{TailnetGroup, TailnetInteraction, TailnetMessage},
 };
 
 use crate::showcased_group::ShowcasedGroup;
@@ -36,6 +37,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
             Ok(Tailscale::Running(Box::new(home_tailnet(clock)))),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(10))),
         )),
+        &Config::default(),
         clock,
     );
     let _ = tailnet_group.update(
@@ -43,6 +45,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
             Ok(TailscaleExitNodes::Running(home_exit_nodes(clock))),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(10))),
         )),
+        &Config::default(),
         clock,
     );
     ShowcasedGroup::Tailnet(Box::new(tailnet_group))
@@ -138,16 +141,9 @@ fn home_exit_nodes(clock: Clock) -> ExitNodeChoices {
     }
 }
 
-pub fn on_hover(target: &TailnetTarget) -> Vec<TailnetMessage> {
-    match target {
-        TailnetTarget::Membership
-        | TailnetTarget::OwnNode
-        | TailnetTarget::PolicyFile
-        | TailnetTarget::ExitOffer
-        | TailnetTarget::ExitNodeChoice { .. }
-        | TailnetTarget::ExitNodeLanAccess
-        | TailnetTarget::ExitNodeListFailure => Vec::new(),
-        TailnetTarget::InboundAccess => vec![TailnetMessage::InboundAccessFetched(
+pub fn on_hover(started_fetch: &TailnetInteraction) -> Vec<TailnetMessage> {
+    match started_fetch {
+        TailnetInteraction::StartInboundAccessFetch => vec![TailnetMessage::InboundAccessFetched(
             SnapshotDelivery::single_read(Ok(TailscaleInboundAccess {
                 rules: vec![
                     InboundAccessRule {
@@ -175,5 +171,6 @@ pub fn on_hover(target: &TailnetTarget) -> Vec<TailnetMessage> {
                 ],
             })),
         )],
+        _ => Vec::new(),
     }
 }

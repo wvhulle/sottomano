@@ -16,10 +16,7 @@ use crate::{
         source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::SwitchPosition,
     },
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table, headed_table},
-    },
+    hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     widgets::{
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
@@ -32,10 +29,9 @@ use crate::{
 
 pub(super) fn wireguard_tunnel_item<Message: Clone + 'static>(
     tunnel: &Tunnel,
-    target: impl Into<HoverTarget>,
     on_switch: fn(NmConnectionSwitch) -> Message,
 ) -> GroupItem<'_, Message> {
-    let item = GroupItem::reading(tunnel_reading_row(tunnel), target);
+    let item = GroupItem::reading(tunnel_reading_row(tunnel));
     match tunnel.switch() {
         Some(wireguard_switch @ NmConnectionSwitch::Connect(_)) => item.on_switch_press(
             SwitchPosition::Off,

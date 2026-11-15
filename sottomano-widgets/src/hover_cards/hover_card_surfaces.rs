@@ -20,8 +20,8 @@ use tokio::time::sleep;
 use crate::{
     clock::Clock,
     hover_cards::{
-        HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator, PointerPresence,
-        PopupMessage, WidgetAnchor,
+        HoverCardMessage, HoverTarget, MenuHandleIndicator, PointerPresence, PopupMessage,
+        WidgetAnchor,
         anchored_popup::{PopupAppearances, PopupMorph, PressCatcher, anchored_popup},
         hover_card_body::hover_card_source_delivery::HoverCard,
         hover_card_content::HoverCardContent,
@@ -41,7 +41,6 @@ pub(crate) const SWITCH_INTENT: Duration = Duration::from_millis(180);
 pub struct PendingSwitch {
     pub parent: PanelEdge,
     pub target: HoverTarget,
-    pub announcement: HoverAnnouncement,
     _intent_timer: task::Handle,
 }
 
@@ -71,13 +70,6 @@ impl HoverCardHost {
                 self.pointer_over_hover_card = false;
                 Some(self.leave_after_grace(now))
             }
-            HoverCardMessage::AnnouncementChanged {
-                target,
-                announcement,
-            } => {
-                self.transition.revise_announcement(&target, announcement);
-                None
-            }
             HoverCardMessage::ToastCardsLaidOut {
                 output,
                 toast_cards,
@@ -103,7 +95,6 @@ impl HoverCardHost {
         &mut self,
         parent: &PanelEdge,
         target: &HoverTarget,
-        announcement: HoverAnnouncement,
     ) -> Option<Task<HoverCardMessage>> {
         let current = self.transition.current()?;
         if parent.position != Position::Left || &current.target == target {
@@ -116,7 +107,6 @@ impl HoverCardHost {
         self.pending_switch = Some(PendingSwitch {
             parent: parent.clone(),
             target: target.clone(),
-            announcement,
             _intent_timer: handle.abort_on_drop(),
         });
         Some(intent_elapsed)
@@ -131,27 +121,12 @@ impl HoverCardHost {
             .then_some(pending)
     }
 
-    pub fn open(
-        &mut self,
-        parent: &PanelEdge,
-        target: HoverTarget,
-        announcement: HoverAnnouncement,
-    ) {
-        self.occupy(
-            parent,
-            target,
-            announcement,
-            CardRetention::UntilPointerLeaves,
-        );
+    pub fn open(&mut self, parent: &PanelEdge, target: HoverTarget) {
+        self.occupy(parent, target, CardRetention::UntilPointerLeaves);
     }
 
-    pub fn open_until_dismissed(
-        &mut self,
-        parent: &PanelEdge,
-        target: HoverTarget,
-        announcement: HoverAnnouncement,
-    ) {
-        self.occupy(parent, target, announcement, CardRetention::UntilDismissed);
+    pub fn open_until_dismissed(&mut self, parent: &PanelEdge, target: HoverTarget) {
+        self.occupy(parent, target, CardRetention::UntilDismissed);
     }
 
     pub fn remember_anchor(
@@ -239,13 +214,7 @@ impl HoverCardHost {
         self.transition.shown_retention()
     }
 
-    fn occupy(
-        &mut self,
-        parent: &PanelEdge,
-        target: HoverTarget,
-        announcement: HoverAnnouncement,
-        retention: CardRetention,
-    ) {
+    fn occupy(&mut self, parent: &PanelEdge, target: HoverTarget, retention: CardRetention) {
         self.pending_switch = None;
         self.pointer_over_hover_card = false;
         self.transition.cancel_leave();
@@ -258,7 +227,6 @@ impl HoverCardHost {
         }
         self.transition.show(Occupant {
             target,
-            announcement,
             placement: parent.clone(),
             retention,
         });
@@ -396,10 +364,10 @@ impl HoverCardHost {
     #[must_use]
     pub fn departure<'a, Message>(
         &self,
-        content_of: impl FnOnce(&HoverTarget, HoverAnnouncement) -> Option<HoverContent<'a, Message>>,
+        content_of: impl FnOnce(&HoverTarget) -> Option<HoverContent<'a, Message>>,
     ) -> Option<Departed> {
         let current = self.transition.current()?;
-        let departed_content = match content_of(&current.target, current.announcement.clone())? {
+        let departed_content = match content_of(&current.target)? {
             HoverContent::Described(hover_card) => DepartedContent::Described(hover_card),
             HoverContent::Interactive { .. } | HoverContent::GroupMenu { .. } => {
                 DepartedContent::Interactive
@@ -437,7 +405,7 @@ impl HoverCardHost {
         config: &'a Config,
         surface_style: HoverCardSurfaceStyle,
         assets: WindowAssets<'a>,
-        content_of: impl Fn(&HoverTarget, HoverAnnouncement) -> Option<HoverContent<'a, Message>>,
+        content_of: impl Fn(&HoverTarget) -> Option<HoverContent<'a, Message>>,
         clock: Clock,
     ) -> Element<'a, Message> {
         let describe = move |hover_card: &HoverCard| -> Element<'a, Message> {
@@ -482,9 +450,7 @@ impl HoverCardHost {
                 DepartedContent::Described(hover_card) => {
                     Some(HoverContent::Described(hover_card.clone()))
                 }
-                DepartedContent::Interactive => {
-                    content_of(&previous.target, HoverAnnouncement::default())
-                }
+                DepartedContent::Interactive => content_of(&previous.target),
             };
             if let Some(departed) = departed {
                 let Rendered { element, framing } = render(departed);
@@ -492,7 +458,7 @@ impl HoverCardHost {
             }
         }
         if let Some(current) = self.transition.current()
-            && let Some(content) = content_of(&current.target, current.announcement.clone())
+            && let Some(content) = content_of(&current.target)
         {
             let Rendered { element, framing } = render(content);
             renderings.push(PopupRendering::incoming(hoverable_content(element)).framing(framing));
@@ -606,7 +572,7 @@ mod tests {
     use crate::{
         clock::Clock,
         hover_cards::{
-            HoverAnnouncement, HoverCardMessage, HoverTarget, PointerPresence, WidgetAnchor,
+            HoverCardMessage, HoverTarget, PointerPresence, WidgetAnchor,
             hover_card_surfaces::HoverEffect, hover_card_transition::CardRetention,
             laid_out_anchors::WidgetLiveness,
         },
@@ -643,7 +609,7 @@ mod tests {
     fn a_held_open_card_outlasts_the_pointer_leaving() {
         let now = Clock::real().instant;
         let mut host = HoverCardHost::default();
-        host.open_until_dismissed(&top_edge(), workspace_card(), HoverAnnouncement::default());
+        host.open_until_dismissed(&top_edge(), workspace_card());
         let _due = leave_every_way(&mut host, now);
         assert_eq!(host.target(), Some(&workspace_card()));
         assert_eq!(host.shown_retention(), CardRetention::UntilDismissed);
@@ -654,7 +620,7 @@ mod tests {
     fn a_hovered_card_closes_when_the_pointer_leaves() {
         let now = Clock::real().instant;
         let mut host = HoverCardHost::default();
-        host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
+        host.open(&top_edge(), workspace_card());
         assert_ne!(host.shown_retention(), CardRetention::UntilDismissed);
         let _due = leave_every_way(&mut host, now);
         assert_eq!(host.target(), None);
@@ -686,7 +652,7 @@ mod tests {
                 ..widget_at(1.0, NestedMenuOpenTrigger::Hover)
             },
         );
-        host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
+        host.open(&top_edge(), workspace_card());
         assert_eq!(host.shown_widget_liveness(), WidgetLiveness::Alive);
         drop(widget);
         assert_eq!(host.shown_widget_liveness(), WidgetLiveness::Dropped);
@@ -706,7 +672,7 @@ mod tests {
                     ..widget_at(1.0, NestedMenuOpenTrigger::Hover)
                 },
             );
-            host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
+            host.open(&top_edge(), workspace_card());
         }
         assert_eq!(host.shown_widget_liveness(), WidgetLiveness::Dropped);
         remember(
@@ -724,7 +690,7 @@ mod tests {
     fn a_hiding_card_does_not_count_as_dropped() {
         let now = Clock::real().instant;
         let mut host = HoverCardHost::default();
-        host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
+        host.open(&top_edge(), workspace_card());
         host.dismiss(None, now);
         assert_eq!(host.shown_widget_liveness(), WidgetLiveness::Alive);
     }
@@ -739,7 +705,7 @@ mod tests {
         let opening = NestedMenuOpenTrigger::Hover;
         remember(&mut host, "DP-1", widget_at(1.0, opening));
         remember(&mut host, "DP-2", widget_at(50.0, opening));
-        host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
+        host.open(&top_edge(), workspace_card());
         assert_eq!(host.shown_anchor(), Some(anchor_at(1.0)));
         remember(&mut host, "DP-1", widget_at(2.0, opening));
         assert_eq!(host.shown_anchor(), Some(anchor_at(2.0)));
@@ -769,7 +735,7 @@ mod tests {
             "DP-1",
             widget_at(1.0, NestedMenuOpenTrigger::Hover),
         );
-        host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
+        host.open(&top_edge(), workspace_card());
         let _on_card = host.update(HoverCardMessage::EnterHoverCard, now);
         let due = host
             .remember_anchor(
@@ -794,7 +760,7 @@ mod tests {
             "DP-1",
             widget_at(1.0, NestedMenuOpenTrigger::Hover),
         );
-        host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
+        host.open(&top_edge(), workspace_card());
         let hide_due = host.remember_anchor(
             "DP-2",
             WidgetAnchor {
@@ -830,16 +796,16 @@ mod tests {
             "DP-1",
             widget_at(1.0, NestedMenuOpenTrigger::Hover),
         );
-        host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
+        host.open(&top_edge(), workspace_card());
         host.forget_output("DP-1");
         assert_eq!(host.target(), None);
-        host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
+        host.open(&top_edge(), workspace_card());
         assert_eq!(host.shown_anchor(), None);
     }
 
     fn host_holding_a_menu_open() -> HoverCardHost {
         let mut host = HoverCardHost::default();
-        host.open_until_dismissed(&top_edge(), workspace_card(), HoverAnnouncement::default());
+        host.open_until_dismissed(&top_edge(), workspace_card());
         host
     }
 
@@ -961,7 +927,7 @@ mod tests {
     fn dismissing_a_held_open_card_closes_it() {
         let now = Clock::real().instant;
         let mut host = HoverCardHost::default();
-        host.open_until_dismissed(&top_edge(), workspace_card(), HoverAnnouncement::default());
+        host.open_until_dismissed(&top_edge(), workspace_card());
         host.dismiss(None, now);
         assert_eq!(host.target(), None);
         assert_ne!(host.shown_retention(), CardRetention::UntilDismissed);

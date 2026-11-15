@@ -27,13 +27,16 @@ use iced_test::{
 };
 use sottomano_toml_config::Config;
 use sottomano_widgets::{
-    clock::Clock, hover_cards::HoverTarget, widget_groups::app_launcher_group::AppLauncherTarget,
+    clock::Clock,
+    group_menus::group_menu_state::{GroupMenuPin, PanelPin, PanelPinDuration},
+    hover_cards::HoverTarget,
+    widget_groups::widget_group_identity::WidgetGroupIdentity,
 };
 use webp_animation::{Encoder, EncoderOptions, EncodingConfig, EncodingType};
 
 use crate::{
     RECORDING_EXTENSION, RECORDINGS_DIRECTORY,
-    demo_script::{Demo, Step},
+    demo_script::{Demo, GroupShown, Step},
     hovered_widget::{AnyHoveredWidget, HoveredWidget, MenuPinWidget},
     showcase_message::ShowcaseMessage,
     showcase_program::{HOVER_FETCH_LATENCY, ShowcaseProgram},
@@ -219,13 +222,12 @@ impl<'session> DemoRecorder<'session> {
                 let pointer = self.locate(HoveredWidget(target.clone()));
                 self.press_at(pointer)
             }
+            Step::HoverFace(group) => self.perform(&Step::Hover(self.face_target(group))),
+            Step::PressFace(group) => self.perform(&Step::Press(self.face_target(group))),
             Step::PressPin(entry) => {
                 let pointer = self.locate(MenuPinWidget(entry.clone()));
                 self.press_at(pointer)
             }
-            Step::HoverApp(app_id) => self.perform(&Step::Hover(HoverTarget::AppLauncher(
-                AppLauncherTarget::App((*app_id).to_owned()),
-            ))),
             Step::HoverText(shown) => {
                 self.interact(Mouse::Move(Target::Text((*shown).to_owned())));
                 self.capture_during(HOVER_HOLD)
@@ -245,8 +247,8 @@ impl<'session> DemoRecorder<'session> {
                 self.point_at(rest_pointer(self.canvas));
                 self.capture_during(*hold)
             }
-            Step::Drag { target, by } => {
-                let grabbed = self.locate(HoveredWidget(target.clone()));
+            Step::DragFace { group, by } => {
+                let grabbed = self.locate(HoveredWidget(self.face_target(group)));
                 self.point_at(grabbed);
                 let lead = self.capture_during(PRESS_LEAD);
                 self.interact(Mouse::Press {
@@ -272,8 +274,23 @@ impl<'session> DemoRecorder<'session> {
         }
     }
 
+    fn face_target(&self, group: &WidgetGroupIdentity) -> HoverTarget {
+        match &self.demo.shown {
+            GroupShown::PinnedFrom {
+                menu,
+                group: pinned_group,
+            } if pinned_group == group => HoverTarget::PinnedOnPanel(Box::new(PanelPin {
+                menu: *menu,
+                entry: GroupMenuPin::Group(group.clone()),
+                duration: PanelPinDuration::Permanent,
+            })),
+            _ => HoverTarget::GroupFace(Box::new(group.clone())),
+        }
+    }
+
     fn hover_hold_for(&self, target: &HoverTarget) -> Duration {
-        let fetch_replies = (self.demo.group)(self.clock).hover(target, self.config, self.clock);
+        let fetch_replies =
+            (self.demo.group)(self.clock).start_hovered_fetch(target, self.config, self.clock);
         if fetch_replies.is_empty() {
             HOVER_HOLD
         } else {

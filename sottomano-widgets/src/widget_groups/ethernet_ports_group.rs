@@ -22,7 +22,7 @@ use crate::{
     clock::Clock,
     group_items::group_item::GroupItem,
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{HoverTarget, hover_card_body::Section},
+    hover_cards::hover_card_body::Section,
     widget_groups::{
         interface_address_sections::{
             AddressFamily, InterfaceAddressReading, InterfaceDnsReading, dns_server_sections,
@@ -42,29 +42,6 @@ pub const PORT_TITLES: AttachmentTitles = AttachmentTitles {
     usb: "USB Ethernet",
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum EthernetPortTarget {
-    Link {
-        port_name: String,
-    },
-    Connection {
-        port_name: String,
-    },
-    Addresses {
-        port_name: String,
-        family: AddressFamily,
-    },
-    Dns {
-        port_name: String,
-    },
-}
-
-impl From<EthernetPortTarget> for HoverTarget {
-    fn from(target: EthernetPortTarget) -> Self {
-        HoverTarget::EthernetPort(target)
-    }
-}
-
 #[derive(Debug)]
 pub enum EthernetPortsMessage {
     Snapshot(SnapshotDelivery<Ethernet>),
@@ -80,6 +57,13 @@ pub enum EthernetPortsInteraction {
         port_name: String,
         expansion: WidgetGroupExpansionMessage,
     },
+    StopHoverFetches,
+    OnBuses(EthernetPortsBusRequest),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EthernetPortsBusRequest {
+    StartDetailsFetch,
 }
 
 #[derive(Default)]
@@ -139,6 +123,10 @@ impl EthernetPortsGroup {
             }) => {
                 self.expansions.update(&port_name, expansion);
             }
+            EthernetPortsMessage::Interaction(EthernetPortsInteraction::StopHoverFetches) => {
+                self.ethernet_details.stop();
+            }
+            EthernetPortsMessage::Interaction(EthernetPortsInteraction::OnBuses(_)) => {}
         }
         Task::none()
     }
@@ -156,23 +144,20 @@ impl EthernetPortsGroup {
         );
     }
 
-    pub fn hover(
+    pub fn on_buses(
         &mut self,
-        hovered: Option<&HoverTarget>,
+        request: EthernetPortsBusRequest,
         config: &Config,
         buses: &DesktopBuses,
         clock: Clock,
     ) -> Task<EthernetPortsMessage> {
-        self.ethernet_details.stop();
-        match hovered {
-            Some(HoverTarget::EthernetPort(_)) => self.ethernet_details.start_hover_fetch(
-                buses.clone(),
-                EthernetPortsMessage::DetailsFetched,
-                config,
-                clock,
-            ),
-            _ => Task::none(),
-        }
+        let EthernetPortsBusRequest::StartDetailsFetch = request;
+        self.ethernet_details.start_hover_fetch(
+            buses.clone(),
+            EthernetPortsMessage::DetailsFetched,
+            config,
+            clock,
+        )
     }
 
     fn port_marking(&self, port_state: &PortState) -> PortMarking {
@@ -275,50 +260,31 @@ impl EthernetPortsGroup {
                 marking: self.port_marking(port_state),
             }
             .reading_row(),
-            EthernetPortTarget::Link {
-                port_name: port_state.name.clone(),
-            },
         )
         .with_hover_card(Box::new(move |_| self.port_link_hover_card(port_state)));
         let connection_switch = PortConnectionSwitch { port_state };
         let connection_press_does = connection_switch.press_does();
-        let connection_item = GroupItem::reading(
-            connection_switch.reading_row(),
-            EthernetPortTarget::Connection {
-                port_name: port_state.name.clone(),
-            },
-        )
-        .on_switch_press(
-            port_state.link_state,
-            connection_press_does,
-            EthernetPortsInteraction::TogglePort(port_state.name.clone()),
-        )
-        .with_hover_card(Box::new(move |_| {
-            self.port_connection_hover_card(port_state)
-        }));
+        let connection_item = GroupItem::reading(connection_switch.reading_row())
+            .on_switch_press(
+                port_state.link_state,
+                connection_press_does,
+                EthernetPortsInteraction::TogglePort(port_state.name.clone()),
+            )
+            .with_hover_card(Box::new(move |_| {
+                self.port_connection_hover_card(port_state)
+            }));
         let address_items = [AddressFamily::Ipv4, AddressFamily::Ipv6]
             .into_iter()
             .filter(|_| port_state.link_state == LinkPhase::Up)
             .map(|family| {
-                GroupItem::reading(
-                    InterfaceAddressReading { family }.reading_row(),
-                    EthernetPortTarget::Addresses {
-                        port_name: port_state.name.clone(),
-                        family,
-                    },
-                )
-                .with_hover_card(Box::new(move |_| {
-                    self.interface_address_hover_card(port_state, family)
-                }))
+                GroupItem::reading(InterfaceAddressReading { family }.reading_row())
+                    .with_hover_card(Box::new(move |_| {
+                        self.interface_address_hover_card(port_state, family)
+                    }))
             });
         let dns_item = (port_state.link_state == LinkPhase::Up).then(|| {
-            GroupItem::reading(
-                InterfaceDnsReading::reading_row(),
-                EthernetPortTarget::Dns {
-                    port_name: port_state.name.clone(),
-                },
-            )
-            .with_hover_card(Box::new(move |_| self.interface_dns_hover_card(port_state)))
+            GroupItem::reading(InterfaceDnsReading::reading_row())
+                .with_hover_card(Box::new(move |_| self.interface_dns_hover_card(port_state)))
         });
         let port_name = port_state.name.clone();
         Some(WidgetGroupContent::expandable_instance(
@@ -332,7 +298,15 @@ impl EthernetPortsGroup {
             [link_item, connection_item]
                 .into_iter()
                 .chain(address_items)
-                .chain(dns_item),
+                .chain(dns_item)
+                .map(|port_item| {
+                    port_item.fetching_on_hover(
+                        EthernetPortsInteraction::OnBuses(
+                            EthernetPortsBusRequest::StartDetailsFetch,
+                        ),
+                        EthernetPortsInteraction::StopHoverFetches,
+                    )
+                }),
         ))
     }
 

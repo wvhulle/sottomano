@@ -6,9 +6,10 @@ pub mod hover_card_content;
 pub mod hover_card_surfaces;
 pub mod hover_card_transition;
 pub mod laid_out_anchors;
+use std::borrow::Cow;
+
 use corredo::transitions::ExpansionState;
 use iced::{Rectangle, window::Id};
-use sottomano_desktop_sources::login_session_presence::idle_session_actions::IdleAction;
 use sottomano_toml_config::screen_edges::Position;
 
 pub use crate::hover_cards::{
@@ -17,169 +18,78 @@ pub use crate::hover_cards::{
     laid_out_anchors::WidgetAnchor,
 };
 use crate::{
-    group_menus::{
-        group_menu_settings::GroupMenuSettingsTarget,
-        group_menu_state::{GroupMenuTopic, PanelPin},
-    },
+    group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic, PanelPin},
     widget_groups::{
-        app_launcher_group::AppLauncherTarget,
-        appearance_presets_group::AppearancePresetsTarget,
-        apptainer_containers_group::ApptainerContainerTarget,
-        audio_group::AudioTarget,
-        bluetooth_adapters_group::BluetoothTarget,
-        caldav_group::CaldavTarget,
-        cgroup_memory_limits_group::CgroupMemoryLimitTarget,
-        ci_runs_group::CiRunsTarget,
-        claude_usage_group::ClaudeUsageTarget,
-        clock_group::ClockTarget,
-        color_temperature_group::ColorTemperatureTarget,
-        compositor_styling_group::CompositorStylingTarget,
-        compute_group::ComputeTarget,
-        copilot_usage_group::CopilotUsageTarget,
-        dark_mode_group::DarkModeTarget,
-        docker_engines_group::DockerEngineTarget,
-        ethernet_ports_group::EthernetPortTarget,
-        flatpak_sandboxes_group::FlatpakSandboxTarget,
-        gamepad_group::GamepadTarget,
-        global_menu_group::GlobalMenuTarget,
-        gpu_group::GpuTarget,
-        incus_instances_group::IncusInstanceTarget,
-        journal_events_group::JournalTarget,
-        llama_server_group::LlamaServerTarget,
-        login_session_group::LoginSessionTarget,
-        lxc_containers_group::LxcContainerTarget,
-        media_group::PlayerTarget,
-        memory_board_group::MemoryBoardTarget,
-        microvm_guests_group::MicrovmGuestTarget,
-        mobile_modems_group::MobileModemTarget,
-        monitor_group::MonitorTarget,
-        network_manager_vpn_group::NetworkManagerVpnTarget,
-        notification_group::NotificationTarget,
-        nspawn_containers_group::NspawnContainerTarget,
-        openrouter_credit_group::OpenRouterCreditTarget,
-        overlay_settings_group::OverlaySettingsTarget,
-        panel_settings_group::PanelSettingsTarget,
-        pending_upgrades_group::PendingUpgradesTarget,
-        physical_drive_group::DriveTarget,
-        podman_engines_group::PodmanEngineTarget,
-        power_group::PowerTarget,
-        quiet_schedule_group::QuietScheduleTarget,
-        reachability_group::ReachabilityTarget,
-        session_focus_group::SessionFocusTarget,
-        session_power_group::SessionTarget,
-        sidebar_settings_group::SidebarSettingsTarget,
-        storage_space_group::StorageTarget,
-        systemd_manager_group::SystemdTarget,
-        tailnet_group::TailnetTarget,
-        virtual_machines_group::VirtualMachineTarget,
-        virtualbox_machines_group::VirtualBoxMachineTarget,
-        vmware_machines_group::VmwareMachineTarget,
-        voice_dictation_group::VoiceDictationTarget,
-        wallpaper_group::WallpaperTarget,
-        waydroid_container_group::WaydroidContainerTarget,
-        weather_group::WeatherTarget,
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
-        wifi_adapters_group::WifiAdapterTarget,
         window_group::{WindowGroupInteraction, WindowTarget},
-        wireguard_tunnels_group::WireguardTunnelTarget,
     },
     widgets::phosphor::{Phosphor, Weight},
 };
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct InstrumentKey {
+    pub group: WidgetGroupIdentity,
+    pub name: Cow<'static, str>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum HoverTarget {
-    Compute(ComputeTarget),
-    MemoryBoard(MemoryBoardTarget),
-    Gpu(GpuTarget),
-    Storage(StorageTarget),
-    Drive(DriveTarget),
-    Power(PowerTarget),
-    PanelSettings(PanelSettingsTarget),
-    SidebarSettings(SidebarSettingsTarget),
-    AppearancePresets(AppearancePresetsTarget),
-    OverlaySettings(OverlaySettingsTarget),
-    CompositorStyling(CompositorStylingTarget),
-    Systemd(SystemdTarget),
-    Journal(JournalTarget),
-    PendingUpgrades(PendingUpgradesTarget),
-    WifiAdapter(WifiAdapterTarget),
-    MobileModem(MobileModemTarget),
-    EthernetPort(EthernetPortTarget),
-    Bluetooth(BluetoothTarget),
-    Audio(AudioTarget),
-    Monitor(MonitorTarget),
-    ColorTemperature(ColorTemperatureTarget),
-    DarkMode(DarkModeTarget),
-    VoiceDictation(VoiceDictationTarget),
-    IdleTimeout(IdleAction),
-    IdleOutcome(IdleAction),
-    PauseBlocker(PauseBlockerTarget),
-    Reachability(ReachabilityTarget),
-    Tailnet(TailnetTarget),
-    WireguardTunnel(WireguardTunnelTarget),
-    NetworkManagerVpn(NetworkManagerVpnTarget),
-    Weather(WeatherTarget),
-    Wallpaper(WallpaperTarget),
-    Caldav(CaldavTarget),
-    Media(PlayerTarget),
-    Gamepad(GamepadTarget),
-    AppLauncher(AppLauncherTarget),
-    ClaudeUsage(ClaudeUsageTarget),
-    CopilotUsage(CopilotUsageTarget),
-    OpenRouterCredit(OpenRouterCreditTarget),
-    LlamaServer(LlamaServerTarget),
-    PodmanEngine(PodmanEngineTarget),
-    DockerEngine(DockerEngineTarget),
-    ApptainerContainer(ApptainerContainerTarget),
-    VmwareMachine(VmwareMachineTarget),
-    VirtualBoxMachine(VirtualBoxMachineTarget),
-    WaydroidContainer(WaydroidContainerTarget),
-    FlatpakSandbox(FlatpakSandboxTarget),
-    LxcContainer(LxcContainerTarget),
-    IncusInstance(IncusInstanceTarget),
-    VirtualMachine(VirtualMachineTarget),
-    MicrovmGuest(MicrovmGuestTarget),
-    NspawnContainer(NspawnContainerTarget),
-    CgroupMemoryLimit(CgroupMemoryLimitTarget),
-    CiRuns(CiRunsTarget),
-    SessionFocus(SessionFocusTarget),
-    LoginSession(LoginSessionTarget),
-    Clock(ClockTarget),
-    Notification(NotificationTarget),
-    QuietSchedule(QuietScheduleTarget),
-    Session(SessionTarget),
-    Tray(String),
-    GlobalMenu(GlobalMenuTarget),
+    Instrument(InstrumentKey),
+    PinnedOnPanel(Box<PanelPin>),
+    GroupFace(Box<WidgetGroupIdentity>),
+    GroupMenu(GroupMenuTopic),
+    SessionMenu,
     Window(WindowTarget),
     Workspace(u64),
     WorkspaceOrder,
     WorkspaceFolding,
-    GroupMenu(GroupMenuTopic),
-    GroupFace(Box<WidgetGroupIdentity>),
-    GroupMenuSettings(GroupMenuSettingsTarget),
 }
 
-impl PressHints {
+impl From<InstrumentKey> for HoverTarget {
+    fn from(instrument_key: InstrumentKey) -> Self {
+        HoverTarget::Instrument(instrument_key)
+    }
+}
+
+impl HoverTarget {
     #[must_use]
-    pub fn group_handle(expansion_state: ExpansionState, scroll: Option<&'static str>) -> Self {
-        PressHints {
-            left: Some(match expansion_state {
-                ExpansionState::Expanded => "collapse the group",
-                ExpansionState::Collapsed => "expand the group",
-            }),
-            scroll,
-            ..PressHints::default()
+    pub fn instrument_key(&self) -> Option<&InstrumentKey> {
+        match self {
+            HoverTarget::Instrument(instrument_key) => Some(instrument_key),
+            HoverTarget::PinnedOnPanel(panel_pin) => match &panel_pin.entry {
+                GroupMenuPin::Item(instrument_key) => Some(instrument_key),
+                GroupMenuPin::Group(_) => None,
+            },
+            HoverTarget::GroupFace(_)
+            | HoverTarget::GroupMenu(_)
+            | HoverTarget::SessionMenu
+            | HoverTarget::Window(_)
+            | HoverTarget::Workspace(_)
+            | HoverTarget::WorkspaceOrder
+            | HoverTarget::WorkspaceFolding => None,
+        }
+    }
+
+    #[must_use]
+    pub fn faced_group(&self) -> Option<&WidgetGroupIdentity> {
+        match self {
+            HoverTarget::GroupFace(group_identity) => Some(group_identity),
+            HoverTarget::PinnedOnPanel(panel_pin) => match &panel_pin.entry {
+                GroupMenuPin::Group(group_identity) => Some(group_identity),
+                GroupMenuPin::Item(_) => None,
+            },
+            HoverTarget::Instrument(_)
+            | HoverTarget::GroupMenu(_)
+            | HoverTarget::SessionMenu
+            | HoverTarget::Window(_)
+            | HoverTarget::Workspace(_)
+            | HoverTarget::WorkspaceOrder
+            | HoverTarget::WorkspaceFolding => None,
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PauseBlockerTarget {
-    pub pause: IdleAction,
-    pub holder: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MouseGesture {
     LeftClick,
     MiddleClick,
@@ -188,13 +98,6 @@ pub enum MouseGesture {
 }
 
 impl MouseGesture {
-    pub const ALL: [MouseGesture; 4] = [
-        MouseGesture::LeftClick,
-        MouseGesture::MiddleClick,
-        MouseGesture::RightClick,
-        MouseGesture::Scroll,
-    ];
-
     #[must_use]
     pub fn glyph(self) -> Phosphor {
         match self {
@@ -206,35 +109,39 @@ impl MouseGesture {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct PressHints {
-    pub left: Option<&'static str>,
-    pub middle: Option<&'static str>,
-    pub right: Option<&'static str>,
-    pub scroll: Option<&'static str>,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PressAction {
+    pub gesture: MouseGesture,
+    pub does: Cow<'static, str>,
 }
 
-impl PressHints {
-    #[must_use]
-    pub fn does(self, gesture: MouseGesture) -> Option<&'static str> {
-        match gesture {
-            MouseGesture::LeftClick => self.left,
-            MouseGesture::MiddleClick => self.middle,
-            MouseGesture::RightClick => self.right,
-            MouseGesture::Scroll => self.scroll,
+impl PressAction {
+    pub fn new(gesture: MouseGesture, does: impl Into<Cow<'static, str>>) -> Self {
+        Self {
+            gesture,
+            does: does.into(),
         }
+    }
+
+    #[must_use]
+    pub fn group_handle(expansion_state: ExpansionState) -> Self {
+        PressAction::new(
+            MouseGesture::LeftClick,
+            match expansion_state {
+                ExpansionState::Expanded => "collapse the group",
+                ExpansionState::Collapsed => "expand the group",
+            },
+        )
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub enum HoverOrigin {
-    #[default]
-    Reading,
-    GroupHandle {
-        item_group_name: Box<WidgetGroupTitle>,
-        panel_pin: PanelPinOrigin,
+#[derive(Debug, Clone, PartialEq)]
+pub enum CardHeader {
+    Unheaded,
+    Pinned {
+        group_title: WidgetGroupTitle,
+        pin: Box<PanelPin>,
     },
-    MenuHandle(GroupMenuTopic),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -242,21 +149,6 @@ pub enum PanelPinOrigin {
     #[default]
     Unpinned,
     Pinned(Box<PanelPin>),
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct HoverAnnouncement {
-    pub press_hints: PressHints,
-    pub origin: HoverOrigin,
-}
-
-impl From<PressHints> for HoverAnnouncement {
-    fn from(press_hints: PressHints) -> Self {
-        HoverAnnouncement {
-            press_hints,
-            origin: HoverOrigin::Reading,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -277,16 +169,13 @@ pub enum AnchorEvent {
     LaidOut(WidgetAnchor),
     Entered {
         target: HoverTarget,
-        announcement: HoverAnnouncement,
     },
     HandlePointed {
         target: HoverTarget,
         pointing: PointerPresence,
-        announcement: HoverAnnouncement,
     },
     HandlePressed {
         target: HoverTarget,
-        announcement: HoverAnnouncement,
     },
 }
 
@@ -305,10 +194,6 @@ pub enum HoverCardMessage {
     Exit {
         target: HoverTarget,
     },
-    AnnouncementChanged {
-        target: HoverTarget,
-        announcement: HoverAnnouncement,
-    },
     EnterHoverCard,
     ExitHoverCard,
     DismissHeldOpen,
@@ -326,28 +211,4 @@ pub enum PopupMessage {
     RefreshHoveredReading,
     WindowGroup(WindowGroupInteraction),
     ReleaseFromPanel(PanelPin),
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn press_hints_list_only_gestures_that_do_something() {
-        let hints = PressHints {
-            left: Some("focus the window"),
-            right: Some("disconnect the tunnel"),
-            ..PressHints::default()
-        };
-        assert_eq!(
-            MouseGesture::ALL.map(|gesture| hints.does(gesture)),
-            [
-                Some("focus the window"),
-                None,
-                Some("disconnect the tunnel"),
-                None,
-            ]
-        );
-        assert_ne!(hints, PressHints::default());
-    }
 }
