@@ -113,17 +113,6 @@ pub struct ToastContent<Routed> {
 }
 
 impl<Routed> ToastContent<Routed> {
-    pub(super) fn from_dbus_client(data: NotificationData, at: SystemTime) -> Self {
-        Self {
-            data,
-            kind: ToastKind::Event {
-                at,
-                source: EventSource::DbusClient,
-            },
-            body_click: BodyClick::DbusDefaultAction,
-        }
-    }
-
     pub(super) fn shell_failure(
         data: NotificationData,
         on_body_clicked: Routed,

@@ -54,7 +54,7 @@ pub(crate) fn three_workspaces_three_windows() -> Snapshot {
 }
 
 pub(crate) fn three_workspaces_three_windows_on(active_workspace_id: u64) -> Snapshot {
-    let compositor = CompositorWindowState::from_lists(
+    let compositor = CompositorWindowState::indexed_by_id(
         SIMULATED_WORKSPACE_IDS
             .map(|workspace_id| simulated_workspace(workspace_id, active_workspace_id)),
         SIMULATED_WINDOW_IDS

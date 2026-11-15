@@ -55,7 +55,7 @@ impl SleepState {
         }
     }
 
-    fn from_logind_operation(operation: &str) -> Option<Self> {
+    fn parsed_logind_operation(operation: &str) -> Option<Self> {
         match operation {
             "suspend" => Some(Self::Suspend),
             "hibernate" => Some(Self::Hibernate),
@@ -80,8 +80,8 @@ pub enum LogindCapability {
     Unsupported,
 }
 
-impl LogindCapability {
-    fn from_answer(answer: &str) -> Self {
+impl From<&str> for LogindCapability {
+    fn from(answer: &str) -> Self {
         match answer {
             "yes" => Self::Allowed,
             "challenge" => Self::AfterAuthorisation,
@@ -116,7 +116,7 @@ pub enum InhibitedOperation {
 }
 
 impl InhibitedOperation {
-    fn from_logind_what(what: &str) -> Option<Self> {
+    fn parsed_inhibited_operation(what: &str) -> Option<Self> {
         match what {
             "sleep" => Some(Self::Sleep),
             "shutdown" => Some(Self::Shutdown),
@@ -236,19 +236,21 @@ async fn read_obstacles(
     let sleep_states = vec![
         SleepStateSupport {
             state: SleepState::Suspend,
-            capability: LogindCapability::from_answer(&manager.can_suspend().await?),
+            capability: LogindCapability::from(manager.can_suspend().await?.as_str()),
         },
         SleepStateSupport {
             state: SleepState::Hibernate,
-            capability: LogindCapability::from_answer(&manager.can_hibernate().await?),
+            capability: LogindCapability::from(manager.can_hibernate().await?.as_str()),
         },
         SleepStateSupport {
             state: SleepState::HybridSleep,
-            capability: LogindCapability::from_answer(&manager.can_hybrid_sleep().await?),
+            capability: LogindCapability::from(manager.can_hybrid_sleep().await?.as_str()),
         },
         SleepStateSupport {
             state: SleepState::SuspendThenHibernate,
-            capability: LogindCapability::from_answer(&manager.can_suspend_then_hibernate().await?),
+            capability: LogindCapability::from(
+                manager.can_suspend_then_hibernate().await?.as_str(),
+            ),
         },
     ];
     Ok(SleepObstacles {
@@ -257,7 +259,7 @@ async fn read_obstacles(
             .sleep_operation()
             .await?
             .iter()
-            .filter_map(|operation| SleepState::from_logind_operation(operation))
+            .filter_map(|operation| SleepState::parsed_logind_operation(operation))
             .collect(),
         kernel_hibernation: read_kernel_hibernation(&app_names).await,
         resume_device: ResumeDevice::from(read_kernel_text(RESUME_DEVICE_PATH).as_str()),
@@ -453,7 +455,7 @@ fn blocking_inhibitors(
             let reason = non_empty(row.why);
             row.what
                 .split(':')
-                .filter_map(InhibitedOperation::from_logind_what)
+                .filter_map(InhibitedOperation::parsed_inhibited_operation)
                 .map(|operation| BlockingInhibitor {
                     holder: holder.clone(),
                     operation,

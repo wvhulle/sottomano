@@ -47,7 +47,7 @@ pub struct CompositorWindowState {
 
 impl CompositorWindowState {
     #[must_use]
-    pub fn from_lists(
+    pub fn indexed_by_id(
         workspaces: impl IntoIterator<Item = CompositorWorkspace>,
         windows: impl IntoIterator<Item = CompositorWindow>,
     ) -> Self {
@@ -135,12 +135,12 @@ mod tests {
 
     #[test]
     fn a_newly_focused_window_is_stamped_and_others_keep_their_stamp() {
-        let first = CompositorWindowState::from_lists(
+        let first = CompositorWindowState::indexed_by_id(
             [],
             [window_focused(1, true), window_focused(2, false)],
         )
         .with_focus_times_from(&CompositorWindowState::default(), Duration::from_secs(10));
-        let second = CompositorWindowState::from_lists(
+        let second = CompositorWindowState::indexed_by_id(
             [],
             [window_focused(1, false), window_focused(2, true)],
         )
@@ -158,9 +158,9 @@ mod tests {
 
     #[test]
     fn a_window_that_stays_focused_keeps_its_first_stamp() {
-        let first = CompositorWindowState::from_lists([], [window_focused(1, true)])
+        let first = CompositorWindowState::indexed_by_id([], [window_focused(1, true)])
             .with_focus_times_from(&CompositorWindowState::default(), Duration::from_secs(10));
-        let second = CompositorWindowState::from_lists([], [window_focused(1, true)])
+        let second = CompositorWindowState::indexed_by_id([], [window_focused(1, true)])
             .with_focus_times_from(&first, Duration::from_secs(20));
 
         assert_eq!(

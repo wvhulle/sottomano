@@ -199,7 +199,7 @@ impl MountEntry {
                 devices,
             },
             mount_point: self.mount_point,
-            compression: Compression::from_options(&self.options),
+            compression: Compression::from(&self.options),
         })
     }
 }
@@ -337,22 +337,24 @@ pub enum CompressionLevel {
     Explicit(u8),
 }
 
-impl Compression {
-    fn from_options(options: &HashMap<String, Option<String>>) -> Self {
+impl From<&HashMap<String, Option<String>>> for Compression {
+    fn from(options: &HashMap<String, Option<String>>) -> Self {
         let setting = |key: &str| {
             options
                 .get(key)
                 .map(|value| value.as_deref().unwrap_or(DEFAULT_BTRFS_ALGORITHM))
         };
         if let Some(forced) = setting("compress-force") {
-            return Self::from_setting(forced, CompressionEnforcement::Forced);
+            return Self::parsed_mount_setting(forced, CompressionEnforcement::Forced);
         }
         setting("compress").map_or(Compression::Disabled, |setting| {
-            Self::from_setting(setting, CompressionEnforcement::Heuristic)
+            Self::parsed_mount_setting(setting, CompressionEnforcement::Heuristic)
         })
     }
+}
 
-    fn from_setting(setting: &str, enforcement: CompressionEnforcement) -> Self {
+impl Compression {
+    fn parsed_mount_setting(setting: &str, enforcement: CompressionEnforcement) -> Self {
         let (algorithm, level) = setting.split_once(':').map_or(
             (setting, CompressionLevel::Default),
             |(algorithm, level)| (algorithm, CompressionLevel::parse(level)),
@@ -419,7 +421,7 @@ mod tests {
             .iter()
             .map(|(key, value)| ((*key).to_owned(), value.map(str::to_owned)))
             .collect();
-        Compression::from_options(&options).to_string()
+        Compression::from(&options).to_string()
     }
 
     #[test]

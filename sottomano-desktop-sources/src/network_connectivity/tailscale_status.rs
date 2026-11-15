@@ -83,7 +83,7 @@ pub enum ExitNodeOffer {
 }
 
 impl ExitNodeOffer {
-    pub(super) fn from_status_and_prefs(
+    pub(super) fn reported_exit_offer(
         status: &TailscaleStatusJson,
         prefs: &TailscalePrefsJson,
     ) -> Self {
@@ -324,7 +324,7 @@ impl Tailscale {
         status: TailscaleStatusJson,
         prefs: &TailscalePrefsJson,
     ) -> Result<Self, Error> {
-        let exit_offer = ExitNodeOffer::from_status_and_prefs(&status, prefs);
+        let exit_offer = ExitNodeOffer::reported_exit_offer(&status, prefs);
         let exit_node_use =
             status
                 .peer

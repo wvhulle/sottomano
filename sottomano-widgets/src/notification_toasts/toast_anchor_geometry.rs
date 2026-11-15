@@ -14,9 +14,8 @@ pub struct ToastAnchorSpacing {
     card_gap: f32,
 }
 
-impl ToastAnchorSpacing {
-    #[must_use]
-    pub fn from_config(config: &Config) -> Self {
+impl From<&Config> for ToastAnchorSpacing {
+    fn from(config: &Config) -> Self {
         Self {
             edge_gap: config.desktop_panels.height,
             card_gap: config.theme.spacing.group_gap,

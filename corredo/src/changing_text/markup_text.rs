@@ -157,7 +157,7 @@ struct Emphasis {
 }
 
 impl Emphasis {
-    fn from_stack(stack: &[String], base: Font, mono: Font) -> Self {
+    fn nested_tags(stack: &[String], base: Font, mono: Font) -> Self {
         let mut emphasis = Self {
             font: base,
             underline: false,
@@ -255,7 +255,7 @@ fn parse_blocks<'a>(markup: &str, size: f32, upright: Font, mono: Font) -> Vec<B
     let mut stack: Vec<String> = Vec::new();
     let mut builder = BlockBuilder { blocks: Vec::new() };
     let styled = |text: String, stack: &[String]| {
-        let emphasis = Emphasis::from_stack(stack, upright, mono);
+        let emphasis = Emphasis::nested_tags(stack, upright, mono);
         span(text)
             .font(emphasis.font)
             .size(size)

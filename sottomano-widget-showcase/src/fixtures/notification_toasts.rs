@@ -158,7 +158,7 @@ fn action(key: &str, label: &str) -> NotifAction {
 fn desk(opening: NotificationData, _clock: Clock) -> ShowcasedGroup {
     let editor_view = opening.window_id_hint.map(|_| EDITOR_POSITION_IN_VIEW);
     let compositor =
-        CompositorWindowState::from_lists([desk_workspace()], [editor_window(editor_view)]);
+        CompositorWindowState::indexed_by_id([desk_workspace()], [editor_window(editor_view)]);
     ShowcasedGroup::Toasts(Box::new(ShowcasedToasts {
         compositor,
         opening: vec![opening],

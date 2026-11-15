@@ -169,7 +169,7 @@ pub fn quota_pace_alert_severity(widget: &dyn GroupItemReading, clock: Clock) ->
 }
 
 impl<Message> OngoingToast<Message> {
-    pub fn from_reading_display_state(
+    pub fn reading_state_alert(
         hover_target: HoverTarget,
         widget: &dyn GroupItemReading,
         on_body_clicked: Message,
@@ -195,7 +195,7 @@ impl<Message> OngoingToast<Message> {
         })
     }
 
-    pub fn from_quota_pace(
+    pub fn quota_pace_alert(
         hover_target: impl Into<HoverTarget>,
         widget: &dyn GroupItemReading,
         on_body_clicked: Message,
@@ -268,7 +268,7 @@ impl<Message> OngoingToast<Message> {
             severity: self.severity,
             expire_timeout: ExpireTimeout::Never,
             app_name: Some(self.widget_name.to_string()),
-            ..NotificationData::from_shell(toast_id, self.summary_text.clone())
+            ..NotificationData::shell_notification(toast_id, self.summary_text.clone())
         }
     }
 }
@@ -329,7 +329,7 @@ mod tests {
         state: ReadingDisplayState,
         threshold: OngoingToastThreshold,
     ) -> Option<OngoingToast<u8>> {
-        OngoingToast::from_reading_display_state(
+        OngoingToast::reading_state_alert(
             HoverTarget::Power(PowerTarget::BatteryTime),
             &FixedReading { state, threshold },
             0,

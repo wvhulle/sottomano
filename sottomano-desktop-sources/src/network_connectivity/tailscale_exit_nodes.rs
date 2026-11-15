@@ -66,7 +66,7 @@ pub enum ExitRoutingSwitch {
 }
 
 impl ExitNodeOption {
-    fn from_peer(peer: &TailscaleNodeJson) -> Option<Self> {
+    fn addressed_peer(peer: &TailscaleNodeJson) -> Option<Self> {
         let ip = peer.tailscale_ips.first()?.to_string();
         let reachability = if peer.online {
             ExitNodeReachability::Online
@@ -140,25 +140,22 @@ impl TailscaleExitNodes {
             return Ok(TailscaleExitNodes::NotRunning);
         }
         let prefs_json = shell_command_output::output("tailscale", &["debug", "prefs"]).await?;
-        Self::from_status_and_prefs(&status, &prefs_json)
+        Self::parsed_running_nodes(&status, &prefs_json)
     }
 
-    fn from_status_and_prefs(
-        status: &TailscaleStatusJson,
-        prefs_json: &str,
-    ) -> Result<Self, Error> {
+    fn parsed_running_nodes(status: &TailscaleStatusJson, prefs_json: &str) -> Result<Self, Error> {
         let prefs: TailscalePrefsJson =
             serde_json::from_str(prefs_json).map_err(|_| Error::Malformed)?;
         let mut options: Vec<ExitNodeOption> = status
             .peer
             .values()
             .filter(|peer| peer.offers_exit_node || peer.carries_exit_traffic)
-            .filter_map(ExitNodeOption::from_peer)
+            .filter_map(ExitNodeOption::addressed_peer)
             .collect();
         options.sort_by(|left, right| left.name.cmp(&right.name));
         Ok(TailscaleExitNodes::Running(ExitNodeChoices {
             options,
-            offer: ExitNodeOffer::from_status_and_prefs(status, &prefs),
+            offer: ExitNodeOffer::reported_exit_offer(status, &prefs),
             lan_access: if prefs.lan_access_allowed {
                 ExitNodeLanAccess::Allowed
             } else {
@@ -189,7 +186,7 @@ mod tests {
 
     fn parsed_choices(status_json: &str, prefs_json: &str) -> ExitNodeChoices {
         let status: TailscaleStatusJson = serde_json::from_str(status_json).expect("status");
-        match TailscaleExitNodes::from_status_and_prefs(&status, prefs_json) {
+        match TailscaleExitNodes::parsed_running_nodes(&status, prefs_json) {
             Ok(TailscaleExitNodes::Running(choices)) => choices,
             other => panic!("expected running choices, got {other:?}"),
         }

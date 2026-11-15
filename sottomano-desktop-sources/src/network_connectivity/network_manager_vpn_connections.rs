@@ -129,7 +129,7 @@ impl VpnConnection {
         }
     }
 
-    fn from_profile(profile: VpnProfile, active_vpns: &mut Vec<ActiveVpn>) -> Self {
+    fn claiming_active_vpn(profile: VpnProfile, active_vpns: &mut Vec<ActiveVpn>) -> Self {
         let plugin = profile
             .service_type
             .strip_prefix(PLUGIN_SERVICE_PREFIX)
@@ -177,7 +177,7 @@ async fn read(connection: Connection) -> Result<NetworkManagerVpns, ReadingError
     Ok(NetworkManagerVpns {
         connections: profiles
             .into_iter()
-            .map(|profile| VpnConnection::from_profile(profile, &mut active_vpns))
+            .map(|profile| VpnConnection::claiming_active_vpn(profile, &mut active_vpns))
             .collect(),
     })
 }
@@ -244,7 +244,8 @@ mod tests {
     #[test]
     fn active_profile_maps_plugin_protocol_gateway_and_tunnel() {
         let mut active_vpns = vec![active_globalprotect(5)];
-        let vpn_connection = VpnConnection::from_profile(globalprotect_profile(), &mut active_vpns);
+        let vpn_connection =
+            VpnConnection::claiming_active_vpn(globalprotect_profile(), &mut active_vpns);
         assert_eq!(vpn_connection.plugin, "openconnect");
         assert_eq!(vpn_connection.protocol_label(), "GlobalProtect");
         assert_eq!(
@@ -267,7 +268,8 @@ mod tests {
 
     #[test]
     fn inactive_profile_switches_to_connect() {
-        let vpn_connection = VpnConnection::from_profile(globalprotect_profile(), &mut Vec::new());
+        let vpn_connection =
+            VpnConnection::claiming_active_vpn(globalprotect_profile(), &mut Vec::new());
         assert_eq!(vpn_connection.activity, VpnActivity::Inactive);
         assert_eq!(vpn_connection.activation(), VpnActivation::NotActivated);
         assert_eq!(
@@ -300,7 +302,7 @@ mod tests {
         openvpn.service_type = "org.freedesktop.NetworkManager.openvpn".to_owned();
         openvpn.vpn_data =
             HashMap::from([("remote".to_owned(), "vpn.example.org:1194".to_owned())]);
-        let vpn_connection = VpnConnection::from_profile(openvpn, &mut Vec::new());
+        let vpn_connection = VpnConnection::claiming_active_vpn(openvpn, &mut Vec::new());
         assert_eq!(vpn_connection.protocol_label(), "openvpn");
         assert_eq!(
             vpn_connection.remote_gateway.as_deref(),

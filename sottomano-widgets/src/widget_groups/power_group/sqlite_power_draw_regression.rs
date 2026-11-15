@@ -81,7 +81,7 @@ async fn read_models(
     let mut states = HashMap::new();
     while let Some(row) = rows.next().await? {
         let profile_name = columns.text(&row, "profile")?;
-        let Some(profile) = Profile::from_name(&profile_name) else {
+        let Ok(profile) = profile_name.parse::<Profile>() else {
             continue;
         };
         let Some(covariance) = covariances

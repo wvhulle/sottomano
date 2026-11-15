@@ -298,7 +298,7 @@ mod tests {
 
     fn delivered_rain(clock: Clock) -> SnapshotDelivery<Rain> {
         SnapshotDelivery::fixture_delivered(
-            Ok(Rain::from_forecast(vec![Downpour {
+            Ok(Rain::try_from(vec![Downpour {
                 intensity: Velocity::new::<millimeter_per_hour>(3.0),
                 at: clock.local(),
             }])

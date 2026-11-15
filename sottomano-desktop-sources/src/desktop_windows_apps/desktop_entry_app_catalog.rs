@@ -73,7 +73,7 @@ impl AppCategory {
         }
     }
 
-    fn from_registered_main_category(declared: &str) -> Option<Self> {
+    fn registered_main_category(declared: &str) -> Option<Self> {
         match declared {
             "AudioVideo" | "Audio" | "Video" => Some(AppCategory::Multimedia),
             "Development" => Some(AppCategory::Development),
@@ -102,7 +102,7 @@ pub struct LaunchableApp {
 }
 
 impl LaunchableApp {
-    pub(super) fn from_shown_entry(
+    pub(super) fn shown_on_desktops(
         entry: &DesktopEntry,
         current_desktops: &[String],
     ) -> Option<Self> {
@@ -134,7 +134,7 @@ impl LaunchableApp {
                 .categories()
                 .unwrap_or_default()
                 .into_iter()
-                .find_map(AppCategory::from_registered_main_category)
+                .find_map(AppCategory::registered_main_category)
                 .unwrap_or(AppCategory::Other),
             launch_command: entry
                 .parse_exec()
@@ -215,7 +215,7 @@ mod tests {
     }
 
     fn app_on_niri(fields: &str) -> Option<LaunchableApp> {
-        LaunchableApp::from_shown_entry(&entry_of("editor", fields), &["niri".to_owned()])
+        LaunchableApp::shown_on_desktops(&entry_of("editor", fields), &["niri".to_owned()])
     }
 
     fn category_of(fields: &str) -> AppCategory {

@@ -15,7 +15,7 @@ use super::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     ai_usage_spend::{
-        spend_money::{Money, from_minor_units},
+        spend_money::{Money, minor_units_money},
         usage_quota::Quota,
         working_time_forecast::{CalendarSpan, SpendPacing, WorkingTime},
     },
@@ -63,7 +63,7 @@ impl TryFrom<MinorAmount> for Money {
         let Some(currency) = iso::find(&amount.currency) else {
             return Err(Error::UnknownCurrency(amount.currency));
         };
-        Ok(from_minor_units(
+        Ok(minor_units_money(
             amount.amount_minor,
             currency,
             u32::from(amount.exponent),

@@ -17,3 +17,10 @@ rule:
   has:
     field: name
     regex: ^(of|of_.+|from_.+|for_.+)$
+  not:
+    inside:
+      kind: impl_item
+      stopBy: end
+      has:
+        field: trait
+        regex: .

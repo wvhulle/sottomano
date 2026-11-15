@@ -112,9 +112,8 @@ pub struct NestedMenuStyle {
     pub item_indent_px: f32,
 }
 
-impl NestedMenuStyle {
-    #[must_use]
-    pub fn for_metrics(metrics: NestedMenuMetrics) -> Self {
+impl From<NestedMenuMetrics> for NestedMenuStyle {
+    fn from(metrics: NestedMenuMetrics) -> Self {
         Self {
             list_frame: FrameStyle::default(),
             beside_frame: FrameStyle::default(),
@@ -125,7 +124,9 @@ impl NestedMenuStyle {
             item_indent_px: metrics.icon_slot_px,
         }
     }
+}
 
+impl NestedMenuStyle {
     fn frame_corners(self) -> Radius {
         Radius::from(self.list_frame.corner_radius().top_left)
     }
@@ -145,7 +146,7 @@ pub fn nested_menu<'a, RowKey, Message: 'a>(
             layout,
             orientation,
             metrics,
-            style: NestedMenuStyle::for_metrics(metrics),
+            style: NestedMenuStyle::from(metrics),
             wheel_line_px: DEFAULT_WHEEL_LINE_PX,
             pacing: ScrollPacing::Instant,
         },

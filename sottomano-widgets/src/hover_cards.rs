@@ -261,39 +261,11 @@ pub struct HoverAnnouncement {
     pub origin: HoverOrigin,
 }
 
-impl HoverAnnouncement {
-    #[must_use]
-    pub fn from_reading(press_hints: PressHints) -> Self {
+impl From<PressHints> for HoverAnnouncement {
+    fn from(press_hints: PressHints) -> Self {
         HoverAnnouncement {
             press_hints,
             origin: HoverOrigin::Reading,
-        }
-    }
-
-    #[must_use]
-    pub fn from_group_handle(item_group_name: WidgetGroupTitle, press_hints: PressHints) -> Self {
-        HoverAnnouncement {
-            press_hints,
-            origin: HoverOrigin::GroupHandle {
-                item_group_name: Box::new(item_group_name),
-                panel_pin: PanelPinOrigin::Unpinned,
-            },
-        }
-    }
-
-    #[must_use]
-    pub fn pinned_by(self, panel_pin: PanelPinOrigin) -> Self {
-        match self.origin {
-            HoverOrigin::GroupHandle {
-                item_group_name, ..
-            } => HoverAnnouncement {
-                origin: HoverOrigin::GroupHandle {
-                    item_group_name,
-                    panel_pin,
-                },
-                ..self
-            },
-            HoverOrigin::Reading => self,
         }
     }
 }

@@ -46,8 +46,8 @@ pub(crate) struct ProcessTable {
     pids_by_command_name: HashMap<String, Vec<i32>>,
 }
 
-impl ProcessTable {
-    pub fn from_samples(samples: impl IntoIterator<Item = ProcessSample>) -> Self {
+impl FromIterator<ProcessSample> for ProcessTable {
+    fn from_iter<Samples: IntoIterator<Item = ProcessSample>>(samples: Samples) -> Self {
         let samples_by_pid: HashMap<i32, ProcessSample> = samples
             .into_iter()
             .map(|sample| (sample.pid, sample))
@@ -68,7 +68,9 @@ impl ProcessTable {
             pids_by_command_name: HashMap::new(),
         }
     }
+}
 
+impl ProcessTable {
     pub fn read_current() -> Option<Self> {
         let stats: Vec<Stat> = all_processes()
             .inspect_err(|listing_failure| {
@@ -96,7 +98,7 @@ impl ProcessTable {
         );
         Some(Self {
             pids_by_command_name,
-            ..Self::from_samples(stats.iter().map(ProcessSample::from))
+            ..stats.iter().map(ProcessSample::from).collect()
         })
     }
 
@@ -251,7 +253,7 @@ mod tests {
 
     #[test]
     fn totals_cover_every_descendant_and_nothing_else() {
-        let table = ProcessTable::from_samples([
+        let table = ProcessTable::from_iter([
             sample(10, 1, 5, 100),
             sample(11, 10, 7, 200),
             sample(12, 11, 11, 400),
@@ -268,14 +270,14 @@ mod tests {
 
     #[test]
     fn a_reaped_child_keeps_its_ticks_through_the_parent() {
-        let before = ProcessTable::from_samples([sample(10, 1, 5, 100), sample(11, 10, 40, 200)]);
-        let after = ProcessTable::from_samples([sample(10, 1, 5 + 40, 100)]);
+        let before = ProcessTable::from_iter([sample(10, 1, 5, 100), sample(11, 10, 40, 200)]);
+        let after = ProcessTable::from_iter([sample(10, 1, 5 + 40, 100)]);
         assert!(after.tree_totals(10).spent_ticks >= before.tree_totals(10).spent_ticks);
     }
 
     #[test]
     fn overlapping_roots_count_each_process_once() {
-        let table = ProcessTable::from_samples([
+        let table = ProcessTable::from_iter([
             sample(10, 1, 5, 100),
             sample(11, 10, 7, 200),
             sample(30, 1, 3, 1000),
@@ -291,13 +293,13 @@ mod tests {
 
     #[test]
     fn a_vanished_root_totals_nothing() {
-        let table = ProcessTable::from_samples([sample(10, 1, 5, 100)]);
+        let table = ProcessTable::from_iter([sample(10, 1, 5, 100)]);
         assert_eq!(table.tree_totals(99), ProcessTreeTotals::default());
     }
 
     #[test]
     fn a_parent_cycle_terminates() {
-        let table = ProcessTable::from_samples([sample(10, 11, 1, 1), sample(11, 10, 1, 1)]);
+        let table = ProcessTable::from_iter([sample(10, 11, 1, 1), sample(11, 10, 1, 1)]);
         assert_eq!(table.tree_totals(10).spent_ticks, 2);
     }
 

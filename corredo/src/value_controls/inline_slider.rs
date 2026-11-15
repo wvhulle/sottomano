@@ -113,7 +113,7 @@ impl<'a, Message> InlineSlider<'a, Message> {
 
 impl<'a, Message: Clone + 'a> From<InlineSlider<'a, Message>> for Element<'a, Message> {
     fn from(inline: InlineSlider<'a, Message>) -> Self {
-        let geometry = FaceGeometry::from_sizes(inline.icon_size_px, inline.stroke_width_px);
+        let geometry = FaceGeometry::scaled_to_icon(inline.icon_size_px, inline.stroke_width_px);
         let face = SliderFace {
             range: inline.range.clone(),
             value: inline.value,
@@ -178,7 +178,7 @@ struct FaceGeometry {
 }
 
 impl FaceGeometry {
-    fn from_sizes(icon_size_px: f32, stroke_width: f32) -> Self {
+    fn scaled_to_icon(icon_size_px: f32, stroke_width: f32) -> Self {
         let resting_knob_radius = icon_size_px * RESTING_KNOB_PER_GLYPH;
         Self {
             stroke_width,

@@ -505,7 +505,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         M: Clone,
     {
         let quota_toast = self.kind.announcing_widget().and_then(|widget| {
-            OngoingToast::from_quota_pace(
+            OngoingToast::quota_pace_alert(
                 self.kind.hover_target().clone(),
                 widget,
                 on_body_clicked.clone(),
@@ -514,7 +514,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             )
         });
         let ongoing_toast = self.kind.announcing_widget().and_then(|widget| {
-            OngoingToast::from_reading_display_state(
+            OngoingToast::reading_state_alert(
                 self.kind.hover_target().clone(),
                 widget,
                 on_body_clicked,
@@ -950,17 +950,15 @@ mod tests {
     }
 
     fn pinned_slider_origin() -> HoverOrigin {
-        HoverAnnouncement::from_group_handle(
-            WidgetGroupTitle::Named("Dark mode".into()),
-            PressHints::default(),
-        )
-        .pinned_by(PanelPinOrigin::ItemPinnedFrom {
-            menu: GroupMenuTopic::Media,
-            group: Box::new(WidgetGroupIdentity::sole(WidgetGroupFamily::Media)),
-            item_in_group_name: "pinned slider".into(),
-            pin_duration: PanelPinDuration::Permanent,
-        })
-        .origin
+        HoverOrigin::GroupHandle {
+            item_group_name: Box::new(WidgetGroupTitle::Named("Dark mode".into())),
+            panel_pin: PanelPinOrigin::ItemPinnedFrom {
+                menu: GroupMenuTopic::Media,
+                group: Box::new(WidgetGroupIdentity::sole(WidgetGroupFamily::Media)),
+                item_in_group_name: "pinned slider".into(),
+                pin_duration: PanelPinDuration::Permanent,
+            },
+        }
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]

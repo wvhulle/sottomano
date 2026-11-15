@@ -700,14 +700,14 @@ mod tests {
     }
 
     fn radar_frames(clock: Clock, millimeters_per_hour: &[f64]) -> Rain {
-        Rain::from_forecast(
+        Rain::try_from(
             (0..)
                 .zip(millimeters_per_hour)
                 .map(|(frame, intensity)| Downpour {
                     intensity: Velocity::new::<millimeter_per_hour>(*intensity),
                     at: clock.local() + RADAR_FRAME_LENGTH * frame,
                 })
-                .collect(),
+                .collect::<Vec<_>>(),
         )
         .unwrap()
     }
@@ -838,7 +838,7 @@ mod tests {
     fn rain_starting_soon_raises_a_toast() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 3.0]);
-        let toast = OngoingToast::from_reading_display_state(
+        let toast = OngoingToast::reading_state_alert(
             HoverTarget::Weather(WeatherTarget::Rain),
             &RadarRainForecast::with_default_alerts(&rain),
             0_u8,

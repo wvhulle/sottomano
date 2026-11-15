@@ -25,12 +25,7 @@ pub fn hoverable<'a, M: 'a>(
     press_hints: PressHints,
     wrap: impl Fn(HoverCardMessage) -> M + 'a,
 ) -> Element<'a, M> {
-    announcing_hoverable(
-        content,
-        target,
-        HoverAnnouncement::from_reading(press_hints),
-        wrap,
-    )
+    announcing_hoverable(content, target, HoverAnnouncement::from(press_hints), wrap)
 }
 
 pub fn announcing_hoverable<'a, M: 'a>(

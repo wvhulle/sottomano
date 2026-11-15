@@ -58,7 +58,7 @@ pub enum GpuNames {
 
 impl GpuNames {
     #[must_use]
-    pub fn from_hardware_database(database_name: &str) -> Self {
+    pub fn split_database_name(database_name: &str) -> Self {
         let Some((chip, bracketed)) = database_name.split_once(" [") else {
             return GpuNames::Chip(database_name.trim().to_owned());
         };

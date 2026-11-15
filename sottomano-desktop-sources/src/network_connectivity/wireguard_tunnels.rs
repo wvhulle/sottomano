@@ -31,8 +31,8 @@ pub enum PeerEndpoint {
     At(String),
 }
 
-impl PeerEndpoint {
-    fn from_reported(reported: Option<String>) -> Self {
+impl From<Option<String>> for PeerEndpoint {
+    fn from(reported: Option<String>) -> Self {
         reported.map_or(Self::Roaming, Self::At)
     }
 }
@@ -108,7 +108,7 @@ impl Peer {
     fn configured(peer_settings: WireguardPeerSettings) -> Self {
         Self {
             public_key: peer_settings.public_key,
-            endpoint: PeerEndpoint::from_reported(peer_settings.endpoint),
+            endpoint: PeerEndpoint::from(peer_settings.endpoint),
             allowed_ips: peer_settings.allowed_ips,
             traffic: PeerTraffic::Unobserved,
         }
@@ -140,7 +140,7 @@ pub enum TunnelRole {
 }
 
 impl TunnelRole {
-    fn from_configured_port(listen_port: u32) -> Self {
+    fn configured(listen_port: u32) -> Self {
         if listen_port > 0 {
             Self::Server { listen_port }
         } else {
@@ -262,7 +262,7 @@ impl Tunnel {
         })
     }
 
-    fn from_profile(
+    fn observed_profile(
         profile: WireguardProfile,
         active_wireguards: &[ActiveWireguard],
         kernel_readings: &HashMap<String, KernelReading>,
@@ -289,7 +289,7 @@ impl Tunnel {
             None => (StatisticsAccess::TunnelDown, configured_peers.collect()),
         };
         Self {
-            role: TunnelRole::from_configured_port(profile.listen_port),
+            role: TunnelRole::configured(profile.listen_port),
             origin: TunnelOrigin::NetworkManager {
                 settings_connection: profile.settings_connection,
                 activity,
@@ -440,7 +440,7 @@ fn assemble_tunnels(
 ) -> Wireguard {
     let profile_tunnels: Vec<Tunnel> = profiles
         .into_iter()
-        .map(|profile| Tunnel::from_profile(profile, active_wireguards, &kernel_readings))
+        .map(|profile| Tunnel::observed_profile(profile, active_wireguards, &kernel_readings))
         .collect();
     for tunnel in &profile_tunnels {
         kernel_readings.remove(&tunnel.interface);
@@ -564,7 +564,7 @@ fn kernel_peer(dump_line: &str, now: u64) -> Option<Peer> {
     let sent = ByteSize::b(dump_counter(&fields, 6)?);
     Some(Peer {
         public_key: reported(0)?,
-        endpoint: PeerEndpoint::from_reported(reported(2)),
+        endpoint: PeerEndpoint::from(reported(2)),
         allowed_ips: reported(3)
             .map(|allowed_ips| allowed_ips.split(',').map(ToOwned::to_owned).collect())
             .unwrap_or_default(),
@@ -722,10 +722,10 @@ mod tests {
     #[test]
     fn configured_listen_port_decides_role() {
         assert_eq!(
-            TunnelRole::from_configured_port(51820),
+            TunnelRole::configured(51820),
             TunnelRole::Server { listen_port: 51820 }
         );
-        assert_eq!(TunnelRole::from_configured_port(0), TunnelRole::Client);
+        assert_eq!(TunnelRole::configured(0), TunnelRole::Client);
     }
 
     #[test]

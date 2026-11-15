@@ -339,7 +339,7 @@ fn session(
                 .any(|named| named.id == placed.workspace)
         })
         .collect();
-    let compositor = CompositorWindowState::from_lists(
+    let compositor = CompositorWindowState::indexed_by_id(
         shown_workspaces.iter().map(workspace),
         shown_windows.iter().copied().map(window),
     );

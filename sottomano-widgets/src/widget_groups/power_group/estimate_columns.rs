@@ -45,7 +45,7 @@ impl Unforecastable {
 }
 
 impl Forecast {
-    pub fn from_estimate(estimate: Option<Estimate>, otherwise: Unforecastable) -> Self {
+    pub fn estimated_or(estimate: Option<Estimate>, otherwise: Unforecastable) -> Self {
         estimate.map_or(Forecast::Unavailable(otherwise), Forecast::Estimated)
     }
 

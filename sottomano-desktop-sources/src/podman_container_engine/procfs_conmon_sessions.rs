@@ -19,26 +19,9 @@ fn attached_container_id(arguments: &[String]) -> Option<&str> {
         .map(|flag_and_value| flag_and_value[1].as_str())
 }
 
-impl ConmonSessions {
-    pub(crate) fn read_current(table: &ProcessTable) -> Self {
-        Self::from_command_lines(table.pids_named(CONMON_COMMAND_NAME).iter().filter_map(
-            |&conmon_pid| {
-                let arguments = Process::new(conmon_pid)
-                    .and_then(|conmon_process| conmon_process.cmdline())
-                    .inspect_err(|read_failure| {
-                        tracing::debug!(
-                            "podman: command line of conmon {conmon_pid} unreadable: \
-                             {read_failure}"
-                        );
-                    })
-                    .ok()?;
-                Some((conmon_pid, arguments))
-            },
-        ))
-    }
-
-    pub(crate) fn from_command_lines(
-        command_lines: impl IntoIterator<Item = (i32, Vec<String>)>,
+impl FromIterator<(i32, Vec<String>)> for ConmonSessions {
+    fn from_iter<CommandLines: IntoIterator<Item = (i32, Vec<String>)>>(
+        command_lines: CommandLines,
     ) -> Self {
         let conmon_pids_by_container_id = command_lines.into_iter().fold(
             HashMap::<String, Vec<i32>>::new(),
@@ -55,6 +38,27 @@ impl ConmonSessions {
         Self {
             conmon_pids_by_container_id,
         }
+    }
+}
+
+impl ConmonSessions {
+    pub(crate) fn read_current(table: &ProcessTable) -> Self {
+        table
+            .pids_named(CONMON_COMMAND_NAME)
+            .iter()
+            .filter_map(|&conmon_pid| {
+                let arguments = Process::new(conmon_pid)
+                    .and_then(|conmon_process| conmon_process.cmdline())
+                    .inspect_err(|read_failure| {
+                        tracing::debug!(
+                            "podman: command line of conmon {conmon_pid} unreadable: \
+                             {read_failure}"
+                        );
+                    })
+                    .ok()?;
+                Some((conmon_pid, arguments))
+            })
+            .collect()
     }
 
     pub(crate) fn measured_roots(&self, container_id: &str, init_process_pid: i32) -> Vec<i32> {
@@ -77,7 +81,7 @@ mod tests {
 
     #[test]
     fn exec_sessions_join_the_container_they_attach_to() {
-        let sessions = ConmonSessions::from_command_lines([
+        let sessions = ConmonSessions::from_iter([
             (5, arguments(&["conmon", "--api-version", "1", "-c", "abc"])),
             (6, arguments(&["conmon", "-c", "abc", "--exec"])),
             (7, arguments(&["conmon", "--cid", "other"])),

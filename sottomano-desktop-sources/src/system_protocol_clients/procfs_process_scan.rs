@@ -109,7 +109,7 @@ pub(crate) fn scan_processes(matches: impl Fn(&ScannedProcess) -> bool) -> Optio
     Some(ProcessScan {
         matched_processes,
         all_processes: scanned_processes,
-        process_table: ProcessTable::from_samples(process_samples),
+        process_table: ProcessTable::from_iter(process_samples),
     })
 }
 

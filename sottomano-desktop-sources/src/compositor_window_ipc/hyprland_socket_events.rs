@@ -176,7 +176,7 @@ fn hyprland_state_of(
             })
         })
         .collect::<Vec<_>>();
-    CompositorWindowState::from_lists(compositor_workspaces, windows)
+    CompositorWindowState::indexed_by_id(compositor_workspaces, windows)
 }
 
 async fn read_hyprland_state() -> io::Result<CompositorWindowState> {

@@ -192,7 +192,7 @@ impl DriveTemperature {
         candidates
             .iter()
             .find_map(Self::read_chosen_sensors)
-            .unwrap_or_else(|| DriveTemperature::Unreported(MissingSensor::for_disk(disk)))
+            .unwrap_or_else(|| DriveTemperature::Unreported(MissingSensor::diagnose_disk(disk)))
     }
 
     fn read_chosen_sensors(chosen: &ChosenSensors) -> Option<Self> {
@@ -210,7 +210,7 @@ impl DriveTemperature {
 }
 
 impl MissingSensor {
-    fn for_disk(disk: &KernelDevice) -> Self {
+    fn diagnose_disk(disk: &KernelDevice) -> Self {
         let is_scsi_disk = disk.name.starts_with("sd");
         if is_scsi_disk && !Path::new(DRIVETEMP_MODULE).exists() {
             MissingSensor::DrivetempNotLoaded

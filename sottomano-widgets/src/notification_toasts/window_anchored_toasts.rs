@@ -57,7 +57,7 @@ impl<'a> WindowAnchoredToasts<'a> {
                 cards: Vec::new(),
                 background_fade,
                 motion: card.motion,
-                anchor_spacing: ToastAnchorSpacing::from_config(config),
+                anchor_spacing: ToastAnchorSpacing::from(config),
                 reveal_motion: MotionState::Settled,
             },
             |mut toasts, toast| {

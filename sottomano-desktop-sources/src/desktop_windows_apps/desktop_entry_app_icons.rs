@@ -98,7 +98,7 @@ impl DesktopEntries {
 
     #[must_use]
     pub fn launchable_app(&self, app_id: &str) -> Option<LaunchableApp> {
-        LaunchableApp::from_shown_entry(
+        LaunchableApp::shown_on_desktops(
             self.find(app_id)?,
             &freedesktop_desktop_entry::current_desktop().unwrap_or_default(),
         )
@@ -112,7 +112,7 @@ impl DesktopEntries {
             .entries
             .iter()
             .filter(|entry| listed_app_ids.insert(entry.id()))
-            .filter_map(|entry| LaunchableApp::from_shown_entry(entry, &current_desktops))
+            .filter_map(|entry| LaunchableApp::shown_on_desktops(entry, &current_desktops))
             .collect();
         launchable_apps.sort_by_cached_key(|app| (app.name.to_lowercase(), app.app_id.clone()));
         launchable_apps

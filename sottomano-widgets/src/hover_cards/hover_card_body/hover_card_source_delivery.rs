@@ -138,7 +138,7 @@ mod tests {
 
     #[test]
     fn press_hints_alone_make_a_card() {
-        let announcement = HoverAnnouncement::from_reading(PressHints {
+        let announcement = HoverAnnouncement::from(PressHints {
             left: Some("switch something"),
             ..PressHints::default()
         });

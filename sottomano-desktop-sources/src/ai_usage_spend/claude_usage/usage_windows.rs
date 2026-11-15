@@ -14,7 +14,7 @@ use super::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     ai_usage_spend::{
-        spend_money::{Money, from_minor_units},
+        spend_money::{Money, minor_units_money},
         usage_quota::Quota,
     },
     delivery_cadence_drivers::PeriodicPolling,
@@ -206,7 +206,7 @@ impl Overage {
     fn money(&self, minor_units: Decimal) -> Option<Money> {
         let currency = iso::find(&self.currency)?;
         let exponent = self.decimal_places.map_or(currency.exponent, u32::from);
-        Some(from_minor_units(minor_units, currency, exponent))
+        Some(minor_units_money(minor_units, currency, exponent))
     }
 }
 

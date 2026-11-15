@@ -202,7 +202,7 @@ fn sway_state_of(workspaces: &[Workspace], tree: &Node) -> CompositorWindowState
             );
         }
     }
-    CompositorWindowState::from_lists(compositor_workspaces, windows)
+    CompositorWindowState::indexed_by_id(compositor_workspaces, windows)
 }
 
 async fn read_sway_state(queries: &mut SwayIpcConnection) -> Fallible<CompositorWindowState> {

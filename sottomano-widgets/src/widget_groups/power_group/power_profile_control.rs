@@ -71,8 +71,8 @@ impl Default for PowerProfileControl {
             .slider_step(STEP)
             .scroll_step(STEP)
             .icon_only()
-            .readout(|value, _| Profile::from_position(value).title().to_string())
-            .glyph(|value, _| profile_face(Profile::from_position(value))),
+            .readout(|value, _| Profile::nearest_position_profile(value).title().to_string())
+            .glyph(|value, _| profile_face(Profile::nearest_position_profile(value))),
             status: SubscribedSnapshot::default(),
             conditions: None,
             battery: None,
@@ -172,7 +172,9 @@ impl PowerProfileControl {
             }
             PowerProfileMessage::Interaction(PowerProfileInteraction::Control(control_message)) => {
                 return match self.control.update(control_message) {
-                    Action::Commit(value) => commit_profile_switch(Profile::from_position(value)),
+                    Action::Commit(value) => {
+                        commit_profile_switch(Profile::nearest_position_profile(value))
+                    }
                     Action::Opened | Action::None | Action::Right | Action::Adjust(_) => {
                         Task::none()
                     }
@@ -298,11 +300,12 @@ impl PowerProfileControl {
     }
 
     fn battery_life_section(&self) -> Section {
-        let active_profile = Profile::from_position(self.control.expanding_slider.shown_value());
+        let active_profile =
+            Profile::nearest_position_profile(self.control.expanding_slider.shown_value());
         let lives = Profile::ALL.map(|profile| ProfileLife {
             profile,
             active: profile == active_profile,
-            forecast: Forecast::from_estimate(
+            forecast: Forecast::estimated_or(
                 self.estimates.get(&profile).copied().flatten(),
                 Unforecastable::NoDrainHistory,
             ),

@@ -577,7 +577,7 @@ mod tests {
 
     fn processes_without_conmon(samples: impl IntoIterator<Item = ProcessSample>) -> HostProcesses {
         HostProcesses {
-            process_table: ProcessTable::from_samples(samples),
+            process_table: ProcessTable::from_iter(samples),
             conmon_sessions: ConmonSessions::default(),
             cgroup_memory_of: |_| None,
         }
@@ -765,7 +765,7 @@ mod tests {
         };
         let host_processes = HostProcesses {
             cgroup_memory_of: |_| None,
-            process_table: ProcessTable::from_samples([
+            process_table: ProcessTable::from_iter([
                 process(9, 1, 100),
                 process(10, 9, 140),
                 process(20, 1, 100),
@@ -773,7 +773,7 @@ mod tests {
                 process(30, 1, 100),
                 process(31, 30, 5_000_000),
             ]),
-            conmon_sessions: ConmonSessions::from_command_lines([
+            conmon_sessions: ConmonSessions::from_iter([
                 (
                     9,
                     vec!["conmon".to_owned(), "-c".to_owned(), "abc".to_owned()],

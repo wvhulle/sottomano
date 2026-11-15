@@ -112,7 +112,7 @@ struct Jiffies {
 }
 
 impl Jiffies {
-    fn from_counters<'a>(counters: impl Iterator<Item = &'a str>) -> Option<Self> {
+    fn parsed_counters<'a>(counters: impl Iterator<Item = &'a str>) -> Option<Self> {
         let counters: Vec<i64> = counters
             .map(str::parse)
             .collect::<Result<_, _>>()
@@ -177,7 +177,7 @@ impl CoreJiffies {
         let core = cpu_core_index(tokens.next()?)?;
         Some(CoreJiffies {
             core,
-            jiffies: Jiffies::from_counters(tokens)?,
+            jiffies: Jiffies::parsed_counters(tokens)?,
         })
     }
 
@@ -209,7 +209,7 @@ impl CpuStat {
         let mut overall = content.lines().next()?.split_whitespace();
         overall.next().filter(|label| *label == "cpu")?;
         Some(CpuStat {
-            overall: Jiffies::from_counters(overall)?,
+            overall: Jiffies::parsed_counters(overall)?,
             cores: content.lines().filter_map(CoreJiffies::parse).collect(),
         })
     }
@@ -323,8 +323,8 @@ intr 12400
 
     #[test]
     fn iowait_and_irq_are_split_out_of_busy_time() {
-        let earlier = Jiffies::from_counters("0 0 0 0 0 0 0".split(' ')).unwrap();
-        let later = Jiffies::from_counters("10 0 10 50 20 5 5".split(' ')).unwrap();
+        let earlier = Jiffies::parsed_counters("0 0 0 0 0 0 0".split(' ')).unwrap();
+        let later = Jiffies::parsed_counters("10 0 10 50 20 5 5".split(' ')).unwrap();
         let elapsed = later.elapsed_since(&earlier).unwrap();
         assert_eq!(elapsed.busy(), Ratio::new::<ratio>(0.5));
         assert_eq!(

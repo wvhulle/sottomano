@@ -27,9 +27,10 @@ impl LaunchWorkspace {
             LaunchWorkspace::Unnamed => UNNAMED_WORKSPACE_STORED_NAME,
         }
     }
+}
 
-    #[must_use]
-    pub fn from_stored_name(stored_name: String) -> Self {
+impl From<String> for LaunchWorkspace {
+    fn from(stored_name: String) -> Self {
         if stored_name == UNNAMED_WORKSPACE_STORED_NAME {
             LaunchWorkspace::Unnamed
         } else {
@@ -208,7 +209,7 @@ mod tests {
         window: CompositorWindow,
     ) -> Option<Launch> {
         tracker
-            .observe(&CompositorWindowState::from_lists(workspaces, [window]))
+            .observe(&CompositorWindowState::indexed_by_id(workspaces, [window]))
             .pop()
     }
 
@@ -237,7 +238,7 @@ mod tests {
     fn windows_open_before_the_first_state_are_not_launches() {
         let mut tracker = LaunchTracker::default();
         let initial =
-            CompositorWindowState::from_lists([workspace(1, "web")], [window(7, Some("code"))]);
+            CompositorWindowState::indexed_by_id([workspace(1, "web")], [window(7, Some("code"))]);
 
         assert!(tracker.observe(&initial).is_empty());
         assert!(tracker.observe(&initial).is_empty());
@@ -293,7 +294,7 @@ mod tests {
             LaunchWorkspace::Named("web".to_owned()),
         ] {
             assert_eq!(
-                LaunchWorkspace::from_stored_name(launch_workspace.stored_name().to_owned()),
+                LaunchWorkspace::from(launch_workspace.stored_name().to_owned()),
                 launch_workspace
             );
         }

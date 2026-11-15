@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 use futures::{Stream, StreamExt};
 use zbus::{Connection, proxy};
@@ -29,16 +29,6 @@ pub enum Profile {
 
 impl Profile {
     pub const ALL: [Profile; 3] = [Profile::PowerSaver, Profile::Balanced, Profile::Performance];
-
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        match name.trim() {
-            "power-saver" => Some(Profile::PowerSaver),
-            "balanced" => Some(Profile::Balanced),
-            "performance" => Some(Profile::Performance),
-            _ => None,
-        }
-    }
 
     #[must_use]
     pub fn name(self) -> &'static str {
@@ -77,12 +67,28 @@ impl Profile {
     }
 
     #[must_use]
-    pub fn from_position(value: f32) -> Self {
+    pub fn nearest_position_profile(position: f32) -> Self {
         #[allow(clippy::cast_possible_truncation)]
-        match (value / 50.0).round() as i32 {
-            i if i <= 0 => Profile::PowerSaver,
+        match (position / 50.0).round() as i32 {
+            step if step <= 0 => Profile::PowerSaver,
             1 => Profile::Balanced,
             _ => Profile::Performance,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct UnknownProfile(pub String);
+
+impl FromStr for Profile {
+    type Err = UnknownProfile;
+
+    fn from_str(name: &str) -> Result<Self, UnknownProfile> {
+        match name.trim() {
+            "power-saver" => Ok(Profile::PowerSaver),
+            "balanced" => Ok(Profile::Balanced),
+            "performance" => Ok(Profile::Performance),
+            _ => Err(UnknownProfile(name.to_owned())),
         }
     }
 }
@@ -157,13 +163,29 @@ pub struct ProfileHold {
     pub reason: String,
 }
 
-impl ProfileHold {
-    fn from_properties(properties: &Properties) -> Option<Self> {
-        Some(ProfileHold {
-            application_id: text_prop(properties, "ApplicationId")?,
-            profile: Profile::from_name(&text_prop(properties, "Profile")?)?,
-            reason: prop(properties, "Reason")?,
-        })
+#[derive(Debug)]
+pub struct IncompleteProfileHold;
+
+impl TryFrom<&Properties> for ProfileHold {
+    type Error = IncompleteProfileHold;
+
+    fn try_from(properties: &Properties) -> Result<Self, IncompleteProfileHold> {
+        let decoded_hold = || {
+            Some(ProfileHold {
+                application_id: text_prop(properties, "ApplicationId")?,
+                profile: text_prop(properties, "Profile")?
+                    .parse()
+                    .inspect_err(|unknown_profile: &UnknownProfile| {
+                        tracing::warn!(
+                            ?unknown_profile,
+                            "power profile hold names an unknown profile"
+                        );
+                    })
+                    .ok()?,
+                reason: prop(properties, "Reason")?,
+            })
+        };
+        decoded_hold().ok_or(IncompleteProfileHold)
     }
 }
 
@@ -223,16 +245,24 @@ async fn read_status(
     daemon: &PowerProfilesProxy<'_>,
 ) -> Result<ProfileStatus, dbus_desktop_buses::Error> {
     let active = daemon.active_profile().await?;
-    let active = Profile::from_name(&active).ok_or_else(|| {
-        dbus_desktop_buses::Error::Call(format!("unknown power profile {active:?}"))
-    })?;
+    let active = active
+        .parse::<Profile>()
+        .map_err(|UnknownProfile(active)| {
+            dbus_desktop_buses::Error::Call(format!("unknown power profile {active:?}"))
+        })?;
     let holds = daemon.active_profile_holds().await?;
     let degraded = daemon.performance_degraded().await?;
     Ok(ProfileStatus {
         active,
         holds: holds
             .iter()
-            .filter_map(ProfileHold::from_properties)
+            .filter_map(|properties| {
+                ProfileHold::try_from(properties)
+                    .inspect_err(|incomplete_hold| {
+                        tracing::warn!(?incomplete_hold, "power profile hold is incomplete");
+                    })
+                    .ok()
+            })
             .collect(),
         degraded: non_empty(degraded),
     })

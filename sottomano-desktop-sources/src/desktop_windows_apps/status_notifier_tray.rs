@@ -50,7 +50,7 @@ impl IconSource {
         }
     }
 
-    pub(crate) fn from_theme_file(theme_file: &Path) -> Option<Self> {
+    pub(crate) fn loaded_theme_icon(theme_file: &Path) -> Option<Self> {
         let trimmed_icon = trim_icon_file(theme_file)
             .inspect_err(|trim_failure| {
                 tracing::warn!("tray icon: {trim_failure}");
@@ -191,9 +191,9 @@ pub(crate) fn capped_to_side_limit(image: RgbaImage) -> RgbaImage {
 
 const UNIDENTIFIED_APP_ICON: &str = "application-x-executable";
 
-fn from_theme_path(theme_path: &str, name: &str) -> Option<PathBuf> {
-    ["svg", "png"].into_iter().find_map(|ext| {
-        let path = Path::new(theme_path).join(format!("{name}.{ext}"));
+fn existing_theme_icon_path(theme_path: &str, name: &str) -> Option<PathBuf> {
+    ["svg", "png"].into_iter().find_map(|extension| {
+        let path = Path::new(theme_path).join(format!("{name}.{extension}"));
         path.exists().then_some(path)
     })
 }
@@ -214,12 +214,12 @@ fn resolve_visual(
                 .into_iter()
                 .find_map(|candidate_name| {
                     icon_theme_path
-                        .and_then(|dir| from_theme_path(dir, &candidate_name))
+                        .and_then(|dir| existing_theme_icon_path(dir, &candidate_name))
                         .or_else(|| entries.theme_icon(&candidate_name))
                 })
         })
         .or_else(|| entries.theme_icon(UNIDENTIFIED_APP_ICON))
-        .and_then(|path| IconSource::from_theme_file(&path))
+        .and_then(|path| IconSource::loaded_theme_icon(&path))
 }
 
 fn adapt_tooltip(item: &StatusNotifierItem) -> Option<Tip> {

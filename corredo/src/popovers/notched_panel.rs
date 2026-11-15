@@ -61,20 +61,22 @@ pub(crate) struct ScreenRoom {
     pub below_primary_top: f32,
 }
 
+impl From<&Limits> for ScreenRoom {
+    fn from(limits: &Limits) -> Self {
+        let below_primary_top = limits.min().height;
+        Self {
+            above_primary_top: limits.max().height - below_primary_top,
+            below_primary_top,
+        }
+    }
+}
+
 impl ScreenRoom {
     pub(crate) fn limits_within(self, width: f32) -> Limits {
         Limits::new(
             Size::new(0.0, self.below_primary_top),
             Size::new(width, self.above_primary_top + self.below_primary_top),
         )
-    }
-
-    fn from_limits(limits: &Limits) -> Self {
-        let below_primary_top = limits.min().height;
-        Self {
-            above_primary_top: limits.max().height - below_primary_top,
-            below_primary_top,
-        }
     }
 
     fn panel_top_on_screen(self, wanted_top: f32, panel_height: f32) -> f32 {
@@ -325,7 +327,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
         let room = limits.max();
-        let screen_room = ScreenRoom::from_limits(limits);
+        let screen_room = ScreenRoom::from(limits);
         self.row_top = self.placement.row.row_top();
         let content_limits = Limits::new(
             Size::ZERO,

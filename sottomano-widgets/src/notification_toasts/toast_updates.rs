@@ -48,8 +48,8 @@ use super::{
     DEFAULT_ACTION, NotificationLayer, SnoozedOngoingToast, ToastContext,
     toast_card::{self, CardIcons},
     toast_lifecycle::{
-        Countdown, EventSource, ExitPace, Notification, ToastContent, ToastKind, ToastPresence,
-        lifetime,
+        BodyClick, Countdown, EventSource, ExitPace, Notification, ToastContent, ToastKind,
+        ToastPresence, lifetime,
     },
     toast_placement::{ToastWindow, placement_for},
 };
@@ -99,7 +99,14 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
                 Task::none()
             }
             NotificationMessage::Served(data) => self.serve(
-                ToastContent::from_dbus_client(*data, context.clock.wall),
+                ToastContent {
+                    data: *data,
+                    kind: ToastKind::Event {
+                        at: context.clock.wall,
+                        source: EventSource::DbusClient,
+                    },
+                    body_click: BodyClick::DbusDefaultAction,
+                },
                 context,
             ),
             NotificationMessage::BodyClicked(id) => {
@@ -343,7 +350,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
                 escape(failure.reason()),
                 escape(failure.request())
             )),
-            ..NotificationData::from_shell(toast_id, failure.summary())
+            ..NotificationData::shell_notification(toast_id, failure.summary())
         };
         self.serve(
             ToastContent::shell_failure(
@@ -367,7 +374,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
                 "Widgets that read D-Bus stay empty.<pre>{}</pre>",
                 escape(failure.to_string())
             )),
-            ..NotificationData::from_shell(toast_id, "Could not connect to the D-Bus buses")
+            ..NotificationData::shell_notification(toast_id, "Could not connect to the D-Bus buses")
         };
         self.serve(
             ToastContent::shell_failure(
@@ -393,7 +400,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
                 stopped_watch.stale_consequence(),
                 escape(failure.to_string())
             )),
-            ..NotificationData::from_shell(toast_id, "A change watch stopped")
+            ..NotificationData::shell_notification(toast_id, "A change watch stopped")
         };
         self.serve(
             ToastContent::shell_failure(
@@ -432,7 +439,14 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         let held: Vec<NotificationData> = mem::take(&mut self.held);
         Task::batch(held.into_iter().map(|data| {
             self.serve(
-                ToastContent::from_dbus_client(data, context.clock.wall),
+                ToastContent {
+                    data,
+                    kind: ToastKind::Event {
+                        at: context.clock.wall,
+                        source: EventSource::DbusClient,
+                    },
+                    body_click: BodyClick::DbusDefaultAction,
+                },
                 context,
             )
         }))

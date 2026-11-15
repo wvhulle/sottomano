@@ -14,7 +14,7 @@ pub fn deserialize_usd<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Mon
 }
 
 #[must_use]
-pub fn from_minor_units(
+pub fn minor_units_money(
     minor_units: Decimal,
     currency: &'static iso::Currency,
     exponent: u32,

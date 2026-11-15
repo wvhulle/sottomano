@@ -203,8 +203,8 @@ struct NodeNamesByAddress {
     names: HashMap<IpAddr, String>,
 }
 
-impl NodeNamesByAddress {
-    fn from_status(status: &TailscaleStatusJson) -> Self {
+impl From<&TailscaleStatusJson> for NodeNamesByAddress {
+    fn from(status: &TailscaleStatusJson) -> Self {
         let names = status
             .own_node
             .iter()
@@ -217,7 +217,9 @@ impl NodeNamesByAddress {
             .collect();
         Self { names }
     }
+}
 
+impl NodeNamesByAddress {
     fn source_name(&self, source_address: &FilterAddress) -> String {
         source_address
             .host_address()
@@ -232,8 +234,8 @@ struct DestinationClassifier<'netmap> {
     primary_routes: &'netmap [IpNet],
 }
 
-impl<'netmap> DestinationClassifier<'netmap> {
-    fn from_self_node(self_node: &'netmap SelfNodeJson) -> Self {
+impl<'netmap> From<&'netmap SelfNodeJson> for DestinationClassifier<'netmap> {
+    fn from(self_node: &'netmap SelfNodeJson) -> Self {
         let service_names = self_node
             .cap_map
             .service_hosts
@@ -255,7 +257,9 @@ impl<'netmap> DestinationClassifier<'netmap> {
             primary_routes: &self_node.primary_routes,
         }
     }
+}
 
+impl DestinationClassifier<'_> {
     fn is_own_address(&self, address: &FilterAddress) -> bool {
         address
             .host_address()
@@ -306,15 +310,15 @@ impl TailscaleInboundAccess {
     async fn poll(_key: ()) -> Result<Self, Error> {
         let status_json = shell_command_output::output("tailscale", &["status", "--json"]).await?;
         let netmap_json = shell_command_output::output("tailscale", &["debug", "netmap"]).await?;
-        Self::from_status_and_netmap(&status_json, &netmap_json)
+        Self::parsed_status_netmap(&status_json, &netmap_json)
     }
 
-    fn from_status_and_netmap(status_json: &str, netmap_json: &str) -> Result<Self, Error> {
+    fn parsed_status_netmap(status_json: &str, netmap_json: &str) -> Result<Self, Error> {
         let status: TailscaleStatusJson =
             serde_json::from_str(status_json).map_err(|_| Error::Malformed)?;
         let netmap: NetmapJson = serde_json::from_str(netmap_json).map_err(|_| Error::Malformed)?;
-        let node_names = NodeNamesByAddress::from_status(&status);
-        let classifier = DestinationClassifier::from_self_node(&netmap.self_node);
+        let node_names = NodeNamesByAddress::from(&status);
+        let classifier = DestinationClassifier::from(&netmap.self_node);
         let unique_rules: BTreeSet<InboundAccessRule> = netmap
             .packet_filter_rules
             .iter()
@@ -379,7 +383,7 @@ mod tests {
     }"#;
 
     fn parsed_rules() -> Vec<InboundAccessRule> {
-        TailscaleInboundAccess::from_status_and_netmap(STATUS_FIXTURE, NETMAP_FIXTURE)
+        TailscaleInboundAccess::parsed_status_netmap(STATUS_FIXTURE, NETMAP_FIXTURE)
             .expect("parsed fixture")
             .rules
     }
@@ -495,7 +499,7 @@ mod tests {
 
     #[test]
     fn null_rule_lists_read_as_empty() {
-        let access = TailscaleInboundAccess::from_status_and_netmap(
+        let access = TailscaleInboundAccess::parsed_status_netmap(
             STATUS_FIXTURE,
             r#"{"SelfNode": null, "PacketFilterRules": [{"SrcIPs": null, "DstPorts": null}]}"#,
         )
@@ -506,7 +510,7 @@ mod tests {
     #[test]
     fn a_netmap_without_rules_means_no_inbound_access() {
         let access =
-            TailscaleInboundAccess::from_status_and_netmap(STATUS_FIXTURE, "{}").expect("parsed");
+            TailscaleInboundAccess::parsed_status_netmap(STATUS_FIXTURE, "{}").expect("parsed");
         assert!(access.rules.is_empty());
     }
 }

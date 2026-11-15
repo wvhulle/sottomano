@@ -157,7 +157,7 @@ fn listed_gpus() -> Vec<ListedGpu> {
                 bus: PciBusId(device.pci_dev.clone()),
                 model: GpuModel {
                     vendor: gpu_vendor_of_pci_id(&device.vendor_id)?,
-                    names: GpuNames::from_hardware_database(&device.device),
+                    names: GpuNames::split_database_name(&device.device),
                     driver: device.drv_name.clone(),
                     temperature_limits: GpuTemperatureLimits::default(),
                     power_limit: None,
@@ -421,7 +421,7 @@ mod tests {
     #[test]
     fn splits_chip_from_single_product_name() {
         assert_eq!(
-            GpuNames::from_hardware_database(
+            GpuNames::split_database_name(
                 "GB206GLM [RTX PRO 2000 Blackwell Generation Laptop GPU]"
             ),
             GpuNames::ChipWithProduct {
@@ -434,7 +434,7 @@ mod tests {
     #[test]
     fn keeps_only_chip_when_products_are_alternatives() {
         assert_eq!(
-            GpuNames::from_hardware_database("Arrow Lake-P [Arc Pro 130T/140T]"),
+            GpuNames::split_database_name("Arrow Lake-P [Arc Pro 130T/140T]"),
             GpuNames::Chip("Arrow Lake-P".to_owned())
         );
     }
@@ -442,7 +442,7 @@ mod tests {
     #[test]
     fn unbracketed_name_is_the_chip() {
         assert_eq!(
-            GpuNames::from_hardware_database("Navi 31"),
+            GpuNames::split_database_name("Navi 31"),
             GpuNames::Chip("Navi 31".to_owned())
         );
     }
@@ -450,11 +450,11 @@ mod tests {
     #[test]
     fn preferred_name_is_the_product_when_known() {
         assert_eq!(
-            GpuNames::from_hardware_database("AD102 [GeForce RTX 4090]").preferred_name(),
+            GpuNames::split_database_name("AD102 [GeForce RTX 4090]").preferred_name(),
             "GeForce RTX 4090"
         );
         assert_eq!(
-            GpuNames::from_hardware_database("Navi 31").preferred_name(),
+            GpuNames::split_database_name("Navi 31").preferred_name(),
             "Navi 31"
         );
     }

@@ -16,7 +16,7 @@ pub enum ExpireTimeout {
 
 impl ExpireTimeout {
     #[must_use]
-    pub fn from_millis(requested: i32) -> Self {
+    pub fn client_requested_millis(requested: i32) -> Self {
         match u64::try_from(requested) {
             Ok(0) => Self::Never,
             Ok(millis) => Self::After(Duration::from_millis(millis)),
@@ -93,7 +93,7 @@ pub struct NotificationData {
 }
 
 impl NotificationData {
-    pub fn from_shell(id: u32, summary: impl Into<String>) -> Self {
+    pub fn shell_notification(id: u32, summary: impl Into<String>) -> Self {
         Self {
             id,
             app_name: Some("sottomano".to_owned()),

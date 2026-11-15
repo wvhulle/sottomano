@@ -29,7 +29,7 @@ pub fn chiplet_of(logical_cpu: u32) -> usize {
 }
 
 pub fn dual_chiplet_topology() -> CpuTopology {
-    CpuTopology::from_core_groups(vec![
+    CpuTopology::from(vec![
         chiplet_core_group(CoreRole::StackedCacheCores, STACKED_CACHE_CHIPLET, 96.0),
         chiplet_core_group(CoreRole::HighClockCores, HIGH_CLOCK_CHIPLET, 32.0),
     ])

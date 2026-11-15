@@ -118,7 +118,7 @@ pub(crate) fn scanned_qemu_processes() -> QemuProcessScan {
     }
     QemuProcessScan {
         qemu_processes,
-        process_table: ProcessTable::from_samples(process_samples),
+        process_table: ProcessTable::from_iter(process_samples),
     }
 }
 

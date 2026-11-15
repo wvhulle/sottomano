@@ -39,8 +39,8 @@ use crate::{
         PanelPinDuration, PanelRaise,
     },
     hover_cards::{
-        HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator, PanelPinOrigin,
-        PointerPresence, PressHints, announcing_hoverable,
+        HoverAnnouncement, HoverCardMessage, HoverOrigin, HoverTarget, MenuHandleIndicator,
+        PanelPinOrigin, PointerPresence, PressHints, announcing_hoverable,
         hover_card_body::{Section, hover_card_source_delivery::SectionSource},
     },
     widget_groups::widget_group_identity::{
@@ -609,16 +609,18 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                     }
                     MenuPinState::Unpinned => return None,
                 };
-                let pinned_announcement = HoverAnnouncement::from_group_handle(
-                    group_title.clone(),
-                    PressHints::default(),
-                )
-                .pinned_by(PanelPinOrigin::ItemPinnedFrom {
-                    menu,
-                    group: Box::new(group_identity.clone()),
-                    item_in_group_name,
-                    pin_duration,
-                });
+                let pinned_announcement = HoverAnnouncement {
+                    press_hints: PressHints::default(),
+                    origin: HoverOrigin::GroupHandle {
+                        item_group_name: Box::new(group_title.clone()),
+                        panel_pin: PanelPinOrigin::ItemPinnedFrom {
+                            menu,
+                            group: Box::new(group_identity.clone()),
+                            item_in_group_name,
+                            pin_duration,
+                        },
+                    },
+                };
                 let item = item.acting_as_handle(pinned_announcement);
                 Some(
                     fixed_view(
@@ -731,11 +733,13 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             panel_pin,
             ..
         } = self;
-        let handle_announcement = HoverAnnouncement::from_group_handle(
-            group_title.clone(),
-            PressHints::group_handle(expansion.state, scroll_does),
-        )
-        .pinned_by(panel_pin);
+        let handle_announcement = HoverAnnouncement {
+            press_hints: PressHints::group_handle(expansion.state, scroll_does),
+            origin: HoverOrigin::GroupHandle {
+                item_group_name: Box::new(group_title.clone()),
+                panel_pin,
+            },
+        };
         let face_target = face.hover_target(&group_identity);
         let face = face.into_face_item(
             &group_identity,

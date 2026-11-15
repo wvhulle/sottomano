@@ -45,17 +45,24 @@ pub enum Urgency {
     Critical,
 }
 
-impl Urgency {
-    fn from_code(code: u32) -> Option<Self> {
+#[derive(Debug)]
+pub struct UnknownUrgencyCode(pub u32);
+
+impl TryFrom<u32> for Urgency {
+    type Error = UnknownUrgencyCode;
+
+    fn try_from(code: u32) -> Result<Self, UnknownUrgencyCode> {
         match code {
-            1 => Some(Urgency::Low),
-            2 => Some(Urgency::Medium),
-            3 => Some(Urgency::High),
-            4 => Some(Urgency::Critical),
-            _ => None,
+            1 => Ok(Urgency::Low),
+            2 => Ok(Urgency::Medium),
+            3 => Ok(Urgency::High),
+            4 => Ok(Urgency::Critical),
+            _ => Err(UnknownUrgencyCode(code)),
         }
     }
+}
 
+impl Urgency {
     #[must_use]
     pub fn title(self) -> &'static str {
         match self {
@@ -199,7 +206,13 @@ impl FirmwareUpgrade {
                         .ok()
                 })
                 .and_then(|seconds| DateTime::from_timestamp(seconds, 0)),
-            urgency: prop::<u32>(release, "Urgency").and_then(Urgency::from_code),
+            urgency: prop::<u32>(release, "Urgency").and_then(|code| {
+                Urgency::try_from(code)
+                    .inspect_err(|unknown_code| {
+                        tracing::warn!(?unknown_code, "firmware urgency code not recognised");
+                    })
+                    .ok()
+            }),
             summary: prop(release, "Summary"),
         })
     }

@@ -170,18 +170,31 @@ impl Rain {
                     http_json_client::Error::Status { status: 404, .. } => Error::OutsideRainRadar,
                     other => Error::from(other),
                 })?;
-        Self::from_forecast(nowcast.forecasts.into_iter().map(Downpour::from).collect())
-            .ok_or(Error::Malformed)
+        Self::try_from(
+            nowcast
+                .forecasts
+                .into_iter()
+                .map(Downpour::from)
+                .collect::<Vec<_>>(),
+        )
+        .map_err(|EmptyForecast| Error::Malformed)
     }
+}
 
-    #[must_use]
-    pub fn from_forecast(forecast: Vec<Downpour>) -> Option<Self> {
+#[derive(Debug)]
+pub struct EmptyForecast;
+
+impl TryFrom<Vec<Downpour>> for Rain {
+    type Error = EmptyForecast;
+
+    fn try_from(forecast: Vec<Downpour>) -> Result<Self, EmptyForecast> {
         let peak = forecast
             .iter()
             .max_by(|earlier, later| earlier.intensity.value.total_cmp(&later.intensity.value))
-            .cloned()?;
-        Some(Rain {
-            intensity: forecast.first()?.intensity,
+            .cloned()
+            .ok_or(EmptyForecast)?;
+        Ok(Rain {
+            intensity: forecast.first().ok_or(EmptyForecast)?.intensity,
             peak,
             outlook: RainOutlook::from(forecast.as_slice()),
             forecast,
@@ -234,7 +247,7 @@ mod tests {
 
     #[test]
     fn rain_reads_now_from_the_first_slot_and_peak_from_all() {
-        let rain = Rain::from_forecast(decoded_forecast(&[
+        let rain = Rain::try_from(decoded_forecast(&[
             ("2026-09-27T11:00:00", 0.2),
             ("2026-09-27T11:05:00", 3.0),
             ("2026-09-27T11:10:00", 1.0),
@@ -246,7 +259,7 @@ mod tests {
 
     #[test]
     fn an_empty_forecast_has_no_rain_reading() {
-        assert!(Rain::from_forecast(Vec::new()).is_none());
+        assert!(Rain::try_from(Vec::new()).is_err());
     }
 
     #[test]

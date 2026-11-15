@@ -107,11 +107,6 @@ impl CoreGroup {
 
 impl CpuTopology {
     #[must_use]
-    pub fn from_core_groups(core_groups: Vec<CoreGroup>) -> Self {
-        CpuTopology { core_groups }
-    }
-
-    #[must_use]
     pub fn core_groups(&self) -> &[CoreGroup] {
         &self.core_groups
     }
@@ -123,10 +118,18 @@ impl CpuTopology {
         let cpus: Vec<LogicalCpu> = cpulist(&online)
             .map(|index| LogicalCpu::read(index, &designs))
             .collect();
-        Self::from_logical_cpus(&cpus)
+        Self::from(cpus.as_slice())
     }
+}
 
-    fn from_logical_cpus(cpus: &[LogicalCpu]) -> Self {
+impl From<Vec<CoreGroup>> for CpuTopology {
+    fn from(core_groups: Vec<CoreGroup>) -> Self {
+        CpuTopology { core_groups }
+    }
+}
+
+impl From<&[LogicalCpu]> for CpuTopology {
+    fn from(cpus: &[LogicalCpu]) -> Self {
         let assigned = if design_spread(cpus) == DesignSpread::Mixed {
             roles_by_exposed_design(cpus)
         } else {
@@ -608,12 +611,13 @@ mod tests {
     #[test]
     fn intel_efficient_cores_sharing_the_l3_stay_efficient() {
         let l3 = cache(3, 30.0, 0..=7);
-        let topology = CpuTopology::from_logical_cpus(
-            &[
+        let topology = CpuTopology::from(
+            [
                 cpus(0..=3, &CoreDesign::IntelPerformanceCore, &l3, 5200.0),
                 cpus(4..=7, &CoreDesign::IntelEfficientCore, &l3, 3900.0),
             ]
-            .concat(),
+            .concat()
+            .as_slice(),
         );
         assert_eq!(
             roles(&topology),
@@ -626,8 +630,8 @@ mod tests {
 
     #[test]
     fn intel_efficient_cores_outside_the_l3_form_a_low_power_island() {
-        let topology = CpuTopology::from_logical_cpus(
-            &[
+        let topology = CpuTopology::from(
+            [
                 cpus(
                     0..=3,
                     &CoreDesign::IntelPerformanceCore,
@@ -641,7 +645,8 @@ mod tests {
                     3700.0,
                 ),
             ]
-            .concat(),
+            .concat()
+            .as_slice(),
         );
         assert_eq!(
             roles(&topology),
@@ -654,12 +659,15 @@ mod tests {
 
     #[test]
     fn ryzen_with_one_complex_is_all_cores() {
-        let topology = CpuTopology::from_logical_cpus(&cpus(
-            0..=15,
-            &CoreDesign::NotExposed,
-            &cache(3, 32.0, 0..=15),
-            5400.0,
-        ));
+        let topology = CpuTopology::from(
+            cpus(
+                0..=15,
+                &CoreDesign::NotExposed,
+                &cache(3, 32.0, 0..=15),
+                5400.0,
+            )
+            .as_slice(),
+        );
         assert_eq!(roles(&topology), [(CoreRole::AllCores, (0..=15).collect())]);
     }
 
@@ -667,12 +675,13 @@ mod tests {
     fn ryzen_with_equal_chiplets_splits_into_numbered_complexes() {
         let first_chiplet = cache(3, 32.0, 0..=3);
         let second_chiplet = cache(3, 32.0, 4..=7);
-        let topology = CpuTopology::from_logical_cpus(
-            &[
+        let topology = CpuTopology::from(
+            [
                 cpus(0..=3, &CoreDesign::NotExposed, &first_chiplet, 5700.0),
                 cpus(4..=7, &CoreDesign::NotExposed, &second_chiplet, 5600.0),
             ]
-            .concat(),
+            .concat()
+            .as_slice(),
         );
         assert_eq!(
             roles(&topology),
@@ -685,8 +694,8 @@ mod tests {
 
     #[test]
     fn ryzen_x3d_separates_the_stacked_cache_chiplet_from_the_high_clock_one() {
-        let topology = CpuTopology::from_logical_cpus(
-            &[
+        let topology = CpuTopology::from(
+            [
                 cpus(
                     0..=3,
                     &CoreDesign::NotExposed,
@@ -700,7 +709,8 @@ mod tests {
                     5750.0,
                 ),
             ]
-            .concat(),
+            .concat()
+            .as_slice(),
         );
         assert_eq!(
             roles(&topology),
@@ -713,8 +723,8 @@ mod tests {
 
     #[test]
     fn ryzen_x3d_reporting_equal_peak_clocks_still_has_a_stacked_cache_chiplet() {
-        let topology = CpuTopology::from_logical_cpus(
-            &[
+        let topology = CpuTopology::from(
+            [
                 cpus(
                     0..=3,
                     &CoreDesign::NotExposed,
@@ -728,7 +738,8 @@ mod tests {
                     5760.0,
                 ),
             ]
-            .concat(),
+            .concat()
+            .as_slice(),
         );
         assert_eq!(
             roles(&topology),
@@ -741,8 +752,8 @@ mod tests {
 
     #[test]
     fn ryzen_ai_separates_full_cores_from_compact_ones() {
-        let topology = CpuTopology::from_logical_cpus(
-            &[
+        let topology = CpuTopology::from(
+            [
                 cpus(
                     0..=3,
                     &CoreDesign::NotExposed,
@@ -756,7 +767,8 @@ mod tests {
                     3300.0,
                 ),
             ]
-            .concat(),
+            .concat()
+            .as_slice(),
         );
         assert_eq!(
             roles(&topology),
@@ -770,13 +782,14 @@ mod tests {
     #[test]
     fn favored_cores_of_one_arm_part_stay_one_tier() {
         let l3 = cache(3, 2.0, 0..=3);
-        let topology = CpuTopology::from_logical_cpus(
-            &[
+        let topology = CpuTopology::from(
+            [
                 cpus(0..=0, &arm_part("0xd81", 1005), &l3, 3000.0),
                 cpus(1..=1, &arm_part("0xd81", 1024), &l3, 3100.0),
                 cpus(2..=3, &arm_part("0xd80", 676), &l3, 2000.0),
             ]
-            .concat(),
+            .concat()
+            .as_slice(),
         );
         assert_eq!(
             roles(&topology),
@@ -790,13 +803,14 @@ mod tests {
     #[test]
     fn three_arm_parts_put_the_middle_one_in_mid_capacity() {
         let l3 = cache(3, 2.0, 0..=2);
-        let topology = CpuTopology::from_logical_cpus(
-            &[
+        let topology = CpuTopology::from(
+            [
                 cpus(0..=0, &arm_part("0xd46", 400), &l3, 1800.0),
                 cpus(1..=1, &arm_part("0xd47", 800), &l3, 2400.0),
                 cpus(2..=2, &arm_part("0xd48", 1024), &l3, 3000.0),
             ]
-            .concat(),
+            .concat()
+            .as_slice(),
         );
         assert_eq!(
             roles(&topology),
@@ -812,7 +826,7 @@ mod tests {
     fn one_arm_part_is_all_cores() {
         let l3 = cache(2, 1.0, 0..=1);
         let topology =
-            CpuTopology::from_logical_cpus(&cpus(0..=1, &arm_part("0xd05", 1024), &l3, 1800.0));
+            CpuTopology::from(cpus(0..=1, &arm_part("0xd05", 1024), &l3, 1800.0).as_slice());
         assert_eq!(roles(&topology), [(CoreRole::AllCores, vec![0, 1])]);
     }
 

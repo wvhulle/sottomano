@@ -36,7 +36,7 @@ impl Favicons {
         self.cached.extend(
             raw.into_iter()
                 .filter(|(title, _)| self.titles.binary_search(title).is_ok())
-                .map(|(title, raw)| (title, IconHandle::from_bytes(raw.kind, raw.bytes))),
+                .map(|(title, raw)| (title, IconHandle::from(raw))),
         );
         let rerun = matches!(
             self.lookup,

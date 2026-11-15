@@ -103,7 +103,7 @@ impl BatteryTimeReading {
 
     fn countdown(&self, battery: &Battery, drain: Option<Estimate>) -> Option<Countdown> {
         match battery.status {
-            ChargeStatus::Discharging => Some(Countdown::UntilEmpty(Forecast::from_estimate(
+            ChargeStatus::Discharging => Some(Countdown::UntilEmpty(Forecast::estimated_or(
                 drain,
                 Unforecastable::NoDrainHistory,
             ))),
@@ -122,7 +122,7 @@ impl BatteryTimeReading {
         if curve.history() == CurveHistory::Empty {
             return Forecast::Unavailable(Unforecastable::NoChargeHistory);
         }
-        Forecast::from_estimate(
+        Forecast::estimated_or(
             time_until_full(battery, curve),
             Unforecastable::ChargerNotKeepingUp,
         )

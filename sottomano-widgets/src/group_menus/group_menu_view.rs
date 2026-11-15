@@ -33,8 +33,8 @@ use crate::{
         },
     },
     hover_cards::{
-        HoverAnnouncement, HoverTarget, MenuHandleIndicator, PopupMessage, PressHints,
-        announcing_hoverable,
+        HoverAnnouncement, HoverOrigin, HoverTarget, MenuHandleIndicator, PanelPinOrigin,
+        PopupMessage, PressHints, announcing_hoverable,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
         hover_card_content::HoverCardContent,
         press_toggled_hoverable,
@@ -265,10 +265,13 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         let glyph = IconGlyph::from(self.messenger.topic.glyph())
             .view(config.theme.font.icon_size_px, text_color);
         let target = HoverTarget::GroupMenu(self.messenger.topic);
-        let announcement = HoverAnnouncement::from_group_handle(
-            WidgetGroupTitle::fixed(self.messenger.topic.title()),
-            PressHints::default(),
-        );
+        let announcement = HoverAnnouncement {
+            press_hints: PressHints::default(),
+            origin: HoverOrigin::GroupHandle {
+                item_group_name: Box::new(WidgetGroupTitle::fixed(self.messenger.topic.title())),
+                panel_pin: PanelPinOrigin::Unpinned,
+            },
+        };
         let handle = match self.group_menus.presentation().open_trigger {
             NestedMenuOpenTrigger::Hover => {
                 announcing_hoverable(glyph, target, announcement, GroupEvent::HoverCard)
@@ -778,7 +781,7 @@ mod tests {
 
     #[test]
     fn an_announcement_only_card_is_shown_in_a_menu() {
-        let announced = HoverAnnouncement::from_reading(PressHints {
+        let announced = HoverAnnouncement::from(PressHints {
             left: Some("switch something"),
             ..PressHints::default()
         });

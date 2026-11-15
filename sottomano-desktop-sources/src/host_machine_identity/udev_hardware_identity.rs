@@ -3,6 +3,7 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     fs,
     path::{Path, PathBuf},
+    str::FromStr,
 };
 
 use bytesize::ByteSize;
@@ -497,11 +498,13 @@ impl CpuArchitecture {
                     })
                     .ok()
             })
-            .map(|report| Self::from_inxi_report(&report))
+            .map(|report| Self::from(&report))
             .unwrap_or_default()
     }
+}
 
-    fn from_inxi_report(report: &Value) -> Self {
+impl From<&Value> for CpuArchitecture {
+    fn from(report: &Value) -> Self {
         let field = |name| inxi_field(report, name);
         CpuArchitecture {
             microarchitecture: field("arch"),
@@ -540,13 +543,18 @@ pub enum CacheKind {
     Unified,
 }
 
-impl CacheKind {
-    fn from_sysfs(kind: &str) -> Option<Self> {
+#[derive(Debug)]
+pub struct UnknownCacheKind;
+
+impl FromStr for CacheKind {
+    type Err = UnknownCacheKind;
+
+    fn from_str(kind: &str) -> Result<Self, UnknownCacheKind> {
         match kind {
-            "Data" => Some(CacheKind::Data),
-            "Instruction" => Some(CacheKind::Instruction),
-            "Unified" => Some(CacheKind::Unified),
-            _ => None,
+            "Data" => Ok(CacheKind::Data),
+            "Instruction" => Ok(CacheKind::Instruction),
+            "Unified" => Ok(CacheKind::Unified),
+            _ => Err(UnknownCacheKind),
         }
     }
 }
@@ -611,7 +619,12 @@ impl CacheInstance {
                         );
                     })
                     .ok()?,
-                kind: CacheKind::from_sysfs(&text("type")?)?,
+                kind: text("type")?
+                    .parse()
+                    .inspect_err(|unknown_kind: &UnknownCacheKind| {
+                        tracing::warn!(?unknown_kind, "cpu cache kind not recognised");
+                    })
+                    .ok()?,
             },
             size: ByteSize::b(
                 number("ways_of_associativity")?
@@ -724,10 +737,12 @@ pub struct MemoryModules(pub Vec<MemorySlotModule>);
 impl MemoryModules {
     #[must_use]
     pub fn current() -> Self {
-        Self::from_properties(&UdevProperties::dmi())
+        Self::from(&UdevProperties::dmi())
     }
+}
 
-    fn from_properties(properties: &UdevProperties) -> Self {
+impl From<&UdevProperties> for MemoryModules {
+    fn from(properties: &UdevProperties) -> Self {
         Self(
             (0..)
                 .map_while(|slot| MemorySlot::read(properties, slot))
@@ -863,7 +878,7 @@ E:MEMORY_ARRAY_LOCATION=System Board Or Motherboard
     fn inxi_report_fields_are_found_by_name() {
         let report = serde_json::from_str(RAPHAEL_INXI_REPORT).unwrap();
         assert_eq!(
-            CpuArchitecture::from_inxi_report(&report),
+            CpuArchitecture::from(&report),
             CpuArchitecture {
                 microarchitecture: Some("Zen 4".to_owned()),
                 process: Some("TSMC n5 (5nm)".to_owned()),
@@ -926,7 +941,7 @@ E:MEMORY_ARRAY_LOCATION=System Board Or Motherboard
 
     #[test]
     fn populated_slots_are_kept_per_locator_and_empty_slots_skipped() {
-        let modules = MemoryModules::from_properties(&UdevProperties::parse(SOLDERED_LPDDR5));
+        let modules = MemoryModules::from(&UdevProperties::parse(SOLDERED_LPDDR5));
         let samsung_lpddr5 = MemorySlotModule {
             locator: "Controller0-ChannelA".to_owned(),
             module: MemoryModule {

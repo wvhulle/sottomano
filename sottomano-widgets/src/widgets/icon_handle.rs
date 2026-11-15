@@ -7,9 +7,19 @@ use iced::{
     widget::{image, svg},
 };
 use sottomano_desktop_sources::desktop_windows_apps::{
-    firefox_favicon_lookup::FaviconKind, icon_whitespace_trim::TrimmedIcon,
+    firefox_favicon_lookup::{FaviconKind, RawFavicon},
+    icon_whitespace_trim::TrimmedIcon,
     status_notifier_tray::IconSource,
 };
+
+impl From<RawFavicon> for IconHandle {
+    fn from(favicon: RawFavicon) -> Self {
+        match favicon.kind {
+            FaviconKind::Raster => Self::Raster(image::Handle::from_bytes(favicon.bytes)),
+            FaviconKind::Svg => Self::Svg(svg::Handle::from_memory(favicon.bytes)),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IconHandle {
@@ -28,14 +38,6 @@ impl IconHandle {
             Self::Svg(svg::Handle::from_path(path))
         } else {
             Self::Raster(image::Handle::from_path(path))
-        }
-    }
-
-    #[must_use]
-    pub fn from_bytes(kind: FaviconKind, bytes: Vec<u8>) -> Self {
-        match kind {
-            FaviconKind::Raster => Self::Raster(image::Handle::from_bytes(bytes)),
-            FaviconKind::Svg => Self::Svg(svg::Handle::from_memory(bytes)),
         }
     }
 

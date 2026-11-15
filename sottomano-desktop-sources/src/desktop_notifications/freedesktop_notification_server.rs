@@ -85,7 +85,7 @@ impl NotificationServer {
             reply: reply_prompt(reply_actions.first(), &hints),
             actions,
             severity: parse_urgency(&hints),
-            expire_timeout: ExpireTimeout::from_millis(expire_timeout),
+            expire_timeout: ExpireTimeout::client_requested_millis(expire_timeout),
             window_id_hint: hint_window_id(&hints, "x-niri-window-id"),
             sender,
             desktop_entry: hint_str(&hints, "desktop-entry"),

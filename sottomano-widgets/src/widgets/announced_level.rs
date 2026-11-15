@@ -46,7 +46,7 @@ impl<Message> LevelReading<Message> {
             severity: Severity::Low,
             sound_hint: SoundHint::Suppressed,
             expire_timeout: ExpireTimeout::After(LEVEL_TOAST_LIFETIME),
-            ..NotificationData::from_shell(toast_id, self.level.summary_text)
+            ..NotificationData::shell_notification(toast_id, self.level.summary_text)
         }
     }
 }

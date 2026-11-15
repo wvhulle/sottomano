@@ -41,7 +41,7 @@ async fn read_launches(connection: &turso::Connection) -> Result<Vec<Launch>, St
             continue;
         };
         launches.push(Launch {
-            workspace: LaunchWorkspace::from_stored_name(columns.text(&row, "workspace")?),
+            workspace: LaunchWorkspace::from(columns.text(&row, "workspace")?),
             app_id: columns.text(&row, "app_id")?,
             launched_at: launched_at.with_timezone(&Utc),
         });

@@ -619,7 +619,7 @@ mod tests {
             title: Some(title.to_owned()),
             ..unplaced_compositor_window(window_id)
         });
-        CompositorWindowState::from_lists([], ghostty_windows)
+        CompositorWindowState::indexed_by_id([], ghostty_windows)
     }
 
     fn pairing() -> Pairing {
