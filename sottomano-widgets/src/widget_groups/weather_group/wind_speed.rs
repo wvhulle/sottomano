@@ -1,12 +1,11 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sources::{SnapshotSource, weather::open_meteo_wind::Wind};
 
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -17,39 +16,42 @@ use crate::{
 
 pub(crate) const WIND_FALLBACK_GLYPH: IconGlyph = IconGlyph::WeatherIcon(WeatherIcon::StrongWind);
 
-impl GroupItemReading for Wind {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub fn wind_reading_row(wind: &Wind) -> ReadingRow<'_> {
+    let state = match wind.beaufort() {
+        0..=6 => ReadingDisplayState::Idle,
+        7..=8 => ReadingDisplayState::Warning,
+        _ => ReadingDisplayState::Critical,
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Labeled(format!(
+                "{} Bft {}",
+                wind.beaufort(),
+                wind.compass_point()
+            )),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        ..ReadingRow::glyph_only(
+            Wind::NAME,
+            WeatherIcon::StrongWind.into(),
+            state,
+            Box::new(move |clock| wind_hover_card(wind, clock)),
+        )
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        WeatherIcon::StrongWind.into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(format!("{} Bft {}", self.beaufort(), self.compass_point()))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.beaufort() {
-            0..=6 => ReadingDisplayState::Idle,
-            7..=8 => ReadingDisplayState::Warning,
-            _ => ReadingDisplayState::Critical,
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Now",
-            dictionary_table([
-                LabeledValue::new("Speed", Quantity::wind_speed(self.speed)),
-                LabeledValue::new("Beaufort", Quantity::count(self.beaufort())),
-                LabeledValue::new("Gusts", Quantity::wind_speed(self.gusts)),
-                LabeledValue::new("From", self.compass_point()),
-                LabeledValue::new("Bearing", Quantity::angle(self.direction)),
-            ]),
-        )]
-    }
+pub fn wind_hover_card(wind: &Wind, _clock: Clock) -> Vec<Section> {
+    vec![Section::new(
+        "Now",
+        dictionary_table([
+            LabeledValue::new("Speed", Quantity::wind_speed(wind.speed)),
+            LabeledValue::new("Beaufort", Quantity::count(wind.beaufort())),
+            LabeledValue::new("Gusts", Quantity::wind_speed(wind.gusts)),
+            LabeledValue::new("From", wind.compass_point()),
+            LabeledValue::new("Bearing", Quantity::angle(wind.direction)),
+        ]),
+    )]
 }
 
 #[cfg(test)]
@@ -70,8 +72,8 @@ mod tests {
             direction: Angle::new::<degree>(225.0),
         };
         assert_eq!(
-            wind.label(Clock::real(), Locale::default()),
-            Some("3 Bft SW".to_owned())
+            wind_reading_row(&wind).readout.label,
+            ReadoutLabel::Labeled("3 Bft SW".to_owned())
         );
     }
 }

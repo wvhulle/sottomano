@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use chrono::Locale;
 use sottomano_desktop_sources::{
     SnapshotSource,
@@ -11,11 +9,11 @@ use uom::si::ratio::percent;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, headed_table},
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -49,46 +47,47 @@ impl IntoTableRecord<3> for StalledTasksRow {
     }
 }
 
-impl GroupItemReading for MemoryStallPressure {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub fn memory_stall_reading_row(pressure: &MemoryStallPressure, locale: Locale) -> ReadingRow<'_> {
+    let state = match pressure.some.last_minute.get::<percent>() {
+        stalled if stalled >= STALL_CRITICAL_PERCENT => Severity::Critical,
+        stalled if stalled >= STALL_WARNING_PERCENT => Severity::Warning,
+        _ => Severity::Normal,
     }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Gauge(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        Some(Quantity::share(self.some.last_minute).localized_text(locale))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.some.last_minute.get::<percent>() {
-            stalled if stalled >= STALL_CRITICAL_PERCENT => Severity::Critical,
-            stalled if stalled >= STALL_WARNING_PERCENT => Severity::Warning,
-            _ => Severity::Normal,
-        }
-        .into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Averages",
-            headed_table(
-                STALL_WINDOW_HEADINGS,
-                [
-                    StalledTasksRow {
-                        stalled_tasks: "Some tasks stalled",
-                        averages: self.some,
-                    },
-                    StalledTasksRow {
-                        stalled_tasks: "All tasks stalled",
-                        averages: self.full,
-                    },
-                ],
+    .into();
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Labeled(
+                Quantity::share(pressure.some.last_minute).localized_text(locale),
             ),
-        )]
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        ..ReadingRow::glyph_only(
+            MemoryStallPressure::NAME,
+            Phosphor::Gauge(Weight::Regular).into(),
+            state,
+            Box::new(move |clock| memory_stall_hover_card(pressure, clock)),
+        )
     }
+}
+
+pub fn memory_stall_hover_card(pressure: &MemoryStallPressure, _clock: Clock) -> Vec<Section> {
+    vec![Section::new(
+        "Averages",
+        headed_table(
+            STALL_WINDOW_HEADINGS,
+            [
+                StalledTasksRow {
+                    stalled_tasks: "Some tasks stalled",
+                    averages: pressure.some,
+                },
+                StalledTasksRow {
+                    stalled_tasks: "All tasks stalled",
+                    averages: pressure.full,
+                },
+            ],
+        ),
+    )]
 }
 
 #[cfg(test)]
@@ -96,7 +95,9 @@ mod tests {
     use uom::si::f64::Ratio;
 
     use super::*;
-    use crate::group_items::{group_item::reading_toast_severity, reading_row::ReadingRow};
+    use crate::group_items::{
+        group_item::reading_toast_severity, reading_display_state::ReadingDisplayState,
+    };
 
     fn stalled_for(last_minute_percent: f64) -> MemoryStallPressure {
         let averages = StallAverages {
@@ -113,15 +114,15 @@ mod tests {
     #[test]
     fn sustained_stalls_set_the_state() {
         assert_eq!(
-            stalled_for(7.0).state(Clock::real()),
+            memory_stall_reading_row(&stalled_for(7.0), Locale::default()).shown_state(),
             ReadingDisplayState::Idle
         );
         assert_eq!(
-            stalled_for(25.0).state(Clock::real()),
+            memory_stall_reading_row(&stalled_for(25.0), Locale::default()).shown_state(),
             ReadingDisplayState::Warning
         );
         assert_eq!(
-            stalled_for(50.0).state(Clock::real()),
+            memory_stall_reading_row(&stalled_for(50.0), Locale::default()).shown_state(),
             ReadingDisplayState::Critical
         );
     }
@@ -129,9 +130,8 @@ mod tests {
     #[test]
     fn pressure_never_raises_a_toast() {
         assert_eq!(
-            reading_toast_severity(&ReadingRow::evaluated(
-                stalled_for(80.0),
-                Clock::real(),
+            reading_toast_severity(&memory_stall_reading_row(
+                &stalled_for(80.0),
                 Locale::default()
             )),
             None

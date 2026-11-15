@@ -1,6 +1,5 @@
 use std::{collections::BTreeMap, mem::take, path::PathBuf};
 
-use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -21,7 +20,6 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        reading_row::{ReadingRow, reading_hover_card},
         unit_switch::{ServiceReadiness, UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -261,25 +259,25 @@ impl ScopedLlamaServers {
                 let Some(rate) = server.and_then(|server| server.generation_rate) else {
                     return Vec::new();
                 };
-                reading.hover_card_with(reading_hover_card(
+                reading.hover_card_with(
                     GenerationRate {
                         rate,
                         server: &readings.server_label,
-                    },
-                    clock,
-                ))
+                    }
+                    .hover_card(clock),
+                )
             }
             LlamaServerReading::Slots => {
                 let Some(server) = server else {
                     return Vec::new();
                 };
-                reading.hover_card_with(reading_hover_card(
+                reading.hover_card_with(
                     SlotOccupancy {
                         slots: &server.slots,
                         server: &readings.server_label,
-                    },
-                    clock,
-                ))
+                    }
+                    .hover_card(clock),
+                )
             }
             LlamaServerReading::ContextFill => {
                 let Some(context_fill) = server.and_then(|server| {
@@ -287,7 +285,7 @@ impl ScopedLlamaServers {
                 }) else {
                     return Vec::new();
                 };
-                reading.hover_card_with(reading_hover_card(context_fill, clock))
+                reading.hover_card_with(context_fill.hover_card(clock))
             }
         }
     }
@@ -295,8 +293,6 @@ impl ScopedLlamaServers {
     pub fn items<'a, M: 'a>(
         &'a self,
         lift: fn(ScopedServersInteraction) -> M,
-        clock: Clock,
-        locale: Locale,
     ) -> impl Iterator<Item = GroupItem<'a, M>> + 'a {
         self.servers.values().flat_map(move |readings| {
             let unit = &readings.discovered.unit.unit_name;
@@ -314,14 +310,11 @@ impl ScopedLlamaServers {
                 running.map(|server| {
                     let resident = server.resident_model();
                     let model_item = GroupItem::reading(
-                        ReadingRow::evaluated(
-                            ServedModel {
-                                resident,
-                                server: server_label,
-                            },
-                            clock,
-                            locale,
-                        ),
+                        ServedModel {
+                            resident,
+                            server: server_label,
+                        }
+                        .reading_row(),
                         target(LlamaServerReading::Model),
                     );
                     match resident {
@@ -331,14 +324,11 @@ impl ScopedLlamaServers {
                 }),
                 busy.and_then(|server| server.generation_rate).map(|rate| {
                     GroupItem::reading(
-                        ReadingRow::evaluated(
-                            GenerationRate {
-                                rate,
-                                server: server_label,
-                            },
-                            clock,
-                            locale,
-                        ),
+                        GenerationRate {
+                            rate,
+                            server: server_label,
+                        }
+                        .reading_row(),
                         target(LlamaServerReading::GenerationRate),
                     )
                 }),
@@ -346,21 +336,18 @@ impl ScopedLlamaServers {
                     .filter(|server| !server.slots.is_empty())
                     .map(|server| {
                         GroupItem::reading(
-                            ReadingRow::evaluated(
-                                SlotOccupancy {
-                                    slots: &server.slots,
-                                    server: server_label,
-                                },
-                                clock,
-                                locale,
-                            ),
+                            SlotOccupancy {
+                                slots: &server.slots,
+                                server: server_label,
+                            }
+                            .reading_row(),
                             target(LlamaServerReading::Slots),
                         )
                     }),
                 busy.and_then(|server| ContextFill::fullest_busy_slot(&server.slots, server_label))
                     .map(|fill| {
                         GroupItem::reading(
-                            ReadingRow::evaluated(fill, clock, locale),
+                            fill.reading_row(),
                             target(LlamaServerReading::ContextFill),
                         )
                     }),

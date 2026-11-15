@@ -3,21 +3,21 @@ use std::convert::identity;
 use iced::{Subscription, Task};
 use sottomano_toml_config::Config;
 
-use crate::{
-    group_items::{
-        group_item_reading::GroupItemReading,
-        reading_row::{ReadingRow, reading_hover_card},
-    },
-    widget_groups::{
-        weather_group::{
-            geolocation_fix::LOCATION_FALLBACK_GLYPH,
-            pollen_count_gauge::POLLEN_FALLBACK_GLYPH,
-            rain_intensity::{PRECIPITATION_MODEL_FALLBACK_GLYPH, RAIN_FALLBACK_GLYPH},
-            temperature_forecast::TEMPERATURE_FALLBACK_GLYPH,
-            wind_speed::WIND_FALLBACK_GLYPH,
+use crate::widget_groups::{
+    weather_group::{
+        geolocation_fix::{LOCATION_FALLBACK_GLYPH, location_hover_card, location_reading_row},
+        pollen_count_gauge::{POLLEN_FALLBACK_GLYPH, allergen_hover_card, allergen_reading_row},
+        rain_intensity::{
+            PRECIPITATION_MODEL_FALLBACK_GLYPH, RAIN_FALLBACK_GLYPH,
+            precipitation_model_hover_card, precipitation_model_reading_row, rain_hover_card,
+            rain_reading_row,
         },
-        widget_group_identity::WidgetGroupFamily,
+        temperature_forecast::{
+            TEMPERATURE_FALLBACK_GLYPH, temperature_hover_card, temperature_reading_row,
+        },
+        wind_speed::{WIND_FALLBACK_GLYPH, wind_hover_card, wind_reading_row},
     },
+    widget_group_identity::WidgetGroupFamily,
 };
 
 mod geolocation_fix;
@@ -192,36 +192,30 @@ impl WeatherGroup {
         match target {
             WeatherTarget::Temperature => self
                 .temperature
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| temperature_hover_card(snapshot, clock)),
             WeatherTarget::Wind => self
                 .wind
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| wind_hover_card(snapshot, clock)),
             WeatherTarget::Rain => self.rain_hover_card(config, clock),
-            WeatherTarget::Pollen => self
-                .pollen
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            WeatherTarget::Pollen => self.pollen.sections_described_by(|_pollen| Vec::new()),
             WeatherTarget::Allergen(allergen) => self
                 .pollen
                 .get()
                 .and_then(|pollen| pollen.concentration(allergen))
                 .map(|concentration| {
                     self.pollen
-                        .hover_card_with(reading_hover_card(concentration, clock))
+                        .hover_card_with(allergen_hover_card(concentration, clock))
                 })
                 .unwrap_or_default(),
             WeatherTarget::Location => self
                 .location
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| location_hover_card(snapshot, clock)),
         }
     }
 
     fn rain_forecast<'a>(&'a self, config: &'a Config) -> Option<RainForecast<'a>> {
-        let visible_radar = self
-            .rain
-            .visible_reading(GroupItemReading::panel_visibility);
-        let visible_model = self
-            .precipitation_model
-            .visible_reading(GroupItemReading::panel_visibility);
+        let visible_radar = self.rain.get();
+        let visible_model = self.precipitation_model.get();
         let sources = match visible_radar {
             Some(radar) => match visible_model {
                 Some(model) => RainSources::RadarAndModel { radar, model },
@@ -239,15 +233,15 @@ impl WeatherGroup {
         let Some(forecast) = self.rain_forecast(config) else {
             let radar_sections = self
                 .rain
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock));
+                .sections_described_by(|snapshot| rain_hover_card(snapshot, clock));
             if radar_sections.is_empty() {
-                return self
-                    .precipitation_model
-                    .sections_described_by(|snapshot| reading_hover_card(snapshot, clock));
+                return self.precipitation_model.sections_described_by(|snapshot| {
+                    precipitation_model_hover_card(snapshot, clock)
+                });
             }
             return radar_sections;
         };
-        let forecast_sections = reading_hover_card(&forecast, clock);
+        let forecast_sections = forecast.hover_card(clock);
         let mut sections = match forecast.sources {
             RainSources::Model(_) => self.precipitation_model.hover_card_with(forecast_sections),
             RainSources::RadarAndModel { .. } | RainSources::Radar(_) => {
@@ -268,21 +262,21 @@ impl WeatherGroup {
         let locale = config.calendar.locale;
         match self.rain_forecast(config) {
             Some(forecast) => Some(GroupItem::reading(
-                ReadingRow::evaluated(forecast, clock, locale),
+                forecast.reading_row(clock, locale),
                 WeatherTarget::Rain,
             )),
             None => self
                 .rain
                 .group_item(
                     RAIN_FALLBACK_GLYPH,
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| rain_reading_row(snapshot, clock, locale),
                     WeatherTarget::Rain,
                     clock,
                 )
                 .or_else(|| {
                     self.precipitation_model.group_item(
                         PRECIPITATION_MODEL_FALLBACK_GLYPH,
-                        |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                        |snapshot| precipitation_model_reading_row(snapshot, clock, locale),
                         WeatherTarget::Rain,
                         clock,
                     )
@@ -295,11 +289,10 @@ impl WeatherGroup {
         config: &'a Config,
         clock: Clock,
     ) -> WidgetGroupContent<'a, WidgetGroupExpansionMessage> {
-        let locale = config.calendar.locale;
         let airborne_items = self.pollen.get().into_iter().flat_map(|pollen| {
             pollen.airborne().map(|concentration| {
                 GroupItem::reading(
-                    ReadingRow::evaluated(concentration, clock, locale),
+                    allergen_reading_row(concentration),
                     WeatherTarget::Allergen(concentration.allergen),
                 )
             })
@@ -311,14 +304,14 @@ impl WeatherGroup {
             [
                 self.temperature.group_item(
                     TEMPERATURE_FALLBACK_GLYPH,
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| temperature_reading_row(snapshot),
                     WeatherTarget::Temperature,
                     clock,
                 ),
                 self.rain_item(config, clock),
                 self.wind.group_item(
                     WIND_FALLBACK_GLYPH,
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| wind_reading_row(snapshot),
                     WeatherTarget::Wind,
                     clock,
                 ),
@@ -336,7 +329,7 @@ impl WeatherGroup {
                     }),
                     self.location.group_item(
                         LOCATION_FALLBACK_GLYPH,
-                        |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                        |snapshot| location_reading_row(snapshot),
                         WeatherTarget::Location,
                         clock,
                     ),

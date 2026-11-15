@@ -1,22 +1,21 @@
-use std::borrow::Cow;
-
 use sottomano_desktop_sources::network_connectivity::{
     modem_manager_mobile::{Mobile, ModemState},
     network_manager_proxies::{LinkPhase, RadioPower},
 };
 use sottomano_toml_config::severity::Severity;
-use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
     group_items::{
-        gauge::percent_fill, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
+        gauge::percent_fill,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+        toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::interface_address_sections::{AddressFamily, signal_level},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -47,17 +46,9 @@ pub fn modem_family_address(modem: &Mobile, family: AddressFamily) -> Option<&st
     }
 }
 
-impl GroupItemReading for ModemSignalReading<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Signal".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Broadcast(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.modem.link_state() {
+impl<'a> ModemSignalReading<'a> {
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        let state = match self.modem.link_state() {
             LinkPhase::Switching => ReadingDisplayState::Pending,
             LinkPhase::Up => self
                 .modem
@@ -65,14 +56,30 @@ impl GroupItemReading for ModemSignalReading<'_> {
                 .map_or(Severity::Normal, signal_level)
                 .into(),
             LinkPhase::Down => ReadingDisplayState::Off,
+        };
+        let gauge = match self.modem.signal {
+            Some(signal) => {
+                let fill = percent_fill(signal);
+                ReadoutGauge::Gauged { fill, live: fill }
+            }
+            None => ReadoutGauge::Ungauged,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Unlabeled,
+                gauge,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Signal",
+                Phosphor::Broadcast(Weight::Regular).into(),
+                state,
+                Box::new(move |clock| self.hover_card(clock)),
+            )
         }
     }
 
-    fn gauge(&self) -> Option<Ratio> {
-        self.modem.signal.map(percent_fill)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let signal_suffix = if self.modem.signal_recent {
             ""
         } else {
@@ -109,7 +116,7 @@ impl GroupItemReading for ModemSignalReading<'_> {
     }
 }
 
-impl ModemConnectionSwitch<'_> {
+impl<'a> ModemConnectionSwitch<'a> {
     #[must_use]
     pub fn press_does(&self) -> &'static str {
         if self.modem.link_state() == LinkPhase::Up {
@@ -118,26 +125,22 @@ impl ModemConnectionSwitch<'_> {
             "connect this modem"
         }
     }
-}
 
-impl GroupItemReading for ModemConnectionSwitch<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Connection".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        if self.modem.link_state() == LinkPhase::Up {
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        let glyph = if self.modem.link_state() == LinkPhase::Up {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {
             Phosphor::ToggleLeft(Weight::Regular).into()
-        }
+        };
+        ReadingRow::glyph_only(
+            "Connection",
+            glyph,
+            ReadingDisplayState::from(self.modem.link_state()),
+            Box::new(move |clock| self.hover_card(clock)),
+        )
     }
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(self.modem.link_state())
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let failure = match self.modem.state {
             Some(ModemState::Failed {
                 reason: Some(reason),
@@ -157,16 +160,17 @@ impl GroupItemReading for ModemConnectionSwitch<'_> {
     }
 }
 
-impl GroupItemReading for ModemDataReading<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Mobile data".into()
+impl<'a> ModemDataReading<'a> {
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        ReadingRow::glyph_only(
+            "Mobile data",
+            Phosphor::ArrowsDownUp(Weight::Regular).into(),
+            ReadingDisplayState::Idle,
+            Box::new(move |clock| self.hover_card(clock)),
+        )
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::ArrowsDownUp(Weight::Regular).into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::new(
             "Transferred",
             dictionary_table(
@@ -193,25 +197,21 @@ impl AllMobileRadiosSwitch {
             RadioPower::Off => "turn all mobile radios on",
         }
     }
-}
 
-impl GroupItemReading for AllMobileRadiosSwitch {
-    fn name(&self) -> Cow<'static, str> {
-        "All mobile radios".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        match self.radio_power {
+    pub fn reading_row(self) -> ReadingRow<'static> {
+        let glyph = match self.radio_power {
             RadioPower::On => Phosphor::CellSignalFull(Weight::Regular).into(),
             RadioPower::Off => Phosphor::CellSignalSlash(Weight::Regular).into(),
-        }
+        };
+        ReadingRow::glyph_only(
+            "All mobile radios",
+            glyph,
+            ReadingDisplayState::from(SwitchPosition::from(self.radio_power)),
+            Box::new(move |clock| self.hover_card(clock)),
+        )
     }
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(SwitchPosition::from(self.radio_power))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::new(
             "Status",
             dictionary_table([LabeledValue::new(

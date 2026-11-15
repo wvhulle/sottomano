@@ -10,6 +10,9 @@ mod gpu_temperature_label;
 use std::collections::BTreeMap;
 
 use gpu_clock_label::GpuClockLabel;
+use gpu_load_gauge::{gpu_load_hover_card, gpu_load_reading_row};
+use gpu_memory_gauge::gpu_memory_reading_row;
+use gpu_power_label::{gpu_power_hover_card, gpu_power_reading_row};
 use gpu_temperature_label::GpuTemperatureLabel;
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
@@ -27,7 +30,6 @@ use crate::{
     group_items::{
         group_item::GroupItem,
         offline_internet_reading::{PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble},
-        reading_row::{ReadingRow, reading_hover_card},
     },
     hover_cards::{
         HoverTarget,
@@ -300,7 +302,7 @@ impl GpuGroup {
     pub fn group_contents(
         &self,
         clock: Clock,
-        locale: Locale,
+        _locale: Locale,
     ) -> impl Iterator<Item = WidgetGroupContent<'_, GpuInteraction>> {
         self.devices
             .iter()
@@ -320,7 +322,7 @@ impl GpuGroup {
                     match &device.access {
                         GpuDeviceAccess::Readable { snapshot, .. } => snapshot.group_item(
                             GPU_SNAPSHOT_FALLBACK_GLYPH,
-                            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                            gpu_load_reading_row,
                             target(GpuReading::Load),
                             clock,
                         ),
@@ -330,28 +332,19 @@ impl GpuGroup {
                         )),
                     },
                     device.clock_label().map(|label| {
-                        GroupItem::reading(
-                            ReadingRow::evaluated(label, clock, locale),
-                            target(GpuReading::Clock),
-                        )
+                        GroupItem::reading(label.reading_row(), target(GpuReading::Clock))
                     }),
                     device.memory().map(|memory| {
                         GroupItem::reading(
-                            ReadingRow::evaluated(memory, clock, locale),
+                            gpu_memory_reading_row(memory),
                             target(GpuReading::Memory),
                         )
                     }),
                     device.temperature_label().map(|label| {
-                        GroupItem::reading(
-                            ReadingRow::evaluated(label, clock, locale),
-                            target(GpuReading::Temperature),
-                        )
+                        GroupItem::reading(label.reading_row(), target(GpuReading::Temperature))
                     }),
                     device.power_label().map(|label| {
-                        GroupItem::reading(
-                            ReadingRow::evaluated(label, clock, locale),
-                            target(GpuReading::Power),
-                        )
+                        GroupItem::reading(gpu_power_reading_row(label), target(GpuReading::Power))
                     }),
                 ];
                 WidgetGroupContent::expandable_instance(
@@ -398,7 +391,7 @@ impl GpuGroup {
         };
         match target.reading {
             GpuReading::Load => snapshot
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock))
+                .sections_described_by(|snapshot| gpu_load_hover_card(snapshot, clock))
                 .into_iter()
                 .chain(model_sections)
                 .collect(),
@@ -406,7 +399,7 @@ impl GpuGroup {
                 let Some(clock_label) = device.clock_label() else {
                     return Vec::new();
                 };
-                let mut sections = snapshot.hover_card_with(reading_hover_card(clock_label, clock));
+                let mut sections = snapshot.hover_card_with(clock_label.hover_card(clock));
                 sections.extend(
                     self.hovered_sections(&target.bus, |group| group.clocks.sections(clock)),
                 );
@@ -425,12 +418,14 @@ impl GpuGroup {
             GpuReading::Temperature => device
                 .temperature_label()
                 .map(|temperature_label| {
-                    snapshot.hover_card_with(reading_hover_card(temperature_label, clock))
+                    snapshot.hover_card_with(temperature_label.hover_card(clock))
                 })
                 .unwrap_or_default(),
             GpuReading::Power => device
                 .power_label()
-                .map(|power_label| snapshot.hover_card_with(reading_hover_card(power_label, clock)))
+                .map(|power_label| {
+                    snapshot.hover_card_with(gpu_power_hover_card(&power_label, clock))
+                })
                 .unwrap_or_default(),
         }
     }

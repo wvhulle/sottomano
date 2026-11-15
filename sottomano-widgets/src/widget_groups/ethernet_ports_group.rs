@@ -329,7 +329,7 @@ impl EthernetPortsGroup {
             .filter(|_| port_state.link_state == LinkPhase::Up)
             .map(|family| {
                 GroupItem::reading(
-                    ReadingRow::evaluated(InterfaceAddressReading { family }, clock, locale),
+                    InterfaceAddressReading { family }.reading_row(),
                     EthernetPortTarget::Addresses {
                         port_name: port_state.name.clone(),
                         family,
@@ -338,7 +338,7 @@ impl EthernetPortsGroup {
             });
         let dns_item = (port_state.link_state == LinkPhase::Up).then(|| {
             GroupItem::reading(
-                ReadingRow::evaluated(InterfaceDnsReading, clock, locale),
+                InterfaceDnsReading::reading_row(),
                 EthernetPortTarget::Dns {
                     port_name: port_state.name.clone(),
                 },

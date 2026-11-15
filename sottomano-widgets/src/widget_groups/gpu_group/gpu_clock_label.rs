@@ -1,6 +1,3 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_readings::{
     GpuClocks, GpuThrottleReason,
 };
@@ -11,10 +8,13 @@ use uom::{
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{ReadingSections, Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -29,20 +29,24 @@ pub struct GpuClockLabel {
     pub current: Frequency,
 }
 
-impl GroupItemReading for GpuClockLabel {
-    fn name(&self) -> Cow<'static, str> {
-        "GPU clock".into()
+impl GpuClockLabel {
+    pub fn reading_row(self) -> ReadingRow<'static> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(megahertz_text(self.current)),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "GPU clock",
+                Phosphor::WaveSine(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |clock| self.hover_card(clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::WaveSine(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(megahertz_text(self.current))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::new(
             "Now",
             dictionary_table([LabeledValue::new(

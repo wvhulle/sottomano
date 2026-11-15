@@ -1,6 +1,3 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sources::{
     login_session_presence::logind_session_facts::SessionIdentity,
     systemd_units_journal::graphical_session_target::GraphicalSession,
@@ -8,7 +5,11 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{ReadingSections, Section, SectionTitle, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
@@ -22,12 +23,8 @@ pub struct CompositorFace<'a> {
     pub identity: &'a SessionIdentity,
 }
 
-impl GroupItemReading for CompositorFace<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Compositor".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
+impl<'a> CompositorFace<'a> {
+    fn glyph(&self) -> IconGlyph {
         let desktop_name = self.identity.desktop.as_deref().unwrap_or_default();
         match desktop_name.to_ascii_lowercase().as_str() {
             "niri" => SimpleIcon::niri.into(),
@@ -40,11 +37,28 @@ impl GroupItemReading for CompositorFace<'_> {
         }
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.identity.desktop.clone()
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        let glyph = self.glyph();
+        let label = match self.identity.desktop.clone() {
+            Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
+            Some(_) | None => ReadoutLabel::Unlabeled,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Compositor",
+                glyph,
+                ReadingDisplayState::Idle,
+                Box::new(move |clock| self.hover_card(clock)),
+            )
+        }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::new(
             SectionTitle::captioned(
                 "Compositor drawing the desktop",

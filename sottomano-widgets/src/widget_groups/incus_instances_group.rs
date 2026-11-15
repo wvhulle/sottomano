@@ -20,8 +20,10 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
+        group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -116,32 +118,34 @@ struct IncusInstanceRow<'a> {
     instance: &'a DaemonInstance,
 }
 
-impl GroupItemReading for IncusInstanceRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        daemon_instance_name(
-            self.instance_daemon,
-            &self.instance.listing.project_name,
-            &self.instance.listing.instance_name,
-        )
-    }
-
-    fn icon(&self) -> IconGlyph {
-        instance_icon(self.instance.listing.kind)
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        if self.instance.listing.run_state == ContainerRunState::Stopped {
-            return Some(self.instance.listing.status_text.to_lowercase());
+impl<'a> IncusInstanceRow<'a> {
+    fn reading_row(self) -> ReadingRow<'a> {
+        let label = if self.instance.listing.run_state == ContainerRunState::Stopped {
+            Some(self.instance.listing.status_text.to_lowercase())
+        } else {
+            self.instance
+                .global_addresses
+                .first()
+                .cloned()
+                .or_else(|| self.instance.memory_in_use.map(approximate_memory_text))
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label: label.map_or(ReadoutLabel::Unlabeled, ReadoutLabel::Labeled),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                daemon_instance_name(
+                    self.instance_daemon,
+                    &self.instance.listing.project_name,
+                    &self.instance.listing.instance_name,
+                ),
+                instance_icon(self.instance.listing.kind),
+                self.instance.listing.run_state.into(),
+                Box::new(move |clock| self.hover_card(clock)),
+            )
         }
-        self.instance
-            .global_addresses
-            .first()
-            .cloned()
-            .or_else(|| self.instance.memory_in_use.map(approximate_memory_text))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.instance.listing.run_state.into()
     }
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
@@ -176,25 +180,25 @@ struct IncusInstanceListingRow<'a> {
     listing: &'a DaemonInstanceListing,
 }
 
-impl GroupItemReading for IncusInstanceListingRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        daemon_instance_name(
-            self.instance_daemon,
-            &self.listing.project_name,
-            &self.listing.instance_name,
-        )
-    }
-
-    fn icon(&self) -> IconGlyph {
-        instance_icon(self.listing.kind)
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.listing.status_text.to_lowercase())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.listing.run_state.into()
+impl<'a> IncusInstanceListingRow<'a> {
+    fn reading_row(self) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(self.listing.status_text.to_lowercase()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                daemon_instance_name(
+                    self.instance_daemon,
+                    &self.listing.project_name,
+                    &self.listing.instance_name,
+                ),
+                instance_icon(self.listing.kind),
+                self.listing.run_state.into(),
+                Box::new(move |clock| self.hover_card(clock)),
+            )
+        }
     }
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
@@ -215,21 +219,21 @@ struct UnreadableDaemonRow<'a> {
     read_failure: &'a EngineReadError,
 }
 
-impl GroupItemReading for UnreadableDaemonRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.instance_daemon.product_name().into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Package(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(engine_failure_label(self.read_failure).to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Failed
+impl<'a> UnreadableDaemonRow<'a> {
+    fn reading_row(self) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(engine_failure_label(self.read_failure).to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                self.instance_daemon.product_name(),
+                Phosphor::Package(Weight::Regular).into(),
+                ReadingDisplayState::Failed,
+                Box::new(move |clock| self.hover_card(clock)),
+            )
+        }
     }
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
@@ -426,20 +430,14 @@ impl IncusInstancesGroup {
         )
     }
 
-    fn probe_delivered_for_any_daemon(&self) -> bool {
-        WATCHED_DAEMONS
-            .into_iter()
-            .any(|instance_daemon| self.probe_availability(instance_daemon).is_some())
-    }
-
     pub fn group_content(
         &self,
-        clock: Clock,
-        locale: Locale,
+        _clock: Clock,
+        _locale: Locale,
     ) -> WidgetGroupContent<'_, IncusInstancesInteraction> {
         let rows = WATCHED_DAEMONS
             .into_iter()
-            .flat_map(|instance_daemon| self.daemon_rows(instance_daemon, clock, locale));
+            .flat_map(|instance_daemon| self.daemon_rows(instance_daemon));
         WidgetGroupContent::expandable(
             WidgetGroupFamily::IncusInstances,
             &self.expansion,
@@ -448,15 +446,19 @@ impl IncusInstancesGroup {
         )
         .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::Package(Weight::Regular).into(),
-            state: self.state(clock),
+            state: if WATCHED_DAEMONS.into_iter().any(|instance_daemon| {
+                self.probe_availability(instance_daemon) == Some(Availability::Available)
+            }) {
+                ReadingDisplayState::On
+            } else {
+                ReadingDisplayState::Off
+            },
         })
     }
 
     fn daemon_rows(
         &self,
         instance_daemon: InstanceDaemon,
-        clock: Clock,
-        locale: Locale,
     ) -> Vec<GroupItem<'_, IncusInstancesInteraction>> {
         if let Some(instances) = self
             .details
@@ -468,14 +470,11 @@ impl IncusInstancesGroup {
                 .iter()
                 .map(|instance| {
                     let row = GroupItem::reading(
-                        ReadingRow::evaluated(
-                            IncusInstanceRow {
-                                instance_daemon,
-                                instance,
-                            },
-                            clock,
-                            locale,
-                        ),
+                        IncusInstanceRow {
+                            instance_daemon,
+                            instance,
+                        }
+                        .reading_row(),
                         IncusInstanceTarget {
                             instance_daemon,
                             instance_name: Cow::Owned(instance.listing.instance_name.clone()),
@@ -490,14 +489,11 @@ impl IncusInstancesGroup {
         };
         if let Some(read_failure) = listing_reading.fetch_failure() {
             return vec![GroupItem::reading(
-                ReadingRow::evaluated(
-                    UnreadableDaemonRow {
-                        instance_daemon,
-                        read_failure,
-                    },
-                    clock,
-                    locale,
-                ),
+                UnreadableDaemonRow {
+                    instance_daemon,
+                    read_failure,
+                }
+                .reading_row(),
                 IncusInstanceTarget {
                     instance_daemon,
                     instance_name: Cow::Borrowed(instance_daemon.product_name()),
@@ -511,14 +507,11 @@ impl IncusInstancesGroup {
             .iter()
             .map(|listing| {
                 let row = GroupItem::reading(
-                    ReadingRow::evaluated(
-                        IncusInstanceListingRow {
-                            instance_daemon,
-                            listing,
-                        },
-                        clock,
-                        locale,
-                    ),
+                    IncusInstanceListingRow {
+                        instance_daemon,
+                        listing,
+                    }
+                    .reading_row(),
                     IncusInstanceTarget {
                         instance_daemon,
                         instance_name: Cow::Owned(listing.instance_name.clone()),
@@ -527,63 +520,5 @@ impl IncusInstancesGroup {
                 instance_power_switch(row, instance_daemon, listing)
             })
             .collect()
-    }
-}
-
-impl GroupItemReading for IncusInstancesGroup {
-    fn name(&self) -> Cow<'static, str> {
-        "Incus instances".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Package(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        let available_daemons: Vec<&'static str> = WATCHED_DAEMONS
-            .into_iter()
-            .filter(|instance_daemon| {
-                self.probe_availability(*instance_daemon) == Some(Availability::Available)
-            })
-            .map(InstanceDaemon::product_name)
-            .collect();
-        if available_daemons.is_empty() {
-            return self
-                .probe_delivered_for_any_daemon()
-                .then_some("no daemon socket".to_owned());
-        }
-        Some(available_daemons.join(", "))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        let any_daemon_available = WATCHED_DAEMONS.into_iter().any(|instance_daemon| {
-            self.probe_availability(instance_daemon) == Some(Availability::Available)
-        });
-        if any_daemon_available {
-            ReadingDisplayState::On
-        } else {
-            ReadingDisplayState::Off
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Daemon sockets",
-            dictionary_table(
-                WATCHED_DAEMONS
-                    .into_iter()
-                    .filter_map(|instance_daemon| {
-                        let availability = self.probe_availability(instance_daemon)?;
-                        Some(LabeledValue::new(
-                            instance_daemon.product_name(),
-                            match availability {
-                                Availability::Available => "socket present",
-                                Availability::Unavailable => "socket missing",
-                            },
-                        ))
-                    })
-                    .collect::<Vec<LabeledValue>>(),
-            ),
-        )]
     }
 }

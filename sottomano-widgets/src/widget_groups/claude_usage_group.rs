@@ -6,10 +6,22 @@ use crate::{
         reading_row::{ReadingRow, reading_hover_card},
     },
     widget_groups::claude_usage_group::{
-        claude_code_billing_block::CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH,
-        claude_code_period_spend::CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH,
-        claude_enterprise_credit_spend::CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH,
-        claude_usage_window_gauge::CLAUDE_USAGE_WINDOWS_FALLBACK_GLYPH,
+        claude_code_billing_block::{
+            CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH, claude_ccusage_block_hover_card,
+            claude_ccusage_block_reading_row,
+        },
+        claude_code_period_spend::{
+            CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH, claude_ccusage_periods_hover_card,
+            claude_ccusage_periods_reading_row,
+        },
+        claude_enterprise_credit_spend::{
+            CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH, claude_enterprise_hover_card,
+            claude_enterprise_reading_row,
+        },
+        claude_usage_window_gauge::{
+            CLAUDE_USAGE_WINDOWS_FALLBACK_GLYPH, claude_usage_windows_hover_card,
+            claude_usage_windows_reading_row,
+        },
     },
 };
 mod claude_code_billing_block;
@@ -264,20 +276,22 @@ impl ClaudeUsageGroup {
         match target {
             ClaudeUsageTarget::UsageWindows => self
                 .usage_windows
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| claude_usage_windows_hover_card(snapshot, clock)),
             ClaudeUsageTarget::EnterpriseSpend => {
-                let mut sections = self
-                    .enterprise_spend
-                    .sections_described_by(|snapshot| reading_hover_card(snapshot, clock));
+                let mut sections = self.enterprise_spend.sections_described_by(|snapshot| {
+                    claude_enterprise_hover_card(snapshot, clock)
+                });
                 sections.extend(self.organization.sections(clock));
                 sections
             }
-            ClaudeUsageTarget::CcusagePeriods => self
-                .ccusage_periods
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            ClaudeUsageTarget::CcusagePeriods => {
+                self.ccusage_periods.sections_described_by(|snapshot| {
+                    claude_ccusage_periods_hover_card(snapshot, clock)
+                })
+            }
             ClaudeUsageTarget::CcusageBlock => self
                 .ccusage_block
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| claude_ccusage_block_hover_card(snapshot, clock)),
             ClaudeUsageTarget::MostUsedModel => {
                 let Some(ranking) = self.model_ranking() else {
                     return Vec::new();
@@ -336,26 +350,26 @@ impl ClaudeUsageGroup {
                 self.usage_windows
                     .group_item(
                         CLAUDE_USAGE_WINDOWS_FALLBACK_GLYPH,
-                        |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                        |snapshot| claude_usage_windows_reading_row(snapshot, clock),
                         ClaudeUsageTarget::UsageWindows,
                         clock,
                     )
                     .map(GroupItem::previewed_on_handle),
                 self.enterprise_spend.group_item(
                     CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH,
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| claude_enterprise_reading_row(snapshot, clock),
                     ClaudeUsageTarget::EnterpriseSpend,
                     clock,
                 ),
                 self.ccusage_periods.group_item(
                     CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH,
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| claude_ccusage_periods_reading_row(snapshot, clock),
                     ClaudeUsageTarget::CcusagePeriods,
                     clock,
                 ),
                 self.ccusage_block.group_item(
                     CLAUDE_CCUSAGE_BLOCK_FALLBACK_GLYPH,
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| claude_ccusage_block_reading_row(snapshot),
                     ClaudeUsageTarget::CcusageBlock,
                     clock,
                 ),

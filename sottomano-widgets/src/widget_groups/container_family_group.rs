@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     fmt::Debug,
     future::{Future, ready},
 };
@@ -13,15 +12,11 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
+        group_item::GroupItem, reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -271,7 +266,10 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
         )
         .face(WidgetGroupFace::Glyph {
             glyph: Family::group_glyph(),
-            state: self.state(clock),
+            state: match self.probe.get() {
+                Some(probe) if Family::running_count(probe) > 0 => ReadingDisplayState::On,
+                Some(_) | None => ReadingDisplayState::Off,
+            },
         })
     }
 }
@@ -301,39 +299,6 @@ fn switchable_item<Family: ContainerFamily>(
         RowPower::Stoppable(request) => {
             item.on_stop_press(Family::STOP_HINT, ContainerFamilyInteraction::Stop(request))
         }
-    }
-}
-
-impl<Family: ContainerFamily> GroupItemReading for ContainerFamilyGroup<Family> {
-    fn name(&self) -> Cow<'static, str> {
-        Family::GROUP_NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Family::group_glyph()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.probe.get().map(Family::group_label)
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.probe.get() {
-            Some(probe) if Family::running_count(probe) > 0 => ReadingDisplayState::On,
-            Some(_) | None => ReadingDisplayState::Off,
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Counts",
-            dictionary_table(
-                self.probe
-                    .get()
-                    .map(Family::group_hover_entries)
-                    .unwrap_or_default(),
-            ),
-        )]
     }
 }
 

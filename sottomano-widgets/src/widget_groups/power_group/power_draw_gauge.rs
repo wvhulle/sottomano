@@ -1,21 +1,17 @@
-use std::borrow::Cow;
-
 use sottomano_desktop_sources::battery_power_profiles::upower_battery_state::{
     Battery, ChargeStatus, ChargerSupply,
 };
-use uom::si::{
-    f64::{Power, Ratio},
-    power::watt,
-};
+use uom::si::{f64::Power, power::watt};
 
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{ReadingSections, Section, SectionTable, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -92,21 +88,14 @@ impl ReadingSections for ChargerSupply {
     }
 }
 
-impl GroupItemReading for PowerDraw {
-    fn name(&self) -> Cow<'static, str> {
-        "Power draw".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        if self.power_source() == PowerSource::Battery {
+impl PowerDraw {
+    pub fn reading_row(self) -> ReadingRow<'static> {
+        let glyph = if self.power_source() == PowerSource::Battery {
             Phosphor::Plugs(Weight::Regular).into()
         } else {
             Phosphor::PlugsConnected(Weight::Regular).into()
-        }
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.status != ChargeStatus::Discharging {
+        };
+        let state = if self.status != ChargeStatus::Discharging {
             ReadingDisplayState::Idle
         } else if self.power > Power::new::<watt>(POWER_CRITICAL_W) {
             ReadingDisplayState::Critical
@@ -114,14 +103,24 @@ impl GroupItemReading for PowerDraw {
             ReadingDisplayState::Warning
         } else {
             ReadingDisplayState::Idle
+        };
+        let fill = self.power / Power::new::<watt>(POWER_GAUGE_MAX_W);
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Unlabeled,
+                gauge: ReadoutGauge::Gauged { fill, live: fill },
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Power draw",
+                glyph,
+                state,
+                Box::new(move |clock| self.hover_card(clock)),
+            )
         }
     }
 
-    fn gauge(&self) -> Option<Ratio> {
-        Some(self.power / Power::new::<watt>(POWER_GAUGE_MAX_W))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         if self.power_source() == PowerSource::Battery {
             self.breakdown_on_battery()
         } else {

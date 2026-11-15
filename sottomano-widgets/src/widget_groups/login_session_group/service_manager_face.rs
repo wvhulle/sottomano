@@ -1,13 +1,10 @@
-use std::borrow::Cow;
-
 use sottomano_desktop_sources::systemd_units_journal::user_service_manager::UserServiceManager;
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{ReadingSections, Section, SectionTitle, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
@@ -17,16 +14,17 @@ use crate::{
 
 pub struct ServiceManagerFace;
 
-impl GroupItemReading for ServiceManagerFace {
-    fn name(&self) -> Cow<'static, str> {
-        "Service manager".into()
+impl ServiceManagerFace {
+    pub fn reading_row() -> ReadingRow<'static> {
+        ReadingRow::glyph_only(
+            "Service manager",
+            Phosphor::GearSix(Weight::Regular).into(),
+            ReadingDisplayState::Idle,
+            Box::new(Self::hover_card),
+        )
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::GearSix(Weight::Regular).into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(_clock: Clock) -> Vec<Section> {
         vec![Section::new(
             SectionTitle::captioned(
                 "Per-user service manager",

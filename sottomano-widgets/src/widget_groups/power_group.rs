@@ -1,9 +1,5 @@
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
-        reading_row::{ReadingRow, reading_hover_card},
-    },
-    widgets::icon_glyph::IconGlyph,
+    group_items::reading_display_state::ReadingDisplayState, widgets::icon_glyph::IconGlyph,
 };
 mod battery_charge_gauge;
 mod battery_time_reading;
@@ -15,6 +11,7 @@ mod profile_status_sections;
 mod sqlite_charge_power_curve;
 mod sqlite_power_draw_regression;
 
+use battery_charge_gauge::{battery_hover_card, battery_reading_row};
 use battery_time_reading::{BatteryTime, BatteryTimeReading, CurveLoaded};
 use iced::{Subscription, Task};
 use power_draw_gauge::PowerDraw;
@@ -213,7 +210,7 @@ impl PowerGroup {
             PowerTarget::Battery => {
                 let mut sections = self
                     .battery
-                    .sections_described_by(|snapshot| reading_hover_card(snapshot, clock));
+                    .sections_described_by(|snapshot| battery_hover_card(snapshot, clock));
                 sections.extend(
                     self.battery
                         .sections_described_by(|battery| vec![Section::from(battery)]),
@@ -224,9 +221,7 @@ impl PowerGroup {
                 let Some(draw) = self.draw() else {
                     return Vec::new();
                 };
-                let mut sections = self
-                    .battery
-                    .hover_card_with(reading_hover_card(&draw, clock));
+                let mut sections = self.battery.hover_card_with(draw.hover_card(clock));
                 if draw.power_source() != PowerSource::Battery {
                     sections.extend(self.charger.sections(clock));
                 }
@@ -236,8 +231,7 @@ impl PowerGroup {
                 let Some(battery_time) = self.time.as_ref() else {
                     return Vec::new();
                 };
-                self.battery
-                    .hover_card_with(reading_hover_card(battery_time, clock))
+                self.battery.hover_card_with(battery_time.hover_card(clock))
             }
             PowerTarget::Profile => {
                 let mut sections = self.power_profile.hover_card(clock);
@@ -271,23 +265,16 @@ impl PowerGroup {
                 self.battery
                     .group_item(
                         IconGlyph::default(),
-                        |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                        battery_reading_row,
                         PowerTarget::Battery,
                         clock,
                     )
                     .map(GroupItem::previewed_on_handle),
-                self.draw().map(|draw| {
-                    GroupItem::reading(
-                        ReadingRow::evaluated(draw, clock, locale),
-                        PowerTarget::Draw,
-                    )
-                }),
+                self.draw()
+                    .map(|draw| GroupItem::reading(draw.reading_row(), PowerTarget::Draw)),
                 self.time.as_ref().map(|time| {
-                    GroupItem::reading(
-                        ReadingRow::evaluated(time, clock, locale),
-                        PowerTarget::BatteryTime,
-                    )
-                    .ongoing_toast_action_buttons(switch_to_saving_profiles)
+                    GroupItem::reading(time.reading_row(locale), PowerTarget::BatteryTime)
+                        .ongoing_toast_action_buttons(switch_to_saving_profiles)
                 }),
                 self.power_profile.slider().map(|slider| {
                     GroupItem::slider(slider, config, |control_message| {

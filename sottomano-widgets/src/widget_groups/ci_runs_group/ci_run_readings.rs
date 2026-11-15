@@ -1,4 +1,4 @@
-use std::{borrow::Cow, time::Duration};
+use std::time::Duration;
 
 use chrono::{DateTime, Locale, Utc};
 use sottomano_desktop_sources::{
@@ -11,7 +11,9 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widget_groups::process_usage_cells::{approximate_memory_text, cpu_share_quantity},
@@ -91,32 +93,30 @@ pub(super) struct CiRunnerFailureRow<'a> {
     pub watched: WatchedCiRunner<'a>,
 }
 
-impl GroupItemReading for CiRunnerFailureRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.watched.runner_label.to_owned().into()
+impl<'a> CiRunnerFailureRow<'a> {
+    pub(super) fn reading_row(self) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(self.watched.status_text()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                self.watched.runner_label.to_owned(),
+                self.watched.kind.runner_icon(),
+                ReadingDisplayState::Failed,
+                Box::new(move |clock| self.hover_card(clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        self.watched.kind.runner_icon()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.watched.status_text())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Failed
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         self.watched
             .failure_section()
             .into_iter()
             .collect::<Vec<_>>()
     }
-}
 
-impl<'a> CiRunnerFailureRow<'a> {
     pub(super) fn failing_runner(watched: WatchedCiRunner<'a>) -> Option<Self> {
         match watched.runner.access {
             RunnerAccess::Complete => None,
@@ -169,24 +169,24 @@ pub(super) struct CiTaskRow<'a> {
     pub task: &'a CiTask,
 }
 
-impl GroupItemReading for CiTaskRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        task_row_name(self.task).into()
+impl<'a> CiTaskRow<'a> {
+    pub(super) fn reading_row(self, clock: Clock, locale: Locale) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(duration_text(elapsed_of(self.task, clock), locale)),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                task_row_name(self.task),
+                self.kind.runner_icon(),
+                ReadingDisplayState::Live,
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        self.kind.runner_icon()
-    }
-
-    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
-        Some(duration_text(elapsed_of(self.task, clock), locale))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Live
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let joined_or_none = |values: &[String]| {
             if values.is_empty() {
                 ValueCell::Hint("no container right now".to_owned())

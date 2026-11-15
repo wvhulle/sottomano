@@ -1,16 +1,16 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sources::login_session_presence::logind_session_facts::{
     SessionIdentity, SessionInfo,
 };
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{ReadingSections, Section, SectionTitle, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
@@ -22,20 +22,30 @@ pub struct LoginFace<'a> {
     pub identity: &'a SessionIdentity,
 }
 
-impl GroupItemReading for LoginFace<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Login".into()
+impl<'a> LoginFace<'a> {
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        let label_text = self.identity.login_manager.clone();
+        let label = if label_text.is_empty() {
+            ReadoutLabel::Unlabeled
+        } else {
+            ReadoutLabel::Labeled(label_text)
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Login",
+                Phosphor::SignIn(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |clock| self.hover_card(clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::SignIn(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.identity.login_manager.clone())
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::new(
             SectionTitle::captioned(
                 "Login manager that let you in",

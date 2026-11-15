@@ -1,8 +1,5 @@
-use std::borrow::Cow;
-
-use sottomano_desktop_sources::{
-    SnapshotSource,
-    media_playback_audio::pipewire_audio::{AudioState, ChannelLevels, MuteState, OutputKind},
+use sottomano_desktop_sources::media_playback_audio::pipewire_audio::{
+    AudioState, ChannelLevels, MuteState, OutputKind,
 };
 
 use super::ControlKind;
@@ -10,12 +7,10 @@ use crate::{
     clock::Clock,
     group_items::{
         gauge::percent_fill,
-        group_item_reading::GroupItemReading,
         slider_control::{ControlMessage, SliderActivity, SliderControl, percent_f},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -38,26 +33,16 @@ pub(super) fn audio_output_icon(state: &AudioState) -> Phosphor {
     }
 }
 
-impl GroupItemReading for AudioState {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        audio_output_icon(self).into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        let sink = self
-            .sink
-            .iter()
-            .flat_map(|sink| device_entries(ControlKind::Sink, sink));
-        let source = self
-            .source
-            .iter()
-            .flat_map(|source| device_entries(ControlKind::Source, source));
-        vec![Section::new("Levels", dictionary_table(sink.chain(source)))]
-    }
+pub fn audio_state_hover_card(state: &AudioState, _clock: Clock) -> Vec<Section> {
+    let sink = state
+        .sink
+        .iter()
+        .flat_map(|sink| device_entries(ControlKind::Sink, sink));
+    let source = state
+        .source
+        .iter()
+        .flat_map(|source| device_entries(ControlKind::Source, source));
+    vec![Section::new("Levels", dictionary_table(sink.chain(source)))]
 }
 
 pub(super) fn device_entries(

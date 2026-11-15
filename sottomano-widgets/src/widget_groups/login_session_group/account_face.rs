@@ -1,14 +1,14 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sources::login_session_presence::logind_session_facts::SessionIdentity;
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -18,20 +18,30 @@ pub struct AccountFace<'a> {
     pub identity: &'a SessionIdentity,
 }
 
-impl GroupItemReading for AccountFace<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Account".into()
+impl<'a> AccountFace<'a> {
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        let label_text = self.identity.user.clone();
+        let label = if label_text.is_empty() {
+            ReadoutLabel::Unlabeled
+        } else {
+            ReadoutLabel::Labeled(label_text)
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Account",
+                Phosphor::User(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |clock| self.hover_card(clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::User(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.identity.user.clone())
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::new(
             SectionTitle::captioned(
                 "Account this session runs as",

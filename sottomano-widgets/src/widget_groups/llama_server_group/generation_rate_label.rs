@@ -1,14 +1,14 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use uom::si::{f64::Frequency, frequency::hertz};
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -20,26 +20,24 @@ pub struct GenerationRate<'a> {
     pub server: &'a str,
 }
 
-impl GenerationRate<'_> {
-    fn text(&self) -> String {
-        format!("{:.0} tok/s", self.rate.get::<hertz>())
-    }
-}
-
-impl GroupItemReading for GenerationRate<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        format!("{} generation rate", self.server).into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Lightning(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.text())
+impl<'a> GenerationRate<'a> {
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(format!("{:.0} tok/s", self.rate.get::<hertz>())),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                format!("{} generation rate", self.server),
+                Phosphor::Lightning(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |clock| self.hover_card(clock)),
+            )
+        }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::new(
             "Throughput",
             dictionary_table([LabeledValue::new(

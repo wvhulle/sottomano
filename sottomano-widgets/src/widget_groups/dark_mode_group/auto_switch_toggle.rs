@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use chrono::{DateTime, Locale, Utc};
 use situo_client::GeoCoordinates;
 use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::{
@@ -9,14 +7,15 @@ use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::dark_mode_group::sqlite_dark_mode_schedule::{
         AutoSwitchArming, DarkModeSchedule,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
@@ -59,8 +58,72 @@ impl AutoSwitchToggle {
         }
     }
 
+    pub fn reading_row(&self, clock: Clock, locale: Locale) -> ReadingRow<'_> {
+        let now = clock.utc();
+        let label = match self.status_at(now) {
+            ScheduleStatus::Following { upcoming, .. } => {
+                ReadoutLabel::Labeled(duration_text(upcoming.switch_time - now, locale))
+            }
+            ScheduleStatus::Disarmed
+            | ScheduleStatus::AwaitingLocationFix
+            | ScheduleStatus::NoSunEvents => ReadoutLabel::Unlabeled,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Dark mode auto-switch",
+                Phosphor::Clock(Weight::Regular).into(),
+                ReadingDisplayState::from(self.saved_schedule.auto_switch_arming),
+                Box::new(move |card_clock| self.schedule_hover_card(card_clock)),
+            )
+        }
+    }
+
     pub fn schedule_hover_card(&self, clock: Clock) -> Vec<Section> {
-        self.hover_card(clock).into_iter().collect()
+        let upcoming = match self.status_at(clock.utc()) {
+            ScheduleStatus::Disarmed => return vec![],
+            ScheduleStatus::AwaitingLocationFix => {
+                return vec![Section::new(
+                    "Next switch",
+                    dictionary_table([LabeledValue::new("Next", "waiting for a location fix")]),
+                )];
+            }
+            ScheduleStatus::NoSunEvents => {
+                return vec![Section::new(
+                    "Next switch",
+                    dictionary_table([LabeledValue::new("Next", "no sunrise or sunset soon")]),
+                )];
+            }
+            ScheduleStatus::Following { upcoming, .. } => upcoming,
+        };
+        let offset = self
+            .saved_schedule
+            .sun_event_offsets
+            .offset_for_mode(upcoming.target_mode);
+        vec![Section::new(
+            "Next switch",
+            dictionary_table([
+                LabeledValue::new(
+                    upcoming.target_mode.sun_event_label().to_owned(),
+                    ValueCell::Time {
+                        at: upcoming.switch_time - offset,
+                        format: LocalizedTimeFormat::TimeOfDay,
+                    },
+                ),
+                LabeledValue::new("Offset".to_owned(), ValueCell::SignedDuration(offset)),
+                LabeledValue::new(
+                    format!("Switch to {}", upcoming.target_mode.umbra_name()),
+                    ValueCell::Time {
+                        at: upcoming.switch_time,
+                        format: LocalizedTimeFormat::TimeOfDay,
+                    },
+                ),
+            ]),
+        )]
     }
 
     pub fn press_does(&self) -> &'static str {
@@ -120,74 +183,5 @@ impl AutoSwitchToggle {
             | ScheduleStatus::AwaitingLocationFix
             | ScheduleStatus::NoSunEvents => SwitchDecision::Hold,
         }
-    }
-}
-
-impl GroupItemReading for AutoSwitchToggle {
-    fn name(&self) -> Cow<'static, str> {
-        "Dark mode auto-switch".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Clock(Weight::Regular).into()
-    }
-
-    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
-        let now = clock.utc();
-        match self.status_at(now) {
-            ScheduleStatus::Following { upcoming, .. } => {
-                Some(duration_text(upcoming.switch_time - now, locale))
-            }
-            ScheduleStatus::Disarmed
-            | ScheduleStatus::AwaitingLocationFix
-            | ScheduleStatus::NoSunEvents => None,
-        }
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(self.saved_schedule.auto_switch_arming)
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
-        let upcoming = match self.status_at(clock.utc()) {
-            ScheduleStatus::Disarmed => return vec![],
-            ScheduleStatus::AwaitingLocationFix => {
-                return vec![Section::new(
-                    "Next switch",
-                    dictionary_table([LabeledValue::new("Next", "waiting for a location fix")]),
-                )];
-            }
-            ScheduleStatus::NoSunEvents => {
-                return vec![Section::new(
-                    "Next switch",
-                    dictionary_table([LabeledValue::new("Next", "no sunrise or sunset soon")]),
-                )];
-            }
-            ScheduleStatus::Following { upcoming, .. } => upcoming,
-        };
-        let offset = self
-            .saved_schedule
-            .sun_event_offsets
-            .offset_for_mode(upcoming.target_mode);
-        vec![Section::new(
-            "Next switch",
-            dictionary_table([
-                LabeledValue::new(
-                    upcoming.target_mode.sun_event_label().to_owned(),
-                    ValueCell::Time {
-                        at: upcoming.switch_time - offset,
-                        format: LocalizedTimeFormat::TimeOfDay,
-                    },
-                ),
-                LabeledValue::new("Offset".to_owned(), ValueCell::SignedDuration(offset)),
-                LabeledValue::new(
-                    format!("Switch to {}", upcoming.target_mode.umbra_name()),
-                    ValueCell::Time {
-                        at: upcoming.switch_time,
-                        format: LocalizedTimeFormat::TimeOfDay,
-                    },
-                ),
-            ]),
-        )]
     }
 }

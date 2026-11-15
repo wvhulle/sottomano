@@ -242,19 +242,16 @@ impl LlamaServerGroup {
 
     pub fn group_content(
         &self,
-        clock: Clock,
-        locale: Locale,
+        _clock: Clock,
+        _locale: Locale,
     ) -> WidgetGroupContent<'_, LlamaServerInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::LlamaServer,
             &self.expansion,
             LlamaServerInteraction::Expansion,
             self.user
-                .items(LlamaServerInteraction::User, clock, locale)
-                .chain(
-                    self.system
-                        .items(LlamaServerInteraction::System, clock, locale),
-                ),
+                .items(LlamaServerInteraction::User)
+                .chain(self.system.items(LlamaServerInteraction::System)),
         )
         .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::Robot(Weight::Regular).into(),

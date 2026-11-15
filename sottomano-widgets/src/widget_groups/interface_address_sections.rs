@@ -1,4 +1,4 @@
-use std::{borrow::Cow, net::IpAddr};
+use std::net::IpAddr;
 
 use sottomano_desktop_sources::network_connectivity::{
     icmp_gateway_latency::GatewayLatencies, network_manager_proxies::AddressBlock,
@@ -8,12 +8,10 @@ use sottomano_toml_config::severity::Severity;
 use uom::si::f64::InformationRate;
 
 use crate::{
-    clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widget_groups::echo_probe_window_rows::probe_window_section,
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -49,36 +47,31 @@ pub struct InterfaceAddressReading {
     pub family: AddressFamily,
 }
 
-impl GroupItemReading for InterfaceAddressReading {
-    fn name(&self) -> Cow<'static, str> {
-        self.family.title().into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        match self.family {
+impl InterfaceAddressReading {
+    pub fn reading_row(self) -> ReadingRow<'static> {
+        let glyph = match self.family {
             AddressFamily::Ipv4 => Phosphor::NumberCircleFour(Weight::Regular).into(),
             AddressFamily::Ipv6 => Phosphor::NumberCircleSix(Weight::Regular).into(),
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![]
+        };
+        ReadingRow::glyph_only(
+            self.family.title(),
+            glyph,
+            ReadingDisplayState::Idle,
+            Box::new(|_| Vec::new()),
+        )
     }
 }
 
 pub struct InterfaceDnsReading;
 
-impl GroupItemReading for InterfaceDnsReading {
-    fn name(&self) -> Cow<'static, str> {
-        "DNS".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::AddressBook(Weight::Regular).into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![]
+impl InterfaceDnsReading {
+    pub fn reading_row() -> ReadingRow<'static> {
+        ReadingRow::glyph_only(
+            "DNS",
+            Phosphor::AddressBook(Weight::Regular).into(),
+            ReadingDisplayState::Idle,
+            Box::new(|_| Vec::new()),
+        )
     }
 }
 

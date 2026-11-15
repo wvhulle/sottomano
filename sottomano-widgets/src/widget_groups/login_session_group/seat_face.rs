@@ -1,13 +1,14 @@
-use std::{borrow::Cow, num::NonZeroU32};
-
-use chrono::Locale;
+use std::num::NonZeroU32;
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
@@ -19,23 +20,32 @@ pub struct SeatFace<'a> {
     pub virtual_terminal: Option<NonZeroU32>,
 }
 
-impl GroupItemReading for SeatFace<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Seat".into()
+impl<'a> SeatFace<'a> {
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        let label_text = self
+            .virtual_terminal
+            .map_or_else(|| self.seat.to_owned(), |vt| format!("tty{vt}"));
+        let label = if label_text.is_empty() {
+            ReadoutLabel::Unlabeled
+        } else {
+            ReadoutLabel::Labeled(label_text)
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Seat",
+                Phosphor::Keyboard(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |clock| self.hover_card(clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Keyboard(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(
-            self.virtual_terminal
-                .map_or_else(|| self.seat.to_owned(), |vt| format!("tty{vt}")),
-        )
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let seat = Section::new(
             SectionTitle::captioned(
                 "Hardware seat in use",

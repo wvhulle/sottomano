@@ -1,6 +1,3 @@
-use std::borrow::Cow;
-
-use chrono::{DateTime, Locale, Utc};
 use sottomano_desktop_sources::{
     SnapshotSource,
     ai_usage_spend::{
@@ -8,19 +5,19 @@ use sottomano_desktop_sources::{
         usage_quota::Quota,
     },
 };
-use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-        reading_row::PanelVisibility,
+        reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{ReadingSections, Section, dictionary_table},
     widgets::{
         amount_text::spend_text,
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
+        ongoing_toast::ReadingAlerts,
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
         value_cells::LabeledValue,
@@ -30,66 +27,73 @@ use crate::{
 pub(crate) const CLAUDE_ENTERPRISE_SPEND_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Buildings(Weight::Regular));
 
-impl GroupItemReading for ClaudeEnterpriseSpend {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub fn claude_enterprise_reading_row(
+    spend: &ClaudeEnterpriseSpend,
+    clock: Clock,
+) -> ReadingRow<'_> {
+    let quota_windows = spend.quotas(clock.utc());
+    let state = Quota::worst_severity(&quota_windows)
+        .unwrap_or_else(|| level_from_used(spend.used_share))
+        .into();
+    let gauge = match &spend.limit {
+        Some(_) => ReadoutGauge::Gauged {
+            fill: spend.used_share,
+            live: spend.used_share,
+        },
+        None => ReadoutGauge::Ungauged,
+    };
+    let panel_visibility = if spend.used.is_positive() || spend.limit.is_some() {
+        PanelVisibility::Shown
+    } else {
+        PanelVisibility::Hidden
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Labeled(format!("{} month", spend_text(&spend.used))),
+            gauge,
+            badge: ReadoutBadge::Unbadged,
+        },
+        alerts: ReadingAlerts {
+            quota_windows,
+            ..ReadingAlerts::default()
+        },
+        panel_visibility,
+        ..ReadingRow::glyph_only(
+            ClaudeEnterpriseSpend::NAME,
+            Phosphor::Buildings(Weight::Regular).into(),
+            state,
+            Box::new(move |card_clock| claude_enterprise_hover_card(spend, card_clock)),
+        )
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Buildings(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(format!("{} month", spend_text(&self.used)))
-    }
-
-    fn state(&self, clock: Clock) -> ReadingDisplayState {
-        Quota::worst_severity(&self.quotas(clock.utc()))
-            .unwrap_or_else(|| level_from_used(self.used_share))
-            .into()
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        self.limit.as_ref().map(|_| self.used_share)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        let (status, reason) = match &self.status {
-            ExtraStatus::Enabled => ("enabled", None),
-            ExtraStatus::Disabled { reason } => ("disabled", reason.as_deref()),
-        };
-        let limit_entries = self.limit.iter().flat_map(|limit| {
-            [
-                LabeledValue::new("Monthly Limit", Quantity::spend(*limit)),
-                LabeledValue::new("Percent Used", Quantity::share(self.used_share).decimals(2)),
-            ]
-        });
-        vec![Section::new(
-            "Usage Credits",
-            dictionary_table(
-                [LabeledValue::new("Status", status)]
-                    .into_iter()
-                    .chain(reason.map(|reason| LabeledValue::new("Reason", reason)))
-                    .chain([LabeledValue::new(
-                        "Used This Month",
-                        Quantity::spend(self.used),
-                    )])
-                    .chain(limit_entries),
+pub fn claude_enterprise_hover_card(spend: &ClaudeEnterpriseSpend, _clock: Clock) -> Vec<Section> {
+    let (status, reason) = match &spend.status {
+        ExtraStatus::Enabled => ("enabled", None),
+        ExtraStatus::Disabled { reason } => ("disabled", reason.as_deref()),
+    };
+    let limit_entries = spend.limit.iter().flat_map(|limit| {
+        [
+            LabeledValue::new("Monthly Limit", Quantity::spend(*limit)),
+            LabeledValue::new(
+                "Percent Used",
+                Quantity::share(spend.used_share).decimals(2),
             ),
-        )]
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        if self.used.is_positive() || self.limit.is_some() {
-            PanelVisibility::Shown
-        } else {
-            PanelVisibility::Hidden
-        }
-    }
-
-    fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {
-        self.quotas(now)
-    }
+        ]
+    });
+    vec![Section::new(
+        "Usage Credits",
+        dictionary_table(
+            [LabeledValue::new("Status", status)]
+                .into_iter()
+                .chain(reason.map(|reason| LabeledValue::new("Reason", reason)))
+                .chain([LabeledValue::new(
+                    "Used This Month",
+                    Quantity::spend(spend.used),
+                )])
+                .chain(limit_entries),
+        ),
+    )]
 }
 
 impl ReadingSections for ClaudeOrganization {

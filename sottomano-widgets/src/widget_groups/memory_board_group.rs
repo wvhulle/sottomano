@@ -28,16 +28,17 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::{Config, widget_groups::memory_growth_trend::MemoryGrowthTrendConfig};
 
 use self::{
+    growth_trend_label::{memory_growth_hover_card, memory_growth_reading_row},
     memory_slot_reading::MemorySlotReading,
+    memory_usage_gauge::{memory_hover_card, memory_reading_row},
     module_temperature_reading::MemoryModuleTemperatureReading,
+    stall_pressure_label::{memory_stall_hover_card, memory_stall_reading_row},
+    swap_activity_gauge::{swap_activity_hover_card, swap_activity_reading_row},
 };
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem,
-        reading_row::{ReadingRow, reading_hover_card},
-    },
+    group_items::group_item::GroupItem,
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
@@ -184,18 +185,15 @@ impl MemoryBoardGroup {
                 .enumerate()
                 .map(|(slot_index, slot_module)| {
                     GroupItem::reading(
-                        ReadingRow::evaluated(
-                            MemorySlotReading {
-                                slot_module: slot_module.clone(),
-                                machine: if slot_index == 0 {
-                                    machine.clone()
-                                } else {
-                                    MachineInfo::default()
-                                },
+                        MemorySlotReading {
+                            slot_module: slot_module.clone(),
+                            machine: if slot_index == 0 {
+                                machine.clone()
+                            } else {
+                                MachineInfo::default()
                             },
-                            clock,
-                            locale,
-                        ),
+                        }
+                        .reading_row(locale),
                         MemoryBoardTarget::Slot(slot_module.locator.clone()),
                     )
                 })
@@ -207,14 +205,11 @@ impl MemoryBoardGroup {
                 .flat_map(|temperatures| {
                     temperatures.modules.iter().map(|module| {
                         GroupItem::reading(
-                            ReadingRow::evaluated(
-                                MemoryModuleTemperatureReading {
-                                    bus_address: module.bus_address.clone(),
-                                    temperature: module.temperature,
-                                },
-                                clock,
-                                locale,
-                            ),
+                            MemoryModuleTemperatureReading {
+                                bus_address: module.bus_address.clone(),
+                                temperature: module.temperature,
+                            }
+                            .reading_row(),
                             MemoryBoardTarget::TemperatureSensor(module.bus_address.clone()),
                         )
                     })
@@ -226,25 +221,25 @@ impl MemoryBoardGroup {
             [
                 self.memory.group_item(
                     IconGlyph::default(),
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| memory_reading_row(snapshot, locale),
                     MemoryBoardTarget::Memory,
                     clock,
                 ),
                 self.memory_growth.group_item(
                     IconGlyph::default(),
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| memory_growth_reading_row(snapshot, locale),
                     MemoryBoardTarget::Growth,
                     clock,
                 ),
                 self.stall_pressure.group_item(
                     IconGlyph::default(),
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| memory_stall_reading_row(snapshot, locale),
                     MemoryBoardTarget::Pressure,
                     clock,
                 ),
                 self.swap_activity.group_item(
                     IconGlyph::default(),
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| swap_activity_reading_row(snapshot, locale),
                     MemoryBoardTarget::Swap,
                     clock,
                 ),
@@ -292,20 +287,20 @@ impl MemoryBoardGroup {
             MemoryBoardTarget::Memory => {
                 let mut sections = self
                     .memory
-                    .sections_described_by(|snapshot| reading_hover_card(snapshot, clock));
+                    .sections_described_by(|snapshot| memory_hover_card(snapshot, clock));
                 sections.extend(self.memory_processes.sections(clock));
                 sections
             }
             MemoryBoardTarget::Growth => self
                 .memory_growth
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| memory_growth_hover_card(snapshot, clock)),
             MemoryBoardTarget::Pressure => self
                 .stall_pressure
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| memory_stall_hover_card(snapshot, clock)),
             MemoryBoardTarget::Swap => {
                 let mut sections = self
                     .swap_activity
-                    .sections_described_by(|snapshot| reading_hover_card(snapshot, clock));
+                    .sections_described_by(|snapshot| swap_activity_hover_card(snapshot, clock));
                 sections.extend(self.swapped_processes.sections(clock));
                 sections
             }
@@ -330,8 +325,7 @@ impl MemoryBoardGroup {
                     slot_module: slot_module.clone(),
                     machine,
                 };
-                self.hardware
-                    .hover_card_with(reading_hover_card(reading, clock))
+                self.hardware.hover_card_with(reading.hover_card(clock))
             }
             MemoryBoardTarget::TemperatureSensor(bus_address) => {
                 let Some(module) = self.module_temperatures.get().and_then(|temperatures| {
@@ -347,7 +341,7 @@ impl MemoryBoardGroup {
                     temperature: module.temperature,
                 };
                 self.module_temperatures
-                    .hover_card_with(reading_hover_card(reading, clock))
+                    .hover_card_with(reading.hover_card(clock))
             }
         }
     }

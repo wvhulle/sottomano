@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use chrono::Locale;
 use sottomano_desktop_sources::{
     host_machine_identity::{
@@ -10,10 +8,13 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
@@ -96,20 +97,26 @@ impl From<&MemorySlotModule> for Section {
     }
 }
 
-impl GroupItemReading for MemorySlotReading {
-    fn name(&self) -> Cow<'static, str> {
-        self.slot_module.locator.clone().into()
+impl MemorySlotReading {
+    pub fn reading_row(self, locale: Locale) -> ReadingRow<'static> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(
+                    Quantity::size(self.slot_module.module.size).localized_text(locale),
+                ),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                self.slot_module.locator.clone(),
+                Phosphor::Memory(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |clock| self.hover_card(clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Memory(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        Some(Quantity::size(self.slot_module.module.size).localized_text(locale))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         [Section::from(&self.slot_module)]
             .into_iter()
             .chain(self.board_section())

@@ -1,13 +1,10 @@
-use std::borrow::Cow;
-
 use sottomano_desktop_sources::systemd_units_journal::graphical_session_target::GraphicalSessionTarget;
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{ReadingSections, Section, SectionTitle, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
@@ -16,16 +13,17 @@ use crate::{
 
 pub struct DesktopServicesFace;
 
-impl GroupItemReading for DesktopServicesFace {
-    fn name(&self) -> Cow<'static, str> {
-        "Desktop services".into()
+impl DesktopServicesFace {
+    pub fn reading_row() -> ReadingRow<'static> {
+        ReadingRow::glyph_only(
+            "Desktop services",
+            Phosphor::ListChecks(Weight::Regular).into(),
+            ReadingDisplayState::Idle,
+            Box::new(Self::hover_card),
+        )
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::ListChecks(Weight::Regular).into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(_clock: Clock) -> Vec<Section> {
         vec![Section::new(
             SectionTitle::captioned(
                 "Services that need the desktop",

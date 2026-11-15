@@ -1,9 +1,9 @@
 use crate::{
-    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
-    widgets::icon_glyph::IconGlyph,
+    group_items::reading_display_state::ReadingDisplayState, widgets::icon_glyph::IconGlyph,
 };
 mod backlight_display;
 mod clight_auto_brightness;
+use clight_auto_brightness::auto_brightness_reading_row;
 mod output_details;
 
 use std::{
@@ -263,7 +263,6 @@ impl MonitorGroup {
         config: &'a Config,
         clock: Clock,
     ) -> WidgetGroupContent<'a, MonitorInteraction> {
-        let locale = config.calendar.locale;
         let backlight_items = self.sliders.iter().map(|(serial, slider)| {
             let serial = serial.clone();
             GroupItem::slider(slider, config, move |control_message| {
@@ -279,7 +278,7 @@ impl MonitorGroup {
                 self.clight
                     .group_item(
                         IconGlyph::default(),
-                        |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                        auto_brightness_reading_row,
                         MonitorTarget::ClightAuto,
                         MonitorInteraction::AutoBrightnessPressed,
                         clock,
