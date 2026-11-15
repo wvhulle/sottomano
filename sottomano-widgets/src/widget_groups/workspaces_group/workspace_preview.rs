@@ -14,7 +14,9 @@ use sottomano_toml_config::Config;
 use crate::{
     hover_cards::{
         PopupMessage,
-        hover_card_body::hover_card_figure_payloads::{PreviewTile, WorkspacePreview},
+        hover_card_body::hover_card_figure_payloads::{
+            PreviewTile, TileCaption, TileIcon, WorkspacePreview,
+        },
     },
     widgets::{
         favicon::Favicons,
@@ -87,18 +89,23 @@ impl<'a> WorkspaceSchematic<'a> {
         let width = (tile.tile_size.width * scale).max(side);
         let height = (tile.tile_size.height * scale).max(side);
 
+        let resolved_icon = match &tile.icon {
+            TileIcon::Resolved(icon) => Some(icon),
+            TileIcon::Unresolved => None,
+        };
         let icon = window_icon(
             self.favicons,
-            tile.favicon_key.as_deref(),
-            tile.icon.as_ref(),
+            tile.caption.favicon_key(),
+            resolved_icon,
             side,
             1.0,
         );
-        let label = tile
-            .label
-            .as_ref()
-            .filter(|_| width >= side * TILE_LABEL_WIDTH_RATIO)
-            .map(|label| self.label(label));
+        let label = match &tile.caption {
+            TileCaption::Titled(label) if width >= side * TILE_LABEL_WIDTH_RATIO => {
+                Some(self.label(label))
+            }
+            TileCaption::Titled(_) | TileCaption::Untitled => None,
+        };
         let content = RowWidget::with_children(icon.into_iter().chain(label).collect::<Vec<_>>())
             .spacing(self.config.theme.spacing.item_gap)
             .align_y(Vertical::Top);

@@ -37,11 +37,16 @@ struct HoverArea<'a, M> {
     wrap: Box<dyn Fn(HoverCardMessage) -> M + 'a>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum AnchorReport {
+    Unreported,
+    Reported { anchor: Rectangle, visible: bool },
+}
+
 struct HoverState {
     target: HoverTarget,
     pointer_presence: PointerPresence,
-    reported_anchor: Option<Rectangle>,
-    reported_visible: bool,
+    anchor_report: AnchorReport,
     presence: Arc<()>,
 }
 
@@ -50,8 +55,7 @@ impl From<HoverTarget> for HoverState {
         Self {
             target,
             pointer_presence: PointerPresence::NotPointedAt,
-            reported_anchor: None,
-            reported_visible: false,
+            anchor_report: AnchorReport::Unreported,
             presence: Arc::new(()),
         }
     }
@@ -88,14 +92,13 @@ impl<M> HoverArea<'_, M> {
         let pointed_at = pointer_presence == PointerPresence::PointedAt;
         let reports = self.opening == NestedMenuOpenTrigger::Press
             || pointed_at
-            || state.reported_anchor.is_some();
+            || state.anchor_report != AnchorReport::Unreported;
         let visible = pointed_at || anchor.intersection(viewport).is_some();
-        if !reports || (state.reported_anchor == Some(anchor) && state.reported_visible == visible)
-        {
+        let anchor_report = AnchorReport::Reported { anchor, visible };
+        if !reports || state.anchor_report == anchor_report {
             return None;
         }
-        state.reported_anchor = Some(anchor);
-        state.reported_visible = visible;
+        state.anchor_report = anchor_report;
         Some((self.wrap)(HoverCardMessage::Anchor(AnchorEvent::LaidOut(
             WidgetAnchor {
                 target: self.target.clone(),

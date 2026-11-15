@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, mem::take};
 
 use corredo::{
     popovers::{
@@ -45,12 +45,43 @@ pub struct PendingSwitch {
 }
 
 #[derive(Default)]
+enum DeferredSwitch {
+    #[default]
+    Absent,
+    Pending(PendingSwitch),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HideSchedule {
+    #[default]
+    Unscheduled,
+    DueAt(Instant),
+}
+
+impl HideSchedule {
+    #[must_use]
+    pub fn elapsed_by(self, now: Instant) -> bool {
+        match self {
+            HideSchedule::DueAt(due) => due <= now,
+            HideSchedule::Unscheduled => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum KeyboardGrab {
+    #[default]
+    Released,
+    Held(Id),
+}
+
+#[derive(Default)]
 pub struct HoverCardHost {
     transition: HoverCardTransition,
-    pending_switch: Option<PendingSwitch>,
-    hide_due: Option<Instant>,
+    deferred_switch: DeferredSwitch,
+    hide_schedule: HideSchedule,
     pointer_over_hover_card: bool,
-    keyboard_grab: Option<Id>,
+    keyboard_grab: KeyboardGrab,
     laid_out_anchors: LaidOutAnchors,
     toast_cards_by_output: BTreeMap<String, Vec<Rectangle>>,
 }
@@ -61,8 +92,8 @@ impl HoverCardHost {
             HoverCardMessage::Exit { target } => self.exit(&target, now),
             HoverCardMessage::EnterHoverCard => {
                 self.pointer_over_hover_card = true;
-                self.pending_switch = None;
-                self.hide_due = None;
+                self.deferred_switch = DeferredSwitch::Absent;
+                self.hide_schedule = HideSchedule::Unscheduled;
                 self.transition.cancel_leave();
                 None
             }
@@ -87,8 +118,8 @@ impl HoverCardHost {
     }
 
     #[must_use]
-    pub fn hide_due(&self) -> Option<Instant> {
-        self.hide_due
+    pub fn hide_schedule(&self) -> HideSchedule {
+        self.hide_schedule
     }
 
     pub fn defer_switch(
@@ -104,7 +135,7 @@ impl HoverCardHost {
         let (intent_elapsed, handle) = Task::future(sleep(SWITCH_INTENT))
             .map(|()| HoverCardMessage::SwitchIntentElapsed)
             .abortable();
-        self.pending_switch = Some(PendingSwitch {
+        self.deferred_switch = DeferredSwitch::Pending(PendingSwitch {
             parent: parent.clone(),
             target: target.clone(),
             _intent_timer: handle.abort_on_drop(),
@@ -113,7 +144,9 @@ impl HoverCardHost {
     }
 
     pub fn take_pending_switch(&mut self) -> Option<PendingSwitch> {
-        let pending = self.pending_switch.take()?;
+        let DeferredSwitch::Pending(pending) = take(&mut self.deferred_switch) else {
+            return None;
+        };
         (self
             .laid_out_anchors
             .anchored_widget_liveness(&pending.parent.output, &pending.target)
@@ -215,7 +248,7 @@ impl HoverCardHost {
     }
 
     fn occupy(&mut self, parent: &PanelEdge, target: HoverTarget, retention: CardRetention) {
-        self.pending_switch = None;
+        self.deferred_switch = DeferredSwitch::Absent;
         self.pointer_over_hover_card = false;
         self.transition.cancel_leave();
         if self
@@ -236,11 +269,10 @@ impl HoverCardHost {
         if self.transition.shown_retention() == CardRetention::UntilDismissed {
             return None;
         }
-        if self
-            .pending_switch
-            .take_if(|pending| &pending.target == target)
-            .is_some()
+        if let DeferredSwitch::Pending(pending) = &self.deferred_switch
+            && &pending.target == target
         {
+            self.deferred_switch = DeferredSwitch::Absent;
             return Some(self.leave_after_grace(now));
         }
         if self.pointer_over_hover_card
@@ -258,15 +290,16 @@ impl HoverCardHost {
         self.transition.request_leave();
         let due = now + HIDE_GRACE;
         if self.transition.shown_retention() != CardRetention::UntilDismissed {
-            self.hide_due = Some(due);
+            self.hide_schedule = HideSchedule::DueAt(due);
         }
         due
     }
 
     pub fn leave_elapsed(&mut self, now: Instant, departing: Option<Departed>) {
         if self.transition.leave_intent() == LeaveIntent::Leaving
-            && self.hide_due.take_if(|due| *due <= now).is_some()
+            && self.hide_schedule.elapsed_by(now)
         {
+            self.hide_schedule = HideSchedule::Unscheduled;
             self.pointer_over_hover_card = false;
             self.transition.hide(departing, now);
         }
@@ -317,25 +350,31 @@ impl HoverCardHost {
             .transition
             .current()
             .filter(|current| current.retention == CardRetention::UntilDismissed)
-            .and_then(|current| panel_surfaces.get(&current.placement.output).copied());
+            .and_then(|current| panel_surfaces.get(&current.placement.output).copied())
+            .map_or(KeyboardGrab::Released, KeyboardGrab::Held);
         if wanted_grab == self.keyboard_grab {
             return Task::none();
         }
-        let released = self
-            .keyboard_grab
-            .filter(|surface| panel_surfaces.values().any(|panel| panel == surface))
-            .map(|surface| {
-                Task::done(SurfaceRequest::KeyboardInteractivity {
+        let released = match self.keyboard_grab {
+            KeyboardGrab::Held(surface)
+                if panel_surfaces.values().any(|panel| *panel == surface) =>
+            {
+                Some(Task::done(SurfaceRequest::KeyboardInteractivity {
                     surface,
                     interactivity: KeyboardInteractivity::None,
-                })
-            });
-        let grabbed = wanted_grab.map(|surface| {
-            Task::done(SurfaceRequest::KeyboardInteractivity {
-                surface,
-                interactivity: KeyboardInteractivity::Exclusive,
-            })
-        });
+                }))
+            }
+            KeyboardGrab::Held(_) | KeyboardGrab::Released => None,
+        };
+        let grabbed = match wanted_grab {
+            KeyboardGrab::Held(surface) => {
+                Some(Task::done(SurfaceRequest::KeyboardInteractivity {
+                    surface,
+                    interactivity: KeyboardInteractivity::Exclusive,
+                }))
+            }
+            KeyboardGrab::Released => None,
+        };
         self.keyboard_grab = wanted_grab;
         Task::batch(released.into_iter().chain(grabbed))
     }
@@ -568,7 +607,7 @@ mod tests {
     };
     use sottomano_toml_config::screen_edges::Position;
 
-    use super::{ExpansionState, HIDE_GRACE, HoverCardHost};
+    use super::{ExpansionState, HIDE_GRACE, HideSchedule, HoverCardHost, KeyboardGrab};
     use crate::{
         clock::Clock,
         hover_cards::{
@@ -613,7 +652,7 @@ mod tests {
         let _due = leave_every_way(&mut host, now);
         assert_eq!(host.target(), Some(&workspace_card()));
         assert_eq!(host.shown_retention(), CardRetention::UntilDismissed);
-        assert_eq!(host.hide_due(), None);
+        assert_eq!(host.hide_schedule(), HideSchedule::Unscheduled);
     }
 
     #[test]
@@ -917,10 +956,16 @@ mod tests {
         let panels = panels_on(&["DP-1"]);
         let mut host = host_holding_a_menu_open();
         let _grabbed = host.reconcile_with_panels(&panels, now, fade);
-        assert_eq!(host.keyboard_grab, panels.get("DP-1").copied());
+        assert_eq!(
+            host.keyboard_grab,
+            panels
+                .get("DP-1")
+                .copied()
+                .map_or(KeyboardGrab::Released, KeyboardGrab::Held)
+        );
         host.dismiss(None, now);
         let _released = host.reconcile_with_panels(&panels, now, fade);
-        assert_eq!(host.keyboard_grab, None);
+        assert_eq!(host.keyboard_grab, KeyboardGrab::Released);
     }
 
     #[test]

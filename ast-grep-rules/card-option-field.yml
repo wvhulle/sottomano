@@ -1,0 +1,26 @@
+id: card-option-field
+language: rust
+severity: error
+message: An Option field squeezes two kinds of value into one type.
+note: Use an enum variant per state, a separate constructor, or compute the value before constructing (no-option-fields).
+files:
+  - sottomano-widgets/src/group_items/**/*.rs
+  - sottomano-widgets/src/hover_cards/**/*.rs
+rule:
+  any:
+    - kind: field_declaration
+      has:
+        field: type
+        kind: generic_type
+        regex: '^Option<'
+    - kind: ordered_field_declaration_list
+      has:
+        kind: generic_type
+        regex: '^Option<'
+  not:
+    inside:
+      kind: mod_item
+      has:
+        field: name
+        regex: ^tests$
+      stopBy: end

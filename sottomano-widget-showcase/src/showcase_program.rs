@@ -482,11 +482,7 @@ impl ShowcaseState {
         for pending in due_replies {
             tasks.push(self.route_message(pending.reply));
         }
-        if self
-            .hover_card
-            .hide_due()
-            .is_some_and(|due| due <= clock.instant)
-        {
+        if self.hover_card.hide_schedule().elapsed_by(clock.instant) {
             tasks.push(self.route_message(ShowcaseMessage::HoverCardHideElapsed));
         }
         if self

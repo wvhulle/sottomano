@@ -8,7 +8,7 @@ use crate::{
     desktop_index::DesktopIndex,
     hover_cards::hover_card_body::{
         Section,
-        hover_card_figure_payloads::{PreviewTile, WorkspacePreview},
+        hover_card_figure_payloads::{PreviewTile, TileCaption, TileIcon, WorkspacePreview},
     },
     widgets::window_icon::resolved_window_icon,
 };
@@ -58,9 +58,14 @@ fn scrolling_columns(
 fn preview_tile(icons: &DesktopIndex, window: &workspace_window_snapshot::WinEntry) -> PreviewTile {
     PreviewTile {
         window: window.id,
-        label: window.label.clone(),
-        favicon_key: window.favicon_key().map(str::to_owned),
-        icon: resolved_window_icon(icons, window).cloned(),
+        caption: match &window.label {
+            Some(label) => TileCaption::Titled(label.clone()),
+            None => TileCaption::Untitled,
+        },
+        icon: match resolved_window_icon(icons, window) {
+            Some(icon) => TileIcon::Resolved(icon.clone()),
+            None => TileIcon::Unresolved,
+        },
         tile_size: Size::new(
             window.layout.tile_size.0 as f32,
             window.layout.tile_size.1 as f32,

@@ -44,13 +44,34 @@ pub struct ThreadCell {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PreviewTile {
     pub window: u64,
-    pub label: Option<WindowLabel>,
-    pub favicon_key: Option<String>,
-    pub icon: Option<IconHandle>,
+    pub caption: TileCaption,
+    pub icon: TileIcon,
     pub tile_size: Size,
     pub is_focused: bool,
     pub is_urgent: bool,
     pub is_floating: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TileCaption {
+    Untitled,
+    Titled(WindowLabel),
+}
+
+impl TileCaption {
+    #[must_use]
+    pub fn favicon_key(&self) -> Option<&str> {
+        match self {
+            TileCaption::Titled(label) => label.favicon_key(),
+            TileCaption::Untitled => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TileIcon {
+    Unresolved,
+    Resolved(IconHandle),
 }
 
 #[derive(Debug, Clone, PartialEq)]

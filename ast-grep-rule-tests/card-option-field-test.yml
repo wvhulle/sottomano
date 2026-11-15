@@ -1,0 +1,11 @@
+id: card-option-field
+valid:
+  - "enum AnchorReport { Unreported, Reported { anchor: Rectangle, visible: bool } }"
+  - "enum KeyboardGrab { Released, Held(Id) }"
+  - "fn lookup(key: u8) -> Option<u8> { None }"
+  - "mod tests { struct Fixture { label: Option<String> } }"
+invalid:
+  - "struct HoverArea { reported_anchor: Option<Rectangle> }"
+  - "struct Switch(Option<UnitActivity>);"
+  - "enum Payload { Figure { label: Option<String> } }"
+  - "enum Payload { Figure(Option<String>) }"

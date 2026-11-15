@@ -107,12 +107,18 @@ pub struct UnitSwitch {
     active_state: SubscribedSnapshot<UnitActiveState>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum RecordedActivity {
+    Unrecorded,
+    Recorded(UnitActivity),
+}
+
 #[derive(Debug)]
 pub enum UnitSwitchMessage {
     ActiveState(SnapshotDelivery<UnitActiveState>),
     Requested {
         change: RunChange,
-        before: Option<UnitActivity>,
+        before: RecordedActivity,
         change_outcome: Result<(), UnitChangeFailure>,
     },
 }
@@ -130,6 +136,13 @@ impl UnitSwitch {
     #[must_use]
     pub fn activity(&self) -> Option<UnitActivity> {
         self.active_state.get().map(|state| state.activity)
+    }
+
+    fn recorded_activity(&self) -> RecordedActivity {
+        match self.active_state.get() {
+            Some(state) => RecordedActivity::Recorded(state.activity),
+            None => RecordedActivity::Unrecorded,
+        }
     }
 
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<UnitSwitchMessage> {
@@ -152,7 +165,7 @@ impl UnitSwitch {
                 change_outcome,
             } => {
                 let activity = match change_outcome {
-                    Ok(()) => Some(change.settled_activity()),
+                    Ok(()) => RecordedActivity::Recorded(change.settled_activity()),
                     Err(change_failure) => {
                         tracing::warn!(
                             "systemd: {change:?} {}: {change_failure}",
@@ -161,7 +174,7 @@ impl UnitSwitch {
                         before
                     }
                 };
-                if let Some(activity) = activity {
+                if let RecordedActivity::Recorded(activity) = activity {
                     self.active_state.apply_command(CommandOutcome::Applied {
                         expected_snapshot: UnitActiveState { activity },
                     });
@@ -179,7 +192,7 @@ impl UnitSwitch {
     }
 
     pub fn request(&mut self, change: RunChange) -> Task<UnitSwitchMessage> {
-        let before = self.activity();
+        let before = self.recorded_activity();
         self.active_state.apply_command(CommandOutcome::Applied {
             expected_snapshot: UnitActiveState {
                 activity: change.pending_activity(),

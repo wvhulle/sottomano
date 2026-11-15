@@ -73,12 +73,40 @@ pub struct SliderControl {
     live: f32,
     readout: fn(f32, Locale) -> String,
     gauge: bool,
-    label: Option<fn(f32, Locale) -> Option<String>>,
+    label_format: SliderLabelFormat,
     icon: IconGlyph,
-    glyph: Option<fn(f32, SliderActivity) -> Phosphor>,
-    thresholds: Option<SeverityThresholds>,
-    right_click: Option<&'static str>,
-    level_announcement: Option<LevelAnnouncement>,
+    glyph_source: SliderGlyphSource,
+    severity_scale: SliderSeverityScale,
+    right_click: SliderRightClick,
+    level_announcing: SliderLevelAnnouncing,
+}
+
+#[derive(Clone, Copy)]
+enum SliderLabelFormat {
+    Unlabeled,
+    Labeled(fn(f32, Locale) -> Option<String>),
+}
+
+#[derive(Clone, Copy)]
+enum SliderGlyphSource {
+    FixedIcon,
+    ValueDriven(fn(f32, SliderActivity) -> Phosphor),
+}
+
+enum SliderSeverityScale {
+    Unrated,
+    Thresholded(SeverityThresholds),
+}
+
+#[derive(Clone, Copy)]
+enum SliderRightClick {
+    Unbound,
+    Bound(&'static str),
+}
+
+enum SliderLevelAnnouncing {
+    Silent,
+    Announcing(LevelAnnouncement),
 }
 
 struct SeverityThresholds {
@@ -193,12 +221,12 @@ impl SliderControl {
             live: 1.0,
             readout: |value, _| format!("{value:.0}"),
             gauge: true,
-            label: None,
+            label_format: SliderLabelFormat::Unlabeled,
             icon: icon.into(),
-            glyph: None,
-            thresholds: None,
-            right_click: None,
-            level_announcement: None,
+            glyph_source: SliderGlyphSource::FixedIcon,
+            severity_scale: SliderSeverityScale::Unrated,
+            right_click: SliderRightClick::Unbound,
+            level_announcing: SliderLevelAnnouncing::Silent,
         }
     }
 
@@ -226,14 +254,14 @@ impl SliderControl {
 
     #[must_use]
     pub fn label(mut self, format: fn(f32, Locale) -> Option<String>) -> Self {
-        self.label = Some(format);
+        self.label_format = SliderLabelFormat::Labeled(format);
         self.gauge = false;
         self
     }
 
     #[must_use]
     pub fn label_with_gauge(mut self, format: fn(f32, Locale) -> Option<String>) -> Self {
-        self.label = Some(format);
+        self.label_format = SliderLabelFormat::Labeled(format);
         self
     }
 
@@ -245,7 +273,7 @@ impl SliderControl {
 
     #[must_use]
     pub fn glyph(mut self, glyph: fn(f32, SliderActivity) -> Phosphor) -> Self {
-        self.glyph = Some(glyph);
+        self.glyph_source = SliderGlyphSource::ValueDriven(glyph);
         self
     }
 
@@ -256,7 +284,7 @@ impl SliderControl {
         urgent: f32,
         severity_direction: SeverityDirection,
     ) -> Self {
-        self.thresholds = Some(SeverityThresholds {
+        self.severity_scale = SliderSeverityScale::Thresholded(SeverityThresholds {
             warn,
             urgent,
             severity_direction,
@@ -267,7 +295,7 @@ impl SliderControl {
     #[must_use]
     pub fn right_click(self, does: &'static str) -> Self {
         Self {
-            right_click: Some(does),
+            right_click: SliderRightClick::Bound(does),
             expanding_slider: self
                 .expanding_slider
                 .secondary_press(SecondaryPress::Reported),
@@ -285,7 +313,8 @@ impl SliderControl {
 
     #[must_use]
     pub fn announces_level(mut self, summary_text: &'static str) -> Self {
-        self.level_announcement = Some(LevelAnnouncement::new(summary_text));
+        self.level_announcing =
+            SliderLevelAnnouncing::Announcing(LevelAnnouncement::new(summary_text));
         self
     }
 
@@ -308,10 +337,10 @@ impl SliderControl {
             PressAction::new(MouseGesture::Scroll, "adjust"),
         ]
         .into_iter()
-        .chain(
-            self.right_click
-                .map(|does| PressAction::new(MouseGesture::RightClick, does)),
-        )
+        .chain(match self.right_click {
+            SliderRightClick::Bound(does) => Some(PressAction::new(MouseGesture::RightClick, does)),
+            SliderRightClick::Unbound => None,
+        })
         .collect()
     }
 
@@ -343,11 +372,12 @@ impl SliderControl {
     }
 
     fn severity(&self) -> Severity {
-        self.thresholds
-            .as_ref()
-            .map_or(Severity::Normal, |thresholds| {
+        match &self.severity_scale {
+            SliderSeverityScale::Thresholded(thresholds) => {
                 thresholds.level(self.expanding_slider.shown_value())
-            })
+            }
+            SliderSeverityScale::Unrated => Severity::Normal,
+        }
     }
 
     #[must_use]
@@ -364,10 +394,10 @@ impl SliderControl {
     }
 
     fn shown_label(&self, locale: Locale) -> ReadoutLabel {
-        match self
-            .label
-            .and_then(|format| format(self.expanding_slider.shown_value(), locale))
-        {
+        let SliderLabelFormat::Labeled(format) = self.label_format else {
+            return ReadoutLabel::Unlabeled;
+        };
+        match format(self.expanding_slider.shown_value(), locale) {
             Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
             Some(_) | None => ReadoutLabel::Unlabeled,
         }
@@ -385,7 +415,7 @@ impl SliderControl {
     }
 
     fn level_notice(&self, locale: Locale) -> LevelNotice {
-        let Some(announcement) = self.level_announcement.as_ref() else {
+        let SliderLevelAnnouncing::Announcing(announcement) = &self.level_announcing else {
             return LevelNotice::Unannounced;
         };
         let readout = self.readout_text(locale);
@@ -430,9 +460,12 @@ impl SliderControl {
     }
 
     fn effective_icon(&self) -> IconGlyph {
-        self.glyph.map_or(self.icon, |glyph| {
-            glyph(self.expanding_slider.shown_value(), self.slider_activity).into()
-        })
+        match self.glyph_source {
+            SliderGlyphSource::ValueDriven(glyph) => {
+                glyph(self.expanding_slider.shown_value(), self.slider_activity).into()
+            }
+            SliderGlyphSource::FixedIcon => self.icon,
+        }
     }
 
     #[allow(clippy::needless_pass_by_value)]
@@ -492,7 +525,8 @@ impl SliderControl {
                         LevelChangeOrigin::FromPanel
                     }
                 };
-                if let Some(announcement) = &mut self.level_announcement {
+                if let SliderLevelAnnouncing::Announcing(announcement) = &mut self.level_announcing
+                {
                     announcement.device_reported(change_origin);
                 }
                 Action::None
@@ -508,7 +542,8 @@ impl SliderControl {
                     LevelChangeOrigin::OutsidePanel
                 };
                 self.slider_activity = slider_activity;
-                if let Some(announcement) = &mut self.level_announcement {
+                if let SliderLevelAnnouncing::Announcing(announcement) = &mut self.level_announcing
+                {
                     announcement.device_reported(change_origin);
                 }
                 Action::None
@@ -534,9 +569,11 @@ impl SliderControl {
         let SliderShownReading { face, readout } = shown_reading;
         self.expanding_slider.view(
             ExpandingSliderParts {
-                collapsed: Box::new(move || match self.label {
-                    Some(_) => labeled_reading(config, &face, &readout, reveal),
-                    None => source_reading(config, &face, &readout, reveal),
+                collapsed: Box::new(move || match self.label_format {
+                    SliderLabelFormat::Labeled(_) => {
+                        labeled_reading(config, &face, &readout, reveal)
+                    }
+                    SliderLabelFormat::Unlabeled => source_reading(config, &face, &readout, reveal),
                 }),
                 face: Box::new(move || self.state_glyph(config)),
                 readout: Box::new(move || self.readout_view(config)),
@@ -555,7 +592,7 @@ impl SliderControl {
             .spacing(config.theme.spacing.item_gap)
             .align_y(Alignment::Center);
         let mut area = mouse_area(opened).on_scroll(ControlMessage::Scroll);
-        if self.right_click.is_some() {
+        if let SliderRightClick::Bound(_) = self.right_click {
             area = area.on_right_press(ControlMessage::Right);
         }
         area.into()
