@@ -9,20 +9,20 @@ impl DesktopShell {
         let groups = self
             .widget_groups
             .wifi_adapters_group
-            .group_contents(self.clock, self.config.calendar.locale)
+            .group_contents()
             .into_iter()
             .map(|group| group.map(ShellInteraction::WifiAdapters))
             .chain(
                 self.widget_groups
                     .mobile_modems_group
-                    .group_contents(self.clock, self.config.calendar.locale)
+                    .group_contents()
                     .into_iter()
                     .map(|group| group.map(ShellInteraction::MobileModems)),
             )
             .chain(
                 self.widget_groups
                     .ethernet_ports_group
-                    .group_contents(self.clock, self.config.calendar.locale)
+                    .group_contents()
                     .into_iter()
                     .map(|group| group.map(ShellInteraction::EthernetPorts)),
             )
@@ -36,7 +36,6 @@ impl DesktopShell {
                                 .report_timing_for_address(hardware_address)
                         },
                         self.clock,
-                        self.config.calendar.locale,
                     )
                     .into_iter()
                     .map(|group| group.map(ShellInteraction::BluetoothAdapters)),
@@ -44,19 +43,19 @@ impl DesktopShell {
             .chain([
                 self.widget_groups
                     .reachability_group
-                    .group_content(self.clock, self.config.calendar.locale)
+                    .group_content(self.clock)
                     .map(ShellInteraction::Reachability),
                 self.widget_groups
                     .tailnet_group
-                    .group_content(self.clock, self.config.calendar.locale)
+                    .group_content(self.clock)
                     .map(ShellInteraction::Tailnet),
                 self.widget_groups
                     .wireguard_tunnels_group
-                    .group_content(self.clock, self.config.calendar.locale)
+                    .group_content()
                     .map(ShellInteraction::WireguardTunnels),
                 self.widget_groups
                     .network_manager_vpn_group
-                    .group_content(self.clock, self.config.calendar.locale)
+                    .group_content()
                     .map(ShellInteraction::NetworkManagerVpns),
             ]);
         self.group_menu(GroupMenuTopic::Network, groups)

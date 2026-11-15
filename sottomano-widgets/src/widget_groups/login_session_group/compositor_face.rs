@@ -1,15 +1,15 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sources::{
     login_session_presence::logind_session_facts::SessionIdentity,
     systemd_units_journal::graphical_session_target::GraphicalSession,
 };
 
 use crate::{
-    clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{ReadingSections, Section, SectionTitle, dictionary_table},
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -22,12 +22,8 @@ pub struct CompositorFace<'a> {
     pub identity: &'a SessionIdentity,
 }
 
-impl GroupItemReading for CompositorFace<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Compositor".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
+impl<'a> CompositorFace<'a> {
+    fn glyph(&self) -> IconGlyph {
         let desktop_name = self.identity.desktop.as_deref().unwrap_or_default();
         match desktop_name.to_ascii_lowercase().as_str() {
             "niri" => SimpleIcon::niri.into(),
@@ -40,11 +36,28 @@ impl GroupItemReading for CompositorFace<'_> {
         }
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.identity.desktop.clone()
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        let glyph = self.glyph();
+        let label = match self.identity.desktop.clone() {
+            Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
+            Some(_) | None => ReadoutLabel::Unlabeled,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Compositor",
+                glyph,
+                ReadingDisplayState::Idle,
+                Box::new(move |_| self.hover_card()),
+            )
+        }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             SectionTitle::captioned(
                 "Compositor drawing the desktop",
@@ -65,37 +78,40 @@ impl GroupItemReading for CompositorFace<'_> {
     }
 }
 
-impl ReadingSections for GraphicalSession {
-    fn sections(&self, _clock: Clock) -> Vec<Section> {
-        let distinct_session_desktop = self
-            .session_desktop
-            .clone()
-            .filter(|session| Some(session) != self.current_desktop.as_ref());
-        vec![Section::new(
-            SectionTitle::captioned(
-                "Displays",
-                "Apps find the compositor through these sockets.",
-            ),
-            dictionary_table(
-                [
-                    Some(LabeledValue::new("Runs", self.compositor_version.clone())),
-                    Some(LabeledValue::new(
-                        "Wayland apps connect to",
-                        self.wayland_display.clone(),
-                    )),
-                    self.x11_display
-                        .clone()
-                        .map(|x11_display| LabeledValue::new("X11 apps connect to", x11_display)),
-                    self.current_desktop
-                        .clone()
-                        .map(|desktop_name| LabeledValue::new("Desktop name", desktop_name)),
-                    distinct_session_desktop.map(|session_desktop| {
-                        LabeledValue::new("Session desktop name", session_desktop)
-                    }),
-                ]
-                .into_iter()
-                .flatten(),
-            ),
-        )]
-    }
+pub fn graphical_session_sections(graphical_session: &GraphicalSession) -> Vec<Section> {
+    let distinct_session_desktop = graphical_session
+        .session_desktop
+        .clone()
+        .filter(|session| Some(session) != graphical_session.current_desktop.as_ref());
+    vec![Section::new(
+        SectionTitle::captioned(
+            "Displays",
+            "Apps find the compositor through these sockets.",
+        ),
+        dictionary_table(
+            [
+                Some(LabeledValue::new(
+                    "Runs",
+                    graphical_session.compositor_version.clone(),
+                )),
+                Some(LabeledValue::new(
+                    "Wayland apps connect to",
+                    graphical_session.wayland_display.clone(),
+                )),
+                graphical_session
+                    .x11_display
+                    .clone()
+                    .map(|x11_display| LabeledValue::new("X11 apps connect to", x11_display)),
+                graphical_session
+                    .current_desktop
+                    .clone()
+                    .map(|desktop_name| LabeledValue::new("Desktop name", desktop_name)),
+                distinct_session_desktop.map(|session_desktop| {
+                    LabeledValue::new("Session desktop name", session_desktop)
+                }),
+            ]
+            .into_iter()
+            .flatten(),
+        ),
+    )]
 }

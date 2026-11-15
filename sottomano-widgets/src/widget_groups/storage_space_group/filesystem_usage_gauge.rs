@@ -5,7 +5,6 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    clock::Clock,
     group_items::{
         gauge::percent_fill,
         reading_display_state::ReadingDisplayState,
@@ -47,7 +46,7 @@ pub(crate) fn filesystem_usage_reading_row(usage: &FilesystemUsage) -> ReadingRo
         FilesystemUsage::NAME,
         Phosphor::Folders(Weight::Regular).into(),
         free_space_severity(usage).into(),
-        Box::new(move |card_clock| filesystem_usage_hover_card(usage, card_clock)),
+        Box::new(move |_| filesystem_usage_hover_card(usage)),
     );
     row.readout.gauge = ReadoutGauge::Gauged { fill, live: fill };
     row.alerts.state_toast = StateToast::NotifyFromSeverity {
@@ -59,7 +58,7 @@ pub(crate) fn filesystem_usage_reading_row(usage: &FilesystemUsage) -> ReadingRo
     row
 }
 
-pub(crate) fn filesystem_usage_hover_card(usage: &FilesystemUsage, _clock: Clock) -> Vec<Section> {
+pub(crate) fn filesystem_usage_hover_card(usage: &FilesystemUsage) -> Vec<Section> {
     vec![Section::new(
         "Space",
         dictionary_table([

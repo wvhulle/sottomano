@@ -1,4 +1,4 @@
-use std::{borrow::Cow, time::Duration};
+use std::time::Duration;
 
 use chrono::Locale;
 use quick_xml::escape::escape;
@@ -9,17 +9,15 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
-        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_durations::duration_text,
         localized_quantities::Quantity,
-        ongoing_toast::definition_list,
+        ongoing_toast::{ReadingAlerts, StateToast, ToastBody, ToastProgress, definition_list},
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
@@ -45,82 +43,85 @@ fn growing_process_row(process: &GrowingMemoryProcess, locale: Locale) -> (Strin
     )
 }
 
-impl GroupItemReading for MemoryGrowth {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub fn memory_growth_reading_row(growth: &MemoryGrowth, locale: Locale) -> ReadingRow<'_> {
+    let label = growth.used_per_minute.map_or_else(
+        || "steady".to_owned(),
+        |growth_per_minute| growth_rate_text(growth_per_minute, locale),
+    );
+    let toast_body = growth_toast_body(growth, locale);
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Labeled(label),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        alerts: ReadingAlerts {
+            state_toast: StateToast::NotifyFromSeverity {
+                minimum_severity: Severity::Warning,
+                summary_text: "RAM filling fast",
+                body: toast_body.map_or(ToastBody::Bodiless, ToastBody::Text),
+                progress: ToastProgress::Unmeasured,
+            },
+            ..ReadingAlerts::default()
+        },
+        ..ReadingRow::glyph_only(
+            MemoryGrowth::NAME,
+            Phosphor::TrendUp(Weight::Regular).into(),
+            growth.filling_severity.into(),
+            Box::new(move |_| memory_growth_hover_card(growth)),
+        )
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::TrendUp(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        Some(self.used_per_minute.map_or_else(
-            || "steady".to_owned(),
-            |growth_per_minute| growth_rate_text(growth_per_minute, locale),
-        ))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.filling_severity.into()
-    }
-
-    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
-        OngoingToastThreshold::NotifyFromSeverity {
-            minimum_severity: Severity::Warning,
-            summary_text: "RAM filling fast",
-        }
-    }
-
-    fn ongoing_toast_body(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        let exhaustion_row = near_exhaustion(self)
-            .map(|remaining| ("Full in".to_owned(), duration_text(remaining, locale)));
-        let body_rows: Vec<(String, String)> = exhaustion_row
-            .into_iter()
-            .chain(
-                self.growing_processes
-                    .iter()
-                    .map(|process| growing_process_row(process, locale)),
-            )
-            .collect();
-        (!body_rows.is_empty()).then(|| {
-            definition_list(
-                body_rows
-                    .iter()
-                    .map(|(row_key, row_value)| (row_key.as_str(), row_value.clone())),
-            )
-        })
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        let trend_rows = [LabeledValue::new(
-            "Growth per minute",
-            self.used_per_minute.map_or_else(
-                || ValueCell::from("steady".to_owned()),
-                |growth_per_minute| Quantity::size(growth_per_minute).into(),
-            ),
-        )]
+fn growth_toast_body(growth: &MemoryGrowth, locale: Locale) -> Option<String> {
+    let exhaustion_row = near_exhaustion(growth)
+        .map(|remaining| ("Full in".to_owned(), duration_text(remaining, locale)));
+    let body_rows: Vec<(String, String)> = exhaustion_row
         .into_iter()
         .chain(
-            near_exhaustion(self)
-                .map(|remaining| LabeledValue::new("Full in", ValueCell::duration(remaining))),
-        );
-        let process_rows = self.growing_processes.iter().map(|process| {
-            LabeledValue::new(
-                process.name.clone(),
-                Quantity::size(process.growth_per_minute),
+            growth
+                .growing_processes
+                .iter()
+                .map(|process| growing_process_row(process, locale)),
+        )
+        .collect();
+    (!body_rows.is_empty()).then(|| {
+        definition_list(
+            body_rows
+                .iter()
+                .map(|(row_key, row_value)| (row_key.as_str(), row_value.clone())),
+        )
+    })
+}
+
+pub fn memory_growth_hover_card(growth: &MemoryGrowth) -> Vec<Section> {
+    let trend_rows = [LabeledValue::new(
+        "Growth per minute",
+        growth.used_per_minute.map_or_else(
+            || ValueCell::from("steady".to_owned()),
+            |growth_per_minute| Quantity::size(growth_per_minute).into(),
+        ),
+    )]
+    .into_iter()
+    .chain(
+        near_exhaustion(growth)
+            .map(|remaining| LabeledValue::new("Full in", ValueCell::duration(remaining))),
+    );
+    let process_rows = growth.growing_processes.iter().map(|process| {
+        LabeledValue::new(
+            process.name.clone(),
+            Quantity::size(process.growth_per_minute),
+        )
+    });
+    [Section::new("Trend", dictionary_table(trend_rows))]
+        .into_iter()
+        .chain((!growth.growing_processes.is_empty()).then(|| {
+            Section::new(
+                "Growing fastest, per minute",
+                dictionary_table(process_rows),
             )
-        });
-        [Section::new("Trend", dictionary_table(trend_rows))]
-            .into_iter()
-            .chain((!self.growing_processes.is_empty()).then(|| {
-                Section::new(
-                    "Growing fastest, per minute",
-                    dictionary_table(process_rows),
-                )
-            }))
-            .collect()
-    }
+        }))
+        .collect()
 }
 
 #[cfg(test)]
@@ -128,7 +129,9 @@ mod tests {
     use bytesize::ByteSize;
 
     use super::*;
-    use crate::group_items::{group_item::reading_toast_severity, reading_row::ReadingRow};
+    use crate::group_items::{
+        group_item::reading_toast_severity, reading_display_state::ReadingDisplayState,
+    };
 
     fn growth_towards(
         exhaustion_projection: Option<Duration>,
@@ -150,38 +153,48 @@ mod tests {
     #[test]
     fn a_steady_ram_is_quiet() {
         let steady = growth_towards(None, Severity::Normal);
-        assert_eq!(steady.state(Clock::real()), ReadingDisplayState::Idle);
+        let steady_row = memory_growth_reading_row(&steady, Locale::en_US);
+        assert_eq!(steady_row.shown_state(), ReadingDisplayState::Idle);
         assert_eq!(
-            steady.label(Clock::real(), Locale::en_US).as_deref(),
-            Some("steady")
+            steady_row.readout.label,
+            ReadoutLabel::Labeled("steady".to_owned())
         );
     }
 
     #[test]
     fn a_near_projection_toasts_from_warning() {
         assert_eq!(
-            reading_toast_severity(&ReadingRow::evaluated(
-                growth_towards(Some(Duration::from_secs(200)), Severity::Warning),
-                Clock::real(),
+            reading_toast_severity(&memory_growth_reading_row(
+                &growth_towards(Some(Duration::from_secs(200)), Severity::Warning),
                 Locale::default(),
             )),
             Some(Severity::Warning)
         );
         assert_eq!(
-            growth_towards(Some(Duration::from_secs(30)), Severity::Critical).state(Clock::real()),
+            memory_growth_reading_row(
+                &growth_towards(Some(Duration::from_secs(30)), Severity::Critical),
+                Locale::default()
+            )
+            .shown_state(),
             ReadingDisplayState::Critical
         );
         assert_eq!(
-            growth_towards(Some(Duration::from_secs(3_600)), Severity::Normal).state(Clock::real()),
+            memory_growth_reading_row(
+                &growth_towards(Some(Duration::from_secs(3_600)), Severity::Normal),
+                Locale::default()
+            )
+            .shown_state(),
             ReadingDisplayState::Idle
         );
     }
 
     #[test]
     fn toast_body_lists_the_growing_processes_as_rows() {
-        let body = growth_towards(Some(Duration::from_secs(40)), Severity::Critical)
-            .ongoing_toast_body(Clock::real(), Locale::en_US)
-            .expect("a growing reading has a body");
+        let body = growth_toast_body(
+            &growth_towards(Some(Duration::from_secs(40)), Severity::Critical),
+            Locale::en_US,
+        )
+        .expect("a growing reading has a body");
         assert!(body.starts_with("<dl><dt>Full in</dt><dd>"), "{body}");
         assert!(body.contains("<dt>firefox</dt><dd>+"), "{body}");
     }

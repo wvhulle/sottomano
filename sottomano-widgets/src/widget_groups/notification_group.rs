@@ -1,16 +1,12 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use iced::Task;
 
 use crate::{
     background_work::logged_failure_task,
-    clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
         reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     hover_cards::{
@@ -26,7 +22,6 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -136,11 +131,10 @@ impl NotificationGroup {
         &self,
         target: NotificationTarget,
         status: NotificationStatus,
-        clock: Clock,
     ) -> Vec<Section> {
         match target {
-            NotificationTarget::Status => status.hover_card(clock).into_iter().collect(),
-            NotificationTarget::Sound => sound_toggle(self.alert_sound).switch_hover_card(clock),
+            NotificationTarget::Status => status.hover_card().into_iter().collect(),
+            NotificationTarget::Sound => sound_toggle(self.alert_sound).switch_hover_card(),
         }
     }
 
@@ -172,8 +166,6 @@ impl NotificationGroup {
     pub fn group_content(
         &self,
         status: NotificationStatus,
-        clock: Clock,
-        locale: Locale,
     ) -> WidgetGroupContent<'_, NotificationGroupMessage> {
         let quiet_phase = status.quiet_phase;
         WidgetGroupContent::expandable(
@@ -181,12 +173,9 @@ impl NotificationGroup {
             &self.expansion,
             NotificationGroupMessage::Expansion,
             [
+                GroupItem::reading(status.reading_row(), NotificationTarget::Status),
                 GroupItem::reading(
-                    ReadingRow::evaluated(status, clock, locale),
-                    NotificationTarget::Status,
-                ),
-                GroupItem::reading(
-                    ReadingRow::evaluated(DoNotDisturbStatus { quiet_phase }, clock, locale),
+                    do_not_disturb_reading_row(DoNotDisturbStatus { quiet_phase }),
                     QuietScheduleTarget::DoNotDisturb,
                 )
                 .on_switch_press(
@@ -214,31 +203,37 @@ pub struct NotificationStatus {
     pub held: usize,
 }
 
-impl GroupItemReading for NotificationStatus {
-    fn name(&self) -> Cow<'static, str> {
-        "Pending notifications".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        match self.quiet_phase {
+impl NotificationStatus {
+    fn reading_row(self) -> ReadingRow<'static> {
+        let glyph = match self.quiet_phase {
             QuietPhase::Active => Phosphor::ChatCircleSlash(Weight::Regular).into(),
             QuietPhase::Inactive => Phosphor::ChatCircle(Weight::Regular).into(),
-        }
-    }
-
-    fn badge(&self) -> Option<usize> {
-        Some(self.live + self.held).filter(|count| *count > 0)
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.quiet_phase {
+        };
+        let state = match self.quiet_phase {
             QuietPhase::Active => ReadingDisplayState::Off,
             QuietPhase::Inactive if self.live > 0 => ReadingDisplayState::On,
             QuietPhase::Inactive => ReadingDisplayState::Idle,
+        };
+        let badge = match self.live + self.held {
+            0 => ReadoutBadge::Unbadged,
+            count => ReadoutBadge::Counted(count),
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Unlabeled,
+                gauge: ReadoutGauge::Ungauged,
+                badge,
+            },
+            ..ReadingRow::glyph_only(
+                "Pending notifications",
+                glyph,
+                state,
+                Box::new(move |_| self.hover_card()),
+            )
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    fn hover_card(self) -> Vec<Section> {
         if self.held > 0 {
             vec![Section::new(
                 "Counts",
@@ -258,22 +253,13 @@ struct DoNotDisturbStatus {
     quiet_phase: QuietPhase,
 }
 
-impl GroupItemReading for DoNotDisturbStatus {
-    fn name(&self) -> Cow<'static, str> {
-        "Do not disturb".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Prohibit(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(self.quiet_phase)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![]
-    }
+fn do_not_disturb_reading_row(status: DoNotDisturbStatus) -> ReadingRow<'static> {
+    ReadingRow::glyph_only(
+        "Do not disturb",
+        Phosphor::Prohibit(Weight::Regular).into(),
+        ReadingDisplayState::from(status.quiet_phase),
+        Box::new(|_| Vec::new()),
+    )
 }
 
 #[cfg(test)]

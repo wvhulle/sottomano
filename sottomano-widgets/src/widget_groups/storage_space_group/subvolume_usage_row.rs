@@ -7,7 +7,6 @@ use sottomano_desktop_sources::disk_storage::{
 use uom::si::f64::Ratio;
 
 use crate::{
-    clock::Clock,
     group_items::{
         gauge::percent_fill,
         reading_display_state::ReadingDisplayState,
@@ -100,10 +99,7 @@ fn mount_description(mount: &SubvolumeMount) -> String {
     }
 }
 
-pub(crate) fn subvolume_usage_hover_card(
-    usage: &BcachefsSubvolumeUsage,
-    _clock: Clock,
-) -> Vec<Section> {
+pub(crate) fn subvolume_usage_hover_card(usage: &BcachefsSubvolumeUsage) -> Vec<Section> {
     vec![Section::new(
         "Usage",
         dictionary_table(usage.subvolumes.iter().map(|subvolume| {

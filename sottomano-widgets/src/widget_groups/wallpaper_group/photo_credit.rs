@@ -1,8 +1,6 @@
-use chrono::Locale;
 use sottomano_desktop_sources::wallpaper_place_article::Wallpaper;
 
 use crate::{
-    clock::Clock,
     group_items::{
         reading_display_state::ReadingDisplayState,
         reading_row::ReadingRow,
@@ -24,7 +22,7 @@ pub struct Photo {
 }
 
 impl Photo {
-    pub(super) fn reading_row(&self, _clock: Clock, _locale: Locale) -> ReadingRow<'_> {
+    pub(super) fn reading_row(&self) -> ReadingRow<'_> {
         ReadingRow {
             readout: RowReadout {
                 label: match &self.photographer {

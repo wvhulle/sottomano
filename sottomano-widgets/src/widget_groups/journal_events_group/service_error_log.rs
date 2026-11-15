@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::{
     SnapshotSource,
@@ -8,12 +6,11 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::Config;
 
 use crate::{
-    clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
         reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
@@ -36,27 +33,24 @@ impl JournalScopeGroup {
     pub(super) fn service_errors_item(
         &self,
         config: &Config,
-        clock: Clock,
     ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
-        let locale = config.calendar.locale;
         let target = JournalTarget::ServiceErrors(self.unit_scope);
         let Some(service_errors) = self
             .service_errors
-            .visible_reading(GroupItemReading::panel_visibility)
+            .visible_reading(service_errors_panel_visibility)
         else {
             return self.service_errors.failure().map(|failure| {
                 GroupItem::reading(failure.reading_row(IconGlyph::default()), target)
             });
         };
         Some(
-            GroupItem::reading(ReadingRow::evaluated(service_errors, clock, locale), target)
-                .on_press(
-                    TerminalCommand::JOURNAL_PRESS_HINT,
-                    JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                        config,
-                        service_errors.follow_log_args(),
-                    )),
-                ),
+            GroupItem::reading(service_errors_reading_row(service_errors), target).on_press(
+                TerminalCommand::JOURNAL_PRESS_HINT,
+                JournalEventsInteraction::OpenLog(TerminalCommand::journal(
+                    config,
+                    service_errors.follow_log_args(),
+                )),
+            ),
         )
     }
 }
@@ -79,51 +73,60 @@ impl IntoTableRecord<3> for &UnitErrors {
     }
 }
 
-impl GroupItemReading for ServiceErrors {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
+pub(super) fn service_errors_state(errors: &ServiceErrors) -> ReadingDisplayState {
+    errors
+        .by_unit_oldest_first
+        .iter()
+        .map(|unit_errors| unit_errors.severity)
+        .max()
+        .unwrap_or_default()
+        .into()
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::WarningCircle(Weight::Regular).into()
-    }
-
-    fn badge(&self) -> Option<usize> {
-        Some(self.by_unit_oldest_first.len())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.by_unit_oldest_first
+pub(super) fn service_errors_panel_visibility(errors: &ServiceErrors) -> PanelVisibility {
+    shown_while_alerting(
+        errors
+            .by_unit_oldest_first
             .iter()
-            .map(|errors| errors.severity)
-            .max()
-            .unwrap_or_default()
-            .into()
-    }
+            .map(|unit_errors| unit_errors.severity),
+    )
+}
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            SectionTitle::captioned(
-                "Service errors",
-                "Journal entries at err or worse from .service units in the last hour, newest \
-                 message per service.",
-            ),
-            headed_table(
-                [
-                    ColumnHeading::titled("Latest"),
-                    ColumnHeading::titled("Count"),
-                    ColumnHeading::titled("Message").align_x(Horizontal::Left),
-                ],
-                self.by_unit_oldest_first.iter(),
-            ),
-        )]
-    }
+pub(super) fn service_errors_hover_card(errors: &ServiceErrors) -> Vec<Section> {
+    vec![Section::new(
+        SectionTitle::captioned(
+            "Service errors",
+            "Journal entries at err or worse from .service units in the last hour, newest message \
+             per service.",
+        ),
+        headed_table(
+            [
+                ColumnHeading::titled("Latest"),
+                ColumnHeading::titled("Count"),
+                ColumnHeading::titled("Message").align_x(Horizontal::Left),
+            ],
+            errors.by_unit_oldest_first.iter(),
+        ),
+    )]
+}
 
-    fn panel_visibility(&self) -> PanelVisibility {
-        shown_while_alerting(
-            self.by_unit_oldest_first
-                .iter()
-                .map(|errors| errors.severity),
-        )
+pub(super) fn service_errors_reading_row(errors: &ServiceErrors) -> ReadingRow<'_> {
+    let base = ReadingRow::glyph_only(
+        ServiceErrors::NAME,
+        Phosphor::WarningCircle(Weight::Regular).into(),
+        service_errors_state(errors),
+        Box::new(move |_| service_errors_hover_card(errors)),
+    );
+    let badge = match errors.by_unit_oldest_first.len() {
+        0 => ReadoutBadge::Unbadged,
+        count => ReadoutBadge::Counted(count),
+    };
+    ReadingRow {
+        readout: RowReadout {
+            badge,
+            ..base.readout
+        },
+        panel_visibility: service_errors_panel_visibility(errors),
+        ..base
     }
 }

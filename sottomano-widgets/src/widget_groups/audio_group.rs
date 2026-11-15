@@ -1,4 +1,4 @@
-use crate::{group_items::reading_row::reading_hover_card, widgets::icon_glyph::IconGlyph};
+use crate::widgets::icon_glyph::IconGlyph;
 mod channel_level_control;
 
 use std::{
@@ -17,7 +17,7 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::Config;
 use tokio::task::spawn_blocking;
 
-use self::channel_level_control::{audio_output_icon, feed, input_glyph};
+use self::channel_level_control::{audio_output_icon, audio_state_hover_card, feed, input_glyph};
 use crate::{
     clock::Clock,
     group_items::{
@@ -284,11 +284,9 @@ impl AudioGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: AudioTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: AudioTarget) -> Vec<Section> {
         let AudioTarget::Control(kind) = target else {
-            return self
-                .state
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock));
+            return self.state.sections_described_by(audio_state_hover_card);
         };
         let Some(state) = self.state.get() else {
             return Vec::new();

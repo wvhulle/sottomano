@@ -6,7 +6,6 @@ use sottomano_toml_config::Config;
 
 use crate::{
     background_work::logged_failure_task,
-    clock::Clock,
     group_items::{
         group_item::GroupItem,
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
@@ -290,22 +289,22 @@ impl PanelSettingsGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: PanelSettingsTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: PanelSettingsTarget) -> Vec<Section> {
         match target {
             PanelSettingsTarget::DisconnectedGroups => {
-                disconnected_toggle(self.group_framing).switch_hover_card(clock)
+                disconnected_toggle(self.group_framing).switch_hover_card()
             }
             PanelSettingsTarget::AutoCollapseGroups => {
-                pinned_groups_toggle(self.group_collapsing).switch_hover_card(clock)
+                pinned_groups_toggle(self.group_collapsing).switch_hover_card()
             }
             PanelSettingsTarget::WindowRowLayout => {
-                window_row_layout_toggle(self.window_row_layout).switch_hover_card(clock)
+                window_row_layout_toggle(self.window_row_layout).switch_hover_card()
             }
             PanelSettingsTarget::WindowTitleLength => {
-                window_title_length_toggle(self.window_title_length).switch_hover_card(clock)
+                window_title_length_toggle(self.window_title_length).switch_hover_card()
             }
             PanelSettingsTarget::FloatOffset => self.float_offset.readout_hover_card("Offset"),
-            PanelSettingsTarget::Appearance(target) => self.layer.hover_card_for(target, clock),
+            PanelSettingsTarget::Appearance(target) => self.layer.hover_card_for(target),
         }
     }
 

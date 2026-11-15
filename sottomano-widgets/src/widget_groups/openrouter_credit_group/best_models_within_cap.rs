@@ -1,13 +1,11 @@
 use std::num::NonZeroUsize;
 
-use chrono::Locale;
 use sottomano_desktop_sources::{
     SnapshotSource,
     ai_usage_spend::openrouter_model_rankings::{OpenRouterModelRankings, ScoredModel},
 };
 
 use crate::{
-    clock::Clock,
     group_items::{
         reading_display_state::ReadingDisplayState,
         reading_row::{PanelVisibility, ReadingRow},
@@ -42,11 +40,7 @@ pub(crate) fn best_models_panel_visibility(rankings: &OpenRouterModelRankings) -
     }
 }
 
-pub(crate) fn best_models_reading_row(
-    rankings: &OpenRouterModelRankings,
-    _clock: Clock,
-    _locale: Locale,
-) -> ReadingRow<'_> {
+pub(crate) fn best_models_reading_row(rankings: &OpenRouterModelRankings) -> ReadingRow<'_> {
     let label = match rankings.best_first.first() {
         Some(scored) => ReadoutLabel::Labeled(scored.model.clone()),
         None => ReadoutLabel::Unlabeled,
@@ -62,15 +56,12 @@ pub(crate) fn best_models_reading_row(
             OpenRouterModelRankings::NAME,
             Phosphor::Ranking(Weight::Regular).into(),
             ReadingDisplayState::Idle,
-            Box::new(move |card_clock| best_models_hover_card(rankings, card_clock)),
+            Box::new(move |_| best_models_hover_card(rankings)),
         )
     }
 }
 
-pub(crate) fn best_models_hover_card(
-    rankings: &OpenRouterModelRankings,
-    _clock: Clock,
-) -> Vec<Section> {
+pub(crate) fn best_models_hover_card(rankings: &OpenRouterModelRankings) -> Vec<Section> {
     let ranking_table = Section::new(
         SectionTitle::captioned(
             format!(

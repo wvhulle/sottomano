@@ -29,7 +29,6 @@ use sottomano_desktop_sources::{
     },
 };
 use sottomano_widgets::{
-    clock::Clock,
     desktop_index::DesktopIndex,
     hover_cards::HoverTarget,
     widget_groups::window_group::{
@@ -253,7 +252,7 @@ struct PlacedWindow {
     column: usize,
 }
 
-pub fn bottom_bar(_clock: Clock) -> ShowcasedGroup {
+pub fn bottom_bar() -> ShowcasedGroup {
     ShowcasedGroup::BottomPanel(Box::new(session(
         &NAMED_WORKSPACES[..BOTTOM_BAR_WORKSPACE_COUNT],
         PLACED_WINDOWS,
@@ -262,7 +261,7 @@ pub fn bottom_bar(_clock: Clock) -> ShowcasedGroup {
     )))
 }
 
-pub fn terminals_grouped_by_directory(_clock: Clock) -> ShowcasedGroup {
+pub fn terminals_grouped_by_directory() -> ShowcasedGroup {
     terminals_in_layout(WindowRowLayout::GroupedByLocation)
 }
 

@@ -1,15 +1,10 @@
 use std::convert::identity;
 
-use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::network_connectivity::network_manager_proxies::Metering;
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
-        reading_row::{ReadingRow, reading_hover_card},
-        source_reading::GroupItemIcon,
-    },
+    group_items::{reading_display_state::ReadingDisplayState, source_reading::GroupItemIcon},
     hover_cards::hover_card_body::dictionary_table,
     widget_groups::widget_group_identity::WidgetGroupFamily,
     widgets::icon_glyph::IconGlyph,
@@ -32,6 +27,14 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::widget_groups::reachability::ReachabilityConfig;
 
+use self::{
+    connectivity_state_reading::uplink_connectivity_reading_row,
+    icmp_latency_gauge::{internet_latency_hover_card, internet_latency_reading_row},
+    network_throughput_gauge::{
+        interface_throughput_hover_card, interface_throughput_reading_row, throughput_hover_card,
+        throughput_reading_row,
+    },
+};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
@@ -169,7 +172,7 @@ impl ReachabilityGroup {
         }
     }
 
-    fn direction_hover_card(&self, throughput: &Throughput, clock: Clock) -> Vec<Section> {
+    fn direction_hover_card(&self, throughput: &Throughput) -> Vec<Section> {
         let metered_section = self
             .throughput
             .get()
@@ -177,7 +180,7 @@ impl ReachabilityGroup {
             .and_then(|_| self.metered_volume.displayed_totals())
             .map(|totals| metered_section(&totals, throughput.direction));
         self.throughput.hover_card_with(
-            reading_hover_card(throughput, clock)
+            throughput_hover_card(throughput)
                 .into_iter()
                 .chain(metered_section)
                 .collect(),
@@ -185,31 +188,31 @@ impl ReachabilityGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &ReachabilityTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: &ReachabilityTarget) -> Vec<Section> {
         match target {
             ReachabilityTarget::Down => self
                 .throughput
                 .get()
-                .map(|throughput| self.direction_hover_card(&throughput.down, clock))
+                .map(|throughput| self.direction_hover_card(&throughput.down))
                 .unwrap_or_default(),
             ReachabilityTarget::Up => self
                 .throughput
                 .get()
-                .map(|throughput| self.direction_hover_card(&throughput.up, clock))
+                .map(|throughput| self.direction_hover_card(&throughput.up))
                 .unwrap_or_default(),
             ReachabilityTarget::Throughput => self
                 .throughput
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(interface_throughput_hover_card),
             ReachabilityTarget::Latency => self
                 .latency
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(internet_latency_hover_card),
         }
     }
 
-    fn handle_face(&self, clock: Clock, locale: Locale) -> WidgetGroupFace {
+    fn handle_face(&self, clock: Clock) -> WidgetGroupFace {
         let connectivity_row = self.connectivity.reading_row(
             IconGlyph::default(),
-            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+            |snapshot| uplink_connectivity_reading_row(snapshot),
             clock,
         );
         match connectivity_row.map(|row| row.face.icon) {
@@ -228,7 +231,6 @@ impl ReachabilityGroup {
     pub fn group_content(
         &self,
         clock: Clock,
-        locale: Locale,
     ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let throughput = self.throughput.get();
         WidgetGroupContent::expandable(
@@ -238,7 +240,7 @@ impl ReachabilityGroup {
             self.throughput
                 .group_item(
                     IconGlyph::default(),
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| interface_throughput_reading_row(snapshot),
                     ReachabilityTarget::Throughput,
                     clock,
                 )
@@ -246,24 +248,24 @@ impl ReachabilityGroup {
                 .chain(throughput.into_iter().flat_map(|readings| {
                     [
                         GroupItem::reading(
-                            ReadingRow::evaluated(&readings.down, clock, locale),
+                            throughput_reading_row(&readings.down),
                             ReachabilityTarget::Down,
                         )
                         .previewed_on_handle(),
                         GroupItem::reading(
-                            ReadingRow::evaluated(&readings.up, clock, locale),
+                            throughput_reading_row(&readings.up),
                             ReachabilityTarget::Up,
                         ),
                     ]
                 }))
                 .chain(self.latency.group_item(
                     IconGlyph::default(),
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| internet_latency_reading_row(snapshot),
                     ReachabilityTarget::Latency,
                     clock,
                 )),
         )
-        .face(self.handle_face(clock, locale))
+        .face(self.handle_face(clock))
     }
 }
 

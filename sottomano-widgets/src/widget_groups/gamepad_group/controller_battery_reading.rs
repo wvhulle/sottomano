@@ -1,17 +1,14 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sources::gamepad_controller_input::evdev_gamepad_devices::GamepadPower;
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -43,46 +40,49 @@ impl ControllerBatteryReading {
     }
 }
 
-impl GroupItemReading for ControllerBatteryReading {
-    fn name(&self) -> Cow<'static, str> {
-        "Controller battery".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        match self.power {
-            GamepadPower::Charging(_) => Phosphor::BatteryCharging(Weight::Regular).into(),
-            GamepadPower::Full => Phosphor::BatteryFull(Weight::Regular).into(),
+impl ControllerBatteryReading {
+    pub fn reading_row(self) -> ReadingRow<'static> {
+        let glyph = match self.power {
+            GamepadPower::Charging(_) => Phosphor::BatteryCharging(Weight::Regular),
+            GamepadPower::Full => Phosphor::BatteryFull(Weight::Regular),
             GamepadPower::Discharging(percent) if percent <= LOW_BATTERY_PERCENT => {
-                Phosphor::BatteryWarning(Weight::Regular).into()
+                Phosphor::BatteryWarning(Weight::Regular)
             }
             GamepadPower::Discharging(percent) if percent <= 50 => {
-                Phosphor::BatteryMedium(Weight::Regular).into()
+                Phosphor::BatteryMedium(Weight::Regular)
             }
             GamepadPower::Discharging(_) | GamepadPower::NoBattery => {
-                Phosphor::BatteryHigh(Weight::Regular).into()
+                Phosphor::BatteryHigh(Weight::Regular)
             }
-        }
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        match self.power {
+        };
+        let label = match self.power {
             GamepadPower::Discharging(percent) | GamepadPower::Charging(percent) => {
-                Some(format!("{percent}%"))
+                ReadoutLabel::Labeled(format!("{percent}%"))
             }
-            GamepadPower::Full => Some("full".to_owned()),
-            GamepadPower::NoBattery => None,
-        }
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.battery_level() == BatteryLevel::Low {
+            GamepadPower::Full => ReadoutLabel::Labeled("full".to_owned()),
+            GamepadPower::NoBattery => ReadoutLabel::Unlabeled,
+        };
+        let state = if self.battery_level() == BatteryLevel::Low {
             ReadingDisplayState::Warning
         } else {
             ReadingDisplayState::Idle
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Controller battery",
+                glyph.into(),
+                state,
+                Box::new(move |_| self.hover_card()),
+            )
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             "Charge",
             dictionary_table([

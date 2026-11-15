@@ -24,7 +24,7 @@ impl DesktopShell {
                     .map(ShellInteraction::ColorTemperature),
                 self.widget_groups
                     .wallpaper_group
-                    .group_content(self.clock, self.config.calendar.locale)
+                    .group_content(self.clock)
                     .map(ShellInteraction::Wallpaper),
             ],
         )

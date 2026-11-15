@@ -1,6 +1,5 @@
-use std::{borrow::Cow, iter::once, path::Path};
+use std::{iter::once, path::Path};
 
-use chrono::Locale;
 use sottomano_desktop_sources::gamepad_controller_input::{
     evdev_gamepad_devices::{
         ConnectedGamepad, ControllerIdentity, GamepadOrigin, PhysicalGamepadLink,
@@ -21,16 +20,16 @@ use super::{
     diagram_anchor_mapping::{button_anchor, stick_anchor},
 };
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{IdentityOrdinal, ReadoutLabel, RowFace, RowReadout},
     },
     hover_cards::hover_card_body::{
         Section, SectionWidget, dictionary_table,
         hover_card_figure_payloads::{DiagramCallout, controller_diagram_widget},
     },
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -278,31 +277,40 @@ impl ConnectedControllerReading<'_> {
     }
 }
 
-impl GroupItemReading for ConnectedControllerReading<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Game controller".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::GameController(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.marking.alias_label(&self.gamepad.name)
-    }
-
-    fn identity_ordinal(&self) -> Option<u8> {
-        self.marking.identity_ordinal()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.custody {
+impl<'a> ConnectedControllerReading<'a> {
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        let state = match self.custody {
             ControllerCustody::Compositor => ReadingDisplayState::On,
             ControllerCustody::HandedOver => ReadingDisplayState::Off,
+        };
+        let label = match self.marking.alias_label(&self.gamepad.name) {
+            Some(alias) if !alias.is_empty() => ReadoutLabel::Labeled(alias),
+            Some(_) | None => ReadoutLabel::Unlabeled,
+        };
+        let ordinal = match self.marking.identity_ordinal() {
+            Some(ordinal) => IdentityOrdinal::Numbered(ordinal),
+            None => IdentityOrdinal::Unnumbered,
+        };
+        let row = ReadingRow::glyph_only(
+            "Game controller",
+            Phosphor::GameController(Weight::Regular).into(),
+            state,
+            Box::new(move |_| self.hover_card()),
+        );
+        ReadingRow {
+            face: RowFace {
+                ordinal,
+                ..row.face
+            },
+            readout: RowReadout {
+                label,
+                ..row.readout
+            },
+            ..row
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self) -> Vec<Section> {
         once(self.identity_section())
             .chain(self.marking.numbering_note())
             .chain([

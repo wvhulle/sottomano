@@ -7,7 +7,6 @@ use tokio::time::sleep;
 
 use crate::{
     background_work::logged_failure_task,
-    clock::Clock,
     group_items::{
         group_item::GroupItem,
         reading_display_state::ReadingDisplayState,
@@ -199,16 +198,16 @@ impl SidebarSettingsGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: SidebarSettingsTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: SidebarSettingsTarget) -> Vec<Section> {
         match target {
             SidebarSettingsTarget::WorkspacesPlacement => {
-                workspaces_sidebar_toggle(self.workspaces_placement).switch_hover_card(clock)
+                workspaces_sidebar_toggle(self.workspaces_placement).switch_hover_card()
             }
             SidebarSettingsTarget::AutoCollapseWorkspaces => {
                 auto_collapse_workspaces_toggle(self.empty_workspace_folding.mode())
-                    .switch_hover_card(clock)
+                    .switch_hover_card()
             }
-            SidebarSettingsTarget::Appearance(target) => self.layer.hover_card_for(target, clock),
+            SidebarSettingsTarget::Appearance(target) => self.layer.hover_card_for(target),
         }
     }
 

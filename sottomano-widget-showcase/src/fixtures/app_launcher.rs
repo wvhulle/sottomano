@@ -4,7 +4,6 @@ use sottomano_desktop_sources::desktop_windows_apps::desktop_entry_app_catalog::
     AppCategory, LaunchableApp, OpenAppWindows,
 };
 use sottomano_widgets::{
-    clock::Clock,
     desktop_index::DesktopIndex,
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuTopic},
     widget_groups::app_launcher_group::{
@@ -245,7 +244,7 @@ fn long_utility_app(app_id: &str) -> LaunchableApp {
     }
 }
 
-pub fn scrolled_item_list(_clock: Clock) -> Vec<ShowcaseMessage> {
+pub fn scrolled_item_list() -> Vec<ShowcaseMessage> {
     vec![ShowcaseMessage::GroupMenuState(
         GroupMenuMessage::ItemListScrolled {
             menu: GroupMenuTopic::Applications,
@@ -299,7 +298,7 @@ fn frequent_apps(open_windows: &HashMap<String, OpenAppWindows>) -> Vec<Frequent
         .collect()
 }
 
-pub fn group(_clock: Clock) -> ShowcasedGroup {
+pub fn group() -> ShowcasedGroup {
     let open_windows = open_windows();
     let mut group = AppLauncherGroup::default();
     group.adopt_catalog(

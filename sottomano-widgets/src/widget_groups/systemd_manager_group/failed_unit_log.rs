@@ -19,9 +19,9 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
         reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTable, SectionTitle, headed_table},
     widget_groups::{
@@ -31,7 +31,6 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{
@@ -49,7 +48,6 @@ pub(super) fn failed_units_item<'a>(
     config: &'a Config,
     clock: Clock,
 ) -> GroupItem<'a, SystemdManagerInteraction> {
-    let locale = config.calendar.locale;
     let open_log =
         |args| SystemdManagerInteraction::OpenLog(TerminalCommand::journal(config, args));
     let failed_unit_toasts = failed.units.iter().map(|unit| {
@@ -91,7 +89,7 @@ pub(super) fn failed_units_item<'a>(
             )
         });
         OngoingToast {
-            widget_name: failed.name(),
+            widget_name: failed_units_name(failed),
             key: OngoingKey::Reading(
                 SystemdTarget::failed_unit(failed.scope, unit.name.clone()).into(),
             ),
@@ -131,7 +129,7 @@ pub(super) fn failed_units_item<'a>(
         }
     });
     GroupItem::reading(
-        ReadingRow::evaluated(failed, clock, locale),
+        failed_units_reading_row(failed),
         SystemdTarget::failed_units(failed.scope),
     )
     .on_press(
@@ -191,44 +189,55 @@ fn failure_summary(unit: &FailedUnitInfo, now: DateTime<Utc>, locale: Locale) ->
     (!rows.is_empty()).then(|| definition_list(rows))
 }
 
-impl GroupItemReading for FailedUnits {
-    fn panel_visibility(&self) -> PanelVisibility {
-        if self.is_empty() {
-            PanelVisibility::Hidden
-        } else {
-            PanelVisibility::Shown
-        }
+pub(super) fn failed_units_panel_visibility(failed: &FailedUnits) -> PanelVisibility {
+    if failed.is_empty() {
+        PanelVisibility::Hidden
+    } else {
+        PanelVisibility::Shown
     }
+}
 
-    fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed(match self.scope {
-            SystemdUnitScope::UserSession => "Failed user units",
-            SystemdUnitScope::SystemWide => "Failed system units",
-        })
-    }
+pub(super) fn failed_units_name(failed: &FailedUnits) -> Cow<'static, str> {
+    Cow::Borrowed(match failed.scope {
+        SystemdUnitScope::UserSession => "Failed user units",
+        SystemdUnitScope::SystemWide => "Failed system units",
+    })
+}
 
-    fn icon(&self) -> IconGlyph {
-        unit_scope_icon(self.scope)
+pub(super) fn failed_units_state() -> ReadingDisplayState {
+    UNIT_FAILURE_PRIORITY.severity().into()
+}
+
+pub(super) fn failed_units_hover_card(failed: &FailedUnits) -> Vec<Section> {
+    vec![Section::new(
+        SectionTitle::captioned(
+            "Units",
+            "Units in the failed state now; each toasts until it recovers.",
+        ),
+        failed_unit_table(&failed.units),
+    )]
+}
+
+pub(super) fn failed_units_reading_row(failed: &FailedUnits) -> ReadingRow<'_> {
+    let base = ReadingRow::glyph_only(
+        failed_units_name(failed),
+        unit_scope_icon(failed.scope)
             .with_weight(Weight::Regular)
-            .into()
-    }
-
-    fn badge(&self) -> Option<usize> {
-        Some(self.units.len()).filter(|count| *count > 0)
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        UNIT_FAILURE_PRIORITY.severity().into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            SectionTitle::captioned(
-                "Units",
-                "Units in the failed state now; each toasts until it recovers.",
-            ),
-            failed_unit_table(&self.units),
-        )]
+            .into(),
+        failed_units_state(),
+        Box::new(move |_| failed_units_hover_card(failed)),
+    );
+    let badge = match failed.units.len() {
+        0 => ReadoutBadge::Unbadged,
+        count => ReadoutBadge::Counted(count),
+    };
+    ReadingRow {
+        readout: RowReadout {
+            badge,
+            ..base.readout
+        },
+        panel_visibility: failed_units_panel_visibility(failed),
+        ..base
     }
 }
 

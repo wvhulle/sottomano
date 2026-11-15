@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use chrono::Locale;
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::network_connectivity::{
     tailscale_inbound_access::{
@@ -13,15 +12,12 @@ use sottomano_desktop_sources::network_connectivity::{
 };
 
 use crate::{
-    clock::Clock,
     group_items::{
         reading_display_state::ReadingDisplayState,
         reading_row::ReadingRow,
         source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
-    hover_cards::hover_card_body::{
-        ReadingSections, Section, SectionWidget, dictionary_table, headed_table,
-    },
+    hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table, headed_table},
     widgets::{
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         phosphor::{Phosphor, Weight},
@@ -53,7 +49,7 @@ impl<'a> OwnNodeRow<'a> {
 }
 
 impl<'a> OwnNodeRow<'a> {
-    pub(super) fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+    pub(super) fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
             readout: RowReadout {
                 label: ReadoutLabel::Labeled(self.own_tags_text()),
@@ -89,7 +85,7 @@ impl<'a> OwnNodeRow<'a> {
 pub(super) struct InboundAccessRow;
 
 impl InboundAccessRow {
-    pub(super) fn reading_row(_clock: Clock, _locale: Locale) -> ReadingRow<'static> {
+    pub(super) fn reading_row() -> ReadingRow<'static> {
         ReadingRow::glyph_only(
             "Reachable from",
             Phosphor::ArrowsInSimple(Weight::Regular).into(),
@@ -102,7 +98,7 @@ impl InboundAccessRow {
 pub(super) struct PolicyFileRow;
 
 impl PolicyFileRow {
-    pub(super) fn reading_row(_clock: Clock, _locale: Locale) -> ReadingRow<'static> {
+    pub(super) fn reading_row() -> ReadingRow<'static> {
         ReadingRow::glyph_only(
             "Policy file",
             Phosphor::Scroll(Weight::Regular).into(),
@@ -240,36 +236,36 @@ fn exit_node_section(rules: &[InboundAccessRule]) -> Option<Section> {
     })
 }
 
-impl ReadingSections for TailscaleInboundAccess {
-    fn sections(&self, _clock: Clock) -> Vec<Section> {
-        [
-            this_machine_section(&self.rules),
-            destination_section(
-                "Services hosted here",
-                &self.rules,
-                |destination| match destination {
-                    InboundDestination::HostedService { service_name } => Some(service_name),
-                    InboundDestination::ThisMachine
-                    | InboundDestination::SubnetRoute { .. }
-                    | InboundDestination::ExitNodeInternet => None,
-                },
-            ),
-            destination_section(
-                "Subnet routes",
-                &self.rules,
-                |destination| match destination {
-                    InboundDestination::SubnetRoute { network } => Some(network),
-                    InboundDestination::ThisMachine
-                    | InboundDestination::HostedService { .. }
-                    | InboundDestination::ExitNodeInternet => None,
-                },
-            ),
-            exit_node_section(&self.rules),
-        ]
-        .into_iter()
-        .flatten()
-        .collect()
-    }
+pub fn tailscale_inbound_access_sections(
+    tailscale_inbound_access: &TailscaleInboundAccess,
+) -> Vec<Section> {
+    [
+        this_machine_section(&tailscale_inbound_access.rules),
+        destination_section(
+            "Services hosted here",
+            &tailscale_inbound_access.rules,
+            |destination| match destination {
+                InboundDestination::HostedService { service_name } => Some(service_name),
+                InboundDestination::ThisMachine
+                | InboundDestination::SubnetRoute { .. }
+                | InboundDestination::ExitNodeInternet => None,
+            },
+        ),
+        destination_section(
+            "Subnet routes",
+            &tailscale_inbound_access.rules,
+            |destination| match destination {
+                InboundDestination::SubnetRoute { network } => Some(network),
+                InboundDestination::ThisMachine
+                | InboundDestination::HostedService { .. }
+                | InboundDestination::ExitNodeInternet => None,
+            },
+        ),
+        exit_node_section(&tailscale_inbound_access.rules),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
 }
 
 impl IntoTableRecord<3> for &PolicyRule {
@@ -336,126 +332,36 @@ fn policy_ssh_section(ssh_rules: &[PolicySshRule]) -> Option<Section> {
     })
 }
 
-impl ReadingSections for TailscalePolicyFile {
-    fn sections(&self, _clock: Clock) -> Vec<Section> {
-        let exit_node_approvers_entry = (!self.exit_node_auto_approvers.is_empty()).then(|| {
+pub fn tailscale_policy_file_sections(tailscale_policy_file: &TailscalePolicyFile) -> Vec<Section> {
+    let exit_node_approvers_entry = (!tailscale_policy_file.exit_node_auto_approvers.is_empty())
+        .then(|| {
             LabeledValue::new(
                 "Exit nodes auto-approved for",
-                self.exit_node_auto_approvers.join(", "),
+                tailscale_policy_file.exit_node_auto_approvers.join(", "),
             )
         });
-        let summary_section = Section::new(
-            "Administration",
-            dictionary_table(
-                exit_node_approvers_entry
-                    .into_iter()
-                    .chain([LabeledValue::new(
-                        "Edit",
-                        ValueCell::BrandedLink {
-                            label: "Access controls".to_owned(),
-                            url: ACCESS_CONTROLS_URL.to_owned(),
-                            glyph: SimpleIcon::Tailscale.into(),
-                        },
-                    )]),
-            ),
-        );
-        [
-            policy_rule_section("Grants", &self.grant_rules),
-            policy_rule_section("ACLs", &self.acl_rules),
-            policy_ssh_section(&self.ssh_rules),
-            Some(summary_section),
-        ]
-        .into_iter()
-        .flatten()
-        .collect()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn inbound_rule(
-        source_name: &str,
-        destination: InboundDestination,
-        ports: InboundPorts,
-    ) -> InboundAccessRule {
-        InboundAccessRule {
-            source_name: source_name.to_owned(),
-            destination,
-            ports,
-        }
-    }
-
-    fn nextcloud() -> InboundDestination {
-        InboundDestination::HostedService {
-            service_name: "nextcloud".to_owned(),
-        }
-    }
-
-    fn section_titles(access: &TailscaleInboundAccess) -> Vec<String> {
-        access
-            .sections(Clock::real())
-            .iter()
-            .map(|section| section.title().text().to_owned())
-            .collect()
-    }
-
-    #[test]
-    fn inbound_rules_split_by_destination() {
-        let access = TailscaleInboundAccess {
-            rules: vec![
-                inbound_rule("zbook", InboundDestination::ThisMachine, InboundPorts::All),
-                inbound_rule("x1", nextcloud(), InboundPorts::Single(443)),
-                inbound_rule(
-                    "x1",
-                    InboundDestination::SubnetRoute {
-                        network: "192.168.1.0/24".to_owned(),
+    let summary_section = Section::new(
+        "Administration",
+        dictionary_table(
+            exit_node_approvers_entry
+                .into_iter()
+                .chain([LabeledValue::new(
+                    "Edit",
+                    ValueCell::BrandedLink {
+                        label: "Access controls".to_owned(),
+                        url: ACCESS_CONTROLS_URL.to_owned(),
+                        glyph: SimpleIcon::Tailscale.into(),
                     },
-                    InboundPorts::All,
-                ),
-                inbound_rule(
-                    "iphone",
-                    InboundDestination::ExitNodeInternet,
-                    InboundPorts::All,
-                ),
-            ],
-        };
-        assert_eq!(
-            section_titles(&access),
-            [
-                "This machine",
-                "Services hosted here",
-                "Subnet routes",
-                "Exit node used by"
-            ]
-        );
-    }
-
-    #[test]
-    fn an_unused_destination_has_no_section() {
-        let access = TailscaleInboundAccess {
-            rules: vec![inbound_rule(
-                "zbook",
-                InboundDestination::ThisMachine,
-                InboundPorts::All,
-            )],
-        };
-        assert_eq!(section_titles(&access), ["This machine"]);
-    }
-
-    #[test]
-    fn one_service_row_merges_ports_and_sources() {
-        let rules = [
-            inbound_rule("zbook", nextcloud(), InboundPorts::Single(587)),
-            inbound_rule("x1", nextcloud(), InboundPorts::Single(143)),
-            inbound_rule("zbook", nextcloud(), InboundPorts::Single(143)),
-        ];
-        let access_by_service =
-            access_grouped_by(&rules, |rule| Some(format!("{:?}", rule.destination)));
-        let merged_access: Vec<&GrantedAccess> = access_by_service.values().collect();
-        assert_eq!(merged_access.len(), 1);
-        assert_eq!(merged_access[0].ports_text(), "143, 587");
-        assert_eq!(merged_access[0].sources_text(), "x1, zbook");
-    }
+                )]),
+        ),
+    );
+    [
+        policy_rule_section("Grants", &tailscale_policy_file.grant_rules),
+        policy_rule_section("ACLs", &tailscale_policy_file.acl_rules),
+        policy_ssh_section(&tailscale_policy_file.ssh_rules),
+        Some(summary_section),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
 }

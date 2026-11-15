@@ -1,6 +1,3 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_readings::GpuPowerDraw;
 use uom::{
     fmt::DisplayStyle::Abbreviation,
@@ -8,11 +5,13 @@ use uom::{
 };
 
 use crate::{
-    clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -23,35 +22,37 @@ fn watt_text(power: Power) -> String {
     format!("{:.0}", power.into_format_args(watt, Abbreviation))
 }
 
-impl GroupItemReading for GpuPowerDraw {
-    fn name(&self) -> Cow<'static, str> {
-        "GPU power".into()
+pub fn gpu_power_reading_row(power: GpuPowerDraw) -> ReadingRow<'static> {
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Labeled(watt_text(power.draw)),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        ..ReadingRow::glyph_only(
+            "GPU power",
+            Phosphor::Lightning(Weight::Regular).into(),
+            ReadingDisplayState::Idle,
+            Box::new(move |_| gpu_power_hover_card(&power)),
+        )
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Lightning(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(watt_text(self.draw))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Usage",
-            dictionary_table(
-                [
-                    Some(LabeledValue::new(
-                        "Draw",
-                        Quantity::power(self.draw).decimals(0),
-                    )),
-                    self.limit.map(|limit| {
-                        LabeledValue::new("Limit", Quantity::power(limit).decimals(0))
-                    }),
-                ]
-                .into_iter()
-                .flatten(),
-            ),
-        )]
-    }
+pub fn gpu_power_hover_card(power: &GpuPowerDraw) -> Vec<Section> {
+    vec![Section::new(
+        "Usage",
+        dictionary_table(
+            [
+                Some(LabeledValue::new(
+                    "Draw",
+                    Quantity::power(power.draw).decimals(0),
+                )),
+                power
+                    .limit
+                    .map(|limit| LabeledValue::new("Limit", Quantity::power(limit).decimals(0))),
+            ]
+            .into_iter()
+            .flatten(),
+        ),
+    )]
 }

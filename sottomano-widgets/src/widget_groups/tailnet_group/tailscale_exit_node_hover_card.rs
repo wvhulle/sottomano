@@ -1,4 +1,3 @@
-use chrono::Locale;
 use sottomano_desktop_sources::network_connectivity::{
     tailscale_exit_nodes::{
         ExitNodeChoices, ExitNodeControl, ExitNodeLanAccess, ExitNodeOption, ExitNodeReachability,
@@ -8,7 +7,6 @@ use sottomano_desktop_sources::network_connectivity::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    clock::Clock,
     group_items::{
         reading_display_state::ReadingDisplayState,
         reading_row::ReadingRow,
@@ -40,7 +38,7 @@ pub(super) struct ExitNodeChoiceRow<'a> {
 }
 
 impl<'a> ExitNodeChoiceRow<'a> {
-    pub(super) fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+    pub(super) fn reading_row(self) -> ReadingRow<'a> {
         let label = match self
             .exit_node_choices
             .control_for_option(self.exit_node_option)
@@ -106,7 +104,7 @@ pub(super) struct ExitNodeLanAccessRow<'a> {
 }
 
 impl<'a> ExitNodeLanAccessRow<'a> {
-    pub(super) fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+    pub(super) fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow::glyph_only(
             "LAN while exiting",
             Phosphor::HouseLine(Weight::Regular).into(),

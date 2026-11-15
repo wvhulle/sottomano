@@ -21,7 +21,6 @@ use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
     background_work::logged_failure_task,
-    clock::Clock,
     group_items::{
         aligned_quantity::AlignedQuantity,
         group_item::GroupItem,
@@ -308,16 +307,14 @@ impl CompositorStylingGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: CompositorStylingTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: CompositorStylingTarget) -> Vec<Section> {
         let control = match target {
             CompositorStylingTarget::CornerRadius => self
                 .corner_radius
                 .readout_hover_card("Window corner radius"),
             CompositorStylingTarget::Gaps => self.gaps.readout_hover_card("Window gaps"),
-            CompositorStylingTarget::Xray => xray_toggle(self.blur_depth).switch_hover_card(clock),
-            CompositorStylingTarget::SwitchHeat => {
-                self.switch_heat.toggle().switch_hover_card(clock)
-            }
+            CompositorStylingTarget::Xray => xray_toggle(self.blur_depth).switch_hover_card(),
+            CompositorStylingTarget::SwitchHeat => self.switch_heat.toggle().switch_hover_card(),
         };
         control
             .into_iter()

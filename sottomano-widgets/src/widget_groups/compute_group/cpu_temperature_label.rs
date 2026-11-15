@@ -1,4 +1,4 @@
-use std::{borrow::Cow, time::Duration};
+use std::time::Duration;
 
 use chrono::{DateTime, Locale, Utc};
 use quick_xml::escape::escape;
@@ -23,16 +23,18 @@ use super::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{
         Section, SectionTitle, dictionary_table, hover_card_figure_payloads::ThreadCell,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
-        ongoing_toast::{definition_list, moment_text},
+        ongoing_toast::{
+            ReadingAlerts, StateToast, ToastBody, ToastProgress, definition_list, moment_text,
+        },
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -57,116 +59,130 @@ impl PerCoreReading for CoreTemperature {
     }
 }
 
-impl GroupItemReading for Temperature {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+fn temperature_state(temperature: &Temperature, clock: Clock) -> ReadingDisplayState {
+    let critical_sustained = temperature.critical_since.is_some_and(|since| {
+        clock
+            .wall
+            .duration_since(since)
+            .is_ok_and(|held| held >= SUSTAINED_CRITICAL)
+    });
+    match temperature.thresholds().level(temperature.hottest()) {
+        Severity::Critical if !critical_sustained => Severity::Warning,
+        level => level,
     }
+    .into()
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::ThermometerSimple(Weight::Regular).into()
-    }
+fn temperature_toast_text(temperature: &Temperature, clock: Clock, locale: Locale) -> String {
+    let thresholds = temperature.thresholds();
+    let sensor = temperature.hottest_reading().map(|reading| {
+        (
+            "Sensor",
+            escape(format!("{} {}", reading.chip, reading.label)).into_owned(),
+        )
+    });
+    let above_since = temperature.critical_since.map(|since| {
+        (
+            "Above critical since",
+            moment_text(DateTime::<Utc>::from(since), clock.utc(), locale),
+        )
+    });
+    definition_list(
+        sensor
+            .into_iter()
+            .chain([("Temperature", celsius_text(temperature.hottest()))])
+            .chain(above_since)
+            .chain([(
+                "Critical threshold",
+                thresholds.basis.text(thresholds.critical),
+            )]),
+    )
+}
 
-    fn state(&self, clock: Clock) -> ReadingDisplayState {
-        let critical_sustained = self.critical_since.is_some_and(|since| {
-            clock
-                .wall
-                .duration_since(since)
-                .is_ok_and(|held| held >= SUSTAINED_CRITICAL)
-        });
-        match self.thresholds().level(self.hottest()) {
-            Severity::Critical if !critical_sustained => Severity::Warning,
-            level => level,
-        }
-        .into()
+pub(super) fn temperature_reading_row(
+    temperature: &Temperature,
+    clock: Clock,
+    locale: Locale,
+) -> ReadingRow<'_> {
+    let state = temperature_state(temperature, clock);
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Labeled(celsius_text(temperature.hottest())),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        alerts: ReadingAlerts {
+            state_toast: StateToast::NotifyFromSeverity {
+                minimum_severity: Severity::Critical,
+                summary_text: "CPU overheating",
+                body: ToastBody::Text(temperature_toast_text(temperature, clock, locale)),
+                progress: ToastProgress::Unmeasured,
+            },
+            ..ReadingAlerts::default()
+        },
+        ..ReadingRow::glyph_only(
+            Temperature::NAME,
+            Phosphor::ThermometerSimple(Weight::Regular).into(),
+            state,
+            Box::new(move |_| temperature_hover_card(temperature)),
+        )
     }
+}
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(celsius_text(self.hottest()))
-    }
-
-    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
-        OngoingToastThreshold::NotifyFromSeverity {
-            minimum_severity: Severity::Critical,
-            summary_text: "CPU overheating",
-        }
-    }
-
-    fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> Option<String> {
-        let thresholds = self.thresholds();
-        let sensor = self.hottest_reading().map(|reading| {
-            (
-                "Sensor",
-                escape(format!("{} {}", reading.chip, reading.label)).into_owned(),
-            )
-        });
-        let above_since = self.critical_since.map(|since| {
-            (
-                "Above critical since",
-                moment_text(DateTime::<Utc>::from(since), clock.utc(), locale),
-            )
-        });
-        Some(definition_list(
-            sensor
-                .into_iter()
-                .chain([("Temperature", celsius_text(self.hottest()))])
-                .chain(above_since)
-                .chain([(
-                    "Critical threshold",
-                    thresholds.basis.text(thresholds.critical),
-                )]),
-        ))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        let mut chips: Vec<&str> = self.readings.iter().map(|r| r.chip.as_str()).collect();
-        chips.dedup();
-        let thresholds = self.thresholds();
-        let summary = Section::new(
-            "Sensors",
-            dictionary_table(
-                [
-                    Some(LabeledValue::new("Chips", chips.join(", "))),
-                    Some(LabeledValue::new(
-                        "Samples",
-                        Quantity::count(self.readings.len()),
-                    )),
-                    self.lowest()
-                        .map(|lowest| LabeledValue::new("Min", Quantity::temperature(lowest))),
-                    Some(LabeledValue::new(
-                        "Avg",
-                        Quantity::temperature(self.average()),
-                    )),
-                    Some(LabeledValue::new(
-                        "Max",
-                        Quantity::temperature(self.hottest()),
-                    )),
-                ]
-                .into_iter()
-                .flatten(),
-            ),
-        );
-        let threshold_section = Section::new(
-            "Thresholds",
-            dictionary_table(
-                [
-                    self.throttle_limit.map(|throttle| {
-                        LabeledValue::new("Throttles at", Quantity::temperature(throttle))
-                    }),
-                    Some(LabeledValue::new(
-                        "Warns above",
-                        Quantity::temperature(thresholds.warning),
-                    )),
-                    Some(LabeledValue::new(
-                        "Critical above",
-                        thresholds.critical_text(),
-                    )),
-                ]
-                .into_iter()
-                .flatten(),
-            ),
-        );
-        vec![summary, threshold_section]
-    }
+pub(super) fn temperature_hover_card(temperature: &Temperature) -> Vec<Section> {
+    let mut chips: Vec<&str> = temperature
+        .readings
+        .iter()
+        .map(|reading| reading.chip.as_str())
+        .collect();
+    chips.dedup();
+    let thresholds = temperature.thresholds();
+    let summary = Section::new(
+        "Sensors",
+        dictionary_table(
+            [
+                Some(LabeledValue::new("Chips", chips.join(", "))),
+                Some(LabeledValue::new(
+                    "Samples",
+                    Quantity::count(temperature.readings.len()),
+                )),
+                temperature
+                    .lowest()
+                    .map(|lowest| LabeledValue::new("Min", Quantity::temperature(lowest))),
+                Some(LabeledValue::new(
+                    "Avg",
+                    Quantity::temperature(temperature.average()),
+                )),
+                Some(LabeledValue::new(
+                    "Max",
+                    Quantity::temperature(temperature.hottest()),
+                )),
+            ]
+            .into_iter()
+            .flatten(),
+        ),
+    );
+    let threshold_section = Section::new(
+        "Thresholds",
+        dictionary_table(
+            [
+                temperature.throttle_limit.map(|throttle| {
+                    LabeledValue::new("Throttles at", Quantity::temperature(throttle))
+                }),
+                Some(LabeledValue::new(
+                    "Warns above",
+                    Quantity::temperature(thresholds.warning),
+                )),
+                Some(LabeledValue::new(
+                    "Critical above",
+                    thresholds.critical_text(),
+                )),
+            ]
+            .into_iter()
+            .flatten(),
+        ),
+    );
+    vec![summary, threshold_section]
 }
 
 impl ChipletLiveState<'_> {
@@ -227,8 +243,14 @@ mod tests {
     fn critical_heat_counts_as_warning_until_sustained() {
         let clock = Clock::real();
         let fresh = hot_reading(Some(clock.wall));
-        assert_eq!(fresh.state(clock), ReadingDisplayState::Warning);
+        assert_eq!(
+            temperature_state(&fresh, clock),
+            ReadingDisplayState::Warning
+        );
         let sustained = hot_reading(Some(clock.wall - SUSTAINED_CRITICAL));
-        assert_eq!(sustained.state(clock), ReadingDisplayState::Critical);
+        assert_eq!(
+            temperature_state(&sustained, clock),
+            ReadingDisplayState::Critical
+        );
     }
 }

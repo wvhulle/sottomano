@@ -17,7 +17,7 @@ impl DesktopShell {
         let login_session = self
             .widget_groups
             .login_session_group
-            .group_content(self.clock, self.config.calendar.locale)
+            .group_content()
             .map(ShellInteraction::LoginSession);
         self.group_menu(
             GroupMenuTopic::Session,

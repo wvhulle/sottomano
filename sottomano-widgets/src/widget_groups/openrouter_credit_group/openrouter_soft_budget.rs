@@ -1,4 +1,3 @@
-use chrono::Locale;
 use sottomano_desktop_sources::{
     SnapshotSource,
     ai_usage_spend::{
@@ -36,11 +35,7 @@ pub(crate) fn spend_panel_visibility(spend: &OpenRouterSpend) -> PanelVisibility
     }
 }
 
-pub(crate) fn spend_reading_row(
-    spend: &OpenRouterSpend,
-    clock: Clock,
-    _locale: Locale,
-) -> ReadingRow<'_> {
+pub(crate) fn spend_reading_row(spend: &OpenRouterSpend, clock: Clock) -> ReadingRow<'_> {
     let today = spend.today.models.total();
     let label = if today.is_positive() {
         ReadoutLabel::Labeled(format!("{} today", spend_text(&today)))

@@ -1,15 +1,15 @@
-use std::borrow::Cow;
-
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::ai_usage_spend::llama_server_slots::{LlamaSlot, SlotTask};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
-    clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, headed_table},
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -62,20 +62,27 @@ fn slot_record(slot: &LlamaSlot) -> TableRecord<3> {
     )
 }
 
-impl GroupItemReading for ContextFill<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        format!("{} context fill", self.server).into()
+impl<'a> ContextFill<'a> {
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Unlabeled,
+                gauge: ReadoutGauge::Gauged {
+                    fill: self.fullest,
+                    live: self.fullest,
+                },
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                format!("{} context fill", self.server),
+                Phosphor::Scroll(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |_| self.hover_card()),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Scroll(Weight::Regular).into()
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        Some(self.fullest)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             "Slots",
             headed_table(

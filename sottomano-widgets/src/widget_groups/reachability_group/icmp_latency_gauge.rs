@@ -1,4 +1,4 @@
-use std::{borrow::Cow, time::Duration};
+use std::time::Duration;
 
 use sottomano_desktop_sources::{
     SnapshotSource, network_connectivity::icmp_internet_latency::InternetLatency,
@@ -6,16 +6,13 @@ use sottomano_desktop_sources::{
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutGauge, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle},
     widget_groups::echo_probe_window_rows::{probe_window_section, probe_window_severity},
-    widgets::{
-        icon_glyph::IconGlyph,
-        phosphor::{Phosphor, Weight},
-    },
+    widgets::phosphor::{Phosphor, Weight},
 };
 
 const SCALE_START: Duration = Duration::from_millis(5);
@@ -27,33 +24,37 @@ fn fraction_of_scale(round_trip: Duration) -> f64 {
     (log_position / log_width_of_scale).clamp(0.0, 1.0)
 }
 
-impl GroupItemReading for InternetLatency {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
+pub(super) fn internet_latency_hover_card(latency: &InternetLatency) -> Vec<Section> {
+    vec![probe_window_section(
+        SectionTitle::captioned(
+            "Ping",
+            "Echo round trips every five seconds to a host on the internet, through whichever \
+             connection carries the traffic.",
+        ),
+        &latency.window,
+    )]
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Timer(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        probe_window_severity(&self.window).into()
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        let round_trip = self.window.median_round_trip()?;
-        Some(Ratio::new::<ratio>(fraction_of_scale(round_trip)))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![probe_window_section(
-            SectionTitle::captioned(
-                "Ping",
-                "Echo round trips every five seconds to a host on the internet, through whichever \
-                 connection carries the traffic.",
-            ),
-            &self.window,
-        )]
+pub(super) fn internet_latency_reading_row(latency: &InternetLatency) -> ReadingRow<'_> {
+    let base = ReadingRow::glyph_only(
+        InternetLatency::NAME,
+        Phosphor::Timer(Weight::Regular).into(),
+        probe_window_severity(&latency.window).into(),
+        Box::new(move |_| internet_latency_hover_card(latency)),
+    );
+    let gauge = match latency.window.median_round_trip() {
+        Some(round_trip) => {
+            let fill = Ratio::new::<ratio>(fraction_of_scale(round_trip));
+            ReadoutGauge::Gauged { fill, live: fill }
+        }
+        None => ReadoutGauge::Ungauged,
+    };
+    ReadingRow {
+        readout: RowReadout {
+            gauge,
+            ..base.readout
+        },
+        ..base
     }
 }
 

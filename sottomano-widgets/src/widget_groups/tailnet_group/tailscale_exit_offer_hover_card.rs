@@ -1,11 +1,9 @@
-use chrono::Locale;
 use sottomano_desktop_sources::network_connectivity::tailscale_status::{
     ExitNodeOffer, ExitOfferControl, Tailnet,
 };
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    clock::Clock,
     group_items::{
         reading_display_state::ReadingDisplayState,
         reading_row::ReadingRow,
@@ -33,7 +31,7 @@ pub(super) struct ExitOfferRow<'a> {
 }
 
 impl<'a> ExitOfferRow<'a> {
-    pub(super) fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+    pub(super) fn reading_row(self) -> ReadingRow<'a> {
         let label = match self.tailnet.offer_control() {
             ExitOfferControl::Switchable(_) => ReadoutLabel::Unlabeled,
             ExitOfferControl::BlockedByExitNodeInUse => ReadoutLabel::Labeled("blocked".to_owned()),

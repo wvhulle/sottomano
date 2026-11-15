@@ -13,7 +13,6 @@ use sottomano_toml_config::severity::Severity;
 
 use self::hover_card_source_delivery::{SectionSource, SourceDelivery};
 use crate::{
-    clock::Clock,
     hover_cards::{PopupMessage, PressHints, hover_card_content::HoverCardContent},
     widgets::{
         keyed_record_table::{
@@ -24,10 +23,6 @@ use crate::{
 };
 
 pub type SectionTable = GroupedTable<'static, ValueCell, Severity>;
-
-pub trait ReadingSections {
-    fn sections(&self, clock: Clock) -> Vec<Section>;
-}
 
 type DrawSection = dyn Fn(&HoverCardContent<'_>) -> Element<'static, PopupMessage>;
 

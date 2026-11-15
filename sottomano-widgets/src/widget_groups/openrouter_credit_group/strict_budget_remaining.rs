@@ -1,4 +1,3 @@
-use chrono::Locale;
 use sottomano_desktop_sources::{
     SnapshotSource,
     ai_usage_spend::{
@@ -9,7 +8,6 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    clock::Clock,
     group_items::{
         reading_display_state::ReadingDisplayState,
         reading_row::{PanelVisibility, ReadingRow},
@@ -36,11 +34,7 @@ pub(crate) fn strict_budget_panel_visibility(budget: &OpenRouterStrictBudget) ->
     }
 }
 
-pub(crate) fn strict_budget_reading_row(
-    budget: &OpenRouterStrictBudget,
-    _clock: Clock,
-    _locale: Locale,
-) -> ReadingRow<'_> {
+pub(crate) fn strict_budget_reading_row(budget: &OpenRouterStrictBudget) -> ReadingRow<'_> {
     let state = match budget.credit_standing() {
         CreditStanding::Exhausted => ReadingDisplayState::Critical,
         CreditStanding::Remaining => ReadingDisplayState::Idle,
@@ -59,15 +53,12 @@ pub(crate) fn strict_budget_reading_row(
             OpenRouterStrictBudget::NAME,
             Phosphor::Wallet(Weight::Regular).into(),
             state,
-            Box::new(move |card_clock| strict_budget_hover_card(budget, card_clock)),
+            Box::new(move |_| strict_budget_hover_card(budget)),
         )
     }
 }
 
-pub(crate) fn strict_budget_hover_card(
-    budget: &OpenRouterStrictBudget,
-    _clock: Clock,
-) -> Vec<Section> {
+pub(crate) fn strict_budget_hover_card(budget: &OpenRouterStrictBudget) -> Vec<Section> {
     [Section::new(
         "Credits",
         dictionary_table([

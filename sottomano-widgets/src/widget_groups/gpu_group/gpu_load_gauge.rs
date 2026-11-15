@@ -1,13 +1,13 @@
-use std::borrow::Cow;
-
 use sottomano_desktop_sources::{
     SnapshotSource, cpu_memory_compute::pci_gpu_readings::GpuSnapshot,
 };
-use uom::si::f64::Ratio;
 
 use crate::{
-    clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
@@ -21,25 +21,32 @@ use crate::{
 pub(crate) const GPU_SNAPSHOT_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::GraphicsCard(Weight::Regular));
 
-impl GroupItemReading for GpuSnapshot {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub fn gpu_load_reading_row(snapshot: &GpuSnapshot) -> ReadingRow<'_> {
+    let glyph = snapshot
+        .vendor
+        .vendor_logo()
+        .map_or(GPU_SNAPSHOT_FALLBACK_GLYPH, IconGlyph::from);
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Unlabeled,
+            gauge: ReadoutGauge::Gauged {
+                fill: snapshot.load,
+                live: snapshot.load,
+            },
+            badge: ReadoutBadge::Unbadged,
+        },
+        ..ReadingRow::glyph_only(
+            GpuSnapshot::NAME,
+            glyph,
+            ReadingDisplayState::Idle,
+            Box::new(move |_| gpu_load_hover_card(snapshot)),
+        )
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        self.vendor
-            .vendor_logo()
-            .map_or(GPU_SNAPSHOT_FALLBACK_GLYPH, IconGlyph::from)
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        Some(self.load)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Load",
-            dictionary_table([LabeledValue::new("GPU", Quantity::share(self.load))]),
-        )]
-    }
+pub fn gpu_load_hover_card(snapshot: &GpuSnapshot) -> Vec<Section> {
+    vec![Section::new(
+        "Load",
+        dictionary_table([LabeledValue::new("GPU", Quantity::share(snapshot.load))]),
+    )]
 }

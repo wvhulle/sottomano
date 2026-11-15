@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
 
-use chrono::{DateTime, Local, Locale, NaiveDate};
+use chrono::{DateTime, Local, NaiveDate};
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::{
     SnapshotSource,
@@ -100,11 +100,7 @@ fn progress_cell(task: &OpenTask) -> ValueCell {
     }
 }
 
-pub(crate) fn open_tasks_reading_row(
-    open_tasks: &OpenTaskList,
-    clock: Clock,
-    _locale: Locale,
-) -> ReadingRow<'_> {
+pub(crate) fn open_tasks_reading_row(open_tasks: &OpenTaskList, clock: Clock) -> ReadingRow<'_> {
     let overdue_count = open_tasks.overdue_task_count(clock.local());
     let (label, state) = if overdue_count > 0 {
         (

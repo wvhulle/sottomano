@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use notulist_client::{DictationError, DictationPhase, MicrophoneOpenError, MicrophoneSilence};
 use sottomano_desktop_sources::{
     SnapshotSource, voice_dictation_input::notulist_dbus_dictation::NotulistDictation,
@@ -7,9 +5,8 @@ use sottomano_desktop_sources::{
 
 use super::speech_model_item::model_load_error_rows;
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
@@ -53,49 +50,42 @@ impl From<&NotulistDictation> for SwitchPosition {
     }
 }
 
-impl GroupItemReading for NotulistDictation {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub fn notulist_dictation_reading_row(dictation: &NotulistDictation) -> ReadingRow<'_> {
+    let glyph: IconGlyph = match dictation.phase {
+        DictationPhase::LoadingModel => Phosphor::HourglassMedium(Weight::Regular),
+        DictationPhase::Idle => Phosphor::Microphone(Weight::Regular),
+        DictationPhase::Listening => Phosphor::Record(Weight::Regular),
+        DictationPhase::Finishing => Phosphor::CursorText(Weight::Regular),
+        DictationPhase::StoppedByError(_) => Phosphor::MicrophoneSlash(Weight::Regular),
     }
+    .into();
+    let state = match dictation.phase {
+        DictationPhase::Idle => ReadingDisplayState::Idle,
+        DictationPhase::Listening => ReadingDisplayState::Live,
+        DictationPhase::LoadingModel | DictationPhase::Finishing => ReadingDisplayState::Pending,
+        DictationPhase::StoppedByError(_) => ReadingDisplayState::Failed,
+    };
+    ReadingRow::glyph_only(
+        NotulistDictation::NAME,
+        glyph,
+        state,
+        Box::new(move |_| notulist_dictation_hover_card(dictation)),
+    )
+}
 
-    fn icon(&self) -> IconGlyph {
-        match self.phase {
-            DictationPhase::LoadingModel => Phosphor::HourglassMedium(Weight::Regular),
-            DictationPhase::Idle => Phosphor::Microphone(Weight::Regular),
-            DictationPhase::Listening => Phosphor::Record(Weight::Regular),
-            DictationPhase::Finishing => Phosphor::CursorText(Weight::Regular),
-            DictationPhase::StoppedByError(_) => Phosphor::MicrophoneSlash(Weight::Regular),
-        }
-        .into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.phase {
-            DictationPhase::Idle => ReadingDisplayState::Idle,
-            DictationPhase::Listening => ReadingDisplayState::Live,
-            DictationPhase::LoadingModel | DictationPhase::Finishing => {
-                ReadingDisplayState::Pending
-            }
-            DictationPhase::StoppedByError(_) => ReadingDisplayState::Failed,
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        let phase_row = LabeledValue::new("Dictation", phase_text(&self.phase));
-        let error_rows = match &self.phase {
-            DictationPhase::StoppedByError(dictation_error) => {
-                dictation_error_rows(dictation_error)
-            }
-            DictationPhase::LoadingModel
-            | DictationPhase::Idle
-            | DictationPhase::Listening
-            | DictationPhase::Finishing => Vec::new(),
-        };
-        vec![Section::new(
-            "Status",
-            dictionary_table([phase_row].into_iter().chain(error_rows)),
-        )]
-    }
+pub fn notulist_dictation_hover_card(dictation: &NotulistDictation) -> Vec<Section> {
+    let phase_row = LabeledValue::new("Dictation", phase_text(&dictation.phase));
+    let error_rows = match &dictation.phase {
+        DictationPhase::StoppedByError(dictation_error) => dictation_error_rows(dictation_error),
+        DictationPhase::LoadingModel
+        | DictationPhase::Idle
+        | DictationPhase::Listening
+        | DictationPhase::Finishing => Vec::new(),
+    };
+    vec![Section::new(
+        "Status",
+        dictionary_table([phase_row].into_iter().chain(error_rows)),
+    )]
 }
 
 fn dictation_error_rows(dictation_error: &DictationError) -> Vec<LabeledValue> {

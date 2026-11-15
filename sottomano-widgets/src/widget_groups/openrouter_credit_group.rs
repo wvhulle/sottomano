@@ -1,5 +1,3 @@
-use chrono::Locale;
-
 use crate::{
     group_items::reading_display_state::ReadingDisplayState,
     widget_groups::openrouter_credit_group::{
@@ -212,10 +210,10 @@ impl OpenRouterCreditGroup {
                 .sections_described_by(|snapshot| spend_hover_card(snapshot, clock)),
             OpenRouterCreditTarget::StrictBudget => self
                 .strict_budget
-                .sections_described_by(|snapshot| strict_budget_hover_card(snapshot, clock)),
+                .sections_described_by(strict_budget_hover_card),
             OpenRouterCreditTarget::BestModelsWithinCap => self
                 .model_rankings
-                .sections_described_by(|snapshot| best_models_hover_card(snapshot, clock)),
+                .sections_described_by(best_models_hover_card),
             OpenRouterCreditTarget::MostUsedModel => {
                 let Some(ranking) = self.model_ranking() else {
                     return Vec::new();
@@ -234,7 +232,6 @@ impl OpenRouterCreditGroup {
     pub fn group_content(
         &self,
         clock: Clock,
-        locale: Locale,
     ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::OpenRouterCredit,
@@ -244,20 +241,20 @@ impl OpenRouterCreditGroup {
                 self.spend
                     .group_item(
                         OPEN_ROUTER_SPEND_FALLBACK_GLYPH,
-                        |snapshot| spend_reading_row(snapshot, clock, locale),
+                        |snapshot| spend_reading_row(snapshot, clock),
                         OpenRouterCreditTarget::SoftBudget,
                         clock,
                     )
                     .map(GroupItem::previewed_on_handle),
                 self.strict_budget.group_item(
                     OPEN_ROUTER_STRICT_BUDGET_FALLBACK_GLYPH,
-                    |snapshot| strict_budget_reading_row(snapshot, clock, locale),
+                    |snapshot| strict_budget_reading_row(snapshot),
                     OpenRouterCreditTarget::StrictBudget,
                     clock,
                 ),
                 self.model_rankings.group_item(
                     OPEN_ROUTER_MODEL_RANKINGS_FALLBACK_GLYPH,
-                    |snapshot| best_models_reading_row(snapshot, clock, locale),
+                    |snapshot| best_models_reading_row(snapshot),
                     OpenRouterCreditTarget::BestModelsWithinCap,
                     clock,
                 ),

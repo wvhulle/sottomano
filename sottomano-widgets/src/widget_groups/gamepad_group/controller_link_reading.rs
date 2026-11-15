@@ -1,6 +1,5 @@
-use std::{borrow::Cow, time::Duration};
+use std::time::Duration;
 
-use chrono::Locale;
 use sottomano_desktop_sources::{
     gamepad_controller_input::{
         accelerometer_report_timing::DeviceClock, evdev_gamepad_devices::GamepadTransport,
@@ -10,13 +9,13 @@ use sottomano_desktop_sources::{
 use uom::si::{f64::Frequency, frequency::megahertz, ratio::percent};
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         input_report_sections::{KernelErrorListing, MeasuredReportTiming, ReportHealth},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -139,41 +138,46 @@ impl ControllerLinkReading<'_> {
     }
 }
 
-impl GroupItemReading for ControllerLinkReading<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Controller lag".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        if self.link_stability() == LinkStability::Unstable {
-            Phosphor::LinkBreak(Weight::Regular).into()
+impl<'a> ControllerLinkReading<'a> {
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        let (glyph, state) = if self.link_stability() == LinkStability::Unstable {
+            (
+                Phosphor::LinkBreak(Weight::Regular),
+                ReadingDisplayState::Warning,
+            )
         } else {
-            Phosphor::Link(Weight::Regular).into()
+            (Phosphor::Link(Weight::Regular), ReadingDisplayState::Idle)
+        };
+        let label = match self.report_timing {
+            MeasuredReportTiming::Pending => ReadoutLabel::Unlabeled,
+            MeasuredReportTiming::Measured(timing) => {
+                ReadoutLabel::Labeled(match timing.device_clock {
+                    DeviceClock::Present(sent) => {
+                        format!("{:.0}% lost", sent.lost_share.get::<percent>())
+                    }
+                    DeviceClock::Absent if timing.stalls > 0 => {
+                        format!("{} stalls", timing.stalls)
+                    }
+                    DeviceClock::Absent => gap_label(timing.longest_gap),
+                })
+            }
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Controller lag",
+                glyph.into(),
+                state,
+                Box::new(move |_| self.hover_card()),
+            )
         }
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        match self.report_timing {
-            MeasuredReportTiming::Pending => None,
-            MeasuredReportTiming::Measured(timing) => Some(match timing.device_clock {
-                DeviceClock::Present(sent) => {
-                    format!("{:.0}% lost", sent.lost_share.get::<percent>())
-                }
-                DeviceClock::Absent if timing.stalls > 0 => format!("{} stalls", timing.stalls),
-                DeviceClock::Absent => gap_label(timing.longest_gap),
-            }),
-        }
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.link_stability() == LinkStability::Unstable {
-            ReadingDisplayState::Warning
-        } else {
-            ReadingDisplayState::Idle
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self) -> Vec<Section> {
         [
             Some(
                 self.report_timing

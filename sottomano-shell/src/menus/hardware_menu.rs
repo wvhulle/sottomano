@@ -25,7 +25,7 @@ impl DesktopShell {
         .chain(
             self.widget_groups
                 .gpu_group
-                .group_contents(self.clock, self.config.calendar.locale)
+                .group_contents(self.clock)
                 .map(|group| group.map(ShellInteraction::Gpu)),
         )
         .chain(

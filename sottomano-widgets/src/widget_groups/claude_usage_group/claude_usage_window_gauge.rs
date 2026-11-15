@@ -1,4 +1,4 @@
-use std::{borrow::Cow, iter::once};
+use std::iter::once;
 
 use chrono::{DateTime, Utc};
 use sottomano_desktop_sources::{
@@ -8,18 +8,19 @@ use sottomano_desktop_sources::{
         usage_quota::{Pace, Quota},
     },
 };
-use uom::si::{f64::Ratio, ratio::percent};
+use uom::si::ratio::percent;
 
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-        reading_row::PanelVisibility,
+        reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
+        ongoing_toast::ReadingAlerts,
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
         value_cells::{LabeledValue, ValueCell},
@@ -29,69 +30,80 @@ use crate::{
 pub(crate) const CLAUDE_USAGE_WINDOWS_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Gauge(Weight::Regular));
 
-impl GroupItemReading for ClaudeUsageWindows {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub fn claude_usage_windows_reading_row(
+    windows: &ClaudeUsageWindows,
+    clock: Clock,
+) -> ReadingRow<'_> {
+    let quota_windows = windows.quotas(clock.utc());
+    let fullest_used = windows.fullest_window_used();
+    let state = Quota::worst_severity(&quota_windows)
+        .unwrap_or_else(|| level_from_used(fullest_used))
+        .into();
+    let panel_visibility = if fullest_used.get::<percent>() > 0.0 {
+        PanelVisibility::Shown
+    } else {
+        PanelVisibility::Hidden
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Unlabeled,
+            gauge: ReadoutGauge::Gauged {
+                fill: fullest_used,
+                live: fullest_used,
+            },
+            badge: ReadoutBadge::Unbadged,
+        },
+        alerts: ReadingAlerts {
+            quota_windows,
+            ..ReadingAlerts::default()
+        },
+        panel_visibility,
+        ..ReadingRow::glyph_only(
+            ClaudeUsageWindows::NAME,
+            Phosphor::Gauge(Weight::Regular).into(),
+            state,
+            Box::new(move |card_clock| claude_usage_windows_hover_card(windows, card_clock)),
+        )
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Gauge(Weight::Regular).into()
-    }
-
-    fn state(&self, clock: Clock) -> ReadingDisplayState {
-        Quota::worst_severity(&self.quotas(clock.utc()))
-            .unwrap_or_else(|| level_from_used(self.fullest_window_used()))
-            .into()
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        Some(self.fullest_window_used())
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
-        let now = clock.utc();
-        let sonnet = self.sonnet.as_ref().map(|sonnet| {
-            window_section(
-                "Weekly Sonnet",
-                sonnet,
-                self.sonnet_quota(now).as_ref(),
-                now,
-            )
-        });
-        [
-            Section::new(
-                "Subscription",
-                dictionary_table(
-                    self.plan
-                        .as_deref()
-                        .map(|plan| LabeledValue::new("Plan", plan)),
-                ),
+pub fn claude_usage_windows_hover_card(windows: &ClaudeUsageWindows, clock: Clock) -> Vec<Section> {
+    let now = clock.utc();
+    let sonnet = windows.sonnet.as_ref().map(|sonnet| {
+        window_section(
+            "Weekly Sonnet",
+            sonnet,
+            windows.sonnet_quota(now).as_ref(),
+            now,
+        )
+    });
+    [
+        Section::new(
+            "Subscription",
+            dictionary_table(
+                windows
+                    .plan
+                    .as_deref()
+                    .map(|plan| LabeledValue::new("Plan", plan)),
             ),
-            window_section(
-                "Session",
-                &self.session,
-                self.session_quota(now).as_ref(),
-                now,
-            ),
-            window_section("Weekly", &self.weekly, self.weekly_quota(now).as_ref(), now),
-        ]
-        .into_iter()
-        .chain(sonnet)
-        .chain([extra_section(self.extra.as_ref())])
-        .collect::<Vec<_>>()
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        if self.fullest_window_used().get::<percent>() > 0.0 {
-            PanelVisibility::Shown
-        } else {
-            PanelVisibility::Hidden
-        }
-    }
-
-    fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {
-        self.quotas(now)
-    }
+        ),
+        window_section(
+            "Session",
+            &windows.session,
+            windows.session_quota(now).as_ref(),
+            now,
+        ),
+        window_section(
+            "Weekly",
+            &windows.weekly,
+            windows.weekly_quota(now).as_ref(),
+            now,
+        ),
+    ]
+    .into_iter()
+    .chain(sonnet)
+    .chain([extra_section(windows.extra.as_ref())])
+    .collect::<Vec<_>>()
 }
 
 fn window_section(

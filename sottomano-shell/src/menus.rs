@@ -78,7 +78,7 @@ impl DesktopShell {
                 .map(ShellInteraction::GroupMenuState),
             self.widget_groups
                 .global_menu_group
-                .switch_content(self.clock, self.config.calendar.locale)
+                .switch_content()
                 .map(ShellInteraction::GlobalMenu),
         ]
     }

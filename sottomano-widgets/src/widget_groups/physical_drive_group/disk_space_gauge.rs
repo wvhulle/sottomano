@@ -3,7 +3,6 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    clock::Clock,
     group_items::{
         gauge::percent_fill,
         reading_display_state::ReadingDisplayState,
@@ -33,7 +32,7 @@ pub(crate) fn disk_space_reading_row(
         DiskSpaceOccupancy::NAME,
         Phosphor::HardDrive(Weight::Regular).into(),
         ReadingDisplayState::Idle,
-        Box::new(move |clock| disk_space_hover_card(occupancy, clock)),
+        Box::new(move |_| disk_space_hover_card(occupancy)),
     );
     row.readout.gauge = ReadoutGauge::Gauged { fill, live: fill };
     row.face.ordinal = match marking {
@@ -43,7 +42,7 @@ pub(crate) fn disk_space_reading_row(
     row
 }
 
-pub(crate) fn disk_space_hover_card(occupancy: &DiskSpaceOccupancy, _clock: Clock) -> Vec<Section> {
+pub(crate) fn disk_space_hover_card(occupancy: &DiskSpaceOccupancy) -> Vec<Section> {
     let summary = Section::new(
         "Usage",
         dictionary_table([

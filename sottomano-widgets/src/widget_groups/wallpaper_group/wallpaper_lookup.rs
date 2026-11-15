@@ -3,7 +3,6 @@ use std::{
     path::PathBuf,
 };
 
-use chrono::Locale;
 use futures_rx::RxExt;
 use iced::futures::{Stream, StreamExt, stream};
 use sottomano_desktop_sources::{
@@ -17,7 +16,6 @@ use sottomano_desktop_sources::{
 
 use super::{article_label::Article, photo_credit::Photo, place_label::Place};
 use crate::{
-    clock::Clock,
     group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -118,7 +116,7 @@ fn displayed_lookups(
 }
 
 impl Lookup {
-    pub(super) fn reading_row(&self, _clock: Clock, _locale: Locale) -> ReadingRow<'_> {
+    pub(super) fn reading_row(&self) -> ReadingRow<'_> {
         ReadingRow::glyph_only(
             "Wallpaper lookup",
             Phosphor::Image(Weight::Regular).into(),

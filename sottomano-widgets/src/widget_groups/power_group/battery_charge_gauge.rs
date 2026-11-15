@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use sottomano_desktop_sources::{
     SnapshotSource,
     battery_power_profiles::upower_battery_state::{Battery, ChargeStatus},
@@ -7,58 +5,63 @@ use sottomano_desktop_sources::{
 use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
 };
 
-impl GroupItemReading for Battery {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub fn battery_reading_row(battery: &Battery) -> ReadingRow<'_> {
+    let state = if battery.capacity <= Ratio::new::<percent>(15.0) {
+        ReadingDisplayState::Critical
+    } else if battery.capacity <= Ratio::new::<percent>(30.0) {
+        ReadingDisplayState::Warning
+    } else {
+        ReadingDisplayState::Idle
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Unlabeled,
+            gauge: ReadoutGauge::Gauged {
+                fill: battery.capacity,
+                live: battery.capacity,
+            },
+            badge: ReadoutBadge::Unbadged,
+        },
+        ..ReadingRow::glyph_only(
+            Battery::NAME,
+            Phosphor::BatteryCharging(Weight::Regular).into(),
+            state,
+            Box::new(move |_| battery_hover_card(battery)),
+        )
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::BatteryCharging(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.capacity <= Ratio::new::<percent>(15.0) {
-            ReadingDisplayState::Critical
-        } else if self.capacity <= Ratio::new::<percent>(30.0) {
-            ReadingDisplayState::Warning
-        } else {
-            ReadingDisplayState::Idle
-        }
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        Some(self.capacity)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Charge",
-            dictionary_table(
-                [
-                    Some(LabeledValue::new("Battery", Quantity::share(self.capacity))),
-                    (self.status != ChargeStatus::Unreported)
-                        .then(|| LabeledValue::new("Status", self.status.as_str())),
-                    Some(LabeledValue::new(
-                        "Remaining",
-                        Quantity::energy(self.energy),
-                    )),
-                ]
-                .into_iter()
-                .flatten(),
-            ),
-        )]
-    }
+pub fn battery_hover_card(battery: &Battery) -> Vec<Section> {
+    vec![Section::new(
+        "Charge",
+        dictionary_table(
+            [
+                Some(LabeledValue::new(
+                    "Battery",
+                    Quantity::share(battery.capacity),
+                )),
+                (battery.status != ChargeStatus::Unreported)
+                    .then(|| LabeledValue::new("Status", battery.status.as_str())),
+                Some(LabeledValue::new(
+                    "Remaining",
+                    Quantity::energy(battery.energy),
+                )),
+            ]
+            .into_iter()
+            .flatten(),
+        ),
+    )]
 }

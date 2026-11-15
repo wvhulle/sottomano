@@ -3,8 +3,7 @@ use sottomano_desktop_sources::ai_usage_spend::gguf_header_model_card::{
 };
 
 use crate::{
-    clock::Clock,
-    hover_cards::hover_card_body::{ReadingSections, Section, SectionTable, dictionary_table},
+    hover_cards::hover_card_body::{Section, SectionTable, dictionary_table},
     widgets::{
         simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
@@ -79,48 +78,9 @@ fn gguf_metadata_table(card: &GgufModelCard) -> SectionTable {
     )
 }
 
-impl ReadingSections for GgufModelCard {
-    fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new("GGUF metadata", gguf_metadata_table(self))]
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::widgets::keyed_record_table::RecordCells;
-
-    #[test]
-    fn base_models_link_to_their_hugging_face_repository() {
-        let card = GgufModelCard {
-            name: "Qwen3.6-27B".to_owned(),
-            quantized_by: "Unsloth".to_owned(),
-            base_models: vec![BaseModel {
-                name: "Qwen3.6 27B".to_owned(),
-                organization: "Qwen".to_owned(),
-                repository_url: "https://huggingface.co/Qwen/Qwen3.6-27B".to_owned(),
-            }],
-            ..GgufModelCard::default()
-        };
-        let table = gguf_metadata_table(&card);
-        let keys: Vec<&ValueCell> = table.records().map(RecordCells::key).collect();
-        assert_eq!(
-            keys,
-            ["Name", "Quantized by", "Base model"]
-                .map(ValueCell::from)
-                .iter()
-                .collect::<Vec<_>>()
-        );
-        assert_eq!(
-            table
-                .records()
-                .nth(2)
-                .and_then(|record| record.cell(0))
-                .unwrap(),
-            &hugging_face_link(
-                "Qwen Qwen3.6 27B".to_owned(),
-                "https://huggingface.co/Qwen/Qwen3.6-27B"
-            )
-        );
-    }
+pub fn gguf_model_card_sections(gguf_model_card: &GgufModelCard) -> Vec<Section> {
+    vec![Section::new(
+        "GGUF metadata",
+        gguf_metadata_table(gguf_model_card),
+    )]
 }

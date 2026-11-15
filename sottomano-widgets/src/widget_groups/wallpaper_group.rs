@@ -1,5 +1,3 @@
-use chrono::Locale;
-
 use crate::widgets::icon_glyph::IconGlyph;
 mod article_label;
 mod photo_credit;
@@ -95,7 +93,7 @@ impl WallpaperGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: WallpaperTarget, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: WallpaperTarget) -> Vec<Section> {
         match target {
             WallpaperTarget::Lookup => self.lookup.sections_described_by(Lookup::hover_card),
             WallpaperTarget::Place => self
@@ -121,7 +119,6 @@ impl WallpaperGroup {
     pub fn group_content(
         &self,
         clock: Clock,
-        locale: Locale,
     ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let lookup = self.lookup.get();
         WidgetGroupContent::expandable(
@@ -131,28 +128,20 @@ impl WallpaperGroup {
             [
                 self.lookup.group_item(
                     IconGlyph::default(),
-                    |snapshot| snapshot.reading_row(clock, locale),
+                    |snapshot| snapshot.reading_row(),
                     WallpaperTarget::Lookup,
                     clock,
                 ),
                 lookup
                     .and_then(|lookup| lookup.place.as_ref())
-                    .map(|place| {
-                        GroupItem::reading(place.reading_row(clock, locale), WallpaperTarget::Place)
-                    }),
+                    .map(|place| GroupItem::reading(place.reading_row(), WallpaperTarget::Place)),
                 lookup
                     .and_then(|lookup| lookup.article.as_ref())
                     .map(|article| {
-                        GroupItem::reading(
-                            article.reading_row(clock, locale),
-                            WallpaperTarget::Article,
-                        )
+                        GroupItem::reading(article.reading_row(), WallpaperTarget::Article)
                     }),
                 lookup.map(|lookup| {
-                    GroupItem::reading(
-                        lookup.photo.reading_row(clock, locale),
-                        WallpaperTarget::Photo,
-                    )
+                    GroupItem::reading(lookup.photo.reading_row(), WallpaperTarget::Photo)
                 }),
             ]
             .into_iter()

@@ -199,7 +199,7 @@ impl CaldavGroup {
                 upcoming_events_item.map(GroupItem::previewed_on_handle),
                 self.open_tasks.group_item(
                     IconGlyph::default(),
-                    |snapshot| open_tasks_reading_row(snapshot, clock, locale),
+                    |snapshot| open_tasks_reading_row(snapshot, clock),
                     CaldavTarget::OpenTasks,
                     clock,
                 ),

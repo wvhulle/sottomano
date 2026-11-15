@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 
-use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::network_manager_activations::switch_nm_connection;
 use sottomano_desktop_sources::{
@@ -16,9 +15,7 @@ use crate::{
     background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
     group_items::{
-        group_item::GroupItem,
-        reading_display_state::ReadingDisplayState,
-        reading_row::{ReadingRow, reading_hover_card},
+        group_item::GroupItem, reading_display_state::ReadingDisplayState,
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -36,6 +33,7 @@ use crate::{
 };
 
 mod network_manager_vpn_hover_card;
+use network_manager_vpn_hover_card::{vpn_connection_hover_card, vpn_connection_reading_row};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NetworkManagerVpnTarget {
@@ -119,7 +117,7 @@ impl NetworkManagerVpnGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &NetworkManagerVpnTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: &NetworkManagerVpnTarget) -> Vec<Section> {
         let Some(vpn_connection) = self
             .vpn_connections()
             .iter()
@@ -128,17 +126,15 @@ impl NetworkManagerVpnGroup {
             return Vec::new();
         };
         self.network_manager_vpns
-            .hover_card_with(reading_hover_card(vpn_connection, clock))
+            .hover_card_with(vpn_connection_hover_card(vpn_connection))
     }
 
     fn vpn_connection_item(
         vpn_connection: &VpnConnection,
-        clock: Clock,
-        locale: Locale,
     ) -> GroupItem<'_, NetworkManagerVpnInteraction> {
         let vpn_switch = vpn_connection.switch();
         GroupItem::reading(
-            ReadingRow::evaluated(vpn_connection, clock, locale),
+            vpn_connection_reading_row(vpn_connection),
             NetworkManagerVpnTarget {
                 connection_name: Cow::Owned(vpn_connection.name.clone()),
             },
@@ -156,11 +152,7 @@ impl NetworkManagerVpnGroup {
         )
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> WidgetGroupContent<'_, NetworkManagerVpnInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, NetworkManagerVpnInteraction> {
         let previewed_connection_name = self
             .vpn_connections()
             .iter()
@@ -171,7 +163,7 @@ impl NetworkManagerVpnGroup {
             &self.expansion,
             NetworkManagerVpnInteraction::Expansion,
             self.vpn_connections().iter().map(move |vpn_connection| {
-                let vpn_item = Self::vpn_connection_item(vpn_connection, clock, locale);
+                let vpn_item = Self::vpn_connection_item(vpn_connection);
                 if previewed_connection_name == Some(vpn_connection.name.as_str()) {
                     vpn_item.previewed_on_handle()
                 } else {

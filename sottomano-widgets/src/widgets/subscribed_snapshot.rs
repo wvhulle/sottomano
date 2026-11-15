@@ -15,7 +15,7 @@ use crate::{
     hover_cards::{
         HoverTarget,
         hover_card_body::{
-            ReadingSections, Section,
+            Section,
             hover_card_source_delivery::{DeliveryStamp, SourceDelivery},
         },
     },
@@ -328,12 +328,6 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
             ));
         }
         self.group_item(fallback_icon, describe, target, clock)
-    }
-}
-
-impl<S: SnapshotSource + ReadingSections> SubscribedSnapshot<S> {
-    pub fn sections(&self, clock: Clock) -> Vec<Section> {
-        self.sections_described_by(|held_snapshot| held_snapshot.sections(clock))
     }
 }
 

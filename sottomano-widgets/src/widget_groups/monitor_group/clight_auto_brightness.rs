@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use sottomano_desktop_sinks::screen_brightness_color::clight_calibration_writes;
 use sottomano_desktop_sources::{
     SnapshotSource,
@@ -8,41 +6,29 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
         toggle_control::{SwitchPosition, ToggleableSource},
     },
-    hover_cards::hover_card_body::Section,
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
     },
 };
 
-impl GroupItemReading for AutoBrightness {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        match self.calibration {
-            BrightnessCalibration::FromWebcam => Phosphor::Eye(Weight::Regular).into(),
-            BrightnessCalibration::Fixed => Phosphor::EyeSlash(Weight::Regular).into(),
-        }
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.calibration {
-            BrightnessCalibration::FromWebcam => ReadingDisplayState::On,
-            BrightnessCalibration::Fixed => ReadingDisplayState::Off,
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![]
-    }
+pub fn auto_brightness_reading_row(brightness: &AutoBrightness) -> ReadingRow<'_> {
+    let (glyph, state): (IconGlyph, _) = match brightness.calibration {
+        BrightnessCalibration::FromWebcam => (
+            Phosphor::Eye(Weight::Regular).into(),
+            ReadingDisplayState::On,
+        ),
+        BrightnessCalibration::Fixed => (
+            Phosphor::EyeSlash(Weight::Regular).into(),
+            ReadingDisplayState::Off,
+        ),
+    };
+    ReadingRow::glyph_only(AutoBrightness::NAME, glyph, state, Box::new(|_| Vec::new()))
 }
 
 impl ToggleableSource for AutoBrightness {

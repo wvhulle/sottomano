@@ -302,7 +302,7 @@ impl PhysicalDriveGroup {
             .chain(member_items)
             .chain(readings.drive_health.group_item(
                 IconGlyph::default(),
-                |snapshot| drive_health_reading_row(snapshot, clock, locale),
+                |snapshot| drive_health_reading_row(snapshot),
                 DriveTarget::DriveHealth(disk.name.clone()),
                 clock,
             ))
@@ -353,7 +353,7 @@ impl PhysicalDriveGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &DriveTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: &DriveTarget) -> Vec<Section> {
         let readings_of = |name: &String| {
             self.disks
                 .iter()
@@ -361,15 +361,11 @@ impl PhysicalDriveGroup {
                 .map(|(_, readings)| readings)
         };
         match target {
-            DriveTarget::MountDiscovery => self.discovery.sections_described_by(|snapshot| {
-                block_filesystem_discovery_hover_card(snapshot, clock)
-            }),
+            DriveTarget::MountDiscovery => self
+                .discovery
+                .sections_described_by(block_filesystem_discovery_hover_card),
             DriveTarget::Space(name) => readings_of(name)
-                .map(|readings| {
-                    readings
-                        .space
-                        .sections_described_by(|snapshot| disk_space_hover_card(snapshot, clock))
-                })
+                .map(|readings| readings.space.sections_described_by(disk_space_hover_card))
                 .unwrap_or_default(),
             DriveTarget::Read(name) => {
                 let Some(readings) = readings_of(name) else {
@@ -399,7 +395,7 @@ impl PhysicalDriveGroup {
                 .map(|readings| {
                     readings
                         .drive_health
-                        .sections_described_by(|snapshot| drive_health_hover_card(snapshot, clock))
+                        .sections_described_by(drive_health_hover_card)
                 })
                 .unwrap_or_default(),
             DriveTarget::BcachefsMember { disk, partition } => {

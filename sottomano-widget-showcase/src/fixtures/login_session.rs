@@ -48,7 +48,7 @@ fn session_readings() -> [LoginSessionMessage; 2] {
     ]
 }
 
-pub fn on_hover(target: LoginSessionTarget, _clock: Clock) -> Vec<LoginSessionMessage> {
+pub fn on_hover(target: LoginSessionTarget) -> Vec<LoginSessionMessage> {
     match target {
         LoginSessionTarget::Compositor => vec![LoginSessionMessage::GraphicalFetched(
             SnapshotDelivery::single_read(Ok(niri_graphical_session())),

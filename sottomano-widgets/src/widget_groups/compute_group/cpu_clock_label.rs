@@ -1,6 +1,3 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sources::{
     SnapshotSource,
     cpu_memory_compute::{cpu_clock_frequency::CpuClock, cpu_core_loads::CpuCoreLoads},
@@ -15,11 +12,13 @@ use super::{
     cpu_clock_limit_causes::causes_text,
 };
 use crate::{
-    clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -30,41 +29,47 @@ fn frequency_text(frequency: Frequency) -> String {
     format!("{:.2}", frequency.into_format_args(gigahertz, Abbreviation))
 }
 
-impl GroupItemReading for CpuClock {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub(super) fn cpu_clock_reading_row(cpu_clock: &CpuClock) -> ReadingRow<'_> {
+    let label = match cpu_clock.average() {
+        Some(average) => ReadoutLabel::Labeled(frequency_text(average)),
+        None => ReadoutLabel::Unlabeled,
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        ..ReadingRow::glyph_only(
+            CpuClock::NAME,
+            Phosphor::WaveSine(Weight::Regular).into(),
+            ReadingDisplayState::Idle,
+            Box::new(move |_| cpu_clock_hover_card(cpu_clock)),
+        )
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::WaveSine(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.average().map(frequency_text)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        let frequency = |key, frequency: Option<Frequency>| {
-            frequency.map(|frequency| LabeledValue::new(key, Quantity::clock_gigahertz(frequency)))
-        };
-        let shared_causes = self.shared_causes();
-        vec![Section::new(
-            "Frequency",
-            dictionary_table(
-                [
-                    frequency("min", self.lowest()),
-                    frequency("avg", self.average()),
-                    frequency("max", self.highest()),
-                    frequency("floor", self.shared_floor()),
-                    frequency("cap", self.shared_ceiling()),
-                    frequency("max hw", self.shared_hardware_ceiling()),
-                    causes_text(&shared_causes).map(|text| LabeledValue::new("limited by", text)),
-                ]
-                .into_iter()
-                .flatten(),
-            ),
-        )]
-    }
+pub(super) fn cpu_clock_hover_card(cpu_clock: &CpuClock) -> Vec<Section> {
+    let frequency = |key, frequency: Option<Frequency>| {
+        frequency.map(|frequency| LabeledValue::new(key, Quantity::clock_gigahertz(frequency)))
+    };
+    let shared_causes = cpu_clock.shared_causes();
+    vec![Section::new(
+        "Frequency",
+        dictionary_table(
+            [
+                frequency("min", cpu_clock.lowest()),
+                frequency("avg", cpu_clock.average()),
+                frequency("max", cpu_clock.highest()),
+                frequency("floor", cpu_clock.shared_floor()),
+                frequency("cap", cpu_clock.shared_ceiling()),
+                frequency("max hw", cpu_clock.shared_hardware_ceiling()),
+                causes_text(&shared_causes).map(|text| LabeledValue::new("limited by", text)),
+            ]
+            .into_iter()
+            .flatten(),
+        ),
+    )]
 }
 
 impl ChipletLiveState<'_> {

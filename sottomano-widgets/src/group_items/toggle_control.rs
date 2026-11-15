@@ -114,7 +114,7 @@ impl IconToggle {
     }
 
     #[must_use]
-    pub fn switch_hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn switch_hover_card(&self) -> Vec<Section> {
         Vec::new()
     }
 
@@ -229,7 +229,7 @@ impl<S: ToggleableSource> ToggleControl<S> {
 
 #[cfg(test)]
 mod tests {
-    use chrono::Locale;
+
     use sottomano_desktop_sources::{
         cpu_memory_compute::amd_x3d_cache_preference::X3dCachePreference,
         system_protocol_clients::sysfs_attribute_reads::FileReadError,
@@ -238,7 +238,9 @@ mod tests {
     use super::*;
     use crate::{
         hover_cards::hover_card_body::hover_card_source_delivery::{SectionSource, SourceDelivery},
-        widget_groups::compute_group::ComputeTarget,
+        widget_groups::compute_group::{
+            ComputeTarget, x3d_cache_preference_toggle::x3d_cache_preference_reading_row,
+        },
     };
 
     fn refused_write() -> FileReadError {
@@ -251,7 +253,6 @@ mod tests {
     #[test]
     fn a_refused_write_shows_the_refusal_instead_of_the_assumed_value() {
         let clock = Clock::real();
-        let locale = Locale::default();
         let mut control = ToggleControl::<X3dCachePreference>::default();
         control.reading.receive(
             SnapshotDelivery::single_read(Ok(X3dCachePreference::Frequency)),
@@ -268,7 +269,7 @@ mod tests {
             .reading
             .reading_row(
                 IconGlyph::default(),
-                |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                |snapshot| x3d_cache_preference_reading_row(snapshot),
                 clock,
             )
             .expect("failed reading still shows");
@@ -277,7 +278,7 @@ mod tests {
             control
                 .group_item(
                     IconGlyph::default(),
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| x3d_cache_preference_reading_row(snapshot),
                     HoverTarget::Compute(ComputeTarget::X3dCachePreference),
                     (),
                     clock,

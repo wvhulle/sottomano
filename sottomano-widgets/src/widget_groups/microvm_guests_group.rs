@@ -1,6 +1,5 @@
 use std::{borrow::Cow, collections::BTreeMap, mem::take, path::PathBuf};
 
-use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::{
     microvm_guests::press_guest_power_button, sink_write_errors::GuestPowerError,
@@ -69,7 +68,7 @@ struct MicrovmUnitRow<'a> {
 }
 
 impl<'a> MicrovmUnitRow<'a> {
-    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+    fn reading_row(self) -> ReadingRow<'a> {
         let state = match self.activity {
             UnitActivity::Running => ReadingDisplayState::On,
             UnitActivity::Starting | UnitActivity::Stopping => ReadingDisplayState::Pending,
@@ -85,12 +84,12 @@ impl<'a> MicrovmUnitRow<'a> {
                 self.unit.instance_name.clone(),
                 Phosphor::Lightning(Weight::Regular).into(),
                 state,
-                Box::new(move |card_clock| self.hover_card(card_clock)),
+                Box::new(move |_| self.hover_card()),
             )
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    fn hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             "Status",
             dictionary_table([
@@ -112,7 +111,7 @@ struct MicrovmGuestListingRow<'a> {
 }
 
 impl<'a> MicrovmGuestListingRow<'a> {
-    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+    fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
             readout: RowReadout {
                 label: ReadoutLabel::Labeled(ContainerRunState::Running.label().to_owned()),
@@ -175,7 +174,7 @@ impl MicrovmGuestRow<'_> {
 }
 
 impl<'a> MicrovmGuestRow<'a> {
-    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+    fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
             readout: RowReadout {
                 label: ReadoutLabel::Labeled(approximate_memory_text(self.machine.memory_in_use)),
@@ -389,7 +388,7 @@ impl MicrovmGuestsGroup {
                 let activity = self.unit_activity(unit);
                 return self
                     .units
-                    .hover_card_with(MicrovmUnitRow { unit, activity }.hover_card(clock));
+                    .hover_card_with(MicrovmUnitRow { unit, activity }.hover_card());
             }
         };
         if let Some(detail) = self.detail.get() {
@@ -416,12 +415,8 @@ impl MicrovmGuestsGroup {
             .hover_card_with(MicrovmGuestListingRow::hover_card())
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> WidgetGroupContent<'_, MicrovmGuestsInteraction> {
-        let rows = self.machine_rows(clock, locale);
+    pub fn group_content(&self) -> WidgetGroupContent<'_, MicrovmGuestsInteraction> {
+        let rows = self.machine_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MicrovmGuests,
             &self.expansion,
@@ -434,29 +429,18 @@ impl MicrovmGuestsGroup {
         })
     }
 
-    fn machine_rows(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> Vec<GroupItem<'_, MicrovmGuestsInteraction>> {
+    fn machine_rows(&self) -> Vec<GroupItem<'_, MicrovmGuestsInteraction>> {
         let units = self.unit_listing();
-        let mut rows: Vec<GroupItem<'_, MicrovmGuestsInteraction>> = units
-            .iter()
-            .map(|unit| self.unit_row(unit, clock, locale))
-            .collect();
-        rows.extend(self.unmanaged_guest_rows(units, clock, locale));
+        let mut rows: Vec<GroupItem<'_, MicrovmGuestsInteraction>> =
+            units.iter().map(|unit| self.unit_row(unit)).collect();
+        rows.extend(self.unmanaged_guest_rows(units));
         rows
     }
 
-    fn unit_row<'a>(
-        &'a self,
-        unit: &'a MicrovmUnit,
-        clock: Clock,
-        locale: Locale,
-    ) -> GroupItem<'a, MicrovmGuestsInteraction> {
+    fn unit_row<'a>(&'a self, unit: &'a MicrovmUnit) -> GroupItem<'a, MicrovmGuestsInteraction> {
         let row = match self.running_guest_of(unit) {
             Some(machine) => GroupItem::reading(
-                MicrovmGuestRow { machine }.reading_row(clock, locale),
+                MicrovmGuestRow { machine }.reading_row(),
                 MicrovmGuestTarget::RunningProcess {
                     pid: machine.listing.pid,
                 },
@@ -466,7 +450,7 @@ impl MicrovmGuestsGroup {
                     unit,
                     activity: self.unit_activity(unit),
                 }
-                .reading_row(clock, locale),
+                .reading_row(),
                 MicrovmGuestTarget::Unit {
                     instance_name: Cow::Owned(unit.instance_name.clone()),
                 },
@@ -484,8 +468,6 @@ impl MicrovmGuestsGroup {
     fn unmanaged_guest_rows<'a>(
         &'a self,
         units: &'a [MicrovmUnit],
-        clock: Clock,
-        locale: Locale,
     ) -> Vec<GroupItem<'a, MicrovmGuestsInteraction>> {
         let managed_by_unit = |unit_name: Option<&str>| {
             units
@@ -499,7 +481,7 @@ impl MicrovmGuestsGroup {
                 .filter(|machine| !managed_by_unit(machine.unit_name.as_deref()))
                 .map(|machine| {
                     let row = GroupItem::reading(
-                        MicrovmGuestRow { machine }.reading_row(clock, locale),
+                        MicrovmGuestRow { machine }.reading_row(),
                         MicrovmGuestTarget::RunningProcess {
                             pid: machine.listing.pid,
                         },
@@ -530,7 +512,7 @@ impl MicrovmGuestsGroup {
                     })
                     .map(|listing| {
                         GroupItem::reading(
-                            MicrovmGuestListingRow { listing }.reading_row(clock, locale),
+                            MicrovmGuestListingRow { listing }.reading_row(),
                             MicrovmGuestTarget::RunningProcess { pid: listing.pid },
                         )
                     })

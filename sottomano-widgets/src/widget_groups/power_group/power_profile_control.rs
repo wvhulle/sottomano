@@ -26,6 +26,7 @@ use crate::{
     widget_groups::power_group::{
         PowerTarget,
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
+        profile_status_sections::profile_status_sections,
         sqlite_power_draw_regression,
     },
     widgets::{
@@ -283,7 +284,7 @@ impl PowerProfileControl {
             .flatten()
     }
 
-    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self) -> Vec<Section> {
         let profile = Section::new(
             SectionTitle::captioned(
                 "Power profile",
@@ -295,7 +296,7 @@ impl PowerProfileControl {
         let mut sections = self
             .status
             .hover_card_with(once(profile).chain(battery_life).collect());
-        sections.extend(self.status.sections(clock));
+        sections.extend(self.status.sections_described_by(profile_status_sections));
         sections
     }
 

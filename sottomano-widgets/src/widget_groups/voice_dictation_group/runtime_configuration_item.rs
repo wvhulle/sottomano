@@ -1,15 +1,11 @@
-use std::{borrow::Cow, time::Duration};
+use std::time::Duration;
 
 use notulist_client::DictationEngine;
 
 use crate::{
-    clock::Clock,
-    group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-    },
+    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
@@ -48,20 +44,17 @@ impl RuntimeConfiguration<'_> {
     }
 }
 
-impl GroupItemReading for RuntimeConfiguration<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Runtime configuration".into()
+impl<'a> RuntimeConfiguration<'a> {
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        ReadingRow::glyph_only(
+            "Runtime configuration",
+            Phosphor::SlidersHorizontal(Weight::Regular).into(),
+            ReadingDisplayState::On,
+            Box::new(move |_| self.hover_card()),
+        )
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::SlidersHorizontal(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::On
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             "Settings",
             dictionary_table(self.configuration_rows()),

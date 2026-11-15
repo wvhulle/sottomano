@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 
-use chrono::Locale;
 use sottomano_desktop_sinks::{
     lxc_containers::change_lxc_container, sink_write_errors::GuestPowerError,
 };
@@ -11,7 +10,6 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    clock::Clock,
     group_items::{
         reading_row::ReadingRow,
         source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
@@ -51,7 +49,7 @@ pub struct LxcContainerListingRow<'a> {
 }
 
 impl<'a> LxcContainerListingRow<'a> {
-    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+    fn reading_row(self) -> ReadingRow<'a> {
         let listing = self.listing;
         ReadingRow {
             readout: RowReadout {
@@ -79,7 +77,7 @@ pub struct LxcContainerRow<'a> {
 }
 
 impl<'a> LxcContainerRow<'a> {
-    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+    fn reading_row(self) -> ReadingRow<'a> {
         let container = self.container;
         let label = match container.listing.run_state {
             ContainerRunState::Stopped => ContainerRunState::Stopped.label().to_owned(),
@@ -157,11 +155,7 @@ impl ContainerFamily for LxcFamily {
         probe.running_count
     }
 
-    fn listing_rows(
-        listings: &FamilyListings<LxcContainerListing>,
-        clock: Clock,
-        locale: Locale,
-    ) -> Vec<FamilyRow<'_, Self>> {
+    fn listing_rows(listings: &FamilyListings<LxcContainerListing>) -> Vec<FamilyRow<'_, Self>> {
         listings
             .listings
             .iter()
@@ -169,17 +163,13 @@ impl ContainerFamily for LxcFamily {
                 target: LxcContainerTarget {
                     container_name: Cow::Owned(listing.container_name.clone()),
                 },
-                reading: LxcContainerListingRow { listing }.reading_row(clock, locale),
+                reading: LxcContainerListingRow { listing }.reading_row(),
                 power: container_power(listing),
             })
             .collect()
     }
 
-    fn detail_rows(
-        detail: &FamilyDetails<LxcContainer>,
-        clock: Clock,
-        locale: Locale,
-    ) -> Vec<FamilyRow<'_, Self>> {
+    fn detail_rows(detail: &FamilyDetails<LxcContainer>) -> Vec<FamilyRow<'_, Self>> {
         detail
             .details
             .iter()
@@ -187,24 +177,10 @@ impl ContainerFamily for LxcFamily {
                 target: LxcContainerTarget {
                     container_name: Cow::Owned(container.listing.container_name.clone()),
                 },
-                reading: LxcContainerRow { container }.reading_row(clock, locale),
+                reading: LxcContainerRow { container }.reading_row(),
                 power: container_power(&container.listing),
             })
             .collect()
-    }
-
-    fn group_label(probe: &LxcProbe) -> String {
-        format!(
-            "{} running, {} configured",
-            probe.running_count, probe.configured_count
-        )
-    }
-
-    fn group_hover_entries(probe: &LxcProbe) -> Vec<LabeledValue> {
-        vec![
-            LabeledValue::new("Running", probe.running_count.to_string()),
-            LabeledValue::new("Configured", probe.configured_count.to_string()),
-        ]
     }
 
     async fn stop(container_name: String) -> Result<(), GuestPowerError> {

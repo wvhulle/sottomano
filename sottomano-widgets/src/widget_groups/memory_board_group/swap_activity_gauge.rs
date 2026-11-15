@@ -1,4 +1,4 @@
-use std::{borrow::Cow, num::NonZeroUsize};
+use std::num::NonZeroUsize;
 
 use bytesize::ByteSize;
 use chrono::Locale;
@@ -14,16 +14,12 @@ use uom::si::{
 };
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-        reading_row::PanelVisibility,
+        reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
-    hover_cards::hover_card_body::{
-        ReadingSections, Section, SectionTable, SectionTitle, dictionary_table,
-    },
+    hover_cards::hover_card_body::{Section, SectionTable, SectionTitle, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -58,77 +54,76 @@ fn swapped_process_table(swapped: &SwappedProcesses) -> SectionTable {
     .truncated_to(LISTED_PROCESSES)
 }
 
-impl ReadingSections for SwappedProcesses {
-    fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            SectionTitle::captioned(
-                "Swap use",
-                "Private memory of each process that sits in swap; swapped shared memory is not \
-                 counted.",
-            ),
-            swapped_process_table(self),
-        )]
+pub fn swapped_processes_sections(swapped_processes: &SwappedProcesses) -> Vec<Section> {
+    vec![Section::new(
+        SectionTitle::captioned(
+            "Swap use",
+            "Private memory of each process that sits in swap; swapped shared memory is not \
+             counted.",
+        ),
+        swapped_process_table(swapped_processes),
+    )]
+}
+
+pub fn swap_activity_reading_row(activity: &SwapActivity, locale: Locale) -> ReadingRow<'_> {
+    let state = match swap_share(activity) {
+        Some(share) if share.get::<ratio>() > SWAP_WARNING_SHARE => Severity::Warning,
+        _ => Severity::Normal,
+    }
+    .into();
+    ReadingRow {
+        readout: RowReadout {
+            label: paging_label(activity, locale),
+            gauge: match swap_share(activity) {
+                Some(fill) => ReadoutGauge::Gauged { fill, live: fill },
+                None => ReadoutGauge::Ungauged,
+            },
+            badge: ReadoutBadge::Unbadged,
+        },
+        panel_visibility: match activity.swap {
+            Swap::NotConfigured => PanelVisibility::Hidden,
+            Swap::Configured { .. } => PanelVisibility::Shown,
+        },
+        ..ReadingRow::glyph_only(
+            SwapActivity::NAME,
+            Phosphor::ArrowsClockwise(Weight::Regular).into(),
+            state,
+            Box::new(move |_| swap_activity_hover_card(activity)),
+        )
     }
 }
 
-impl GroupItemReading for SwapActivity {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+fn paging_label(activity: &SwapActivity, locale: Locale) -> ReadoutLabel {
+    let (direction, busiest) = if activity.paged_in_per_second >= activity.paged_out_per_second {
+        ("in", activity.paged_in_per_second)
+    } else {
+        ("out", activity.paged_out_per_second)
+    };
+    if busiest >= NOTICEABLE_PAGING {
+        ReadoutLabel::Labeled(format!(
+            "{direction} {}",
+            paging_rate(busiest).localized_text(locale)
+        ))
+    } else {
+        ReadoutLabel::Unlabeled
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::ArrowsClockwise(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        let (direction, busiest) = if self.paged_in_per_second >= self.paged_out_per_second {
-            ("in", self.paged_in_per_second)
-        } else {
-            ("out", self.paged_out_per_second)
-        };
-        (busiest >= NOTICEABLE_PAGING).then(|| {
-            format!(
-                "{direction} {}",
-                paging_rate(busiest).localized_text(locale)
-            )
-        })
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match swap_share(self) {
-            Some(share) if share.get::<ratio>() > SWAP_WARNING_SHARE => Severity::Warning,
-            _ => Severity::Normal,
-        }
-        .into()
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        swap_share(self)
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        match self.swap {
-            Swap::NotConfigured => PanelVisibility::Hidden,
-            Swap::Configured { .. } => PanelVisibility::Shown,
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        let occupancy_rows = match self.swap {
-            Swap::NotConfigured => vec![LabeledValue::new("Swap", "none")],
-            Swap::Configured { used, total } => vec![
-                LabeledValue::new("Used", Quantity::size(used)),
-                LabeledValue::new("Total", Quantity::size(total)),
-            ],
-        };
-        vec![Section::new(
-            "Usage",
-            dictionary_table(occupancy_rows.into_iter().chain([
-                LabeledValue::new("Swapped in", paging_rate(self.paged_in_per_second)),
-                LabeledValue::new("Swapped out", paging_rate(self.paged_out_per_second)),
-            ])),
-        )]
-    }
+pub fn swap_activity_hover_card(activity: &SwapActivity) -> Vec<Section> {
+    let occupancy_rows = match activity.swap {
+        Swap::NotConfigured => vec![LabeledValue::new("Swap", "none")],
+        Swap::Configured { used, total } => vec![
+            LabeledValue::new("Used", Quantity::size(used)),
+            LabeledValue::new("Total", Quantity::size(total)),
+        ],
+    };
+    vec![Section::new(
+        "Usage",
+        dictionary_table(occupancy_rows.into_iter().chain([
+            LabeledValue::new("Swapped in", paging_rate(activity.paged_in_per_second)),
+            LabeledValue::new("Swapped out", paging_rate(activity.paged_out_per_second)),
+        ])),
+    )]
 }
 
 #[cfg(test)]
@@ -137,7 +132,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_items::{group_item::reading_toast_severity, reading_row::ReadingRow},
+        group_items::{
+            group_item::reading_toast_severity, reading_display_state::ReadingDisplayState,
+        },
         widgets::keyed_record_table::KeyedTableRow,
     };
 
@@ -159,24 +156,18 @@ mod tests {
             paged_in_per_second: ByteSize::b(0),
             paged_out_per_second: ByteSize::b(0),
         };
-        assert_eq!(without_swap.panel_visibility(), PanelVisibility::Hidden);
+        assert_eq!(
+            swap_activity_reading_row(&without_swap, Locale::default()).panel_visibility,
+            PanelVisibility::Hidden
+        );
     }
 
     #[test]
     fn a_nearly_full_swap_warns_without_a_toast() {
         let nearly_full = swap_with(31, ByteSize::b(0));
-        assert_eq!(
-            nearly_full.state(Clock::real()),
-            ReadingDisplayState::Warning
-        );
-        assert_eq!(
-            reading_toast_severity(&ReadingRow::evaluated(
-                nearly_full,
-                Clock::real(),
-                Locale::default()
-            )),
-            None
-        );
+        let nearly_full_row = swap_activity_reading_row(&nearly_full, Locale::default());
+        assert_eq!(nearly_full_row.shown_state(), ReadingDisplayState::Warning);
+        assert_eq!(reading_toast_severity(&nearly_full_row), None);
     }
 
     #[test]
@@ -203,12 +194,14 @@ mod tests {
     #[test]
     fn only_noticeable_paging_shows_a_label() {
         assert_eq!(
-            swap_with(20, ByteSize::kib(4)).label(Clock::real(), Locale::en_US),
-            None
+            paging_label(&swap_with(20, ByteSize::kib(4)), Locale::en_US),
+            ReadoutLabel::Unlabeled
         );
-        let label = swap_with(20, ByteSize::mib(120))
-            .label(Clock::real(), Locale::en_US)
-            .expect("busy paging has a label");
+        let ReadoutLabel::Labeled(label) =
+            paging_label(&swap_with(20, ByteSize::mib(120)), Locale::en_US)
+        else {
+            panic!("busy paging has a label");
+        };
         assert!(label.starts_with("in "), "{label}");
     }
 }

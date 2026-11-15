@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use sottomano_desktop_sources::{
     SnapshotSource,
     network_connectivity::interface_throughput::{
@@ -14,14 +12,13 @@ use uom::si::{
 };
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-        reading_row::PanelVisibility,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutGauge, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -47,92 +44,90 @@ fn severity(throughput: &Throughput) -> Severity {
     }
 }
 
-impl GroupItemReading for Throughput {
-    fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed(match self.direction {
-            NetworkTrafficDirection::Upload => "Upload",
-            NetworkTrafficDirection::Download => "Download",
-        })
-    }
-
-    fn icon(&self) -> IconGlyph {
-        let direction_icon = match self.direction {
-            NetworkTrafficDirection::Upload => Phosphor::UploadSimple(Weight::Regular),
-            NetworkTrafficDirection::Download => Phosphor::DownloadSimple(Weight::Regular),
-        };
-        direction_icon.with_weight(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        let severity = severity(self);
-        if self.interfaces.is_empty()
-            || (self.link_usage() == LinkUsage::Idle && severity == Severity::Normal)
-        {
-            ReadingDisplayState::Off
-        } else {
-            severity.into()
-        }
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        Some(Ratio::new::<ratio>(f64::from(self.peak_fraction())))
-    }
-
-    fn live_gauge(&self) -> Option<Ratio> {
-        Some(Ratio::new::<ratio>(f64::from(self.current_fraction())))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        if self.interfaces.is_empty() {
-            return vec![Section::new(
-                "Rate",
-                dictionary_table([LabeledValue::new("Interfaces", "none")]),
-            )];
-        }
-        let rate_label = match self.direction {
-            NetworkTrafficDirection::Upload => "Up",
-            NetworkTrafficDirection::Download => "Down",
-        };
-        vec![Section::new(
-            "Rate",
-            dictionary_table(
-                [
-                    LabeledValue::new(rate_label, Quantity::transfer_rate(self.rate)),
-                    LabeledValue::new("Peak", Quantity::transfer_rate(self.peak_rate)),
-                    LabeledValue::new("Interfaces", self.interfaces.join(", ")),
-                ]
-                .into_iter()
-                .chain([LabeledValue::new(
-                    "Capacity",
-                    Quantity::transfer_rate(InformationRate::new::<megabyte_per_second>(
-                        SCALE_END_MB_PER_S,
-                    )),
-                )]),
-            ),
-        )]
+fn throughput_state(throughput: &Throughput) -> ReadingDisplayState {
+    let severity = severity(throughput);
+    if throughput.interfaces.is_empty()
+        || (throughput.link_usage() == LinkUsage::Idle && severity == Severity::Normal)
+    {
+        ReadingDisplayState::Off
+    } else {
+        severity.into()
     }
 }
 
-impl GroupItemReading for InterfaceThroughput {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::ArrowsDownUp(Weight::Regular).into()
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        PanelVisibility::Hidden
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
+pub(super) fn throughput_hover_card(throughput: &Throughput) -> Vec<Section> {
+    if throughput.interfaces.is_empty() {
+        return vec![Section::new(
             "Rate",
-            dictionary_table([
-                LabeledValue::new("Down", Quantity::transfer_rate(self.down.rate)),
-                LabeledValue::new("Up", Quantity::transfer_rate(self.up.rate)),
-            ]),
-        )]
+            dictionary_table([LabeledValue::new("Interfaces", "none")]),
+        )];
+    }
+    let rate_label = match throughput.direction {
+        NetworkTrafficDirection::Upload => "Up",
+        NetworkTrafficDirection::Download => "Down",
+    };
+    vec![Section::new(
+        "Rate",
+        dictionary_table(
+            [
+                LabeledValue::new(rate_label, Quantity::transfer_rate(throughput.rate)),
+                LabeledValue::new("Peak", Quantity::transfer_rate(throughput.peak_rate)),
+                LabeledValue::new("Interfaces", throughput.interfaces.join(", ")),
+            ]
+            .into_iter()
+            .chain([LabeledValue::new(
+                "Capacity",
+                Quantity::transfer_rate(InformationRate::new::<megabyte_per_second>(
+                    SCALE_END_MB_PER_S,
+                )),
+            )]),
+        ),
+    )]
+}
+
+pub(super) fn throughput_reading_row(throughput: &Throughput) -> ReadingRow<'_> {
+    let (name, glyph) = match throughput.direction {
+        NetworkTrafficDirection::Upload => ("Upload", Phosphor::UploadSimple(Weight::Regular)),
+        NetworkTrafficDirection::Download => {
+            ("Download", Phosphor::DownloadSimple(Weight::Regular))
+        }
+    };
+    let base = ReadingRow::glyph_only(
+        name,
+        glyph.with_weight(Weight::Regular).into(),
+        throughput_state(throughput),
+        Box::new(move |_| throughput_hover_card(throughput)),
+    );
+    ReadingRow {
+        readout: RowReadout {
+            gauge: ReadoutGauge::Gauged {
+                fill: Ratio::new::<ratio>(f64::from(throughput.peak_fraction())),
+                live: Ratio::new::<ratio>(f64::from(throughput.current_fraction())),
+            },
+            ..base.readout
+        },
+        ..base
+    }
+}
+
+pub(super) fn interface_throughput_hover_card(throughput: &InterfaceThroughput) -> Vec<Section> {
+    vec![Section::new(
+        "Rate",
+        dictionary_table([
+            LabeledValue::new("Down", Quantity::transfer_rate(throughput.down.rate)),
+            LabeledValue::new("Up", Quantity::transfer_rate(throughput.up.rate)),
+        ]),
+    )]
+}
+
+pub(super) fn interface_throughput_reading_row(throughput: &InterfaceThroughput) -> ReadingRow<'_> {
+    ReadingRow {
+        panel_visibility: PanelVisibility::Hidden,
+        ..ReadingRow::glyph_only(
+            InterfaceThroughput::NAME,
+            Phosphor::ArrowsDownUp(Weight::Regular).into(),
+            ReadingDisplayState::Idle,
+            Box::new(move |_| interface_throughput_hover_card(throughput)),
+        )
     }
 }

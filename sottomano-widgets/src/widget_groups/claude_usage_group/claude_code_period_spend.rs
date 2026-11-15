@@ -1,6 +1,3 @@
-use std::borrow::Cow;
-
-use chrono::{DateTime, Locale, Utc};
 use sottomano_desktop_sources::{
     SnapshotSource,
     ai_usage_spend::{
@@ -11,13 +8,15 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         amount_text::spend_text,
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
+        ongoing_toast::ReadingAlerts,
         phosphor::{Phosphor, Weight},
         spend_forecast_basis::{MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
         spend_to_level::level_from_cost,
@@ -28,93 +27,99 @@ use crate::{
 pub(crate) const CLAUDE_CCUSAGE_PERIODS_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::CalendarDots(Weight::Regular));
 
-impl GroupItemReading for ClaudeCcusagePeriods {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub fn claude_ccusage_periods_reading_row(
+    periods: &ClaudeCcusagePeriods,
+    clock: Clock,
+) -> ReadingRow<'_> {
+    let quota_windows = periods.quotas(clock.utc());
+    let state = Quota::worst_severity(&quota_windows)
+        .unwrap_or_else(|| level_from_cost(&periods.recent.today.usage.cost))
+        .into();
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Labeled(format!(
+                "{} today",
+                spend_text(&periods.recent.today.usage.cost)
+            )),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        alerts: ReadingAlerts {
+            quota_windows,
+            ..ReadingAlerts::default()
+        },
+        ..ReadingRow::glyph_only(
+            ClaudeCcusagePeriods::NAME,
+            Phosphor::CalendarDots(Weight::Regular).into(),
+            state,
+            Box::new(move |card_clock| claude_ccusage_periods_hover_card(periods, card_clock)),
+        )
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::CalendarDots(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(format!(
-            "{} today",
-            spend_text(&self.recent.today.usage.cost)
-        ))
-    }
-
-    fn state(&self, clock: Clock) -> ReadingDisplayState {
-        Quota::worst_severity(&self.quotas(clock.utc()))
-            .unwrap_or_else(|| level_from_cost(&self.recent.today.usage.cost))
-            .into()
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
-        let recent = &self.recent;
-        let now = clock.local();
-        let period_section = |title: String, period: &Period, threshold: Option<LabeledValue>| {
-            let projected = period
-                .projected_cost(now, &self.budget)
-                .map(|cost| LabeledValue::new("Projected Cost", Quantity::spend(cost)));
-            Section::new(
-                title,
-                dictionary_table(
-                    [
-                        Some(LabeledValue::new(
-                            "Cost",
-                            Quantity::spend(period.usage.cost),
-                        )),
-                        projected,
-                        threshold,
-                        Some(LabeledValue::new(
-                            "Tokens",
-                            Quantity::compact_count(period.usage.tokens),
-                        )),
-                        Some(LabeledValue::new("Models", period.usage.models.to_string())),
-                    ]
-                    .into_iter()
-                    .flatten(),
-                ),
-            )
-        };
-        vec![
-            Section::spend_forecast_basis(
+pub fn claude_ccusage_periods_hover_card(
+    periods: &ClaudeCcusagePeriods,
+    clock: Clock,
+) -> Vec<Section> {
+    let recent = &periods.recent;
+    let now = clock.local();
+    let period_section = |title: String, period: &Period, threshold: Option<LabeledValue>| {
+        let projected = period
+            .projected_cost(now, &periods.budget)
+            .map(|cost| LabeledValue::new("Projected Cost", Quantity::spend(cost)));
+        Section::new(
+            title,
+            dictionary_table(
                 [
-                    LabeledValue::new("Source", "ccusage, local Claude Code logs"),
-                    LabeledValue::new("Cost Basis", "API list prices"),
-                ],
-                &self.budget,
+                    Some(LabeledValue::new(
+                        "Cost",
+                        Quantity::spend(period.usage.cost),
+                    )),
+                    projected,
+                    threshold,
+                    Some(LabeledValue::new(
+                        "Tokens",
+                        Quantity::compact_count(period.usage.tokens),
+                    )),
+                    Some(LabeledValue::new("Models", period.usage.models.to_string())),
+                ]
+                .into_iter()
+                .flatten(),
             ),
-            period_section("Today".to_owned(), &recent.today, None),
-            period_section(
-                recent
-                    .week
-                    .span
-                    .since
-                    .format(WEEK_HEADING_FORMAT)
-                    .to_string(),
-                &recent.week,
-                None,
-            ),
-            period_section(
-                recent
-                    .month
-                    .span
-                    .since
-                    .format(MONTH_HEADING_FORMAT)
-                    .to_string(),
-                &recent.month,
-                Some(LabeledValue::monthly_budget(
-                    &self.budget,
-                    &recent.month.usage.cost,
-                    recent.month.projected_cost(now, &self.budget),
-                )),
-            ),
-        ]
-    }
-
-    fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {
-        self.quotas(now)
-    }
+        )
+    };
+    vec![
+        Section::spend_forecast_basis(
+            [
+                LabeledValue::new("Source", "ccusage, local Claude Code logs"),
+                LabeledValue::new("Cost Basis", "API list prices"),
+            ],
+            &periods.budget,
+        ),
+        period_section("Today".to_owned(), &recent.today, None),
+        period_section(
+            recent
+                .week
+                .span
+                .since
+                .format(WEEK_HEADING_FORMAT)
+                .to_string(),
+            &recent.week,
+            None,
+        ),
+        period_section(
+            recent
+                .month
+                .span
+                .since
+                .format(MONTH_HEADING_FORMAT)
+                .to_string(),
+            &recent.month,
+            Some(LabeledValue::monthly_budget(
+                &periods.budget,
+                &recent.month.usage.cost,
+                recent.month.projected_cost(now, &periods.budget),
+            )),
+        ),
+    ]
 }

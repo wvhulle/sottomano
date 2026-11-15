@@ -1,15 +1,14 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sources::cpu_memory_compute::temperature_thresholds::celsius_text;
 use uom::si::f64::ThermodynamicTemperature;
 
 use crate::{
-    clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::Section,
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -21,20 +20,24 @@ pub struct MemoryModuleTemperatureReading {
     pub temperature: ThermodynamicTemperature,
 }
 
-impl GroupItemReading for MemoryModuleTemperatureReading {
-    fn name(&self) -> Cow<'static, str> {
-        format!("Module {}", self.bus_address).into()
+impl MemoryModuleTemperatureReading {
+    pub fn reading_row(self) -> ReadingRow<'static> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(celsius_text(self.temperature)),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                format!("Module {}", self.bus_address),
+                Phosphor::ThermometerSimple(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(move |_| self.hover_card()),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::ThermometerSimple(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(celsius_text(self.temperature))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self) -> Vec<Section> {
         vec![Section::hardware_identity([LabeledValue::new(
             self.bus_address.clone(),
             Quantity::temperature(self.temperature),

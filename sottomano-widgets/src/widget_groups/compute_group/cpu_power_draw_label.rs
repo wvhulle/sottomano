@@ -1,6 +1,3 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sources::cpu_memory_compute::cpu_power_draw::CpuPower;
 use uom::{
     fmt::DisplayStyle::Abbreviation,
@@ -8,11 +5,13 @@ use uom::{
 };
 
 use crate::{
-    clock::Clock,
-    group_items::{group_item_reading::GroupItemReading, reading_row::PanelVisibility},
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -32,40 +31,48 @@ fn package_draw(power: &CpuPower) -> Option<Power> {
         .reduce(|total, draw| total + draw)
 }
 
-impl GroupItemReading for CpuPower {
-    fn panel_visibility(&self) -> PanelVisibility {
-        if package_draw(self).is_some() {
-            PanelVisibility::Shown
-        } else {
-            PanelVisibility::Hidden
-        }
+fn cpu_power_panel_visibility(power: &CpuPower) -> PanelVisibility {
+    if package_draw(power).is_some() {
+        PanelVisibility::Shown
+    } else {
+        PanelVisibility::Hidden
     }
+}
 
-    fn name(&self) -> Cow<'static, str> {
-        "CPU power draw".into()
+pub(super) fn cpu_power_reading_row(power: &CpuPower) -> ReadingRow<'_> {
+    let label = match package_draw(power) {
+        Some(draw) => ReadoutLabel::Labeled(watt_text(draw)),
+        None => ReadoutLabel::Unlabeled,
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        panel_visibility: cpu_power_panel_visibility(power),
+        ..ReadingRow::glyph_only(
+            "CPU power draw",
+            Phosphor::Lightning(Weight::Regular).into(),
+            ReadingDisplayState::Idle,
+            Box::new(move |_| cpu_power_hover_card(power)),
+        )
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Lightning(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        package_draw(self).map(watt_text)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            SectionTitle::captioned(
-                "CPU power draw per RAPL zone".to_owned(),
-                "package covers the whole CPU die, core and uncore are parts of it, dram is the \
-                 memory controller and psys the whole platform where the firmware reports it."
-                    .to_owned(),
-            ),
-            dictionary_table(
-                self.zones
-                    .iter()
-                    .map(|zone| LabeledValue::new(zone.name.clone(), Quantity::power(zone.draw))),
-            ),
-        )]
-    }
+pub(super) fn cpu_power_hover_card(power: &CpuPower) -> Vec<Section> {
+    vec![Section::new(
+        SectionTitle::captioned(
+            "CPU power draw per RAPL zone".to_owned(),
+            "package covers the whole CPU die, core and uncore are parts of it, dram is the \
+             memory controller and psys the whole platform where the firmware reports it."
+                .to_owned(),
+        ),
+        dictionary_table(
+            power
+                .zones
+                .iter()
+                .map(|zone| LabeledValue::new(zone.name.clone(), Quantity::power(zone.draw))),
+        ),
+    )]
 }

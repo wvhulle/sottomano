@@ -12,7 +12,6 @@ use sottomano_toml_config::Config;
 
 use crate::{
     background_work::logged_failure_task,
-    clock::Clock,
     desktop_index::DesktopIndex,
     group_items::{
         group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
@@ -362,14 +361,14 @@ impl AppLauncherGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &AppLauncherTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: &AppLauncherTarget) -> Vec<Section> {
         match target {
             AppLauncherTarget::App(app_id) => self.app_hover_card(app_id),
             AppLauncherTarget::HideOpenApps => {
-                hide_open_apps_toggle(self.open_app_listing).switch_hover_card(clock)
+                hide_open_apps_toggle(self.open_app_listing).switch_hover_card()
             }
             AppLauncherTarget::SortByUsage => {
-                sort_by_usage_toggle(self.category_app_order).switch_hover_card(clock)
+                sort_by_usage_toggle(self.category_app_order).switch_hover_card()
             }
         }
     }

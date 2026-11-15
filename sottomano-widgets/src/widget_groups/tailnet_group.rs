@@ -1,6 +1,5 @@
 use std::{borrow::Cow, path::PathBuf};
 
-use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::tailscale_cli_switches::{
     open_admin, switch_exit_offer, switch_exit_routing, switch_tailscale,
@@ -36,7 +35,10 @@ use crate::{
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         tailnet_group::{
-            tailscale_access_hover_card::{InboundAccessRow, OwnNodeRow, PolicyFileRow},
+            tailscale_access_hover_card::{
+                InboundAccessRow, OwnNodeRow, PolicyFileRow, tailscale_inbound_access_sections,
+                tailscale_policy_file_sections,
+            },
             tailscale_exit_node_hover_card::{ExitNodeChoiceRow, ExitNodeLanAccessRow},
             tailscale_exit_offer_hover_card::ExitOfferRow,
             tailscale_mesh_hover_card::{tailscale_hover_card, tailscale_reading_row},
@@ -96,10 +98,12 @@ impl PolicyFileAccess {
         }
     }
 
-    fn sections(&self, clock: Clock) -> Vec<Section> {
+    fn sections(&self) -> Vec<Section> {
         match self {
             PolicyFileAccess::NoApiToken => Vec::new(),
-            PolicyFileAccess::ApiToken { policy_file, .. } => policy_file.sections(clock),
+            PolicyFileAccess::ApiToken { policy_file, .. } => {
+                policy_file.sections_described_by(tailscale_policy_file_sections)
+            }
         }
     }
 }
@@ -296,8 +300,10 @@ impl TailnetGroup {
                 };
                 self.tailscale.hover_card_with(own_node_row.hover_card())
             }
-            TailnetTarget::InboundAccess => self.inbound_access.sections(clock),
-            TailnetTarget::PolicyFile => self.policy_file_access.sections(clock),
+            TailnetTarget::InboundAccess => self
+                .inbound_access
+                .sections_described_by(tailscale_inbound_access_sections),
+            TailnetTarget::PolicyFile => self.policy_file_access.sections(),
             TailnetTarget::ExitNodeChoice { exit_node_ip } => {
                 let Some(exit_node_choices) = self.running_exit_node_choices() else {
                     return Vec::new();
@@ -330,14 +336,10 @@ impl TailnetGroup {
         }
     }
 
-    fn membership_item(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> Option<GroupItem<'_, TailnetInteraction>> {
+    fn membership_item(&self, clock: Clock) -> Option<GroupItem<'_, TailnetInteraction>> {
         let membership_row = self.tailscale.reading_row(
             IconGlyph::default(),
-            |snapshot| tailscale_reading_row(snapshot, clock, locale),
+            |snapshot| tailscale_reading_row(snapshot, clock),
             clock,
         )?;
         let item = GroupItem::reading(membership_row, TailnetTarget::Membership).on_right_press(
@@ -366,28 +368,20 @@ impl TailnetGroup {
         }
     }
 
-    fn policy_file_item(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> Option<GroupItem<'_, TailnetInteraction>> {
+    fn policy_file_item(&self) -> Option<GroupItem<'_, TailnetInteraction>> {
         self.running_tailnet()?;
         match self.policy_file_access {
             PolicyFileAccess::NoApiToken => None,
             PolicyFileAccess::ApiToken { .. } => Some(GroupItem::reading(
-                PolicyFileRow::reading_row(clock, locale),
+                PolicyFileRow::reading_row(),
                 TailnetTarget::PolicyFile,
             )),
         }
     }
 
-    fn exit_offer_item(
-        tailnet: &Tailnet,
-        clock: Clock,
-        locale: Locale,
-    ) -> GroupItem<'_, TailnetInteraction> {
+    fn exit_offer_item(tailnet: &Tailnet) -> GroupItem<'_, TailnetInteraction> {
         let item = GroupItem::reading(
-            ExitOfferRow { tailnet }.reading_row(clock, locale),
+            ExitOfferRow { tailnet }.reading_row(),
             TailnetTarget::ExitOffer,
         );
         match tailnet.offer_control() {
@@ -418,15 +412,13 @@ impl TailnetGroup {
     fn exit_node_choice_item<'a>(
         exit_node_option: &'a ExitNodeOption,
         exit_node_choices: &'a ExitNodeChoices,
-        clock: Clock,
-        locale: Locale,
     ) -> GroupItem<'a, TailnetInteraction> {
         let exit_node_item = GroupItem::reading(
             ExitNodeChoiceRow {
                 exit_node_option,
                 exit_node_choices,
             }
-            .reading_row(clock, locale),
+            .reading_row(),
             TailnetTarget::ExitNodeChoice {
                 exit_node_ip: Cow::Owned(exit_node_option.ip.clone()),
             },
@@ -450,11 +442,9 @@ impl TailnetGroup {
 
     fn exit_node_lan_access_item(
         exit_node_choices: &ExitNodeChoices,
-        clock: Clock,
-        locale: Locale,
     ) -> GroupItem<'_, TailnetInteraction> {
         GroupItem::reading(
-            ExitNodeLanAccessRow { exit_node_choices }.reading_row(clock, locale),
+            ExitNodeLanAccessRow { exit_node_choices }.reading_row(),
             TailnetTarget::ExitNodeLanAccess,
         )
         .on_switch_press(
@@ -467,11 +457,7 @@ impl TailnetGroup {
         )
     }
 
-    fn exit_node_choice_items(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> Vec<GroupItem<'_, TailnetInteraction>> {
+    fn exit_node_choice_items(&self) -> Vec<GroupItem<'_, TailnetInteraction>> {
         let Some(exit_node_choices) = self.running_exit_node_choices() else {
             return Vec::new();
         };
@@ -479,33 +465,26 @@ impl TailnetGroup {
             .options
             .iter()
             .map(|exit_node_option| {
-                Self::exit_node_choice_item(exit_node_option, exit_node_choices, clock, locale)
+                Self::exit_node_choice_item(exit_node_option, exit_node_choices)
             })
             .chain(
                 (!exit_node_choices.options.is_empty())
-                    .then(|| Self::exit_node_lan_access_item(exit_node_choices, clock, locale)),
+                    .then(|| Self::exit_node_lan_access_item(exit_node_choices)),
             )
             .collect()
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> WidgetGroupContent<'_, TailnetInteraction> {
+    pub fn group_content(&self, clock: Clock) -> WidgetGroupContent<'_, TailnetInteraction> {
         let own_node_item = self
             .tailscale
             .get()
             .and_then(OwnNodeRow::running_own_node)
             .map(|own_node_row| {
-                GroupItem::reading(
-                    own_node_row.reading_row(clock, locale),
-                    TailnetTarget::OwnNode,
-                )
+                GroupItem::reading(own_node_row.reading_row(), TailnetTarget::OwnNode)
             });
         let inbound_access_item = self.running_tailnet().map(|_| {
             GroupItem::reading(
-                InboundAccessRow::reading_row(clock, locale),
+                InboundAccessRow::reading_row(),
                 TailnetTarget::InboundAccess,
             )
         });
@@ -513,16 +492,16 @@ impl TailnetGroup {
             WidgetGroupFamily::Tailnet,
             &self.expansion,
             TailnetInteraction::Expansion,
-            self.membership_item(clock, locale)
+            self.membership_item(clock)
                 .into_iter()
                 .chain(own_node_item)
                 .chain(inbound_access_item)
-                .chain(self.policy_file_item(clock, locale))
+                .chain(self.policy_file_item())
                 .chain(
                     self.running_tailnet()
-                        .map(|tailnet| Self::exit_offer_item(tailnet, clock, locale)),
+                        .map(|tailnet| Self::exit_offer_item(tailnet)),
                 )
-                .chain(self.exit_node_choice_items(clock, locale))
+                .chain(self.exit_node_choice_items())
                 .chain(self.tailscale_exit_nodes.failure().map(|failure_reading| {
                     GroupItem::reading(
                         failure_reading.reading_row(IconGlyph::default()),
@@ -571,13 +550,9 @@ mod tests {
 
     #[test]
     fn the_offer_row_is_inert_while_an_exit_node_is_in_use() {
-        let clock = Clock::real();
-        let locale = Locale::default();
         let tailnet = tailnet_offering(ExitNodeOffer::NotOffered, ExitNodeUse::InUse);
         assert!(matches!(
-            TailnetGroup::exit_offer_item(&tailnet, clock, locale)
-                .gestures()
-                .left,
+            TailnetGroup::exit_offer_item(&tailnet).gestures().left,
             GroupItemGesture::Inert
         ));
     }
@@ -598,24 +573,18 @@ mod tests {
 
     #[test]
     fn the_policy_file_row_needs_an_api_token() {
-        let clock = Clock::real();
-        let locale = Locale::default();
         let without_token = group_running_tailnet(TailnetGroup::without_policy_file());
-        assert!(without_token.policy_file_item(clock, locale).is_none());
+        assert!(without_token.policy_file_item().is_none());
         let with_token =
             group_running_tailnet(TailnetGroup::with_policy_file(PathBuf::from("token")));
-        assert!(with_token.policy_file_item(clock, locale).is_some());
+        assert!(with_token.policy_file_item().is_some());
     }
 
     #[test]
     fn an_approved_offer_can_be_stopped() {
-        let clock = Clock::real();
-        let locale = Locale::default();
         let tailnet = tailnet_offering(ExitNodeOffer::Approved, ExitNodeUse::Unused);
         assert!(matches!(
-            TailnetGroup::exit_offer_item(&tailnet, clock, locale)
-                .gestures()
-                .left,
+            TailnetGroup::exit_offer_item(&tailnet).gestures().left,
             GroupItemGesture::Performs {
                 message: TailnetInteraction::SwitchExitOffer(ExitOfferSwitch::StopOffering),
                 ..
@@ -642,14 +611,10 @@ mod tests {
 
     #[test]
     fn an_online_exit_node_row_can_be_pressed() {
-        let clock = Clock::real();
-        let locale = Locale::default();
         assert!(!matches!(
             TailnetGroup::exit_node_choice_item(
                 &reachable_exit_node(ExitNodeReachability::Online),
-                &exit_node_choices_while(ExitNodeOffer::NotOffered),
-                clock,
-                locale
+                &exit_node_choices_while(ExitNodeOffer::NotOffered)
             )
             .gestures()
             .left,
@@ -659,14 +624,10 @@ mod tests {
 
     #[test]
     fn an_exit_node_row_is_inert_while_this_machine_advertises() {
-        let clock = Clock::real();
-        let locale = Locale::default();
         assert!(matches!(
             TailnetGroup::exit_node_choice_item(
                 &reachable_exit_node(ExitNodeReachability::Online),
-                &exit_node_choices_while(ExitNodeOffer::Approved),
-                clock,
-                locale
+                &exit_node_choices_while(ExitNodeOffer::Approved)
             )
             .gestures()
             .left,
@@ -676,14 +637,10 @@ mod tests {
 
     #[test]
     fn an_offline_exit_node_row_is_inert() {
-        let clock = Clock::real();
-        let locale = Locale::default();
         assert!(matches!(
             TailnetGroup::exit_node_choice_item(
                 &reachable_exit_node(ExitNodeReachability::OfflineNeverSeen),
-                &exit_node_choices_while(ExitNodeOffer::NotOffered),
-                clock,
-                locale
+                &exit_node_choices_while(ExitNodeOffer::NotOffered)
             )
             .gestures()
             .left,

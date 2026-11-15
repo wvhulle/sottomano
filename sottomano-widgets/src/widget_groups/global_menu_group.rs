@@ -1,7 +1,5 @@
 pub mod top_menu_glyphs;
-use std::borrow::Cow;
 
-use chrono::Locale;
 use iced::{
     Subscription, Task,
     futures::{Stream, stream},
@@ -31,13 +29,11 @@ use sottomano_desktop_sources::{
 use self::top_menu_glyphs::top_menu_glyph;
 use crate::{
     background_work::logged_failure_task,
-    clock::Clock,
     group_items::{
         group_item::{GroupItem, GroupItemValue},
-        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
         reading_row::ReadingRow,
-        source_reading::GroupItemIcon,
+        source_reading::{GroupItemIcon, ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -56,7 +52,6 @@ use crate::{
         },
     },
     widgets::{
-        icon_glyph::IconGlyph,
         icon_handle::PixmapHandles,
         phosphor::{Phosphor, Weight},
     },
@@ -130,24 +125,24 @@ struct MenuLookupFailureReading<'failure> {
     lookup_failure: &'failure X11MenuLookupError,
 }
 
-impl GroupItemReading for MenuLookupFailureReading<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Menu lookup".into()
+impl<'failure> MenuLookupFailureReading<'failure> {
+    fn reading_row(self) -> ReadingRow<'failure> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled("failed".to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Menu lookup",
+                Phosphor::Warning(Weight::Regular).into(),
+                ReadingDisplayState::Failed,
+                Box::new(move |_| self.hover_card()),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Warning(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some("failed".to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Failed
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    fn hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             "Error",
             SectionWidget::paragraph(self.lookup_failure.to_string()),
@@ -496,14 +491,14 @@ impl GlobalMenuGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &GlobalMenuTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: &GlobalMenuTarget) -> Vec<Section> {
         match target {
             GlobalMenuTarget::Use => {
-                global_menu_use_toggle(self.global_menu_use).switch_hover_card(clock)
+                global_menu_use_toggle(self.global_menu_use).switch_hover_card()
             }
             GlobalMenuTarget::LookupFailure => self
                 .lookup_failure()
-                .map(|lookup_failure| MenuLookupFailureReading { lookup_failure }.hover_card(clock))
+                .map(|lookup_failure| MenuLookupFailureReading { lookup_failure }.hover_card())
                 .unwrap_or_default(),
             GlobalMenuTarget::Entry { label_path, .. } => {
                 let FocusedMenuBar::Shown(shown_menu_bar) = &self.focused_menu_bar else {
@@ -527,14 +522,10 @@ impl GlobalMenuGroup {
         }
     }
 
-    pub fn switch_content(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> WidgetGroupContent<'_, GlobalMenuInteraction> {
+    pub fn switch_content(&self) -> WidgetGroupContent<'_, GlobalMenuInteraction> {
         let lookup_failure_row = self.lookup_failure().map(|lookup_failure| {
             GroupItem::reading(
-                ReadingRow::evaluated(MenuLookupFailureReading { lookup_failure }, clock, locale),
+                MenuLookupFailureReading { lookup_failure }.reading_row(),
                 GlobalMenuTarget::LookupFailure,
             )
         });
@@ -552,7 +543,10 @@ impl GlobalMenuGroup {
         )
         .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::AppWindow(Weight::Regular).into(),
-            state: self.state(clock),
+            state: match self.lookup_failure() {
+                Some(_) => ReadingDisplayState::Failed,
+                None => ReadingDisplayState::Idle,
+            },
         })
     }
 
@@ -627,35 +621,6 @@ impl GlobalMenuGroup {
                     }),
                 )
             })
-            .collect()
-    }
-}
-
-impl GroupItemReading for GlobalMenuGroup {
-    fn name(&self) -> Cow<'static, str> {
-        "Global application menu".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::AppWindow(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.lookup_failure() {
-            Some(_) => ReadingDisplayState::Failed,
-            None => ReadingDisplayState::Idle,
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        self.lookup_failure()
-            .map(|lookup_failure| {
-                Section::new(
-                    "Error",
-                    SectionWidget::paragraph(lookup_failure.to_string()),
-                )
-            })
-            .into_iter()
             .collect()
     }
 }

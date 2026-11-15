@@ -1,6 +1,3 @@
-use chrono::Locale;
-
-use crate::group_items::reading_row::reading_hover_card;
 mod adapter_signal_reading;
 
 use iced::{Subscription, Task};
@@ -25,7 +22,7 @@ use self::adapter_signal_reading::{
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
-    group_items::{group_item::GroupItem, reading_row::ReadingRow},
+    group_items::group_item::GroupItem,
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
@@ -210,7 +207,7 @@ impl WifiAdaptersGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &WifiAdapterTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: &WifiAdapterTarget) -> Vec<Section> {
         let Some(wifi) = self.wifi.get() else {
             return Vec::new();
         };
@@ -224,9 +221,7 @@ impl WifiAdaptersGroup {
                     adapter,
                     radio_power,
                 };
-                let mut sections = self
-                    .wifi
-                    .hover_card_with(reading_hover_card(signal_reading, clock));
+                let mut sections = self.wifi.hover_card_with(signal_reading.hover_card());
                 sections.extend(
                     self.adapter_detail_sections(adapter_device, adapter_identity_sections),
                 );
@@ -236,10 +231,9 @@ impl WifiAdaptersGroup {
                 let Some(adapter) = self.adapter_named(adapter_device) else {
                     return Vec::new();
                 };
-                let mut sections = self.wifi.hover_card_with(reading_hover_card(
-                    AdapterConnectionSwitch { adapter },
-                    clock,
-                ));
+                let mut sections = self
+                    .wifi
+                    .hover_card_with(AdapterConnectionSwitch { adapter }.hover_card());
                 sections.extend(
                     self.adapter_detail_sections(adapter_device, adapter_radio_stats_sections),
                 );
@@ -276,10 +270,9 @@ impl WifiAdaptersGroup {
                         .unwrap_or_default()
                 })
             }
-            WifiAdapterTarget::AllRadios => self.wifi.hover_card_with(reading_hover_card(
-                AllWifiRadiosSwitch { radio_power },
-                clock,
-            )),
+            WifiAdapterTarget::AllRadios => self
+                .wifi
+                .hover_card_with(AllWifiRadiosSwitch { radio_power }.hover_card()),
         }
     }
 
@@ -288,19 +281,14 @@ impl WifiAdaptersGroup {
         adapter: &'a WifiAdapter,
         radio_power: RadioPower,
         group_title: WidgetGroupTitle,
-        clock: Clock,
-        locale: Locale,
     ) -> Option<WidgetGroupContent<'a, WifiAdaptersInteraction>> {
         let expansion = self.expansions.get(&adapter.device)?;
         let signal_item = GroupItem::reading(
-            ReadingRow::evaluated(
-                AdapterSignalReading {
-                    adapter,
-                    radio_power,
-                },
-                clock,
-                locale,
-            ),
+            AdapterSignalReading {
+                adapter,
+                radio_power,
+            }
+            .reading_row(),
             WifiAdapterTarget::Signal {
                 adapter_device: adapter.device.clone(),
             },
@@ -309,7 +297,7 @@ impl WifiAdaptersGroup {
             let connection_switch = AdapterConnectionSwitch { adapter };
             let connection_press_does = connection_switch.press_does();
             GroupItem::reading(
-                ReadingRow::evaluated(connection_switch, clock, locale),
+                connection_switch.reading_row(),
                 WifiAdapterTarget::Connection {
                     adapter_device: adapter.device.clone(),
                 },
@@ -325,7 +313,7 @@ impl WifiAdaptersGroup {
             .filter(|_| adapter.link_state == LinkPhase::Up)
             .map(|family| {
                 GroupItem::reading(
-                    ReadingRow::evaluated(InterfaceAddressReading { family }, clock, locale),
+                    InterfaceAddressReading { family }.reading_row(),
                     WifiAdapterTarget::Addresses {
                         adapter_device: adapter.device.clone(),
                         family,
@@ -334,7 +322,7 @@ impl WifiAdaptersGroup {
             });
         let dns_item = (adapter.link_state == LinkPhase::Up).then(|| {
             GroupItem::reading(
-                ReadingRow::evaluated(InterfaceDnsReading, clock, locale),
+                InterfaceDnsReading::reading_row(),
                 WifiAdapterTarget::Dns {
                     adapter_device: adapter.device.clone(),
                 },
@@ -342,15 +330,13 @@ impl WifiAdaptersGroup {
         });
         let radios_switch = AllWifiRadiosSwitch { radio_power };
         let radios_press_does = radios_switch.press_does();
-        let radios_item = GroupItem::reading(
-            ReadingRow::evaluated(radios_switch, clock, locale),
-            WifiAdapterTarget::AllRadios,
-        )
-        .on_switch_press(
-            radio_power,
-            radios_press_does,
-            WifiAdaptersInteraction::ToggleAllRadios,
-        );
+        let radios_item =
+            GroupItem::reading(radios_switch.reading_row(), WifiAdapterTarget::AllRadios)
+                .on_switch_press(
+                    radio_power,
+                    radios_press_does,
+                    WifiAdaptersInteraction::ToggleAllRadios,
+                );
         let adapter_device = adapter.device.clone();
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::WifiAdapters, adapter.device.clone()),
@@ -370,11 +356,7 @@ impl WifiAdaptersGroup {
     }
 
     #[must_use]
-    pub fn group_contents(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> Vec<WidgetGroupContent<'_, WifiAdaptersInteraction>> {
+    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, WifiAdaptersInteraction>> {
         let Some(wifi) = self.wifi.get() else {
             return Vec::new();
         };
@@ -384,7 +366,7 @@ impl WifiAdaptersGroup {
             .iter()
             .zip(adapter_titles)
             .filter_map(|(adapter, adapter_title)| {
-                self.adapter_group(adapter, wifi.radio_power, adapter_title, clock, locale)
+                self.adapter_group(adapter, wifi.radio_power, adapter_title)
             })
             .collect()
     }

@@ -1,11 +1,8 @@
 use std::borrow::Cow;
 
-use chrono::Locale;
-
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
         source_reading::{
             GroupItemIcon, IdentityOrdinal, ReadoutBadge, ReadoutGauge, ReadoutLabel, RowFace,
@@ -15,7 +12,7 @@ use crate::{
     hover_cards::hover_card_body::Section,
     widgets::{
         icon_glyph::IconGlyph,
-        ongoing_toast::{LevelNotice, ReadingAlerts, StateToast, ToastBody, ToastProgress},
+        ongoing_toast::{LevelNotice, ReadingAlerts},
     },
 };
 
@@ -36,73 +33,6 @@ pub struct ReadingRow<'a> {
 }
 
 impl<'a> ReadingRow<'a> {
-    #[must_use]
-    pub fn evaluated(reading: impl GroupItemReading + 'a, clock: Clock, locale: Locale) -> Self {
-        let state = reading.state(clock);
-        let glyph = reading.icon();
-        let gauge = reading.gauge();
-        let face = RowFace {
-            name: reading.name(),
-            icon: GroupItemIcon::IconGlyph { glyph, state },
-            ordinal: match reading.identity_ordinal() {
-                Some(ordinal) => IdentityOrdinal::Numbered(ordinal),
-                None => IdentityOrdinal::Unnumbered,
-            },
-        };
-        let readout = RowReadout {
-            label: match reading.label(clock, locale) {
-                Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
-                Some(_) | None => ReadoutLabel::Unlabeled,
-            },
-            gauge: match gauge {
-                Some(fill) => ReadoutGauge::Gauged {
-                    fill,
-                    live: reading.live_gauge().unwrap_or(fill),
-                },
-                None => ReadoutGauge::Ungauged,
-            },
-            badge: match reading.badge() {
-                Some(count) if count > 0 => ReadoutBadge::Counted(count),
-                Some(_) | None => ReadoutBadge::Unbadged,
-            },
-        };
-        let alerts = ReadingAlerts {
-            state_toast: match reading.ongoing_toast_threshold() {
-                OngoingToastThreshold::NeverNotify => StateToast::NeverNotify,
-                OngoingToastThreshold::NotifyFromSeverity {
-                    minimum_severity,
-                    summary_text,
-                } => StateToast::NotifyFromSeverity {
-                    minimum_severity,
-                    summary_text,
-                    body: match reading.ongoing_toast_body(clock, locale) {
-                        Some(body) => ToastBody::Text(body),
-                        None => ToastBody::Bodiless,
-                    },
-                    progress: match gauge {
-                        Some(fill) => ToastProgress::Measured(fill),
-                        None => ToastProgress::Unmeasured,
-                    },
-                },
-            },
-            level: match reading.announced_level(locale) {
-                Some(level) => LevelNotice::Announced {
-                    level,
-                    glyph: glyph.with_weight(state.weight()),
-                },
-                None => LevelNotice::Unannounced,
-            },
-            quota_windows: reading.quota_windows(clock.utc()),
-        };
-        Self {
-            face,
-            readout,
-            alerts,
-            panel_visibility: reading.panel_visibility(),
-            card: Box::new(move |card_clock| reading.hover_card(card_clock)),
-        }
-    }
-
     #[must_use]
     pub fn glyph_only(
         name: impl Into<Cow<'static, str>>,
@@ -159,10 +89,6 @@ impl<'a> ReadingRow<'a> {
             ..self
         }
     }
-}
-
-pub fn reading_hover_card(reading: impl GroupItemReading, clock: Clock) -> Vec<Section> {
-    reading.hover_card(clock)
 }
 
 #[cfg(test)]

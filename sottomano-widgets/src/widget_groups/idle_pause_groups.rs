@@ -1,7 +1,4 @@
-use crate::group_items::{
-    group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-    reading_row::ReadingRow,
-};
+use crate::group_items::reading_display_state::ReadingDisplayState;
 mod pause_blocker_rows;
 mod sqlite_idle_timeouts;
 
@@ -398,7 +395,7 @@ impl IdlePauseGroups {
             .enumerate()
             .map(move |(position, blocker)| {
                 let blocker_item = GroupItem::reading(
-                    ReadingRow::evaluated(blocker, clock, locale),
+                    blocker.reading_row(),
                     HoverTarget::PauseBlocker(PauseBlockerTarget {
                         pause,
                         holder: blocker.holder.clone(),
@@ -416,7 +413,7 @@ impl IdlePauseGroups {
             .and_then(SleepObstacles::sleep_state_that_runs)
             .map(|state| {
                 GroupItem::reading(
-                    ReadingRow::evaluated(NextSleepStateRow { state }, clock, locale),
+                    NextSleepStateRow { state }.reading_row(),
                     HoverTarget::IdleOutcome(IdleAction::Sleep),
                 )
             });
@@ -427,7 +424,7 @@ impl IdlePauseGroups {
             .and_then(|obstacles| obstacles.scheduled_shutdown.as_ref())
             .map(|shutdown| {
                 GroupItem::reading(
-                    ReadingRow::evaluated(ScheduledShutdownRow { shutdown }, clock, locale),
+                    ScheduledShutdownRow { shutdown }.reading_row(clock, locale),
                     HoverTarget::IdleOutcome(IdleAction::PowerOff),
                 )
             });
@@ -435,7 +432,7 @@ impl IdlePauseGroups {
         let face = match first_blocker {
             Some(blocker) => WidgetGroupFace::Glyph {
                 glyph,
-                state: blocker.state(clock),
+                state: blocker.display_state(),
             },
             None => WidgetGroupFace::Glyph {
                 glyph,

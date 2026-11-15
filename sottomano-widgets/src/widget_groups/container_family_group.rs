@@ -1,10 +1,8 @@
 use std::{
-    borrow::Cow,
     fmt::Debug,
     future::{Future, ready},
 };
 
-use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::sink_write_errors::GuestPowerError;
 use sottomano_desktop_sources::{SnapshotDelivery, SnapshotSource};
@@ -13,24 +11,18 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
+        group_item::GroupItem, reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
         toggle_control::SwitchPosition,
     },
     group_menus::group_source_demand::GroupSourceDemand,
-    hover_cards::{
-        HoverTarget,
-        hover_card_body::{Section, dictionary_table},
-    },
+    hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
     },
-    widgets::{
-        icon_glyph::IconGlyph, subscribed_snapshot::SubscribedSnapshot, value_cells::LabeledValue,
-    },
+    widgets::{icon_glyph::IconGlyph, subscribed_snapshot::SubscribedSnapshot},
 };
 
 pub enum RowPower<PowerRequest> {
@@ -61,20 +53,11 @@ pub trait ContainerFamily: Debug + Clone + Sized + 'static {
 
     fn running_count(probe: &Self::Probe) -> usize;
 
-    fn listing_rows(
-        listings: &Self::Listings,
-        clock: Clock,
-        locale: Locale,
-    ) -> Vec<FamilyRow<'_, Self>>;
+    fn listing_rows(listings: &Self::Listings) -> Vec<FamilyRow<'_, Self>>;
 
-    fn detail_rows(detail: &Self::Detail, clock: Clock, locale: Locale)
-    -> Vec<FamilyRow<'_, Self>>;
+    fn detail_rows(detail: &Self::Detail) -> Vec<FamilyRow<'_, Self>>;
 
-    fn stopped_rows(
-        _listings: &Self::Listings,
-        _clock: Clock,
-        _locale: Locale,
-    ) -> Vec<FamilyRow<'_, Self>> {
+    fn stopped_rows(_listings: &Self::Listings) -> Vec<FamilyRow<'_, Self>> {
         Vec::new()
     }
 
@@ -89,17 +72,6 @@ pub trait ContainerFamily: Debug + Clone + Sized + 'static {
             group_name: Self::GROUP_NAME,
             request: format!("{request:?}"),
         }))
-    }
-
-    fn group_label(probe: &Self::Probe) -> String {
-        format!("{} running", Self::running_count(probe))
-    }
-
-    fn group_hover_entries(probe: &Self::Probe) -> Vec<LabeledValue> {
-        vec![LabeledValue::new(
-            "Running",
-            Self::running_count(probe).to_string(),
-        )]
     }
 }
 
@@ -185,37 +157,32 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
         Task::none()
     }
 
-    fn detail_rows(&self, clock: Clock, locale: Locale) -> Vec<FamilyRow<'_, Family>> {
+    fn detail_rows(&self) -> Vec<FamilyRow<'_, Family>> {
         self.detail
             .get()
-            .map(|detail| Family::detail_rows(detail, clock, locale))
+            .map(|detail| Family::detail_rows(detail))
             .unwrap_or_default()
     }
 
-    fn listing_rows(&self, clock: Clock, locale: Locale) -> Vec<FamilyRow<'_, Family>> {
+    fn listing_rows(&self) -> Vec<FamilyRow<'_, Family>> {
         self.listings
             .get()
-            .map(|listings| Family::listing_rows(listings, clock, locale))
+            .map(|listings| Family::listing_rows(listings))
             .unwrap_or_default()
     }
 
-    fn stopped_rows(&self, clock: Clock, locale: Locale) -> Vec<FamilyRow<'_, Family>> {
+    fn stopped_rows(&self) -> Vec<FamilyRow<'_, Family>> {
         self.listings
             .get()
-            .map(|listings| Family::stopped_rows(listings, clock, locale))
+            .map(|listings| Family::stopped_rows(listings))
             .unwrap_or_default()
     }
 
     #[must_use]
-    pub fn hover_card_for(
-        &self,
-        target: &Family::Target,
-        clock: Clock,
-        locale: Locale,
-    ) -> Vec<Section> {
-        let detail_rows = self.detail_rows(clock, locale);
+    pub fn hover_card_for(&self, target: &Family::Target, clock: Clock) -> Vec<Section> {
+        let detail_rows = self.detail_rows();
         let shown_card = if detail_rows.is_empty() {
-            self.listing_rows(clock, locale)
+            self.listing_rows()
                 .into_iter()
                 .find(|row| row.target == *target)
                 .map(|row| self.listings.hover_card_with(row.reading.hover_card(clock)))
@@ -227,7 +194,7 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
         };
         shown_card
             .or_else(|| {
-                self.stopped_rows(clock, locale)
+                self.stopped_rows()
                     .into_iter()
                     .find(|row| row.target == *target)
                     .map(|row| self.listings.hover_card_with(row.reading.hover_card(clock)))
@@ -235,43 +202,34 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
             .unwrap_or_default()
     }
 
-    fn group_rows(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> Vec<GroupItem<'_, ContainerFamilyInteraction<Family>>> {
-        let detail_rows = self.detail_rows(clock, locale);
+    fn group_rows(&self) -> Vec<GroupItem<'_, ContainerFamilyInteraction<Family>>> {
+        let detail_rows = self.detail_rows();
         let mut group_rows: Vec<GroupItem<'_, ContainerFamilyInteraction<Family>>> =
             if detail_rows.is_empty() {
-                self.listing_rows(clock, locale)
+                self.listing_rows()
                     .into_iter()
                     .map(switchable_item)
                     .collect()
             } else {
                 detail_rows.into_iter().map(switchable_item).collect()
             };
-        group_rows.extend(
-            self.stopped_rows(clock, locale)
-                .into_iter()
-                .map(switchable_item),
-        );
+        group_rows.extend(self.stopped_rows().into_iter().map(switchable_item));
         group_rows
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> WidgetGroupContent<'_, ContainerFamilyInteraction<Family>> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, ContainerFamilyInteraction<Family>> {
         WidgetGroupContent::expandable(
             Family::FAMILY,
             &self.expansion,
             ContainerFamilyInteraction::Expansion,
-            self.group_rows(clock, locale),
+            self.group_rows(),
         )
         .face(WidgetGroupFace::Glyph {
             glyph: Family::group_glyph(),
-            state: self.state(clock),
+            state: match self.probe.get() {
+                Some(probe) if Family::running_count(probe) > 0 => ReadingDisplayState::On,
+                Some(_) | None => ReadingDisplayState::Off,
+            },
         })
     }
 }
@@ -304,45 +262,11 @@ fn switchable_item<Family: ContainerFamily>(
     }
 }
 
-impl<Family: ContainerFamily> GroupItemReading for ContainerFamilyGroup<Family> {
-    fn name(&self) -> Cow<'static, str> {
-        Family::GROUP_NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Family::group_glyph()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.probe.get().map(Family::group_label)
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.probe.get() {
-            Some(probe) if Family::running_count(probe) > 0 => ReadingDisplayState::On,
-            Some(_) | None => ReadingDisplayState::Off,
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Counts",
-            dictionary_table(
-                self.probe
-                    .get()
-                    .map(Family::group_hover_entries)
-                    .unwrap_or_default(),
-            ),
-        )]
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{path::PathBuf, time::Duration};
 
     use bytesize::ByteSize;
-    use chrono::Locale;
     use sottomano_desktop_sources::{
         SnapshotDelivery, SnapshotSource,
         container_family_snapshots::{FamilyDetails, FamilyListings},
@@ -414,35 +338,33 @@ mod tests {
 
     #[test]
     fn listings_answer_until_detail_arrives() {
-        let locale = Locale::default();
         let clock = Clock::real();
         let group = group_with_listing(clock);
-        assert_eq!(group.group_rows(clock, locale).len(), 1);
+        assert_eq!(group.group_rows().len(), 1);
         assert!(
             !group
-                .hover_card_for(&VmwareMachineTarget { pid: LISTED_PID }, clock, locale)
+                .hover_card_for(&VmwareMachineTarget { pid: LISTED_PID }, clock)
                 .is_empty()
         );
     }
 
     #[test]
     fn detail_replaces_listings_once_it_has_rows() {
-        let locale = Locale::default();
         let clock = Clock::real();
         let mut group = group_with_listing(clock);
         let _ = group.update(
             VmwareMachinesMessage::Detail(polled(detailed_machines(clock))),
             clock,
         );
-        assert_eq!(group.group_rows(clock, locale).len(), 1);
+        assert_eq!(group.group_rows().len(), 1);
         assert!(
             !group
-                .hover_card_for(&VmwareMachineTarget { pid: DETAILED_PID }, clock, locale)
+                .hover_card_for(&VmwareMachineTarget { pid: DETAILED_PID }, clock)
                 .is_empty()
         );
         assert!(
             group
-                .hover_card_for(&VmwareMachineTarget { pid: LISTED_PID }, clock, locale)
+                .hover_card_for(&VmwareMachineTarget { pid: LISTED_PID }, clock)
                 .is_empty()
         );
     }
@@ -461,21 +383,19 @@ mod tests {
                 },
             ],
         };
-        let presses: Vec<String> =
-            LxcFamily::listing_rows(&listings, Clock::real(), Locale::default())
-                .into_iter()
-                .map(|row| match row.power {
-                    RowPower::SwitchedOn(container_name) => format!("switch off {container_name}"),
-                    RowPower::SwitchedOff(container_name) => format!("switch on {container_name}"),
-                    RowPower::Stoppable(container_name) => format!("stop {container_name}"),
-                })
-                .collect();
+        let presses: Vec<String> = LxcFamily::listing_rows(&listings)
+            .into_iter()
+            .map(|row| match row.power {
+                RowPower::SwitchedOn(container_name) => format!("switch off {container_name}"),
+                RowPower::SwitchedOff(container_name) => format!("switch on {container_name}"),
+                RowPower::Stoppable(container_name) => format!("stop {container_name}"),
+            })
+            .collect();
         assert_eq!(presses, vec!["switch off running", "switch on stopped"]);
     }
 
     #[test]
     fn stopped_machines_follow_the_detailed_running_ones() {
-        let locale = Locale::default();
         let clock = Clock::real();
         let running_listing = VirtualBoxMachineListing {
             pid: DETAILED_PID,
@@ -507,7 +427,7 @@ mod tests {
             })),
             clock,
         );
-        assert_eq!(group.group_rows(clock, locale).len(), 2);
+        assert_eq!(group.group_rows().len(), 2);
         assert!(
             !group
                 .hover_card_for(
@@ -515,7 +435,6 @@ mod tests {
                         machine_uuid: "0b1c2d3e".into(),
                     },
                     clock,
-                    locale,
                 )
                 .is_empty()
         );

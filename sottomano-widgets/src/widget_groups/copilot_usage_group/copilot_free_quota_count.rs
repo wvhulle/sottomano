@@ -1,15 +1,13 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sources::{
     SnapshotSource,
     ai_usage_spend::copilot_usage::{CopilotFree, USER_ENDPOINT},
 };
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -24,60 +22,59 @@ use crate::{
 pub(crate) const COPILOT_FREE_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::ChatCircleDots(Weight::Regular));
 
-impl GroupItemReading for CopilotFree {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub fn copilot_free_reading_row(free: &CopilotFree) -> ReadingRow<'_> {
+    let state = if free.chat <= 5 {
+        ReadingDisplayState::Critical
+    } else if free.chat <= 20 {
+        ReadingDisplayState::Warning
+    } else {
+        ReadingDisplayState::Idle
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Labeled(format!("{} chats", free.chat)),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        ..ReadingRow::glyph_only(
+            CopilotFree::NAME,
+            Phosphor::ChatCircleDots(Weight::Regular).into(),
+            state,
+            Box::new(move |_| copilot_free_hover_card(free)),
+        )
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::ChatCircleDots(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(format!("{} chats", self.chat))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.chat <= 5 {
-            ReadingDisplayState::Critical
-        } else if self.chat <= 20 {
-            ReadingDisplayState::Warning
-        } else {
-            ReadingDisplayState::Idle
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![
-            Section::new(
-                "Subscription",
-                dictionary_table(
-                    self.plan
-                        .as_deref()
-                        .map(|plan| LabeledValue::new("Plan", plan))
-                        .into_iter()
-                        .chain([LabeledValue::new("Source", USER_ENDPOINT)]),
-                ),
-            ),
-            Section::new(
-                "Remaining",
-                dictionary_table(
-                    [
-                        LabeledValue::new("Chat", Quantity::count(self.chat)),
-                        LabeledValue::new("Completions", Quantity::count(self.completions)),
-                    ]
+pub fn copilot_free_hover_card(free: &CopilotFree) -> Vec<Section> {
+    vec![
+        Section::new(
+            "Subscription",
+            dictionary_table(
+                free.plan
+                    .as_deref()
+                    .map(|plan| LabeledValue::new("Plan", plan))
                     .into_iter()
-                    .chain(self.reset.map(|at| {
-                        LabeledValue::new(
-                            "Resets",
-                            ValueCell::Time {
-                                at,
-                                format: LocalizedTimeFormat::Date,
-                            },
-                        )
-                    })),
-                ),
+                    .chain([LabeledValue::new("Source", USER_ENDPOINT)]),
             ),
-        ]
-    }
+        ),
+        Section::new(
+            "Remaining",
+            dictionary_table(
+                [
+                    LabeledValue::new("Chat", Quantity::count(free.chat)),
+                    LabeledValue::new("Completions", Quantity::count(free.completions)),
+                ]
+                .into_iter()
+                .chain(free.reset.map(|at| {
+                    LabeledValue::new(
+                        "Resets",
+                        ValueCell::Time {
+                            at,
+                            format: LocalizedTimeFormat::Date,
+                        },
+                    )
+                })),
+            ),
+        ),
+    ]
 }

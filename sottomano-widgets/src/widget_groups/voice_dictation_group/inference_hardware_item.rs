@@ -1,13 +1,8 @@
-use std::borrow::Cow;
-
 use notulist_client::DictationEngine;
 
 use super::speech_model_item::non_empty;
 use crate::{
-    clock::Clock,
-    group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-    },
+    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
@@ -59,12 +54,24 @@ impl InferenceHardware<'_> {
     }
 }
 
-impl GroupItemReading for InferenceHardware<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Inference hardware".into()
+impl<'a> InferenceHardware<'a> {
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        ReadingRow::glyph_only(
+            "Inference hardware",
+            self.device_glyph(),
+            ReadingDisplayState::On,
+            Box::new(move |_| self.hover_card()),
+        )
     }
 
-    fn icon(&self) -> IconGlyph {
+    pub fn hover_card(&self) -> Vec<Section> {
+        vec![Section::new(
+            "Devices",
+            dictionary_table(self.hardware_rows()),
+        )]
+    }
+
+    fn device_glyph(&self) -> IconGlyph {
         match self.inference_device() {
             InferenceDevice::NvidiaGpu => SimpleIcon::NVIDIA.into(),
             InferenceDevice::AppleGpu => SimpleIcon::Apple.into(),
@@ -73,17 +80,6 @@ impl GroupItemReading for InferenceHardware<'_> {
             InferenceDevice::OtherGpu => Phosphor::GraphicsCard(Weight::Regular).into(),
             InferenceDevice::Processor => Phosphor::Cpu(Weight::Regular).into(),
         }
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::On
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Devices",
-            dictionary_table(self.hardware_rows()),
-        )]
     }
 }
 
@@ -135,7 +131,7 @@ mod tests {
     #[test]
     fn hardware_icon_follows_the_backend_and_gpu_vendor() {
         let icon_on = |compute_device, compute_device_name| {
-            InferenceHardware(&engine_on(compute_device, compute_device_name)).icon()
+            InferenceHardware(&engine_on(compute_device, compute_device_name)).device_glyph()
         };
         assert_eq!(icon_on("CUDA0", "RTX 4090"), SimpleIcon::NVIDIA.into());
         assert_eq!(

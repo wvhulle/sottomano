@@ -1,6 +1,5 @@
 use std::future::{Future, ready};
 
-use chrono::Locale;
 use sottomano_desktop_sinks::{
     apptainer_containers::stop_apptainer_container, sink_write_errors::GuestPowerError,
 };
@@ -52,7 +51,7 @@ pub struct ApptainerContainerListingRow<'a> {
 }
 
 impl<'a> ApptainerContainerListingRow<'a> {
-    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+    fn reading_row(self) -> ReadingRow<'a> {
         let name = format!(
             "{} pid {}",
             self.listing.container_name, self.listing.runtime_pid
@@ -86,7 +85,7 @@ pub struct ApptainerContainerRow<'a> {
 }
 
 impl<'a> ApptainerContainerRow<'a> {
-    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+    fn reading_row(self) -> ReadingRow<'a> {
         let container = self.container;
         let name = format!(
             "{} pid {}",
@@ -163,8 +162,6 @@ impl ContainerFamily for ApptainerFamily {
 
     fn listing_rows(
         listings: &FamilyListings<ApptainerContainerListing>,
-        clock: Clock,
-        locale: Locale,
     ) -> Vec<FamilyRow<'_, Self>> {
         listings
             .listings
@@ -173,17 +170,13 @@ impl ContainerFamily for ApptainerFamily {
                 target: ApptainerContainerTarget {
                     runtime_pid: listing.runtime_pid,
                 },
-                reading: ApptainerContainerListingRow { listing }.reading_row(clock, locale),
+                reading: ApptainerContainerListingRow { listing }.reading_row(),
                 power: RowPower::Stoppable(listing.runtime_pid),
             })
             .collect()
     }
 
-    fn detail_rows(
-        detail: &FamilyDetails<ApptainerContainer>,
-        clock: Clock,
-        locale: Locale,
-    ) -> Vec<FamilyRow<'_, Self>> {
+    fn detail_rows(detail: &FamilyDetails<ApptainerContainer>) -> Vec<FamilyRow<'_, Self>> {
         detail
             .details
             .iter()
@@ -191,7 +184,7 @@ impl ContainerFamily for ApptainerFamily {
                 target: ApptainerContainerTarget {
                     runtime_pid: container.listing.runtime_pid,
                 },
-                reading: ApptainerContainerRow { container }.reading_row(clock, locale),
+                reading: ApptainerContainerRow { container }.reading_row(),
                 power: RowPower::Stoppable(container.listing.runtime_pid),
             })
             .collect()

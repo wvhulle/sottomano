@@ -1,7 +1,4 @@
-use std::{
-    borrow::Cow,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use chrono::Locale;
 use iced::Task;
@@ -16,11 +13,11 @@ use uom::si::{
 };
 
 use crate::{
-    clock::Clock,
     group_items::{
         gauge::percent_text,
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table, headed_table},
     widget_groups::power_group::{
@@ -31,6 +28,7 @@ use crate::{
         icon_glyph::IconGlyph,
         keyed_record_table::{IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
+        ongoing_toast::{ReadingAlerts, StateToast, ToastBody, ToastProgress},
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -215,26 +213,22 @@ pub(super) enum BatteryTime {
     Countdown(Countdown),
 }
 
-impl GroupItemReading for BatteryTime {
-    fn name(&self) -> Cow<'static, str> {
-        "Battery time".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
+impl BatteryTime {
+    fn glyph(self) -> IconGlyph {
         match self {
             BatteryTime::Idle(idle) => idle.icon(),
             BatteryTime::Countdown(_) => Phosphor::HourglassMedium(Weight::Regular).into(),
         }
     }
 
-    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
+    fn label_text(self, locale: Locale) -> String {
         match self {
-            BatteryTime::Idle(idle) => Some(idle.label().to_string()),
-            BatteryTime::Countdown(countdown) => Some(countdown.forecast().label(locale)),
+            BatteryTime::Idle(idle) => idle.label().to_string(),
+            BatteryTime::Countdown(countdown) => countdown.forecast().label(locale),
         }
     }
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+    fn display_state(self) -> ReadingDisplayState {
         match self {
             BatteryTime::Countdown(Countdown::UntilEmpty(Forecast::Estimated(estimate)))
                 if estimate.time < EMPTY_CRITICAL =>
@@ -250,20 +244,39 @@ impl GroupItemReading for BatteryTime {
         }
     }
 
-    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
-        OngoingToastThreshold::NotifyFromSeverity {
-            minimum_severity: Severity::Warning,
-            summary_text: "Battery running out",
+    pub fn reading_row(self, locale: Locale) -> ReadingRow<'static> {
+        let label = self.label_text(locale);
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(label.clone()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            alerts: ReadingAlerts {
+                state_toast: StateToast::NotifyFromSeverity {
+                    minimum_severity: Severity::Warning,
+                    summary_text: "Battery running out",
+                    body: ToastBody::Text(label),
+                    progress: ToastProgress::Unmeasured,
+                },
+                ..ReadingAlerts::default()
+            },
+            ..ReadingRow::glyph_only(
+                "Battery time",
+                self.glyph(),
+                self.display_state(),
+                Box::new(move |_| self.hover_card()),
+            )
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(self) -> Vec<Section> {
         match self {
             BatteryTime::Idle(idle) => idle.hover_card(),
             BatteryTime::Countdown(countdown) => {
                 vec![Section::new(
                     "Estimate",
-                    headed_table(ESTIMATE_HEADINGS, [*countdown]),
+                    headed_table(ESTIMATE_HEADINGS, [countdown]),
                 )]
             }
         }
@@ -297,14 +310,11 @@ mod tests {
                 capacity: Ratio::new::<percent>(99.0),
                 charge_limit: Ratio::new::<percent>(100.0),
             })
-            .label(Clock::real(), Locale::en_US)
+            .label_text(Locale::en_US)
         };
-        assert_eq!(idle(IdleReason::Full).as_deref(), Some("Full"));
-        assert_eq!(idle(IdleReason::AtLimit).as_deref(), Some("At limit"));
-        assert_eq!(idle(IdleReason::Inhibited).as_deref(), Some("Paused"));
-        assert_eq!(
-            idle(IdleReason::Unexplained).as_deref(),
-            Some("Not charging")
-        );
+        assert_eq!(idle(IdleReason::Full), "Full");
+        assert_eq!(idle(IdleReason::AtLimit), "At limit");
+        assert_eq!(idle(IdleReason::Inhibited), "Paused");
+        assert_eq!(idle(IdleReason::Unexplained), "Not charging");
     }
 }

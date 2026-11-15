@@ -16,7 +16,7 @@ impl DesktopShell {
             HoverTarget::PanelSettings(target) => self
                 .widget_groups
                 .panel_settings_group
-                .hover_card_for(*target, self.clock),
+                .hover_card_for(*target),
             HoverTarget::AppearancePresets(target) => self
                 .widget_groups
                 .appearance_presets_group
@@ -24,23 +24,21 @@ impl DesktopShell {
             HoverTarget::SidebarSettings(target) => self
                 .widget_groups
                 .sidebar_settings_group
-                .hover_card_for(*target, self.clock),
+                .hover_card_for(*target),
             HoverTarget::OverlaySettings(target) => self
                 .widget_groups
                 .overlay_settings_group
-                .hover_card_for(*target, self.clock),
+                .hover_card_for(*target),
             HoverTarget::Notification(target) => self
                 .widget_groups
                 .notification_group
-                .hover_card_for(*target, self.notification_status(), self.clock),
-            HoverTarget::AppLauncher(target) => self
-                .widget_groups
-                .app_launcher_group
-                .hover_card_for(target, self.clock),
-            HoverTarget::GroupMenuSettings(target) => self
-                .widget_groups
-                .group_menus
-                .settings_hover_card(*target, self.clock),
+                .hover_card_for(*target, self.notification_status()),
+            HoverTarget::AppLauncher(target) => {
+                self.widget_groups.app_launcher_group.hover_card_for(target)
+            }
+            HoverTarget::GroupMenuSettings(target) => {
+                self.widget_groups.group_menus.settings_hover_card(*target)
+            }
             HoverTarget::GroupMenu(_)
             | HoverTarget::GroupFace(_)
             | HoverTarget::WorkspaceOrder
@@ -50,14 +48,12 @@ impl DesktopShell {
                 .session_power_group
                 .hover_card_for(*target),
             HoverTarget::Tray(address) => self.widget_groups.tray_group.hover_card_for(address),
-            HoverTarget::GlobalMenu(target) => self
-                .widget_groups
-                .global_menu_group
-                .hover_card_for(target, self.clock),
-            HoverTarget::Window(WindowTarget::Inspect(_)) => self
-                .widget_groups
-                .window_group
-                .inspect_hover_card(self.clock),
+            HoverTarget::GlobalMenu(target) => {
+                self.widget_groups.global_menu_group.hover_card_for(target)
+            }
+            HoverTarget::Window(WindowTarget::Inspect(_)) => {
+                self.widget_groups.window_group.inspect_hover_card()
+            }
             HoverTarget::Window(WindowTarget::Usage(window)) => {
                 let mut window_sections =
                     WindowGroup::window_identity_hover_card(&self.compositor, *window, self.clock);
@@ -95,63 +91,52 @@ impl DesktopShell {
     #[allow(clippy::too_many_lines)]
     fn source_group_hover_card_for(&self, target: &HoverTarget) -> Vec<Section> {
         match target {
-            HoverTarget::Compute(target) => self
-                .widget_groups
-                .compute_group
-                .hover_card_for(*target, self.clock),
-            HoverTarget::MemoryBoard(target) => self
-                .widget_groups
-                .memory_board_group
-                .hover_card_for(target, self.clock),
-            HoverTarget::Gpu(target) => self
-                .widget_groups
-                .gpu_group
-                .hover_card_for(target, self.clock),
+            HoverTarget::Compute(target) => {
+                self.widget_groups.compute_group.hover_card_for(*target)
+            }
+            HoverTarget::MemoryBoard(target) => {
+                self.widget_groups.memory_board_group.hover_card_for(target)
+            }
+            HoverTarget::Gpu(target) => self.widget_groups.gpu_group.hover_card_for(target),
             HoverTarget::Storage(target) => self
                 .widget_groups
                 .storage_space_group
-                .hover_card_for(target, self.clock),
+                .hover_card_for(target),
             HoverTarget::Drive(target) => self
                 .widget_groups
                 .physical_drive_group
-                .hover_card_for(target, self.clock),
-            HoverTarget::Power(target) => self
-                .widget_groups
-                .power_group
-                .hover_card_for(*target, self.clock),
+                .hover_card_for(target),
+            HoverTarget::Power(target) => self.widget_groups.power_group.hover_card_for(*target),
             HoverTarget::CompositorStyling(target) => self
                 .widget_groups
                 .compositor_styling_group
-                .hover_card_for(*target, self.clock),
+                .hover_card_for(*target),
             HoverTarget::Systemd(target) => self
                 .widget_groups
                 .systemd_manager_group
-                .hover_card_for(target, self.clock),
+                .hover_card_for(target),
             HoverTarget::Journal(target) => self
                 .widget_groups
                 .journal_events_group
-                .hover_card_for(*target, self.clock),
+                .hover_card_for(*target),
             HoverTarget::PendingUpgrades(target) => self
                 .widget_groups
                 .pending_upgrades_group
-                .hover_card_for(*target, self.clock),
+                .hover_card_for(*target),
             HoverTarget::WifiAdapter(target) => self
                 .widget_groups
                 .wifi_adapters_group
-                .hover_card_for(target, self.clock),
+                .hover_card_for(target),
             HoverTarget::MobileModem(target) => self
                 .widget_groups
                 .mobile_modems_group
-                .hover_card_for(target, self.clock),
+                .hover_card_for(target),
             HoverTarget::EthernetPort(target) => self
                 .widget_groups
                 .ethernet_ports_group
-                .hover_card_for(target, self.clock),
+                .hover_card_for(target),
             HoverTarget::Bluetooth(target) => self.bluetooth_hover_card_for(target),
-            HoverTarget::Audio(kind) => self
-                .widget_groups
-                .audio_group
-                .hover_card_for(*kind, self.clock),
+            HoverTarget::Audio(kind) => self.widget_groups.audio_group.hover_card_for(*kind),
             HoverTarget::Monitor(target) => self
                 .widget_groups
                 .monitor_group
@@ -167,7 +152,7 @@ impl DesktopShell {
             HoverTarget::VoiceDictation(target) => self
                 .widget_groups
                 .voice_dictation_group
-                .hover_card_for(*target, self.clock),
+                .hover_card_for(*target),
             HoverTarget::IdleTimeout(kind) | HoverTarget::IdleOutcome(kind) => self
                 .widget_groups
                 .idle_pause_groups
@@ -176,10 +161,9 @@ impl DesktopShell {
                 .widget_groups
                 .idle_pause_groups
                 .blocker_hover_card_for(target),
-            HoverTarget::Reachability(target) => self
-                .widget_groups
-                .reachability_group
-                .hover_card_for(target, self.clock),
+            HoverTarget::Reachability(target) => {
+                self.widget_groups.reachability_group.hover_card_for(target)
+            }
             HoverTarget::Tailnet(target) => self
                 .widget_groups
                 .tailnet_group
@@ -187,20 +171,19 @@ impl DesktopShell {
             HoverTarget::WireguardTunnel(target) => self
                 .widget_groups
                 .wireguard_tunnels_group
-                .hover_card_for(target, self.clock),
+                .hover_card_for(target),
             HoverTarget::NetworkManagerVpn(target) => self
                 .widget_groups
                 .network_manager_vpn_group
-                .hover_card_for(target, self.clock),
+                .hover_card_for(target),
             HoverTarget::Weather(target) => {
                 self.widget_groups
                     .weather_group
                     .hover_card_for(*target, &self.config, self.clock)
             }
-            HoverTarget::Wallpaper(target) => self
-                .widget_groups
-                .wallpaper_group
-                .hover_card_for(*target, self.clock),
+            HoverTarget::Wallpaper(target) => {
+                self.widget_groups.wallpaper_group.hover_card_for(*target)
+            }
             HoverTarget::Caldav(target) => self.widget_groups.caldav_group.hover_card_for(
                 *target,
                 &self.config.widget_groups.caldav,
@@ -211,11 +194,10 @@ impl DesktopShell {
                 &self.desktop_entries,
                 self.clock,
             ),
-            HoverTarget::Gamepad(target) => self.widget_groups.gamepad_group.hover_card_for(
-                *target,
-                &self.config.widget_groups.gamepad,
-                self.clock,
-            ),
+            HoverTarget::Gamepad(target) => self
+                .widget_groups
+                .gamepad_group
+                .hover_card_for(*target, &self.config.widget_groups.gamepad),
             HoverTarget::ClaudeUsage(target) => self
                 .widget_groups
                 .claude_usage_group
@@ -223,15 +205,14 @@ impl DesktopShell {
             HoverTarget::CopilotUsage(target) => self
                 .widget_groups
                 .copilot_usage_group
-                .hover_card_for(*target, self.clock),
+                .hover_card_for(*target),
             HoverTarget::OpenRouterCredit(target) => self
                 .widget_groups
                 .openrouter_credit_group
                 .hover_card_for(*target, self.clock),
-            HoverTarget::LlamaServer(target) => self
-                .widget_groups
-                .llama_server_group
-                .hover_card_for(target, self.clock),
+            HoverTarget::LlamaServer(target) => {
+                self.widget_groups.llama_server_group.hover_card_for(target)
+            }
             HoverTarget::PodmanEngine(target) => self
                 .widget_groups
                 .podman_engines_group
@@ -251,31 +232,31 @@ impl DesktopShell {
             HoverTarget::IncusInstance(target) => self
                 .widget_groups
                 .incus_instances_group
-                .hover_card_for(target, self.clock),
+                .hover_card_for(target),
             HoverTarget::LxcContainer(target) => self
                 .widget_groups
                 .lxc_containers_group
-                .hover_card_for(target, self.clock, self.config.calendar.locale),
+                .hover_card_for(target, self.clock),
             HoverTarget::FlatpakSandbox(target) => self
                 .widget_groups
                 .flatpak_sandboxes_group
-                .hover_card_for(target, self.clock, self.config.calendar.locale),
+                .hover_card_for(target, self.clock),
             HoverTarget::WaydroidContainer(target) => self
                 .widget_groups
                 .waydroid_container_group
-                .hover_card_for(target, self.clock),
+                .hover_card_for(target),
             HoverTarget::VirtualBoxMachine(target) => self
                 .widget_groups
                 .virtualbox_machines_group
-                .hover_card_for(target, self.clock, self.config.calendar.locale),
+                .hover_card_for(target, self.clock),
             HoverTarget::VmwareMachine(target) => self
                 .widget_groups
                 .vmware_machines_group
-                .hover_card_for(target, self.clock, self.config.calendar.locale),
+                .hover_card_for(target, self.clock),
             HoverTarget::ApptainerContainer(target) => self
                 .widget_groups
                 .apptainer_containers_group
-                .hover_card_for(target, self.clock, self.config.calendar.locale),
+                .hover_card_for(target, self.clock),
             HoverTarget::DockerEngine(target) => self
                 .widget_groups
                 .docker_engines_group
@@ -284,10 +265,7 @@ impl DesktopShell {
                 .widget_groups
                 .cgroup_memory_limits_group
                 .hover_card_for(target),
-            HoverTarget::CiRuns(target) => self
-                .widget_groups
-                .ci_runs_group
-                .hover_card_for(target, self.clock),
+            HoverTarget::CiRuns(target) => self.widget_groups.ci_runs_group.hover_card_for(target),
             HoverTarget::SessionFocus(target) => self
                 .widget_groups
                 .session_focus_group
@@ -295,7 +273,7 @@ impl DesktopShell {
             HoverTarget::LoginSession(target) => self
                 .widget_groups
                 .login_session_group
-                .hover_card_for(*target, self.clock),
+                .hover_card_for(*target),
             HoverTarget::Clock(target) => self
                 .widget_groups
                 .clock_group

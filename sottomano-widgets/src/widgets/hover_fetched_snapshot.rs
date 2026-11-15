@@ -15,7 +15,7 @@ use tokio::time::sleep;
 use crate::{
     clock::Clock,
     hover_cards::hover_card_body::{
-        ReadingSections, Section,
+        Section,
         hover_card_source_delivery::{DeliveryStamp, RefreshDeadline, SourceDelivery},
     },
 };
@@ -270,15 +270,6 @@ where
                 ..
             } => remembered_or_state(SourceDelivery::Failed, failure.to_string()),
         }
-    }
-}
-
-impl<S: SnapshotSource + ReadingSections> HoverFetchedSnapshot<S>
-where
-    S::StreamInputs: Eq,
-{
-    pub fn sections(&self, clock: Clock) -> Vec<Section> {
-        self.sections_described_by(|delivered_snapshot| delivered_snapshot.sections(clock))
     }
 }
 

@@ -2,7 +2,6 @@ use corredo::popovers::{NestedMenuLayout, NestedMenuPresentation};
 use sottomano_toml_config::Config;
 
 use crate::{
-    clock::Clock,
     group_items::{
         group_item::GroupItem,
         reading_display_state::ReadingDisplayState,
@@ -131,26 +130,22 @@ impl GroupMenuState {
     }
 
     #[must_use]
-    pub fn settings_hover_card(
-        &self,
-        target: GroupMenuSettingsTarget,
-        clock: Clock,
-    ) -> Vec<Section> {
+    pub fn settings_hover_card(&self, target: GroupMenuSettingsTarget) -> Vec<Section> {
         let presentation = self.presentation();
         match target {
             GroupMenuSettingsTarget::AccordionLayout => {
-                accordion_layout_toggle(presentation).switch_hover_card(clock)
+                accordion_layout_toggle(presentation).switch_hover_card()
             }
             GroupMenuSettingsTarget::ClickToOpenMenus => {
-                click_to_open_menus_toggle(presentation).switch_hover_card(clock)
+                click_to_open_menus_toggle(presentation).switch_hover_card()
             }
             GroupMenuSettingsTarget::KeepOneGroupOpen => {
-                keep_one_group_open_toggle(presentation).switch_hover_card(clock)
+                keep_one_group_open_toggle(presentation).switch_hover_card()
             }
             GroupMenuSettingsTarget::SubmenuConnector => {
-                submenu_connector_toggle(presentation).switch_hover_card(clock)
+                submenu_connector_toggle(presentation).switch_hover_card()
             }
-            GroupMenuSettingsTarget::Appearance(target) => self.layer.hover_card_for(target, clock),
+            GroupMenuSettingsTarget::Appearance(target) => self.layer.hover_card_for(target),
         }
     }
 }

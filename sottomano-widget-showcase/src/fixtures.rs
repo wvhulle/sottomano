@@ -26,7 +26,7 @@ pub fn cycled<T: Copy>(values: &[T], tick: u32) -> T {
     values[usize::try_from(tick).expect("usize holds a u32 on supported targets") % values.len()]
 }
 
-pub fn unchanging(_clock: Clock) -> Vec<ShowcaseMessage> {
+pub fn unchanging() -> Vec<ShowcaseMessage> {
     Vec::new()
 }
 pub mod app_launcher;

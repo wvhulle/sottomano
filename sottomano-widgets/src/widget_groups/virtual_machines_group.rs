@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 
-use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::{
     qemu_virtual_machines::libvirt_domain_shutdown::{
@@ -171,7 +170,7 @@ struct InactiveDomainRow<'a> {
 }
 
 impl<'a> InactiveDomainRow<'a> {
-    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+    fn reading_row(self) -> ReadingRow<'a> {
         ReadingRow {
             readout: RowReadout {
                 label: ReadoutLabel::Labeled("shut off".to_owned()),
@@ -202,7 +201,7 @@ impl<'a> InactiveDomainRow<'a> {
 }
 
 impl<'a> VirtualMachineRow<'a> {
-    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+    fn reading_row(self) -> ReadingRow<'a> {
         let machine = self.machine;
         let name = match &machine.launch_context {
             Some(launch_context) => format!(
@@ -397,11 +396,7 @@ impl VirtualMachinesGroup {
         }
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> WidgetGroupContent<'_, VirtualMachinesInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, VirtualMachinesInteraction> {
         let machines = self
             .readout
             .get()
@@ -409,7 +404,7 @@ impl VirtualMachinesGroup {
             .unwrap_or_default();
         let rows = machines.iter().map(|machine| {
             let row = GroupItem::reading(
-                VirtualMachineRow { machine }.reading_row(clock, locale),
+                VirtualMachineRow { machine }.reading_row(),
                 VirtualMachineTarget::RunningProcess { pid: machine.pid },
             );
             let row = match machine.launch.display {
@@ -439,7 +434,7 @@ impl VirtualMachinesGroup {
             .unwrap_or_default();
         let inactive_rows = inactive_domains.iter().map(|domain_name| {
             GroupItem::reading(
-                InactiveDomainRow { domain_name }.reading_row(clock, locale),
+                InactiveDomainRow { domain_name }.reading_row(),
                 VirtualMachineTarget::InactiveDomain {
                     domain_name: Cow::Owned(domain_name.clone()),
                 },

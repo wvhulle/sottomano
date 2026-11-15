@@ -95,7 +95,7 @@ fn usage_windows(tick: u32, clock: Clock) -> ClaudeUsageWindows {
     }
 }
 
-pub fn on_hover(_target: ClaudeUsageTarget, _clock: Clock) -> Vec<ClaudeUsageMessage> {
+pub fn on_hover(_target: ClaudeUsageTarget) -> Vec<ClaudeUsageMessage> {
     Vec::new()
 }
 

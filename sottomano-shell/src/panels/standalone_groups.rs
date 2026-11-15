@@ -39,11 +39,7 @@ impl DesktopShell {
             StandaloneWidgetGroup::Notifications => self
                 .widget_groups
                 .notification_group
-                .group_content(
-                    self.notification_status(),
-                    self.clock,
-                    self.config.calendar.locale,
-                )
+                .group_content(self.notification_status())
                 .map(ShellInteraction::NotificationGroup),
             StandaloneWidgetGroup::Tray => self
                 .widget_groups

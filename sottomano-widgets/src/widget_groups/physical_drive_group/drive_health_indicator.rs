@@ -1,4 +1,3 @@
-use chrono::Locale;
 use sottomano_desktop_sources::{
     SnapshotSource,
     cpu_memory_compute::temperature_thresholds::celsius_text,
@@ -10,7 +9,6 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    clock::Clock,
     group_items::{
         reading_row::ReadingRow,
         source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
@@ -24,11 +22,7 @@ use crate::{
     },
 };
 
-pub(crate) fn drive_health_reading_row(
-    health: &DriveHealth,
-    _clock: Clock,
-    _locale: Locale,
-) -> ReadingRow<'_> {
+pub(crate) fn drive_health_reading_row(health: &DriveHealth) -> ReadingRow<'_> {
     let error_level = if health.errors.iter().any(|errors| errors.total() > 0) {
         Severity::Critical
     } else {
@@ -58,12 +52,12 @@ pub(crate) fn drive_health_reading_row(
             DriveHealth::NAME,
             Phosphor::Thermometer(Weight::Regular).into(),
             health.temperature_level().max(error_level).into(),
-            Box::new(move |card_clock| drive_health_hover_card(health, card_clock)),
+            Box::new(move |_| drive_health_hover_card(health)),
         )
     }
 }
 
-pub(crate) fn drive_health_hover_card(health: &DriveHealth, _clock: Clock) -> Vec<Section> {
+pub(crate) fn drive_health_hover_card(health: &DriveHealth) -> Vec<Section> {
     let thresholds = health
         .temperature
         .current()

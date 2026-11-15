@@ -5,7 +5,6 @@ use sottomano_desktop_sources::network_connectivity::{
 };
 
 use crate::{
-    clock::Clock,
     group_items::{
         reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
         source_reading::IdentityOrdinal,
@@ -55,14 +54,14 @@ impl<'a> PortLinkReading<'a> {
             "Link",
             icon,
             ReadingDisplayState::from(self.port_state.link_state),
-            Box::new(move |clock| self.hover_card(clock)),
+            Box::new(move |_| self.hover_card()),
         );
         row.face.ordinal = ordinal;
         row
     }
 
     #[must_use]
-    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             "Port",
             dictionary_table([
@@ -100,12 +99,12 @@ impl<'a> PortConnectionSwitch<'a> {
             "Connection",
             icon,
             ReadingDisplayState::from(self.port_state.link_state),
-            Box::new(move |clock| self.hover_card(clock)),
+            Box::new(move |_| self.hover_card()),
         )
     }
 
     #[must_use]
-    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             "Port",
             dictionary_table([

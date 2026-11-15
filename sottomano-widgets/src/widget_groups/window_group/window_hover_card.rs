@@ -11,8 +11,7 @@ use sottomano_desktop_sources::{
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
-    clock::Clock,
-    hover_cards::hover_card_body::{ReadingSections, Section, dictionary_table},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         localized_quantities::Quantity,
         simple_icons::SimpleIcon,
@@ -46,84 +45,80 @@ pub fn window_identity_body(
     )])
 }
 
-impl ReadingSections for Inspection {
-    fn sections(&self, _clock: Clock) -> Vec<Section> {
-        let provenance = &self.provenance;
-        let profile = provenance
-            .profile
-            .as_deref()
-            .map(|profile| LabeledValue::new("Profile", profile));
-        let packages = provenance
-            .package
-            .as_ref()
-            .map(|package| versioned("Package", package))
-            .into_iter()
-            .chain(
-                provenance
-                    .runtime
-                    .as_ref()
-                    .map(|runtime| versioned("Runtime", runtime)),
-            )
-            .chain(
-                provenance
-                    .referenced
-                    .iter()
-                    .map(|referenced| versioned("Referenced", referenced)),
-            )
-            .chain(profile);
-        vec![Section::new(
-            "Provenance",
-            dictionary_table(packages.chain(command(self))),
-        )]
-    }
+pub fn inspection_sections(inspection: &Inspection) -> Vec<Section> {
+    let provenance = &inspection.provenance;
+    let profile = provenance
+        .profile
+        .as_deref()
+        .map(|profile| LabeledValue::new("Profile", profile));
+    let packages = provenance
+        .package
+        .as_ref()
+        .map(|package| versioned("Package", package))
+        .into_iter()
+        .chain(
+            provenance
+                .runtime
+                .as_ref()
+                .map(|runtime| versioned("Runtime", runtime)),
+        )
+        .chain(
+            provenance
+                .referenced
+                .iter()
+                .map(|referenced| versioned("Referenced", referenced)),
+        )
+        .chain(profile);
+    vec![Section::new(
+        "Provenance",
+        dictionary_table(packages.chain(command(inspection))),
+    )]
 }
 
-impl ReadingSections for NixPackageFacts {
-    fn sections(&self, _clock: Clock) -> Vec<Section> {
-        let nixpkgs = self.nixpkgs.as_ref();
-        let closure = &self.closure;
-        let rows = [
-            nixpkgs
-                .and_then(|entry| entry.homepage.clone())
-                .map(|homepage| LabeledValue::new("Homepage", homepage_link(homepage))),
-            nixpkgs.map(|entry| {
-                LabeledValue::new(
-                    "Nix file",
-                    ValueCell::BrandedLink {
-                        label: entry.definition.file.clone(),
-                        url: entry.definition.url.clone(),
-                        glyph: SimpleIcon::NixOS.into(),
-                    },
-                )
-            }),
-            nixpkgs
-                .and_then(|entry| entry.license.as_deref())
-                .map(|license| LabeledValue::new("License", license)),
-            Some(LabeledValue::new(
-                "Closure size",
-                format!(
-                    "{} in {} paths",
-                    closure.closure_size.display().iec(),
-                    closure.path_count
-                ),
-            )),
-            Some(LabeledValue::new(
-                "Own size",
-                Quantity::size(closure.own_size),
-            )),
-            Some(LabeledValue::new(
-                "Added",
-                ValueCell::RelativeMoment(self.registered.into()),
-            )),
-            origin_entry(&self.origin),
-            nixpkgs.and_then(|entry| generation_entry(&entry.generation)),
-            self.upstream.as_ref().and_then(upstream_entry),
-        ];
-        vec![Section::new(
-            "Derivation",
-            dictionary_table(rows.into_iter().flatten()),
-        )]
-    }
+pub fn nix_package_facts_sections(nix_package_facts: &NixPackageFacts) -> Vec<Section> {
+    let nixpkgs = nix_package_facts.nixpkgs.as_ref();
+    let closure = &nix_package_facts.closure;
+    let rows = [
+        nixpkgs
+            .and_then(|entry| entry.homepage.clone())
+            .map(|homepage| LabeledValue::new("Homepage", homepage_link(homepage))),
+        nixpkgs.map(|entry| {
+            LabeledValue::new(
+                "Nix file",
+                ValueCell::BrandedLink {
+                    label: entry.definition.file.clone(),
+                    url: entry.definition.url.clone(),
+                    glyph: SimpleIcon::NixOS.into(),
+                },
+            )
+        }),
+        nixpkgs
+            .and_then(|entry| entry.license.as_deref())
+            .map(|license| LabeledValue::new("License", license)),
+        Some(LabeledValue::new(
+            "Closure size",
+            format!(
+                "{} in {} paths",
+                closure.closure_size.display().iec(),
+                closure.path_count
+            ),
+        )),
+        Some(LabeledValue::new(
+            "Own size",
+            Quantity::size(closure.own_size),
+        )),
+        Some(LabeledValue::new(
+            "Added",
+            ValueCell::RelativeMoment(nix_package_facts.registered.into()),
+        )),
+        origin_entry(&nix_package_facts.origin),
+        nixpkgs.and_then(|entry| generation_entry(&entry.generation)),
+        nix_package_facts.upstream.as_ref().and_then(upstream_entry),
+    ];
+    vec![Section::new(
+        "Derivation",
+        dictionary_table(rows.into_iter().flatten()),
+    )]
 }
 
 fn homepage_link(url: String) -> ValueCell {

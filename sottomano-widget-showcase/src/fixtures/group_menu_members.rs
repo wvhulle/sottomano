@@ -11,7 +11,7 @@ pub fn media_group_menu(clock: Clock) -> ShowcasedGroup {
         media::group(clock),
         audio::group(clock),
         voice_dictation::group(clock),
-        gamepad::group(clock),
+        gamepad::group(),
     ])
 }
 

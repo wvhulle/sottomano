@@ -1,13 +1,13 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use situo_client::{BeaconDbEstimate, FixOrigin, GeoCoordinates, NearestPlace};
 use sottomano_desktop_sources::{SnapshotSource, weather::situo_location_fix::Location};
 use uom::si::length::kilometer;
 
 use crate::{
-    clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
@@ -62,44 +62,51 @@ impl MapService {
 pub(crate) const LOCATION_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::MapPin(Weight::Regular));
 
-impl GroupItemReading for Location {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub fn location_reading_row(location: &Location) -> ReadingRow<'_> {
+    let glyph = match location.geo.origin {
+        FixOrigin::Manual => Phosphor::MapPinLine(Weight::Regular).into(),
+        FixOrigin::Pinned => Phosphor::PushPin(Weight::Regular).into(),
+        FixOrigin::Estimated(_) => Phosphor::MapPin(Weight::Regular).into(),
+    };
+    let label = match &location.geo.place {
+        Some(place) if !place.name.is_empty() => ReadoutLabel::Labeled(place.name.clone()),
+        Some(_) | None => ReadoutLabel::Unlabeled,
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        ..ReadingRow::glyph_only(
+            Location::NAME,
+            glyph,
+            ReadingDisplayState::Idle,
+            Box::new(move |_| location_hover_card(location)),
+        )
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        match self.geo.origin {
-            FixOrigin::Manual => Phosphor::MapPinLine(Weight::Regular).into(),
-            FixOrigin::Pinned => Phosphor::PushPin(Weight::Regular).into(),
-            FixOrigin::Estimated(_) => Phosphor::MapPin(Weight::Regular).into(),
-        }
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.geo.place.as_ref().map(|place| place.name.clone())
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        let estimate = match &self.geo.origin {
-            FixOrigin::Manual | FixOrigin::Pinned => None,
-            FixOrigin::Estimated(estimate) => Some(estimate),
-        };
-        let position = self.geo.position;
-        let position_section = Section::new(
-            "Position",
-            dictionary_table([
-                LabeledValue::new("Latitude", Quantity::angle(position.latitude).decimals(4)),
-                LabeledValue::new("Longitude", Quantity::angle(position.longitude).decimals(4)),
-                LabeledValue::new("Source", self.geo.origin.to_string()),
-            ]),
-        );
-        vec![
-            place_section(self.geo.place.as_ref()),
-            position_section,
-            estimate_section(estimate),
-            map_section(position),
-        ]
-    }
+pub fn location_hover_card(location: &Location) -> Vec<Section> {
+    let estimate = match &location.geo.origin {
+        FixOrigin::Manual | FixOrigin::Pinned => None,
+        FixOrigin::Estimated(estimate) => Some(estimate),
+    };
+    let position = location.geo.position;
+    let position_section = Section::new(
+        "Position",
+        dictionary_table([
+            LabeledValue::new("Latitude", Quantity::angle(position.latitude).decimals(4)),
+            LabeledValue::new("Longitude", Quantity::angle(position.longitude).decimals(4)),
+            LabeledValue::new("Source", location.geo.origin.to_string()),
+        ]),
+    );
+    vec![
+        place_section(location.geo.place.as_ref()),
+        position_section,
+        estimate_section(estimate),
+        map_section(position),
+    ]
 }
 
 fn place_section(place: Option<&NearestPlace>) -> Section {

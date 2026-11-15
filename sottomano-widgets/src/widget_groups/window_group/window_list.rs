@@ -55,6 +55,7 @@ use crate::{
         flat_window_rows::arranged_flat_rows,
         keyed_window_group_rows::{GroupIconPlacement, arranged_keyed_groups},
         process_tree::{Folding, process_tree_widget},
+        window_hover_card::{inspection_sections, nix_package_facts_sections},
         window_row_presentation::{
             ArrangedWindowRows, SlotBackdrop, WindowSlotPresentation, WindowTileMarking,
         },
@@ -287,13 +288,14 @@ impl WindowList {
     }
 
     #[must_use]
-    pub fn process_sections(&self, clock: Clock) -> Vec<Section> {
+    pub fn process_sections(&self) -> Vec<Section> {
         self.hovered_window
             .iter()
             .flat_map(|window| {
                 [
-                    self.inspection.sections(clock),
-                    self.package_facts.sections(clock),
+                    self.inspection.sections_described_by(inspection_sections),
+                    self.package_facts
+                        .sections_described_by(nix_package_facts_sections),
                     self.process_tree.sections_described_by(|tree| {
                         let kept = self
                             .window_processes

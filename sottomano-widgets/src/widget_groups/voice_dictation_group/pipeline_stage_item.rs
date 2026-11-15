@@ -1,4 +1,4 @@
-use std::{borrow::Cow, time::Duration};
+use std::time::Duration;
 
 use notulist_client::{GateVerdict, PipelineActivity, PipelineStage};
 use sottomano_desktop_sources::{
@@ -6,10 +6,7 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    clock::Clock,
-    group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-    },
+    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
@@ -43,34 +40,30 @@ fn stage_rows(activity: &PipelineActivity) -> impl Iterator<Item = LabeledValue>
 pub(crate) const NOTULIST_PIPELINE_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Pulse(Weight::Regular));
 
-impl GroupItemReading for NotulistPipeline {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
+pub fn notulist_pipeline_reading_row(pipeline: &NotulistPipeline) -> ReadingRow<'_> {
+    let state = match pipeline.activity.stage {
+        PipelineStage::Idle => ReadingDisplayState::Idle,
+        PipelineStage::Capturing => ReadingDisplayState::Live,
+        PipelineStage::Gating
+        | PipelineStage::DetectingLanguage
+        | PipelineStage::Decoding
+        | PipelineStage::Filtering
+        | PipelineStage::Reconciling
+        | PipelineStage::CleaningText => ReadingDisplayState::Pending,
+    };
+    ReadingRow::glyph_only(
+        NotulistPipeline::NAME,
+        stage_icon(pipeline.activity.stage).into(),
+        state,
+        Box::new(move |_| notulist_pipeline_hover_card(pipeline)),
+    )
+}
 
-    fn icon(&self) -> IconGlyph {
-        stage_icon(self.activity.stage).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.activity.stage {
-            PipelineStage::Idle => ReadingDisplayState::Idle,
-            PipelineStage::Capturing => ReadingDisplayState::Live,
-            PipelineStage::Gating
-            | PipelineStage::DetectingLanguage
-            | PipelineStage::Decoding
-            | PipelineStage::Filtering
-            | PipelineStage::Reconciling
-            | PipelineStage::CleaningText => ReadingDisplayState::Pending,
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Activity",
-            dictionary_table(stage_rows(&self.activity)),
-        )]
-    }
+pub fn notulist_pipeline_hover_card(pipeline: &NotulistPipeline) -> Vec<Section> {
+    vec![Section::new(
+        "Activity",
+        dictionary_table(stage_rows(&pipeline.activity)),
+    )]
 }
 
 const fn stage_icon(stage: PipelineStage) -> Phosphor {

@@ -1,5 +1,5 @@
 use bytesize::ByteSize;
-use chrono::{DateTime, Locale, TimeDelta, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::{
     SnapshotSource,
@@ -95,11 +95,7 @@ impl IntoTableRecord<7> for &Peer {
     }
 }
 
-pub(super) fn tailscale_reading_row(
-    tailscale: &Tailscale,
-    clock: Clock,
-    _locale: Locale,
-) -> ReadingRow<'_> {
+pub(super) fn tailscale_reading_row(tailscale: &Tailscale, clock: Clock) -> ReadingRow<'_> {
     let state = match tailscale {
         Tailscale::Stopped => ReadingDisplayState::Off,
         Tailscale::Starting => ReadingDisplayState::Pending,

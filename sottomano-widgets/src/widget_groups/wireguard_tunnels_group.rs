@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 
-use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::network_manager_activations::switch_nm_connection;
 use sottomano_desktop_sources::{
@@ -16,7 +15,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
-    group_items::{reading_display_state::ReadingDisplayState, reading_row::reading_hover_card},
+    group_items::reading_display_state::ReadingDisplayState,
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
@@ -24,7 +23,9 @@ use crate::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
-        wireguard_tunnels_group::wireguard_tunnel_hover_card::wireguard_tunnel_item,
+        wireguard_tunnels_group::wireguard_tunnel_hover_card::{
+            tunnel_address_sections, tunnel_hover_card, wireguard_tunnel_item,
+        },
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot, simple_icons::SimpleIcon,
@@ -148,25 +149,22 @@ impl WireguardTunnelsGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &WireguardTunnelTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: &WireguardTunnelTarget) -> Vec<Section> {
         let Some(tunnel) = self
             .listed_tunnels()
             .find(|tunnel| tunnel.interface == target.interface.as_ref())
         else {
             return Vec::new();
         };
-        let mut sections = self
-            .wireguard
-            .hover_card_with(reading_hover_card(tunnel, clock));
-        sections.extend(self.tunnel_address.sections(clock));
+        let mut sections = self.wireguard.hover_card_with(tunnel_hover_card(tunnel));
+        sections.extend(
+            self.tunnel_address
+                .sections_described_by(tunnel_address_sections),
+        );
         sections
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> WidgetGroupContent<'_, WireguardTunnelsInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WireguardTunnelsInteraction> {
         let previewed_tunnel_interface = self.previewed_tunnel_interface();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::WireguardTunnels,
@@ -179,8 +177,6 @@ impl WireguardTunnelsGroup {
                         interface: Cow::Owned(tunnel.interface.clone()),
                     },
                     WireguardTunnelsInteraction::SwitchTunnel,
-                    clock,
-                    locale,
                 );
                 if previewed_tunnel_interface == Some(tunnel.interface.as_str()) {
                     tunnel_item.previewed_on_handle()

@@ -1,21 +1,19 @@
-use std::borrow::Cow;
-
 use sottomano_desktop_sources::network_connectivity::{
     network_manager_proxies::{LinkPhase, RadioPower},
     wifi_connection::{WifiAdapter, WifiAdapterDetails},
 };
-use uom::si::f64::Ratio;
 
 use crate::{
-    clock::Clock,
     group_items::{
-        gauge::percent_fill, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
+        gauge::percent_fill,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+        toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widget_groups::interface_address_sections::{link_stats_section, signal_level},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -35,35 +33,41 @@ pub struct AllWifiRadiosSwitch {
     pub radio_power: RadioPower,
 }
 
-impl GroupItemReading for AdapterSignalReading<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Signal".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::WifiHigh(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.adapter.link_state == LinkPhase::Switching {
-            return ReadingDisplayState::Pending;
+impl<'a> AdapterSignalReading<'a> {
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        let state = if self.adapter.link_state == LinkPhase::Switching {
+            ReadingDisplayState::Pending
+        } else {
+            self.adapter
+                .link
+                .as_ref()
+                .map_or(ReadingDisplayState::Off, |link| {
+                    signal_level(link.signal).into()
+                })
+        };
+        let gauge = match self.adapter.link.as_ref() {
+            Some(link) => {
+                let fill = percent_fill(link.signal);
+                ReadoutGauge::Gauged { fill, live: fill }
+            }
+            None => ReadoutGauge::Ungauged,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Unlabeled,
+                gauge,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Signal",
+                Phosphor::WifiHigh(Weight::Regular).into(),
+                state,
+                Box::new(move |_| self.hover_card()),
+            )
         }
-        self.adapter
-            .link
-            .as_ref()
-            .map_or(ReadingDisplayState::Off, |link| {
-                signal_level(link.signal).into()
-            })
     }
 
-    fn gauge(&self) -> Option<Ratio> {
-        self.adapter
-            .link
-            .as_ref()
-            .map(|link| percent_fill(link.signal))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self) -> Vec<Section> {
         let Some(link) = &self.adapter.link else {
             let radio_state = match self.radio_power {
                 RadioPower::On => "disconnected",
@@ -101,7 +105,7 @@ impl GroupItemReading for AdapterSignalReading<'_> {
     }
 }
 
-impl AdapterConnectionSwitch<'_> {
+impl<'a> AdapterConnectionSwitch<'a> {
     #[must_use]
     pub fn press_does(&self) -> &'static str {
         if self.adapter.link_state == LinkPhase::Up {
@@ -110,26 +114,22 @@ impl AdapterConnectionSwitch<'_> {
             "connect this Wi-Fi adapter"
         }
     }
-}
 
-impl GroupItemReading for AdapterConnectionSwitch<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Connection".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        if self.adapter.link_state == LinkPhase::Up {
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        let glyph = if self.adapter.link_state == LinkPhase::Up {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {
             Phosphor::ToggleLeft(Weight::Regular).into()
-        }
+        };
+        ReadingRow::glyph_only(
+            "Connection",
+            glyph,
+            ReadingDisplayState::from(self.adapter.link_state),
+            Box::new(move |_| self.hover_card()),
+        )
     }
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(self.adapter.link_state)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             "Adapter",
             dictionary_table([
@@ -148,25 +148,21 @@ impl AllWifiRadiosSwitch {
             RadioPower::Off => "turn all Wi-Fi radios on",
         }
     }
-}
 
-impl GroupItemReading for AllWifiRadiosSwitch {
-    fn name(&self) -> Cow<'static, str> {
-        "All Wi-Fi radios".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        match self.radio_power {
+    pub fn reading_row(self) -> ReadingRow<'static> {
+        let glyph = match self.radio_power {
             RadioPower::On => Phosphor::WifiHigh(Weight::Regular).into(),
             RadioPower::Off => Phosphor::WifiSlash(Weight::Regular).into(),
-        }
+        };
+        ReadingRow::glyph_only(
+            "All Wi-Fi radios",
+            glyph,
+            ReadingDisplayState::from(SwitchPosition::from(self.radio_power)),
+            Box::new(move |_| self.hover_card()),
+        )
     }
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::from(SwitchPosition::from(self.radio_power))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             "Radio power",
             dictionary_table([LabeledValue::new(

@@ -1,29 +1,23 @@
-use std::{borrow::Cow, num::NonZeroUsize};
+use std::num::NonZeroUsize;
 
 use bytesize::ByteSize;
 use chrono::Locale;
 use sottomano_desktop_sources::{
     SnapshotSource,
-    cpu_memory_compute::{
-        memory_module_temperatures::MemoryModuleTemperatures,
-        memory_usage::{Memory, MemoryProcesses},
-    },
+    cpu_memory_compute::memory_usage::{Memory, MemoryProcesses},
 };
 use sottomano_toml_config::severity::Severity;
-use uom::si::f64::Ratio;
 
 use crate::{
-    clock::Clock,
     group_items::{
         gauge::percent_fill,
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
-        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
-    hover_cards::hover_card_body::{ReadingSections, Section, dictionary_table},
+    hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
-        ongoing_toast::definition_list,
+        ongoing_toast::{ReadingAlerts, StateToast, ToastBody, ToastProgress, definition_list},
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -33,92 +27,77 @@ const FULL_WARNING_PERCENT: i64 = 75;
 const LISTED_PROCESSES: NonZeroUsize = NonZeroUsize::new(10).unwrap();
 const FULL_CRITICAL_PERCENT: i64 = 90;
 
-impl ReadingSections for MemoryModuleTemperatures {
-    fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Modules",
-            dictionary_table(self.modules.iter().map(|module| {
-                LabeledValue::new(
-                    module.bus_address.clone(),
-                    Quantity::temperature(module.temperature),
-                )
-            })),
-        )]
+pub fn memory_processes_sections(memory_processes: &MemoryProcesses) -> Vec<Section> {
+    vec![Section::new(
+        "Resident memory",
+        dictionary_table(memory_processes.processes.iter().map(|process| {
+            LabeledValue::new(process.name.clone(), Quantity::size(process.resident))
+        }))
+        .truncated_to(LISTED_PROCESSES),
+    )]
+}
+
+pub fn memory_reading_row(memory: &Memory, locale: Locale) -> ReadingRow<'_> {
+    let state = match memory.percent() {
+        used if used > FULL_CRITICAL_PERCENT => Severity::Critical,
+        used if used > FULL_WARNING_PERCENT => Severity::Warning,
+        _ => Severity::Normal,
+    }
+    .into();
+    let fill = percent_fill(memory.percent());
+    let available_bytes = memory
+        .total
+        .as_u64()
+        .checked_sub(memory.used.as_u64())
+        .expect("used memory is derived as MemTotal minus MemAvailable");
+    let toast_body = definition_list([
+        ("Used", Quantity::size(memory.used).localized_text(locale)),
+        (
+            "Available",
+            Quantity::size(ByteSize::b(available_bytes)).localized_text(locale),
+        ),
+    ]);
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Unlabeled,
+            gauge: ReadoutGauge::Gauged { fill, live: fill },
+            badge: ReadoutBadge::Unbadged,
+        },
+        alerts: ReadingAlerts {
+            state_toast: StateToast::NotifyFromSeverity {
+                minimum_severity: Severity::Critical,
+                summary_text: "RAM almost full",
+                body: ToastBody::Text(toast_body),
+                progress: ToastProgress::Measured(fill),
+            },
+            ..ReadingAlerts::default()
+        },
+        ..ReadingRow::glyph_only(
+            Memory::NAME,
+            Phosphor::Memory(Weight::Regular).into(),
+            state,
+            Box::new(move |_| memory_hover_card(memory)),
+        )
     }
 }
 
-impl ReadingSections for MemoryProcesses {
-    fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Resident memory",
-            dictionary_table(self.processes.iter().map(|process| {
-                LabeledValue::new(process.name.clone(), Quantity::size(process.resident))
-            }))
-            .truncated_to(LISTED_PROCESSES),
-        )]
-    }
-}
-
-impl GroupItemReading for Memory {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Memory(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.percent() {
-            used if used > FULL_CRITICAL_PERCENT => Severity::Critical,
-            used if used > FULL_WARNING_PERCENT => Severity::Warning,
-            _ => Severity::Normal,
-        }
-        .into()
-    }
-
-    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
-        OngoingToastThreshold::NotifyFromSeverity {
-            minimum_severity: Severity::Critical,
-            summary_text: "RAM almost full",
-        }
-    }
-
-    fn ongoing_toast_body(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        let available_bytes = self
-            .total
-            .as_u64()
-            .checked_sub(self.used.as_u64())
-            .expect("used memory is derived as MemTotal minus MemAvailable");
-        Some(definition_list([
-            ("Used", Quantity::size(self.used).localized_text(locale)),
-            (
-                "Available",
-                Quantity::size(ByteSize::b(available_bytes)).localized_text(locale),
-            ),
-        ]))
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        Some(percent_fill(self.percent()))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Usage",
-            dictionary_table([
-                LabeledValue::new("RAM used", Quantity::share(percent_fill(self.percent()))),
-                LabeledValue::new("Used", Quantity::size(self.used)),
-                LabeledValue::new("Total", Quantity::size(self.total)),
-            ]),
-        )]
-    }
+pub fn memory_hover_card(memory: &Memory) -> Vec<Section> {
+    vec![Section::new(
+        "Usage",
+        dictionary_table([
+            LabeledValue::new("RAM used", Quantity::share(percent_fill(memory.percent()))),
+            LabeledValue::new("Used", Quantity::size(memory.used)),
+            LabeledValue::new("Total", Quantity::size(memory.total)),
+        ]),
+    )]
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::group_items::{group_item::reading_toast_severity, reading_row::ReadingRow};
+    use crate::group_items::{
+        group_item::reading_toast_severity, reading_display_state::ReadingDisplayState,
+    };
 
     fn memory_at(used_gibibytes: u64) -> Memory {
         Memory {
@@ -130,15 +109,15 @@ mod tests {
     #[test]
     fn fullness_sets_the_state() {
         assert_eq!(
-            memory_at(40).state(Clock::real()),
+            memory_reading_row(&memory_at(40), Locale::default()).shown_state(),
             ReadingDisplayState::Idle
         );
         assert_eq!(
-            memory_at(80).state(Clock::real()),
+            memory_reading_row(&memory_at(80), Locale::default()).shown_state(),
             ReadingDisplayState::Warning
         );
         assert_eq!(
-            memory_at(95).state(Clock::real()),
+            memory_reading_row(&memory_at(95), Locale::default()).shown_state(),
             ReadingDisplayState::Critical
         );
     }
@@ -146,28 +125,26 @@ mod tests {
     #[test]
     fn only_a_nearly_full_ram_raises_a_toast() {
         assert_eq!(
-            reading_toast_severity(&ReadingRow::evaluated(
-                memory_at(80),
-                Clock::real(),
-                Locale::default()
-            )),
+            reading_toast_severity(&memory_reading_row(&memory_at(80), Locale::default())),
             None
         );
         assert_eq!(
-            reading_toast_severity(&ReadingRow::evaluated(
-                memory_at(95),
-                Clock::real(),
-                Locale::default()
-            )),
+            reading_toast_severity(&memory_reading_row(&memory_at(95), Locale::default())),
             Some(Severity::Critical)
         );
     }
 
     #[test]
     fn ram_toast_lists_used_and_available_memory() {
-        let toast_body = memory_at(95)
-            .ongoing_toast_body(Clock::real(), Locale::en_US)
-            .unwrap();
+        let nearly_full = memory_at(95);
+        let toast_row = memory_reading_row(&nearly_full, Locale::en_US);
+        let StateToast::NotifyFromSeverity {
+            body: ToastBody::Text(toast_body),
+            ..
+        } = toast_row.alerts.state_toast
+        else {
+            panic!("a nearly full RAM has a toast with a body");
+        };
         let used_text = Quantity::size(ByteSize::gib(95)).localized_text(Locale::en_US);
         let available_text = Quantity::size(ByteSize::gib(5)).localized_text(Locale::en_US);
         assert_eq!(

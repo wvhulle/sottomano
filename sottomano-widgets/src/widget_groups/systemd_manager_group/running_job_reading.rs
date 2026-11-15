@@ -12,9 +12,9 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
         reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
@@ -22,7 +22,6 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{OngoingKey, OngoingToast, definition_list, moment_text},
@@ -70,7 +69,7 @@ pub(super) fn slow_jobs_item<'a>(
             SystemdUnitScope::SystemWide => "system",
         };
         OngoingToast {
-            widget_name: jobs.name(),
+            widget_name: slow_jobs_name(jobs),
             key: OngoingKey::Reading(SystemdTarget::slow_job(jobs.scope, job.unit.clone()).into()),
             severity: Severity::Warning,
             summary_text: Cow::Owned(format!("{} {activity} slowly", job.unit)),
@@ -88,7 +87,7 @@ pub(super) fn slow_jobs_item<'a>(
         }
     });
     GroupItem::reading(
-        ReadingRow::evaluated(jobs, clock, locale),
+        slow_jobs_reading_row(jobs),
         SystemdTarget::slow_jobs(jobs.scope),
     )
     .on_press(
@@ -98,47 +97,54 @@ pub(super) fn slow_jobs_item<'a>(
     .ongoing_toasts(slow_job_toasts)
 }
 
-impl GroupItemReading for SlowJobs {
-    fn panel_visibility(&self) -> PanelVisibility {
-        if self.is_empty() {
-            PanelVisibility::Hidden
-        } else {
-            PanelVisibility::Shown
-        }
+pub(super) fn slow_jobs_panel_visibility(jobs: &SlowJobs) -> PanelVisibility {
+    if jobs.is_empty() {
+        PanelVisibility::Hidden
+    } else {
+        PanelVisibility::Shown
     }
+}
 
-    fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed(match self.scope {
-            SystemdUnitScope::UserSession => "Slow user jobs",
-            SystemdUnitScope::SystemWide => "Slow system jobs",
-        })
-    }
+pub(super) fn slow_jobs_name(jobs: &SlowJobs) -> Cow<'static, str> {
+    Cow::Borrowed(match jobs.scope {
+        SystemdUnitScope::UserSession => "Slow user jobs",
+        SystemdUnitScope::SystemWide => "Slow system jobs",
+    })
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::HourglassMedium(Weight::Regular).into()
-    }
+pub(super) fn slow_jobs_hover_card(jobs: &SlowJobs) -> Vec<Section> {
+    vec![Section::new(
+        SectionTitle::captioned(
+            slow_jobs_name(jobs),
+            "Start or stop jobs still running after slow_job_secs; each also raises a toast.",
+        ),
+        headed_table(
+            [
+                ColumnHeading::titled("Job").align_x(Horizontal::Left),
+                ColumnHeading::titled("Since"),
+            ],
+            jobs.jobs.iter(),
+        ),
+    )]
+}
 
-    fn badge(&self) -> Option<usize> {
-        Some(self.jobs.len())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Warning
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            SectionTitle::captioned(
-                self.name(),
-                "Start or stop jobs still running after slow_job_secs; each also raises a toast.",
-            ),
-            headed_table(
-                [
-                    ColumnHeading::titled("Job").align_x(Horizontal::Left),
-                    ColumnHeading::titled("Since"),
-                ],
-                self.jobs.iter(),
-            ),
-        )]
+pub(super) fn slow_jobs_reading_row(jobs: &SlowJobs) -> ReadingRow<'_> {
+    let base = ReadingRow::glyph_only(
+        slow_jobs_name(jobs),
+        Phosphor::HourglassMedium(Weight::Regular).into(),
+        ReadingDisplayState::Warning,
+        Box::new(move |_| slow_jobs_hover_card(jobs)),
+    );
+    let badge = match jobs.jobs.len() {
+        0 => ReadoutBadge::Unbadged,
+        count => ReadoutBadge::Counted(count),
+    };
+    ReadingRow {
+        readout: RowReadout {
+            badge,
+            ..base.readout
+        },
+        panel_visibility: slow_jobs_panel_visibility(jobs),
+        ..base
     }
 }

@@ -1,20 +1,19 @@
-use std::{borrow::Cow, iter::once};
+use std::iter::once;
 
-use chrono::Locale;
 use sottomano_desktop_sources::{
     network_connectivity::bluez_bluetooth::{AdapterPower, BluetoothAdapter},
     systemd_units_journal::journal_device_kernel_errors::DeviceKernelError,
 };
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::SwitchPosition,
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         input_report_sections::KernelErrorListing,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -74,43 +73,52 @@ impl AdapterRadioReading<'_> {
     }
 }
 
-impl GroupItemReading for AdapterRadioReading<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Bluetooth adapter".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        match self.adapter.power {
+impl<'a> AdapterRadioReading<'a> {
+    #[must_use]
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        let glyph = match self.adapter.power {
             AdapterPower::On(_) | AdapterPower::SwitchingOn => {
                 Phosphor::Bluetooth(Weight::Regular).into()
             }
             AdapterPower::Off | AdapterPower::SwitchingOff => {
                 Phosphor::BluetoothSlash(Weight::Regular).into()
             }
-        }
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        match &self.naming {
-            AdapterNaming::SoleAdapter => None,
-            AdapterNaming::OneOfSeveral { label } => Some(label.clone()),
-        }
-    }
-
-    fn badge(&self) -> Option<usize> {
-        Some(self.adapter.power.connected_devices().len()).filter(|count| *count > 0)
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.adapter.power {
+        };
+        let state = match self.adapter.power {
             AdapterPower::SwitchingOn | AdapterPower::SwitchingOff => ReadingDisplayState::Pending,
             AdapterPower::Off => ReadingDisplayState::Off,
             AdapterPower::On(_) if !self.kernel_errors.is_empty() => ReadingDisplayState::Warning,
             AdapterPower::On(_) => ReadingDisplayState::Idle,
+        };
+        let label = match &self.naming {
+            AdapterNaming::OneOfSeveral { label } if !label.is_empty() => {
+                ReadoutLabel::Labeled(label.clone())
+            }
+            AdapterNaming::SoleAdapter | AdapterNaming::OneOfSeveral { .. } => {
+                ReadoutLabel::Unlabeled
+            }
+        };
+        let badge = match self.adapter.power.connected_devices().len() {
+            0 => ReadoutBadge::Unbadged,
+            connected_count => ReadoutBadge::Counted(connected_count),
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge,
+            },
+            ..ReadingRow::glyph_only(
+                "Bluetooth adapter",
+                glyph,
+                state,
+                Box::new(move |_| self.hover_card()),
+            )
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    #[must_use]
+    pub fn hover_card(&self) -> Vec<Section> {
         [
             Some(self.overview_section()),
             KernelErrorListing {
@@ -143,28 +151,31 @@ impl From<&AdapterPower> for SwitchPosition {
     }
 }
 
-impl GroupItemReading for AdapterPowerSwitch<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Bluetooth power".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Power(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(power_description(&self.adapter.power).to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.adapter.power {
+impl<'a> AdapterPowerSwitch<'a> {
+    #[must_use]
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        let state = match self.adapter.power {
             AdapterPower::SwitchingOn | AdapterPower::SwitchingOff => ReadingDisplayState::Pending,
             AdapterPower::Off => ReadingDisplayState::Off,
             AdapterPower::On(_) => ReadingDisplayState::On,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(power_description(&self.adapter.power).to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Bluetooth power",
+                Phosphor::Power(Weight::Regular).into(),
+                state,
+                Box::new(move |_| self.hover_card()),
+            )
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    #[must_use]
+    pub fn hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             "Status",
             dictionary_table([

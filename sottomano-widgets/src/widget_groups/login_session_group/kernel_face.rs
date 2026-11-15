@@ -1,13 +1,13 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sources::host_machine_identity::hostname1_os_identity::{
     Chassis, OperatingSystemIdentity,
 };
 
 use crate::{
-    clock::Clock,
-    group_items::group_item_reading::GroupItemReading,
+    group_items::{
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
+    },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
@@ -22,25 +22,36 @@ pub struct KernelFace<'a> {
     pub system: &'a OperatingSystemIdentity,
 }
 
-impl GroupItemReading for KernelFace<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Kernel".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        DistributionIds(&self.system.distribution_ids)
+impl<'a> KernelFace<'a> {
+    pub fn reading_row(self) -> ReadingRow<'a> {
+        let glyph = DistributionIds(&self.system.distribution_ids)
             .vendor_logo()
             .map_or_else(
                 || Phosphor::LinuxLogo(Weight::Regular).into(),
                 IconGlyph::from,
+            );
+        let label_text = self.system.kernel.clone();
+        let label = if label_text.is_empty() {
+            ReadoutLabel::Unlabeled
+        } else {
+            ReadoutLabel::Labeled(label_text)
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Kernel",
+                glyph,
+                ReadingDisplayState::Idle,
+                Box::new(move |_| self.hover_card()),
             )
+        }
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.system.kernel.clone())
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self) -> Vec<Section> {
         vec![Section::new(
             SectionTitle::captioned(
                 "Host and kernel under this session",

@@ -91,16 +91,13 @@ pub(crate) fn block_filesystem_discovery_reading_row(
             BlockFilesystemDiscovery::NAME,
             Phosphor::Folders(Weight::Regular).into(),
             ReadingDisplayState::Idle,
-            Box::new(move |card_clock| {
-                block_filesystem_discovery_hover_card(discovery, card_clock)
-            }),
+            Box::new(move |_| block_filesystem_discovery_hover_card(discovery)),
         )
     }
 }
 
 pub(crate) fn block_filesystem_discovery_hover_card(
     discovery: &BlockFilesystemDiscovery,
-    _clock: Clock,
 ) -> Vec<Section> {
     vec![Section::new(
         "Mount points",
@@ -389,18 +386,18 @@ impl StorageSpaceGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &StorageTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: &StorageTarget) -> Vec<Section> {
         match target {
-            StorageTarget::MountDiscovery => self.discovery.sections_described_by(|snapshot| {
-                block_filesystem_discovery_hover_card(snapshot, clock)
-            }),
+            StorageTarget::MountDiscovery => self
+                .discovery
+                .sections_described_by(block_filesystem_discovery_hover_card),
             StorageTarget::Usage(mount_point) => self
                 .filesystems
                 .get(mount_point)
                 .map(|filesystem| {
-                    filesystem.usage.sections_described_by(|snapshot| {
-                        filesystem_usage_hover_card(snapshot, clock)
-                    })
+                    filesystem
+                        .usage
+                        .sections_described_by(filesystem_usage_hover_card)
                 })
                 .unwrap_or_default(),
             StorageTarget::Property {
@@ -421,9 +418,7 @@ impl StorageSpaceGroup {
                 .map(|filesystem| {
                     filesystem
                         .subvolume_usage
-                        .sections_described_by(|snapshot| {
-                            subvolume_usage_hover_card(snapshot, clock)
-                        })
+                        .sections_described_by(subvolume_usage_hover_card)
                 })
                 .unwrap_or_default(),
             StorageTarget::Subvolume {

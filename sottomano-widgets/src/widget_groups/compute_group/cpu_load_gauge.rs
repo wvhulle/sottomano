@@ -1,4 +1,4 @@
-use std::{borrow::Cow, num::NonZeroUsize};
+use std::num::NonZeroUsize;
 
 use sottomano_desktop_sources::{
     SnapshotSource,
@@ -15,16 +15,14 @@ use super::{
     core_grid_sections::{CoreGridSection, PerCoreReading},
 };
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{
-        ReadingSections, Section, SectionTitle, dictionary_table,
-        hover_card_figure_payloads::ThreadCell,
+        Section, SectionTitle, dictionary_table, hover_card_figure_payloads::ThreadCell,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -121,43 +119,42 @@ impl PerCoreReading for CoreReading {
     }
 }
 
-impl GroupItemReading for CpuUsage {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Cpu(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        busy_level(self.busy).into()
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        Some(self.busy)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Usage",
-            dictionary_table([LabeledValue::new("CPU load", Quantity::share(self.busy))]),
-        )]
+pub(super) fn cpu_usage_reading_row(usage: &CpuUsage) -> ReadingRow<'_> {
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Unlabeled,
+            gauge: ReadoutGauge::Gauged {
+                fill: usage.busy,
+                live: usage.busy,
+            },
+            badge: ReadoutBadge::Unbadged,
+        },
+        ..ReadingRow::glyph_only(
+            CpuUsage::NAME,
+            Phosphor::Cpu(Weight::Regular).into(),
+            busy_level(usage.busy).into(),
+            Box::new(move |_| cpu_usage_hover_card(usage)),
+        )
     }
 }
 
-impl ReadingSections for CpuBusyProcesses {
-    fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            SectionTitle::captioned(
-                "Processes",
-                "Share of all CPU threads each process kept busy over the last half second.",
-            ),
-            dictionary_table(self.processes.iter().map(|process| {
-                LabeledValue::new(process.name.clone(), Quantity::share(process.busy))
-                    .level(busy_level(process.busy))
-            }))
-            .truncated_to(LISTED_PROCESSES),
-        )]
-    }
+pub(super) fn cpu_usage_hover_card(usage: &CpuUsage) -> Vec<Section> {
+    vec![Section::new(
+        "Usage",
+        dictionary_table([LabeledValue::new("CPU load", Quantity::share(usage.busy))]),
+    )]
+}
+
+pub fn cpu_busy_processes_sections(cpu_busy_processes: &CpuBusyProcesses) -> Vec<Section> {
+    vec![Section::new(
+        SectionTitle::captioned(
+            "Processes",
+            "Share of all CPU threads each process kept busy over the last half second.",
+        ),
+        dictionary_table(cpu_busy_processes.processes.iter().map(|process| {
+            LabeledValue::new(process.name.clone(), Quantity::share(process.busy))
+                .level(busy_level(process.busy))
+        }))
+        .truncated_to(LISTED_PROCESSES),
+    )]
 }

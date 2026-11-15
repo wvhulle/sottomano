@@ -3,7 +3,6 @@ use std::path::Path;
 use sottomano_desktop_sinks::compositor_window_requests::compositor_rule_files::CompositorRulesFile;
 use sottomano_desktop_sources::compositor_window_ipc::compositor_connection::CompositorKind;
 use sottomano_widgets::{
-    clock::Clock,
     group_menus::group_menu_state::GroupMenuState,
     widget_groups::{
         compositor_styling_group::CompositorStylingGroup,
@@ -30,6 +29,6 @@ fn settings_showing(shown_items: ShownSettingItems) -> ShowcasedGroup {
     }))
 }
 
-pub fn sharing_a_unit(_clock: Clock) -> ShowcasedGroup {
+pub fn sharing_a_unit() -> ShowcasedGroup {
     settings_showing(ShownSettingItems::SharingAUnit)
 }

@@ -1,6 +1,3 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sinks::cpu_memory_compute::amd_x3d_mode_writes::write_x3d_cache_preference;
 use sottomano_desktop_sources::{
     SnapshotSource,
@@ -13,43 +10,40 @@ use sottomano_desktop_sources::{
 
 use super::core_grid_sections::topology_facts;
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::{SwitchPosition, ToggleableSource},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
 };
 
-impl GroupItemReading for X3dCachePreference {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        match self {
-            X3dCachePreference::Cache => Phosphor::Warehouse(Weight::Regular).into(),
-            X3dCachePreference::Frequency => Phosphor::Speedometer(Weight::Regular).into(),
-        }
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(
-            match self {
-                X3dCachePreference::Cache => "cache first",
-                X3dCachePreference::Frequency => "clock first",
-            }
-            .to_owned(),
+pub(crate) fn x3d_cache_preference_reading_row(preference: &X3dCachePreference) -> ReadingRow<'_> {
+    let glyph = match preference {
+        X3dCachePreference::Cache => Phosphor::Warehouse(Weight::Regular).into(),
+        X3dCachePreference::Frequency => Phosphor::Speedometer(Weight::Regular).into(),
+    };
+    let label = match preference {
+        X3dCachePreference::Cache => "cache first",
+        X3dCachePreference::Frequency => "clock first",
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Labeled(label.to_owned()),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        ..ReadingRow::glyph_only(
+            X3dCachePreference::NAME,
+            glyph,
+            ReadingDisplayState::Idle,
+            Box::new(|_| Vec::new()),
         )
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![]
     }
 }
 

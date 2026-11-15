@@ -1,12 +1,10 @@
 use crate::{
-    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
-    widgets::icon_glyph::IconGlyph,
+    group_items::reading_display_state::ReadingDisplayState, widgets::icon_glyph::IconGlyph,
 };
 mod auto_switch_toggle;
 mod offset_slider;
 mod sqlite_dark_mode_schedule;
 mod umbra_dark_mode;
-
 use std::{ops::RangeInclusive, time::Duration};
 
 use chrono::{DateTime, TimeDelta, Utc};
@@ -22,6 +20,7 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::Config;
 use tokio::time::sleep;
+use umbra_dark_mode::dark_mode_reading_row;
 
 use self::{
     offset_slider::{minutes_to_time_delta, new_offset_slider, time_delta_to_minutes},
@@ -371,7 +370,7 @@ impl DarkModeGroup {
                 self.mode_toggle
                     .group_item(
                         IconGlyph::default(),
-                        |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                        dark_mode_reading_row,
                         DarkModeTarget::Mode,
                         DarkModeInteraction::ModeTogglePressed,
                         clock,
@@ -379,7 +378,7 @@ impl DarkModeGroup {
                     .map(GroupItem::previewed_on_handle),
                 mode_known.then(|| {
                     GroupItem::reading(
-                        ReadingRow::evaluated(&self.auto_switch_toggle, clock, locale),
+                        self.auto_switch_toggle.reading_row(clock, locale),
                         DarkModeTarget::Schedule,
                     )
                     .on_switch_press(

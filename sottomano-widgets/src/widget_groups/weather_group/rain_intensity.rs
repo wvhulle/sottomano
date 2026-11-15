@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     fmt::{Display, Formatter, Result as FmtResult},
     iter,
     sync::LazyLock,
@@ -21,8 +20,9 @@ use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_grouped_table},
     widget_groups::weather_group::{
@@ -40,7 +40,9 @@ use crate::{
         localized_durations::{duration_text, relative_moment_text},
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
-        ongoing_toast::{definition_list, moment_text},
+        ongoing_toast::{
+            ReadingAlerts, StateToast, ToastBody, ToastProgress, definition_list, moment_text,
+        },
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
         weather_icons::WeatherIcon,
@@ -399,14 +401,34 @@ impl RainForecast<'_> {
     }
 }
 
-impl GroupItemReading for RainForecast<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Rain".into()
+impl<'a> RainForecast<'a> {
+    pub fn reading_row(self, clock: Clock, locale: Locale) -> ReadingRow<'a> {
+        let label = match self.label_text(clock, locale) {
+            Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
+            Some(_) | None => ReadoutLabel::Unlabeled,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            alerts: ReadingAlerts {
+                state_toast: self.state_toast(clock, locale),
+                ..ReadingAlerts::default()
+            },
+            ..ReadingRow::glyph_only(
+                "Rain",
+                self.glyph(),
+                self.display_state(clock),
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
+    fn glyph(&self) -> IconGlyph {
         match self.radar_forecast() {
-            Some(radar) => radar.icon(),
+            Some(radar) => radar.glyph(),
             None => match self.sources.model() {
                 Some(model) => model_quarter_glyph(
                     &model.current,
@@ -419,18 +441,18 @@ impl GroupItemReading for RainForecast<'_> {
         }
     }
 
-    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
+    fn label_text(&self, clock: Clock, locale: Locale) -> Option<String> {
         if let Some(radar) = self.radar_forecast() {
-            return radar.label(clock, locale);
+            return rain_label_text(radar.rain, clock, locale);
         }
         let model = self.sources.model()?;
         (model.current.condition.sky_wetness() == SkyWetness::Precipitating)
             .then(|| model.current.condition.to_string())
     }
 
-    fn state(&self, clock: Clock) -> ReadingDisplayState {
+    fn display_state(&self, clock: Clock) -> ReadingDisplayState {
         match self.radar_forecast() {
-            Some(radar) => radar.state(clock),
+            Some(radar) => radar.display_state(clock),
             None => match self.sources.model() {
                 Some(model)
                     if model.current.condition.sky_wetness() == SkyWetness::Precipitating =>
@@ -442,18 +464,21 @@ impl GroupItemReading for RainForecast<'_> {
         }
     }
 
-    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
+    fn state_toast(&self, clock: Clock, locale: Locale) -> StateToast {
         match self.radar_forecast() {
-            Some(radar) => radar.ongoing_toast_threshold(),
-            None => OngoingToastThreshold::NeverNotify,
+            Some(radar) => StateToast::NotifyFromSeverity {
+                minimum_severity: Severity::Warning,
+                summary_text: "Rain on the radar",
+                body: radar
+                    .toast_body(clock, locale)
+                    .map_or(ToastBody::Bodiless, ToastBody::Text),
+                progress: ToastProgress::Unmeasured,
+            },
+            None => StateToast::NeverNotify,
         }
     }
 
-    fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> Option<String> {
-        self.radar_forecast()?.ongoing_toast_body(clock, locale)
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let timeline = self.timeline(clock);
         let timeline_section = timeline
             .iter()
@@ -549,36 +574,21 @@ impl RadarRainForecast<'_> {
     }
 }
 
-impl GroupItemReading for RadarRainForecast<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.rain.name()
-    }
-
-    fn icon(&self) -> IconGlyph {
+impl RadarRainForecast<'_> {
+    fn glyph(&self) -> IconGlyph {
         self.intensity_scale()
             .strength(self.rain.peak.intensity)
             .glyph()
     }
 
-    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
-        self.rain.label(clock, locale)
-    }
-
-    fn state(&self, clock: Clock) -> ReadingDisplayState {
+    fn display_state(&self, clock: Clock) -> ReadingDisplayState {
         match self.severity(clock.local()) {
-            Severity::Normal => self.rain.state(clock),
+            Severity::Normal => rain_display_state(self.rain),
             alerting => alerting.into(),
         }
     }
 
-    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
-        OngoingToastThreshold::NotifyFromSeverity {
-            minimum_severity: Severity::Warning,
-            summary_text: "Rain on the radar",
-        }
-    }
-
-    fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> Option<String> {
+    fn toast_body(&self, clock: Clock, locale: Locale) -> Option<String> {
         let now = clock.local();
         let spell = self.spell_above_minimum(now)?;
         let moment = |at: DateTime<Local>| moment_text(at.to_utc(), clock.utc(), locale);
@@ -605,59 +615,78 @@ impl GroupItemReading for RadarRainForecast<'_> {
 
 pub(crate) const RAIN_FALLBACK_GLYPH: IconGlyph = IconGlyph::WeatherIcon(WeatherIcon::Raindrop);
 
-impl GroupItemReading for Rain {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub fn rain_reading_row(rain: &Rain, clock: Clock, locale: Locale) -> ReadingRow<'_> {
+    let label = match rain_label_text(rain, clock, locale) {
+        Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
+        Some(_) | None => ReadoutLabel::Unlabeled,
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        ..ReadingRow::glyph_only(
+            Rain::NAME,
+            RadarRainForecast::with_default_alerts(rain).glyph(),
+            rain_display_state(rain),
+            Box::new(move |card_clock| rain_hover_card(rain, card_clock)),
+        )
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        RadarRainForecast::with_default_alerts(self).icon()
+fn rain_label_text(rain: &Rain, clock: Clock, locale: Locale) -> Option<String> {
+    let remaining = |at: DateTime<Local>| duration_text(at - clock.local(), locale);
+    match rain.outlook {
+        RainOutlook::Dry => None,
+        RainOutlook::StartsAt(at) => Some(relative_moment_text(at.to_utc(), clock.utc(), locale)),
+        RainOutlook::StopsAt(at) => Some(format!("for {}", remaining(at))),
+        RainOutlook::OutlastsForecastUntil(at) => Some(format!("for {}+", remaining(at))),
     }
+}
 
-    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
-        let remaining = |at: DateTime<Local>| duration_text(at - clock.local(), locale);
-        match self.outlook {
-            RainOutlook::Dry => None,
-            RainOutlook::StartsAt(at) => {
-                Some(relative_moment_text(at.to_utc(), clock.utc(), locale))
-            }
-            RainOutlook::StopsAt(at) => Some(format!("for {}", remaining(at))),
-            RainOutlook::OutlastsForecastUntil(at) => Some(format!("for {}+", remaining(at))),
-        }
+fn rain_display_state(rain: &Rain) -> ReadingDisplayState {
+    if rain.outlook == RainOutlook::Dry {
+        ReadingDisplayState::Off
+    } else {
+        ReadingDisplayState::Idle
     }
+}
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.outlook == RainOutlook::Dry {
-            ReadingDisplayState::Off
-        } else {
-            ReadingDisplayState::Idle
-        }
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
-        RadarRainForecast::with_default_alerts(self).hover_card(clock)
-    }
+pub fn rain_hover_card(rain: &Rain, clock: Clock) -> Vec<Section> {
+    RadarRainForecast::with_default_alerts(rain).hover_card(clock)
 }
 
 pub(crate) const PRECIPITATION_MODEL_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::WeatherIcon(WeatherIcon::Sprinkle);
 
-impl GroupItemReading for PrecipitationModel {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub fn precipitation_model_reading_row(
+    model: &PrecipitationModel,
+    clock: Clock,
+    locale: Locale,
+) -> ReadingRow<'_> {
+    let forecast = RainForecast::modelled_with_default_alerts(model);
+    let label = match forecast.label_text(clock, locale) {
+        Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
+        Some(_) | None => ReadoutLabel::Unlabeled,
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        ..ReadingRow::glyph_only(
+            PrecipitationModel::NAME,
+            forecast.glyph(),
+            ReadingDisplayState::Idle,
+            Box::new(move |card_clock| precipitation_model_hover_card(model, card_clock)),
+        )
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        RainForecast::modelled_with_default_alerts(self).icon()
-    }
-
-    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
-        RainForecast::modelled_with_default_alerts(self).label(clock, locale)
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
-        RainForecast::modelled_with_default_alerts(self).hover_card(clock)
-    }
+pub fn precipitation_model_hover_card(model: &PrecipitationModel, clock: Clock) -> Vec<Section> {
+    RainForecast::modelled_with_default_alerts(model).hover_card(clock)
 }
 
 #[cfg(test)]
@@ -675,10 +704,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_items::{
-            group_item::GroupItem,
-            reading_row::{PanelVisibility, ReadingRow},
-        },
+        group_items::{group_item::GroupItem, reading_row::PanelVisibility},
         hover_cards::HoverTarget,
         widget_groups::weather_group::{WeatherTarget, rain_forecast_ranking::RADAR_FRAME_LENGTH},
         widgets::keyed_record_table::RecordCells,
@@ -722,14 +748,18 @@ mod tests {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 0.0]);
         let forecast = RadarRainForecast::with_default_alerts(&rain);
-        assert_eq!(forecast.panel_visibility(), PanelVisibility::Shown);
-        assert_eq!(forecast.state(clock), ReadingDisplayState::Off);
         assert_eq!(
-            forecast.icon(),
+            rain_reading_row(&rain, clock, Locale::default()).panel_visibility,
+            PanelVisibility::Shown
+        );
+        assert_eq!(forecast.display_state(clock), ReadingDisplayState::Off);
+        assert_eq!(
+            forecast.glyph(),
             IconGlyph::from(Phosphor::DropSlash(Weight::Regular))
         );
         assert_eq!(
-            RadarRainForecast::with_default_alerts(&radar_frames(clock, &[0.0, 0.2])).state(clock),
+            RadarRainForecast::with_default_alerts(&radar_frames(clock, &[0.0, 0.2]))
+                .display_state(clock),
             ReadingDisplayState::Idle
         );
     }
@@ -781,7 +811,7 @@ mod tests {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.2, 0.2, 3.0, 1.0, 0.0, 9.0]);
         let body = RadarRainForecast::with_default_alerts(&rain)
-            .ongoing_toast_body(clock, Locale::default())
+            .toast_body(clock, Locale::default())
             .unwrap();
         assert_eq!(severity_of(&rain, clock), Severity::Warning);
         assert!(body.contains("<dt>Starts</dt>"));
@@ -805,7 +835,7 @@ mod tests {
         let rain = radar_frames(clock, &[0.0, 0.0, 3.0]);
         let later = clock.advanced(Duration::from_mins(4));
         assert_eq!(
-            rain.label(later, Locale::default()),
+            rain_label_text(&rain, later, Locale::default()),
             Some("in 6 min.".to_owned())
         );
     }
@@ -815,13 +845,13 @@ mod tests {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 0.0, 3.0]);
         let forecast = RadarRainForecast::with_default_alerts(&rain);
-        let body = forecast.ongoing_toast_body(clock, Locale::default());
+        let body = forecast.toast_body(clock, Locale::default());
         assert!(
             body.as_deref()
                 .is_some_and(|body| body.contains("<dt>Starts</dt>"))
         );
         assert_eq!(
-            forecast.ongoing_toast_body(clock.advanced(Duration::from_secs(50)), Locale::default()),
+            forecast.toast_body(clock.advanced(Duration::from_secs(50)), Locale::default()),
             body
         );
     }
@@ -831,11 +861,11 @@ mod tests {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 3.0]);
         let rain_item: GroupItem<'_, u8> = GroupItem::reading(
-            ReadingRow::evaluated(
-                RadarRainForecast::with_default_alerts(&rain),
-                clock,
-                Locale::default(),
-            ),
+            RainForecast {
+                sources: RainSources::Radar(&rain),
+                alerts: &DEFAULT_RAIN_ALERTS,
+            }
+            .reading_row(clock, Locale::default()),
             HoverTarget::Weather(WeatherTarget::Rain),
         );
         let toast = rain_item
@@ -1069,7 +1099,7 @@ mod tests {
             alerts: &alerts,
         };
         assert_eq!(
-            snow_forecast.label(clock, Locale::default()),
+            snow_forecast.label_text(clock, Locale::default()),
             Some("Light snow".to_owned())
         );
         let clear = model_quarters(clock, &[WeatherCondition::MainlyClear]);
@@ -1077,12 +1107,15 @@ mod tests {
             sources: RainSources::Model(&clear),
             alerts: &alerts,
         };
-        assert_eq!(clear_forecast.label(clock, Locale::default()), None);
+        assert_eq!(clear_forecast.label_text(clock, Locale::default()), None);
         assert_eq!(
-            clear_forecast.icon(),
+            clear_forecast.glyph(),
             IconGlyph::from(Phosphor::DropSlash(Weight::Regular))
         );
-        assert_eq!(clear_forecast.state(clock), ReadingDisplayState::Off);
+        assert_eq!(
+            clear_forecast.display_state(clock),
+            ReadingDisplayState::Off
+        );
     }
 
     #[test]

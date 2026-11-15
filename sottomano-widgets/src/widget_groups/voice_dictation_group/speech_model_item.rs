@@ -1,15 +1,12 @@
-use std::borrow::Cow;
-
 use notulist_client::{DictationEngine, EngineState, ModelLoadError};
 use sottomano_desktop_sources::{
     SnapshotSource, voice_dictation_input::notulist_dbus_engine::NotulistEngine,
 };
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-        reading_row::PanelVisibility,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -25,58 +22,55 @@ const HUGGING_FACE_SITE: &str = "https://huggingface.co";
 pub(crate) const NOTULIST_ENGINE_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Brain(Weight::Regular));
 
-impl GroupItemReading for NotulistEngine {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        match &self.engine {
-            EngineState::SpeechModelReady(engine) if !engine.model_repository.is_empty() => {
-                SimpleIcon::HuggingFace.into()
-            }
-            EngineState::SpeechModelReady(_)
-            | EngineState::LoadingSpeechModel
-            | EngineState::SpeechModelUnavailable(_) => Phosphor::Brain(Weight::Regular).into(),
+pub fn notulist_engine_reading_row(speech: &NotulistEngine) -> ReadingRow<'_> {
+    let glyph: IconGlyph = match &speech.engine {
+        EngineState::SpeechModelReady(engine) if !engine.model_repository.is_empty() => {
+            SimpleIcon::HuggingFace.into()
         }
+        EngineState::SpeechModelReady(_)
+        | EngineState::LoadingSpeechModel
+        | EngineState::SpeechModelUnavailable(_) => Phosphor::Brain(Weight::Regular).into(),
+    };
+    let state = match &speech.engine {
+        EngineState::LoadingSpeechModel => ReadingDisplayState::Pending,
+        EngineState::SpeechModelReady(_) => ReadingDisplayState::On,
+        EngineState::SpeechModelUnavailable(_) => ReadingDisplayState::Failed,
+    };
+    let panel_visibility = if matches!(speech.engine, EngineState::LoadingSpeechModel) {
+        PanelVisibility::Hidden
+    } else {
+        PanelVisibility::Shown
+    };
+    ReadingRow {
+        panel_visibility,
+        ..ReadingRow::glyph_only(
+            NotulistEngine::NAME,
+            glyph,
+            state,
+            Box::new(move |_| notulist_engine_hover_card(speech)),
+        )
     }
+}
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match &self.engine {
-            EngineState::LoadingSpeechModel => ReadingDisplayState::Pending,
-            EngineState::SpeechModelReady(_) => ReadingDisplayState::On,
-            EngineState::SpeechModelUnavailable(_) => ReadingDisplayState::Failed,
+pub fn notulist_engine_hover_card(speech: &NotulistEngine) -> Vec<Section> {
+    match &speech.engine {
+        EngineState::LoadingSpeechModel => {
+            vec![Section::new(
+                "Status",
+                dictionary_table([LabeledValue::new("Model", "loading")]),
+            )]
         }
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        if matches!(self.engine, EngineState::LoadingSpeechModel) {
-            PanelVisibility::Hidden
-        } else {
-            PanelVisibility::Shown
+        EngineState::SpeechModelReady(engine) => {
+            vec![Section::new("Model", dictionary_table(model_rows(engine)))]
         }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        match &self.engine {
-            EngineState::LoadingSpeechModel => {
-                vec![Section::new(
-                    "Status",
-                    dictionary_table([LabeledValue::new("Model", "loading")]),
-                )]
-            }
-            EngineState::SpeechModelReady(engine) => {
-                vec![Section::new("Model", dictionary_table(model_rows(engine)))]
-            }
-            EngineState::SpeechModelUnavailable(load_error) => vec![Section::new(
-                "Error",
-                dictionary_table(
-                    [LabeledValue::new("Problem", "No model")]
-                        .into_iter()
-                        .chain(model_load_error_rows(load_error)),
-                ),
-            )],
-        }
+        EngineState::SpeechModelUnavailable(load_error) => vec![Section::new(
+            "Error",
+            dictionary_table(
+                [LabeledValue::new("Problem", "No model")]
+                    .into_iter()
+                    .chain(model_load_error_rows(load_error)),
+            ),
+        )],
     }
 }
 
@@ -194,7 +188,10 @@ mod tests {
     use notulist_client::ModelRole;
 
     use super::*;
-    use crate::{group_items::reading_row::PanelVisibility, widgets::value_cells::ValueCell};
+    use crate::{
+        group_items::{reading_row::PanelVisibility, source_reading::GroupItemIcon},
+        widgets::value_cells::ValueCell,
+    };
 
     fn keys(rows: impl IntoIterator<Item = LabeledValue>) -> Vec<ValueCell> {
         rows.into_iter().map(|row| row.key().clone()).collect()
@@ -238,7 +235,13 @@ mod tests {
         let ready = NotulistEngine {
             engine: EngineState::SpeechModelReady(engine),
         };
-        assert_eq!(ready.icon(), SimpleIcon::HuggingFace.into());
+        assert_eq!(
+            notulist_engine_reading_row(&ready).face.icon,
+            GroupItemIcon::IconGlyph {
+                glyph: SimpleIcon::HuggingFace.into(),
+                state: ReadingDisplayState::On,
+            }
+        );
     }
 
     #[test]
@@ -251,12 +254,11 @@ mod tests {
                 ModelLoadError::ModelLoaderStoppedWithoutResult,
             ),
         };
-        assert_eq!(loading.panel_visibility(), PanelVisibility::Hidden);
-        assert_eq!(unavailable.panel_visibility(), PanelVisibility::Shown);
-        assert_eq!(
-            unavailable.state(Clock::real()),
-            ReadingDisplayState::Failed
-        );
+        let loading_row = notulist_engine_reading_row(&loading);
+        let unavailable_row = notulist_engine_reading_row(&unavailable);
+        assert_eq!(loading_row.panel_visibility, PanelVisibility::Hidden);
+        assert_eq!(unavailable_row.panel_visibility, PanelVisibility::Shown);
+        assert_eq!(unavailable_row.shown_state(), ReadingDisplayState::Failed);
     }
 
     #[test]

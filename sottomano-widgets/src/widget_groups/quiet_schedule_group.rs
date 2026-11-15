@@ -472,7 +472,7 @@ impl QuietScheduleGroup {
         match target {
             QuietScheduleTarget::DoNotDisturb => self.status_hover_card(clock),
             QuietScheduleTarget::FollowSchedule => {
-                self.follow_schedule_toggle().switch_hover_card(clock)
+                self.follow_schedule_toggle().switch_hover_card()
             }
             QuietScheduleTarget::Start => self.start_slider.readout_hover_card("Quiet from"),
             QuietScheduleTarget::End => self.end_slider.readout_hover_card("Quiet until"),

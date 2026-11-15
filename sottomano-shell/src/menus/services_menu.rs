@@ -12,7 +12,7 @@ impl DesktopShell {
             [
                 self.widget_groups
                     .llama_server_group
-                    .group_content(self.clock, self.config.calendar.locale)
+                    .group_content()
                     .map(ShellInteraction::LlamaServer),
                 self.widget_groups
                     .ci_runs_group
@@ -20,15 +20,15 @@ impl DesktopShell {
                     .map(ShellInteraction::CiRuns),
                 self.widget_groups
                     .claude_usage_group
-                    .group_content(self.clock, self.config.calendar.locale)
+                    .group_content(self.clock)
                     .map(ShellInteraction::ClaudeUsage),
                 self.widget_groups
                     .copilot_usage_group
-                    .group_content(self.clock, self.config.calendar.locale)
+                    .group_content(self.clock)
                     .map(ShellInteraction::CopilotUsage),
                 self.widget_groups
                     .openrouter_credit_group
-                    .group_content(self.clock, self.config.calendar.locale)
+                    .group_content(self.clock)
                     .map(ShellInteraction::OpenRouterCredit),
                 self.widget_groups
                     .systemd_manager_group

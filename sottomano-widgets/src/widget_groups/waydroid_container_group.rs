@@ -1,6 +1,5 @@
 use std::{borrow::Cow, future::Future};
 
-use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::{
     sink_write_errors::GuestPowerError,
@@ -95,7 +94,7 @@ struct WaydroidContainerRow<'a> {
 }
 
 impl<'a> WaydroidContainerRow<'a> {
-    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+    fn reading_row(self) -> ReadingRow<'a> {
         let label = match self.shown {
             ShownWaydroid::Detailed(WaydroidReadout {
                 memory_in_use: Some(memory_in_use),
@@ -117,12 +116,12 @@ impl<'a> WaydroidContainerRow<'a> {
                 "Container",
                 Phosphor::Package(Weight::Regular).into(),
                 self.shown.container().into(),
-                Box::new(move |card_clock| self.hover_card(card_clock)),
+                Box::new(move |_| self.hover_card()),
             )
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    fn hover_card(&self) -> Vec<Section> {
         let mut detail_entries = vec![
             LabeledValue::new("State", self.shown.container().label()),
             LabeledValue::new("Unit", WAYDROID_CONTAINER_UNIT),
@@ -146,7 +145,7 @@ struct WaydroidSessionRow<'a> {
 }
 
 impl<'a> WaydroidSessionRow<'a> {
-    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+    fn reading_row(self) -> ReadingRow<'a> {
         let label = match self.state {
             WaydroidState::Session { session_state, .. } => session_state.to_lowercase(),
             WaydroidState::ContainerOnly | WaydroidState::Absent => "no session".to_owned(),
@@ -165,12 +164,12 @@ impl<'a> WaydroidSessionRow<'a> {
                 "Session",
                 IconGlyph::SimpleIcon(SimpleIcon::Android),
                 state,
-                Box::new(move |card_clock| self.hover_card(card_clock)),
+                Box::new(move |_| self.hover_card()),
             )
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    fn hover_card(&self) -> Vec<Section> {
         let WaydroidState::Session {
             session_state,
             user_name,
@@ -324,16 +323,16 @@ impl WaydroidContainerGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &WaydroidContainerTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: &WaydroidContainerTarget) -> Vec<Section> {
         let Some(shown) = self.shown_waydroid() else {
             return Vec::new();
         };
         let body = match target {
-            WaydroidContainerTarget::Container => WaydroidContainerRow { shown }.hover_card(clock),
+            WaydroidContainerTarget::Container => WaydroidContainerRow { shown }.hover_card(),
             WaydroidContainerTarget::Session => WaydroidSessionRow {
                 state: shown.state(),
             }
-            .hover_card(clock),
+            .hover_card(),
         };
         match shown {
             ShownWaydroid::Detailed(_) => self.detail.hover_card_with(body),
@@ -341,12 +340,8 @@ impl WaydroidContainerGroup {
         }
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> WidgetGroupContent<'_, WaydroidContainerInteraction> {
-        let rows = self.waydroid_rows(clock, locale);
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WaydroidContainerInteraction> {
+        let rows = self.waydroid_rows();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::WaydroidContainer,
             &self.expansion,
@@ -362,11 +357,9 @@ impl WaydroidContainerGroup {
     fn container_row<'a>(
         &'a self,
         shown: ShownWaydroid<'a>,
-        clock: Clock,
-        locale: Locale,
     ) -> GroupItem<'a, WaydroidContainerInteraction> {
         let row = GroupItem::reading(
-            WaydroidContainerRow { shown }.reading_row(clock, locale),
+            WaydroidContainerRow { shown }.reading_row(),
             WaydroidContainerTarget::Container,
         );
         match self.container_switch.activity() {
@@ -380,15 +373,11 @@ impl WaydroidContainerGroup {
         }
     }
 
-    fn waydroid_rows(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> Vec<GroupItem<'_, WaydroidContainerInteraction>> {
+    fn waydroid_rows(&self) -> Vec<GroupItem<'_, WaydroidContainerInteraction>> {
         let Some(shown) = self.shown_waydroid() else {
             return Vec::new();
         };
-        let container_row = self.container_row(shown, clock, locale);
+        let container_row = self.container_row(shown);
         if shown.container() == ContainerRunState::Stopped {
             return vec![container_row];
         }
@@ -396,7 +385,7 @@ impl WaydroidContainerGroup {
             WaydroidSessionRow {
                 state: shown.state(),
             }
-            .reading_row(clock, locale),
+            .reading_row(),
             WaydroidContainerTarget::Session,
         );
         let session_row = match shown.state() {

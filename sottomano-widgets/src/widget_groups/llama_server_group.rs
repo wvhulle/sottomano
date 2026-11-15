@@ -1,5 +1,3 @@
-use chrono::Locale;
-
 use crate::group_items::reading_display_state::ReadingDisplayState;
 mod context_fill_gauge;
 mod generation_rate_label;
@@ -44,6 +42,13 @@ const SERVER_SWITCH: UnitSwitchFace = UnitSwitchFace {
         turning_on: "start llama-server; models load on their first request",
         turning_off: "stop llama-server and free the memory its models hold",
     },
+};
+use crate::{
+    widget_groups::llama_server_group::{
+        gguf_model_card_sections::gguf_model_card_sections,
+        loaded_model_label::llama_model_props_sections,
+    },
+    widgets::huggingface_hub_sections::hugging_face_model_card_sections,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -225,36 +230,32 @@ impl LlamaServerGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: &LlamaServerTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: &LlamaServerTarget) -> Vec<Section> {
         let model_groups: Vec<_> = [
-            self.model_props.sections(clock),
-            self.gguf_card.sections(clock),
-            self.base_model_card.sections(clock),
+            self.model_props
+                .sections_described_by(llama_model_props_sections),
+            self.gguf_card
+                .sections_described_by(gguf_model_card_sections),
+            self.base_model_card
+                .sections_described_by(hugging_face_model_card_sections),
         ]
         .into_iter()
         .flatten()
         .collect();
         match target.bus {
-            Bus::Session => self.user.hover_card_for(target, model_groups, clock),
-            Bus::System => self.system.hover_card_for(target, model_groups, clock),
+            Bus::Session => self.user.hover_card_for(target, model_groups),
+            Bus::System => self.system.hover_card_for(target, model_groups),
         }
     }
 
-    pub fn group_content(
-        &self,
-        clock: Clock,
-        locale: Locale,
-    ) -> WidgetGroupContent<'_, LlamaServerInteraction> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, LlamaServerInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::LlamaServer,
             &self.expansion,
             LlamaServerInteraction::Expansion,
             self.user
-                .items(LlamaServerInteraction::User, clock, locale)
-                .chain(
-                    self.system
-                        .items(LlamaServerInteraction::System, clock, locale),
-                ),
+                .items(LlamaServerInteraction::User)
+                .chain(self.system.items(LlamaServerInteraction::System)),
         )
         .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::Robot(Weight::Regular).into(),

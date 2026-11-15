@@ -115,8 +115,8 @@ impl WindowGroup {
     }
 
     #[must_use]
-    pub fn inspect_hover_card(&self, clock: Clock) -> Vec<Section> {
-        self.window_list.process_sections(clock)
+    pub fn inspect_hover_card(&self) -> Vec<Section> {
+        self.window_list.process_sections()
     }
 
     pub fn update(&mut self, msg: WindowGroupMessage, clock: Clock) -> Action {

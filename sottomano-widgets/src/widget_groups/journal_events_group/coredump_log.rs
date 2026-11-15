@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::systemd_units_journal::journal_coredumps::CoredumpEntry;
 use sottomano_toml_config::Config;
@@ -8,9 +6,9 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
         reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
@@ -54,10 +52,9 @@ impl JournalScopeGroup {
         config: &Config,
         clock: Clock,
     ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
-        let locale = config.calendar.locale;
         let coredumps = self.coredumps.reading_row(
             IconGlyph::default(),
-            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+            |snapshot| coredump_log_reading_row(snapshot),
             clock,
         )?;
         Some(
@@ -72,46 +69,50 @@ impl JournalScopeGroup {
     }
 }
 
-impl GroupItemReading for Vec<CoredumpEntry> {
-    fn name(&self) -> Cow<'static, str> {
-        "Coredumps".into()
-    }
+pub(super) fn coredump_log_state(entries: &[CoredumpEntry]) -> ReadingDisplayState {
+    entries
+        .iter()
+        .map(|entry| entry.severity)
+        .max()
+        .unwrap_or_default()
+        .into()
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Bug(Weight::Regular).into()
-    }
+pub(super) fn coredump_log_panel_visibility(entries: &[CoredumpEntry]) -> PanelVisibility {
+    shown_while_alerting(entries.iter().map(|entry| entry.severity))
+}
 
-    fn badge(&self) -> Option<usize> {
-        Some(self.len())
+pub(super) fn coredump_log_reading_row(entries: &[CoredumpEntry]) -> ReadingRow<'_> {
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Unlabeled,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Counted(entries.len()),
+        },
+        panel_visibility: coredump_log_panel_visibility(entries),
+        ..ReadingRow::glyph_only(
+            "Coredumps",
+            Phosphor::Bug(Weight::Regular).into(),
+            coredump_log_state(entries),
+            Box::new(move |_| coredump_log_hover_card(entries)),
+        )
     }
+}
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.iter()
-            .map(|entry| entry.severity)
-            .max()
-            .unwrap_or_default()
-            .into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            SectionTitle::captioned(
-                "Coredumps",
-                "Programs that crashed in the last hour, as recorded by systemd-coredump.",
-            ),
-            headed_table(
-                [
-                    ColumnHeading::titled("Process").align_x(Horizontal::Left),
-                    ColumnHeading::titled("Signal").align_x(Horizontal::Left),
-                    ColumnHeading::titled("PID"),
-                    ColumnHeading::titled("Unit").align_x(Horizontal::Left),
-                ],
-                self.iter(),
-            ),
-        )]
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        shown_while_alerting(self.iter().map(|entry| entry.severity))
-    }
+pub(super) fn coredump_log_hover_card(entries: &[CoredumpEntry]) -> Vec<Section> {
+    vec![Section::new(
+        SectionTitle::captioned(
+            "Coredumps",
+            "Programs that crashed in the last hour, as recorded by systemd-coredump.",
+        ),
+        headed_table(
+            [
+                ColumnHeading::titled("Process").align_x(Horizontal::Left),
+                ColumnHeading::titled("Signal").align_x(Horizontal::Left),
+                ColumnHeading::titled("PID"),
+                ColumnHeading::titled("Unit").align_x(Horizontal::Left),
+            ],
+            entries.iter(),
+        ),
+    )]
 }

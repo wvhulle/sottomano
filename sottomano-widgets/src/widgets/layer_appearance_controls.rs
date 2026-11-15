@@ -7,7 +7,6 @@ use sottomano_toml_config::Config;
 use self::sqlite_layer_appearance::{AppearanceSetting, AppearanceValue};
 use crate::{
     background_work::logged_failure_task,
-    clock::Clock,
     desktop_panels::region_reporter::BackdropBlur,
     group_items::{
         aligned_quantity::AlignedQuantity,
@@ -233,25 +232,21 @@ impl LayerAppearanceControls {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: AppearanceTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: AppearanceTarget) -> Vec<Section> {
         match target {
             AppearanceTarget::Opacity => self.opacity.readout_hover_card("Opacity"),
             AppearanceTarget::CornerRadius => {
                 self.corner_radius.readout_hover_card("Corner radius")
             }
-            AppearanceTarget::Blur => blur_toggle(self.backdrop_blur).switch_hover_card(clock),
-            AppearanceTarget::DropShadow => {
-                shadow_toggle(self.shadow_casting).switch_hover_card(clock)
-            }
+            AppearanceTarget::Blur => blur_toggle(self.backdrop_blur).switch_hover_card(),
+            AppearanceTarget::DropShadow => shadow_toggle(self.shadow_casting).switch_hover_card(),
             AppearanceTarget::ShadowSoftness => {
                 self.shadow_softness.readout_hover_card("Shadow softness")
             }
             AppearanceTarget::ShadowOpacity => {
                 self.shadow_opacity.readout_hover_card("Shadow opacity")
             }
-            AppearanceTarget::Outline => {
-                outline_toggle(self.outline_tracing).switch_hover_card(clock)
-            }
+            AppearanceTarget::Outline => outline_toggle(self.outline_tracing).switch_hover_card(),
             AppearanceTarget::OutlineOpacity => {
                 self.outline_opacity.readout_hover_card("Outline opacity")
             }

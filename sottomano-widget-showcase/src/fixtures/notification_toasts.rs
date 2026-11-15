@@ -67,56 +67,47 @@ pub const ARRIVAL_SUMMARY: &str = "Standup in 5 minutes";
 pub const ACTIONS_SUMMARY: &str = "Meeting invitation";
 pub const WINDOW_SUMMARY: &str = "Build finished";
 
-pub fn arrival(clock: Clock) -> ShowcasedGroup {
-    desk(
-        NotificationData {
-            id: ARRIVAL_TOAST,
-            app_name: Some("Calendar".to_owned()),
-            summary: ARRIVAL_SUMMARY.to_owned(),
-            body: Some("Room 2 with the platform team".to_owned()),
-            expire_timeout: ExpireTimeout::After(Duration::from_secs(3)),
-            ..quiet_toast()
-        },
-        clock,
-    )
+pub fn arrival() -> ShowcasedGroup {
+    desk(NotificationData {
+        id: ARRIVAL_TOAST,
+        app_name: Some("Calendar".to_owned()),
+        summary: ARRIVAL_SUMMARY.to_owned(),
+        body: Some("Room 2 with the platform team".to_owned()),
+        expire_timeout: ExpireTimeout::After(Duration::from_secs(3)),
+        ..quiet_toast()
+    })
 }
 
-pub fn progress(clock: Clock) -> ShowcasedGroup {
-    desk(download(0), clock)
+pub fn progress() -> ShowcasedGroup {
+    desk(download(0))
 }
 
-pub fn actions(clock: Clock) -> ShowcasedGroup {
-    desk(
-        NotificationData {
-            id: ACTIONS_TOAST,
-            app_name: Some("Calendar".to_owned()),
-            summary: ACTIONS_SUMMARY.to_owned(),
-            body: Some("Design review, Thursday 14:00".to_owned()),
-            actions: vec![
-                action("accept", "Accept"),
-                action("later", "Later"),
-                action("deny", "Decline"),
-            ],
-            expire_timeout: ExpireTimeout::Never,
-            ..quiet_toast()
-        },
-        clock,
-    )
+pub fn actions() -> ShowcasedGroup {
+    desk(NotificationData {
+        id: ACTIONS_TOAST,
+        app_name: Some("Calendar".to_owned()),
+        summary: ACTIONS_SUMMARY.to_owned(),
+        body: Some("Design review, Thursday 14:00".to_owned()),
+        actions: vec![
+            action("accept", "Accept"),
+            action("later", "Later"),
+            action("deny", "Decline"),
+        ],
+        expire_timeout: ExpireTimeout::Never,
+        ..quiet_toast()
+    })
 }
 
-pub fn next_to_window(clock: Clock) -> ShowcasedGroup {
-    desk(
-        NotificationData {
-            id: WINDOW_TOAST,
-            app_name: Some("foot".to_owned()),
-            summary: WINDOW_SUMMARY.to_owned(),
-            body: Some("cargo build finished in 42 s".to_owned()),
-            window_id_hint: Some(EDITOR_WINDOW),
-            expire_timeout: ExpireTimeout::Never,
-            ..quiet_toast()
-        },
-        clock,
-    )
+pub fn next_to_window() -> ShowcasedGroup {
+    desk(NotificationData {
+        id: WINDOW_TOAST,
+        app_name: Some("foot".to_owned()),
+        summary: WINDOW_SUMMARY.to_owned(),
+        body: Some("cargo build finished in 42 s".to_owned()),
+        window_id_hint: Some(EDITOR_WINDOW),
+        expire_timeout: ExpireTimeout::Never,
+        ..quiet_toast()
+    })
 }
 
 pub fn downloading(clock: Clock) -> Vec<ShowcaseMessage> {
@@ -155,7 +146,7 @@ fn action(key: &str, label: &str) -> NotifAction {
     }
 }
 
-fn desk(opening: NotificationData, _clock: Clock) -> ShowcasedGroup {
+fn desk(opening: NotificationData) -> ShowcasedGroup {
     let editor_view = opening.window_id_hint.map(|_| EDITOR_POSITION_IN_VIEW);
     let compositor =
         CompositorWindowState::indexed_by_id([desk_workspace()], [editor_window(editor_view)]);

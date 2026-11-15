@@ -1,6 +1,3 @@
-use std::borrow::Cow;
-
-use chrono::Locale;
 use sottomano_desktop_sources::cpu_memory_compute::{
     pci_gpu_readings::GpuTemperatureLimits, temperature_thresholds::celsius_text,
 };
@@ -8,15 +5,15 @@ use sottomano_toml_config::severity::Severity;
 use uom::si::f64::ThermodynamicTemperature;
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
         reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
+        ongoing_toast::{ReadingAlerts, StateToast, ToastBody, ToastProgress},
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -27,16 +24,35 @@ pub struct GpuTemperatureLabel {
     pub limits: GpuTemperatureLimits,
 }
 
-impl GroupItemReading for GpuTemperatureLabel {
-    fn name(&self) -> Cow<'static, str> {
-        "GPU temperature".into()
+impl GpuTemperatureLabel {
+    pub fn reading_row(self) -> ReadingRow<'static> {
+        let label = celsius_text(self.current);
+        let state = self.display_state();
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(label.clone()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            alerts: ReadingAlerts {
+                state_toast: StateToast::NotifyFromSeverity {
+                    minimum_severity: Severity::Critical,
+                    summary_text: "GPU overheating",
+                    body: ToastBody::Text(label),
+                    progress: ToastProgress::Unmeasured,
+                },
+                ..ReadingAlerts::default()
+            },
+            ..ReadingRow::glyph_only(
+                "GPU temperature",
+                Phosphor::ThermometerSimple(Weight::Regular).into(),
+                state,
+                Box::new(move |_| self.hover_card()),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::ThermometerSimple(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+    fn display_state(&self) -> ReadingDisplayState {
         let reached = |limit: Option<ThermodynamicTemperature>| {
             limit.is_some_and(|limit| self.current >= limit)
         };
@@ -49,18 +65,7 @@ impl GroupItemReading for GpuTemperatureLabel {
         }
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(celsius_text(self.current))
-    }
-
-    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
-        OngoingToastThreshold::NotifyFromSeverity {
-            minimum_severity: Severity::Critical,
-            summary_text: "GPU overheating",
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self) -> Vec<Section> {
         vec![
             Section::new(
                 "Now",

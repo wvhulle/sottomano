@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use iced::futures::TryFutureExt;
 use sottomano_desktop_sinks::screen_brightness_color::umbra_mode_writes;
 use sottomano_desktop_sources::{
@@ -9,33 +7,28 @@ use sottomano_desktop_sources::{
 };
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
         toggle_control::{SwitchPosition, ToggleableSource},
     },
-    hover_cards::hover_card_body::Section,
     widgets::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
     },
 };
 
-impl GroupItemReading for DarkMode {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        match self.color_mode {
-            ColorMode::Dark => Phosphor::Moon(Weight::Regular).into(),
-            ColorMode::Light => Phosphor::Sun(Weight::Regular).into(),
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![]
-    }
+pub fn dark_mode_reading_row(mode: &DarkMode) -> ReadingRow<'_> {
+    let glyph: IconGlyph = match mode.color_mode {
+        ColorMode::Dark => Phosphor::Moon(Weight::Regular).into(),
+        ColorMode::Light => Phosphor::Sun(Weight::Regular).into(),
+    };
+    ReadingRow::glyph_only(
+        DarkMode::NAME,
+        glyph,
+        ReadingDisplayState::Idle,
+        Box::new(|_| Vec::new()),
+    )
 }
 
 impl ToggleableSource for DarkMode {

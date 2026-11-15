@@ -1,15 +1,11 @@
-use std::borrow::Cow;
-
-use sottomano_desktop_sources::{
-    SnapshotSource,
-    weather::open_meteo_pollen::{Allergen, AllergenConcentration, Pollen},
-};
+use sottomano_desktop_sources::weather::open_meteo_pollen::{Allergen, AllergenConcentration};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
-    clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -63,64 +59,70 @@ impl ConcentrationThresholds {
     }
 }
 
-impl GroupItemReading for AllergenConcentration {
-    fn name(&self) -> Cow<'static, str> {
-        self.allergen.name().into()
+pub fn allergen_reading_row(concentration: &AllergenConcentration) -> ReadingRow<'_> {
+    let weight = Weight::Regular;
+    let glyph: IconGlyph = match concentration.allergen {
+        Allergen::Alder => Phosphor::Leaf(weight),
+        Allergen::Birch => Phosphor::Tree(weight),
+        Allergen::Grass => Phosphor::Plant(weight),
+        Allergen::Mugwort => Phosphor::Clover(weight),
+        Allergen::Olive => Phosphor::TreeEvergreen(weight),
+        Allergen::Ragweed => Phosphor::Flower(weight),
     }
+    .into();
+    let thresholds = ConcentrationThresholds::recommended_for(concentration.allergen);
+    let state = if concentration.grains_per_cubic_metre >= thresholds.high {
+        ReadingDisplayState::Critical
+    } else if concentration.grains_per_cubic_metre >= thresholds.moderate {
+        ReadingDisplayState::Warning
+    } else {
+        ReadingDisplayState::Idle
+    };
+    let fill = allergen_gauge_fill(concentration);
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Unlabeled,
+            gauge: ReadoutGauge::Gauged { fill, live: fill },
+            badge: ReadoutBadge::Unbadged,
+        },
+        ..ReadingRow::glyph_only(
+            concentration.allergen.name(),
+            glyph,
+            state,
+            Box::new(move |_| allergen_hover_card(concentration)),
+        )
+    }
+}
 
-    fn icon(&self) -> IconGlyph {
-        let weight = Weight::Regular;
-        match self.allergen {
-            Allergen::Alder => Phosphor::Leaf(weight),
-            Allergen::Birch => Phosphor::Tree(weight),
-            Allergen::Grass => Phosphor::Plant(weight),
-            Allergen::Mugwort => Phosphor::Clover(weight),
-            Allergen::Olive => Phosphor::TreeEvergreen(weight),
-            Allergen::Ragweed => Phosphor::Flower(weight),
-        }
-        .into()
-    }
+fn allergen_gauge_fill(concentration: &AllergenConcentration) -> Ratio {
+    let full_scale =
+        ConcentrationThresholds::recommended_for(concentration.allergen).gauge_full_scale;
+    let logarithmic_share = concentration.grains_per_cubic_metre.ln_1p() / full_scale.ln_1p();
+    Ratio::new::<ratio>(logarithmic_share)
+}
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        let thresholds = ConcentrationThresholds::recommended_for(self.allergen);
-        if self.grains_per_cubic_metre >= thresholds.high {
-            ReadingDisplayState::Critical
-        } else if self.grains_per_cubic_metre >= thresholds.moderate {
-            ReadingDisplayState::Warning
-        } else {
-            ReadingDisplayState::Idle
-        }
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        let full_scale = ConcentrationThresholds::recommended_for(self.allergen).gauge_full_scale;
-        let logarithmic_share = self.grains_per_cubic_metre.ln_1p() / full_scale.ln_1p();
-        Some(Ratio::new::<ratio>(logarithmic_share))
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        let thresholds = ConcentrationThresholds::recommended_for(self.allergen);
-        vec![
-            Section::new(
-                "Now",
-                dictionary_table([LabeledValue::new(
-                    self.allergen.name(),
-                    Quantity::measured(
-                        self.grains_per_cubic_metre,
-                        DisplayUnit::GrainsPerCubicMeter,
-                        1,
-                    ),
-                )]),
-            ),
-            Section::new(
-                "Thresholds",
-                dictionary_table([
-                    LabeledValue::new("Moderate from", pollen_threshold(thresholds.moderate)),
-                    LabeledValue::new("High from", pollen_threshold(thresholds.high)),
-                ]),
-            ),
-        ]
-    }
+pub fn allergen_hover_card(concentration: &AllergenConcentration) -> Vec<Section> {
+    let thresholds = ConcentrationThresholds::recommended_for(concentration.allergen);
+    vec![
+        Section::new(
+            "Now",
+            dictionary_table([LabeledValue::new(
+                concentration.allergen.name(),
+                Quantity::measured(
+                    concentration.grains_per_cubic_metre,
+                    DisplayUnit::GrainsPerCubicMeter,
+                    1,
+                ),
+            )]),
+        ),
+        Section::new(
+            "Thresholds",
+            dictionary_table([
+                LabeledValue::new("Moderate from", pollen_threshold(thresholds.moderate)),
+                LabeledValue::new("High from", pollen_threshold(thresholds.high)),
+            ]),
+        ),
+    ]
 }
 
 fn pollen_threshold(grains_per_cubic_metre: f64) -> Quantity {
@@ -129,20 +131,6 @@ fn pollen_threshold(grains_per_cubic_metre: f64) -> Quantity {
 
 pub(crate) const POLLEN_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Flower(Weight::Regular));
-
-impl GroupItemReading for Pollen {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Flower(Weight::Regular).into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![]
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -156,10 +144,7 @@ mod tests {
     }
 
     fn gauge_fill(grains_per_cubic_metre: f64) -> f64 {
-        grass(grains_per_cubic_metre)
-            .gauge()
-            .expect("allergens always have a gauge")
-            .get::<ratio>()
+        allergen_gauge_fill(&grass(grains_per_cubic_metre)).get::<ratio>()
     }
 
     #[test]

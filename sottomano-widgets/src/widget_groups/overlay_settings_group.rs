@@ -3,7 +3,6 @@ use sottomano_toml_config::Config;
 
 use crate::{
     background_work::logged_failure_task,
-    clock::Clock,
     group_items::{
         group_item::GroupItem,
         reading_display_state::ReadingDisplayState,
@@ -132,12 +131,12 @@ impl OverlaySettingsGroup {
     }
 
     #[must_use]
-    pub fn hover_card_for(&self, target: OverlaySettingsTarget, clock: Clock) -> Vec<Section> {
+    pub fn hover_card_for(&self, target: OverlaySettingsTarget) -> Vec<Section> {
         match target {
             OverlaySettingsTarget::ToastSpatialLayout => {
-                toast_spatial_layout_toggle(self.toast_arrangement).switch_hover_card(clock)
+                toast_spatial_layout_toggle(self.toast_arrangement).switch_hover_card()
             }
-            OverlaySettingsTarget::Appearance(target) => self.layer.hover_card_for(target, clock),
+            OverlaySettingsTarget::Appearance(target) => self.layer.hover_card_for(target),
         }
     }
 

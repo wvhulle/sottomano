@@ -215,17 +215,15 @@ impl ShowcasedShellSettings {
         }
     }
 
-    fn hover_card_for(&self, target: &HoverTarget, clock: Clock) -> Vec<Section> {
+    fn hover_card_for(&self, target: &HoverTarget) -> Vec<Section> {
         match target {
-            HoverTarget::PanelSettings(target) => self.panels.hover_card_for(*target, clock),
-            HoverTarget::SidebarSettings(target) => self.sidebar.hover_card_for(*target, clock),
-            HoverTarget::OverlaySettings(target) => self.overlays.hover_card_for(*target, clock),
+            HoverTarget::PanelSettings(target) => self.panels.hover_card_for(*target),
+            HoverTarget::SidebarSettings(target) => self.sidebar.hover_card_for(*target),
+            HoverTarget::OverlaySettings(target) => self.overlays.hover_card_for(*target),
             HoverTarget::CompositorStyling(target) => {
-                self.compositor_styling.hover_card_for(*target, clock)
+                self.compositor_styling.hover_card_for(*target)
             }
-            HoverTarget::GroupMenuSettings(target) => {
-                self.menus.settings_hover_card(*target, clock)
-            }
+            HoverTarget::GroupMenuSettings(target) => self.menus.settings_hover_card(*target),
             _ => Vec::new(),
         }
     }
@@ -400,9 +398,7 @@ impl ShowcasedDesktopSession {
             HoverTarget::Window(WindowTarget::Usage(window)) => {
                 WindowGroup::window_identity_hover_card(&self.compositor, *window, clock)
             }
-            HoverTarget::Window(WindowTarget::Inspect(_)) => {
-                self.window_group.inspect_hover_card(clock)
-            }
+            HoverTarget::Window(WindowTarget::Inspect(_)) => self.window_group.inspect_hover_card(),
             HoverTarget::Workspace(workspace) => workspace_hover_card::hover_card(
                 &self.snapshot,
                 &self.desktop_entries,
@@ -494,7 +490,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::ClaudeUsage(group) => {
                 vec![
                     group
-                        .group_content(clock, locale)
+                        .group_content(clock)
                         .map(ShowcaseInteraction::ClaudeUsage),
                 ]
             }
@@ -511,7 +507,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::Wallpaper(group) => {
                 vec![
                     group
-                        .group_content(clock, locale)
+                        .group_content(clock)
                         .map(ShowcaseInteraction::Wallpaper),
                 ]
             }
@@ -520,14 +516,14 @@ impl ShowcasedGroup {
             }
             ShowcasedGroup::Gamepad(gamepad) => gamepad
                 .group
-                .group_contents(&gamepad.bindings, clock, locale)
+                .group_contents(&gamepad.bindings)
                 .into_iter()
                 .map(|group| group.map(ShowcaseInteraction::Gamepad))
                 .collect(),
             ShowcasedGroup::VoiceDictation(group) => {
                 vec![
                     group
-                        .group_content(clock, locale)
+                        .group_content(clock)
                         .map(ShowcaseInteraction::VoiceDictation),
                 ]
             }
@@ -553,25 +549,17 @@ impl ShowcasedGroup {
                 ]
             }
             ShowcasedGroup::Tailnet(group) => {
-                vec![
-                    group
-                        .group_content(clock, locale)
-                        .map(ShowcaseInteraction::Tailnet),
-                ]
+                vec![group.group_content(clock).map(ShowcaseInteraction::Tailnet)]
             }
             ShowcasedGroup::WireguardTunnels(group) => {
                 vec![
                     group
-                        .group_content(clock, locale)
+                        .group_content()
                         .map(ShowcaseInteraction::WireguardTunnels),
                 ]
             }
             ShowcasedGroup::LoginSession(group) => {
-                vec![
-                    group
-                        .group_content(clock, locale)
-                        .map(ShowcaseInteraction::LoginSession),
-                ]
+                vec![group.group_content().map(ShowcaseInteraction::LoginSession)]
             }
             ShowcasedGroup::MenuMembers(groups) => groups
                 .iter()
@@ -598,43 +586,43 @@ impl ShowcasedGroup {
         let locale = config.calendar.locale;
         let guest_group = match self {
             ShowcasedGroup::PodmanEngines(group) => group
-                .group_content(clock, locale)
+                .group_content()
                 .map(ShowcaseInteraction::PodmanEngines),
             ShowcasedGroup::VirtualMachines(group) => group
-                .group_content(clock, locale)
+                .group_content()
                 .map(ShowcaseInteraction::VirtualMachines),
             ShowcasedGroup::NspawnContainers(group) => group
-                .group_content(clock, locale)
+                .group_content()
                 .map(ShowcaseInteraction::NspawnContainers),
             ShowcasedGroup::DockerEngines(group) => group
-                .group_content(clock, locale)
+                .group_content()
                 .map(ShowcaseInteraction::DockerEngines),
             ShowcasedGroup::ApptainerContainers(group) => group
-                .group_content(clock, locale)
+                .group_content()
                 .map(ShowcaseInteraction::ApptainerContainers),
             ShowcasedGroup::VmwareMachines(group) => group
-                .group_content(clock, locale)
+                .group_content()
                 .map(ShowcaseInteraction::VmwareMachines),
             ShowcasedGroup::VirtualBoxMachines(group) => group
-                .group_content(clock, locale)
+                .group_content()
                 .map(ShowcaseInteraction::VirtualBoxMachines),
             ShowcasedGroup::WaydroidContainer(group) => group
-                .group_content(clock, locale)
+                .group_content()
                 .map(ShowcaseInteraction::WaydroidContainer),
             ShowcasedGroup::FlatpakSandboxes(group) => group
-                .group_content(clock, locale)
+                .group_content()
                 .map(ShowcaseInteraction::FlatpakSandboxes),
             ShowcasedGroup::LxcContainers(group) => group
-                .group_content(clock, locale)
+                .group_content()
                 .map(ShowcaseInteraction::LxcContainers),
             ShowcasedGroup::IncusInstances(group) => group
-                .group_content(clock, locale)
+                .group_content()
                 .map(ShowcaseInteraction::IncusInstances),
             ShowcasedGroup::MicrovmGuests(group) => group
-                .group_content(clock, locale)
+                .group_content()
                 .map(ShowcaseInteraction::MicrovmGuests),
             ShowcasedGroup::CgroupMemoryLimits(group) => group
-                .group_content(config, clock)
+                .group_content(config)
                 .map(ShowcaseInteraction::CgroupMemoryLimits),
             ShowcasedGroup::CiRuns(group) => group
                 .group_content(clock, locale)
@@ -921,7 +909,7 @@ impl ShowcasedGroup {
                 let HoverTarget::ClaudeUsage(target) = target else {
                     return Vec::new();
                 };
-                claude_usage::on_hover(*target, clock)
+                claude_usage::on_hover(*target)
                     .into_iter()
                     .map(ShowcaseMessage::ClaudeUsage)
                     .collect()
@@ -961,7 +949,7 @@ impl ShowcasedGroup {
                 let HoverTarget::LoginSession(target) = target else {
                     return Vec::new();
                 };
-                login_session::on_hover(*target, clock)
+                login_session::on_hover(*target)
                     .into_iter()
                     .map(ShowcaseMessage::LoginSession)
                     .collect()
@@ -1020,13 +1008,13 @@ impl ShowcasedGroup {
                 let HoverTarget::Compute(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(*target, clock)
+                group.hover_card_for(*target)
             }
             ShowcasedGroup::MemoryBoard(group) => {
                 let HoverTarget::MemoryBoard(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(target, clock)
+                group.hover_card_for(target)
             }
             ShowcasedGroup::Weather(group) => {
                 let HoverTarget::Weather(target) = target else {
@@ -1059,33 +1047,31 @@ impl ShowcasedGroup {
                 let HoverTarget::Wallpaper(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(*target, clock)
+                group.hover_card_for(*target)
             }
             ShowcasedGroup::AppLauncher(launcher) => {
                 let HoverTarget::AppLauncher(target) = target else {
                     return Vec::new();
                 };
-                launcher.group.hover_card_for(target, clock)
+                launcher.group.hover_card_for(target)
             }
             ShowcasedGroup::Audio(group) => {
                 let HoverTarget::Audio(kind) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(*kind, clock)
+                group.hover_card_for(*kind)
             }
             ShowcasedGroup::Gamepad(gamepad) => {
                 let HoverTarget::Gamepad(target) = target else {
                     return Vec::new();
                 };
-                gamepad
-                    .group
-                    .hover_card_for(*target, &gamepad.bindings, clock)
+                gamepad.group.hover_card_for(*target, &gamepad.bindings)
             }
             ShowcasedGroup::VoiceDictation(group) => {
                 let HoverTarget::VoiceDictation(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(*target, clock)
+                group.hover_card_for(*target)
             }
             ShowcasedGroup::PodmanEngines(group) => {
                 let HoverTarget::PodmanEngine(target) = target else {
@@ -1115,43 +1101,43 @@ impl ShowcasedGroup {
                 let HoverTarget::ApptainerContainer(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(target, clock, config.calendar.locale)
+                group.hover_card_for(target, clock)
             }
             ShowcasedGroup::VmwareMachines(group) => {
                 let HoverTarget::VmwareMachine(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(target, clock, config.calendar.locale)
+                group.hover_card_for(target, clock)
             }
             ShowcasedGroup::VirtualBoxMachines(group) => {
                 let HoverTarget::VirtualBoxMachine(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(target, clock, config.calendar.locale)
+                group.hover_card_for(target, clock)
             }
             ShowcasedGroup::WaydroidContainer(group) => {
                 let HoverTarget::WaydroidContainer(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(target, clock)
+                group.hover_card_for(target)
             }
             ShowcasedGroup::FlatpakSandboxes(group) => {
                 let HoverTarget::FlatpakSandbox(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(target, clock, config.calendar.locale)
+                group.hover_card_for(target, clock)
             }
             ShowcasedGroup::LxcContainers(group) => {
                 let HoverTarget::LxcContainer(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(target, clock, config.calendar.locale)
+                group.hover_card_for(target, clock)
             }
             ShowcasedGroup::IncusInstances(group) => {
                 let HoverTarget::IncusInstance(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(target, clock)
+                group.hover_card_for(target)
             }
             ShowcasedGroup::MicrovmGuests(group) => {
                 let HoverTarget::MicrovmGuest(target) = target else {
@@ -1169,7 +1155,7 @@ impl ShowcasedGroup {
                 let HoverTarget::CiRuns(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(target, clock)
+                group.hover_card_for(target)
             }
             ShowcasedGroup::Caldav(group) => {
                 let HoverTarget::Caldav(target) = target else {
@@ -1181,7 +1167,7 @@ impl ShowcasedGroup {
                 let HoverTarget::WireguardTunnel(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(target, clock)
+                group.hover_card_for(target)
             }
             ShowcasedGroup::Tailnet(group) => {
                 let HoverTarget::Tailnet(target) = target else {
@@ -1193,7 +1179,7 @@ impl ShowcasedGroup {
                 let HoverTarget::LoginSession(target) = target else {
                     return Vec::new();
                 };
-                group.hover_card_for(*target, clock)
+                group.hover_card_for(*target)
             }
             ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 session.hover_card_for(target, clock)
@@ -1209,7 +1195,7 @@ impl ShowcasedGroup {
                 .map(|member| member.hover_card_for(target, config, clock))
                 .find(|sections| !sections.is_empty())
                 .unwrap_or_default(),
-            ShowcasedGroup::ShellSettings(settings) => settings.hover_card_for(target, clock),
+            ShowcasedGroup::ShellSettings(settings) => settings.hover_card_for(target),
             ShowcasedGroup::Toasts(_) => Vec::new(),
         }
     }
