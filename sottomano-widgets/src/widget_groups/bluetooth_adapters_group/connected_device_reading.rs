@@ -1,4 +1,4 @@
-use std::{borrow::Cow, iter::once};
+use std::iter::once;
 
 use chrono::Locale;
 use sottomano_desktop_sources::{
@@ -7,13 +7,14 @@ use sottomano_desktop_sources::{
     systemd_units_journal::journal_device_kernel_errors::DeviceKernelError,
 };
 use sottomano_toml_config::severity::Severity;
-use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
     group_items::{
-        gauge::percent_fill, group_item_reading::GroupItemReading,
+        gauge::percent_fill,
         reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widget_groups::bluetooth_adapters_group::reconnect_churn_counting::RECONNECT_HORIZON,
@@ -173,41 +174,48 @@ impl ConnectedDeviceReading<'_> {
     }
 }
 
-impl GroupItemReading for ConnectedDeviceReading<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        format!("{} {}", self.device.name, self.device.address).into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        kind_glyph(self.device.kind)
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.short_label.clone())
-    }
-
-    fn gauge(&self) -> Option<Ratio> {
-        match self.device.battery {
+impl<'a> ConnectedDeviceReading<'a> {
+    #[must_use]
+    pub fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        let state =
+            if self.battery_drain_to(CRITICAL_BATTERY_PERCENT) == BatteryDrain::BelowThreshold {
+                ReadingDisplayState::Critical
+            } else if self.battery_drain_to(LOW_BATTERY_PERCENT) == BatteryDrain::BelowThreshold
+                || self.connection_stability() == ConnectionStability::Unstable
+            {
+                ReadingDisplayState::Warning
+            } else {
+                ReadingDisplayState::Idle
+            };
+        let gauge = match self.device.battery {
             DeviceBattery::Reported { level_percent, .. } => {
-                Some(percent_fill(i64::from(level_percent)))
+                let fill = percent_fill(i64::from(level_percent));
+                ReadoutGauge::Gauged { fill, live: fill }
             }
-            DeviceBattery::Unreported => None,
-        }
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.battery_drain_to(CRITICAL_BATTERY_PERCENT) == BatteryDrain::BelowThreshold {
-            ReadingDisplayState::Critical
-        } else if self.battery_drain_to(LOW_BATTERY_PERCENT) == BatteryDrain::BelowThreshold
-            || self.connection_stability() == ConnectionStability::Unstable
-        {
-            ReadingDisplayState::Warning
+            DeviceBattery::Unreported => ReadoutGauge::Ungauged,
+        };
+        let label = if self.short_label.is_empty() {
+            ReadoutLabel::Unlabeled
         } else {
-            ReadingDisplayState::Idle
+            ReadoutLabel::Labeled(self.short_label.clone())
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                format!("{} {}", self.device.name, self.device.address),
+                kind_glyph(self.device.kind),
+                state,
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    #[must_use]
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         [
             Some(Section::new(
                 "Device",

@@ -16,11 +16,12 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
-        icon_glyph::IconGlyph,
         idle::ActionTrigger,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         ongoing_toast::moment_text,
@@ -132,20 +133,8 @@ pub(super) fn pause_title(pause: IdleAction) -> &'static str {
     }
 }
 
-impl GroupItemReading for PauseBlocker {
-    fn name(&self) -> Cow<'static, str> {
-        self.holder.clone().into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Warning(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.blocked_phrase().into_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+impl PauseBlocker {
+    pub(super) fn display_state(&self) -> ReadingDisplayState {
         match (self.action_blocking, self.cause) {
             (IdleActionBlocking::StopsArmedAction, _) => ReadingDisplayState::Critical,
             (
@@ -156,7 +145,23 @@ impl GroupItemReading for PauseBlocker {
         }
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(super) fn reading_row(&self, _clock: Clock, _locale: Locale) -> ReadingRow<'_> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(self.blocked_phrase().into_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                self.holder.clone(),
+                Phosphor::Warning(Weight::Regular).into(),
+                self.display_state(),
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
+    }
+
+    pub(super) fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         blocker_sections(once(self)).into_iter().collect::<Vec<_>>()
     }
 }
@@ -196,21 +201,21 @@ pub(super) struct NextSleepStateRow {
     pub state: SleepState,
 }
 
-impl GroupItemReading for NextSleepStateRow {
-    fn name(&self) -> Cow<'static, str> {
-        self.state.title().into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Bed(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some("will run".to_owned())
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![]
+impl NextSleepStateRow {
+    pub(super) fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'static> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled("will run".to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                self.state.title(),
+                Phosphor::Bed(Weight::Regular).into(),
+                ReadingDisplayState::Idle,
+                Box::new(|_| Vec::new()),
+            )
+        }
     }
 }
 
@@ -218,33 +223,31 @@ pub(super) struct ScheduledShutdownRow<'a> {
     pub shutdown: &'a ScheduledShutdown,
 }
 
-impl GroupItemReading for ScheduledShutdownRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        match self.shutdown.kind.as_str() {
+impl ScheduledShutdownRow<'_> {
+    pub(super) fn reading_row(self, clock: Clock, locale: Locale) -> ReadingRow<'static> {
+        let name = match self.shutdown.kind.as_str() {
             "poweroff" | "dry-poweroff" => "Power off scheduled",
             "reboot" | "dry-reboot" => "Reboot scheduled",
             "halt" | "dry-halt" => "Halt scheduled",
             _ => "Shutdown scheduled",
+        };
+        let label = match self.shutdown.at {
+            Some(at) => ReadoutLabel::Labeled(moment_text(at, clock.utc(), locale)),
+            None => ReadoutLabel::Unlabeled,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                name,
+                Phosphor::Clock(Weight::Regular).into(),
+                ReadingDisplayState::Warning,
+                Box::new(|_| Vec::new()),
+            )
         }
-        .into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Clock(Weight::Regular).into()
-    }
-
-    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
-        self.shutdown
-            .at
-            .map(|at| moment_text(at, clock.utc(), locale))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Warning
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![]
     }
 }
 
@@ -605,10 +608,7 @@ mod tests {
         BlockerCause, HolderProcess, PauseBlocker, PauseFacts, pause_blockers, sleep_state_answer,
     };
     use crate::{
-        clock::Clock,
-        group_items::{
-            group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-        },
+        group_items::reading_display_state::ReadingDisplayState,
         widget_groups::idle_pause_groups::pause_blocker_rows::{IdleActionBlocking, TimerArming},
         widgets::idle::ActionTrigger,
     };
@@ -731,7 +731,7 @@ mod tests {
         let blockers = blockers_of(&obstacles, TimerArming::Unarmed);
         let rising: Vec<IdleAction> = blockers
             .iter()
-            .filter(|blocker| blocker.state(Clock::real()) == ReadingDisplayState::Critical)
+            .filter(|blocker| blocker.display_state() == ReadingDisplayState::Critical)
             .map(|blocker| blocker.pause)
             .collect();
         assert_eq!(rising, vec![IdleAction::Sleep]);

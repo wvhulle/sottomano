@@ -1,4 +1,4 @@
-use std::{borrow::Cow, path::PathBuf};
+use std::path::PathBuf;
 
 use chrono::Locale;
 use sottomano_desktop_sinks::{
@@ -12,8 +12,9 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
         reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::{
         HoverTarget,
@@ -49,24 +50,26 @@ pub struct VmwareMachineListingRow<'a> {
     listing: &'a VmwareMachineListing,
 }
 
-impl GroupItemReading for VmwareMachineListingRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.listing.machine_name.clone().into()
+impl<'a> VmwareMachineListingRow<'a> {
+    #[must_use]
+    pub fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled("running".to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                self.listing.machine_name.clone(),
+                Phosphor::Desktop(Weight::Regular).into(),
+                ReadingDisplayState::On,
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Desktop(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some("running".to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::On
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    #[must_use]
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::new(
             "Status",
             dictionary_table([
@@ -81,24 +84,26 @@ pub struct VmwareMachineRow<'a> {
     machine: &'a VmwareMachine,
 }
 
-impl GroupItemReading for VmwareMachineRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.machine.listing.machine_name.clone().into()
+impl<'a> VmwareMachineRow<'a> {
+    #[must_use]
+    pub fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(approximate_memory_text(self.machine.memory_in_use)),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                self.machine.listing.machine_name.clone(),
+                Phosphor::Desktop(Weight::Regular).into(),
+                ReadingDisplayState::On,
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Desktop(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(approximate_memory_text(self.machine.memory_in_use))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::On
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+    #[must_use]
+    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let machine = self.machine;
         let mut detail_entries = vec![LabeledValue::new(
             "Memory use",
@@ -161,7 +166,7 @@ impl ContainerFamily for VmwareFamily {
             .iter()
             .map(|listing| FamilyRow {
                 target: VmwareMachineTarget { pid: listing.pid },
-                reading: ReadingRow::evaluated(VmwareMachineListingRow { listing }, clock, locale),
+                reading: VmwareMachineListingRow { listing }.reading_row(clock, locale),
                 power: RowPower::Stoppable(listing.configuration_file.clone()),
             })
             .collect()
@@ -179,7 +184,7 @@ impl ContainerFamily for VmwareFamily {
                 target: VmwareMachineTarget {
                     pid: machine.listing.pid,
                 },
-                reading: ReadingRow::evaluated(VmwareMachineRow { machine }, clock, locale),
+                reading: VmwareMachineRow { machine }.reading_row(clock, locale),
                 power: RowPower::Stoppable(machine.listing.configuration_file.clone()),
             })
             .collect()

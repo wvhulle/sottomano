@@ -14,9 +14,9 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
         reading_row::ReadingRow,
+        source_reading::{ReadoutLabel, RowReadout},
         toggle_control::SwitchPresses,
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage, activity_text},
     },
@@ -31,7 +31,6 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         subscribed_snapshot::SubscribedSnapshot,
         value_cells::{LabeledValue, ValueCell},
@@ -123,16 +122,8 @@ impl NspawnContainerRow<'_> {
     }
 }
 
-impl GroupItemReading for NspawnContainerRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.container.machine_name.clone().into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::ShippingContainer(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
+impl<'a> NspawnContainerRow<'a> {
+    fn label(&self) -> Option<String> {
         match self.shown_activity() {
             UnitActivity::Running => self
                 .container
@@ -143,7 +134,7 @@ impl GroupItemReading for NspawnContainerRow<'_> {
         }
     }
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+    fn state(&self) -> ReadingDisplayState {
         match self.shown_activity() {
             UnitActivity::Running => ReadingDisplayState::On,
             UnitActivity::Starting | UnitActivity::Stopping => ReadingDisplayState::Pending,
@@ -156,6 +147,26 @@ impl GroupItemReading for NspawnContainerRow<'_> {
             "Container",
             dictionary_table(self.detail_entries(clock)),
         )]
+    }
+
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        let label = match self.label() {
+            Some(text) if !text.is_empty() => ReadoutLabel::Labeled(text),
+            Some(_) | None => ReadoutLabel::Unlabeled,
+        };
+        let base = ReadingRow::glyph_only(
+            self.container.machine_name.clone(),
+            Phosphor::ShippingContainer(Weight::Regular).into(),
+            self.state(),
+            Box::new(move |card_clock| self.hover_card(card_clock)),
+        );
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                ..base.readout
+            },
+            ..base
+        }
     }
 }
 
@@ -323,7 +334,7 @@ impl NspawnContainersGroup {
             .unwrap_or_default();
         let rows = containers.iter().map(|container| {
             let row = GroupItem::reading(
-                ReadingRow::evaluated(self.container_row(container), clock, locale),
+                self.container_row(container).reading_row(clock, locale),
                 NspawnContainerTarget {
                     machine_name: Cow::Owned(container.machine_name.clone()),
                 },
@@ -390,28 +401,23 @@ mod tests {
 
     #[test]
     fn a_running_container_is_labelled_with_its_ipv4_address() {
-        let clock = clock_at_wall(SystemTime::UNIX_EPOCH + Duration::from_hours(2));
         let container = running_container(SystemTime::UNIX_EPOCH);
         let row = NspawnContainerRow {
             container: &container,
             switched_activity: None,
         };
-        assert_eq!(
-            row.label(clock, Locale::en_US),
-            Some("10.200.0.2".to_owned())
-        );
+        assert_eq!(row.label(), Some("10.200.0.2".to_owned()));
     }
 
     #[test]
     fn a_pending_switch_overrides_the_listed_activity() {
-        let clock = clock_at_wall(SystemTime::UNIX_EPOCH);
         let container = running_container(SystemTime::UNIX_EPOCH);
         let row = NspawnContainerRow {
             container: &container,
             switched_activity: Some(UnitActivity::Stopping),
         };
-        assert_eq!(row.label(clock, Locale::en_US), Some("stopping".to_owned()));
-        assert_eq!(row.state(clock), ReadingDisplayState::Pending);
+        assert_eq!(row.label(), Some("stopping".to_owned()));
+        assert_eq!(row.state(), ReadingDisplayState::Pending);
     }
 
     #[test]
@@ -428,7 +434,7 @@ mod tests {
             switched_activity: None,
         };
         assert_eq!(row.detail_entries(clock).len(), 2);
-        assert_eq!(row.state(clock), ReadingDisplayState::Off);
+        assert_eq!(row.state(), ReadingDisplayState::Off);
     }
 
     #[test]

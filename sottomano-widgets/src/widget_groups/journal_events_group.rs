@@ -17,10 +17,14 @@ use sottomano_desktop_sources::{
 };
 use sottomano_toml_config::{Config, severity::Severity};
 
+use self::{
+    coredump_log::coredump_log_hover_card, kernel_error_log::kernel_log_hover_card,
+    oom_kill_log::oom_kill_log_hover_card, service_error_log::service_errors_hover_card,
+};
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::reading_row::{PanelVisibility, reading_hover_card},
+    group_items::reading_row::PanelVisibility,
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         terminal_command::TerminalCommand,
@@ -251,19 +255,19 @@ impl JournalEventsGroup {
             JournalTarget::Kernel => self
                 .system_journal
                 .kernel
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| kernel_log_hover_card(snapshot, clock)),
             JournalTarget::ServiceErrors(unit_scope) => self
                 .scope_group(unit_scope)
                 .service_errors
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| service_errors_hover_card(snapshot, clock)),
             JournalTarget::Coredumps(unit_scope) => self
                 .scope_group(unit_scope)
                 .coredumps
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| coredump_log_hover_card(snapshot, clock)),
             JournalTarget::OomKills(unit_scope) => self
                 .scope_group(unit_scope)
                 .oom_kills
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| oom_kill_log_hover_card(snapshot, clock)),
         }
     }
 

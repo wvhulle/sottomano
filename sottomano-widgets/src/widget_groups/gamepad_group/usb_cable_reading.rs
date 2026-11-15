@@ -1,16 +1,15 @@
-use std::borrow::Cow;
-
 use chrono::Locale;
 use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionWidget, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -26,30 +25,31 @@ pub struct UsbCableReading {
     pub role: UsbCableRole,
 }
 
-impl GroupItemReading for UsbCableReading {
-    fn name(&self) -> Cow<'static, str> {
-        "USB cable".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Usb(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        match self.role {
-            UsbCableRole::InputAndCharging => None,
-            UsbCableRole::ChargingOnly => Some("charging only".to_owned()),
+impl UsbCableReading {
+    pub fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'static> {
+        let (label, state) = match self.role {
+            UsbCableRole::InputAndCharging => (ReadoutLabel::Unlabeled, ReadingDisplayState::Idle),
+            UsbCableRole::ChargingOnly => (
+                ReadoutLabel::Labeled("charging only".to_owned()),
+                ReadingDisplayState::Warning,
+            ),
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "USB cable",
+                Phosphor::Usb(Weight::Regular).into(),
+                state,
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
         }
     }
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.role {
-            UsbCableRole::InputAndCharging => ReadingDisplayState::Idle,
-            UsbCableRole::ChargingOnly => ReadingDisplayState::Warning,
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         match self.role {
             UsbCableRole::InputAndCharging => {
                 vec![Section::new(

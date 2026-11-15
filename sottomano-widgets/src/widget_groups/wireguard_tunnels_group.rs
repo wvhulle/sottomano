@@ -16,7 +16,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::{first_delivery, logged_failure_task, snapshot_subscription},
     clock::Clock,
-    group_items::{reading_display_state::ReadingDisplayState, reading_row::reading_hover_card},
+    group_items::reading_display_state::ReadingDisplayState,
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
@@ -24,7 +24,9 @@ use crate::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
-        wireguard_tunnels_group::wireguard_tunnel_hover_card::wireguard_tunnel_item,
+        wireguard_tunnels_group::wireguard_tunnel_hover_card::{
+            tunnel_hover_card, wireguard_tunnel_item,
+        },
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot, simple_icons::SimpleIcon,
@@ -157,7 +159,7 @@ impl WireguardTunnelsGroup {
         };
         let mut sections = self
             .wireguard
-            .hover_card_with(reading_hover_card(tunnel, clock));
+            .hover_card_with(tunnel_hover_card(tunnel, clock));
         sections.extend(self.tunnel_address.sections(clock));
         sections
     }

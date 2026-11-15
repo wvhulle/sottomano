@@ -1,4 +1,4 @@
-use std::{borrow::Cow, iter::once, time::Duration};
+use std::{iter::once, time::Duration};
 
 use chrono::Locale;
 use iced::alignment::Horizontal;
@@ -11,11 +11,12 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table, headed_table},
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, RecordCells, TableRecord},
         localized_durations::duration_text,
         localized_quantities::Quantity,
@@ -56,108 +57,110 @@ fn login_record(stage: &str, took: Duration, meaning: &str) -> TableRecord<2> {
     )
 }
 
-impl GroupItemReading for BootTimeline {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::RocketLaunch(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        Some(match &self.startup_comparison {
-            Some(comparison) => {
-                Quantity::signed_share(comparison.os_startup.change).localized_text(locale)
-            }
-            None => duration_text(
-                Duration::from_secs(self.phases.os_startup().total().as_secs()),
-                locale,
-            ),
-        })
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.startup_comparison
-            .as_ref()
-            .map(|comparison| comparison.os_startup.severity)
-            .unwrap_or_default()
-            .into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        let comparison = self.startup_comparison.as_ref();
-        let login_gap = self
-            .user_startup
-            .as_ref()
-            .and_then(|user| user.started_at.checked_sub(self.system_startup.finish));
-        let session = self.user_startup.as_ref().map(|user| user.duration);
-        let stage_records = self.phases.present().into_iter().map(|phase| {
-            timeline_record(
-                phase.stage.name(),
-                phase.duration,
-                comparison.and_then(|comparison| comparison.stage(phase.stage)),
-                phase.stage.meaning(),
+pub(super) fn boot_timeline_hover_card(timeline: &BootTimeline, _clock: Clock) -> Vec<Section> {
+    let comparison = timeline.startup_comparison.as_ref();
+    let login_gap = timeline
+        .user_startup
+        .as_ref()
+        .and_then(|user| user.started_at.checked_sub(timeline.system_startup.finish));
+    let session = timeline.user_startup.as_ref().map(|user| user.duration);
+    let stage_records = timeline.phases.present().into_iter().map(|phase| {
+        timeline_record(
+            phase.stage.name(),
+            phase.duration,
+            comparison.and_then(|comparison| comparison.stage(phase.stage)),
+            phase.stage.meaning(),
+        )
+    });
+    let os_startup_total = timeline_record(
+        "OS startup",
+        timeline.phases.os_startup().total(),
+        comparison.map(|comparison| &comparison.os_startup),
+        "kernel, initrd and userspace together, shown on the bar",
+    );
+    let login_records: Vec<TableRecord<2>> = [
+        login_gap
+            .map(|gap| login_record("login", gap, "waiting for the first user session manager")),
+        session.map(|duration| {
+            login_record(
+                "user session",
+                duration,
+                "user systemd starting units until the default target",
             )
-        });
-        let os_startup_total = timeline_record(
-            "OS startup",
-            self.phases.os_startup().total(),
-            comparison.map(|comparison| &comparison.os_startup),
-            "kernel, initrd and userspace together, shown on the bar",
-        );
-        let login_records: Vec<TableRecord<2>> = [
-            login_gap.map(|gap| {
-                login_record("login", gap, "waiting for the first user session manager")
-            }),
-            session.map(|duration| {
-                login_record(
-                    "user session",
-                    duration,
-                    "user systemd starting units until the default target",
-                )
-            }),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-        let caption = match comparison {
-            Some(_) => {
-                "Difference is this boot against the previous one in the journal. Firmware and \
-                 loader are not recorded per boot. Amber and red crossed \
-                 slower_boot_warning_percent and slower_boot_critical_percent and took at least a \
-                 second longer."
-            }
-            None => "No previous boot in the journal to compare with.",
-        };
-        let stages_section = Section::new(
-            SectionTitle::captioned("Boot stages", caption),
+        }),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    let caption = match comparison {
+        Some(_) => {
+            "Difference is this boot against the previous one in the journal. Firmware and loader \
+             are not recorded per boot. Amber and red crossed slower_boot_warning_percent and \
+             slower_boot_critical_percent and took at least a second longer."
+        }
+        None => "No previous boot in the journal to compare with.",
+    };
+    let stages_section = Section::new(
+        SectionTitle::captioned("Boot stages", caption),
+        headed_table(
+            [
+                ColumnHeading::titled("Took"),
+                ColumnHeading::titled("Previous"),
+                ColumnHeading::titled("Difference"),
+                ColumnHeading::titled("Meaning").align_x(Horizontal::Left),
+            ],
+            stage_records,
+        )
+        .with_total_record(RecordCells::from(os_startup_total)),
+    );
+    let login_section = (!login_records.is_empty()).then(|| {
+        Section::new(
+            "After boot",
             headed_table(
                 [
                     ColumnHeading::titled("Took"),
-                    ColumnHeading::titled("Previous"),
-                    ColumnHeading::titled("Difference"),
                     ColumnHeading::titled("Meaning").align_x(Horizontal::Left),
                 ],
-                stage_records,
-            )
-            .with_total_record(RecordCells::from(os_startup_total)),
-        );
-        let login_section = (!login_records.is_empty()).then(|| {
-            Section::new(
-                "After boot",
-                headed_table(
-                    [
-                        ColumnHeading::titled("Took"),
-                        ColumnHeading::titled("Meaning").align_x(Horizontal::Left),
-                    ],
-                    login_records,
-                ),
-            )
-        });
-        once(stages_section)
-            .chain(login_section)
-            .collect::<Vec<_>>()
+                login_records,
+            ),
+        )
+    });
+    once(stages_section)
+        .chain(login_section)
+        .collect::<Vec<_>>()
+}
+
+pub(super) fn boot_timeline_reading_row(
+    timeline: &BootTimeline,
+    _clock: Clock,
+    locale: Locale,
+) -> ReadingRow<'_> {
+    let label = match &timeline.startup_comparison {
+        Some(comparison) => {
+            Quantity::signed_share(comparison.os_startup.change).localized_text(locale)
+        }
+        None => duration_text(
+            Duration::from_secs(timeline.phases.os_startup().total().as_secs()),
+            locale,
+        ),
+    };
+    let base = ReadingRow::glyph_only(
+        BootTimeline::NAME,
+        Phosphor::RocketLaunch(Weight::Regular).into(),
+        timeline
+            .startup_comparison
+            .as_ref()
+            .map(|comparison| comparison.os_startup.severity)
+            .unwrap_or_default()
+            .into(),
+        Box::new(move |card_clock| boot_timeline_hover_card(timeline, card_clock)),
+    );
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Labeled(label),
+            ..base.readout
+        },
+        ..base
     }
 }
 
@@ -165,18 +168,9 @@ pub struct StartupUnits<'a> {
     pub timeline: &'a BootTimeline,
 }
 
-impl GroupItemReading for StartupUnits<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Startup units".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Stack(Weight::Regular).into()
-    }
-
-    fn badge(&self) -> Option<usize> {
-        let count = self
-            .timeline
+impl<'a> StartupUnits<'a> {
+    fn slow_unit_count(&self) -> usize {
+        self.timeline
             .system_startup
             .slowest_units
             .slow_count()
@@ -186,11 +180,10 @@ impl GroupItemReading for StartupUnits<'_> {
                     .as_ref()
                     .map_or(0, |user| user.slowest_units.slow_count()),
             )
-            .expect("fewer than usize::MAX units are slow to start");
-        Some(count).filter(|count| *count > 0)
+            .expect("fewer than usize::MAX units are slow to start")
     }
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+    fn state(&self) -> ReadingDisplayState {
         let slowness_state = |ranked: &RankedActivations| -> ReadingDisplayState {
             ranked
                 .slowest_first
@@ -217,7 +210,7 @@ impl GroupItemReading for StartupUnits<'_> {
         .into()
     }
 
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let blame_section = |ranked: &RankedActivations, title: &str| {
             Section::new(
                 SectionTitle::captioned(
@@ -250,5 +243,25 @@ impl GroupItemReading for StartupUnits<'_> {
         .flatten()
         .collect();
         sections.into_iter().collect::<Vec<_>>()
+    }
+
+    pub fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        let badge = match self.slow_unit_count() {
+            0 => ReadoutBadge::Unbadged,
+            count => ReadoutBadge::Counted(count),
+        };
+        let base = ReadingRow::glyph_only(
+            "Startup units",
+            Phosphor::Stack(Weight::Regular).into(),
+            self.state(),
+            Box::new(move |card_clock| self.hover_card(card_clock)),
+        );
+        ReadingRow {
+            readout: RowReadout {
+                badge,
+                ..base.readout
+            },
+            ..base
+        }
     }
 }

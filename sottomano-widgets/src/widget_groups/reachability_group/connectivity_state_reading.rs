@@ -1,5 +1,4 @@
-use std::borrow::Cow;
-
+use chrono::Locale;
 use sottomano_desktop_sources::{
     SnapshotSource,
     network_connectivity::{
@@ -10,12 +9,9 @@ use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,
-    group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-    },
+    group_items::reading_row::ReadingRow,
     hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -29,33 +25,32 @@ fn severity(connectivity: Connectivity) -> Severity {
     }
 }
 
-impl GroupItemReading for UplinkConnectivity {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
+fn uplink_connectivity_hover_card(uplink: UplinkConnectivity, _clock: Clock) -> Vec<Section> {
+    vec![Section::new(
+        SectionTitle::captioned(
+            "Status",
+            "NetworkManager's own check whether the internet answers or a login portal is in the \
+             way.",
+        ),
+        dictionary_table([LabeledValue::new("Internet", uplink.connectivity.label())
+            .level(severity(uplink.connectivity))]),
+    )]
+}
 
-    fn icon(&self) -> IconGlyph {
-        match self.connectivity {
-            Connectivity::Full => Phosphor::CloudCheck(Weight::Regular),
-            Connectivity::Portal | Connectivity::Limited => Phosphor::Cloud(Weight::Regular),
-            Connectivity::Offline => Phosphor::CloudSlash(Weight::Regular),
-        }
-        .into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        severity(self.connectivity).into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            SectionTitle::captioned(
-                "Status",
-                "NetworkManager's own check whether the internet answers or a login portal is in \
-                 the way.",
-            ),
-            dictionary_table([LabeledValue::new("Internet", self.connectivity.label())
-                .level(severity(self.connectivity))]),
-        )]
-    }
+pub(super) fn uplink_connectivity_reading_row(
+    uplink: &UplinkConnectivity,
+    _clock: Clock,
+    _locale: Locale,
+) -> ReadingRow<'_> {
+    let glyph = match uplink.connectivity {
+        Connectivity::Full => Phosphor::CloudCheck(Weight::Regular),
+        Connectivity::Portal | Connectivity::Limited => Phosphor::Cloud(Weight::Regular),
+        Connectivity::Offline => Phosphor::CloudSlash(Weight::Regular),
+    };
+    ReadingRow::glyph_only(
+        UplinkConnectivity::NAME,
+        glyph.into(),
+        severity(uplink.connectivity).into(),
+        Box::new(move |card_clock| uplink_connectivity_hover_card(*uplink, card_clock)),
+    )
 }

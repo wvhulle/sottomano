@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cmp::Reverse};
+use std::cmp::Reverse;
 
 use chrono::Locale;
 use sottomano_desktop_sources::cpu_memory_compute::{
@@ -11,12 +11,11 @@ use super::core_grid_sections::cpu_ranges;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-        reading_row::PanelVisibility,
+        reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -103,29 +102,16 @@ impl ClockLimitCauses<'_> {
     }
 }
 
-impl GroupItemReading for ClockLimitCauses<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "CPU clock limits".into()
+impl<'a> ClockLimitCauses<'a> {
+    pub fn panel_visibility(&self) -> PanelVisibility {
+        if self.clock.limited_cores() > 0 {
+            PanelVisibility::Shown
+        } else {
+            PanelVisibility::Hidden
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Gauge(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.severity().into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        let spreads = self.spreads();
-        let most_severe = spreads.first()?;
-        Some(match spreads.len() - 1 {
-            0 => cause_text(most_severe.cause),
-            others => format!("{} +{others}", cause_text(most_severe.cause)),
-        })
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::new(
             "Published limits",
             dictionary_table(self.spreads().iter().map(|spread| {
@@ -135,11 +121,28 @@ impl GroupItemReading for ClockLimitCauses<'_> {
         )]
     }
 
-    fn panel_visibility(&self) -> PanelVisibility {
-        if self.clock.limited_cores() > 0 {
-            PanelVisibility::Shown
-        } else {
-            PanelVisibility::Hidden
+    pub fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        let spreads = self.spreads();
+        let label = match spreads.first() {
+            Some(most_severe) => ReadoutLabel::Labeled(match spreads.len() - 1 {
+                0 => cause_text(most_severe.cause),
+                others => format!("{} +{others}", cause_text(most_severe.cause)),
+            }),
+            None => ReadoutLabel::Unlabeled,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            panel_visibility: self.panel_visibility(),
+            ..ReadingRow::glyph_only(
+                "CPU clock limits",
+                Phosphor::Gauge(Weight::Regular).into(),
+                self.severity().into(),
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
         }
     }
 }

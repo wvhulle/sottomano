@@ -1,6 +1,5 @@
 use chrono::Locale;
 
-use crate::group_items::reading_row::reading_hover_card;
 mod adapter_radio_reading;
 mod connected_device_reading;
 mod reconnect_churn_counting;
@@ -28,9 +27,7 @@ use self::{
 use crate::{
     background_work::{logged_failure_task, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem, reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
-    },
+    group_items::{group_item::GroupItem, reading_display_state::ReadingDisplayState},
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         widget_group_content::{KeyedExpansions, WidgetGroupContent, WidgetGroupExpansionMessage},
@@ -235,13 +232,13 @@ impl BluetoothAdaptersGroup {
                 let Some(adapter) = self.adapter_named(controller_name) else {
                     return Vec::new();
                 };
-                reading_hover_card(self.adapter_reading(adapter), clock)
+                self.adapter_reading(adapter).hover_card(clock)
             }
             BluetoothTarget::PowerSwitch { controller_name } => {
                 let Some(adapter) = self.adapter_named(controller_name) else {
                     return Vec::new();
                 };
-                reading_hover_card(AdapterPowerSwitch { adapter }, clock)
+                AdapterPowerSwitch { adapter }.hover_card(clock)
             }
             BluetoothTarget::Device {
                 controller_name,
@@ -257,10 +254,8 @@ impl BluetoothAdaptersGroup {
                 else {
                     return Vec::new();
                 };
-                reading_hover_card(
-                    self.device_reading(device, siblings, report_timing_for, clock),
-                    clock,
-                )
+                self.device_reading(device, siblings, report_timing_for, clock)
+                    .hover_card(clock)
             }
         };
         self.bluetooth.hover_card_with(body)
@@ -275,7 +270,7 @@ impl BluetoothAdaptersGroup {
     ) -> Option<WidgetGroupContent<'a, BluetoothInteraction>> {
         let expansion = self.expansions.get(&adapter.controller_name)?;
         let summary_item = GroupItem::reading(
-            ReadingRow::evaluated(self.adapter_reading(adapter), clock, locale),
+            self.adapter_reading(adapter).reading_row(clock, locale),
             BluetoothTarget::Adapter {
                 controller_name: adapter.controller_name.clone(),
             },
@@ -283,7 +278,7 @@ impl BluetoothAdaptersGroup {
         let power_switch = AdapterPowerSwitch { adapter };
         let power_press_does = power_switch.press_does();
         let power_item = GroupItem::reading(
-            ReadingRow::evaluated(power_switch, clock, locale),
+            power_switch.reading_row(clock, locale),
             BluetoothTarget::PowerSwitch {
                 controller_name: adapter.controller_name.clone(),
             },
@@ -298,7 +293,7 @@ impl BluetoothAdaptersGroup {
             .iter()
             .map(|device| {
                 let reading = self.device_reading(device, siblings, report_timing_for, clock);
-                let device_row = ReadingRow::evaluated(reading, clock, locale);
+                let device_row = reading.reading_row(clock, locale);
                 let reading_state = device_row.shown_state();
                 let device_item = GroupItem::reading(
                     device_row,

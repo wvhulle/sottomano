@@ -1,6 +1,4 @@
-use std::borrow::Cow;
-
-use chrono::{DateTime, Locale, Utc};
+use chrono::Locale;
 use rust_decimal::Decimal;
 use sottomano_desktop_sources::{
     SnapshotSource,
@@ -13,14 +11,15 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-        reading_row::PanelVisibility,
+        reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         amount_text::spend_text,
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
+        ongoing_toast::ReadingAlerts,
         phosphor::{Phosphor, Weight},
         spend_forecast_basis::MONTH_HEADING_FORMAT,
         spend_to_level::level_from_cost,
@@ -31,70 +30,77 @@ use crate::{
 pub(crate) const COPILOT_CCUSAGE_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::TerminalWindow(Weight::Regular));
 
-impl GroupItemReading for CopilotCcusage {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub fn copilot_ccusage_panel_visibility(ccusage: &CopilotCcusage) -> PanelVisibility {
+    if ccusage.period.usage.activity() == UsageActivity::Active {
+        PanelVisibility::Shown
+    } else {
+        PanelVisibility::Hidden
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::TerminalWindow(Weight::Regular).into()
+pub fn copilot_ccusage_reading_row(
+    ccusage: &CopilotCcusage,
+    clock: Clock,
+    _locale: Locale,
+) -> ReadingRow<'_> {
+    let label = if ccusage.period.usage.cost.is_positive() {
+        format!("{} cli", spend_text(&ccusage.period.usage.cost))
+    } else {
+        "cli".to_owned()
+    };
+    let quotas = ccusage.quotas(clock.utc());
+    let state = Quota::worst_severity(&quotas)
+        .unwrap_or_else(|| level_from_cost(&ccusage.period.usage.cost))
+        .into();
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Labeled(label),
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Unbadged,
+        },
+        alerts: ReadingAlerts {
+            quota_windows: quotas,
+            ..ReadingAlerts::default()
+        },
+        panel_visibility: copilot_ccusage_panel_visibility(ccusage),
+        ..ReadingRow::glyph_only(
+            CopilotCcusage::NAME,
+            Phosphor::TerminalWindow(Weight::Regular).into(),
+            state,
+            Box::new(move |card_clock| copilot_ccusage_hover_card(ccusage, card_clock)),
+        )
     }
+}
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(if self.period.usage.cost.is_positive() {
-            format!("{} cli", spend_text(&self.period.usage.cost))
-        } else {
-            "cli".to_owned()
-        })
-    }
-
-    fn state(&self, clock: Clock) -> ReadingDisplayState {
-        Quota::worst_severity(&self.quotas(clock.utc()))
-            .unwrap_or_else(|| level_from_cost(&self.period.usage.cost))
-            .into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        let usage = &self.period.usage;
-        vec![
-            Section::new(
-                "Subscription",
-                dictionary_table(
-                    [
-                        LabeledValue::new("Plan", "copilot-cli"),
-                        LabeledValue::new("Source", "ccusage, local CLI session data"),
-                    ]
-                    .into_iter()
-                    .chain([LabeledValue::new(
-                        "Monthly Budget",
-                        Quantity::spend(usd(Decimal::from(self.budget.monthly_limit_usd))),
-                    )]),
-                ),
+pub fn copilot_ccusage_hover_card(ccusage: &CopilotCcusage, _clock: Clock) -> Vec<Section> {
+    let usage = &ccusage.period.usage;
+    vec![
+        Section::new(
+            "Subscription",
+            dictionary_table(
+                [
+                    LabeledValue::new("Plan", "copilot-cli"),
+                    LabeledValue::new("Source", "ccusage, local CLI session data"),
+                ]
+                .into_iter()
+                .chain([LabeledValue::new(
+                    "Monthly Budget",
+                    Quantity::spend(usd(Decimal::from(ccusage.budget.monthly_limit_usd))),
+                )]),
             ),
-            Section::new(
-                self.period
-                    .span
-                    .since
-                    .format(MONTH_HEADING_FORMAT)
-                    .to_string(),
-                dictionary_table([
-                    LabeledValue::new("Tokens", Quantity::count(usage.tokens)),
-                    LabeledValue::new("Cost", Quantity::spend(usage.cost)),
-                    LabeledValue::new("Models", usage.models.to_string()),
-                ]),
-            ),
-        ]
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        if self.period.usage.activity() == UsageActivity::Active {
-            PanelVisibility::Shown
-        } else {
-            PanelVisibility::Hidden
-        }
-    }
-
-    fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {
-        self.quotas(now)
-    }
+        ),
+        Section::new(
+            ccusage
+                .period
+                .span
+                .since
+                .format(MONTH_HEADING_FORMAT)
+                .to_string(),
+            dictionary_table([
+                LabeledValue::new("Tokens", Quantity::count(usage.tokens)),
+                LabeledValue::new("Cost", Quantity::spend(usage.cost)),
+                LabeledValue::new("Models", usage.models.to_string()),
+            ]),
+        ),
+    ]
 }

@@ -1,5 +1,4 @@
-use std::borrow::Cow;
-
+use chrono::Locale;
 use notulist_client::OutputProblem;
 use sottomano_desktop_sources::{
     SnapshotSource, voice_dictation_input::notulist_dbus_output_problems::NotulistOutputProblems,
@@ -8,8 +7,9 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-        reading_row::PanelVisibility,
+        reading_display_state::ReadingDisplayState,
+        reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
@@ -22,41 +22,50 @@ use crate::{
 pub(crate) const NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::Keyboard(Weight::Regular));
 
-impl GroupItemReading for NotulistOutputProblems {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
+pub fn notulist_output_problems_reading_row(
+    output: &NotulistOutputProblems,
+    _clock: Clock,
+    _locale: Locale,
+) -> ReadingRow<'_> {
+    let state = if output.problems.iter().any(OutputProblem::blocks_typing) {
+        ReadingDisplayState::Failed
+    } else {
+        ReadingDisplayState::Warning
+    };
+    let panel_visibility = if output.problems.is_empty() {
+        PanelVisibility::Hidden
+    } else {
+        PanelVisibility::Shown
+    };
+    let badge = match output.problems.len() {
+        0 | 1 => ReadoutBadge::Unbadged,
+        count => ReadoutBadge::Counted(count),
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Unlabeled,
+            gauge: ReadoutGauge::Ungauged,
+            badge,
+        },
+        panel_visibility,
+        ..ReadingRow::glyph_only(
+            NotulistOutputProblems::NAME,
+            Phosphor::Keyboard(Weight::Regular).into(),
+            state,
+            Box::new(move |card_clock| notulist_output_problems_hover_card(output, card_clock)),
+        )
     }
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Keyboard(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.problems.iter().any(OutputProblem::blocks_typing) {
-            ReadingDisplayState::Failed
-        } else {
-            ReadingDisplayState::Warning
-        }
-    }
-
-    fn badge(&self) -> Option<usize> {
-        Some(self.problems.len()).filter(|count| *count > 1)
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        if self.problems.is_empty() {
-            PanelVisibility::Hidden
-        } else {
-            PanelVisibility::Shown
-        }
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        self.problems
-            .iter()
-            .map(output_problem_section)
-            .collect::<Vec<_>>()
-    }
+pub fn notulist_output_problems_hover_card(
+    output: &NotulistOutputProblems,
+    _clock: Clock,
+) -> Vec<Section> {
+    output
+        .problems
+        .iter()
+        .map(output_problem_section)
+        .collect::<Vec<_>>()
 }
 
 const fn output_problem_label(problem: &OutputProblem) -> &'static str {
@@ -87,7 +96,11 @@ mod tests {
         let quiet = NotulistOutputProblems {
             problems: Vec::new(),
         };
-        assert_eq!(quiet.panel_visibility(), PanelVisibility::Hidden);
+        assert_eq!(
+            notulist_output_problems_reading_row(&quiet, Clock::real(), Locale::POSIX)
+                .panel_visibility,
+            PanelVisibility::Hidden
+        );
     }
 
     #[test]
@@ -103,9 +116,13 @@ mod tests {
                 ),
             ],
         };
-        assert_eq!(discarded.state(Clock::real()), ReadingDisplayState::Warning);
-        assert_eq!(blocked.state(Clock::real()), ReadingDisplayState::Failed);
-        assert_eq!(blocked.badge(), Some(2));
+        let discarded_row =
+            notulist_output_problems_reading_row(&discarded, Clock::real(), Locale::POSIX);
+        let blocked_row =
+            notulist_output_problems_reading_row(&blocked, Clock::real(), Locale::POSIX);
+        assert_eq!(discarded_row.shown_state(), ReadingDisplayState::Warning);
+        assert_eq!(blocked_row.shown_state(), ReadingDisplayState::Failed);
+        assert_eq!(blocked_row.readout.badge, ReadoutBadge::Counted(2));
     }
 
     #[test]

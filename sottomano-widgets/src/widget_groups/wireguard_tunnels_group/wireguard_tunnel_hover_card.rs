@@ -1,15 +1,10 @@
-use std::borrow::Cow;
-
 use chrono::Locale;
 use iced::alignment::Horizontal;
-use sottomano_desktop_sources::{
-    SnapshotSource,
-    network_connectivity::{
-        network_manager_proxies::{LinkPhase, NmConnectionSwitch},
-        wireguard_tunnels::{
-            Peer, PeerEndpoint, PeerLink, PeerTraffic, RouteScope, StatisticsAccess, Tunnel,
-            TunnelAddress, TunnelRole, Wireguard,
-        },
+use sottomano_desktop_sources::network_connectivity::{
+    network_manager_proxies::{LinkPhase, NmConnectionSwitch},
+    wireguard_tunnels::{
+        Peer, PeerEndpoint, PeerLink, PeerTraffic, RouteScope, StatisticsAccess, Tunnel,
+        TunnelAddress, TunnelRole,
     },
 };
 use sottomano_toml_config::severity::Severity;
@@ -17,8 +12,10 @@ use sottomano_toml_config::severity::Severity;
 use crate::{
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
+        group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::SwitchPosition,
     },
     hover_cards::{
@@ -42,7 +39,7 @@ pub(super) fn wireguard_tunnel_item<Message: Clone + 'static>(
     clock: Clock,
     locale: Locale,
 ) -> GroupItem<'_, Message> {
-    let item = GroupItem::reading(ReadingRow::evaluated(tunnel, clock, locale), target);
+    let item = GroupItem::reading(tunnel_reading_row(tunnel, clock, locale), target);
     match tunnel.switch() {
         Some(wireguard_switch @ NmConnectionSwitch::Connect(_)) => item.on_switch_press(
             SwitchPosition::Off,
@@ -55,20 +52,6 @@ pub(super) fn wireguard_tunnel_item<Message: Clone + 'static>(
             on_switch(wireguard_switch),
         ),
         None => item,
-    }
-}
-
-impl GroupItemReading for Wireguard {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        SimpleIcon::WireGuard.into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![]
     }
 }
 
@@ -269,52 +252,61 @@ fn server_state(tunnel: &Tunnel) -> ReadingDisplayState {
     }
 }
 
-impl GroupItemReading for Tunnel {
-    fn name(&self) -> Cow<'static, str> {
-        self.name.clone().into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        match self.role {
-            TunnelRole::Server { .. } => Phosphor::HardDrives(Weight::Regular).into(),
-            TunnelRole::Client
-                if self
-                    .peers
-                    .iter()
-                    .any(|peer| peer.route_scope() == RouteScope::AllTraffic) =>
-            {
-                Phosphor::GlobeHemisphereWest(Weight::Regular).into()
-            }
-            TunnelRole::Client => Phosphor::PlugsConnected(Weight::Regular).into(),
-            TunnelRole::Undetermined => SimpleIcon::WireGuard.into(),
+pub(super) fn tunnel_reading_row(
+    tunnel: &Tunnel,
+    _clock: Clock,
+    _locale: Locale,
+) -> ReadingRow<'_> {
+    let glyph: IconGlyph = match tunnel.role {
+        TunnelRole::Server { .. } => Phosphor::HardDrives(Weight::Regular).into(),
+        TunnelRole::Client
+            if tunnel
+                .peers
+                .iter()
+                .any(|peer| peer.route_scope() == RouteScope::AllTraffic) =>
+        {
+            Phosphor::GlobeHemisphereWest(Weight::Regular).into()
         }
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        match self.tunnel_phase() {
-            LinkPhase::Switching => return ReadingDisplayState::Pending,
-            LinkPhase::Down => return ReadingDisplayState::Off,
-            LinkPhase::Up => {}
-        }
-        match self.role {
-            TunnelRole::Server { .. } => server_state(self),
-            TunnelRole::Client => client_state(self),
+        TunnelRole::Client => Phosphor::PlugsConnected(Weight::Regular).into(),
+        TunnelRole::Undetermined => SimpleIcon::WireGuard.into(),
+    };
+    let state = match tunnel.tunnel_phase() {
+        LinkPhase::Switching => ReadingDisplayState::Pending,
+        LinkPhase::Down => ReadingDisplayState::Off,
+        LinkPhase::Up => match tunnel.role {
+            TunnelRole::Server { .. } => server_state(tunnel),
+            TunnelRole::Client => client_state(tunnel),
             TunnelRole::Undetermined => ReadingDisplayState::On,
-        }
+        },
+    };
+    let connected_server_peers = match tunnel.role {
+        TunnelRole::Server { .. } => tunnel.connected_peers(),
+        TunnelRole::Client | TunnelRole::Undetermined => 0,
+    };
+    let badge = match connected_server_peers {
+        0 => ReadoutBadge::Unbadged,
+        count => ReadoutBadge::Counted(count),
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Unlabeled,
+            gauge: ReadoutGauge::Ungauged,
+            badge,
+        },
+        ..ReadingRow::glyph_only(
+            tunnel.name.clone(),
+            glyph,
+            state,
+            Box::new(move |card_clock| tunnel_hover_card(tunnel, card_clock)),
+        )
     }
+}
 
-    fn badge(&self) -> Option<usize> {
-        matches!(self.role, TunnelRole::Server { .. })
-            .then(|| self.connected_peers())
-            .filter(|count| *count > 0)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        match self.role {
-            TunnelRole::Server { listen_port } => server_hover_card(self, listen_port),
-            TunnelRole::Client => client_hover_card(self),
-            TunnelRole::Undetermined => undetermined_hover_card(self),
-        }
+pub(super) fn tunnel_hover_card(tunnel: &Tunnel, _clock: Clock) -> Vec<Section> {
+    match tunnel.role {
+        TunnelRole::Server { listen_port } => server_hover_card(tunnel, listen_port),
+        TunnelRole::Client => client_hover_card(tunnel),
+        TunnelRole::Undetermined => undetermined_hover_card(tunnel),
     }
 }
 

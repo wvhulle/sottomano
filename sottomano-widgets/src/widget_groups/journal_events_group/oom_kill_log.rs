@@ -1,5 +1,4 @@
-use std::borrow::Cow;
-
+use chrono::Locale;
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::systemd_units_journal::journal_oom_kills::{
     OomKillEntry, OomKiller,
@@ -10,9 +9,9 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
         reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widget_groups::{
@@ -56,7 +55,7 @@ impl JournalScopeGroup {
         let locale = config.calendar.locale;
         let kills = self.oom_kills.reading_row(
             IconGlyph::default(),
-            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+            |snapshot| oom_kill_log_reading_row(snapshot, clock, locale),
             clock,
         )?;
         Some(
@@ -71,44 +70,52 @@ impl JournalScopeGroup {
     }
 }
 
-impl GroupItemReading for Vec<OomKillEntry> {
-    fn name(&self) -> Cow<'static, str> {
-        "OOM kills".into()
-    }
+pub(super) fn oom_kill_log_state(entries: &[OomKillEntry]) -> ReadingDisplayState {
+    entries
+        .iter()
+        .map(|entry| entry.severity)
+        .max()
+        .unwrap_or_default()
+        .into()
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Memory(Weight::Regular).into()
-    }
+pub(super) fn oom_kill_log_panel_visibility(entries: &[OomKillEntry]) -> PanelVisibility {
+    shown_while_alerting(entries.iter().map(|entry| entry.severity))
+}
 
-    fn badge(&self) -> Option<usize> {
-        Some(self.len())
+pub(super) fn oom_kill_log_reading_row(
+    entries: &[OomKillEntry],
+    _clock: Clock,
+    _locale: Locale,
+) -> ReadingRow<'_> {
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Unlabeled,
+            gauge: ReadoutGauge::Ungauged,
+            badge: ReadoutBadge::Counted(entries.len()),
+        },
+        panel_visibility: oom_kill_log_panel_visibility(entries),
+        ..ReadingRow::glyph_only(
+            "OOM kills",
+            Phosphor::Memory(Weight::Regular).into(),
+            oom_kill_log_state(entries),
+            Box::new(move |card_clock| oom_kill_log_hover_card(entries, card_clock)),
+        )
     }
+}
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.iter()
-            .map(|entry| entry.severity)
-            .max()
-            .unwrap_or_default()
-            .into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            SectionTitle::captioned(
-                "OOM kills",
-                "Units whose processes were killed for lack of memory in the last hour.",
-            ),
-            headed_table(
-                [
-                    ColumnHeading::titled("Unit").align_x(Horizontal::Left),
-                    ColumnHeading::titled("Killed by").align_x(Horizontal::Left),
-                ],
-                self.iter(),
-            ),
-        )]
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        shown_while_alerting(self.iter().map(|entry| entry.severity))
-    }
+pub(super) fn oom_kill_log_hover_card(entries: &[OomKillEntry], _clock: Clock) -> Vec<Section> {
+    vec![Section::new(
+        SectionTitle::captioned(
+            "OOM kills",
+            "Units whose processes were killed for lack of memory in the last hour.",
+        ),
+        headed_table(
+            [
+                ColumnHeading::titled("Unit").align_x(Horizontal::Left),
+                ColumnHeading::titled("Killed by").align_x(Horizontal::Left),
+            ],
+            entries.iter(),
+        ),
+    )]
 }

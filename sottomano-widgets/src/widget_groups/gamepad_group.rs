@@ -6,7 +6,6 @@ mod diagram_anchor_mapping;
 mod sqlite_compositor_driving_controllers;
 mod usb_cable_reading;
 use std::{
-    borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     iter::once,
 };
@@ -56,9 +55,9 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
         reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -76,7 +75,6 @@ use crate::{
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
-        icon_glyph::IconGlyph,
         input_report_sections::MeasuredReportTiming,
         phosphor::{Phosphor, Weight},
     },
@@ -136,21 +134,21 @@ struct ControllerDiscoveryFailureReading<'failure> {
     discovery_failure: &'failure ChangeWatchFailure,
 }
 
-impl GroupItemReading for ControllerDiscoveryFailureReading<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        "Controller discovery".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::GameController(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some("failed".to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Failed
+impl<'failure> ControllerDiscoveryFailureReading<'failure> {
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'failure> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled("failed".to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                "Controller discovery",
+                Phosphor::GameController(Weight::Regular).into(),
+                ReadingDisplayState::Failed,
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
@@ -685,14 +683,16 @@ impl GamepadGroup {
         clock: Clock,
         locale: Locale,
     ) -> Option<WidgetGroupContent<'_, GamepadInteraction>> {
-        let failure_reading = self.controller_discovery_failure_reading()?;
+        let failure_row = self
+            .controller_discovery_failure_reading()?
+            .reading_row(clock, locale);
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::Gamepad, CONTROLLER_DISCOVERY_GROUP),
-            WidgetGroupTitle::Named(failure_reading.name()),
+            WidgetGroupTitle::Named(failure_row.face.name.clone()),
             &self.controller_discovery_expansion,
             GamepadInteraction::ControllerDiscoveryExpansion,
             [GroupItem::reading(
-                ReadingRow::evaluated(failure_reading, clock, locale),
+                failure_row,
                 GamepadTarget::ControllerDiscovery,
             )],
         ))
@@ -713,13 +713,14 @@ impl GamepadGroup {
             power: gamepad.power,
         };
         let face = GroupItem::reading(
-            ReadingRow::evaluated(self.face_reading(gamepad, link, bindings), clock, locale),
+            self.face_reading(gamepad, link, bindings)
+                .reading_row(clock, locale),
             GamepadTarget::Controller { slot },
         );
         let shown_in_bluetooth_group = matches!(link.transport, GamepadTransport::Bluetooth { .. });
         let connection = (!shown_in_bluetooth_group).then(|| {
             GroupItem::reading(
-                ReadingRow::evaluated(self.link_reading(slot, link), clock, locale),
+                self.link_reading(slot, link).reading_row(clock, locale),
                 GamepadTarget::Link { slot },
             )
         });
@@ -727,7 +728,7 @@ impl GamepadGroup {
             (!shown_in_bluetooth_group && gamepad.power != GamepadPower::NoBattery).then(|| {
                 let battery_running_low = battery_reading.battery_level() == BatteryLevel::Low;
                 let battery_item = GroupItem::reading(
-                    ReadingRow::evaluated(battery_reading, clock, locale),
+                    battery_reading.reading_row(clock, locale),
                     GamepadTarget::Battery { slot },
                 );
                 if battery_running_low {
@@ -743,7 +744,7 @@ impl GamepadGroup {
         );
         let usb_cable = usb_cable_role(link.transport).map(|role| {
             let item = GroupItem::reading(
-                ReadingRow::evaluated(UsbCableReading { role }, clock, locale),
+                UsbCableReading { role }.reading_row(clock, locale),
                 GamepadTarget::UsbCable { slot },
             );
             match role {

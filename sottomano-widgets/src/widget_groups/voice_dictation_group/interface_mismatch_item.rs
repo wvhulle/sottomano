@@ -1,5 +1,4 @@
-use std::borrow::Cow;
-
+use chrono::Locale;
 use sottomano_desktop_sources::{
     SnapshotSource,
     voice_dictation_input::notulist_dbus_interface_mismatch::NotulistInterfaceMismatch,
@@ -7,9 +6,7 @@ use sottomano_desktop_sources::{
 
 use crate::{
     clock::Clock,
-    group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
-    },
+    group_items::{reading_display_state::ReadingDisplayState, reading_row::ReadingRow},
     hover_cards::hover_card_body::{Section, dictionary_table},
     widgets::{
         icon_glyph::IconGlyph,
@@ -24,25 +21,27 @@ const MISMATCH_REMEDY: &str =
 pub(crate) const NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH: IconGlyph =
     IconGlyph::Phosphor(Phosphor::LinkBreak(Weight::Regular));
 
-impl GroupItemReading for NotulistInterfaceMismatch {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
+pub fn notulist_interface_mismatch_reading_row(
+    mismatch: &NotulistInterfaceMismatch,
+    _clock: Clock,
+    _locale: Locale,
+) -> ReadingRow<'_> {
+    ReadingRow::glyph_only(
+        NotulistInterfaceMismatch::NAME,
+        Phosphor::LinkBreak(Weight::Regular).into(),
+        ReadingDisplayState::Failed,
+        Box::new(move |card_clock| notulist_interface_mismatch_hover_card(mismatch, card_clock)),
+    )
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::LinkBreak(Weight::Regular).into()
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Failed
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Versions",
-            dictionary_table(interface_mismatch_rows(self)),
-        )]
-    }
+pub fn notulist_interface_mismatch_hover_card(
+    mismatch: &NotulistInterfaceMismatch,
+    _clock: Clock,
+) -> Vec<Section> {
+    vec![Section::new(
+        "Versions",
+        dictionary_table(interface_mismatch_rows(mismatch)),
+    )]
 }
 
 fn interface_mismatch_rows(mismatch: &NotulistInterfaceMismatch) -> [LabeledValue; 3] {

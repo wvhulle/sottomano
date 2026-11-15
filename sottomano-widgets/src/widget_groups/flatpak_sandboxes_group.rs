@@ -13,8 +13,9 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
         reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::{
         HoverTarget,
@@ -54,25 +55,24 @@ pub struct FlatpakSandboxListingRow<'a> {
     listing: &'a FlatpakSandboxListing,
 }
 
-impl GroupItemReading for FlatpakSandboxListingRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        format!(
-            "{} {}",
-            self.listing.application_id, self.listing.instance_id
-        )
-        .into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        sandbox_icon()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(ContainerRunState::Running.label().to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ContainerRunState::Running.into()
+impl<'a> FlatpakSandboxListingRow<'a> {
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(ContainerRunState::Running.label().to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                format!(
+                    "{} {}",
+                    self.listing.application_id, self.listing.instance_id
+                ),
+                sandbox_icon(),
+                ContainerRunState::Running.into(),
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
@@ -90,25 +90,28 @@ pub struct FlatpakSandboxRow<'a> {
     sandbox: &'a FlatpakSandbox,
 }
 
-impl GroupItemReading for FlatpakSandboxRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        format!(
-            "{} {}",
-            self.sandbox.listing.application_id, self.sandbox.listing.instance_id
-        )
-        .into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        sandbox_icon()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.sandbox.memory_in_use.map(approximate_memory_text)
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::On
+impl<'a> FlatpakSandboxRow<'a> {
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        let label = match self.sandbox.memory_in_use {
+            Some(memory_in_use) => ReadoutLabel::Labeled(approximate_memory_text(memory_in_use)),
+            None => ReadoutLabel::Unlabeled,
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                format!(
+                    "{} {}",
+                    self.sandbox.listing.application_id, self.sandbox.listing.instance_id
+                ),
+                sandbox_icon(),
+                ReadingDisplayState::On,
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
     fn hover_card(&self, clock: Clock) -> Vec<Section> {
@@ -189,7 +192,7 @@ impl ContainerFamily for FlatpakFamily {
                 target: FlatpakSandboxTarget {
                     instance_id: Cow::Owned(listing.instance_id.clone()),
                 },
-                reading: ReadingRow::evaluated(FlatpakSandboxListingRow { listing }, clock, locale),
+                reading: FlatpakSandboxListingRow { listing }.reading_row(clock, locale),
                 power: RowPower::Stoppable(listing.instance_id.clone()),
             })
             .collect()
@@ -207,7 +210,7 @@ impl ContainerFamily for FlatpakFamily {
                 target: FlatpakSandboxTarget {
                     instance_id: Cow::Owned(sandbox.listing.instance_id.clone()),
                 },
-                reading: ReadingRow::evaluated(FlatpakSandboxRow { sandbox }, clock, locale),
+                reading: FlatpakSandboxRow { sandbox }.reading_row(clock, locale),
                 power: RowPower::Stoppable(sandbox.listing.instance_id.clone()),
             })
             .collect()

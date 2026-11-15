@@ -1,15 +1,24 @@
 use chrono::Locale;
 
 use crate::{
-    group_items::{
-        reading_display_state::ReadingDisplayState,
-        reading_row::{ReadingRow, reading_hover_card},
-    },
+    group_items::reading_display_state::ReadingDisplayState,
     widget_groups::voice_dictation_group::{
-        interface_mismatch_item::NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH,
-        output_problems_item::NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH,
-        pipeline_stage_item::NOTULIST_PIPELINE_FALLBACK_GLYPH,
-        speech_model_item::NOTULIST_ENGINE_FALLBACK_GLYPH,
+        dictation_phase_item::{notulist_dictation_hover_card, notulist_dictation_reading_row},
+        interface_mismatch_item::{
+            NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH, notulist_interface_mismatch_hover_card,
+            notulist_interface_mismatch_reading_row,
+        },
+        output_problems_item::{
+            NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH, notulist_output_problems_hover_card,
+            notulist_output_problems_reading_row,
+        },
+        pipeline_stage_item::{
+            NOTULIST_PIPELINE_FALLBACK_GLYPH, notulist_pipeline_hover_card,
+            notulist_pipeline_reading_row,
+        },
+        speech_model_item::{
+            NOTULIST_ENGINE_FALLBACK_GLYPH, notulist_engine_hover_card, notulist_engine_reading_row,
+        },
     },
     widgets::icon_glyph::IconGlyph,
 };
@@ -308,20 +317,22 @@ impl VoiceDictationGroup {
     #[must_use]
     pub fn hover_card_for(&self, target: VoiceDictationTarget, clock: Clock) -> Vec<Section> {
         match target {
-            VoiceDictationTarget::InterfaceMismatch => self
-                .interface_mismatch
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            VoiceDictationTarget::InterfaceMismatch => {
+                self.interface_mismatch.sections_described_by(|snapshot| {
+                    notulist_interface_mismatch_hover_card(snapshot, clock)
+                })
+            }
             VoiceDictationTarget::Dictation => self
                 .dictation
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| notulist_dictation_hover_card(snapshot, clock)),
             VoiceDictationTarget::Pipeline => self
                 .pipeline
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| notulist_pipeline_hover_card(snapshot, clock)),
             VoiceDictationTarget::Runtime => self.runtime_hover_card(),
             VoiceDictationTarget::SpeechModel => {
                 let mut sections = self
                     .engine
-                    .sections_described_by(|snapshot| reading_hover_card(snapshot, clock));
+                    .sections_described_by(|snapshot| notulist_engine_hover_card(snapshot, clock));
                 sections.extend(self.model_card.sections(clock));
                 sections
             }
@@ -329,21 +340,21 @@ impl VoiceDictationGroup {
                 let Some(loaded_engine) = self.loaded_engine() else {
                     return Vec::new();
                 };
-                self.engine.hover_card_with(reading_hover_card(
-                    RuntimeConfiguration(loaded_engine),
-                    clock,
-                ))
+                self.engine
+                    .hover_card_with(RuntimeConfiguration(loaded_engine).hover_card(clock))
             }
             VoiceDictationTarget::InferenceHardware => {
                 let Some(loaded_engine) = self.loaded_engine() else {
                     return Vec::new();
                 };
                 self.engine
-                    .hover_card_with(reading_hover_card(InferenceHardware(loaded_engine), clock))
+                    .hover_card_with(InferenceHardware(loaded_engine).hover_card(clock))
             }
-            VoiceDictationTarget::TypingOutput => self
-                .output_problems
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+            VoiceDictationTarget::TypingOutput => {
+                self.output_problems.sections_described_by(|snapshot| {
+                    notulist_output_problems_hover_card(snapshot, clock)
+                })
+            }
         }
     }
 
@@ -363,14 +374,14 @@ impl VoiceDictationGroup {
             [
                 self.interface_mismatch.group_item(
                     NOTULIST_INTERFACE_MISMATCH_FALLBACK_GLYPH,
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| notulist_interface_mismatch_reading_row(snapshot, clock, locale),
                     VoiceDictationTarget::InterfaceMismatch,
                     clock,
                 ),
                 self.dictation
                     .group_item(
                         IconGlyph::default(),
-                        |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                        |snapshot| notulist_dictation_reading_row(snapshot, clock, locale),
                         VoiceDictationTarget::Dictation,
                         clock,
                     )
@@ -385,7 +396,7 @@ impl VoiceDictationGroup {
                 self.pipeline
                     .group_item(
                         NOTULIST_PIPELINE_FALLBACK_GLYPH,
-                        |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                        |snapshot| notulist_pipeline_reading_row(snapshot, clock, locale),
                         VoiceDictationTarget::Pipeline,
                         clock,
                     )
@@ -407,25 +418,25 @@ impl VoiceDictationGroup {
                 ),
                 self.engine.group_item(
                     NOTULIST_ENGINE_FALLBACK_GLYPH,
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| notulist_engine_reading_row(snapshot, clock, locale),
                     VoiceDictationTarget::SpeechModel,
                     clock,
                 ),
                 engine.map(|loaded| {
                     GroupItem::reading(
-                        ReadingRow::evaluated(RuntimeConfiguration(loaded), clock, locale),
+                        RuntimeConfiguration(loaded).reading_row(clock, locale),
                         VoiceDictationTarget::RuntimeConfiguration,
                     )
                 }),
                 engine.map(|loaded| {
                     GroupItem::reading(
-                        ReadingRow::evaluated(InferenceHardware(loaded), clock, locale),
+                        InferenceHardware(loaded).reading_row(clock, locale),
                         VoiceDictationTarget::InferenceHardware,
                     )
                 }),
                 self.output_problems.group_item(
                     NOTULIST_OUTPUT_PROBLEMS_FALLBACK_GLYPH,
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| notulist_output_problems_reading_row(snapshot, clock, locale),
                     VoiceDictationTarget::TypingOutput,
                     clock,
                 ),
@@ -440,7 +451,7 @@ impl VoiceDictationGroup {
         let glyph = Phosphor::UserSound(Weight::Regular).into();
         let dictation_row = self.dictation.reading_row(
             IconGlyph::default(),
-            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+            |snapshot| notulist_dictation_reading_row(snapshot, clock, locale),
             clock,
         );
         match dictation_row {

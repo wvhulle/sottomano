@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     collections::BTreeMap,
     path::{Path, PathBuf},
 };
@@ -22,8 +21,10 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
+        group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutLabel, RowReadout},
     },
     hover_cards::{
         HoverTarget,
@@ -39,7 +40,6 @@ use crate::{
     },
     widgets::{
         discovered_systemd_services::{DiscoveredSystemdServices, ScopedServiceCommands},
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
@@ -76,23 +76,7 @@ struct UnreadableEngineRow<'a> {
     read_failure: &'a EngineReadError,
 }
 
-impl GroupItemReading for UnreadableEngineRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.engine.owner.to_string().into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Cube(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(engine_failure_label(self.read_failure).to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Failed
-    }
-
+impl<'a> UnreadableEngineRow<'a> {
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![
             Section::new(
@@ -107,6 +91,23 @@ impl GroupItemReading for UnreadableEngineRow<'_> {
                 ]),
             ),
         ]
+    }
+
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        let label = ReadoutLabel::Labeled(engine_failure_label(self.read_failure).to_owned());
+        let base = ReadingRow::glyph_only(
+            self.engine.owner.to_string(),
+            Phosphor::Cube(Weight::Regular).into(),
+            ReadingDisplayState::Failed,
+            Box::new(move |card_clock| self.hover_card(card_clock)),
+        );
+        ReadingRow {
+            readout: RowReadout {
+                label,
+                ..base.readout
+            },
+            ..base
+        }
     }
 }
 
@@ -289,14 +290,11 @@ impl PodmanEnginesGroup {
                 ));
             } else if let Some(read_failure) = reading.fetch_failure() {
                 failure_rows.push(GroupItem::reading(
-                    ReadingRow::evaluated(
-                        UnreadableEngineRow {
-                            engine,
-                            read_failure,
-                        },
-                        clock,
-                        locale,
-                    ),
+                    UnreadableEngineRow {
+                        engine,
+                        read_failure,
+                    }
+                    .reading_row(clock, locale),
                     PodmanEngineTarget::from(engine),
                 ));
             }

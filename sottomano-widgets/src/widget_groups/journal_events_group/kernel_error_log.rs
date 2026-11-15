@@ -1,5 +1,4 @@
-use std::borrow::Cow;
-
+use chrono::Locale;
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::systemd_units_journal::journal_kernel_errors::KernelOccurrence;
 use sottomano_toml_config::{Config, severity::Severity};
@@ -8,9 +7,9 @@ use crate::{
     clock::Clock,
     group_items::{
         group_item::GroupItem,
-        group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
         reading_row::{PanelVisibility, ReadingRow},
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTable, SectionTitle, headed_table},
     widget_groups::{
@@ -40,7 +39,7 @@ impl JournalScopeGroup {
         let locale = config.calendar.locale;
         let kernel = self.kernel.reading_row(
             IconGlyph::default(),
-            |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+            |snapshot| kernel_log_reading_row(snapshot, clock, locale),
             clock,
         )?;
         Some(GroupItem::reading(kernel, JournalTarget::Kernel).on_press(
@@ -68,44 +67,59 @@ impl IntoTableRecord<2> for &KernelOccurrence {
     }
 }
 
-impl GroupItemReading for Vec<KernelOccurrence> {
-    fn name(&self) -> Cow<'static, str> {
-        "Kernel log".into()
-    }
+pub(super) fn kernel_log_state(occurrences: &[KernelOccurrence]) -> ReadingDisplayState {
+    occurrences
+        .iter()
+        .map(|occurrence| occurrence.severity)
+        .max()
+        .unwrap_or_default()
+        .into()
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::LinuxLogo(Weight::Regular).into()
-    }
+pub(super) fn kernel_log_panel_visibility(occurrences: &[KernelOccurrence]) -> PanelVisibility {
+    shown_while_alerting(occurrences.iter().map(|occurrence| occurrence.severity))
+}
 
-    fn badge(&self) -> Option<usize> {
-        let distinct = self
-            .iter()
-            .filter(|occurrence| occurrence.severity >= Severity::Warning)
-            .count();
-        Some(distinct).filter(|count| *count > 0)
+pub(super) fn kernel_log_reading_row(
+    occurrences: &[KernelOccurrence],
+    _clock: Clock,
+    _locale: Locale,
+) -> ReadingRow<'_> {
+    let warning_count = occurrences
+        .iter()
+        .filter(|occurrence| occurrence.severity >= Severity::Warning)
+        .count();
+    let badge = match warning_count {
+        0 => ReadoutBadge::Unbadged,
+        count => ReadoutBadge::Counted(count),
+    };
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Unlabeled,
+            gauge: ReadoutGauge::Ungauged,
+            badge,
+        },
+        panel_visibility: kernel_log_panel_visibility(occurrences),
+        ..ReadingRow::glyph_only(
+            "Kernel log",
+            Phosphor::LinuxLogo(Weight::Regular).into(),
+            kernel_log_state(occurrences),
+            Box::new(move |card_clock| kernel_log_hover_card(occurrences, card_clock)),
+        )
     }
+}
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.iter()
-            .map(|occurrence| occurrence.severity)
-            .max()
-            .unwrap_or_default()
-            .into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            SectionTitle::captioned(
-                "Messages",
-                "Kernel messages at warning or worse in the last hour, repeats merged.",
-            ),
-            kernel_message_table(self),
-        )]
-    }
-
-    fn panel_visibility(&self) -> PanelVisibility {
-        shown_while_alerting(self.iter().map(|occurrence| occurrence.severity))
-    }
+pub(super) fn kernel_log_hover_card(
+    occurrences: &[KernelOccurrence],
+    _clock: Clock,
+) -> Vec<Section> {
+    vec![Section::new(
+        SectionTitle::captioned(
+            "Messages",
+            "Kernel messages at warning or worse in the last hour, repeats merged.",
+        ),
+        kernel_message_table(occurrences),
+    )]
 }
 
 fn kernel_message_table(occurrences: &[KernelOccurrence]) -> SectionTable {
@@ -166,11 +180,14 @@ mod tests {
     #[test]
     fn kernel_log_hidden_until_an_entry_reaches_warning() {
         assert_eq!(
-            kernel_occurrences_at(&[Severity::Normal, Severity::Low]).panel_visibility(),
+            kernel_log_panel_visibility(&kernel_occurrences_at(&[Severity::Normal, Severity::Low])),
             PanelVisibility::Hidden
         );
         assert_eq!(
-            kernel_occurrences_at(&[Severity::Normal, Severity::Warning]).panel_visibility(),
+            kernel_log_panel_visibility(&kernel_occurrences_at(&[
+                Severity::Normal,
+                Severity::Warning
+            ])),
             PanelVisibility::Shown
         );
     }

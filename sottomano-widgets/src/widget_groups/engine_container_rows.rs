@@ -19,8 +19,10 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
+        group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
         toggle_control::SwitchPosition,
     },
     hover_cards::{
@@ -32,7 +34,6 @@ use crate::{
         widget_group_content::WidgetGroupExpansionMessage,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -109,24 +110,26 @@ pub(crate) struct RunningContainerRow<'a> {
     pub(crate) owner: &'a EngineOwner,
 }
 
-impl GroupItemReading for RunningContainerRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        engine_container_name(&self.container.container_name, self.owner)
+impl<'a> RunningContainerRow<'a> {
+    pub(crate) fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(approximate_memory_text(
+                    self.container.resident_memory,
+                )),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                engine_container_name(&self.container.container_name, self.owner),
+                Phosphor::Package(Weight::Regular).into(),
+                ContainerRunState::Running.into(),
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Package(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(approximate_memory_text(self.container.resident_memory))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ContainerRunState::Running.into()
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+    pub(crate) fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let container = self.container;
         let mut detail_entries = vec![
             LabeledValue::new("State", ContainerRunState::Running.label()),
@@ -153,24 +156,24 @@ pub(crate) struct StoppedContainerRow<'a> {
     pub(crate) owner: &'a EngineOwner,
 }
 
-impl GroupItemReading for StoppedContainerRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        engine_container_name(&self.container.container_name, self.owner)
+impl<'a> StoppedContainerRow<'a> {
+    pub(crate) fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(ContainerRunState::Stopped.label().to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                engine_container_name(&self.container.container_name, self.owner),
+                Phosphor::Package(Weight::Regular).into(),
+                ContainerRunState::Stopped.into(),
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Package(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(ContainerRunState::Stopped.label().to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ContainerRunState::Stopped.into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    pub(crate) fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let container = self.container;
         vec![Section::new(
             "Container",
@@ -188,21 +191,14 @@ pub(crate) struct HiddenContainersRow {
     pub(crate) hidden_count: usize,
 }
 
-impl GroupItemReading for HiddenContainersRow {
-    fn name(&self) -> Cow<'static, str> {
-        format!("{} more", self.hidden_count).into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::DotsThree(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        None
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Idle
+impl HiddenContainersRow {
+    pub(crate) fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'static> {
+        ReadingRow::glyph_only(
+            format!("{} more", self.hidden_count),
+            Phosphor::DotsThree(Weight::Regular).into(),
+            ReadingDisplayState::Idle,
+            Box::new(move |card_clock| self.hover_card(card_clock)),
+        )
     }
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
@@ -246,11 +242,7 @@ impl<'a> EngineContainers<'a> {
                 let target = self.target_of(&container.id);
                 with_container_switch(
                     GroupItem::reading(
-                        ReadingRow::evaluated(
-                            RunningContainerRow { container, owner },
-                            clock,
-                            locale,
-                        ),
+                        RunningContainerRow { container, owner }.reading_row(clock, locale),
                         target_of(target.clone()),
                     ),
                     ContainerRunState::Running,
@@ -276,11 +268,7 @@ impl<'a> EngineContainers<'a> {
                 let target = self.target_of(&container.id);
                 with_container_switch(
                     GroupItem::reading(
-                        ReadingRow::evaluated(
-                            StoppedContainerRow { container, owner },
-                            clock,
-                            locale,
-                        ),
+                        StoppedContainerRow { container, owner }.reading_row(clock, locale),
                         target_of(target.clone()),
                     ),
                     ContainerRunState::Stopped,
@@ -348,7 +336,7 @@ pub(crate) fn rows_ending_in_hidden_count<'a, Message: 'a>(
     }
     let hidden_count = rows.split_off(SHOWN_CONTAINER_ROWS - 1).len();
     rows.push(GroupItem::reading(
-        ReadingRow::evaluated(HiddenContainersRow { hidden_count }, clock, locale),
+        HiddenContainersRow { hidden_count }.reading_row(clock, locale),
         hidden_target,
     ));
     rows
@@ -356,12 +344,15 @@ pub(crate) fn rows_ending_in_hidden_count<'a, Message: 'a>(
 
 #[cfg(test)]
 mod tests {
+    use chrono::Locale;
+
     use super::HiddenContainersRow;
-    use crate::group_items::group_item_reading::GroupItemReading;
+    use crate::clock::Clock;
 
     #[test]
     fn the_hidden_row_counts_what_it_replaces() {
         let hidden = HiddenContainersRow { hidden_count: 4 };
-        assert_eq!(hidden.name(), "4 more");
+        let hidden_row = hidden.reading_row(Clock::real(), Locale::POSIX);
+        assert_eq!(hidden_row.face.name, "4 more");
     }
 }

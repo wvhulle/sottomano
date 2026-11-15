@@ -1,6 +1,5 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
-use bytesize::ByteSize;
 use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
@@ -14,8 +13,10 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, reading_row::ReadingRow,
+        group_item::GroupItem,
+        reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::{
         HoverTarget,
@@ -29,7 +30,6 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         subscribed_snapshot::SubscribedSnapshot,
         value_cells::LabeledValue,
@@ -104,24 +104,8 @@ impl LimitedCgroupRow<'_> {
     }
 }
 
-impl GroupItemReading for LimitedCgroupRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        self.cgroup.unit_name.clone().into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Gauge(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        let memory = &self.cgroup.memory;
-        Some(match memory.limit() {
-            Some(limit) => format!("{} / {limit}", memory.current),
-            None => format!("{}, no cap", memory.current),
-        })
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+impl<'a> LimitedCgroupRow<'a> {
+    fn state(&self) -> ReadingDisplayState {
         let memory = &self.cgroup.memory;
         if self.killed_this_session {
             ReadingDisplayState::Critical
@@ -136,11 +120,35 @@ impl GroupItemReading for LimitedCgroupRow<'_> {
         }
     }
 
+    fn usage_text(&self) -> String {
+        let memory = &self.cgroup.memory;
+        match memory.limit() {
+            Some(limit) => format!("{} / {limit}", memory.current),
+            None => format!("{}, no cap", memory.current),
+        }
+    }
+
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::new(
             "Memory",
             dictionary_table(self.detail_entries()),
         )]
+    }
+
+    fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(self.usage_text()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                self.cgroup.unit_name.clone(),
+                Phosphor::Gauge(Weight::Regular).into(),
+                self.state(),
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 }
 
@@ -246,7 +254,7 @@ impl CgroupMemoryLimitsGroup {
         let locale = config.calendar.locale;
         let rows = self.listed_cgroups().iter().map(|cgroup| {
             GroupItem::reading(
-                ReadingRow::evaluated(self.cgroup_row(cgroup), clock, locale),
+                self.cgroup_row(cgroup).reading_row(clock, locale),
                 CgroupMemoryLimitTarget {
                     cgroup_path: Cow::Owned(cgroup.cgroup_path.clone()),
                 },
@@ -271,43 +279,19 @@ impl CgroupMemoryLimitsGroup {
         )
         .face(WidgetGroupFace::Glyph {
             glyph: Phosphor::Gauge(Weight::Regular).into(),
-            state: self.state(clock),
+            state: self.state(),
         })
     }
 }
 
-impl GroupItemReading for CgroupMemoryLimitsGroup {
-    fn name(&self) -> Cow<'static, str> {
-        "Memory limits".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Gauge(Weight::Regular).into()
-    }
-
-    fn state(&self, clock: Clock) -> ReadingDisplayState {
+impl CgroupMemoryLimitsGroup {
+    fn state(&self) -> ReadingDisplayState {
         self.listed_cgroups()
             .iter()
-            .map(|cgroup| self.cgroup_row(cgroup).state(clock).severity())
+            .map(|cgroup| self.cgroup_row(cgroup).state().severity())
             .max()
             .unwrap_or_default()
             .into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        let total_in_use = self
-            .listed_cgroups()
-            .iter()
-            .filter(|cgroup| cgroup.memory.is_limited())
-            .map(|cgroup| cgroup.memory.current.as_u64())
-            .sum::<u64>();
-        vec![Section::new(
-            "Totals",
-            dictionary_table([
-                LabeledValue::new("Capped cgroups", self.listed_cgroups().len().to_string()),
-                LabeledValue::new("In use under caps", ByteSize::b(total_in_use).to_string()),
-            ]),
-        )]
     }
 }
 
@@ -365,10 +349,10 @@ mod tests {
             killed_this_session: false,
         };
         assert_eq!(
-            row.label(Clock::real(), Locale::en_US),
-            Some(format!("{} / {}", ByteSize::gib(6), ByteSize::gib(12)))
+            row.usage_text(),
+            format!("{} / {}", ByteSize::gib(6), ByteSize::gib(12))
         );
-        assert_eq!(row.state(Clock::real()), ReadingDisplayState::On);
+        assert_eq!(row.state(), ReadingDisplayState::On);
     }
 
     #[test]
@@ -378,15 +362,15 @@ mod tests {
             cgroup: &cgroup,
             killed_this_session: false,
         };
-        assert_eq!(row.state(Clock::real()), ReadingDisplayState::Warning);
+        assert_eq!(row.state(), ReadingDisplayState::Warning);
     }
 
     #[test]
     fn a_kill_after_the_first_reading_is_critical() {
         let mut group = CgroupMemoryLimitsGroup::default();
         deliver_cgroup(&mut group, capped_cgroup(ByteSize::gib(6), 2));
-        assert_ne!(group.state(Clock::real()), ReadingDisplayState::Critical);
+        assert_ne!(group.state(), ReadingDisplayState::Critical);
         deliver_cgroup(&mut group, capped_cgroup(ByteSize::gib(6), 3));
-        assert_eq!(group.state(Clock::real()), ReadingDisplayState::Critical);
+        assert_eq!(group.state(), ReadingDisplayState::Critical);
     }
 }

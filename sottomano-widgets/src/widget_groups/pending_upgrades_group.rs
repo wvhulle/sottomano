@@ -1,9 +1,11 @@
-use std::borrow::Cow;
-
+use chrono::Locale;
 use iced::{Subscription, Task};
 
 use crate::{
-    group_items::reading_row::{ReadingRow, reading_hover_card},
+    group_items::{
+        reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, RowReadout},
+    },
     hover_cards::hover_card_body::dictionary_table,
     widget_groups::widget_group_identity::WidgetGroupFamily,
     widgets::phosphor::Weight,
@@ -11,6 +13,10 @@ use crate::{
 
 mod firmware_upgrade_list;
 
+use firmware_upgrade_list::{
+    firmware_upgrades_badge, firmware_upgrades_hover_card, firmware_upgrades_panel_visibility,
+    firmware_upgrades_state,
+};
 use sottomano_desktop_sources::{
     SnapshotDelivery, host_machine_identity::fwupd_firmware_upgrades::FirmwareUpgrade,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -20,10 +26,7 @@ use sottomano_toml_config::Config;
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
-    },
+    group_items::{group_item::GroupItem, reading_display_state::ReadingDisplayState},
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
         terminal_command::TerminalCommand,
@@ -104,7 +107,7 @@ impl PendingUpgradesGroup {
         match target {
             PendingUpgradesTarget::Firmware => self
                 .firmware
-                .sections_described_by(|snapshot| reading_hover_card(snapshot, clock)),
+                .sections_described_by(|snapshot| firmware_upgrades_hover_card(snapshot, clock)),
             PendingUpgradesTarget::Summary => self.firmware.hover_card_with(self.hover_card(clock)),
         }
     }
@@ -123,7 +126,7 @@ impl PendingUpgradesGroup {
             [
                 has_categories.then(|| {
                     GroupItem::reading(
-                        ReadingRow::evaluated(self, clock, locale),
+                        self.reading_row(clock, locale),
                         PendingUpgradesTarget::Summary,
                     )
                 }),
@@ -143,33 +146,20 @@ impl PendingUpgradesGroup {
     fn category_badges(&self) -> [Option<usize>; 1] {
         [self
             .firmware
-            .visible_reading(GroupItemReading::panel_visibility)
-            .and_then(GroupItemReading::badge)]
+            .visible_reading(|upgrades| firmware_upgrades_panel_visibility(upgrades))
+            .map(|upgrades| firmware_upgrades_badge(upgrades))]
     }
 
     fn category_states(&self, clock: Clock) -> [Option<ReadingDisplayState>; 1] {
         [self.firmware.shown_state(
-            |snapshot| snapshot.state(clock),
-            GroupItemReading::panel_visibility,
+            |snapshot| firmware_upgrades_state(snapshot),
+            |snapshot| firmware_upgrades_panel_visibility(snapshot),
             clock,
         )]
     }
 }
 
-impl GroupItemReading for PendingUpgradesGroup {
-    fn name(&self) -> Cow<'static, str> {
-        "Available upgrades".into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::ArrowCircleUp(Weight::Regular).into()
-    }
-
-    fn badge(&self) -> Option<usize> {
-        let total: usize = self.category_badges().into_iter().flatten().sum();
-        (total > 0).then_some(total)
-    }
-
+impl PendingUpgradesGroup {
     fn state(&self, clock: Clock) -> ReadingDisplayState {
         self.category_states(clock)
             .into_iter()
@@ -185,7 +175,7 @@ impl GroupItemReading for PendingUpgradesGroup {
             "Count",
             dictionary_table(
                 self.firmware
-                    .visible_reading(GroupItemReading::panel_visibility)
+                    .visible_reading(|upgrades| firmware_upgrades_panel_visibility(upgrades))
                     .map(|upgrades| {
                         LabeledValue::new(
                             firmware_upgrade_list::LABEL,
@@ -194,5 +184,27 @@ impl GroupItemReading for PendingUpgradesGroup {
                     }),
             ),
         )]
+    }
+
+    fn reading_row(&self, clock: Clock, _locale: Locale) -> ReadingRow<'_> {
+        let base = ReadingRow::glyph_only(
+            "Available upgrades",
+            Phosphor::ArrowCircleUp(Weight::Regular).into(),
+            self.state(clock),
+            Box::new(move |card_clock| self.hover_card(card_clock)),
+        );
+        let total: usize = self.category_badges().into_iter().flatten().sum();
+        let badge = if total > 0 {
+            ReadoutBadge::Counted(total)
+        } else {
+            ReadoutBadge::Unbadged
+        };
+        ReadingRow {
+            readout: RowReadout {
+                badge,
+                ..base.readout
+            },
+            ..base
+        }
     }
 }

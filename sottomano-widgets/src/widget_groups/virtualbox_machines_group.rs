@@ -17,8 +17,9 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_display_state::ReadingDisplayState,
         reading_row::ReadingRow,
+        source_reading::{ReadoutBadge, ReadoutGauge, ReadoutLabel, RowReadout},
     },
     hover_cards::{
         HoverTarget,
@@ -61,31 +62,34 @@ impl VirtualBoxListedRow<'_> {
     }
 }
 
-impl GroupItemReading for VirtualBoxListedRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        match self {
+impl<'a> VirtualBoxListedRow<'a> {
+    #[must_use]
+    pub fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        let name = match &self {
             VirtualBoxListedRow::Running(listing) => {
-                format!("{} pid {}", listing.machine_name, listing.pid).into()
+                format!("{} pid {}", listing.machine_name, listing.pid)
             }
             VirtualBoxListedRow::Stopped(machine) => {
-                format!("{} {}", machine.machine_name, machine.machine_uuid).into()
+                format!("{} {}", machine.machine_name, machine.machine_uuid)
             }
+        };
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(self.run_state().label().to_owned()),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                name,
+                IconGlyph::SimpleIcon(SimpleIcon::VirtualBox),
+                self.run_state().into(),
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
         }
     }
 
-    fn icon(&self) -> IconGlyph {
-        IconGlyph::SimpleIcon(SimpleIcon::VirtualBox)
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.run_state().label().to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.run_state().into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+    #[must_use]
+    pub fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let state_entry = LabeledValue::new("State", self.run_state().label());
         let identity_entries = match self {
             VirtualBoxListedRow::Running(listing) => vec![
@@ -107,28 +111,30 @@ pub struct VirtualBoxMachineRow<'a> {
     machine: &'a VirtualBoxMachine,
 }
 
-impl GroupItemReading for VirtualBoxMachineRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        format!(
+impl<'a> VirtualBoxMachineRow<'a> {
+    #[must_use]
+    pub fn reading_row(self, _clock: Clock, _locale: Locale) -> ReadingRow<'a> {
+        let name = format!(
             "{} pid {}",
             self.machine.listing.machine_name, self.machine.listing.pid
-        )
-        .into()
+        );
+        ReadingRow {
+            readout: RowReadout {
+                label: ReadoutLabel::Labeled(approximate_memory_text(self.machine.memory_in_use)),
+                gauge: ReadoutGauge::Ungauged,
+                badge: ReadoutBadge::Unbadged,
+            },
+            ..ReadingRow::glyph_only(
+                name,
+                IconGlyph::SimpleIcon(SimpleIcon::VirtualBox),
+                ReadingDisplayState::On,
+                Box::new(move |card_clock| self.hover_card(card_clock)),
+            )
+        }
     }
 
-    fn icon(&self) -> IconGlyph {
-        IconGlyph::SimpleIcon(SimpleIcon::VirtualBox)
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(approximate_memory_text(self.machine.memory_in_use))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::On
-    }
-
-    fn hover_card(&self, clock: Clock) -> Vec<Section> {
+    #[must_use]
+    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let machine = self.machine;
         let mut detail_entries = vec![
             LabeledValue::new(
@@ -198,11 +204,7 @@ impl ContainerFamily for VirtualBoxFamily {
             .iter()
             .map(|listing| FamilyRow {
                 target: VirtualBoxMachineTarget::RunningProcess { pid: listing.pid },
-                reading: ReadingRow::evaluated(
-                    VirtualBoxListedRow::Running(listing),
-                    clock,
-                    locale,
-                ),
+                reading: VirtualBoxListedRow::Running(listing).reading_row(clock, locale),
                 power: RowPower::SwitchedOn(listing.machine_reference.clone()),
             })
             .collect()
@@ -220,7 +222,7 @@ impl ContainerFamily for VirtualBoxFamily {
                 target: VirtualBoxMachineTarget::RunningProcess {
                     pid: machine.listing.pid,
                 },
-                reading: ReadingRow::evaluated(VirtualBoxMachineRow { machine }, clock, locale),
+                reading: VirtualBoxMachineRow { machine }.reading_row(clock, locale),
                 power: RowPower::SwitchedOn(machine.listing.machine_reference.clone()),
             })
             .collect()
@@ -238,11 +240,7 @@ impl ContainerFamily for VirtualBoxFamily {
                 target: VirtualBoxMachineTarget::StoppedMachine {
                     machine_uuid: Cow::Owned(machine.machine_uuid.clone()),
                 },
-                reading: ReadingRow::evaluated(
-                    VirtualBoxListedRow::Stopped(machine),
-                    clock,
-                    locale,
-                ),
+                reading: VirtualBoxListedRow::Stopped(machine).reading_row(clock, locale),
                 power: RowPower::SwitchedOff(machine.machine_uuid.clone()),
             })
             .collect()

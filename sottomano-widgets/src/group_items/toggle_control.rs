@@ -238,7 +238,9 @@ mod tests {
     use super::*;
     use crate::{
         hover_cards::hover_card_body::hover_card_source_delivery::{SectionSource, SourceDelivery},
-        widget_groups::compute_group::ComputeTarget,
+        widget_groups::compute_group::{
+            ComputeTarget, x3d_cache_preference_toggle::x3d_cache_preference_reading_row,
+        },
     };
 
     fn refused_write() -> FileReadError {
@@ -268,7 +270,7 @@ mod tests {
             .reading
             .reading_row(
                 IconGlyph::default(),
-                |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                |snapshot| x3d_cache_preference_reading_row(snapshot, clock, locale),
                 clock,
             )
             .expect("failed reading still shows");
@@ -277,7 +279,7 @@ mod tests {
             control
                 .group_item(
                     IconGlyph::default(),
-                    |snapshot| ReadingRow::evaluated(snapshot, clock, locale),
+                    |snapshot| x3d_cache_preference_reading_row(snapshot, clock, locale),
                     HoverTarget::Compute(ComputeTarget::X3dCachePreference),
                     (),
                     clock,

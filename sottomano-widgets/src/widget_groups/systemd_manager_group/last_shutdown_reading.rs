@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use chrono::Locale;
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::{
@@ -12,11 +10,11 @@ use sottomano_desktop_sources::{
 use crate::{
     clock::Clock,
     group_items::{
-        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+        reading_row::ReadingRow,
+        source_reading::{ReadoutLabel, RowReadout},
     },
     hover_cards::hover_card_body::{Section, SectionTitle, headed_table},
     widgets::{
-        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
@@ -45,42 +43,45 @@ impl IntoTableRecord<2> for &UnitStop {
     }
 }
 
-impl GroupItemReading for LastShutdown {
-    fn name(&self) -> Cow<'static, str> {
-        Self::NAME.into()
-    }
+pub(super) fn last_shutdown_hover_card(shutdown: &LastShutdown, _clock: Clock) -> Vec<Section> {
+    vec![Section::new(
+        SectionTitle::captioned(
+            "Slowest stops at last shutdown",
+            "From the previous boot's journal: shutdown start to its last entry. Amber stops \
+             crossed slow_shutdown_stop_secs or never finished.",
+        ),
+        headed_table(
+            [
+                ColumnHeading::titled("Took"),
+                ColumnHeading::titled("Result").align_x(Horizontal::Left),
+            ],
+            shutdown.slowest_stops.iter(),
+        ),
+    )]
+}
 
-    fn icon(&self) -> IconGlyph {
-        Phosphor::Power(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        Some(duration_text(self.duration, locale))
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.slowest_stops
+pub(super) fn last_shutdown_reading_row(
+    shutdown: &LastShutdown,
+    _clock: Clock,
+    locale: Locale,
+) -> ReadingRow<'_> {
+    let base = ReadingRow::glyph_only(
+        LastShutdown::NAME,
+        Phosphor::Power(Weight::Regular).into(),
+        shutdown
+            .slowest_stops
             .iter()
             .map(|stop| stop.outcome.severity())
             .max()
             .unwrap_or_default()
-            .into()
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            SectionTitle::captioned(
-                "Slowest stops at last shutdown",
-                "From the previous boot's journal: shutdown start to its last entry. Amber stops \
-                 crossed slow_shutdown_stop_secs or never finished.",
-            ),
-            headed_table(
-                [
-                    ColumnHeading::titled("Took"),
-                    ColumnHeading::titled("Result").align_x(Horizontal::Left),
-                ],
-                self.slowest_stops.iter(),
-            ),
-        )]
+            .into(),
+        Box::new(move |card_clock| last_shutdown_hover_card(shutdown, card_clock)),
+    );
+    ReadingRow {
+        readout: RowReadout {
+            label: ReadoutLabel::Labeled(duration_text(shutdown.duration, locale)),
+            ..base.readout
+        },
+        ..base
     }
 }
