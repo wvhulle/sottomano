@@ -17,8 +17,9 @@ The repository is a cargo workspace:
 - `sottomano-widgets/` holds the panels, group menus, widget groups, group items
   and hover cards, one module per level of the hierarchy in `CONTRIBUTING.md`.
   Each widget group restores and persists its own state.
-- `sottomano-shell/` composes them into the running shell (binary `sottomano`)
-  and defines the message type they produce.
+- `sottomano-shell/` composes them into the running shell (binary `sottomano`).
+  The widgets crate defines the interactions its groups emit; the shell and the
+  showcase each wrap them in their own message type.
 - `sottomano-widget-showcase/` plays widget fixtures for the tour recordings,
   the `.ice` scenarios and the windowed tester.
 
