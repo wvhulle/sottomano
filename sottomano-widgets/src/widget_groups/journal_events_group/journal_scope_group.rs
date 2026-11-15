@@ -19,7 +19,7 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        latest_snapshot::LatestSnapshot,
+        subscribed_snapshot::SubscribedSnapshot,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -28,10 +28,10 @@ use crate::{
 
 pub struct JournalScopeGroup {
     pub(super) unit_scope: SystemdUnitScope,
-    pub(super) kernel: LatestSnapshot<Vec<KernelOccurrence>>,
-    pub(super) service_errors: LatestSnapshot<ServiceErrors>,
-    pub(super) coredumps: LatestSnapshot<Vec<CoredumpEntry>>,
-    pub(super) oom_kills: LatestSnapshot<Vec<OomKillEntry>>,
+    pub(super) kernel: SubscribedSnapshot<Vec<KernelOccurrence>>,
+    pub(super) service_errors: SubscribedSnapshot<ServiceErrors>,
+    pub(super) coredumps: SubscribedSnapshot<Vec<CoredumpEntry>>,
+    pub(super) oom_kills: SubscribedSnapshot<Vec<OomKillEntry>>,
     pub(super) expansion: WidgetGroupExpansion,
 }
 

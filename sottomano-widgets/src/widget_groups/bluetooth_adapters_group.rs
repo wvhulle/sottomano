@@ -36,7 +36,7 @@ use crate::{
     },
     widgets::{
         input_report_sections::MeasuredReportTiming,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
     },
 };
 
@@ -90,7 +90,7 @@ fn adapter_group_title(naming: AdapterNaming) -> WidgetGroupTitle {
 
 #[derive(Default)]
 pub struct BluetoothAdaptersGroup {
-    bluetooth: LatestSnapshot<Bluetooth, HidesFetchFailures>,
+    bluetooth: SubscribedSnapshot<Bluetooth, HidesFetchFailures>,
     expansions: KeyedExpansions<String>,
     reconnects: ReconnectHistory,
     kernel_errors: Vec<DeviceKernelError>,

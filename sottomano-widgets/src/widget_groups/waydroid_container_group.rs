@@ -36,7 +36,7 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         value_cells::LabeledValue,
@@ -184,9 +184,9 @@ impl GroupItemReading for WaydroidSessionRow<'_> {
 }
 
 pub struct WaydroidContainerGroup {
-    probe: LatestSnapshot<WaydroidProbe, HidesFetchFailures>,
-    listing: LatestSnapshot<WaydroidListing, HidesFetchFailures>,
-    detail: LatestSnapshot<WaydroidReadout, HidesFetchFailures>,
+    probe: SubscribedSnapshot<WaydroidProbe, HidesFetchFailures>,
+    listing: SubscribedSnapshot<WaydroidListing, HidesFetchFailures>,
+    detail: SubscribedSnapshot<WaydroidReadout, HidesFetchFailures>,
     container_switch: UnitSwitch,
     expansion: WidgetGroupExpansion,
 }
@@ -194,9 +194,9 @@ pub struct WaydroidContainerGroup {
 impl Default for WaydroidContainerGroup {
     fn default() -> Self {
         Self {
-            probe: LatestSnapshot::default(),
-            listing: LatestSnapshot::default(),
-            detail: LatestSnapshot::default(),
+            probe: SubscribedSnapshot::default(),
+            listing: SubscribedSnapshot::default(),
+            detail: SubscribedSnapshot::default(),
             container_switch: UnitSwitch::new(
                 ScopedSystemdUnit {
                     scope: SystemdUnitScope::SystemWide,

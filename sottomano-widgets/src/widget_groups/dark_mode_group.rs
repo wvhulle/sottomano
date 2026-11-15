@@ -42,7 +42,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        latest_snapshot::CommandOutcome,
+        subscribed_snapshot::CommandOutcome,
         phosphor::{Phosphor, Weight},
         weather_icons::WeatherIcon,
     },

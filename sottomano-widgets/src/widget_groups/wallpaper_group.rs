@@ -24,7 +24,7 @@ use crate::{
         },
         widget_group_identity::WidgetGroupFamily,
     },
-    widgets::latest_snapshot::LatestSnapshot,
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,7 +42,7 @@ impl From<WallpaperTarget> for HoverTarget {
 }
 
 pub struct WallpaperGroup {
-    lookup: LatestSnapshot<Lookup>,
+    lookup: SubscribedSnapshot<Lookup>,
     unsplash_key: Option<PathBuf>,
     expansion: WidgetGroupExpansion,
 }
@@ -61,7 +61,7 @@ impl WallpaperGroup {
     #[must_use]
     pub fn new(secrets: &SecretPaths) -> Self {
         Self {
-            lookup: LatestSnapshot::default(),
+            lookup: SubscribedSnapshot::default(),
             unsplash_key: secrets.unsplash_access_key.clone(),
             expansion: WidgetGroupExpansion::default(),
         }

@@ -41,7 +41,7 @@ use crate::{
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
-        latest_snapshot::LatestSnapshot,
+        subscribed_snapshot::SubscribedSnapshot,
         ongoing_toast::OngoingToastActionButton,
         phosphor::{Phosphor, Weight},
     },
@@ -63,7 +63,7 @@ impl From<PowerTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct PowerGroup {
-    battery: LatestSnapshot<Battery>,
+    battery: SubscribedSnapshot<Battery>,
     time: Option<BatteryTime>,
     time_reading: BatteryTimeReading,
     power_profile: PowerProfileControl,

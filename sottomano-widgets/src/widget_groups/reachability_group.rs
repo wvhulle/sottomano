@@ -41,7 +41,7 @@ use crate::{
         },
     },
     widgets::{
-        latest_snapshot::LatestSnapshot,
+        subscribed_snapshot::SubscribedSnapshot,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -64,9 +64,9 @@ impl From<ReachabilityTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct ReachabilityGroup {
-    throughput: LatestSnapshot<InterfaceThroughput>,
-    latency: LatestSnapshot<InternetLatency>,
-    connectivity: LatestSnapshot<UplinkConnectivity>,
+    throughput: SubscribedSnapshot<InterfaceThroughput>,
+    latency: SubscribedSnapshot<InternetLatency>,
+    connectivity: SubscribedSnapshot<UplinkConnectivity>,
     metered_volume: MeteredVolumeTally,
     expansion: WidgetGroupExpansion,
 }

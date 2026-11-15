@@ -32,7 +32,7 @@ use crate::{
         },
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
-    widgets::latest_snapshot::LatestSnapshot,
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,9 +53,9 @@ impl From<DriveTarget> for HoverTarget {
 
 #[derive(Default)]
 struct PhysicalDiskReadings {
-    space: LatestSnapshot<DiskSpaceOccupancy>,
-    activity: LatestSnapshot<DiskActivity>,
-    drive_health: LatestSnapshot<DriveHealth>,
+    space: SubscribedSnapshot<DiskSpaceOccupancy>,
+    activity: SubscribedSnapshot<DiskActivity>,
+    drive_health: SubscribedSnapshot<DriveHealth>,
     expansion: WidgetGroupExpansion,
 }
 
@@ -67,7 +67,7 @@ fn disk_group_title(disk: &KernelDevice) -> WidgetGroupTitle {
 
 #[derive(Default)]
 pub struct PhysicalDriveGroup {
-    discovery: LatestSnapshot<BlockFilesystemDiscovery>,
+    discovery: SubscribedSnapshot<BlockFilesystemDiscovery>,
     disks: BTreeMap<KernelDevice, PhysicalDiskReadings>,
     discovery_expansion: WidgetGroupExpansion,
 }

@@ -11,7 +11,7 @@ use sottomano_desktop_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    widgets::latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+    widgets::subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
 };
 
 const DISCOVERED_SCOPES: [SystemdUnitScope; 2] =
@@ -25,8 +25,8 @@ pub struct ScopedServiceCommands {
 
 #[derive(Default)]
 pub struct DiscoveredSystemdServices {
-    user_services: LatestSnapshot<ServiceCommands, HidesFetchFailures>,
-    system_services: LatestSnapshot<ServiceCommands, HidesFetchFailures>,
+    user_services: SubscribedSnapshot<ServiceCommands, HidesFetchFailures>,
+    system_services: SubscribedSnapshot<ServiceCommands, HidesFetchFailures>,
 }
 
 impl DiscoveredSystemdServices {
@@ -49,7 +49,7 @@ impl DiscoveredSystemdServices {
     fn services_in_mut(
         &mut self,
         scope: SystemdUnitScope,
-    ) -> &mut LatestSnapshot<ServiceCommands, HidesFetchFailures> {
+    ) -> &mut SubscribedSnapshot<ServiceCommands, HidesFetchFailures> {
         match scope {
             SystemdUnitScope::UserSession => &mut self.user_services,
             SystemdUnitScope::SystemWide => &mut self.system_services,
@@ -59,7 +59,7 @@ impl DiscoveredSystemdServices {
     fn services_in(
         &self,
         scope: SystemdUnitScope,
-    ) -> &LatestSnapshot<ServiceCommands, HidesFetchFailures> {
+    ) -> &SubscribedSnapshot<ServiceCommands, HidesFetchFailures> {
         match scope {
             SystemdUnitScope::UserSession => &self.user_services,
             SystemdUnitScope::SystemWide => &self.system_services,

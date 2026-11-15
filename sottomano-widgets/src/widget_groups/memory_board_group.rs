@@ -41,7 +41,7 @@ use crate::{
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
     },
 };
 
@@ -63,12 +63,12 @@ impl From<MemoryBoardTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct MemoryBoardGroup {
-    memory: LatestSnapshot<Memory>,
-    memory_growth: LatestSnapshot<MemoryGrowth>,
-    stall_pressure: LatestSnapshot<MemoryStallPressure>,
-    swap_activity: LatestSnapshot<SwapActivity>,
-    hardware: LatestSnapshot<HostHardware, HidesFetchFailures>,
-    module_temperatures: LatestSnapshot<MemoryModuleTemperatures, HidesFetchFailures>,
+    memory: SubscribedSnapshot<Memory>,
+    memory_growth: SubscribedSnapshot<MemoryGrowth>,
+    stall_pressure: SubscribedSnapshot<MemoryStallPressure>,
+    swap_activity: SubscribedSnapshot<SwapActivity>,
+    hardware: SubscribedSnapshot<HostHardware, HidesFetchFailures>,
+    module_temperatures: SubscribedSnapshot<MemoryModuleTemperatures, HidesFetchFailures>,
     memory_processes: HoverFetchedSnapshot<MemoryProcesses>,
     swapped_processes: HoverFetchedSnapshot<SwappedProcesses>,
     expansion: WidgetGroupExpansion,

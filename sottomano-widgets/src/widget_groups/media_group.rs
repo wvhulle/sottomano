@@ -55,7 +55,7 @@ use crate::{
     widgets::{
         app_window_focus::AppWindowFocus,
         icon_handle::IconHandle,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -131,9 +131,9 @@ enum PlaybackPace {
 
 #[derive(Default)]
 pub struct MediaGroup {
-    players: LatestSnapshot<Vec<Media>, HidesFetchFailures>,
+    players: SubscribedSnapshot<Vec<Media>, HidesFetchFailures>,
     sessions: HashMap<String, PlayerSession>,
-    lyrics_snapshots: HashMap<LyricsQuery, LatestSnapshot<TrackLyrics>>,
+    lyrics_snapshots: HashMap<LyricsQuery, SubscribedSnapshot<TrackLyrics>>,
 }
 
 struct PlayerSession {
@@ -288,7 +288,7 @@ impl MediaGroup {
             matches!(
                 self.lyrics_snapshots
                     .get(&query)
-                    .and_then(LatestSnapshot::get),
+                    .and_then(SubscribedSnapshot::get),
                 Some(TrackLyrics::Synced(_))
             )
         });
@@ -302,7 +302,7 @@ impl MediaGroup {
         }
     }
 
-    fn lyrics_of(&self, media: &Media) -> Option<&LatestSnapshot<TrackLyrics>> {
+    fn lyrics_of(&self, media: &Media) -> Option<&SubscribedSnapshot<TrackLyrics>> {
         self.lyrics_snapshots.get(&media.lyrics_query()?)
     }
 
@@ -532,7 +532,7 @@ fn player_group<'a>(
     group_title: WidgetGroupTitle,
     media: &'a Media,
     session: &'a PlayerSession,
-    lyrics_snapshot: Option<&'a LatestSnapshot<TrackLyrics>>,
+    lyrics_snapshot: Option<&'a SubscribedSnapshot<TrackLyrics>>,
 ) -> WidgetGroupContent<'a, MediaInteraction> {
     let bus = media.bus.as_str();
     let seek_availability = SeekBar::seek_availability(media, clock.instant);

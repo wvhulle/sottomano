@@ -28,7 +28,7 @@ use crate::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
     },
-    widgets::latest_snapshot::LatestSnapshot,
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 pub const MESSAGE_CAP: usize = 100;
@@ -70,18 +70,18 @@ impl Default for JournalEventsGroup {
         Self {
             system_journal: JournalScopeGroup {
                 unit_scope: SystemdUnitScope::SystemWide,
-                kernel: LatestSnapshot::default(),
-                service_errors: LatestSnapshot::default(),
-                coredumps: LatestSnapshot::default(),
-                oom_kills: LatestSnapshot::default(),
+                kernel: SubscribedSnapshot::default(),
+                service_errors: SubscribedSnapshot::default(),
+                coredumps: SubscribedSnapshot::default(),
+                oom_kills: SubscribedSnapshot::default(),
                 expansion: WidgetGroupExpansion::default(),
             },
             user_journal: JournalScopeGroup {
                 unit_scope: SystemdUnitScope::UserSession,
-                kernel: LatestSnapshot::SourceUnavailable,
-                service_errors: LatestSnapshot::default(),
-                coredumps: LatestSnapshot::default(),
-                oom_kills: LatestSnapshot::default(),
+                kernel: SubscribedSnapshot::SourceUnavailable,
+                service_errors: SubscribedSnapshot::default(),
+                coredumps: SubscribedSnapshot::default(),
+                oom_kills: SubscribedSnapshot::default(),
                 expansion: WidgetGroupExpansion::default(),
             },
         }

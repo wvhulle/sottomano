@@ -36,7 +36,7 @@ use crate::{
             Heading, Section, SectionBody, SectionHeading,
             hover_card_figure_payloads::{ChipletCells, ControllerCallouts},
             hover_card_source_delivery::{
-                DeliveryTiming, HoverCard, SectionsDeliveryState, SourcedSections,
+                DeliveryTiming, HoverCard, SourceDelivery, SourcedSections,
             },
         },
     },
@@ -84,12 +84,12 @@ impl<'a> HoverCardContent<'a> {
         }
     }
 
-    fn in_delivery_state(self, delivery_state: SectionsDeliveryState) -> Self {
+    fn in_delivery_state(self, delivery_state: SourceDelivery) -> Self {
         let presence = match delivery_state {
-            SectionsDeliveryState::Delivered { .. } | SectionsDeliveryState::LiveUnlabelled => {
+            SourceDelivery::Delivered { .. } | SourceDelivery::LiveUnlabelled => {
                 TextPresence::Shown
             }
-            SectionsDeliveryState::AwaitingDelivery => TextPresence::Placeholder,
+            SourceDelivery::AwaitingDelivery => TextPresence::Placeholder,
         };
         Self { presence, ..self }
     }
@@ -296,7 +296,7 @@ impl<'a> HoverCardContent<'a> {
 
     fn closing_row(
         &self,
-        closing_delivery_state: Option<SectionsDeliveryState>,
+        closing_delivery_state: Option<SourceDelivery>,
     ) -> Option<Element<'static, PopupMessage>> {
         let press_hints = self.hover_card.announcement.press_hints;
         let hints = (press_hints != PressHints::default()).then(|| self.gesture_hints(press_hints));
@@ -309,14 +309,14 @@ impl<'a> HoverCardContent<'a> {
 
     fn delivery_state_view(
         &self,
-        delivery_state: SectionsDeliveryState,
+        delivery_state: SourceDelivery,
     ) -> Option<Element<'static, PopupMessage>> {
         Some(match delivery_state {
-            SectionsDeliveryState::Delivered { delivery_timing } => {
+            SourceDelivery::Delivered { delivery_timing } => {
                 self.delivery_timing(delivery_timing)
             }
-            SectionsDeliveryState::LiveUnlabelled => return None,
-            SectionsDeliveryState::AwaitingDelivery => row([
+            SourceDelivery::LiveUnlabelled => return None,
+            SourceDelivery::AwaitingDelivery => row([
                 self.small_dim_text("loading".to_owned()).into(),
                 IconGlyph::from(Phosphor::HourglassMedium(Weight::Regular)).view(
                     self.config.theme.font.small_text_size_px,

@@ -37,7 +37,7 @@ use crate::{
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
-        latest_snapshot::{FailedSnapshotFetch, HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{FailedSnapshotFetch, HidesFetchFailures, SubscribedSnapshot},
     },
 };
 
@@ -65,7 +65,7 @@ impl From<GpuTarget> for HoverTarget {
 enum GpuDeviceAccess {
     Readable {
         handle: GpuHandle,
-        snapshot: LatestSnapshot<GpuSnapshot>,
+        snapshot: SubscribedSnapshot<GpuSnapshot>,
     },
     Unreadable {
         handle_failure: FailedSnapshotFetch<GpuSnapshot>,
@@ -125,7 +125,7 @@ fn gpu_group_identity(bus: &PciBusId) -> WidgetGroupIdentity {
 
 #[derive(Default)]
 pub struct GpuGroup {
-    discovery: LatestSnapshot<GpuDiscovery, HidesFetchFailures>,
+    discovery: SubscribedSnapshot<GpuDiscovery, HidesFetchFailures>,
     devices: BTreeMap<PciBusId, GpuDevice>,
     hovered_bus: Option<PciBusId>,
     clocks: HoverFetchedSnapshot<GpuClocks>,
@@ -240,7 +240,7 @@ impl GpuGroup {
                         let access = match &gpu.handle {
                             Ok(handle) => GpuDeviceAccess::Readable {
                                 handle: handle.clone(),
-                                snapshot: LatestSnapshot::default(),
+                                snapshot: SubscribedSnapshot::default(),
                             },
                             Err(failure) => GpuDeviceAccess::Unreadable {
                                 handle_failure: FailedSnapshotFetch::from_fetch_error(

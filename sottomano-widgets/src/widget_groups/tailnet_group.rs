@@ -45,7 +45,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot, latest_snapshot::LatestSnapshot,
+        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
         simple_icons::SimpleIcon,
     },
 };
@@ -103,8 +103,8 @@ impl PolicyFileAccess {
 }
 
 pub struct TailnetGroup {
-    tailscale: LatestSnapshot<Tailscale>,
-    tailscale_exit_nodes: LatestSnapshot<TailscaleExitNodes>,
+    tailscale: SubscribedSnapshot<Tailscale>,
+    tailscale_exit_nodes: SubscribedSnapshot<TailscaleExitNodes>,
     inbound_access: HoverFetchedSnapshot<TailscaleInboundAccess>,
     policy_file_access: PolicyFileAccess,
     expansion: WidgetGroupExpansion,
@@ -144,8 +144,8 @@ impl TailnetGroup {
 
     fn with_access(policy_file_access: PolicyFileAccess) -> Self {
         Self {
-            tailscale: LatestSnapshot::default(),
-            tailscale_exit_nodes: LatestSnapshot::default(),
+            tailscale: SubscribedSnapshot::default(),
+            tailscale_exit_nodes: SubscribedSnapshot::default(),
             inbound_access: HoverFetchedSnapshot::default(),
             policy_file_access,
             expansion: WidgetGroupExpansion::default(),

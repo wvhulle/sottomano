@@ -29,7 +29,7 @@ use crate::{
     },
     widgets::{
         keyed_record_table::{IntoTableRecord, TableRecord},
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -49,7 +49,7 @@ const MIN_SAMPLE_W: f64 = 0.5;
 
 pub struct PowerProfileControl {
     control: SliderControl,
-    status: LatestSnapshot<ProfileStatus, HidesFetchFailures>,
+    status: SubscribedSnapshot<ProfileStatus, HidesFetchFailures>,
     conditions: Option<Conditions>,
     battery: Option<Battery>,
     profile_models: Option<HashMap<Profile, RegressionState>>,
@@ -72,7 +72,7 @@ impl Default for PowerProfileControl {
             .icon_only()
             .readout(|value, _| Profile::from_position(value).title().to_string())
             .glyph(|value, _| profile_face(Profile::from_position(value))),
-            status: LatestSnapshot::default(),
+            status: SubscribedSnapshot::default(),
             conditions: None,
             battery: None,
             profile_models: None,

@@ -8,7 +8,7 @@ use super::{Heading, HoverCardBody, Section};
 use crate::{clock::Clock, hover_cards::HoverAnnouncement};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SectionsDeliveryState {
+pub enum SourceDelivery {
     Delivered { delivery_timing: DeliveryTiming },
     LiveUnlabelled,
     AwaitingDelivery,
@@ -23,7 +23,7 @@ enum GroupHeading {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SourcedSections {
     heading: GroupHeading,
-    delivery_state: SectionsDeliveryState,
+    delivery_state: SourceDelivery,
     sections: Vec<Section>,
 }
 
@@ -32,7 +32,7 @@ impl SourcedSections {
     pub fn delivered(body: HoverCardBody, delivery_timing: DeliveryTiming) -> Self {
         Self {
             heading: GroupHeading::Unheaded,
-            delivery_state: SectionsDeliveryState::Delivered { delivery_timing },
+            delivery_state: SourceDelivery::Delivered { delivery_timing },
             sections: body.sections,
         }
     }
@@ -41,7 +41,7 @@ impl SourcedSections {
     pub fn live_unlabelled(body: HoverCardBody) -> Self {
         Self {
             heading: GroupHeading::Unheaded,
-            delivery_state: SectionsDeliveryState::LiveUnlabelled,
+            delivery_state: SourceDelivery::LiveUnlabelled,
             sections: body.sections,
         }
     }
@@ -53,7 +53,7 @@ impl SourcedSections {
     ) -> Self {
         Self {
             heading: GroupHeading::Source(Heading::of_source::<S>()),
-            delivery_state: SectionsDeliveryState::Delivered { delivery_timing },
+            delivery_state: SourceDelivery::Delivered { delivery_timing },
             sections: body.sections,
         }
     }
@@ -62,7 +62,7 @@ impl SourcedSections {
     pub fn source_awaiting_delivery<S: SnapshotSource>(body: HoverCardBody) -> Self {
         Self {
             heading: GroupHeading::Source(Heading::of_source::<S>()),
-            delivery_state: SectionsDeliveryState::AwaitingDelivery,
+            delivery_state: SourceDelivery::AwaitingDelivery,
             sections: body.sections,
         }
     }
@@ -76,7 +76,7 @@ impl SourcedSections {
     }
 
     #[must_use]
-    pub fn delivery_state(&self) -> SectionsDeliveryState {
+    pub fn delivery_state(&self) -> SourceDelivery {
         self.delivery_state
     }
 

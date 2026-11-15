@@ -29,7 +29,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        latest_snapshot::LatestSnapshot,
+        subscribed_snapshot::SubscribedSnapshot,
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
     },
@@ -51,9 +51,9 @@ impl From<OpenRouterCreditTarget> for HoverTarget {
 }
 
 pub struct OpenRouterCreditGroup {
-    spend: LatestSnapshot<OpenRouterSpend>,
-    strict_budget: LatestSnapshot<OpenRouterStrictBudget>,
-    model_rankings: LatestSnapshot<OpenRouterModelRankings>,
+    spend: SubscribedSnapshot<OpenRouterSpend>,
+    strict_budget: SubscribedSnapshot<OpenRouterStrictBudget>,
+    model_rankings: SubscribedSnapshot<OpenRouterModelRankings>,
     management_key: Option<PathBuf>,
     expansion: WidgetGroupExpansion,
 }
@@ -74,9 +74,9 @@ impl OpenRouterCreditGroup {
     #[must_use]
     pub fn new(management_key: Option<PathBuf>) -> Self {
         Self {
-            spend: LatestSnapshot::default(),
-            strict_budget: LatestSnapshot::default(),
-            model_rankings: LatestSnapshot::default(),
+            spend: SubscribedSnapshot::default(),
+            strict_budget: SubscribedSnapshot::default(),
+            model_rankings: SubscribedSnapshot::default(),
             management_key,
             expansion: WidgetGroupExpansion::default(),
         }

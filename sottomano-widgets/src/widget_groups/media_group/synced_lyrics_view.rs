@@ -29,7 +29,7 @@ use crate::{
     widgets::{
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
-        latest_snapshot::LatestSnapshot,
+        subscribed_snapshot::SubscribedSnapshot,
         phosphor::{Phosphor, Weight},
         value_cells::ValueCell,
     },
@@ -128,7 +128,7 @@ pub(super) fn lyrics_section(track_lyrics: &TrackLyrics, played: Duration) -> Se
 }
 
 fn singing_line<'a>(
-    lyrics_snapshot: &'a LatestSnapshot<TrackLyrics>,
+    lyrics_snapshot: &'a SubscribedSnapshot<TrackLyrics>,
     media: &Media,
     sampled_at: Instant,
 ) -> Option<&'a TimedLyricLine> {
@@ -139,7 +139,7 @@ fn singing_line<'a>(
 pub(super) fn lyrics_item<'a>(
     config: &'a Config,
     media: &'a Media,
-    lyrics_snapshot: &'a LatestSnapshot<TrackLyrics>,
+    lyrics_snapshot: &'a SubscribedSnapshot<TrackLyrics>,
     sampled_at: Instant,
 ) -> Option<GroupItem<'a, MediaInteraction>> {
     let Some(timed_line) = singing_line(lyrics_snapshot, media, sampled_at) else {

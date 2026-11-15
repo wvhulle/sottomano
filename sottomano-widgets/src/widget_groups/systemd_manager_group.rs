@@ -44,7 +44,7 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
@@ -111,12 +111,12 @@ impl From<SystemdTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct SystemdManagerGroup {
-    boot: LatestSnapshot<BootTimeline, HidesFetchFailures>,
-    failed_system: LatestSnapshot<FailedUnits>,
-    failed_user: LatestSnapshot<FailedUnits>,
-    slow_system_jobs: LatestSnapshot<SlowJobs>,
-    slow_user_jobs: LatestSnapshot<SlowJobs>,
-    last_shutdown: LatestSnapshot<LastShutdown>,
+    boot: SubscribedSnapshot<BootTimeline, HidesFetchFailures>,
+    failed_system: SubscribedSnapshot<FailedUnits>,
+    failed_user: SubscribedSnapshot<FailedUnits>,
+    slow_system_jobs: SubscribedSnapshot<SlowJobs>,
+    slow_user_jobs: SubscribedSnapshot<SlowJobs>,
+    last_shutdown: SubscribedSnapshot<LastShutdown>,
     expansion: WidgetGroupExpansion,
 }
 

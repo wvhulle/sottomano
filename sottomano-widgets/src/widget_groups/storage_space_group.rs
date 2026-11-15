@@ -46,7 +46,7 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        latest_snapshot::LatestSnapshot,
+        subscribed_snapshot::SubscribedSnapshot,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -105,14 +105,14 @@ fn mount_group_title(primary_mount_point: &Path) -> WidgetGroupTitle {
 
 struct MountedFilesystem {
     mount: FilesystemMount,
-    usage: LatestSnapshot<FilesystemUsage>,
-    subvolume_usage: LatestSnapshot<BcachefsSubvolumeUsage>,
+    usage: SubscribedSnapshot<FilesystemUsage>,
+    subvolume_usage: SubscribedSnapshot<BcachefsSubvolumeUsage>,
     expansion: WidgetGroupExpansion,
 }
 
 #[derive(Default)]
 pub struct StorageSpaceGroup {
-    discovery: LatestSnapshot<BlockFilesystemDiscovery>,
+    discovery: SubscribedSnapshot<BlockFilesystemDiscovery>,
     filesystems: BTreeMap<PathBuf, MountedFilesystem>,
     discovery_expansion: WidgetGroupExpansion,
 }
@@ -224,8 +224,8 @@ impl StorageSpaceGroup {
                                 Some(known) if &known.mount == mount => known,
                                 known => MountedFilesystem {
                                     mount: mount.clone(),
-                                    usage: LatestSnapshot::default(),
-                                    subvolume_usage: LatestSnapshot::default(),
+                                    usage: SubscribedSnapshot::default(),
+                                    subvolume_usage: SubscribedSnapshot::default(),
                                     expansion: known
                                         .map(|known| known.expansion)
                                         .unwrap_or_default(),

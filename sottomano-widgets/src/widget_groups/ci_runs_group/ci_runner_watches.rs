@@ -19,7 +19,7 @@ use crate::{
     widget_groups::ci_runs_group::ci_run_readings::CiRunnerKind,
     widgets::{
         discovered_systemd_services::DiscoveredSystemdServices,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
     },
 };
 
@@ -66,7 +66,7 @@ impl CiRunnerSnapshot for ForgejoRunnerTasks {
 
 pub struct CiRunnerWatches<S: CiRunnerSnapshot> {
     discovered_runners: Vec<DiscoveredCiRunner<S::StreamInputs>>,
-    runners: BTreeMap<String, LatestSnapshot<S, HidesFetchFailures>>,
+    runners: BTreeMap<String, SubscribedSnapshot<S, HidesFetchFailures>>,
 }
 
 impl<S: CiRunnerSnapshot> Default for CiRunnerWatches<S> {
@@ -107,7 +107,7 @@ impl<S: CiRunnerSnapshot> CiRunnerWatches<S> {
     pub fn snapshot_of(
         &self,
         runner_label: &str,
-    ) -> Option<&LatestSnapshot<S, HidesFetchFailures>> {
+    ) -> Option<&SubscribedSnapshot<S, HidesFetchFailures>> {
         self.runners.get(runner_label)
     }
 
@@ -116,7 +116,7 @@ impl<S: CiRunnerSnapshot> CiRunnerWatches<S> {
             let runner = self
                 .runners
                 .get(&discovered.label)
-                .and_then(LatestSnapshot::get)?
+                .and_then(SubscribedSnapshot::get)?
                 .runner();
             Some((discovered.label.as_str(), runner))
         })

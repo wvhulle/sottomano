@@ -28,7 +28,7 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        latest_snapshot::LatestSnapshot,
+        subscribed_snapshot::SubscribedSnapshot,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
     },
@@ -47,8 +47,8 @@ impl From<CaldavTarget> for HoverTarget {
 }
 
 pub struct CaldavGroup {
-    upcoming_events: LatestSnapshot<UpcomingEventList>,
-    open_tasks: LatestSnapshot<OpenTaskList>,
+    upcoming_events: SubscribedSnapshot<UpcomingEventList>,
+    open_tasks: SubscribedSnapshot<OpenTaskList>,
     password: Option<PathBuf>,
     expansion: WidgetGroupExpansion,
 }
@@ -68,8 +68,8 @@ impl CaldavGroup {
     #[must_use]
     pub fn new(secrets: &SecretPaths) -> Self {
         Self {
-            upcoming_events: LatestSnapshot::default(),
-            open_tasks: LatestSnapshot::default(),
+            upcoming_events: SubscribedSnapshot::default(),
+            open_tasks: SubscribedSnapshot::default(),
             password: secrets.caldav_password.clone(),
             expansion: WidgetGroupExpansion::default(),
         }

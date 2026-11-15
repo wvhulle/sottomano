@@ -25,7 +25,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        latest_snapshot::LatestSnapshot,
+        subscribed_snapshot::SubscribedSnapshot,
         phosphor::{Phosphor, Weight},
     },
 };
@@ -45,7 +45,7 @@ impl From<NetworkManagerVpnTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct NetworkManagerVpnGroup {
-    network_manager_vpns: LatestSnapshot<NetworkManagerVpns>,
+    network_manager_vpns: SubscribedSnapshot<NetworkManagerVpns>,
     expansion: WidgetGroupExpansion,
 }
 

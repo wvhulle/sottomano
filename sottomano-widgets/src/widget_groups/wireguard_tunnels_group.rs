@@ -25,7 +25,7 @@ use crate::{
         wireguard_tunnels_group::wireguard_tunnel_hover_card::wireguard_tunnel_item,
     },
     widgets::{
-        hover_fetched_snapshot::HoverFetchedSnapshot, latest_snapshot::LatestSnapshot,
+        hover_fetched_snapshot::HoverFetchedSnapshot, subscribed_snapshot::SubscribedSnapshot,
         simple_icons::SimpleIcon,
     },
 };
@@ -45,7 +45,7 @@ impl From<WireguardTunnelTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct WireguardTunnelsGroup {
-    wireguard: LatestSnapshot<Wireguard>,
+    wireguard: SubscribedSnapshot<Wireguard>,
     tunnel_address: HoverFetchedSnapshot<TunnelAddress>,
     expansion: WidgetGroupExpansion,
 }

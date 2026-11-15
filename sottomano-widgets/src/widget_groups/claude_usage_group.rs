@@ -35,7 +35,7 @@ use crate::{
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
     },
@@ -58,11 +58,11 @@ impl From<ClaudeUsageTarget> for HoverTarget {
 }
 
 pub struct ClaudeUsageGroup {
-    usage_windows: LatestSnapshot<ClaudeUsageWindows>,
-    enterprise_spend: LatestSnapshot<ClaudeEnterpriseSpend>,
-    ccusage_periods: LatestSnapshot<ClaudeCcusagePeriods>,
-    ccusage_block: LatestSnapshot<ClaudeCcusageBlock>,
-    ccusage_models: LatestSnapshot<ClaudeCcusageModels, HidesFetchFailures>,
+    usage_windows: SubscribedSnapshot<ClaudeUsageWindows>,
+    enterprise_spend: SubscribedSnapshot<ClaudeEnterpriseSpend>,
+    ccusage_periods: SubscribedSnapshot<ClaudeCcusagePeriods>,
+    ccusage_block: SubscribedSnapshot<ClaudeCcusageBlock>,
+    ccusage_models: SubscribedSnapshot<ClaudeCcusageModels, HidesFetchFailures>,
     oauth_credentials: Option<PathBuf>,
     organization: HoverFetchedSnapshot<ClaudeOrganization>,
     expansion: WidgetGroupExpansion,
@@ -87,11 +87,11 @@ impl ClaudeUsageGroup {
     #[must_use]
     pub fn new(oauth_credentials: Option<PathBuf>) -> Self {
         Self {
-            usage_windows: LatestSnapshot::default(),
-            enterprise_spend: LatestSnapshot::default(),
-            ccusage_periods: LatestSnapshot::default(),
-            ccusage_block: LatestSnapshot::default(),
-            ccusage_models: LatestSnapshot::default(),
+            usage_windows: SubscribedSnapshot::default(),
+            enterprise_spend: SubscribedSnapshot::default(),
+            ccusage_periods: SubscribedSnapshot::default(),
+            ccusage_block: SubscribedSnapshot::default(),
+            ccusage_models: SubscribedSnapshot::default(),
             oauth_credentials,
             organization: HoverFetchedSnapshot::default(),
             expansion: WidgetGroupExpansion::default(),

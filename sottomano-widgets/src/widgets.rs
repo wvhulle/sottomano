@@ -16,7 +16,7 @@ pub mod icon_handle;
 pub mod idle;
 pub mod input_report_sections;
 pub mod keyed_record_table;
-pub mod latest_snapshot;
+pub mod subscribed_snapshot;
 pub mod layer_appearance_controls;
 pub mod localized_durations;
 pub mod localized_quantities;

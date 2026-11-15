@@ -28,7 +28,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        latest_snapshot::LatestSnapshot,
+        subscribed_snapshot::SubscribedSnapshot,
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
     },
@@ -50,9 +50,9 @@ impl From<CopilotUsageTarget> for HoverTarget {
 }
 
 pub struct CopilotUsageGroup {
-    metered: LatestSnapshot<CopilotMetered>,
-    free: LatestSnapshot<CopilotFree>,
-    cli: LatestSnapshot<CopilotCcusage>,
+    metered: SubscribedSnapshot<CopilotMetered>,
+    free: SubscribedSnapshot<CopilotFree>,
+    cli: SubscribedSnapshot<CopilotCcusage>,
     gh_auth_token: Option<PathBuf>,
     expansion: WidgetGroupExpansion,
 }
@@ -73,9 +73,9 @@ impl CopilotUsageGroup {
     #[must_use]
     pub fn new(gh_auth_token: Option<PathBuf>) -> Self {
         Self {
-            metered: LatestSnapshot::default(),
-            free: LatestSnapshot::default(),
-            cli: LatestSnapshot::default(),
+            metered: SubscribedSnapshot::default(),
+            free: SubscribedSnapshot::default(),
+            cli: SubscribedSnapshot::default(),
             gh_auth_token,
             expansion: WidgetGroupExpansion::default(),
         }

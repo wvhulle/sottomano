@@ -31,7 +31,7 @@ use crate::{
         hover_card_source_delivery::{HoverCard, SourcedSections},
     },
     widgets::{
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -40,7 +40,7 @@ struct ServerReadings {
     server_label: String,
     discovered: LlamaServerUnit,
     switch: UnitSwitch,
-    server: LatestSnapshot<LlamaServer, HidesFetchFailures>,
+    server: SubscribedSnapshot<LlamaServer, HidesFetchFailures>,
 }
 
 impl ServerReadings {
@@ -64,14 +64,14 @@ impl ServerReadings {
             ),
             server_label,
             discovered,
-            server: LatestSnapshot::default(),
+            server: SubscribedSnapshot::default(),
         }
     }
 }
 
 pub struct ScopedLlamaServers {
     scope: SystemdUnitScope,
-    services: LatestSnapshot<ServiceCommands, HidesFetchFailures>,
+    services: SubscribedSnapshot<ServiceCommands, HidesFetchFailures>,
     servers: BTreeMap<String, ServerReadings>,
 }
 
@@ -91,7 +91,7 @@ impl ScopedLlamaServers {
     pub fn new(scope: SystemdUnitScope) -> Self {
         Self {
             scope,
-            services: LatestSnapshot::default(),
+            services: SubscribedSnapshot::default(),
             servers: BTreeMap::new(),
         }
     }

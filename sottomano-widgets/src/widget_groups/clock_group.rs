@@ -21,7 +21,7 @@ use crate::{
         },
         widget_group_identity::WidgetGroupFamily,
     },
-    widgets::latest_snapshot::LatestSnapshot,
+    widgets::subscribed_snapshot::SubscribedSnapshot,
 };
 
 pub const TICK: Duration = Duration::from_secs(1);
@@ -41,9 +41,9 @@ impl From<ClockTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct ClockGroup {
-    time: LatestSnapshot<LocalTime>,
-    date: LatestSnapshot<LocalDate>,
-    zone_times: Vec<(Tz, LatestSnapshot<ZoneTime>)>,
+    time: SubscribedSnapshot<LocalTime>,
+    date: SubscribedSnapshot<LocalDate>,
+    zone_times: Vec<(Tz, SubscribedSnapshot<ZoneTime>)>,
     expansion: WidgetGroupExpansion,
 }
 
@@ -106,19 +106,19 @@ impl ClockGroup {
         }
     }
 
-    fn zone_time_mut(&mut self, zone: Tz) -> &mut LatestSnapshot<ZoneTime> {
+    fn zone_time_mut(&mut self, zone: Tz) -> &mut SubscribedSnapshot<ZoneTime> {
         let position = self
             .zone_times
             .iter()
             .position(|(known, _)| *known == zone)
             .unwrap_or_else(|| {
-                self.zone_times.push((zone, LatestSnapshot::default()));
+                self.zone_times.push((zone, SubscribedSnapshot::default()));
                 self.zone_times.len() - 1
             });
         &mut self.zone_times[position].1
     }
 
-    fn zone_time(&self, zone: Tz) -> Option<&LatestSnapshot<ZoneTime>> {
+    fn zone_time(&self, zone: Tz) -> Option<&SubscribedSnapshot<ZoneTime>> {
         self.zone_times
             .iter()
             .find(|(known, _)| *known == zone)

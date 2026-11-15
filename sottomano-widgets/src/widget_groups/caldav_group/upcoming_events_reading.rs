@@ -238,7 +238,7 @@ mod tests {
         },
         hover_cards::hover_card_body::{HoverCardBody, Section},
         widget_groups::caldav_group::CaldavTarget,
-        widgets::latest_snapshot::LatestSnapshot,
+        widgets::subscribed_snapshot::SubscribedSnapshot,
     };
 
     fn event_list_without_events(failed_subscription_names: Vec<String>) -> UpcomingEventList {
@@ -252,7 +252,7 @@ mod tests {
 
     #[test]
     fn events_awaiting_their_first_snapshot_show_a_pending_reading() {
-        let pending_events = LatestSnapshot::<UpcomingEventList>::default();
+        let pending_events = SubscribedSnapshot::<UpcomingEventList>::default();
         assert!(pending_events.hover_card(Clock::real()).is_none());
         assert!(
             pending_events

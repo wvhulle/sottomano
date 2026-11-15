@@ -38,7 +38,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        latest_snapshot::{CommandOutcome, HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{CommandOutcome, HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
     },
 };
@@ -60,7 +60,7 @@ impl From<MonitorTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct MonitorGroup {
-    backlights: LatestSnapshot<Vec<Backlight>, HidesFetchFailures>,
+    backlights: SubscribedSnapshot<Vec<Backlight>, HidesFetchFailures>,
     sliders: BTreeMap<String, SliderControl>,
     clight: ToggleControl<AutoBrightness>,
     expansion: WidgetGroupExpansion,

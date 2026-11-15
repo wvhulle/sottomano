@@ -31,7 +31,7 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
@@ -184,7 +184,7 @@ impl ContainerServiceSwitch {
 
 #[derive(Default)]
 pub struct NspawnContainersGroup {
-    listing: LatestSnapshot<NspawnContainersReadout, HidesFetchFailures>,
+    listing: SubscribedSnapshot<NspawnContainersReadout, HidesFetchFailures>,
     service_switches: BTreeMap<String, ContainerServiceSwitch>,
     expansion: WidgetGroupExpansion,
 }

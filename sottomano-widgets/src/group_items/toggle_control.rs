@@ -26,7 +26,7 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        latest_snapshot::{CommandOutcome, LatestSnapshot},
+        subscribed_snapshot::{CommandOutcome, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
     },
 };
@@ -153,13 +153,13 @@ pub trait ToggleableSource: SnapshotSource + GroupItemReading {
 }
 
 pub struct ToggleControl<S: ToggleableSource> {
-    reading: LatestSnapshot<S>,
+    reading: SubscribedSnapshot<S>,
 }
 
 impl<S: ToggleableSource> Default for ToggleControl<S> {
     fn default() -> Self {
         Self {
-            reading: LatestSnapshot::default(),
+            reading: SubscribedSnapshot::default(),
         }
     }
 }

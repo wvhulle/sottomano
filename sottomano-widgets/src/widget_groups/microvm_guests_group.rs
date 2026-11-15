@@ -38,7 +38,7 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -195,10 +195,10 @@ impl GroupItemReading for MicrovmGuestRow<'_> {
 
 #[derive(Default)]
 pub struct MicrovmGuestsGroup {
-    probe: LatestSnapshot<MicrovmProbe, HidesFetchFailures>,
-    listings: LatestSnapshot<MicrovmGuestListings, HidesFetchFailures>,
-    detail: LatestSnapshot<MicrovmGuests, HidesFetchFailures>,
-    units: LatestSnapshot<MicrovmUnits, HidesFetchFailures>,
+    probe: SubscribedSnapshot<MicrovmProbe, HidesFetchFailures>,
+    listings: SubscribedSnapshot<MicrovmGuestListings, HidesFetchFailures>,
+    detail: SubscribedSnapshot<MicrovmGuests, HidesFetchFailures>,
+    units: SubscribedSnapshot<MicrovmUnits, HidesFetchFailures>,
     unit_switches: BTreeMap<String, UnitSwitch>,
     expansion: WidgetGroupExpansion,
 }

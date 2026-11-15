@@ -35,7 +35,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        latest_snapshot::LatestSnapshot,
+        subscribed_snapshot::SubscribedSnapshot,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -60,7 +60,7 @@ impl From<ColorTemperatureTarget> for HoverTarget {
 }
 
 pub struct ColorTemperatureGroup {
-    gamma: LatestSnapshot<ColorTemperature>,
+    gamma: SubscribedSnapshot<ColorTemperature>,
     dim: SliderControl,
     warmth: SliderControl,
     auto: UnitSwitch,
@@ -86,7 +86,7 @@ impl ColorTemperatureGroup {
     #[must_use]
     pub fn new(unit: String) -> Self {
         Self {
-            gamma: LatestSnapshot::default(),
+            gamma: SubscribedSnapshot::default(),
             dim: SliderControl::new(
                 "Screen dimming",
                 PERCENT,

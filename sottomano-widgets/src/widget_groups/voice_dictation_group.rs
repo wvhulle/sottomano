@@ -50,7 +50,7 @@ use crate::{
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
-        latest_snapshot::{HidesFailuresAfterSuccess, LatestSnapshot},
+        subscribed_snapshot::{HidesFailuresAfterSuccess, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
     },
 };
@@ -85,11 +85,11 @@ impl From<VoiceDictationTarget> for HoverTarget {
 }
 
 pub struct VoiceDictationGroup {
-    interface_mismatch: LatestSnapshot<NotulistInterfaceMismatch, HidesFailuresAfterSuccess>,
-    dictation: LatestSnapshot<NotulistDictation, HidesFailuresAfterSuccess>,
-    engine: LatestSnapshot<NotulistEngine, HidesFailuresAfterSuccess>,
-    pipeline: LatestSnapshot<NotulistPipeline, HidesFailuresAfterSuccess>,
-    output_problems: LatestSnapshot<NotulistOutputProblems, HidesFailuresAfterSuccess>,
+    interface_mismatch: SubscribedSnapshot<NotulistInterfaceMismatch, HidesFailuresAfterSuccess>,
+    dictation: SubscribedSnapshot<NotulistDictation, HidesFailuresAfterSuccess>,
+    engine: SubscribedSnapshot<NotulistEngine, HidesFailuresAfterSuccess>,
+    pipeline: SubscribedSnapshot<NotulistPipeline, HidesFailuresAfterSuccess>,
+    output_problems: SubscribedSnapshot<NotulistOutputProblems, HidesFailuresAfterSuccess>,
     model_card: HoverFetchedSnapshot<HuggingFaceModelCard>,
     runtime: UnitSwitch,
     expansion: WidgetGroupExpansion,
@@ -128,11 +128,11 @@ impl VoiceDictationGroup {
             unit_name: DICTATION_UNIT.to_owned(),
         };
         Self {
-            interface_mismatch: LatestSnapshot::default(),
-            dictation: LatestSnapshot::default(),
-            engine: LatestSnapshot::default(),
-            pipeline: LatestSnapshot::default(),
-            output_problems: LatestSnapshot::default(),
+            interface_mismatch: SubscribedSnapshot::default(),
+            dictation: SubscribedSnapshot::default(),
+            engine: SubscribedSnapshot::default(),
+            pipeline: SubscribedSnapshot::default(),
+            output_problems: SubscribedSnapshot::default(),
             model_card: HoverFetchedSnapshot::default(),
             runtime: UnitSwitch::new(dictation_unit, SPEECH_RUNTIME),
             expansion: WidgetGroupExpansion::default(),

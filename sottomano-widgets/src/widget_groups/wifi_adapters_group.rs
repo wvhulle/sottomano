@@ -42,7 +42,7 @@ use crate::{
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
     },
 };
 
@@ -95,9 +95,9 @@ pub enum WifiAdaptersInteraction {
 
 #[derive(Default)]
 pub struct WifiAdaptersGroup {
-    wifi: LatestSnapshot<Wifi, HidesFetchFailures>,
+    wifi: SubscribedSnapshot<Wifi, HidesFetchFailures>,
     wifi_details: HoverFetchedSnapshot<WifiDetails>,
-    gateway_latencies: LatestSnapshot<GatewayLatencies, HidesFetchFailures>,
+    gateway_latencies: SubscribedSnapshot<GatewayLatencies, HidesFetchFailures>,
     expansions: KeyedExpansions<String>,
 }
 

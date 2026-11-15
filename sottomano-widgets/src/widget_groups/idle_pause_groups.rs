@@ -47,7 +47,7 @@ use crate::{
             ActionTrigger, performed_idle_action_edges,
             timer::{ActionAvailability, AvailabilityChange, IdleTimer, TimerChange},
         },
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
     },
 };
@@ -74,8 +74,8 @@ pub struct IdlePauseGroups {
     power_down: IdlePause,
     quiet_screen_off: Option<Duration>,
     idle_watcher: Option<task::Handle>,
-    sleep_obstacles: LatestSnapshot<SleepObstacles, HidesFetchFailures>,
-    idle_inhibitors: LatestSnapshot<ScreenSaverInhibitors, HidesFetchFailures>,
+    sleep_obstacles: SubscribedSnapshot<SleepObstacles, HidesFetchFailures>,
+    idle_inhibitors: SubscribedSnapshot<ScreenSaverInhibitors, HidesFetchFailures>,
     pause_blockers: Vec<PauseBlocker>,
 }
 
@@ -104,8 +104,8 @@ impl Default for IdlePauseGroups {
             power_down: IdlePause::new("Power-down timeout", IdleAction::PowerOff),
             quiet_screen_off: None,
             idle_watcher: None,
-            sleep_obstacles: LatestSnapshot::default(),
-            idle_inhibitors: LatestSnapshot::default(),
+            sleep_obstacles: SubscribedSnapshot::default(),
+            idle_inhibitors: SubscribedSnapshot::default(),
             pause_blockers: Vec::new(),
         }
     }

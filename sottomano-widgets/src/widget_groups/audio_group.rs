@@ -37,7 +37,7 @@ use crate::{
         widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
-        latest_snapshot::LatestSnapshot,
+        subscribed_snapshot::SubscribedSnapshot,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -87,7 +87,7 @@ impl ControlKind {
 }
 
 pub struct AudioGroup {
-    state: LatestSnapshot<AudioState>,
+    state: SubscribedSnapshot<AudioState>,
     commands: Option<Commands>,
     sink_control: SliderControl,
     source_control: SliderControl,
@@ -97,7 +97,7 @@ pub struct AudioGroup {
 impl Default for AudioGroup {
     fn default() -> Self {
         Self {
-            state: LatestSnapshot::default(),
+            state: SubscribedSnapshot::default(),
             commands: None,
             expansion: WidgetGroupExpansion::default(),
             sink_control: SliderControl::new(

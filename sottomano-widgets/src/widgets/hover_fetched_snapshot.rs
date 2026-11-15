@@ -315,7 +315,7 @@ mod tests {
 
     use super::*;
     use crate::hover_cards::hover_card_body::{
-        Heading, SectionBody, hover_card_source_delivery::SectionsDeliveryState,
+        Heading, SectionBody, hover_card_source_delivery::SourceDelivery,
     };
 
     #[derive(Debug, Clone, PartialEq)]
@@ -374,7 +374,7 @@ mod tests {
         let _ = hover.start_hover_fetch(window, |_| (), &Config::default(), clock);
     }
 
-    fn delivery_state(hover: &HoverFetchedSnapshot<CountedSnapshot>) -> SectionsDeliveryState {
+    fn delivery_state(hover: &HoverFetchedSnapshot<CountedSnapshot>) -> SourceDelivery {
         hover
             .sections_described_by(|_| vec![Section::note("counted")])
             .unwrap()
@@ -388,7 +388,7 @@ mod tests {
         hovered_at(&mut hover, 1, timeline.at(0));
         assert_eq!(
             delivery_state(&hover),
-            SectionsDeliveryState::AwaitingDelivery
+            SourceDelivery::AwaitingDelivery
         );
         assert!(hover.reading().is_none());
         let seeded = hover.sections_described_by(|_| Vec::new()).unwrap();
@@ -411,7 +411,7 @@ mod tests {
         assert_eq!(hover.reading(), Some(&CountedSnapshot(4)));
         assert_eq!(
             delivery_state(&hover),
-            SectionsDeliveryState::Delivered {
+            SourceDelivery::Delivered {
                 delivery_timing: DeliveryTiming::PeriodicPolling {
                     poll_period: POLL_PERIOD,
                     delivered_at: timeline.at(0).instant,
@@ -431,7 +431,7 @@ mod tests {
         assert_eq!(hover.reading(), Some(&CountedSnapshot(4)));
         assert_eq!(
             delivery_state(&hover),
-            SectionsDeliveryState::AwaitingDelivery
+            SourceDelivery::AwaitingDelivery
         );
     }
 
@@ -446,7 +446,7 @@ mod tests {
         assert!(hover.reading().is_none());
         assert_eq!(
             delivery_state(&hover),
-            SectionsDeliveryState::AwaitingDelivery
+            SourceDelivery::AwaitingDelivery
         );
     }
 

@@ -52,7 +52,7 @@ use crate::{
         context_menu::context_menu,
         icon_glyph::IconGlyph,
         icon_handle::PixmapHandles,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
         shared_metrics::ACCENT_STROKE_PX,
     },
@@ -60,7 +60,7 @@ use crate::{
 
 #[derive(Default)]
 pub struct TrayGroup {
-    items: LatestSnapshot<Vec<TrayItem>, HidesFetchFailures>,
+    items: SubscribedSnapshot<Vec<TrayItem>, HidesFetchFailures>,
     pixmap_handles: PixmapHandles,
     host: Option<TrayHost>,
     open_submenus: HashSet<i32>,

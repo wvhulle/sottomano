@@ -46,7 +46,7 @@ use crate::{
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
     },
 };
 
@@ -69,11 +69,11 @@ impl From<ComputeTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct ComputeGroup {
-    cpu_load: LatestSnapshot<CpuUsage>,
-    cpu_clock: LatestSnapshot<CpuClock>,
-    cpu_temperature: LatestSnapshot<Temperature>,
-    cpu_power_draw: LatestSnapshot<CpuPower>,
-    host_hardware: LatestSnapshot<HostHardware, HidesFetchFailures>,
+    cpu_load: SubscribedSnapshot<CpuUsage>,
+    cpu_clock: SubscribedSnapshot<CpuClock>,
+    cpu_temperature: SubscribedSnapshot<Temperature>,
+    cpu_power_draw: SubscribedSnapshot<CpuPower>,
+    host_hardware: SubscribedSnapshot<HostHardware, HidesFetchFailures>,
     x3d_cache_preference: ToggleControl<X3dCachePreference>,
     core_loads: HoverFetchedSnapshot<CpuCoreLoads>,
     cpu_busy_processes: HoverFetchedSnapshot<CpuBusyProcesses>,

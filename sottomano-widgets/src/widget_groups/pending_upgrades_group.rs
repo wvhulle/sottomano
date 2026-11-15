@@ -30,7 +30,7 @@ use crate::{
         },
     },
     widgets::{
-        icon_glyph::IconGlyph, latest_snapshot::LatestSnapshot, localized_quantities::Quantity,
+        icon_glyph::IconGlyph, subscribed_snapshot::SubscribedSnapshot, localized_quantities::Quantity,
         phosphor::Phosphor, value_cells::LabeledValue,
     },
 };
@@ -49,7 +49,7 @@ impl From<PendingUpgradesTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct PendingUpgradesGroup {
-    firmware: LatestSnapshot<Vec<FirmwareUpgrade>>,
+    firmware: SubscribedSnapshot<Vec<FirmwareUpgrade>>,
     expansion: WidgetGroupExpansion,
 }
 

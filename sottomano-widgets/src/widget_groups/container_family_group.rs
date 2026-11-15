@@ -28,7 +28,7 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         value_cells::LabeledValue,
     },
 };
@@ -97,18 +97,18 @@ pub trait ContainerFamily: Debug + Clone + Sized + 'static {
 }
 
 pub struct ContainerFamilyGroup<Family: ContainerFamily> {
-    probe: LatestSnapshot<Family::Probe, HidesFetchFailures>,
-    listings: LatestSnapshot<Family::Listings, HidesFetchFailures>,
-    detail: LatestSnapshot<Family::Detail, HidesFetchFailures>,
+    probe: SubscribedSnapshot<Family::Probe, HidesFetchFailures>,
+    listings: SubscribedSnapshot<Family::Listings, HidesFetchFailures>,
+    detail: SubscribedSnapshot<Family::Detail, HidesFetchFailures>,
     expansion: WidgetGroupExpansion,
 }
 
 impl<Family: ContainerFamily> Default for ContainerFamilyGroup<Family> {
     fn default() -> Self {
         Self {
-            probe: LatestSnapshot::default(),
-            listings: LatestSnapshot::default(),
-            detail: LatestSnapshot::default(),
+            probe: SubscribedSnapshot::default(),
+            listings: SubscribedSnapshot::default(),
+            detail: SubscribedSnapshot::default(),
             expansion: WidgetGroupExpansion::default(),
         }
     }

@@ -38,7 +38,7 @@ use crate::{
     widgets::{
         discovered_systemd_services::{DiscoveredSystemdServices, ScopedServiceCommands},
         icon_glyph::IconGlyph,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        subscribed_snapshot::{HidesFetchFailures, SubscribedSnapshot},
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
@@ -107,14 +107,14 @@ impl GroupItemReading for UnreadableEngineRow<'_> {
 
 struct PodmanEngineReading<'a> {
     engine: &'a DiscoveredPodmanEngine,
-    reading: &'a LatestSnapshot<EngineReadout, HidesFetchFailures>,
+    reading: &'a SubscribedSnapshot<EngineReadout, HidesFetchFailures>,
 }
 
 #[derive(Default)]
 pub struct PodmanEnginesGroup {
     services: DiscoveredSystemdServices,
     engines: Vec<DiscoveredPodmanEngine>,
-    readouts: BTreeMap<PathBuf, LatestSnapshot<EngineReadout, HidesFetchFailures>>,
+    readouts: BTreeMap<PathBuf, SubscribedSnapshot<EngineReadout, HidesFetchFailures>>,
     expansion: WidgetGroupExpansion,
 }
 
@@ -246,7 +246,7 @@ impl PodmanEnginesGroup {
             let Some(readout) = self
                 .readouts
                 .get(&engine.socket_path)
-                .and_then(LatestSnapshot::get)
+                .and_then(SubscribedSnapshot::get)
             else {
                 continue;
             };
