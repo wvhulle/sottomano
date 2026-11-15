@@ -9,6 +9,7 @@ use futures::Stream;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    container_family_snapshots::{FamilyDetails, FamilyListings},
     delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::{
         procfs_process_scan::{program_stem, readable_text, scan_processes},
@@ -55,12 +56,7 @@ pub struct VmwareMachineListing {
     pub configuration_file: PathBuf,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VmwareMachineListings {
-    pub listings: Vec<VmwareMachineListing>,
-}
-
-impl SnapshotSource for VmwareMachineListings {
+impl SnapshotSource for FamilyListings<VmwareMachineListing> {
     type Error = Error;
     type StreamInputs = ();
 
@@ -73,7 +69,7 @@ impl SnapshotSource for VmwareMachineListings {
     }
 }
 
-fn named_machines() -> Result<VmwareMachineListings, Error> {
+fn named_machines() -> Result<FamilyListings<VmwareMachineListing>, Error> {
     let process_scan =
         scan_processes(|scanned| program_stem(&scanned.command_line) == Some(VMX_PROGRAM))
             .ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
@@ -90,14 +86,12 @@ fn named_machines() -> Result<VmwareMachineListings, Error> {
         })
         .collect();
     listings.sort_by(|first, second| first.machine_name.cmp(&second.machine_name));
-    Ok(VmwareMachineListings { listings })
+    Ok(FamilyListings { listings })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VmwareMachine {
-    pub pid: i32,
-    pub machine_name: String,
-    pub configuration_file: PathBuf,
+    pub listing: VmwareMachineListing,
     pub guest_os: Option<String>,
     pub guest_memory: Option<ByteSize>,
     pub guest_cores: Option<u32>,
@@ -105,12 +99,7 @@ pub struct VmwareMachine {
     pub memory_in_use: ByteSize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VmwareMachines {
-    pub machines: Vec<VmwareMachine>,
-}
-
-impl SnapshotSource for VmwareMachines {
+impl SnapshotSource for FamilyDetails<VmwareMachine> {
     type Error = Error;
     type StreamInputs = ();
 
@@ -150,11 +139,11 @@ fn file_stem_text(configuration_file: &Path) -> String {
         .map_or_else(String::new, |file_stem| file_stem.display().to_string())
 }
 
-fn scanned_machines() -> Result<VmwareMachines, Error> {
+fn scanned_machines() -> Result<FamilyDetails<VmwareMachine>, Error> {
     let process_scan =
         scan_processes(|scanned| program_stem(&scanned.command_line) == Some(VMX_PROGRAM))
             .ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
-    let mut machines: Vec<VmwareMachine> = process_scan
+    let mut details: Vec<VmwareMachine> = process_scan
         .matched_processes
         .iter()
         .filter_map(|scanned| {
@@ -163,11 +152,14 @@ fn scanned_machines() -> Result<VmwareMachines, Error> {
                 .map(|vmx_text| parsed_vmx_entries(&vmx_text))
                 .unwrap_or_default();
             Some(VmwareMachine {
-                pid: scanned.pid,
-                machine_name: vmx_entries
-                    .get("displayname")
-                    .cloned()
-                    .unwrap_or_else(|| file_stem_text(&configuration_file)),
+                listing: VmwareMachineListing {
+                    pid: scanned.pid,
+                    machine_name: vmx_entries
+                        .get("displayname")
+                        .cloned()
+                        .unwrap_or_else(|| file_stem_text(&configuration_file)),
+                    configuration_file: configuration_file.clone(),
+                },
                 guest_os: vmx_entries.get("guestos").cloned(),
                 guest_memory: vmx_entries
                     .get("memsize")
@@ -202,12 +194,11 @@ fn scanned_machines() -> Result<VmwareMachines, Error> {
                         .tree_totals(scanned.pid)
                         .resident_bytes,
                 ),
-                configuration_file,
             })
         })
         .collect();
-    machines.sort_by(|first, second| first.machine_name.cmp(&second.machine_name));
-    Ok(VmwareMachines { machines })
+    details.sort_by(|first, second| first.listing.machine_name.cmp(&second.listing.machine_name));
+    Ok(FamilyDetails { details })
 }
 
 #[cfg(test)]

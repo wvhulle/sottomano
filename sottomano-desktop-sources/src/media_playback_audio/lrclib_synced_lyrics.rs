@@ -5,8 +5,8 @@ use serde::Deserialize;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
-    system_protocol_clients::http_json_client,
+    network_connectivity::internet_connectivity_gate,
+    system_protocol_clients::{dbus_desktop_buses::OnBus, http_json_client},
 };
 
 const LRCLIB_GET_API: &str = "https://lrclib.net/api/get";
@@ -431,14 +431,14 @@ async fn search_track_lyrics(query: &LyricsQuery) -> Result<TrackLyrics, http_js
 
 impl SnapshotSource for TrackLyrics {
     type Error = http_json_client::Error;
-    type StreamInputs = OnlineSourceInputs<LyricsQuery>;
+    type StreamInputs = OnBus<LyricsQuery>;
 
     const NAME: &'static str = "Lyrics";
 
     fn delivery_stream(
-        OnlineSourceInputs {
+        OnBus {
             buses,
-            source_inputs: query,
+            inputs: query,
         }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         internet_connectivity_gate::while_online(buses, move || {

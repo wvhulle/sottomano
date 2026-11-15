@@ -20,7 +20,7 @@ use crate::{
         working_time_forecast::{CalendarSpan, SpendPacing, WorkingTime},
     },
     delivery_cadence_drivers::PeriodicPolling,
-    network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
+    system_protocol_clients::dbus_desktop_buses::OnBus,
 };
 
 #[derive(Deserialize)]
@@ -105,7 +105,7 @@ impl From<Organization> for ClaudeOrganization {
 
 impl SnapshotSource for ClaudeOrganization {
     type Error = Error;
-    type StreamInputs = OnlineSourceInputs<PathBuf>;
+    type StreamInputs = OnBus<PathBuf>;
 
     const NAME: &'static str = "Claude organization";
 
@@ -131,22 +131,22 @@ impl ClaudeOrganization {
 
 impl SnapshotSource for ClaudeEnterpriseSpend {
     type Error = Error;
-    type StreamInputs = OnlineSourceInputs<ClaudeEnterpriseAccount>;
+    type StreamInputs = OnBus<ClaudeEnterpriseAccount>;
 
     const NAME: &'static str = "Enterprise credit spend";
 
     fn delivery_stream(
-        OnlineSourceInputs {
+        OnBus {
             buses,
-            source_inputs: account,
+            inputs: account,
         }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let working_time = account.working_time;
         login_polls(
             PeriodicPolling::every(Duration::from_mins(5)),
-            OnlineSourceInputs {
+            OnBus {
                 buses,
-                source_inputs: account.credentials,
+                inputs: account.credentials,
             },
             LoginKind::Enterprise,
             move |key| Self::poll(key, working_time.clone()),

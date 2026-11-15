@@ -1,13 +1,14 @@
 use std::borrow::Cow;
 
 use iced::{Subscription, Task};
-use sottomano_desktop_sinks::network_connectivity::network_manager_activations::switch_wireguard;
+use sottomano_desktop_sinks::network_connectivity::network_manager_activations::switch_nm_connection;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    network_connectivity::wireguard_tunnels::{
-        Tunnel, TunnelAddress, TunnelOnBus, TunnelRouting, Wireguard, WireguardSwitch,
+    network_connectivity::{
+        network_manager_proxies::NmConnectionSwitch,
+        wireguard_tunnels::{Tunnel, TunnelAddress, TunnelRouting, Wireguard},
     },
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
 use sottomano_toml_config::Config;
 
@@ -60,7 +61,7 @@ pub enum WireguardTunnelsMessage {
 #[derive(Debug, Clone)]
 pub enum WireguardTunnelsInteraction {
     Expansion(WidgetGroupExpansionMessage),
-    SwitchTunnel(WireguardSwitch),
+    SwitchTunnel(NmConnectionSwitch),
 }
 
 impl WireguardTunnelsGroup {
@@ -101,7 +102,7 @@ impl WireguardTunnelsGroup {
             WireguardTunnelsMessage::Interaction(WireguardTunnelsInteraction::SwitchTunnel(
                 wireguard_switch,
             )) => {
-                return Task::future(switch_wireguard(wireguard_switch)).discard();
+                return Task::future(switch_nm_connection(wireguard_switch)).discard();
             }
         }
         Task::none()
@@ -119,9 +120,9 @@ impl WireguardTunnelsGroup {
             return Task::none();
         };
         self.tunnel_address.start_hover_fetch(
-            TunnelOnBus {
+            OnBus {
                 buses: buses.clone(),
-                tunnel: target.interface.to_string(),
+                inputs: target.interface.to_string(),
             },
             WireguardTunnelsMessage::TunnelAddressFetched,
             config,

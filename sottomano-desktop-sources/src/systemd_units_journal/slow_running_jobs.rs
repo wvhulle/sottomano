@@ -4,14 +4,14 @@ use futures::{Stream, StreamExt, future::join_all};
 use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{
-    JobRow, ManagerProxy, ServiceProxy, SystemdOnBus, SystemdUnitScope, manager_signal,
-    state_changed_at,
+    JobRow, ManagerProxy, ServiceProxy, SystemdUnitScope, manager_signal, state_changed_at,
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::{ChangeTriggerStreams, RereadSchedule, SnapshotDeliveryStreams},
     system_protocol_clients::{
-        dbus_change_signals::change_triggers, protocol_peer_reconnects::subscribed,
+        dbus_change_signals::change_triggers, dbus_desktop_buses::OnBus,
+        protocol_peer_reconnects::subscribed,
     },
 };
 
@@ -47,7 +47,7 @@ impl SlowJobs {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SlowJobsWatch {
-    pub systemd: SystemdOnBus,
+    pub systemd: OnBus<SystemdUnitScope>,
     pub slow_after: Duration,
 }
 
@@ -58,7 +58,7 @@ impl SnapshotSource for SlowJobs {
     const NAME: &'static str = "Slow systemd jobs";
 
     fn delivery_stream(watch: SlowJobsWatch) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let scope = watch.systemd.scope;
+        let scope = watch.systemd.inputs;
         let slow_after = watch.slow_after;
         subscribed(watch.systemd.connection(), move |connection| {
             watch_running_jobs(connection, slow_after)

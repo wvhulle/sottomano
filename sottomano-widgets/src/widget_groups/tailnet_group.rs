@@ -7,7 +7,6 @@ use sottomano_desktop_sinks::network_connectivity::tailscale_cli_switches::{
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
-        internet_connectivity_gate::OnlineSourceInputs,
         tailscale_exit_nodes::{
             ExitNodeChoices, ExitNodeControl, ExitNodeLanAccess, ExitNodeOption, ExitRoutingSwitch,
             TailscaleExitNodes,
@@ -18,7 +17,7 @@ use sottomano_desktop_sources::{
             ExitNodeUse, ExitOfferControl, ExitOfferSwitch, Tailnet, Tailscale, TailscaleSwitch,
         },
     },
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
 use sottomano_toml_config::Config;
 
@@ -238,9 +237,9 @@ impl TailnetGroup {
                     return Task::none();
                 };
                 policy_file.start_hover_fetch(
-                    OnlineSourceInputs {
+                    OnBus {
                         buses: buses.clone(),
-                        source_inputs: token_path.clone(),
+                        inputs: token_path.clone(),
                     },
                     TailnetMessage::PolicyFileFetched,
                     config,

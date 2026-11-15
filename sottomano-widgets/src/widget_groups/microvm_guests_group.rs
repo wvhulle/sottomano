@@ -5,10 +5,11 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sinks::microvm_guests::press_guest_power_button;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    container_family_snapshots::{FamilyDetails, FamilyListings},
     container_run_state::ContainerRunState,
     microvm_guests::{
-        MicrovmGuest, MicrovmGuestListing, MicrovmGuestListings, MicrovmGuests, MicrovmProbe,
-        MicrovmUnit, MicrovmUnits, api_socket_of, hypervisor_command_lines::MicrovmHypervisor,
+        MicrovmGuest, MicrovmGuestListing, MicrovmProbe, MicrovmUnit, MicrovmUnits, api_socket_of,
+        hypervisor_command_lines::MicrovmHypervisor,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope, unit_active_state::UnitActivity},
@@ -165,14 +166,14 @@ impl MicrovmGuestRow<'_> {
                 api_socket.display().to_string(),
             ));
         }
-        detail_entries.push(LabeledValue::new("PID", machine.pid.to_string()));
+        detail_entries.push(LabeledValue::new("PID", machine.listing.pid.to_string()));
         detail_entries
     }
 }
 
 impl GroupItemReading for MicrovmGuestRow<'_> {
     fn name(&self) -> Cow<'static, str> {
-        self.machine.machine_name.clone().into()
+        self.machine.listing.machine_name.clone().into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -198,8 +199,8 @@ impl GroupItemReading for MicrovmGuestRow<'_> {
 #[derive(Default)]
 pub struct MicrovmGuestsGroup {
     probe: SubscribedSnapshot<MicrovmProbe>,
-    listings: SubscribedSnapshot<MicrovmGuestListings>,
-    detail: SubscribedSnapshot<MicrovmGuests>,
+    listings: SubscribedSnapshot<FamilyListings<MicrovmGuestListing>>,
+    detail: SubscribedSnapshot<FamilyDetails<MicrovmGuest>>,
     units: SubscribedSnapshot<MicrovmUnits>,
     unit_switches: BTreeMap<String, UnitSwitch>,
     expansion: WidgetGroupExpansion,
@@ -208,8 +209,8 @@ pub struct MicrovmGuestsGroup {
 #[derive(Debug)]
 pub enum MicrovmGuestsMessage {
     Probe(SnapshotDelivery<MicrovmProbe>),
-    Listings(SnapshotDelivery<MicrovmGuestListings>),
-    Machines(SnapshotDelivery<MicrovmGuests>),
+    Listings(SnapshotDelivery<FamilyListings<MicrovmGuestListing>>),
+    Machines(SnapshotDelivery<FamilyDetails<MicrovmGuest>>),
     Units(SnapshotDelivery<MicrovmUnits>),
     Switch(String, UnitSwitchMessage),
     PowerButtonRefused(String),
@@ -251,10 +252,10 @@ impl MicrovmGuestsGroup {
             demand.while_rows_shown(unit_switch_subscriptions),
             snapshot_subscription::<MicrovmProbe>(()).map(MicrovmGuestsMessage::Probe),
             demand
-                .while_face_shown(snapshot_subscription::<MicrovmGuestListings>(()))
+                .while_face_shown(snapshot_subscription::<FamilyListings<MicrovmGuestListing>>(()))
                 .map(MicrovmGuestsMessage::Listings),
             demand
-                .while_rows_shown(snapshot_subscription::<MicrovmGuests>(()))
+                .while_rows_shown(snapshot_subscription::<FamilyDetails<MicrovmGuest>>(()))
                 .map(MicrovmGuestsMessage::Machines),
         ])
     }
@@ -365,7 +366,7 @@ impl MicrovmGuestsGroup {
     fn running_guest_of(&self, unit: &MicrovmUnit) -> Option<&MicrovmGuest> {
         self.detail
             .get()?
-            .machines
+            .details
             .iter()
             .find(|machine| machine.unit_name.as_deref() == Some(unit.unit_name.as_str()))
     }
@@ -390,9 +391,9 @@ impl MicrovmGuestsGroup {
         };
         if let Some(detail) = self.detail.get() {
             return detail
-                .machines
+                .details
                 .iter()
-                .find(|machine| machine.pid == pid)
+                .find(|machine| machine.listing.pid == pid)
                 .map(|machine| {
                     self.detail
                         .hover_card_with(MicrovmGuestRow { machine }.hover_card(clock))
@@ -437,7 +438,9 @@ impl MicrovmGuestsGroup {
         let row = match self.running_guest_of(unit) {
             Some(machine) => GroupItem::reading(
                 MicrovmGuestRow { machine },
-                MicrovmGuestTarget::RunningProcess { pid: machine.pid },
+                MicrovmGuestTarget::RunningProcess {
+                    pid: machine.listing.pid,
+                },
             ),
             None => GroupItem::reading(
                 MicrovmUnitRow {
@@ -469,13 +472,15 @@ impl MicrovmGuestsGroup {
         };
         if let Some(detail) = self.detail.get() {
             return detail
-                .machines
+                .details
                 .iter()
                 .filter(|machine| !managed_by_unit(machine.unit_name.as_deref()))
                 .map(|machine| {
                     let row = GroupItem::reading(
                         MicrovmGuestRow { machine },
-                        MicrovmGuestTarget::RunningProcess { pid: machine.pid },
+                        MicrovmGuestTarget::RunningProcess {
+                            pid: machine.listing.pid,
+                        },
                     );
                     match api_socket_of(machine) {
                         Some(api_socket) => row.on_stop_press(
@@ -525,14 +530,14 @@ impl GroupItemReading for MicrovmGuestsGroup {
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         self.probe
             .get()
-            .map(|probe| format!("{} running", probe.running_guest_processes))
+            .map(|probe| format!("{} running", probe.running_count))
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if self
             .probe
             .get()
-            .is_some_and(|probe| probe.running_guest_processes > 0)
+            .is_some_and(|probe| probe.running_count > 0)
         {
             ReadingDisplayState::On
         } else {
@@ -549,7 +554,7 @@ impl GroupItemReading for MicrovmGuestsGroup {
                     .map(|probe| {
                         vec![LabeledValue::new(
                             "Running guests",
-                            probe.running_guest_processes.to_string(),
+                            probe.running_count.to_string(),
                         )]
                     })
                     .unwrap_or_default(),

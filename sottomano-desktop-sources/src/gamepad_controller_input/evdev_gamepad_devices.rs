@@ -17,7 +17,9 @@ use super::{
     player_indicator_leds::PlayerIndicator,
 };
 use crate::{
+    battery_power_profiles::upower_battery_state::ChargeStatus,
     delivery_cadence_drivers::{ChangeTriggerStreams, ChangeWatchFailure, PeriodicPolling},
+    network_connectivity::hid_sysfs_bluetooth_peripherals::DeviceBattery,
     system_protocol_clients::{
         inotify_directory_changes::{self, WatchTarget},
         sysfs_attribute_reads,
@@ -41,21 +43,34 @@ pub enum GamepadPower {
     Full,
 }
 
+impl From<DeviceBattery> for GamepadPower {
+    fn from(battery: DeviceBattery) -> Self {
+        match battery {
+            DeviceBattery::Unreported => GamepadPower::NoBattery,
+            DeviceBattery::Reported {
+                level_percent,
+                charging: ChargeStatus::Charging,
+            } => GamepadPower::Charging(level_percent),
+            DeviceBattery::Reported {
+                charging: ChargeStatus::Full,
+                ..
+            } => GamepadPower::Full,
+            DeviceBattery::Reported { level_percent, .. } => {
+                GamepadPower::Discharging(level_percent)
+            }
+        }
+    }
+}
+
 impl From<usize> for GamepadPower {
     fn from(slot: usize) -> Self {
-        let supplies = sysfs_attribute_reads::list_dir(format!(
+        sysfs_attribute_reads::list_dir(format!(
             "/sys/class/input/event{slot}/device/device/power_supply"
-        ));
-        let Some(supply) = supplies.first() else {
-            return GamepadPower::NoBattery;
-        };
-        let capacity = sysfs_attribute_reads::read_i64(supply.join("capacity"))
-            .map_or(0, |percent| percent.clamp(0, 100) as u8);
-        match sysfs_attribute_reads::read_trimmed(supply.join("status")).as_deref() {
-            Some("Charging") => GamepadPower::Charging(capacity),
-            Some("Full") => GamepadPower::Full,
-            _ => GamepadPower::Discharging(capacity),
-        }
+        ))
+        .first()
+        .map_or(GamepadPower::NoBattery, |supply| {
+            DeviceBattery::read_power_supply(supply).into()
+        })
     }
 }
 

@@ -1,26 +1,20 @@
 use std::path::Path;
 
-use crate::system_protocol_clients::sysfs_attribute_reads::{
-    list_dir, read_i64, read_trimmed, uevent_field,
+use crate::{
+    battery_power_profiles::upower_battery_state::ChargeStatus,
+    system_protocol_clients::sysfs_attribute_reads::{
+        list_dir, read_i64, read_trimmed, uevent_field,
+    },
 };
 
 const HID_DEVICE_DIRECTORY: &str = "/sys/bus/hid/devices";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ChargingState {
-    Unknown,
-    Charging,
-    Discharging,
-    NotCharging,
-    Full,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceBattery {
     Unreported,
     Reported {
         level_percent: u8,
-        charging: ChargingState,
+        charging: ChargeStatus,
     },
 }
 
@@ -28,18 +22,6 @@ pub enum DeviceBattery {
 pub struct HidPeripheral {
     pub kernel_device: String,
     pub battery: DeviceBattery,
-}
-
-impl From<&str> for ChargingState {
-    fn from(status: &str) -> Self {
-        match status {
-            "Charging" => ChargingState::Charging,
-            "Discharging" => ChargingState::Discharging,
-            "Not charging" => ChargingState::NotCharging,
-            "Full" => ChargingState::Full,
-            _ => ChargingState::Unknown,
-        }
-    }
 }
 
 impl DeviceBattery {
@@ -51,7 +33,8 @@ impl DeviceBattery {
         }
     }
 
-    fn read_power_supply(supply: &Path) -> Self {
+    #[must_use]
+    pub fn read_power_supply(supply: &Path) -> Self {
         let Some(capacity) = read_i64(supply.join("capacity")) else {
             return DeviceBattery::Unreported;
         };
@@ -60,7 +43,7 @@ impl DeviceBattery {
                 .expect("a percentage clamped to 0..=100 fits a byte"),
             charging: read_trimmed(supply.join("status"))
                 .as_deref()
-                .map_or(ChargingState::Unknown, ChargingState::from),
+                .map_or(ChargeStatus::Unreported, ChargeStatus::from),
         }
     }
 
@@ -121,20 +104,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn supply_status_strings_map_to_charging_states() {
-        assert_eq!(
-            ChargingState::from("Not charging"),
-            ChargingState::NotCharging
-        );
-        assert_eq!(ChargingState::from("Charging"), ChargingState::Charging);
-        assert_eq!(ChargingState::from("Unknown"), ChargingState::Unknown);
-    }
-
-    #[test]
     fn a_reported_battery_wins_over_the_fallback() {
         let reported = DeviceBattery::Reported {
             level_percent: 40,
-            charging: ChargingState::Discharging,
+            charging: ChargeStatus::Discharging,
         };
         assert_eq!(reported.or_else(|| DeviceBattery::Unreported), reported);
         assert_eq!(DeviceBattery::Unreported.or_else(|| reported), reported);

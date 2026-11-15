@@ -28,8 +28,9 @@ use crate::{
     delivery_cadence_drivers::{
         PeriodicPolling, SamplingNeed, SnapshotDeliveryStreams, triggered_deliveries_with_recheck,
     },
-    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
+    network_connectivity::internet_connectivity_gate,
     secret_file_reads::read_secret,
+    system_protocol_clients::dbus_desktop_buses::OnBus,
 };
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -135,10 +136,10 @@ pub(super) trait AgendaSnapshotPolling: Send + 'static {
 }
 
 pub(super) fn push_or_poll_deliveries<Poller: AgendaSnapshotPolling>(
-    OnlineSourceInputs {
+    OnBus {
         buses,
-        source_inputs: account,
-    }: OnlineSourceInputs<CaldavAccount>,
+        inputs: account,
+    }: OnBus<CaldavAccount>,
     new_poller: impl Fn(CaldavAccount) -> Poller + Send + 'static,
 ) -> impl Stream<Item = SnapshotDelivery<Poller::Snapshot>> + Send {
     internet_connectivity_gate::while_online(buses, move || {

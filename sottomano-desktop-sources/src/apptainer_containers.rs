@@ -10,6 +10,7 @@ use futures::Stream;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    container_family_snapshots::{FamilyDetails, FamilyListings},
     delivery_cadence_drivers::PeriodicPolling,
     qemu_virtual_machines::procfs_qemu_processes::account_names_by_uid,
     system_protocol_clients::{
@@ -56,12 +57,7 @@ pub struct ApptainerContainerListing {
     pub container_name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ApptainerContainerListings {
-    pub listings: Vec<ApptainerContainerListing>,
-}
-
-impl SnapshotSource for ApptainerContainerListings {
+impl SnapshotSource for FamilyListings<ApptainerContainerListing> {
     type Error = Error;
     type StreamInputs = ();
 
@@ -75,7 +71,7 @@ impl SnapshotSource for ApptainerContainerListings {
     }
 }
 
-fn named_runtime_parents() -> Result<ApptainerContainerListings, Error> {
+fn named_runtime_parents() -> Result<FamilyListings<ApptainerContainerListing>, Error> {
     let process_scan =
         scan_processes(is_runtime_parent).ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
     let listings = process_scan
@@ -87,22 +83,25 @@ fn named_runtime_parents() -> Result<ApptainerContainerListings, Error> {
                 .iter()
                 .find(|scanned| scanned.parent_pid == runtime_parent.pid);
             let image_file = container_process.and_then(|container| image_file_of(container.pid));
-            let container_name = image_file.as_deref().and_then(Path::file_stem).map_or_else(
-                || format!("container {}", runtime_parent.pid),
-                |image_stem| image_stem.display().to_string(),
-            );
             ApptainerContainerListing {
                 runtime_pid: runtime_parent.pid,
-                container_name,
+                container_name: named_after_image(runtime_parent.pid, image_file.as_deref()),
             }
         })
         .collect();
-    Ok(ApptainerContainerListings { listings })
+    Ok(FamilyListings { listings })
+}
+
+fn named_after_image(runtime_pid: i32, image_file: Option<&Path>) -> String {
+    image_file.and_then(Path::file_stem).map_or_else(
+        || format!("container {runtime_pid}"),
+        |image_stem| image_stem.display().to_string(),
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApptainerContainer {
-    pub runtime_pid: i32,
+    pub listing: ApptainerContainerListing,
     pub runtime_title: String,
     pub image_file: Option<PathBuf>,
     pub running_command: Option<String>,
@@ -112,25 +111,7 @@ pub struct ApptainerContainer {
     pub memory_in_use: ByteSize,
 }
 
-impl ApptainerContainer {
-    #[must_use]
-    pub fn shown_name(&self) -> String {
-        self.image_file
-            .as_deref()
-            .and_then(Path::file_stem)
-            .map_or_else(
-                || format!("container {}", self.runtime_pid),
-                |image_stem| image_stem.display().to_string(),
-            )
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ApptainerContainers {
-    pub containers: Vec<ApptainerContainer>,
-}
-
-impl SnapshotSource for ApptainerContainers {
+impl SnapshotSource for FamilyDetails<ApptainerContainer> {
     type Error = Error;
     type StreamInputs = ();
 
@@ -183,7 +164,7 @@ fn image_file_of(container_pid: i32) -> Option<PathBuf> {
     })
 }
 
-fn scanned_containers() -> Result<ApptainerContainers, Error> {
+fn scanned_containers() -> Result<FamilyDetails<ApptainerContainer>, Error> {
     let process_scan =
         scan_processes(is_runtime_parent).ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
     let account_names = if process_scan.matched_processes.is_empty() {
@@ -191,7 +172,7 @@ fn scanned_containers() -> Result<ApptainerContainers, Error> {
     } else {
         account_names_by_uid()
     };
-    let mut containers: Vec<ApptainerContainer> = process_scan
+    let mut details: Vec<ApptainerContainer> = process_scan
         .matched_processes
         .iter()
         .map(|runtime_parent| {
@@ -199,14 +180,18 @@ fn scanned_containers() -> Result<ApptainerContainers, Error> {
                 .all_processes
                 .iter()
                 .find(|scanned| scanned.parent_pid == runtime_parent.pid);
+            let image_file = container_process.and_then(|container| image_file_of(container.pid));
             ApptainerContainer {
-                runtime_pid: runtime_parent.pid,
+                listing: ApptainerContainerListing {
+                    runtime_pid: runtime_parent.pid,
+                    container_name: named_after_image(runtime_parent.pid, image_file.as_deref()),
+                },
                 runtime_title: runtime_parent
                     .command_line
                     .first()
                     .cloned()
                     .unwrap_or_else(|| runtime_parent.command_name.clone()),
-                image_file: container_process.and_then(|container| image_file_of(container.pid)),
+                image_file,
                 running_command: container_process
                     .map(|container| container.command_line.join(" "))
                     .filter(|running_command| !running_command.is_empty()),
@@ -222,17 +207,20 @@ fn scanned_containers() -> Result<ApptainerContainers, Error> {
             }
         })
         .collect();
-    containers.sort_by_key(ApptainerContainer::shown_name);
-    Ok(ApptainerContainers { containers })
+    details.sort_by(|first, second| {
+        first
+            .listing
+            .container_name
+            .cmp(&second.listing.container_name)
+    });
+    Ok(FamilyDetails { details })
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{path::PathBuf, time::SystemTime};
+    use std::path::Path;
 
-    use bytesize::ByteSize;
-
-    use super::{ApptainerContainer, loop_device_backing_files};
+    use super::{loop_device_backing_files, named_after_image};
 
     #[test]
     fn the_root_image_is_found_through_its_loop_device() {
@@ -247,16 +235,10 @@ mod tests {
 
     #[test]
     fn a_container_is_named_after_its_image() {
-        let container = ApptainerContainer {
-            runtime_pid: 5120,
-            runtime_title: "Apptainer runtime parent".to_owned(),
-            image_file: Some(PathBuf::from("/home/user/images/lolcow_latest.sif")),
-            running_command: Some("/bin/bash".to_owned()),
-            owner_uid: 1000,
-            owner_name: Some("user".to_owned()),
-            started_at: SystemTime::UNIX_EPOCH,
-            memory_in_use: ByteSize::mib(12),
-        };
-        assert_eq!(container.shown_name(), "lolcow_latest");
+        assert_eq!(
+            named_after_image(5120, Some(Path::new("/home/user/images/lolcow_latest.sif"))),
+            "lolcow_latest"
+        );
+        assert_eq!(named_after_image(5120, None), "container 5120");
     }
 }

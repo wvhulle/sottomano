@@ -16,12 +16,6 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct OnlineSourceInputs<SourceInputs> {
-    pub buses: DesktopBuses,
-    pub source_inputs: SourceInputs,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InternetUnreachable {
     NetworkingDisabled,

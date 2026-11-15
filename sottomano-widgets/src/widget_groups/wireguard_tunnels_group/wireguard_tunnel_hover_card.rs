@@ -3,9 +3,12 @@ use std::borrow::Cow;
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::{
     SnapshotSource,
-    network_connectivity::wireguard_tunnels::{
-        Peer, PeerEndpoint, PeerLink, PeerTraffic, RouteScope, StatisticsAccess, Tunnel,
-        TunnelAddress, TunnelPhase, TunnelRole, Wireguard, WireguardSwitch,
+    network_connectivity::{
+        network_manager_proxies::NmConnectionSwitch,
+        wireguard_tunnels::{
+            Peer, PeerEndpoint, PeerLink, PeerTraffic, RouteScope, StatisticsAccess, Tunnel,
+            TunnelAddress, TunnelPhase, TunnelRole, Wireguard,
+        },
     },
 };
 use sottomano_toml_config::severity::Severity;
@@ -33,16 +36,16 @@ use crate::{
 pub(super) fn wireguard_tunnel_item<Message: Clone + 'static>(
     tunnel: &Tunnel,
     target: impl Into<HoverTarget>,
-    on_switch: fn(WireguardSwitch) -> Message,
+    on_switch: fn(NmConnectionSwitch) -> Message,
 ) -> GroupItem<'_, Message> {
     let item = GroupItem::reading(tunnel, target);
     match tunnel.switch() {
-        Some(wireguard_switch @ WireguardSwitch::Connect(_)) => item.on_switch_press(
+        Some(wireguard_switch @ NmConnectionSwitch::Connect(_)) => item.on_switch_press(
             SwitchPosition::Off,
             "connect the tunnel",
             on_switch(wireguard_switch),
         ),
-        Some(wireguard_switch @ WireguardSwitch::Disconnect(_)) => item.on_switch_press(
+        Some(wireguard_switch @ NmConnectionSwitch::Disconnect(_)) => item.on_switch_press(
             SwitchPosition::On,
             "disconnect the tunnel",
             on_switch(wireguard_switch),

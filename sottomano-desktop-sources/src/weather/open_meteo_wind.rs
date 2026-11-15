@@ -13,8 +13,8 @@ use super::Error;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
-    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
-    system_protocol_clients::http_json_client,
+    network_connectivity::internet_connectivity_gate,
+    system_protocol_clients::{dbus_desktop_buses::OnBus, http_json_client},
 };
 
 const BEAUFORT_LOWER_BOUNDS_KM_PER_H: [f64; 12] = [
@@ -70,15 +70,12 @@ impl Wind {
 
 impl SnapshotSource for Wind {
     type Error = Error;
-    type StreamInputs = OnlineSourceInputs<GeoCoordinates>;
+    type StreamInputs = OnBus<GeoCoordinates>;
 
     const NAME: &'static str = "Wind";
 
     fn delivery_stream(
-        OnlineSourceInputs {
-            buses,
-            source_inputs: inputs,
-        }: Self::StreamInputs,
+        OnBus { buses, inputs }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         internet_connectivity_gate::while_online(buses, move || {
             PeriodicPolling::every(Duration::from_secs(300))

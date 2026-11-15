@@ -25,8 +25,8 @@ use crate::{
     podman_container_engine::{
         libpod_running_containers::{
             ContainerCiIdentity, ContainerPhase, EngineContainers, EngineListing, EngineReadError,
-            EngineReadout, RunningContainer, StoppedContainer, classified_engine_failure,
-            created_by_ci_runner, parsed_engine_timestamp, phased_containers,
+            RunningContainer, StoppedContainer, classified_engine_failure, created_by_ci_runner,
+            parsed_engine_timestamp, phased_containers, unavailable_when_socket_missing,
         },
         systemd_service_engine_discovery::EngineOwner,
     },
@@ -395,10 +395,10 @@ async fn listed_docker_names(socket_path: &Path) -> Result<DockerEngineListing, 
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct DockerEngineReadout(pub EngineReadout);
+pub struct DockerEngineReadout(pub EngineListing);
 
 impl SnapshotSource for DockerEngineReadout {
-    type Error = http_json_client::Error;
+    type Error = EngineReadError;
     type StreamInputs = PathBuf;
 
     const NAME: &'static str = "Docker containers";
@@ -416,20 +416,17 @@ impl SnapshotSource for DockerEngineReadout {
                     PeriodicPolling::every(DOCKER_POLL_PERIOD),
                     move || {
                         let sampler = sampler.clone();
-                        async move {
-                            let engine_read = sampler.lock().await.sample().await;
-                            Ok(DockerEngineReadout(engine_read.into()))
-                        }
+                        async move { sampler.lock().await.sample().await.map(DockerEngineReadout) }
                     },
-                    |delivered: &Result<Self, http_json_client::Error>| {
-                        delivered
-                            .as_ref()
-                            .map_or(SamplingNeed::KeepSampling, |readout| {
-                                readout.0.sampling_need()
-                            })
+                    |delivered: &Result<Self, EngineReadError>| {
+                        delivered.as_ref().map_or(
+                            SamplingNeed::KeepSampling,
+                            |DockerEngineReadout(listing)| listing.sampling_need(),
+                        )
                     },
                 )
                 .repeats_as_unchanged()
+                .map(unavailable_when_socket_missing)
             },
             || SnapshotDelivery::SourceUnavailable,
         )

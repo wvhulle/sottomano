@@ -11,9 +11,9 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::AvailabilityStreams,
     delivery_cadence_drivers::PeriodicPolling,
-    system_protocol_clients::{dbus_desktop_buses::DesktopBuses, http_json_client},
+    system_protocol_clients::{dbus_desktop_buses::OnBus, http_json_client},
     systemd_units_journal::{
-        ScopedSystemdUnit, SystemdUnitOnBus, SystemdUnitScope, service_commands::ServiceCommand,
+        ScopedSystemdUnit, SystemdUnitScope, service_commands::ServiceCommand,
         unit_active_state::unit_running,
     },
 };
@@ -27,12 +27,6 @@ const DEFAULT_PORT: &str = "8080";
 pub struct LlamaServerUnit {
     pub unit: ScopedSystemdUnit,
     pub endpoint: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct LlamaServerOnBus {
-    pub buses: DesktopBuses,
-    pub server: LlamaServerUnit,
 }
 
 impl LlamaServerUnit {
@@ -292,17 +286,20 @@ async fn fetch_server(endpoint: &str) -> Result<LlamaServer, http_json_client::E
 
 impl SnapshotSource for LlamaServer {
     type Error = http_json_client::Error;
-    type StreamInputs = LlamaServerOnBus;
+    type StreamInputs = OnBus<LlamaServerUnit>;
 
     const NAME: &'static str = "Llama server";
 
     fn delivery_stream(
-        watch: LlamaServerOnBus,
+        watch: OnBus<LlamaServerUnit>,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let LlamaServerOnBus { buses, server } = watch;
-        let running = unit_running(SystemdUnitOnBus {
+        let OnBus {
             buses,
-            unit: server.unit.clone(),
+            inputs: server,
+        } = watch;
+        let running = unit_running(OnBus {
+            buses,
+            inputs: server.unit.clone(),
         });
         running.while_available(
             move || {

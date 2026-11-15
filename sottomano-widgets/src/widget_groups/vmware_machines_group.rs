@@ -2,8 +2,9 @@ use std::{borrow::Cow, path::PathBuf};
 
 use chrono::Locale;
 use sottomano_desktop_sinks::vmware_machines::stop_vmware_machine;
-use sottomano_desktop_sources::vmware_machines::{
-    VmwareMachine, VmwareMachineListing, VmwareMachineListings, VmwareMachineProbe, VmwareMachines,
+use sottomano_desktop_sources::{
+    container_family_snapshots::{FamilyDetails, FamilyListings},
+    vmware_machines::{VmwareMachine, VmwareMachineListing, VmwareMachineProbe},
 };
 
 use crate::{
@@ -79,7 +80,7 @@ pub struct VmwareMachineRow<'a> {
 
 impl GroupItemReading for VmwareMachineRow<'_> {
     fn name(&self) -> Cow<'static, str> {
-        self.machine.machine_name.clone().into()
+        self.machine.listing.machine_name.clone().into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -113,9 +114,9 @@ impl GroupItemReading for VmwareMachineRow<'_> {
         detail_entries.extend([
             LabeledValue::new(
                 "Configuration",
-                machine.configuration_file.display().to_string(),
+                machine.listing.configuration_file.display().to_string(),
             ),
-            LabeledValue::new("PID", machine.pid.to_string()),
+            LabeledValue::new("PID", machine.listing.pid.to_string()),
         ]);
         vec![Section::new("Machine", dictionary_table(detail_entries))]
     }
@@ -130,8 +131,8 @@ pub type VmwareMachinesInteraction = ContainerFamilyInteraction<VmwareFamily>;
 
 impl ContainerFamily for VmwareFamily {
     type Probe = VmwareMachineProbe;
-    type Listings = VmwareMachineListings;
-    type Detail = VmwareMachines;
+    type Listings = FamilyListings<VmwareMachineListing>;
+    type Detail = FamilyDetails<VmwareMachine>;
     type Target = VmwareMachineTarget;
     type PowerRequest = PathBuf;
     type ListingRow<'a> = VmwareMachineListingRow<'a>;
@@ -150,7 +151,7 @@ impl ContainerFamily for VmwareFamily {
     }
 
     fn listing_rows(
-        listings: &VmwareMachineListings,
+        listings: &FamilyListings<VmwareMachineListing>,
     ) -> Vec<FamilyRow<Self, VmwareMachineListingRow<'_>>> {
         listings
             .listings
@@ -163,14 +164,18 @@ impl ContainerFamily for VmwareFamily {
             .collect()
     }
 
-    fn detail_rows(detail: &VmwareMachines) -> Vec<FamilyRow<Self, VmwareMachineRow<'_>>> {
+    fn detail_rows(
+        detail: &FamilyDetails<VmwareMachine>,
+    ) -> Vec<FamilyRow<Self, VmwareMachineRow<'_>>> {
         detail
-            .machines
+            .details
             .iter()
             .map(|machine| FamilyRow {
-                target: VmwareMachineTarget { pid: machine.pid },
+                target: VmwareMachineTarget {
+                    pid: machine.listing.pid,
+                },
                 reading: VmwareMachineRow { machine },
-                power: RowPower::Stoppable(machine.configuration_file.clone()),
+                power: RowPower::Stoppable(machine.listing.configuration_file.clone()),
             })
             .collect()
     }

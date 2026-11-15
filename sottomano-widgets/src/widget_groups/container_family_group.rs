@@ -69,6 +69,10 @@ pub trait ContainerFamily: Debug + Clone + Sized + 'static {
 
     fn detail_rows(detail: &Self::Detail) -> Vec<FamilyRow<Self, Self::DetailRow<'_>>>;
 
+    fn stopped_rows(_listings: &Self::Listings) -> Vec<FamilyRow<Self, Self::ListingRow<'_>>> {
+        Vec::new()
+    }
+
     fn stop(
         request: Self::PowerRequest,
     ) -> impl Future<Output = Result<(), String>> + Send + 'static;
@@ -190,32 +194,50 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
             .unwrap_or_default()
     }
 
+    fn stopped_rows(&self) -> Vec<FamilyRow<Family, Family::ListingRow<'_>>> {
+        self.listings
+            .get()
+            .map(Family::stopped_rows)
+            .unwrap_or_default()
+    }
+
     #[must_use]
     pub fn hover_card_for(&self, target: &Family::Target, clock: Clock) -> Vec<Section> {
         let detail_rows = self.detail_rows();
-        if !detail_rows.is_empty() {
-            return detail_rows
+        let shown_card = if detail_rows.is_empty() {
+            self.listing_rows()
+                .into_iter()
+                .find(|row| row.target == *target)
+                .map(|row| self.listings.hover_card_with(row.reading.hover_card(clock)))
+        } else {
+            detail_rows
                 .into_iter()
                 .find(|row| row.target == *target)
                 .map(|row| self.detail.hover_card_with(row.reading.hover_card(clock)))
-                .unwrap_or_default();
-        }
-        self.listing_rows()
-            .into_iter()
-            .find(|row| row.target == *target)
-            .map(|row| self.listings.hover_card_with(row.reading.hover_card(clock)))
+        };
+        shown_card
+            .or_else(|| {
+                self.stopped_rows()
+                    .into_iter()
+                    .find(|row| row.target == *target)
+                    .map(|row| self.listings.hover_card_with(row.reading.hover_card(clock)))
+            })
             .unwrap_or_default()
     }
 
     fn group_rows(&self) -> Vec<GroupItem<'_, ContainerFamilyInteraction<Family>>> {
         let detail_rows = self.detail_rows();
-        if !detail_rows.is_empty() {
-            return detail_rows.into_iter().map(switchable_item).collect();
-        }
-        self.listing_rows()
-            .into_iter()
-            .map(switchable_item)
-            .collect()
+        let mut group_rows: Vec<GroupItem<'_, ContainerFamilyInteraction<Family>>> =
+            if detail_rows.is_empty() {
+                self.listing_rows()
+                    .into_iter()
+                    .map(switchable_item)
+                    .collect()
+            } else {
+                detail_rows.into_iter().map(switchable_item).collect()
+            };
+        group_rows.extend(self.stopped_rows().into_iter().map(switchable_item));
+        group_rows
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, ContainerFamilyInteraction<Family>> {
@@ -300,12 +322,15 @@ mod tests {
     use bytesize::ByteSize;
     use sottomano_desktop_sources::{
         SnapshotDelivery, SnapshotSource,
+        container_family_snapshots::{FamilyDetails, FamilyListings},
         container_run_state::ContainerRunState,
         delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
-        lxc_containers::{LxcContainerListing, LxcContainerListings},
-        vmware_machines::{
-            VmwareMachine, VmwareMachineListing, VmwareMachineListings, VmwareMachines,
+        lxc_containers::LxcContainerListing,
+        virtualbox_machines::{
+            RegisteredVirtualBoxMachine, VirtualBoxFrontend, VirtualBoxMachine,
+            VirtualBoxMachineListing, VirtualBoxMachineListings,
         },
+        vmware_machines::{VmwareMachine, VmwareMachineListing},
     };
 
     use super::{ContainerFamily, RowPower};
@@ -313,6 +338,9 @@ mod tests {
         clock::Clock,
         widget_groups::{
             lxc_containers_group::LxcFamily,
+            virtualbox_machines_group::{
+                VirtualBoxMachineTarget, VirtualBoxMachinesGroup, VirtualBoxMachinesMessage,
+            },
             vmware_machines_group::{
                 VmwareMachineTarget, VmwareMachinesGroup, VmwareMachinesMessage,
             },
@@ -332,7 +360,7 @@ mod tests {
     fn group_with_listing(clock: Clock) -> VmwareMachinesGroup {
         let mut group = VmwareMachinesGroup::default();
         let _ = group.update(
-            VmwareMachinesMessage::Listings(polled(VmwareMachineListings {
+            VmwareMachinesMessage::Listings(polled(FamilyListings {
                 listings: vec![VmwareMachineListing {
                     pid: LISTED_PID,
                     machine_name: "listed".to_owned(),
@@ -344,12 +372,14 @@ mod tests {
         group
     }
 
-    fn detailed_machines(clock: Clock) -> VmwareMachines {
-        VmwareMachines {
-            machines: vec![VmwareMachine {
-                pid: DETAILED_PID,
-                machine_name: "detailed".to_owned(),
-                configuration_file: PathBuf::from("/vm/detailed.vmx"),
+    fn detailed_machines(clock: Clock) -> FamilyDetails<VmwareMachine> {
+        FamilyDetails {
+            details: vec![VmwareMachine {
+                listing: VmwareMachineListing {
+                    pid: DETAILED_PID,
+                    machine_name: "detailed".to_owned(),
+                    configuration_file: PathBuf::from("/vm/detailed.vmx"),
+                },
                 guest_os: None,
                 guest_memory: None,
                 guest_cores: None,
@@ -394,7 +424,7 @@ mod tests {
 
     #[test]
     fn running_containers_switch_off_and_stopped_ones_switch_on() {
-        let listings = LxcContainerListings {
+        let listings = FamilyListings {
             listings: vec![
                 LxcContainerListing {
                     container_name: "running".to_owned(),
@@ -415,5 +445,51 @@ mod tests {
             })
             .collect();
         assert_eq!(presses, vec!["switch off running", "switch on stopped"]);
+    }
+
+    #[test]
+    fn stopped_machines_follow_the_detailed_running_ones() {
+        let clock = Clock::real();
+        let running_listing = VirtualBoxMachineListing {
+            pid: DETAILED_PID,
+            machine_name: "windows11".to_owned(),
+            machine_reference: "windows11".to_owned(),
+        };
+        let mut group = VirtualBoxMachinesGroup::default();
+        let _ = group.update(
+            VirtualBoxMachinesMessage::Listings(polled(VirtualBoxMachineListings {
+                listings: vec![running_listing.clone()],
+                stopped_machines: vec![RegisteredVirtualBoxMachine {
+                    machine_name: "ubuntu".to_owned(),
+                    machine_uuid: "0b1c2d3e".to_owned(),
+                }],
+            })),
+            clock,
+        );
+        let _ = group.update(
+            VirtualBoxMachinesMessage::Detail(polled(FamilyDetails {
+                details: vec![VirtualBoxMachine {
+                    listing: running_listing,
+                    frontend: VirtualBoxFrontend::Headless,
+                    guest_memory: None,
+                    guest_cores: None,
+                    settings_file: None,
+                    started_at: clock.wall,
+                    memory_in_use: ByteSize::gib(2),
+                }],
+            })),
+            clock,
+        );
+        assert_eq!(group.group_rows().len(), 2);
+        assert!(
+            !group
+                .hover_card_for(
+                    &VirtualBoxMachineTarget::StoppedMachine {
+                        machine_uuid: "0b1c2d3e".into(),
+                    },
+                    clock,
+                )
+                .is_empty()
+        );
     }
 }

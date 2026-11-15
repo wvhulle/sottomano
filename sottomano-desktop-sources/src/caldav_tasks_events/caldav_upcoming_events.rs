@@ -17,7 +17,7 @@ use crate::{
         webcal_feed_expansion::download_feed_events,
     },
     delivery_cadence_drivers::PeriodicPolling,
-    network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
+    system_protocol_clients::dbus_desktop_buses::OnBus,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -207,7 +207,7 @@ impl AgendaSnapshotPolling for UpcomingEventPoller {
 
 impl SnapshotSource for UpcomingEventList {
     type Error = Error;
-    type StreamInputs = OnlineSourceInputs<CaldavAccount>;
+    type StreamInputs = OnBus<CaldavAccount>;
 
     const NAME: &'static str = "Upcoming events";
 

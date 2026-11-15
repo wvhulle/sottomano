@@ -3,8 +3,10 @@ use std::time::Duration;
 use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    container_family_snapshots::FamilyDetails,
+    container_run_state::ContainerRunState,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
-    incus_instances::{DaemonInstance, DaemonInstancesReadout, InstanceDaemon, InstanceKind},
+    incus_instances::{DaemonInstance, DaemonInstanceListing, InstanceDaemon, InstanceKind},
 };
 use sottomano_widgets::{
     clock::Clock,
@@ -18,17 +20,23 @@ pub const HOVERED_INSTANCE_NAME: &str = "build-box";
 fn daemon_instance(
     instance_name: &str,
     kind: InstanceKind,
-    running: bool,
+    run_state: ContainerRunState,
     memory_in_use: Option<ByteSize>,
     global_addresses: &[&str],
     image_description: &str,
 ) -> DaemonInstance {
     DaemonInstance {
-        instance_name: instance_name.to_owned(),
-        project_name: "default".to_owned(),
-        kind,
-        running,
-        status_text: if running { "Running" } else { "Stopped" }.to_owned(),
+        listing: DaemonInstanceListing {
+            instance_name: instance_name.to_owned(),
+            project_name: "default".to_owned(),
+            kind,
+            run_state,
+            status_text: match run_state {
+                ContainerRunState::Running => "Running",
+                ContainerRunState::Stopped => "Stopped",
+            }
+            .to_owned(),
+        },
         memory_in_use,
         global_addresses: global_addresses
             .iter()
@@ -44,24 +52,26 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
         IncusInstancesMessage::Instances(
             InstanceDaemon::Incus,
             SnapshotDelivery::fixture_delivered(
-                Ok(DaemonInstancesReadout::Instances(vec![
-                    daemon_instance(
-                        HOVERED_INSTANCE_NAME,
-                        InstanceKind::Container,
-                        true,
-                        Some(ByteSize::mib(268)),
-                        &["10.41.7.23"],
-                        "Debian trixie amd64",
-                    ),
-                    daemon_instance(
-                        "fedora-desktop",
-                        InstanceKind::VirtualMachine,
-                        false,
-                        None,
-                        &[],
-                        "Fedora 43 amd64",
-                    ),
-                ])),
+                Ok(FamilyDetails {
+                    details: vec![
+                        daemon_instance(
+                            HOVERED_INSTANCE_NAME,
+                            InstanceKind::Container,
+                            ContainerRunState::Running,
+                            Some(ByteSize::mib(268)),
+                            &["10.41.7.23"],
+                            "Debian trixie amd64",
+                        ),
+                        daemon_instance(
+                            "fedora-desktop",
+                            InstanceKind::VirtualMachine,
+                            ContainerRunState::Stopped,
+                            None,
+                            &[],
+                            "Fedora 43 amd64",
+                        ),
+                    ],
+                }),
                 DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
             ),
         ),

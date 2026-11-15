@@ -11,6 +11,7 @@ use futures::Stream;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    container_family_snapshots::{FamilyDetails, FamilyListings},
     container_run_state::ContainerRunState,
     delivery_cadence_drivers::{ChangeTriggerStreams, PeriodicPolling},
     system_protocol_clients::{
@@ -29,8 +30,7 @@ const EXCLUDED_CONTAINERS: [&str; 1] = ["waydroid"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LxcContainer {
-    pub container_name: String,
-    pub run_state: ContainerRunState,
+    pub listing: LxcContainerListing,
     pub memory_in_use: Option<ByteSize>,
     pub configured_addresses: Vec<String>,
     pub config_path: Option<PathBuf>,
@@ -85,12 +85,7 @@ pub struct LxcContainerListing {
     pub run_state: ContainerRunState,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LxcContainerListings {
-    pub listings: Vec<LxcContainerListing>,
-}
-
-impl SnapshotSource for LxcContainerListings {
+impl SnapshotSource for FamilyListings<LxcContainerListing> {
     type Error = Error;
     type StreamInputs = ();
 
@@ -108,7 +103,10 @@ impl SnapshotSource for LxcContainerListings {
     }
 }
 
-fn named_lxc_containers(lxc_path: &Path, cgroup_root: &Path) -> LxcContainerListings {
+fn named_lxc_containers(
+    lxc_path: &Path,
+    cgroup_root: &Path,
+) -> FamilyListings<LxcContainerListing> {
     let running_cgroups = running_payload_cgroups(cgroup_root);
     let config_paths = configured_container_directories(lxc_path);
     let listings = running_cgroups
@@ -123,15 +121,10 @@ fn named_lxc_containers(lxc_path: &Path, cgroup_root: &Path) -> LxcContainerList
             container_name,
         })
         .collect();
-    LxcContainerListings { listings }
+    FamilyListings { listings }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LxcContainers {
-    pub containers: Vec<LxcContainer>,
-}
-
-impl SnapshotSource for LxcContainers {
+impl SnapshotSource for FamilyDetails<LxcContainer> {
     type Error = Error;
     type StreamInputs = ();
 
@@ -201,7 +194,7 @@ fn configured_container_directories(lxc_path: &Path) -> BTreeMap<String, PathBuf
         .collect()
 }
 
-fn listed_containers(lxc_path: &Path, cgroup_root: &Path) -> LxcContainers {
+fn listed_containers(lxc_path: &Path, cgroup_root: &Path) -> FamilyDetails<LxcContainer> {
     let mut running_cgroups = running_payload_cgroups(cgroup_root);
     let mut config_paths = configured_container_directories(lxc_path);
     let container_names: Vec<String> = running_cgroups
@@ -212,13 +205,16 @@ fn listed_containers(lxc_path: &Path, cgroup_root: &Path) -> LxcContainers {
         .collect::<BTreeSet<String>>()
         .into_iter()
         .collect();
-    let containers = container_names
+    let details = container_names
         .into_iter()
         .map(|container_name| {
             let payload_cgroup = running_cgroups.remove(&container_name);
             let config_path = config_paths.remove(&container_name);
             LxcContainer {
-                run_state: run_state_of(payload_cgroup.as_ref()),
+                listing: LxcContainerListing {
+                    run_state: run_state_of(payload_cgroup.as_ref()),
+                    container_name,
+                },
                 memory_in_use: payload_cgroup
                     .as_deref()
                     .and_then(read_cgroup_memory)
@@ -238,11 +234,10 @@ fn listed_containers(lxc_path: &Path, cgroup_root: &Path) -> LxcContainers {
                     .map(|config_text| configured_addresses_in(&config_text))
                     .unwrap_or_default(),
                 config_path,
-                container_name,
             }
         })
         .collect();
-    LxcContainers { containers }
+    FamilyDetails { details }
 }
 
 fn run_state_of(payload_cgroup: Option<&PathBuf>) -> ContainerRunState {
@@ -301,12 +296,12 @@ mod tests {
         let listed = listed_containers(&lxc_path, &cgroup_root);
         fs::remove_dir_all(&scratch).unwrap();
         let summary: Vec<(&str, ContainerRunState, Option<ByteSize>)> = listed
-            .containers
+            .details
             .iter()
             .map(|container| {
                 (
-                    container.container_name.as_str(),
-                    container.run_state,
+                    container.listing.container_name.as_str(),
+                    container.listing.run_state,
                     container.memory_in_use,
                 )
             })

@@ -1,8 +1,10 @@
+use std::path::PathBuf;
+
 use chrono::{DateTime, Utc};
 use futures::Stream;
 
-use super::{CopilotAccount, CopilotPlan, Error, plan_polls, user_info};
-use crate::{SnapshotDelivery, SnapshotSource};
+use super::{CopilotPlan, Error, plan_polls, user_info};
+use crate::{SnapshotDelivery, SnapshotSource, system_protocol_clients::dbus_desktop_buses::OnBus};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotFree {
@@ -14,20 +16,20 @@ pub struct CopilotFree {
 
 impl SnapshotSource for CopilotFree {
     type Error = Error;
-    type StreamInputs = CopilotAccount;
+    type StreamInputs = OnBus<PathBuf>;
 
     const NAME: &'static str = "Copilot free quota";
 
     fn delivery_stream(
-        inputs: CopilotAccount,
+        inputs: OnBus<PathBuf>,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         plan_polls(inputs, CopilotPlan::Free, Self::poll)
     }
 }
 
 impl CopilotFree {
-    async fn poll(key: CopilotAccount) -> Result<Self, Error> {
-        let info = user_info(&key.gh_auth_token).await?;
+    async fn poll(key: OnBus<PathBuf>) -> Result<Self, Error> {
+        let info = user_info(&key.inputs).await?;
         let quotas = info.limited_user_quotas.as_ref().ok_or(Error::NoQuota)?;
         Ok(CopilotFree {
             plan: info.plan(),

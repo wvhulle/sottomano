@@ -7,8 +7,8 @@ use std::{convert::identity, path::PathBuf};
 
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
-    SnapshotDelivery, network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    SnapshotDelivery,
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
 use sottomano_toml_config::SecretPaths;
 
@@ -74,9 +74,9 @@ impl WallpaperGroup {
         let Some(buses) = buses else {
             return Subscription::none();
         };
-        snapshot_subscription::<Lookup>(OnlineSourceInputs {
+        snapshot_subscription::<Lookup>(OnBus {
             buses: buses.clone(),
-            source_inputs: unsplash_key.clone(),
+            inputs: unsplash_key.clone(),
         })
         .map(|reading| WallpaperMessage::Lookup(Box::new(reading)))
     }

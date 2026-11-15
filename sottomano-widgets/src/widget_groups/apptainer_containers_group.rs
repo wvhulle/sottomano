@@ -6,10 +6,8 @@ use std::{
 use chrono::Locale;
 use sottomano_desktop_sinks::apptainer_containers::stop_apptainer_container;
 use sottomano_desktop_sources::{
-    apptainer_containers::{
-        ApptainerContainer, ApptainerContainerListing, ApptainerContainerListings,
-        ApptainerContainers, ApptainerProbe,
-    },
+    apptainer_containers::{ApptainerContainer, ApptainerContainerListing, ApptainerProbe},
+    container_family_snapshots::{FamilyDetails, FamilyListings},
     container_run_state::ContainerRunState,
 };
 
@@ -92,8 +90,7 @@ impl GroupItemReading for ApptainerContainerRow<'_> {
     fn name(&self) -> Cow<'static, str> {
         format!(
             "{} pid {}",
-            self.container.shown_name(),
-            self.container.runtime_pid
+            self.container.listing.container_name, self.container.listing.runtime_pid
         )
         .into()
     }
@@ -133,7 +130,7 @@ impl GroupItemReading for ApptainerContainerRow<'_> {
                     .unwrap_or_else(|| container.owner_uid.to_string()),
             ),
             LabeledValue::new("Runtime", container.runtime_title.clone()),
-            LabeledValue::new("PID", container.runtime_pid.to_string()),
+            LabeledValue::new("PID", container.listing.runtime_pid.to_string()),
         ]);
         vec![Section::new("Instance", dictionary_table(detail_entries))]
     }
@@ -148,8 +145,8 @@ pub type ApptainerContainersInteraction = ContainerFamilyInteraction<ApptainerFa
 
 impl ContainerFamily for ApptainerFamily {
     type Probe = ApptainerProbe;
-    type Listings = ApptainerContainerListings;
-    type Detail = ApptainerContainers;
+    type Listings = FamilyListings<ApptainerContainerListing>;
+    type Detail = FamilyDetails<ApptainerContainer>;
     type Target = ApptainerContainerTarget;
     type PowerRequest = i32;
     type ListingRow<'a> = ApptainerContainerListingRow<'a>;
@@ -168,7 +165,7 @@ impl ContainerFamily for ApptainerFamily {
     }
 
     fn listing_rows(
-        listings: &ApptainerContainerListings,
+        listings: &FamilyListings<ApptainerContainerListing>,
     ) -> Vec<FamilyRow<Self, ApptainerContainerListingRow<'_>>> {
         listings
             .listings
@@ -184,17 +181,17 @@ impl ContainerFamily for ApptainerFamily {
     }
 
     fn detail_rows(
-        detail: &ApptainerContainers,
+        detail: &FamilyDetails<ApptainerContainer>,
     ) -> Vec<FamilyRow<Self, ApptainerContainerRow<'_>>> {
         detail
-            .containers
+            .details
             .iter()
             .map(|container| FamilyRow {
                 target: ApptainerContainerTarget {
-                    runtime_pid: container.runtime_pid,
+                    runtime_pid: container.listing.runtime_pid,
                 },
                 reading: ApptainerContainerRow { container },
-                power: RowPower::Stoppable(container.runtime_pid),
+                power: RowPower::Stoppable(container.listing.runtime_pid),
             })
             .collect()
     }

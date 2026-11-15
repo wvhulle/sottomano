@@ -14,8 +14,8 @@ use super::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
-    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
-    system_protocol_clients::http_json_client,
+    network_connectivity::internet_connectivity_gate,
+    system_protocol_clients::{dbus_desktop_buses::OnBus, http_json_client},
 };
 
 const QUARTER_HOUR: TimeDelta = TimeDelta::minutes(15);
@@ -105,15 +105,12 @@ impl From<ModelResponse> for PrecipitationModel {
 
 impl SnapshotSource for PrecipitationModel {
     type Error = Error;
-    type StreamInputs = OnlineSourceInputs<GeoCoordinates>;
+    type StreamInputs = OnBus<GeoCoordinates>;
 
     const NAME: &'static str = "Precipitation model";
 
     fn delivery_stream(
-        OnlineSourceInputs {
-            buses,
-            source_inputs: inputs,
-        }: Self::StreamInputs,
+        OnBus { buses, inputs }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         internet_connectivity_gate::while_online(buses, move || {
             PeriodicPolling::every(Duration::from_mins(15))

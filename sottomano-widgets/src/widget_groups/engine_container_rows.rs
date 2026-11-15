@@ -6,9 +6,11 @@ use sottomano_desktop_sinks::container_power::{
     ContainerEngineApi, start_container, stop_container,
 };
 use sottomano_desktop_sources::{
-    container_run_state::ContainerRunState,
+    container_run_state::{ContainerRunState, RunChange},
     podman_container_engine::{
-        libpod_running_containers::{EngineListing, RunningContainer, StoppedContainer},
+        libpod_running_containers::{
+            EngineListing, EngineReadError, RunningContainer, StoppedContainer,
+        },
         systemd_service_engine_discovery::EngineOwner,
     },
 };
@@ -50,16 +52,10 @@ impl EngineContainerTarget {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ContainerPowerChange {
-    Start,
-    Stop,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContainerSwitchRequest {
     pub target: EngineContainerTarget,
-    pub change: ContainerPowerChange,
+    pub change: RunChange,
 }
 
 #[derive(Debug, Clone)]
@@ -80,18 +76,22 @@ pub(crate) fn container_switch_task<Message: Send + 'static>(
         } = request.target;
         let socket_path = Path::new(socket_path.as_ref());
         let switched = match request.change {
-            ContainerPowerChange::Start => {
-                start_container(engine_api, socket_path, &container_id).await
-            }
-            ContainerPowerChange::Stop => {
-                stop_container(engine_api, socket_path, &container_id).await
-            }
+            RunChange::Start => start_container(engine_api, socket_path, &container_id).await,
+            RunChange::Stop => stop_container(engine_api, socket_path, &container_id).await,
         };
         switched
             .map_err(|failure| format!("container {container_id}: {failure}"))
             .err()
     })
     .and_then(move |refusal| Task::done(refused(refusal)))
+}
+
+pub(crate) fn engine_failure_label(failure_message: &str) -> &'static str {
+    if failure_message == EngineReadError::SocketDenied.to_string() {
+        "no access: socket denied"
+    } else {
+        "unreadable"
+    }
 }
 
 pub(crate) fn engine_container_name(
@@ -312,7 +312,7 @@ pub(crate) fn with_container_switch<'a, Message: 'a>(
             STOP_HINT,
             switched(ContainerSwitchRequest {
                 target,
-                change: ContainerPowerChange::Stop,
+                change: RunChange::Stop,
             }),
         ),
         ContainerRunState::Stopped => row.on_switch_press(
@@ -320,7 +320,7 @@ pub(crate) fn with_container_switch<'a, Message: 'a>(
             START_HINT,
             switched(ContainerSwitchRequest {
                 target,
-                change: ContainerPowerChange::Start,
+                change: RunChange::Start,
             }),
         ),
     }

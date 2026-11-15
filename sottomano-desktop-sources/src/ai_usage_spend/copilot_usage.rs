@@ -23,7 +23,7 @@ use crate::{
     network_connectivity::internet_connectivity_gate,
     secret_file_reads::read_secret,
     system_protocol_clients::{
-        dbus_desktop_buses::DesktopBuses, http_json_client, inotify_file_presence::path_present,
+        dbus_desktop_buses::OnBus, http_json_client, inotify_file_presence::path_present,
     },
 };
 
@@ -102,27 +102,21 @@ impl UserInfo {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct CopilotAccount {
-    pub gh_auth_token: PathBuf,
-    pub buses: DesktopBuses,
-}
-
 fn plan_polls<S, F>(
-    account: CopilotAccount,
+    account: OnBus<PathBuf>,
     wanted_plan: CopilotPlan,
-    poll: impl Fn(CopilotAccount) -> F + Send + Sync + Clone + 'static,
+    poll: impl Fn(OnBus<PathBuf>) -> F + Send + Sync + Clone + 'static,
 ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
 where
-    S: SnapshotSource<StreamInputs = CopilotAccount, Error = Error> + PartialEq,
+    S: SnapshotSource<StreamInputs = OnBus<PathBuf>, Error = Error> + PartialEq,
     F: Future<Output = Result<S, Error>> + Send + 'static,
 {
-    path_present(account.gh_auth_token.clone()).while_available(
+    path_present(account.inputs.clone()).while_available(
         move || {
             let account = account.clone();
             let poll = poll.clone();
             internet_connectivity_gate::while_online(account.buses.clone(), move || {
-                let checked = account.gh_auth_token.clone();
+                let checked = account.inputs.clone();
                 let polled = account.clone();
                 let poll = poll.clone();
                 stream::once(async move { user_info(&checked).await })

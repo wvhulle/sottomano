@@ -5,8 +5,8 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     podman_container_engine::libpod_running_containers::{
-        ContainerCiIdentity, EngineContainers, EngineListing, EngineReadError, EngineReadout,
-        RunningContainer, StoppedContainer,
+        ContainerCiIdentity, EngineContainers, EngineListing, EngineReadError, RunningContainer,
+        StoppedContainer,
     },
     system_protocol_clients::procfs_process_tree::ProcessTreeCpuLoad,
     systemd_units_journal::{SystemdUnitScope, service_commands::ServiceAccount},
@@ -100,11 +100,14 @@ fn step_container(
     }
 }
 
-fn delivered(socket_path: &str, readout: EngineReadout) -> PodmanEnginesMessage {
+fn delivered(
+    socket_path: &str,
+    engine_read: Result<EngineListing, EngineReadError>,
+) -> PodmanEnginesMessage {
     PodmanEnginesMessage::Engine(
         PathBuf::from(socket_path),
         SnapshotDelivery::fixture_delivered(
-            Ok(readout),
+            engine_read,
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
         ),
     )
@@ -115,7 +118,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     let readouts = [
         delivered(
             ROOTLESS_SOCKET,
-            EngineReadout::Containers(EngineListing {
+            Ok(EngineListing {
                 running: EngineContainers {
                     containers: Vec::new(),
                 },
@@ -130,7 +133,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
         ),
         delivered(
             WOODPECKER_SOCKET,
-            EngineReadout::Containers(EngineListing {
+            Ok(EngineListing {
                 running: EngineContainers {
                     containers: vec![
                         step_container("run-tests", 19.0, ByteSize::gib(4), clock),
@@ -140,10 +143,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
                 stopped: Vec::new(),
             }),
         ),
-        delivered(
-            FORGEJO_SOCKET,
-            EngineReadout::Unreadable(EngineReadError::SocketDenied),
-        ),
+        delivered(FORGEJO_SOCKET, Err(EngineReadError::SocketDenied)),
     ];
     discovered_engines()
         .into_iter()

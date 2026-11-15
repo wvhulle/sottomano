@@ -48,6 +48,18 @@ pub enum WaydroidState {
     },
 }
 
+impl WaydroidState {
+    #[must_use]
+    pub fn container_run_state(&self) -> ContainerRunState {
+        match self {
+            WaydroidState::Absent => ContainerRunState::Stopped,
+            WaydroidState::ContainerOnly | WaydroidState::Session { .. } => {
+                ContainerRunState::Running
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WaydroidProbe(pub Availability);
 
@@ -75,7 +87,6 @@ fn waydroid_payload_cgroup() -> PathBuf {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WaydroidListing {
     pub state: WaydroidState,
-    pub container: ContainerRunState,
 }
 
 impl SnapshotSource for WaydroidListing {
@@ -112,14 +123,12 @@ async fn read_waydroid_listing(system_bus: &zbus::Connection) -> WaydroidListing
     let session = waydroid_session(system_bus).await;
     WaydroidListing {
         state: state_of_session(&session, container),
-        container,
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WaydroidReadout {
     pub state: WaydroidState,
-    pub container: ContainerRunState,
     pub memory_in_use: Option<ByteSize>,
 }
 
@@ -127,11 +136,11 @@ fn state_of_session(
     session: &HashMap<String, String>,
     container: ContainerRunState,
 ) -> WaydroidState {
+    if container == ContainerRunState::Stopped {
+        return WaydroidState::Absent;
+    }
     if session.is_empty() {
-        return match container {
-            ContainerRunState::Running => WaydroidState::ContainerOnly,
-            ContainerRunState::Stopped => WaydroidState::Absent,
-        };
+        return WaydroidState::ContainerOnly;
     }
     WaydroidState::Session {
         session_state: session
@@ -153,7 +162,6 @@ async fn read_waydroid(system_bus: &zbus::Connection) -> WaydroidReadout {
     let session = waydroid_session(system_bus).await;
     WaydroidReadout {
         state: state_of_session(&session, container),
-        container,
         memory_in_use: container_memory.map(|reading| reading.current),
     }
 }
@@ -188,6 +196,15 @@ mod tests {
         assert_eq!(
             state_of_session(&HashMap::new(), ContainerRunState::Running),
             WaydroidState::ContainerOnly
+        );
+    }
+
+    #[test]
+    fn a_session_without_its_container_counts_as_absent() {
+        let session = HashMap::from([("state".to_owned(), "RUNNING".to_owned())]);
+        assert_eq!(
+            state_of_session(&session, ContainerRunState::Stopped),
+            WaydroidState::Absent
         );
     }
 

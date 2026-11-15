@@ -3,13 +3,10 @@ use std::{collections::BTreeMap, mem::take, path::PathBuf};
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    ai_usage_spend::llama_server_slots::{
-        LlamaServer, LlamaServerOnBus, LlamaServerUnit, ModelInstance,
-    },
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    ai_usage_spend::llama_server_slots::{LlamaServer, LlamaServerUnit, ModelInstance},
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
     systemd_units_journal::{
-        SystemdOnBus, SystemdUnitScope, service_commands::ServiceCommands,
-        unit_active_state::UnitActivity,
+        SystemdUnitScope, service_commands::ServiceCommands, unit_active_state::UnitActivity,
     },
 };
 
@@ -94,9 +91,9 @@ impl ScopedLlamaServers {
     }
 
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<ScopedServersMessage> {
-        let systemd = SystemdOnBus {
+        let systemd = OnBus {
             buses: buses.clone(),
-            scope: self.scope,
+            inputs: self.scope,
         };
         Subscription::batch(
             [
@@ -106,9 +103,9 @@ impl ScopedLlamaServers {
             .into_iter()
             .chain(self.servers.values().flat_map(|readings| {
                 let unit = readings.discovered.unit.unit_name.clone();
-                let server = LlamaServerOnBus {
+                let server = OnBus {
                     buses: buses.clone(),
-                    server: readings.discovered.clone(),
+                    inputs: readings.discovered.clone(),
                 };
                 [
                     readings

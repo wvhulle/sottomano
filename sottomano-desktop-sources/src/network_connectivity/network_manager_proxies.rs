@@ -35,6 +35,12 @@ const STATE_ACTIVATED: u32 = 100;
 const STATES_ACTIVATING: RangeInclusive<u32> = 40..=90;
 const STATE_DEACTIVATING: u32 = 110;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NmConnectionSwitch {
+    Connect(OwnedObjectPath),
+    Disconnect(OwnedObjectPath),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceKind {
     Ethernet,

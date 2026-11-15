@@ -1,7 +1,5 @@
-use sottomano_desktop_sources::network_connectivity::{
-    network_manager_proxies::{self, DeviceInfo},
-    network_manager_vpn_connections::VpnSwitch,
-    wireguard_tunnels::WireguardSwitch,
+use sottomano_desktop_sources::network_connectivity::network_manager_proxies::{
+    self, DeviceInfo, NmConnectionSwitch,
 };
 use zbus::{
     Connection,
@@ -116,34 +114,19 @@ pub async fn toggle_mobile_modem(modem_path: &str) -> zbus::Result<()> {
     toggle_device_connection(&system, &modem_device).await
 }
 
-pub async fn switch_vpn(vpn_switch: VpnSwitch) {
+pub async fn switch_nm_connection(connection_switch: NmConnectionSwitch) {
     let switched = match Connection::system().await {
-        Ok(system) => match &vpn_switch {
-            VpnSwitch::Connect(settings_connection) => activate(&system, settings_connection).await,
-            VpnSwitch::Disconnect(active_connection) => {
-                deactivate(&system, active_connection).await
-            }
-        },
-        Err(bus_error) => Err(bus_error),
-    };
-    if let Err(bus_error) = switched {
-        tracing::warn!("NetworkManager VPN {vpn_switch:?}: {bus_error}");
-    }
-}
-
-pub async fn switch_wireguard(wireguard_switch: WireguardSwitch) {
-    let switched = match Connection::system().await {
-        Ok(system) => match &wireguard_switch {
-            WireguardSwitch::Connect(settings_connection) => {
+        Ok(system) => match &connection_switch {
+            NmConnectionSwitch::Connect(settings_connection) => {
                 activate(&system, settings_connection).await
             }
-            WireguardSwitch::Disconnect(active_connection) => {
+            NmConnectionSwitch::Disconnect(active_connection) => {
                 deactivate(&system, active_connection).await
             }
         },
         Err(bus_error) => Err(bus_error),
     };
     if let Err(bus_error) = switched {
-        tracing::warn!("WireGuard {wireguard_switch:?}: {bus_error}");
+        tracing::warn!("NetworkManager connection {connection_switch:?}: {bus_error}");
     }
 }

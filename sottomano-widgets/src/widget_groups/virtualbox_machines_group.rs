@@ -1,87 +1,42 @@
 use std::borrow::Cow;
 
 use chrono::Locale;
-use iced::{Subscription, Task};
 use sottomano_desktop_sinks::virtualbox_machines::{
     press_virtualbox_power_button, start_virtualbox_machine,
 };
 use sottomano_desktop_sources::{
-    SnapshotDelivery,
+    container_family_snapshots::FamilyDetails,
+    container_run_state::ContainerRunState,
     virtualbox_machines::{
         RegisteredVirtualBoxMachine, VirtualBoxFrontend, VirtualBoxMachine,
         VirtualBoxMachineListing, VirtualBoxMachineListings, VirtualBoxMachineProbe,
-        VirtualBoxMachines,
     },
 };
 
 use crate::{
-    background_work::snapshot_subscription,
     clock::Clock,
     group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState, toggle_control::SwitchPosition,
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
-    group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
         HoverTarget,
         hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
-        process_usage_cells::{approximate_memory_text, uptime_entry},
-        widget_group_content::{
-            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+        container_family_group::{
+            ContainerFamily, ContainerFamilyGroup, ContainerFamilyInteraction,
+            ContainerFamilyMessage, FamilyRow, RowPower,
         },
+        process_usage_cells::{approximate_memory_text, uptime_entry},
         widget_group_identity::WidgetGroupFamily,
     },
-    widgets::{
-        icon_glyph::IconGlyph, simple_icons::SimpleIcon, subscribed_snapshot::SubscribedSnapshot,
-        value_cells::LabeledValue,
-    },
+    widgets::{icon_glyph::IconGlyph, simple_icons::SimpleIcon, value_cells::LabeledValue},
 };
-
-const POWER_BUTTON_HINT: &str = "press the guest's power button";
-const START_HINT: &str = "start the machine";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VirtualBoxMachineTarget {
     RunningProcess { pid: i32 },
     StoppedMachine { machine_uuid: Cow<'static, str> },
-}
-
-struct StoppedVirtualBoxMachineRow<'a> {
-    machine: &'a RegisteredVirtualBoxMachine,
-}
-
-impl GroupItemReading for StoppedVirtualBoxMachineRow<'_> {
-    fn name(&self) -> Cow<'static, str> {
-        format!(
-            "{} {}",
-            self.machine.machine_name, self.machine.machine_uuid
-        )
-        .into()
-    }
-
-    fn icon(&self) -> IconGlyph {
-        IconGlyph::SimpleIcon(SimpleIcon::VirtualBox)
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some("stopped".to_owned())
-    }
-
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Off
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Status",
-            dictionary_table([
-                LabeledValue::new("State", "stopped"),
-                LabeledValue::new("UUID", self.machine.machine_uuid.clone()),
-            ]),
-        )]
-    }
 }
 
 impl From<VirtualBoxMachineTarget> for HoverTarget {
@@ -90,13 +45,30 @@ impl From<VirtualBoxMachineTarget> for HoverTarget {
     }
 }
 
-struct VirtualBoxMachineListingRow<'a> {
-    listing: &'a VirtualBoxMachineListing,
+pub enum VirtualBoxListedRow<'a> {
+    Running(&'a VirtualBoxMachineListing),
+    Stopped(&'a RegisteredVirtualBoxMachine),
 }
 
-impl GroupItemReading for VirtualBoxMachineListingRow<'_> {
+impl VirtualBoxListedRow<'_> {
+    const fn run_state(&self) -> ContainerRunState {
+        match self {
+            VirtualBoxListedRow::Running(_) => ContainerRunState::Running,
+            VirtualBoxListedRow::Stopped(_) => ContainerRunState::Stopped,
+        }
+    }
+}
+
+impl GroupItemReading for VirtualBoxListedRow<'_> {
     fn name(&self) -> Cow<'static, str> {
-        format!("{} pid {}", self.listing.machine_name, self.listing.pid).into()
+        match self {
+            VirtualBoxListedRow::Running(listing) => {
+                format!("{} pid {}", listing.machine_name, listing.pid).into()
+            }
+            VirtualBoxListedRow::Stopped(machine) => {
+                format!("{} {}", machine.machine_name, machine.machine_uuid).into()
+            }
+        }
     }
 
     fn icon(&self) -> IconGlyph {
@@ -104,32 +76,42 @@ impl GroupItemReading for VirtualBoxMachineListingRow<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some("running".to_owned())
+        Some(self.run_state().label().to_owned())
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::On
+        self.run_state().into()
     }
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
+        let state_entry = LabeledValue::new("State", self.run_state().label());
+        let identity_entries = match self {
+            VirtualBoxListedRow::Running(listing) => vec![
+                LabeledValue::new("Machine", listing.machine_reference.clone()),
+                LabeledValue::new("PID", listing.pid.to_string()),
+            ],
+            VirtualBoxListedRow::Stopped(machine) => {
+                vec![LabeledValue::new("UUID", machine.machine_uuid.clone())]
+            }
+        };
         vec![Section::new(
             "Status",
-            dictionary_table([
-                LabeledValue::new("State", "running"),
-                LabeledValue::new("Machine", self.listing.machine_reference.clone()),
-                LabeledValue::new("PID", self.listing.pid.to_string()),
-            ]),
+            dictionary_table([state_entry].into_iter().chain(identity_entries)),
         )]
     }
 }
 
-struct VirtualBoxMachineRow<'a> {
+pub struct VirtualBoxMachineRow<'a> {
     machine: &'a VirtualBoxMachine,
 }
 
 impl GroupItemReading for VirtualBoxMachineRow<'_> {
     fn name(&self) -> Cow<'static, str> {
-        format!("{} pid {}", self.machine.machine_name, self.machine.pid).into()
+        format!(
+            "{} pid {}",
+            self.machine.listing.machine_name, self.machine.listing.pid
+        )
+        .into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -170,264 +152,93 @@ impl GroupItemReading for VirtualBoxMachineRow<'_> {
             ));
         }
         detail_entries.extend([
-            LabeledValue::new("Machine", machine.machine_reference.clone()),
-            LabeledValue::new("PID", machine.pid.to_string()),
+            LabeledValue::new("Machine", machine.listing.machine_reference.clone()),
+            LabeledValue::new("PID", machine.listing.pid.to_string()),
         ]);
         vec![Section::new("Machine", dictionary_table(detail_entries))]
     }
 }
 
-#[derive(Default)]
-pub struct VirtualBoxMachinesGroup {
-    probe: SubscribedSnapshot<VirtualBoxMachineProbe>,
-    listings: SubscribedSnapshot<VirtualBoxMachineListings>,
-    detail: SubscribedSnapshot<VirtualBoxMachines>,
-    expansion: WidgetGroupExpansion,
-}
-
-#[derive(Debug)]
-pub enum VirtualBoxMachinesMessage {
-    Probe(SnapshotDelivery<VirtualBoxMachineProbe>),
-    Listings(SnapshotDelivery<VirtualBoxMachineListings>),
-    Machines(SnapshotDelivery<VirtualBoxMachines>),
-    PowerChangeRefused(String),
-    Interaction(VirtualBoxMachinesInteraction),
-}
-
 #[derive(Debug, Clone)]
-pub enum VirtualBoxMachinesInteraction {
-    PressPowerButton(String),
-    StartMachine(String),
-    Expansion(WidgetGroupExpansionMessage),
-}
+pub struct VirtualBoxFamily;
 
-impl VirtualBoxMachinesGroup {
-    pub fn collapse(&mut self) {
-        self.expansion.collapse();
+pub type VirtualBoxMachinesGroup = ContainerFamilyGroup<VirtualBoxFamily>;
+pub type VirtualBoxMachinesMessage = ContainerFamilyMessage<VirtualBoxFamily>;
+pub type VirtualBoxMachinesInteraction = ContainerFamilyInteraction<VirtualBoxFamily>;
+
+impl ContainerFamily for VirtualBoxFamily {
+    type Probe = VirtualBoxMachineProbe;
+    type Listings = VirtualBoxMachineListings;
+    type Detail = FamilyDetails<VirtualBoxMachine>;
+    type Target = VirtualBoxMachineTarget;
+    type PowerRequest = String;
+    type ListingRow<'a> = VirtualBoxListedRow<'a>;
+    type DetailRow<'a> = VirtualBoxMachineRow<'a>;
+
+    const FAMILY: WidgetGroupFamily = WidgetGroupFamily::VirtualBoxMachines;
+    const STOP_HINT: &'static str = "press the guest's power button";
+    const START_HINT: &'static str = "start the machine";
+    const GROUP_NAME: &'static str = "VirtualBox machines";
+
+    fn group_glyph() -> IconGlyph {
+        IconGlyph::SimpleIcon(SimpleIcon::VirtualBox)
     }
 
-    pub fn subscription(
-        &self,
-        demand: GroupSourceDemand,
-    ) -> Subscription<VirtualBoxMachinesMessage> {
-        let demand = demand.expanded_when(self.expansion.state());
-        Subscription::batch([
-            snapshot_subscription::<VirtualBoxMachineProbe>(())
-                .map(VirtualBoxMachinesMessage::Probe),
-            demand
-                .while_face_shown(snapshot_subscription::<VirtualBoxMachineListings>(()))
-                .map(VirtualBoxMachinesMessage::Listings),
-            demand
-                .while_rows_shown(snapshot_subscription::<VirtualBoxMachines>(()))
-                .map(VirtualBoxMachinesMessage::Machines),
-        ])
+    fn running_count(probe: &VirtualBoxMachineProbe) -> usize {
+        probe.running_count
     }
 
-    pub fn update(
-        &mut self,
-        message: VirtualBoxMachinesMessage,
-        clock: Clock,
-    ) -> Task<VirtualBoxMachinesMessage> {
-        match message {
-            VirtualBoxMachinesMessage::Probe(delivery) => {
-                self.probe.receive(delivery, clock);
-                Task::none()
-            }
-            VirtualBoxMachinesMessage::Listings(delivery) => {
-                self.listings.receive(delivery, clock);
-                Task::none()
-            }
-            VirtualBoxMachinesMessage::Machines(delivery) => {
-                self.detail.receive(delivery, clock);
-                Task::none()
-            }
-            VirtualBoxMachinesMessage::PowerChangeRefused(refusal) => {
-                tracing::warn!(%refusal, "virtualbox power change refused");
-                Task::none()
-            }
-            VirtualBoxMachinesMessage::Interaction(
-                VirtualBoxMachinesInteraction::StartMachine(machine_uuid),
-            ) => Task::future(async move { start_virtualbox_machine(&machine_uuid).await.err() })
-                .and_then(|refusal| {
-                    Task::done(VirtualBoxMachinesMessage::PowerChangeRefused(refusal))
-                }),
-            VirtualBoxMachinesMessage::Interaction(
-                VirtualBoxMachinesInteraction::PressPowerButton(machine_reference),
-            ) => Task::future(async move {
-                press_virtualbox_power_button(&machine_reference)
-                    .await
-                    .err()
-            })
-            .and_then(|refusal| Task::done(VirtualBoxMachinesMessage::PowerChangeRefused(refusal))),
-            VirtualBoxMachinesMessage::Interaction(VirtualBoxMachinesInteraction::Expansion(
-                expansion_message,
-            )) => {
-                self.expansion.update(expansion_message);
-                Task::none()
-            }
-        }
-    }
-
-    #[must_use]
-    pub fn hover_card_for(&self, target: &VirtualBoxMachineTarget, clock: Clock) -> Vec<Section> {
-        let pid = match target {
-            VirtualBoxMachineTarget::RunningProcess { pid } => *pid,
-            VirtualBoxMachineTarget::StoppedMachine { machine_uuid } => {
-                let Some(machine) = self.listings.get().and_then(|listings| {
-                    listings
-                        .stopped_machines
-                        .iter()
-                        .find(|machine| machine.machine_uuid == machine_uuid.as_ref())
-                }) else {
-                    return Vec::new();
-                };
-                return self
-                    .listings
-                    .hover_card_with(StoppedVirtualBoxMachineRow { machine }.hover_card(clock));
-            }
-        };
-        if let Some(detail) = self.detail.get() {
-            let Some(machine) = detail.machines.iter().find(|machine| machine.pid == pid) else {
-                return Vec::new();
-            };
-            return self
-                .detail
-                .hover_card_with(VirtualBoxMachineRow { machine }.hover_card(clock));
-        }
-        let Some(listing) = self
+    fn listing_rows(
+        listings: &VirtualBoxMachineListings,
+    ) -> Vec<FamilyRow<Self, VirtualBoxListedRow<'_>>> {
+        listings
             .listings
-            .get()
-            .and_then(|listings| listings.listings.iter().find(|listing| listing.pid == pid))
-        else {
-            return Vec::new();
-        };
-        self.listings
-            .hover_card_with(VirtualBoxMachineListingRow { listing }.hover_card(clock))
-    }
-
-    pub fn group_content(&self) -> WidgetGroupContent<'_, VirtualBoxMachinesInteraction> {
-        let rows = self.machine_rows();
-        WidgetGroupContent::expandable(
-            WidgetGroupFamily::VirtualBoxMachines,
-            &self.expansion,
-            VirtualBoxMachinesInteraction::Expansion,
-            rows,
-        )
-        .face(WidgetGroupFace::IconColoredBy {
-            glyph: IconGlyph::SimpleIcon(SimpleIcon::VirtualBox),
-            reading: self,
-        })
-    }
-
-    fn machine_rows(&self) -> Vec<GroupItem<'_, VirtualBoxMachinesInteraction>> {
-        let mut rows = self.running_machine_rows();
-        rows.extend(self.stopped_machine_rows());
-        rows
-    }
-
-    fn stopped_machine_rows(&self) -> Vec<GroupItem<'_, VirtualBoxMachinesInteraction>> {
-        self.listings
-            .get()
-            .map(|listings| listings.stopped_machines.as_slice())
-            .unwrap_or_default()
             .iter()
-            .map(|machine| {
-                GroupItem::reading(
-                    StoppedVirtualBoxMachineRow { machine },
-                    VirtualBoxMachineTarget::StoppedMachine {
-                        machine_uuid: Cow::Owned(machine.machine_uuid.clone()),
-                    },
-                )
-                .on_switch_press(
-                    SwitchPosition::Off,
-                    START_HINT,
-                    VirtualBoxMachinesInteraction::StartMachine(machine.machine_uuid.clone()),
-                )
+            .map(|listing| FamilyRow {
+                target: VirtualBoxMachineTarget::RunningProcess { pid: listing.pid },
+                reading: VirtualBoxListedRow::Running(listing),
+                power: RowPower::SwitchedOn(listing.machine_reference.clone()),
             })
             .collect()
     }
 
-    fn running_machine_rows(&self) -> Vec<GroupItem<'_, VirtualBoxMachinesInteraction>> {
-        if let Some(detail) = self.detail.get() {
-            return detail
-                .machines
-                .iter()
-                .map(|machine| {
-                    GroupItem::reading(
-                        VirtualBoxMachineRow { machine },
-                        VirtualBoxMachineTarget::RunningProcess { pid: machine.pid },
-                    )
-                    .on_switch_press(
-                        SwitchPosition::On,
-                        POWER_BUTTON_HINT,
-                        VirtualBoxMachinesInteraction::PressPowerButton(
-                            machine.machine_reference.clone(),
-                        ),
-                    )
-                })
-                .collect();
-        }
-        self.listings
-            .get()
-            .map(|listings| {
-                listings
-                    .listings
-                    .iter()
-                    .map(|listing| {
-                        GroupItem::reading(
-                            VirtualBoxMachineListingRow { listing },
-                            VirtualBoxMachineTarget::RunningProcess { pid: listing.pid },
-                        )
-                        .on_switch_press(
-                            SwitchPosition::On,
-                            POWER_BUTTON_HINT,
-                            VirtualBoxMachinesInteraction::PressPowerButton(
-                                listing.machine_reference.clone(),
-                            ),
-                        )
-                    })
-                    .collect()
+    fn detail_rows(
+        detail: &FamilyDetails<VirtualBoxMachine>,
+    ) -> Vec<FamilyRow<Self, VirtualBoxMachineRow<'_>>> {
+        detail
+            .details
+            .iter()
+            .map(|machine| FamilyRow {
+                target: VirtualBoxMachineTarget::RunningProcess {
+                    pid: machine.listing.pid,
+                },
+                reading: VirtualBoxMachineRow { machine },
+                power: RowPower::SwitchedOn(machine.listing.machine_reference.clone()),
             })
-            .unwrap_or_default()
-    }
-}
-
-impl GroupItemReading for VirtualBoxMachinesGroup {
-    fn name(&self) -> Cow<'static, str> {
-        "VirtualBox machines".into()
+            .collect()
     }
 
-    fn icon(&self) -> IconGlyph {
-        IconGlyph::SimpleIcon(SimpleIcon::VirtualBox)
+    fn stopped_rows(
+        listings: &VirtualBoxMachineListings,
+    ) -> Vec<FamilyRow<Self, VirtualBoxListedRow<'_>>> {
+        listings
+            .stopped_machines
+            .iter()
+            .map(|machine| FamilyRow {
+                target: VirtualBoxMachineTarget::StoppedMachine {
+                    machine_uuid: Cow::Owned(machine.machine_uuid.clone()),
+                },
+                reading: VirtualBoxListedRow::Stopped(machine),
+                power: RowPower::SwitchedOff(machine.machine_uuid.clone()),
+            })
+            .collect()
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.probe
-            .get()
-            .map(|probe| format!("{} running", probe.running_count))
+    async fn stop(machine_reference: String) -> Result<(), String> {
+        press_virtualbox_power_button(&machine_reference).await
     }
 
-    fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.probe
-            .get()
-            .filter(|probe| probe.running_count > 0)
-            .map_or(ReadingDisplayState::Off, |_| ReadingDisplayState::On)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new(
-            "Counts",
-            dictionary_table(
-                self.probe
-                    .get()
-                    .map(|probe| {
-                        vec![LabeledValue::new(
-                            "Running",
-                            probe.running_count.to_string(),
-                        )]
-                    })
-                    .unwrap_or_default(),
-            ),
-        )]
+    async fn start(machine_uuid: String) -> Result<(), String> {
+        start_virtualbox_machine(&machine_uuid).await
     }
 }

@@ -1,12 +1,11 @@
 use std::borrow::Cow;
 
 use chrono::Locale;
-use sottomano_desktop_sinks::lxc_containers::{start_lxc_container, stop_lxc_container};
+use sottomano_desktop_sinks::lxc_containers::change_lxc_container;
 use sottomano_desktop_sources::{
-    container_run_state::ContainerRunState,
-    lxc_containers::{
-        LxcContainer, LxcContainerListing, LxcContainerListings, LxcContainers, LxcProbe,
-    },
+    container_family_snapshots::{FamilyDetails, FamilyListings},
+    container_run_state::{ContainerRunState, RunChange},
+    lxc_containers::{LxcContainer, LxcContainerListing, LxcProbe},
 };
 
 use crate::{
@@ -79,7 +78,7 @@ pub struct LxcContainerRow<'a> {
 
 impl GroupItemReading for LxcContainerRow<'_> {
     fn name(&self) -> Cow<'static, str> {
-        self.container.container_name.clone().into()
+        self.container.listing.container_name.clone().into()
     }
 
     fn icon(&self) -> IconGlyph {
@@ -87,7 +86,7 @@ impl GroupItemReading for LxcContainerRow<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        match self.container.run_state {
+        match self.container.listing.run_state {
             ContainerRunState::Stopped => Some(ContainerRunState::Stopped.label().to_owned()),
             ContainerRunState::Running => self
                 .container
@@ -98,12 +97,15 @@ impl GroupItemReading for LxcContainerRow<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.container.run_state.into()
+        self.container.listing.run_state.into()
     }
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let container = self.container;
-        let mut detail_entries = vec![LabeledValue::new("State", container.run_state.label())];
+        let mut detail_entries = vec![LabeledValue::new(
+            "State",
+            container.listing.run_state.label(),
+        )];
         if let Some(memory_in_use) = container.memory_in_use {
             detail_entries.push(LabeledValue::new(
                 "Memory use",
@@ -135,8 +137,8 @@ pub type LxcContainersInteraction = ContainerFamilyInteraction<LxcFamily>;
 
 impl ContainerFamily for LxcFamily {
     type Probe = LxcProbe;
-    type Listings = LxcContainerListings;
-    type Detail = LxcContainers;
+    type Listings = FamilyListings<LxcContainerListing>;
+    type Detail = FamilyDetails<LxcContainer>;
     type Target = LxcContainerTarget;
     type PowerRequest = String;
     type ListingRow<'a> = LxcContainerListingRow<'a>;
@@ -156,7 +158,7 @@ impl ContainerFamily for LxcFamily {
     }
 
     fn listing_rows(
-        listings: &LxcContainerListings,
+        listings: &FamilyListings<LxcContainerListing>,
     ) -> Vec<FamilyRow<Self, LxcContainerListingRow<'_>>> {
         listings
             .listings
@@ -166,35 +168,23 @@ impl ContainerFamily for LxcFamily {
                     container_name: Cow::Owned(listing.container_name.clone()),
                 },
                 reading: LxcContainerListingRow { listing },
-                power: match listing.run_state {
-                    ContainerRunState::Running => {
-                        RowPower::SwitchedOn(listing.container_name.clone())
-                    }
-                    ContainerRunState::Stopped => {
-                        RowPower::SwitchedOff(listing.container_name.clone())
-                    }
-                },
+                power: container_power(listing),
             })
             .collect()
     }
 
-    fn detail_rows(detail: &LxcContainers) -> Vec<FamilyRow<Self, LxcContainerRow<'_>>> {
+    fn detail_rows(
+        detail: &FamilyDetails<LxcContainer>,
+    ) -> Vec<FamilyRow<Self, LxcContainerRow<'_>>> {
         detail
-            .containers
+            .details
             .iter()
             .map(|container| FamilyRow {
                 target: LxcContainerTarget {
-                    container_name: Cow::Owned(container.container_name.clone()),
+                    container_name: Cow::Owned(container.listing.container_name.clone()),
                 },
                 reading: LxcContainerRow { container },
-                power: match container.run_state {
-                    ContainerRunState::Running => {
-                        RowPower::SwitchedOn(container.container_name.clone())
-                    }
-                    ContainerRunState::Stopped => {
-                        RowPower::SwitchedOff(container.container_name.clone())
-                    }
-                },
+                power: container_power(&container.listing),
             })
             .collect()
     }
@@ -214,10 +204,17 @@ impl ContainerFamily for LxcFamily {
     }
 
     async fn stop(container_name: String) -> Result<(), String> {
-        stop_lxc_container(&container_name).await
+        change_lxc_container(&container_name, RunChange::Stop).await
     }
 
     async fn start(container_name: String) -> Result<(), String> {
-        start_lxc_container(&container_name).await
+        change_lxc_container(&container_name, RunChange::Start).await
+    }
+}
+
+fn container_power(listing: &LxcContainerListing) -> RowPower<String> {
+    match listing.run_state {
+        ContainerRunState::Running => RowPower::SwitchedOn(listing.container_name.clone()),
+        ContainerRunState::Stopped => RowPower::SwitchedOff(listing.container_name.clone()),
     }
 }

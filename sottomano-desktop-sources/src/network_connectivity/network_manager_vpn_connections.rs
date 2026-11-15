@@ -5,7 +5,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     network_connectivity::{
         ReadingError, device_or_absent,
-        network_manager_proxies::{self, ActiveVpn, AddressBlock, VpnProfile},
+        network_manager_proxies::{self, ActiveVpn, AddressBlock, NmConnectionSwitch, VpnProfile},
         nm_readings,
     },
     non_empty_text::non_empty,
@@ -80,12 +80,6 @@ pub enum VpnActivity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum VpnSwitch {
-    Connect(OwnedObjectPath),
-    Disconnect(OwnedObjectPath),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VpnConnection {
     pub name: String,
     pub plugin: String,
@@ -112,10 +106,12 @@ impl VpnConnection {
     }
 
     #[must_use]
-    pub fn switch(&self) -> VpnSwitch {
+    pub fn switch(&self) -> NmConnectionSwitch {
         match &self.activity {
-            VpnActivity::Inactive => VpnSwitch::Connect(self.settings_connection.clone()),
-            VpnActivity::Active(tunnel) => VpnSwitch::Disconnect(tunnel.active_connection.clone()),
+            VpnActivity::Inactive => NmConnectionSwitch::Connect(self.settings_connection.clone()),
+            VpnActivity::Active(tunnel) => {
+                NmConnectionSwitch::Disconnect(tunnel.active_connection.clone())
+            }
         }
     }
 
@@ -255,7 +251,7 @@ mod tests {
         assert_eq!(vpn_connection.activation(), VpnActivation::Activated);
         assert_eq!(
             vpn_connection.switch(),
-            VpnSwitch::Disconnect(object_path(
+            NmConnectionSwitch::Disconnect(object_path(
                 "/org/freedesktop/NetworkManager/ActiveConnection/7"
             ))
         );
@@ -274,7 +270,7 @@ mod tests {
         assert_eq!(vpn_connection.activation(), VpnActivation::NotActivated);
         assert_eq!(
             vpn_connection.switch(),
-            VpnSwitch::Connect(object_path("/org/freedesktop/NetworkManager/Settings/1"))
+            NmConnectionSwitch::Connect(object_path("/org/freedesktop/NetworkManager/Settings/1"))
         );
     }
 

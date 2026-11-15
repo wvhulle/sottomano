@@ -19,8 +19,7 @@ use sottomano_desktop_sources::{
         lrclib_synced_lyrics::{LyricsQuery, TrackLyrics},
         mpris_players::{self, Command, Media, Progress, Status},
     },
-    network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
-    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OwnerProcess},
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus, OwnerProcess},
 };
 use sottomano_toml_config::{
     Config,
@@ -235,9 +234,9 @@ impl MediaGroup {
             .unfetched_lyrics_queries()
             .filter(|_| lyrics_config.lrclib_lookup == LrclibLookup::Enabled)
             .map(|query| {
-                snapshot_subscription::<TrackLyrics>(OnlineSourceInputs {
+                snapshot_subscription::<TrackLyrics>(OnBus {
                     buses: buses.clone(),
-                    source_inputs: query.clone(),
+                    inputs: query.clone(),
                 })
                 .with(query)
                 .map(|(query, delivery)| MediaMessage::LyricsReading { query, delivery })

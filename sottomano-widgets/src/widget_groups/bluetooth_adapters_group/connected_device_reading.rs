@@ -2,9 +2,8 @@ use std::{borrow::Cow, iter::once};
 
 use chrono::Locale;
 use sottomano_desktop_sources::{
-    network_connectivity::bluez_bluetooth::{
-        ChargingState, ConnectedDevice, DeviceBattery, DeviceKind,
-    },
+    battery_power_profiles::upower_battery_state::ChargeStatus,
+    network_connectivity::bluez_bluetooth::{ConnectedDevice, DeviceBattery, DeviceKind},
     systemd_units_journal::journal_device_kernel_errors::DeviceKernelError,
 };
 use sottomano_toml_config::severity::Severity;
@@ -83,13 +82,13 @@ fn kind_glyph(kind: DeviceKind) -> IconGlyph {
     }
 }
 
-fn charging_description(charging: ChargingState) -> Option<&'static str> {
+fn charging_description(charging: ChargeStatus) -> Option<&'static str> {
     match charging {
-        ChargingState::Unknown => None,
-        ChargingState::Charging => Some("charging"),
-        ChargingState::Discharging => Some("discharging"),
-        ChargingState::NotCharging => Some("not charging"),
-        ChargingState::Full => Some("full"),
+        ChargeStatus::Unreported => None,
+        ChargeStatus::Charging => Some("charging"),
+        ChargeStatus::Discharging => Some("discharging"),
+        ChargeStatus::NotCharging => Some("not charging"),
+        ChargeStatus::Full => Some("full"),
     }
 }
 
@@ -102,7 +101,7 @@ impl ConnectedDeviceReading<'_> {
                 level_percent,
                 charging,
             } if level_percent <= threshold_percent
-                && !matches!(charging, ChargingState::Charging | ChargingState::Full) =>
+                && !matches!(charging, ChargeStatus::Charging | ChargeStatus::Full) =>
             {
                 BatteryDrain::BelowThreshold
             }

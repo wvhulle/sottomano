@@ -1,11 +1,14 @@
+use std::path::PathBuf;
+
 use chrono::{DateTime, Utc};
 use futures::Stream;
 use uom::si::{f64::Ratio, ratio::percent};
 
-use super::{
-    CopilotAccount, CopilotPlan, Error, QuotaSnapshot, UserInfo, plan_polls, quota_reset, user_info,
+use super::{CopilotPlan, Error, QuotaSnapshot, UserInfo, plan_polls, quota_reset, user_info};
+use crate::{
+    SnapshotDelivery, SnapshotSource, ai_usage_spend::usage_quota::Quota,
+    system_protocol_clients::dbus_desktop_buses::OnBus,
 };
-use crate::{SnapshotDelivery, SnapshotSource, ai_usage_spend::usage_quota::Quota};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotMetered {
@@ -37,20 +40,20 @@ impl CopilotMetered {
 
 impl SnapshotSource for CopilotMetered {
     type Error = Error;
-    type StreamInputs = CopilotAccount;
+    type StreamInputs = OnBus<PathBuf>;
 
     const NAME: &'static str = "Copilot quota";
 
     fn delivery_stream(
-        inputs: CopilotAccount,
+        inputs: OnBus<PathBuf>,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         plan_polls(inputs, CopilotPlan::Metered, Self::poll)
     }
 }
 
 impl CopilotMetered {
-    async fn poll(key: CopilotAccount) -> Result<Self, Error> {
-        let info = user_info(&key.gh_auth_token).await?;
+    async fn poll(key: OnBus<PathBuf>) -> Result<Self, Error> {
+        let info = user_info(&key.inputs).await?;
         let (snapshot, label) = info.metered_quota().ok_or(Error::NoQuota)?;
         Ok(CopilotMetered {
             plan: info.plan(),

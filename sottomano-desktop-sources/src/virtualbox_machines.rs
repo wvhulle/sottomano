@@ -9,9 +9,10 @@ use futures::Stream;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    container_family_snapshots::FamilyDetails,
     delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::{
-        procfs_process_scan::{program_stem, readable_text, scan_processes},
+        procfs_process_scan::{ScannedProcess, program_stem, readable_text, scan_processes},
         shell_command_output::{self, blocking},
         sysfs_attribute_reads::Error,
     },
@@ -93,23 +94,25 @@ fn named_machines() -> Result<VirtualBoxMachineListings, Error> {
     let mut listings: Vec<VirtualBoxMachineListing> = process_scan
         .matched_processes
         .iter()
-        .filter_map(|scanned| {
-            let machine_reference =
-                option_value(&scanned.command_line, &["--startvm", "-startvm", "-s"])?.to_owned();
-            let machine_name = option_value(&scanned.command_line, &["--comment", "-comment"])
-                .map_or_else(|| machine_reference.clone(), str::to_owned);
-            Some(VirtualBoxMachineListing {
-                pid: scanned.pid,
-                machine_name,
-                machine_reference,
-            })
-        })
+        .filter_map(listed_machine)
         .collect();
     listings.sort_by(|first, second| first.machine_name.cmp(&second.machine_name));
     let stopped_machines = stopped_among(registered_machines(), &listings);
     Ok(VirtualBoxMachineListings {
         listings,
         stopped_machines,
+    })
+}
+
+fn listed_machine(scanned: &ScannedProcess) -> Option<VirtualBoxMachineListing> {
+    let machine_reference =
+        option_value(&scanned.command_line, &["--startvm", "-startvm", "-s"])?.to_owned();
+    let machine_name = option_value(&scanned.command_line, &["--comment", "-comment"])
+        .map_or_else(|| machine_reference.clone(), str::to_owned);
+    Some(VirtualBoxMachineListing {
+        pid: scanned.pid,
+        machine_name,
+        machine_reference,
     })
 }
 
@@ -160,9 +163,7 @@ pub enum VirtualBoxFrontend {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VirtualBoxMachine {
-    pub pid: i32,
-    pub machine_name: String,
-    pub machine_reference: String,
+    pub listing: VirtualBoxMachineListing,
     pub frontend: VirtualBoxFrontend,
     pub guest_memory: Option<ByteSize>,
     pub guest_cores: Option<u32>,
@@ -171,12 +172,7 @@ pub struct VirtualBoxMachine {
     pub memory_in_use: ByteSize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VirtualBoxMachines {
-    pub machines: Vec<VirtualBoxMachine>,
-}
-
-impl SnapshotSource for VirtualBoxMachines {
+impl SnapshotSource for FamilyDetails<VirtualBoxMachine> {
     type Error = Error;
     type StreamInputs = ();
 
@@ -254,21 +250,18 @@ fn default_settings_file(machine_name: &str) -> Option<PathBuf> {
     )
 }
 
-fn scanned_machines() -> Result<VirtualBoxMachines, Error> {
+fn scanned_machines() -> Result<FamilyDetails<VirtualBoxMachine>, Error> {
     let process_scan = scan_processes(|scanned| {
         program_stem(&scanned.command_line)
             .is_some_and(|program| VIRTUALBOX_VM_PROGRAMS.contains(&program))
     })
     .ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
-    let mut machines: Vec<VirtualBoxMachine> = process_scan
+    let mut details: Vec<VirtualBoxMachine> = process_scan
         .matched_processes
         .iter()
         .filter_map(|scanned| {
-            let machine_reference =
-                option_value(&scanned.command_line, &["--startvm", "-startvm", "-s"])?.to_owned();
-            let machine_name = option_value(&scanned.command_line, &["--comment", "-comment"])
-                .map_or_else(|| machine_reference.clone(), str::to_owned);
-            let settings_file = default_settings_file(&machine_name)
+            let listing = listed_machine(scanned)?;
+            let settings_file = default_settings_file(&listing.machine_name)
                 .filter(|settings_file| settings_file.is_file());
             let settings = settings_file
                 .as_deref()
@@ -276,7 +269,7 @@ fn scanned_machines() -> Result<VirtualBoxMachines, Error> {
                 .map(|settings_text| parsed_machine_settings(&settings_text))
                 .unwrap_or_default();
             Some(VirtualBoxMachine {
-                pid: scanned.pid,
+                listing,
                 frontend: if program_stem(&scanned.command_line) == Some("VBoxHeadless") {
                     VirtualBoxFrontend::Headless
                 } else {
@@ -292,13 +285,11 @@ fn scanned_machines() -> Result<VirtualBoxMachines, Error> {
                         .tree_totals(scanned.pid)
                         .resident_bytes,
                 ),
-                machine_name,
-                machine_reference,
             })
         })
         .collect();
-    machines.sort_by(|first, second| first.machine_name.cmp(&second.machine_name));
-    Ok(VirtualBoxMachines { machines })
+    details.sort_by(|first, second| first.listing.machine_name.cmp(&second.listing.machine_name));
+    Ok(FamilyDetails { details })
 }
 
 #[must_use]

@@ -13,6 +13,7 @@ use serde::Deserialize;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    container_family_snapshots::{FamilyDetails, FamilyListings},
     delivery_cadence_drivers::{
         ChangeTriggerStreams, ChangeWatchFailure, PeriodicPolling, SnapshotDeliveryStreams,
     },
@@ -33,7 +34,7 @@ const PROC_ROOT: &str = "/proc";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FlatpakProbe {
-    pub running_instance_count: usize,
+    pub running_count: usize,
 }
 
 impl SnapshotSource for FlatpakProbe {
@@ -70,24 +71,19 @@ fn counted_running_instances() -> Result<FlatpakProbe, Error> {
     let instances_directory = flatpak_instances_directory()
         .ok_or_else(|| Error::Unreadable(RUNTIME_DIRECTORY_VARIABLE.to_owned()))?;
     Ok(FlatpakProbe {
-        running_instance_count: running_sandboxes_in(&instances_directory, Path::new(PROC_ROOT))
-            .sandboxes
+        running_count: running_sandboxes_in(&instances_directory, Path::new(PROC_ROOT))
+            .details
             .len(),
     })
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FlatpakSandboxListing {
-    pub instance_id: String,
     pub application_id: String,
+    pub instance_id: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FlatpakSandboxListings {
-    pub listings: Vec<FlatpakSandboxListing>,
-}
-
-impl SnapshotSource for FlatpakSandboxListings {
+impl SnapshotSource for FamilyListings<FlatpakSandboxListing> {
     type Error = Error;
     type StreamInputs = ();
 
@@ -107,7 +103,10 @@ impl SnapshotSource for FlatpakSandboxListings {
     }
 }
 
-fn listed_sandboxes_in(instances_directory: &Path, proc_root: &Path) -> FlatpakSandboxListings {
+fn listed_sandboxes_in(
+    instances_directory: &Path,
+    proc_root: &Path,
+) -> FamilyListings<FlatpakSandboxListing> {
     let mut listings: Vec<FlatpakSandboxListing> = fs::read_dir(instances_directory)
         .into_iter()
         .flatten()
@@ -133,19 +132,13 @@ fn listed_sandboxes_in(instances_directory: &Path, proc_root: &Path) -> FlatpakS
             })
         })
         .collect();
-    listings.sort_by(|first, second| {
-        first
-            .application_id
-            .cmp(&second.application_id)
-            .then_with(|| first.instance_id.cmp(&second.instance_id))
-    });
-    FlatpakSandboxListings { listings }
+    listings.sort();
+    FamilyListings { listings }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FlatpakSandbox {
-    pub instance_id: String,
-    pub application_id: String,
+    pub listing: FlatpakSandboxListing,
     pub runtime_reference: Option<String>,
     pub branch: Option<String>,
     pub sandbox_pid: u32,
@@ -153,12 +146,7 @@ pub struct FlatpakSandbox {
     pub memory_in_use: Option<ByteSize>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FlatpakSandboxes {
-    pub sandboxes: Vec<FlatpakSandbox>,
-}
-
-impl SnapshotSource for FlatpakSandboxes {
+impl SnapshotSource for FamilyDetails<FlatpakSandbox> {
     type Error = Error;
     type StreamInputs = ();
 
@@ -272,8 +260,11 @@ fn sandbox_pid_in(instance_directory: &Path) -> Option<u32> {
     })
 }
 
-fn running_sandboxes_in(instances_directory: &Path, proc_root: &Path) -> FlatpakSandboxes {
-    let mut sandboxes: Vec<FlatpakSandbox> = fs::read_dir(instances_directory)
+fn running_sandboxes_in(
+    instances_directory: &Path,
+    proc_root: &Path,
+) -> FamilyDetails<FlatpakSandbox> {
+    let mut details: Vec<FlatpakSandbox> = fs::read_dir(instances_directory)
         .into_iter()
         .flatten()
         .filter_map(|listed_entry| {
@@ -296,8 +287,10 @@ fn running_sandboxes_in(instances_directory: &Path, proc_root: &Path) -> Flatpak
                 return None;
             }
             Some(FlatpakSandbox {
-                instance_id: instance_id_of(&entry)?,
-                application_id: instance_info.application_id?,
+                listing: FlatpakSandboxListing {
+                    instance_id: instance_id_of(&entry)?,
+                    application_id: instance_info.application_id?,
+                },
                 runtime_reference: instance_info.runtime_reference,
                 branch: instance_info.branch,
                 sandbox_pid,
@@ -314,13 +307,8 @@ fn running_sandboxes_in(instances_directory: &Path, proc_root: &Path) -> Flatpak
             })
         })
         .collect();
-    sandboxes.sort_by(|first, second| {
-        first
-            .application_id
-            .cmp(&second.application_id)
-            .then_with(|| first.instance_id.cmp(&second.instance_id))
-    });
-    FlatpakSandboxes { sandboxes }
+    details.sort_by(|first, second| first.listing.cmp(&second.listing));
+    FamilyDetails { details }
 }
 
 fn instance_id_of(entry: &DirEntry) -> Option<String> {
@@ -384,7 +372,7 @@ mod tests {
         }
         let listed = running_sandboxes_in(&scratch.join("instances"), &proc_root);
         fs::remove_dir_all(&scratch).unwrap();
-        assert_eq!(listed.sandboxes.len(), 1);
-        assert_eq!(listed.sandboxes[0].instance_id, "1849302754");
+        assert_eq!(listed.details.len(), 1);
+        assert_eq!(listed.details[0].listing.instance_id, "1849302754");
     }
 }

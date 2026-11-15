@@ -7,7 +7,7 @@ use sottomano_desktop_sources::{
     docker_container_engine::{DockerEngineReadout, DockerEngineSocket},
     podman_container_engine::{
         libpod_running_containers::{
-            ContainerCiIdentity, EngineContainers, EngineListing, EngineReadout, RunningContainer,
+            ContainerCiIdentity, EngineContainers, EngineListing, RunningContainer,
             StoppedContainer,
         },
         systemd_service_engine_discovery::EngineOwner,
@@ -45,11 +45,11 @@ fn service_container(
     }
 }
 
-fn delivered(socket_path: &str, readout: EngineReadout) -> DockerEnginesMessage {
+fn delivered(socket_path: &str, listing: EngineListing) -> DockerEnginesMessage {
     DockerEnginesMessage::Engine(
         PathBuf::from(socket_path),
         SnapshotDelivery::fixture_delivered(
-            Ok(DockerEngineReadout(readout)),
+            Ok(DockerEngineReadout(listing)),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
         ),
     )
@@ -69,7 +69,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     let readouts = [
         delivered(
             ROOTFUL_DOCKER_SOCKET,
-            EngineReadout::Containers(EngineListing {
+            EngineListing {
                 running: EngineContainers {
                     containers: vec![
                         service_container(
@@ -95,16 +95,16 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
                     image: "flyway/flyway:11".to_owned(),
                     stopped_at: clock.wall - Duration::from_hours(2),
                 }],
-            }),
+            },
         ),
         delivered(
             ROOTLESS_DOCKER_SOCKET,
-            EngineReadout::Containers(EngineListing {
+            EngineListing {
                 running: EngineContainers {
                     containers: Vec::new(),
                 },
                 stopped: Vec::new(),
-            }),
+            },
         ),
     ];
     for message in readouts {

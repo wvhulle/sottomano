@@ -9,8 +9,8 @@ use iced::futures::{Stream, StreamExt, stream};
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::AvailabilityStreams,
-    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
-    system_protocol_clients::shell_command_output,
+    network_connectivity::internet_connectivity_gate,
+    system_protocol_clients::{dbus_desktop_buses::OnBus, shell_command_output},
     wallpaper_place_article::{self, DisplayedWallpaper, Wallpaper},
 };
 
@@ -60,14 +60,14 @@ impl Display for Failure {
 
 impl SnapshotSource for Lookup {
     type Error = Failure;
-    type StreamInputs = OnlineSourceInputs<PathBuf>;
+    type StreamInputs = OnBus<PathBuf>;
 
     const NAME: &'static str = "Wallpaper lookup";
 
     fn delivery_stream(
-        OnlineSourceInputs {
+        OnBus {
             buses,
-            source_inputs: unsplash_key,
+            inputs: unsplash_key,
         }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(wallpaper_place_article::daemon_availability()).while_available(

@@ -4,12 +4,13 @@ use futures::{Stream, StreamExt, future::join_all};
 use futures_rx::RxExt;
 use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
-use super::{ManagerProxy, ServiceProxy, SystemdOnBus, manager_signal};
+use super::{ManagerProxy, ServiceProxy, SystemdUnitScope, manager_signal};
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::ChangeTriggerStreams,
     system_protocol_clients::{
-        dbus_change_signals::change_triggers, protocol_peer_reconnects::subscribed,
+        dbus_change_signals::change_triggers, dbus_desktop_buses::OnBus,
+        protocol_peer_reconnects::subscribed,
     },
 };
 
@@ -104,11 +105,13 @@ pub struct ServiceCommands {
 
 impl SnapshotSource for ServiceCommands {
     type Error = zbus::Error;
-    type StreamInputs = SystemdOnBus;
+    type StreamInputs = OnBus<SystemdUnitScope>;
 
     const NAME: &'static str = "Systemd service commands";
 
-    fn delivery_stream(systemd: SystemdOnBus) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+    fn delivery_stream(
+        systemd: OnBus<SystemdUnitScope>,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         subscribed(systemd.connection(), watch_service_commands)
             .map(|listed| listed.map(|services| Self { services }))
             .map(SnapshotDelivery::live_push)

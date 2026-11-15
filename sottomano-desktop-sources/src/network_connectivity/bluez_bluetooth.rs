@@ -9,12 +9,11 @@ use zbus::{
     zvariant::OwnedObjectPath,
 };
 
-pub use crate::network_connectivity::hid_sysfs_bluetooth_peripherals::{
-    ChargingState, DeviceBattery,
-};
+pub use crate::network_connectivity::hid_sysfs_bluetooth_peripherals::DeviceBattery;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::AvailabilityStreams,
+    battery_power_profiles::upower_battery_state::ChargeStatus,
     delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::{
         hid_sysfs_bluetooth_peripherals::hid_peripherals_with_address, interface,
@@ -190,7 +189,7 @@ fn bluez_battery(interfaces: &ObjectInterfaces) -> DeviceBattery {
     };
     DeviceBattery::Reported {
         level_percent,
-        charging: ChargingState::Unknown,
+        charging: ChargeStatus::Unreported,
     }
 }
 

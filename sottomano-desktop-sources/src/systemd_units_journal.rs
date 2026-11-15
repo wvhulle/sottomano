@@ -31,7 +31,7 @@ use zbus::{
 };
 
 use crate::{
-    system_protocol_clients::dbus_desktop_buses::{Bus, DesktopBuses},
+    system_protocol_clients::dbus_desktop_buses::{Bus, OnBus},
     systemd_units_journal::journal_record_fields::either_of,
 };
 
@@ -45,27 +45,15 @@ pub struct ScopedSystemdUnit {
     pub unit_name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SystemdOnBus {
-    pub buses: DesktopBuses,
-    pub scope: SystemdUnitScope,
-}
-
-impl SystemdOnBus {
+impl OnBus<SystemdUnitScope> {
     pub fn connection(&self) -> zbus::Connection {
-        self.buses.on(self.scope.bus()).clone()
+        self.buses.on(self.inputs.bus()).clone()
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SystemdUnitOnBus {
-    pub buses: DesktopBuses,
-    pub unit: ScopedSystemdUnit,
-}
-
-impl SystemdUnitOnBus {
+impl OnBus<ScopedSystemdUnit> {
     pub fn connection(&self) -> zbus::Connection {
-        self.buses.on(self.unit.scope.bus()).clone()
+        self.buses.on(self.inputs.scope.bus()).clone()
     }
 }
 

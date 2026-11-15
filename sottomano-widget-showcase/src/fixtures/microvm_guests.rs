@@ -3,9 +3,10 @@ use std::{path::PathBuf, time::Duration};
 use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    container_family_snapshots::FamilyDetails,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     microvm_guests::{
-        MicrovmGuest, MicrovmGuests,
+        MicrovmGuest, MicrovmGuestListing,
         hypervisor_command_lines::{HypervisorLaunch, MicrovmHypervisor},
     },
 };
@@ -20,8 +21,10 @@ pub const HOVERED_MICROVM_PID: i32 = 48_213;
 
 fn ci_builder_microvm(clock: Clock) -> MicrovmGuest {
     MicrovmGuest {
-        pid: HOVERED_MICROVM_PID,
-        machine_name: "ci-builder".to_owned(),
+        listing: MicrovmGuestListing {
+            pid: HOVERED_MICROVM_PID,
+            machine_name: "ci-builder".to_owned(),
+        },
         hypervisor: MicrovmHypervisor::CloudHypervisor,
         unit_name: Some("microvm@ci-builder.service".to_owned()),
         launch: HypervisorLaunch {
@@ -41,8 +44,10 @@ fn ci_builder_microvm(clock: Clock) -> MicrovmGuest {
 
 fn sandbox_firecracker(clock: Clock) -> MicrovmGuest {
     MicrovmGuest {
-        pid: 51_007,
-        machine_name: "sandbox".to_owned(),
+        listing: MicrovmGuestListing {
+            pid: 51_007,
+            machine_name: "sandbox".to_owned(),
+        },
         hypervisor: MicrovmHypervisor::Firecracker,
         unit_name: None,
         launch: HypervisorLaunch {
@@ -62,8 +67,8 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = MicrovmGuestsGroup::default();
     let _ = group.update(
         MicrovmGuestsMessage::Machines(SnapshotDelivery::fixture_delivered(
-            Ok(MicrovmGuests {
-                machines: vec![ci_builder_microvm(clock), sandbox_firecracker(clock)],
+            Ok(FamilyDetails {
+                details: vec![ci_builder_microvm(clock), sandbox_firecracker(clock)],
             }),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
         )),

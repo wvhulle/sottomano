@@ -82,10 +82,7 @@ impl<'a> ShownWaydroid<'a> {
     }
 
     fn container(self) -> ContainerRunState {
-        match self {
-            ShownWaydroid::Detailed(readout) => readout.container,
-            ShownWaydroid::Listed(listing) => listing.container,
-        }
+        self.state().container_run_state()
     }
 }
 
@@ -103,14 +100,15 @@ impl GroupItemReading for WaydroidContainerRow<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        match self.shown {
-            ShownWaydroid::Detailed(WaydroidReadout {
-                memory_in_use: Some(memory_in_use),
-                container: ContainerRunState::Running,
-                ..
-            }) => Some(approximate_memory_text(*memory_in_use)),
-            _ => Some(self.shown.container().label().to_owned()),
+        if let ShownWaydroid::Detailed(WaydroidReadout {
+            memory_in_use: Some(memory_in_use),
+            ..
+        }) = self.shown
+            && self.shown.container() == ContainerRunState::Running
+        {
+            return Some(approximate_memory_text(*memory_in_use));
         }
+        Some(self.shown.container().label().to_owned())
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {

@@ -220,6 +220,23 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
     pub fn hover_card_with(&self, sections: Vec<Section>) -> Vec<Section> {
         self.sections_described_by(|_| sections)
     }
+
+    pub fn fetch_failure(&self) -> Option<&str> {
+        match self {
+            SubscribedSnapshot::NoSnapshot {
+                placeholder:
+                    SnapshotPlaceholder {
+                        placeholder_cause: PlaceholderCause::FetchFailed(failure_message),
+                        ..
+                    },
+            } => Some(failure_message),
+            SubscribedSnapshot::AwaitingFirstSnapshot
+            | SubscribedSnapshot::SourceUnavailable
+            | SubscribedSnapshot::SnapshotHeld { .. }
+            | SubscribedSnapshot::SnapshotTroubled { .. }
+            | SubscribedSnapshot::NoSnapshot { .. } => None,
+        }
+    }
 }
 
 impl<S: SnapshotSource + GroupItemReading> SubscribedSnapshot<S> {

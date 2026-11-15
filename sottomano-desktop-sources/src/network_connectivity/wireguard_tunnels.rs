@@ -12,10 +12,11 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::{ChangeTriggerStreams, ChangeWatchFailure, PeriodicPolling},
     network_connectivity::network_manager_proxies::{
-        self, ActivationState, ActiveWireguard, WireguardPeerSettings, WireguardProfile,
+        self, ActivationState, ActiveWireguard, NmConnectionSwitch, WireguardPeerSettings,
+        WireguardProfile,
     },
     system_protocol_clients::{
-        dbus_desktop_buses::{DesktopBuses, SERVICE_ABSENT_ERRORS},
+        dbus_desktop_buses::{DesktopBuses, OnBus, SERVICE_ABSENT_ERRORS},
         protocol_peer_reconnects::subscribed,
         shell_command_output,
     },
@@ -186,12 +187,6 @@ pub enum StatisticsAccess {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WireguardSwitch {
-    Connect(OwnedObjectPath),
-    Disconnect(OwnedObjectPath),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Tunnel {
     pub name: String,
     pub interface: String,
@@ -245,7 +240,7 @@ impl Tunnel {
     }
 
     #[must_use]
-    pub fn switch(&self) -> Option<WireguardSwitch> {
+    pub fn switch(&self) -> Option<NmConnectionSwitch> {
         let TunnelOrigin::NetworkManager {
             settings_connection,
             activity,
@@ -254,10 +249,10 @@ impl Tunnel {
             return None;
         };
         Some(match activity {
-            TunnelActivity::Inactive => WireguardSwitch::Connect(settings_connection.clone()),
+            TunnelActivity::Inactive => NmConnectionSwitch::Connect(settings_connection.clone()),
             TunnelActivity::Switching { active_connection }
             | TunnelActivity::Active { active_connection } => {
-                WireguardSwitch::Disconnect(active_connection.clone())
+                NmConnectionSwitch::Disconnect(active_connection.clone())
             }
         })
     }
@@ -326,12 +321,6 @@ pub struct TunnelAddress {
     pub ip: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TunnelOnBus {
-    pub buses: DesktopBuses,
-    pub tunnel: String,
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum TunnelAddressError {
     #[error("{0}")]
@@ -342,17 +331,19 @@ pub enum TunnelAddressError {
 
 impl SnapshotSource for TunnelAddress {
     type Error = TunnelAddressError;
-    type StreamInputs = TunnelOnBus;
+    type StreamInputs = OnBus<String>;
 
     const NAME: &'static str = "Tunnel address";
 
-    fn delivery_stream(watched: TunnelOnBus) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+    fn delivery_stream(
+        watched: OnBus<String>,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(watched, address_changes)
     }
 }
 
 async fn address_changes(
-    watched: TunnelOnBus,
+    watched: OnBus<String>,
 ) -> Result<impl Stream<Item = Result<TunnelAddress, TunnelAddressError>> + Send, TunnelAddressError>
 {
     let addressing = network_manager_proxies::changes(&watched.buses.system, ADDRESSING_PROPERTIES)
@@ -360,7 +351,7 @@ async fn address_changes(
         .map_err(ChangeWatchFailure::from)?
         .map_err(ChangeWatchFailure::from);
     Ok(addressing.triggered_rereads(move || {
-        let tunnel = watched.tunnel.clone();
+        let tunnel = watched.inputs.clone();
         async move {
             Ok(TunnelAddress {
                 ip: interface_ip(&tunnel).await,
@@ -786,7 +777,7 @@ mod tests {
         );
         assert_eq!(
             tunnel.switch(),
-            Some(WireguardSwitch::Disconnect(object_path(
+            Some(NmConnectionSwitch::Disconnect(object_path(
                 "/org/freedesktop/NetworkManager/ActiveConnection/9"
             )))
         );
@@ -815,7 +806,7 @@ mod tests {
         assert_eq!(tunnel.statistics_access, StatisticsAccess::TunnelDown);
         assert_eq!(
             tunnel.switch(),
-            Some(WireguardSwitch::Connect(object_path(
+            Some(NmConnectionSwitch::Connect(object_path(
                 "/org/freedesktop/NetworkManager/Settings/3"
             )))
         );

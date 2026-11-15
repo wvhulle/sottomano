@@ -10,7 +10,7 @@ use sottomano_desktop_sinks::container_power::ContainerEngineApi;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     podman_container_engine::{
-        libpod_running_containers::{EngineReadError, EngineReadout},
+        libpod_running_containers::EngineListing,
         systemd_service_engine_discovery::DiscoveredPodmanEngine,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -30,7 +30,7 @@ use crate::{
     widget_groups::{
         engine_container_rows::{
             EngineContainerInteraction, EngineContainerTarget, EngineContainers,
-            container_switch_task, rows_ending_in_hidden_count,
+            container_switch_task, engine_failure_label, rows_ending_in_hidden_count,
         },
         widget_group_content::{WidgetGroupContent, WidgetGroupExpansion, WidgetGroupFace},
         widget_group_identity::WidgetGroupFamily,
@@ -71,7 +71,7 @@ fn container_hover_target(target: EngineContainerTarget) -> HoverTarget {
 
 struct UnreadableEngineRow<'a> {
     engine: &'a DiscoveredPodmanEngine,
-    failure: &'a EngineReadError,
+    failure_message: &'a str,
 }
 
 impl GroupItemReading for UnreadableEngineRow<'_> {
@@ -84,10 +84,7 @@ impl GroupItemReading for UnreadableEngineRow<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(match self.failure {
-            EngineReadError::SocketDenied => "no access: socket denied".to_owned(),
-            _ => "unreadable".to_owned(),
-        })
+        Some(engine_failure_label(self.failure_message).to_owned())
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
@@ -96,7 +93,7 @@ impl GroupItemReading for UnreadableEngineRow<'_> {
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![
-            Section::new("Error", SectionWidget::paragraph(self.failure.to_string())),
+            Section::new("Error", SectionWidget::paragraph(self.failure_message)),
             Section::new(
                 "Engine",
                 dictionary_table([
@@ -110,21 +107,21 @@ impl GroupItemReading for UnreadableEngineRow<'_> {
 
 struct PodmanEngineReading<'a> {
     engine: &'a DiscoveredPodmanEngine,
-    reading: &'a SubscribedSnapshot<EngineReadout>,
+    reading: &'a SubscribedSnapshot<EngineListing>,
 }
 
 #[derive(Default)]
 pub struct PodmanEnginesGroup {
     services: DiscoveredSystemdServices,
     engines: Vec<DiscoveredPodmanEngine>,
-    readouts: BTreeMap<PathBuf, SubscribedSnapshot<EngineReadout>>,
+    readouts: BTreeMap<PathBuf, SubscribedSnapshot<EngineListing>>,
     expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug)]
 pub enum PodmanEnginesMessage {
     Services(ScopedServiceCommands),
-    Engine(PathBuf, SnapshotDelivery<EngineReadout>),
+    Engine(PathBuf, SnapshotDelivery<EngineListing>),
     PowerChangeRefused(String),
     Interaction(PodmanEnginesInteraction),
 }
@@ -141,7 +138,7 @@ impl PodmanEnginesGroup {
             [DiscoveredSystemdServices::subscription(buses).map(PodmanEnginesMessage::Services)]
                 .into_iter()
                 .chain(self.engines.iter().map(|engine| {
-                    snapshot_subscription::<EngineReadout>(engine.socket_path.clone())
+                    snapshot_subscription::<EngineListing>(engine.socket_path.clone())
                         .with(engine.socket_path.clone())
                         .map(|(socket_path, delivery)| {
                             PodmanEnginesMessage::Engine(socket_path, delivery)
@@ -221,10 +218,14 @@ impl PodmanEnginesGroup {
                 else {
                     return Vec::new();
                 };
-                let Some(EngineReadout::Unreadable(failure)) = reading.get() else {
+                let Some(failure_message) = reading.fetch_failure() else {
                     return Vec::new();
                 };
-                reading.hover_card_with(UnreadableEngineRow { engine, failure }.hover_card(clock))
+                UnreadableEngineRow {
+                    engine,
+                    failure_message,
+                }
+                .hover_card(clock)
             }
             PodmanEngineTarget::Container(container_target) => {
                 let Some(PodmanEngineReading { engine, reading }) =
@@ -232,7 +233,7 @@ impl PodmanEnginesGroup {
                 else {
                     return Vec::new();
                 };
-                let Some(EngineReadout::Containers(listing)) = reading.get() else {
+                let Some(listing) = reading.get() else {
                     return Vec::new();
                 };
                 let engine_containers = EngineContainers {
@@ -256,34 +257,31 @@ impl PodmanEnginesGroup {
         let mut running_rows = Vec::new();
         let mut stopped_rows = Vec::new();
         for engine in &self.engines {
-            let Some(readout) = self
-                .readouts
-                .get(&engine.socket_path)
-                .and_then(SubscribedSnapshot::get)
-            else {
+            let Some(reading) = self.readouts.get(&engine.socket_path) else {
                 continue;
             };
-            match readout {
-                EngineReadout::Containers(listing) => {
-                    let engine_containers = EngineContainers {
-                        socket_path: &engine.socket_path,
-                        owner: &engine.owner,
-                        listing,
-                    };
-                    running_rows.extend(engine_containers.running_rows(
-                        container_hover_target,
-                        EngineContainerInteraction::SwitchContainer,
-                    ));
-                    stopped_rows.extend(engine_containers.stopped_rows(
-                        container_hover_target,
-                        EngineContainerInteraction::SwitchContainer,
-                    ));
-                }
-                EngineReadout::Unreadable(EngineReadError::SocketMissing) => {}
-                EngineReadout::Unreadable(failure) => failure_rows.push(GroupItem::reading(
-                    UnreadableEngineRow { engine, failure },
+            if let Some(listing) = reading.get() {
+                let engine_containers = EngineContainers {
+                    socket_path: &engine.socket_path,
+                    owner: &engine.owner,
+                    listing,
+                };
+                running_rows.extend(engine_containers.running_rows(
+                    container_hover_target,
+                    EngineContainerInteraction::SwitchContainer,
+                ));
+                stopped_rows.extend(engine_containers.stopped_rows(
+                    container_hover_target,
+                    EngineContainerInteraction::SwitchContainer,
+                ));
+            } else if let Some(failure_message) = reading.fetch_failure() {
+                failure_rows.push(GroupItem::reading(
+                    UnreadableEngineRow {
+                        engine,
+                        failure_message,
+                    },
                     PodmanEngineTarget::from(engine),
-                )),
+                ));
             }
         }
         running_rows.extend(stopped_rows);
@@ -353,12 +351,12 @@ mod tests {
             PodmanEnginesMessage::Engine(
                 socket_path,
                 SnapshotDelivery::fixture_delivered(
-                    Ok(EngineReadout::Containers(EngineListing {
+                    Ok(EngineListing {
                         running: EngineContainers {
                             containers: Vec::new(),
                         },
                         stopped: (0..20).map(stopped_container).collect(),
-                    })),
+                    }),
                     DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(
                         5,
                     ))),

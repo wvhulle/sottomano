@@ -11,9 +11,9 @@ use crate::{
         spend_money::{Money, usd},
     },
     delivery_cadence_drivers::PeriodicPolling,
-    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
+    network_connectivity::internet_connectivity_gate,
     secret_file_reads::read_secret,
-    system_protocol_clients::http_json_client,
+    system_protocol_clients::{dbus_desktop_buses::OnBus, http_json_client},
 };
 
 const OPENROUTER_MODELS_URL: &str = "https://openrouter.ai/api/v1/models";
@@ -164,15 +164,12 @@ impl OpenRouterModelRankings {
 
 impl SnapshotSource for OpenRouterModelRankings {
     type Error = Error;
-    type StreamInputs = OnlineSourceInputs<ModelRankingInputs>;
+    type StreamInputs = OnBus<ModelRankingInputs>;
 
     const NAME: &'static str = "Best models within price cap";
 
     fn delivery_stream(
-        OnlineSourceInputs {
-            buses,
-            source_inputs: inputs,
-        }: Self::StreamInputs,
+        OnBus { buses, inputs }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         internet_connectivity_gate::while_online(buses, move || {
             let inputs = inputs.clone();

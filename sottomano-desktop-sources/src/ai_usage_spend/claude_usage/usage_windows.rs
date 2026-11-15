@@ -18,8 +18,9 @@ use crate::{
         usage_quota::Quota,
     },
     delivery_cadence_drivers::PeriodicPolling,
-    network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
-    system_protocol_clients::http_json_client::deserialize_percent_ratio,
+    system_protocol_clients::{
+        dbus_desktop_buses::OnBus, http_json_client::deserialize_percent_ratio,
+    },
 };
 
 const SESSION_LENGTH: TimeDelta = TimeDelta::hours(5);
@@ -148,7 +149,7 @@ impl ClaudeUsageWindows {
 
 impl SnapshotSource for ClaudeUsageWindows {
     type Error = Error;
-    type StreamInputs = OnlineSourceInputs<PathBuf>;
+    type StreamInputs = OnBus<PathBuf>;
 
     const NAME: &'static str = "Subscription windows";
 

@@ -100,6 +100,12 @@ impl Hash for DesktopBuses {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct OnBus<BusInputs> {
+    pub buses: DesktopBuses,
+    pub inputs: BusInputs,
+}
+
 #[derive(Debug, Clone)]
 pub enum DesktopBusEvent {
     Connected(DesktopBuses),

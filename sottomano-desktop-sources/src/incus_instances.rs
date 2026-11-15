@@ -13,9 +13,11 @@ use serde::Deserialize;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::{Availability, AvailabilityStreams},
+    container_family_snapshots::{FamilyDetails, FamilyListings},
+    container_run_state::ContainerRunState,
     delivery_cadence_drivers::PeriodicPolling,
     podman_container_engine::libpod_running_containers::{
-        EngineReadError, classified_engine_failure,
+        EngineReadError, classified_engine_failure, unavailable_when_socket_missing,
     },
     system_protocol_clients::{http_json_client, inotify_file_presence::path_present},
 };
@@ -26,7 +28,10 @@ const RUNNING_STATUS: &str = "Running";
 const GLOBAL_ADDRESS_SCOPE: &str = "global";
 const LOOPBACK_INTERFACE: &str = "lo";
 
-impl SnapshotSource for Availability {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InstanceDaemonProbe(pub Availability);
+
+impl SnapshotSource for InstanceDaemonProbe {
     type Error = Infallible;
     type StreamInputs = InstanceDaemon;
 
@@ -36,7 +41,8 @@ impl SnapshotSource for Availability {
         instance_daemon: InstanceDaemon,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(instance_daemon, |instance_daemon| {
-            ready(Ok(path_present(instance_daemon.socket_path()).map(Ok)))
+            ready(Ok(path_present(instance_daemon.socket_path())
+                .map(|presence| Ok(InstanceDaemonProbe(presence)))))
         })
     }
 }
@@ -46,17 +52,13 @@ pub struct DaemonInstanceListing {
     pub instance_name: String,
     pub project_name: String,
     pub kind: InstanceKind,
-    pub running: bool,
+    pub run_state: ContainerRunState,
     pub status_text: String,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum DaemonInstanceListings {
-    Instances(Vec<DaemonInstanceListing>),
-    Unreadable(EngineReadError),
-}
-
-async fn read_daemon_instance_listings(socket_path: &Path) -> DaemonInstanceListings {
+async fn read_daemon_instance_listings(
+    socket_path: &Path,
+) -> Result<FamilyListings<DaemonInstanceListing>, EngineReadError> {
     let listing: Result<InstanceListingReply, _> = http_json_client::get_json_over_unix_socket(
         socket_path,
         &format!("{INCUS_API_ROOT}/instances?recursion=1&all-projects=true"),
@@ -67,25 +69,17 @@ async fn read_daemon_instance_listings(socket_path: &Path) -> DaemonInstanceList
             let mut listings: Vec<DaemonInstanceListing> = listing
                 .metadata
                 .into_iter()
-                .map(|listed| DaemonInstanceListing {
-                    instance_name: listed.name,
-                    project_name: listed.project,
-                    kind: instance_kind_of(&listed.instance_type),
-                    running: listed.status == RUNNING_STATUS,
-                    status_text: listed.status,
-                })
+                .map(|listed| DaemonInstanceListing::from(&listed))
                 .collect();
             listings.sort_by(|first, second| first.instance_name.cmp(&second.instance_name));
-            DaemonInstanceListings::Instances(listings)
+            Ok(FamilyListings { listings })
         }
-        Err(fetch_failure) => DaemonInstanceListings::Unreadable(
-            classified_engine_failure(socket_path, fetch_failure).await,
-        ),
+        Err(fetch_failure) => Err(classified_engine_failure(socket_path, fetch_failure).await),
     }
 }
 
-impl SnapshotSource for DaemonInstanceListings {
-    type Error = Infallible;
+impl SnapshotSource for FamilyListings<DaemonInstanceListing> {
+    type Error = EngineReadError;
     type StreamInputs = InstanceDaemon;
 
     const NAME: &'static str = "Incus instance names";
@@ -97,9 +91,11 @@ impl SnapshotSource for DaemonInstanceListings {
         path_present(instance_daemon.socket_path()).while_available(
             move || {
                 let watched_daemon = watched_daemon;
-                PeriodicPolling::every(INSTANCE_POLL_PERIOD).poll_deliveries(move || async move {
-                    Ok(read_daemon_instance_listings(&watched_daemon.socket_path()).await)
-                })
+                PeriodicPolling::every(INSTANCE_POLL_PERIOD)
+                    .poll_deliveries(move || async move {
+                        read_daemon_instance_listings(&watched_daemon.socket_path()).await
+                    })
+                    .map(unavailable_when_socket_missing)
             },
             || SnapshotDelivery::SourceUnavailable,
         )
@@ -146,20 +142,10 @@ pub enum InstanceKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DaemonInstance {
-    pub instance_name: String,
-    pub project_name: String,
-    pub kind: InstanceKind,
-    pub running: bool,
-    pub status_text: String,
+    pub listing: DaemonInstanceListing,
     pub memory_in_use: Option<ByteSize>,
     pub global_addresses: Vec<String>,
     pub image_description: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum DaemonInstancesReadout {
-    Instances(Vec<DaemonInstance>),
-    Unreadable(EngineReadError),
 }
 
 #[derive(Deserialize)]
@@ -207,10 +193,28 @@ struct InstanceListingReply {
     metadata: Vec<ListedInstance>,
 }
 
+impl From<&ListedInstance> for DaemonInstanceListing {
+    fn from(listed: &ListedInstance) -> Self {
+        DaemonInstanceListing {
+            instance_name: listed.name.clone(),
+            project_name: listed.project.clone(),
+            kind: instance_kind_of(&listed.instance_type),
+            run_state: if listed.status == RUNNING_STATUS {
+                ContainerRunState::Running
+            } else {
+                ContainerRunState::Stopped
+            },
+            status_text: listed.status.clone(),
+        }
+    }
+}
+
 impl From<ListedInstance> for DaemonInstance {
     fn from(listed: ListedInstance) -> Self {
-        let running = listed.status == RUNNING_STATUS;
-        let runtime_state = listed.state.filter(|_| running);
+        let listing = DaemonInstanceListing::from(&listed);
+        let runtime_state = listed
+            .state
+            .filter(|_| listing.run_state == ContainerRunState::Running);
         let global_addresses = runtime_state
             .as_ref()
             .and_then(|runtime_state| runtime_state.network.as_ref())
@@ -222,11 +226,7 @@ impl From<ListedInstance> for DaemonInstance {
             .map(|interface_address| interface_address.address.clone())
             .collect();
         DaemonInstance {
-            instance_name: listed.name,
-            project_name: listed.project,
-            kind: instance_kind_of(&listed.instance_type),
-            running,
-            status_text: listed.status,
+            listing,
             memory_in_use: runtime_state
                 .and_then(|runtime_state| runtime_state.memory)
                 .map(|memory_state| ByteSize::b(memory_state.usage))
@@ -237,7 +237,9 @@ impl From<ListedInstance> for DaemonInstance {
     }
 }
 
-async fn read_daemon_instances(socket_path: &Path) -> DaemonInstancesReadout {
+async fn read_daemon_instances(
+    socket_path: &Path,
+) -> Result<FamilyDetails<DaemonInstance>, EngineReadError> {
     let listing: Result<InstanceListingReply, _> = http_json_client::get_json_over_unix_socket(
         socket_path,
         &format!("{INCUS_API_ROOT}/instances?recursion=2&all-projects=true"),
@@ -245,22 +247,25 @@ async fn read_daemon_instances(socket_path: &Path) -> DaemonInstancesReadout {
     .await;
     match listing {
         Ok(listing) => {
-            let mut instances: Vec<DaemonInstance> = listing
+            let mut details: Vec<DaemonInstance> = listing
                 .metadata
                 .into_iter()
                 .map(DaemonInstance::from)
                 .collect();
-            instances.sort_by(|first, second| first.instance_name.cmp(&second.instance_name));
-            DaemonInstancesReadout::Instances(instances)
+            details.sort_by(|first, second| {
+                first
+                    .listing
+                    .instance_name
+                    .cmp(&second.listing.instance_name)
+            });
+            Ok(FamilyDetails { details })
         }
-        Err(fetch_failure) => DaemonInstancesReadout::Unreadable(
-            classified_engine_failure(socket_path, fetch_failure).await,
-        ),
+        Err(fetch_failure) => Err(classified_engine_failure(socket_path, fetch_failure).await),
     }
 }
 
-impl SnapshotSource for DaemonInstancesReadout {
-    type Error = Infallible;
+impl SnapshotSource for FamilyDetails<DaemonInstance> {
+    type Error = EngineReadError;
     type StreamInputs = InstanceDaemon;
 
     const NAME: &'static str = "Incus instances";
@@ -272,9 +277,11 @@ impl SnapshotSource for DaemonInstancesReadout {
         path_present(instance_daemon.socket_path()).while_available(
             move || {
                 let watched_daemon = watched_daemon;
-                PeriodicPolling::every(INSTANCE_POLL_PERIOD).poll_deliveries(move || async move {
-                    Ok(read_daemon_instances(&watched_daemon.socket_path()).await)
-                })
+                PeriodicPolling::every(INSTANCE_POLL_PERIOD)
+                    .poll_deliveries(move || async move {
+                        read_daemon_instances(&watched_daemon.socket_path()).await
+                    })
+                    .map(unavailable_when_socket_missing)
             },
             || SnapshotDelivery::SourceUnavailable,
         )
@@ -287,6 +294,7 @@ mod tests {
     use serde_json::json;
 
     use super::{DaemonInstance, InstanceKind, InstanceListingReply};
+    use crate::container_run_state::ContainerRunState;
 
     #[test]
     fn a_running_container_keeps_its_global_addresses_and_memory() {
@@ -328,8 +336,8 @@ mod tests {
             instances[0].image_description.as_deref(),
             Some("Debian trixie amd64")
         );
-        assert_eq!(instances[1].kind, InstanceKind::VirtualMachine);
-        assert!(!instances[1].running);
+        assert_eq!(instances[1].listing.kind, InstanceKind::VirtualMachine);
+        assert_eq!(instances[1].listing.run_state, ContainerRunState::Stopped);
         assert_eq!(instances[1].memory_in_use, None);
     }
 }

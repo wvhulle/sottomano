@@ -3,7 +3,8 @@ use std::{path::PathBuf, time::Duration};
 use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    apptainer_containers::{ApptainerContainer, ApptainerContainers},
+    apptainer_containers::{ApptainerContainer, ApptainerContainerListing},
+    container_family_snapshots::FamilyDetails,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
 use sottomano_widgets::{
@@ -21,9 +22,12 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = ApptainerContainersGroup::default();
     let _ = group.update(
         ApptainerContainersMessage::Detail(SnapshotDelivery::fixture_delivered(
-            Ok(ApptainerContainers {
-                containers: vec![ApptainerContainer {
-                    runtime_pid: HOVERED_RUNTIME_PID,
+            Ok(FamilyDetails {
+                details: vec![ApptainerContainer {
+                    listing: ApptainerContainerListing {
+                        runtime_pid: HOVERED_RUNTIME_PID,
+                        container_name: "pytorch_24.08".to_owned(),
+                    },
                     runtime_title: "Apptainer runtime parent".to_owned(),
                     image_file: Some(PathBuf::from("/home/user/images/pytorch_24.08.sif")),
                     running_command: Some("python3 train.py --epochs 40".to_owned()),

@@ -13,3 +13,9 @@ impl ContainerRunState {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunChange {
+    Start,
+    Stop,
+}

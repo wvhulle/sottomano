@@ -15,8 +15,7 @@ mod wind_speed;
 
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
     weather::{
         buienradar_rain::Rain,
         open_meteo_pollen::{Allergen, Pollen},
@@ -95,9 +94,9 @@ impl WeatherGroup {
         let (Some(here), Some(buses)) = (self.location.get().map(Location::position), buses) else {
             return location;
         };
-        let online_here = || OnlineSourceInputs {
+        let online_here = || OnBus {
             buses: buses.clone(),
-            source_inputs: here,
+            inputs: here,
         };
         Subscription::batch([
             location,
@@ -147,9 +146,9 @@ impl WeatherGroup {
         let Some(buses) = buses else {
             return Task::none();
         };
-        let online_here = || OnlineSourceInputs {
+        let online_here = || OnBus {
             buses: buses.clone(),
-            source_inputs: here,
+            inputs: here,
         };
         match target {
             WeatherTarget::Temperature => {

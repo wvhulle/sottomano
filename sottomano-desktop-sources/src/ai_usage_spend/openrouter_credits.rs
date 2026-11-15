@@ -16,9 +16,9 @@ use crate::{
         working_time_forecast::{CalendarSpan, SpendBudget},
     },
     delivery_cadence_drivers::PeriodicPolling,
-    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
+    network_connectivity::internet_connectivity_gate,
     secret_file_reads::read_secret,
-    system_protocol_clients::http_json_client,
+    system_protocol_clients::{dbus_desktop_buses::OnBus, http_json_client},
 };
 
 const ANALYTICS_URL: &str = "https://openrouter.ai/api/v1/analytics/query";
@@ -138,15 +138,12 @@ impl OpenRouterSpend {
 
 impl SnapshotSource for OpenRouterSpend {
     type Error = Error;
-    type StreamInputs = OnlineSourceInputs<OpenRouterAccount>;
+    type StreamInputs = OnBus<OpenRouterAccount>;
 
     const NAME: &'static str = "OpenRouter soft budget";
 
     fn delivery_stream(
-        OnlineSourceInputs {
-            buses,
-            source_inputs: inputs,
-        }: Self::StreamInputs,
+        OnBus { buses, inputs }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         internet_connectivity_gate::while_online(buses, move || {
             let inputs = inputs.clone();
@@ -250,15 +247,12 @@ impl OpenRouterStrictBudget {
 
 impl SnapshotSource for OpenRouterStrictBudget {
     type Error = Error;
-    type StreamInputs = OnlineSourceInputs<PathBuf>;
+    type StreamInputs = OnBus<PathBuf>;
 
     const NAME: &'static str = "OpenRouter strict budget";
 
     fn delivery_stream(
-        OnlineSourceInputs {
-            buses,
-            source_inputs: inputs,
-        }: Self::StreamInputs,
+        OnBus { buses, inputs }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         internet_connectivity_gate::while_online(buses, move || {
             let inputs = inputs.clone();

@@ -16,8 +16,10 @@ use super::Error;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
-    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
-    system_protocol_clients::{http_json_client, http_json_client::deserialize_percent_ratio},
+    network_connectivity::internet_connectivity_gate,
+    system_protocol_clients::{
+        dbus_desktop_buses::OnBus, http_json_client, http_json_client::deserialize_percent_ratio,
+    },
 };
 
 fn unix_instant<E: DeserializeError>(seconds: i64) -> Result<DateTime<Utc>, E> {
@@ -311,15 +313,12 @@ pub struct HourlyTemperature {
 
 impl SnapshotSource for Temperature {
     type Error = Error;
-    type StreamInputs = OnlineSourceInputs<GeoCoordinates>;
+    type StreamInputs = OnBus<GeoCoordinates>;
 
     const NAME: &'static str = "Temperature forecast";
 
     fn delivery_stream(
-        OnlineSourceInputs {
-            buses,
-            source_inputs: inputs,
-        }: Self::StreamInputs,
+        OnBus { buses, inputs }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         internet_connectivity_gate::while_online(buses, move || {
             PeriodicPolling::every(Duration::from_secs(300))

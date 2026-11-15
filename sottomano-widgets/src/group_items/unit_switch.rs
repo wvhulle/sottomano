@@ -3,12 +3,11 @@ use std::borrow::Cow;
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    container_run_state::RunChange,
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
     systemd_units_journal::{
-        ScopedSystemdUnit, SystemdUnitOnBus,
-        unit_active_state::{
-            UnitActiveState, UnitActivity, UnitChange, UnitChangeFailure, UnitControl,
-        },
+        ScopedSystemdUnit,
+        unit_active_state::{UnitActiveState, UnitActivity, UnitChangeFailure, UnitControl},
     },
 };
 
@@ -66,15 +65,15 @@ struct UnitSwitchReading {
 impl UnitSwitchReading {
     fn press_does(&self) -> &'static str {
         match self.activity.press_change() {
-            UnitChange::Start => self.face.presses.turning_on,
-            UnitChange::Stop => self.face.presses.turning_off,
+            RunChange::Start => self.face.presses.turning_on,
+            RunChange::Stop => self.face.presses.turning_off,
         }
     }
 
     fn switch_position(&self) -> SwitchPosition {
         match self.activity.press_change() {
-            UnitChange::Start => SwitchPosition::Off,
-            UnitChange::Stop => SwitchPosition::On,
+            RunChange::Start => SwitchPosition::Off,
+            RunChange::Stop => SwitchPosition::On,
         }
     }
 }
@@ -114,7 +113,7 @@ pub struct UnitSwitch {
 pub enum UnitSwitchMessage {
     ActiveState(SnapshotDelivery<UnitActiveState>),
     Requested {
-        change: UnitChange,
+        change: RunChange,
         before: Option<UnitActivity>,
         change_outcome: Result<(), UnitChangeFailure>,
     },
@@ -136,9 +135,9 @@ impl UnitSwitch {
     }
 
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<UnitSwitchMessage> {
-        snapshot_subscription::<UnitActiveState>(SystemdUnitOnBus {
+        snapshot_subscription::<UnitActiveState>(OnBus {
             buses: buses.clone(),
-            unit: self.unit.clone(),
+            inputs: self.unit.clone(),
         })
         .map(UnitSwitchMessage::ActiveState)
     }
@@ -181,7 +180,7 @@ impl UnitSwitch {
         }
     }
 
-    pub fn request(&mut self, change: UnitChange) -> Task<UnitSwitchMessage> {
+    pub fn request(&mut self, change: RunChange) -> Task<UnitSwitchMessage> {
         let before = self.activity();
         self.active_state.apply_command(CommandOutcome::Applied {
             expected_snapshot: UnitActiveState {

@@ -1,11 +1,12 @@
 use std::borrow::Cow;
 
 use iced::{Subscription, Task};
-use sottomano_desktop_sinks::network_connectivity::network_manager_activations::switch_vpn;
+use sottomano_desktop_sinks::network_connectivity::network_manager_activations::switch_nm_connection;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    network_connectivity::network_manager_vpn_connections::{
-        NetworkManagerVpns, VpnActivation, VpnConnection, VpnSwitch,
+    network_connectivity::{
+        network_manager_proxies::NmConnectionSwitch,
+        network_manager_vpn_connections::{NetworkManagerVpns, VpnActivation, VpnConnection},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -58,7 +59,7 @@ pub enum NetworkManagerVpnMessage {
 #[derive(Debug, Clone)]
 pub enum NetworkManagerVpnInteraction {
     Expansion(WidgetGroupExpansionMessage),
-    SwitchVpn(VpnSwitch),
+    SwitchVpn(NmConnectionSwitch),
 }
 
 impl NetworkManagerVpnGroup {
@@ -100,7 +101,7 @@ impl NetworkManagerVpnGroup {
             }
             NetworkManagerVpnMessage::Interaction(NetworkManagerVpnInteraction::SwitchVpn(
                 vpn_switch,
-            )) => Task::future(switch_vpn(vpn_switch)).discard(),
+            )) => Task::future(switch_nm_connection(vpn_switch)).discard(),
         }
     }
 
@@ -135,12 +136,12 @@ impl NetworkManagerVpnGroup {
         )
         .on_switch_press(
             match vpn_switch {
-                VpnSwitch::Connect(_) => SwitchPosition::Off,
-                VpnSwitch::Disconnect(_) => SwitchPosition::On,
+                NmConnectionSwitch::Connect(_) => SwitchPosition::Off,
+                NmConnectionSwitch::Disconnect(_) => SwitchPosition::On,
             },
             match vpn_switch {
-                VpnSwitch::Connect(_) => "connect the VPN",
-                VpnSwitch::Disconnect(_) => "disconnect the VPN",
+                NmConnectionSwitch::Connect(_) => "connect the VPN",
+                NmConnectionSwitch::Disconnect(_) => "disconnect the VPN",
             },
             NetworkManagerVpnInteraction::SwitchVpn(vpn_switch),
         )

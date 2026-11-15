@@ -1,9 +1,9 @@
 use iced::Subscription;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
     systemd_units_journal::{
-        SystemdOnBus, SystemdUnitScope,
+        SystemdUnitScope,
         service_commands::{ServiceCommand, ServiceCommands},
     },
 };
@@ -31,9 +31,9 @@ pub struct DiscoveredSystemdServices {
 impl DiscoveredSystemdServices {
     pub fn subscription(buses: &DesktopBuses) -> Subscription<ScopedServiceCommands> {
         Subscription::batch(DISCOVERED_SCOPES.map(|scope| {
-            snapshot_subscription::<ServiceCommands>(SystemdOnBus {
+            snapshot_subscription::<ServiceCommands>(OnBus {
                 buses: buses.clone(),
-                scope,
+                inputs: scope,
             })
             .with(scope)
             .map(|(scope, delivery)| ScopedServiceCommands { scope, delivery })

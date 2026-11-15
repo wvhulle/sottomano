@@ -3,11 +3,9 @@ use std::borrow::Cow;
 use chrono::Locale;
 use sottomano_desktop_sinks::flatpak_sandboxes::stop_flatpak_instance;
 use sottomano_desktop_sources::{
+    container_family_snapshots::{FamilyDetails, FamilyListings},
     container_run_state::ContainerRunState,
-    flatpak_sandboxes::{
-        FlatpakProbe, FlatpakSandbox, FlatpakSandboxListing, FlatpakSandboxListings,
-        FlatpakSandboxes,
-    },
+    flatpak_sandboxes::{FlatpakProbe, FlatpakSandbox, FlatpakSandboxListing},
 };
 
 use crate::{
@@ -93,7 +91,7 @@ impl GroupItemReading for FlatpakSandboxRow<'_> {
     fn name(&self) -> Cow<'static, str> {
         format!(
             "{} {}",
-            self.sandbox.application_id, self.sandbox.instance_id
+            self.sandbox.listing.application_id, self.sandbox.listing.instance_id
         )
         .into()
     }
@@ -112,7 +110,10 @@ impl GroupItemReading for FlatpakSandboxRow<'_> {
 
     fn hover_card(&self, clock: Clock) -> Vec<Section> {
         let sandbox = self.sandbox;
-        let mut detail_entries = vec![LabeledValue::new("App", sandbox.application_id.clone())];
+        let mut detail_entries = vec![LabeledValue::new(
+            "App",
+            sandbox.listing.application_id.clone(),
+        )];
         if let Some(memory_in_use) = sandbox.memory_in_use {
             detail_entries.push(LabeledValue::new(
                 "Memory use",
@@ -126,7 +127,7 @@ impl GroupItemReading for FlatpakSandboxRow<'_> {
                 .inspect_err(|clock_skew| {
                     tracing::debug!(
                         "flatpak sandboxes: start time of {} lies ahead: {clock_skew}",
-                        sandbox.application_id
+                        sandbox.listing.application_id
                     );
                 })
                 .ok()
@@ -140,7 +141,7 @@ impl GroupItemReading for FlatpakSandboxRow<'_> {
             detail_entries.push(LabeledValue::new("Branch", branch.clone()));
         }
         detail_entries.extend([
-            LabeledValue::new("Instance", sandbox.instance_id.clone()),
+            LabeledValue::new("Instance", sandbox.listing.instance_id.clone()),
             LabeledValue::new("Sandbox PID", sandbox.sandbox_pid.to_string()),
         ]);
         vec![Section::new("Sandbox", dictionary_table(detail_entries))]
@@ -156,8 +157,8 @@ pub type FlatpakSandboxesInteraction = ContainerFamilyInteraction<FlatpakFamily>
 
 impl ContainerFamily for FlatpakFamily {
     type Probe = FlatpakProbe;
-    type Listings = FlatpakSandboxListings;
-    type Detail = FlatpakSandboxes;
+    type Listings = FamilyListings<FlatpakSandboxListing>;
+    type Detail = FamilyDetails<FlatpakSandbox>;
     type Target = FlatpakSandboxTarget;
     type PowerRequest = String;
     type ListingRow<'a> = FlatpakSandboxListingRow<'a>;
@@ -172,11 +173,11 @@ impl ContainerFamily for FlatpakFamily {
     }
 
     fn running_count(probe: &FlatpakProbe) -> usize {
-        probe.running_instance_count
+        probe.running_count
     }
 
     fn listing_rows(
-        listings: &FlatpakSandboxListings,
+        listings: &FamilyListings<FlatpakSandboxListing>,
     ) -> Vec<FamilyRow<Self, FlatpakSandboxListingRow<'_>>> {
         listings
             .listings
@@ -191,16 +192,18 @@ impl ContainerFamily for FlatpakFamily {
             .collect()
     }
 
-    fn detail_rows(detail: &FlatpakSandboxes) -> Vec<FamilyRow<Self, FlatpakSandboxRow<'_>>> {
+    fn detail_rows(
+        detail: &FamilyDetails<FlatpakSandbox>,
+    ) -> Vec<FamilyRow<Self, FlatpakSandboxRow<'_>>> {
         detail
-            .sandboxes
+            .details
             .iter()
             .map(|sandbox| FamilyRow {
                 target: FlatpakSandboxTarget {
-                    instance_id: Cow::Owned(sandbox.instance_id.clone()),
+                    instance_id: Cow::Owned(sandbox.listing.instance_id.clone()),
                 },
                 reading: FlatpakSandboxRow { sandbox },
-                power: RowPower::Stoppable(sandbox.instance_id.clone()),
+                power: RowPower::Stoppable(sandbox.listing.instance_id.clone()),
             })
             .collect()
     }
@@ -208,7 +211,7 @@ impl ContainerFamily for FlatpakFamily {
     fn group_hover_entries(probe: &FlatpakProbe) -> Vec<LabeledValue> {
         vec![LabeledValue::new(
             "Running apps",
-            probe.running_instance_count.to_string(),
+            probe.running_count.to_string(),
         )]
     }
 

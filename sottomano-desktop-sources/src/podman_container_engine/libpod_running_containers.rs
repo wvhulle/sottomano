@@ -10,7 +10,7 @@ use std::{
 
 use bytesize::ByteSize;
 use chrono::DateTime;
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use serde::Deserialize;
 use tokio::{net::UnixStream, sync::Mutex};
 
@@ -48,6 +48,22 @@ pub enum EngineReadError {
     Fetch(http_json_client::Error),
     ProcessTableUnreadable,
     ReadPanicked,
+    RunningSetUnwatched(JournalFollowError),
+}
+
+impl From<JournalFollowError> for EngineReadError {
+    fn from(watch_failure: JournalFollowError) -> Self {
+        EngineReadError::RunningSetUnwatched(watch_failure)
+    }
+}
+
+pub(crate) fn unavailable_when_socket_missing<Source>(
+    delivery: SnapshotDelivery<Source>,
+) -> SnapshotDelivery<Source>
+where
+    Source: SnapshotSource<Error = EngineReadError>,
+{
+    delivery.unavailable_when(|read_failure| *read_failure == EngineReadError::SocketMissing)
 }
 
 impl From<http_json_client::Error> for EngineReadError {
@@ -66,6 +82,7 @@ impl Display for EngineReadError {
             EngineReadError::Fetch(failure) => failure.fmt(f),
             EngineReadError::ProcessTableUnreadable => f.write_str("cannot read /proc"),
             EngineReadError::ReadPanicked => Panicked.fmt(f),
+            EngineReadError::RunningSetUnwatched(watch_failure) => watch_failure.fmt(f),
         }
     }
 }
@@ -508,36 +525,18 @@ pub(crate) fn shared_engine_sampler(socket_path: PathBuf) -> Arc<Mutex<EngineSam
     Arc::new(Mutex::new(EngineSampler::new(socket_path)))
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum EngineReadout {
-    Containers(EngineListing),
-    Unreadable(EngineReadError),
-}
-
-impl From<Result<EngineListing, EngineReadError>> for EngineReadout {
-    fn from(engine_read: Result<EngineListing, EngineReadError>) -> Self {
-        match engine_read {
-            Ok(engine) => EngineReadout::Containers(engine),
-            Err(failure) => EngineReadout::Unreadable(failure),
-        }
-    }
-}
-
-impl EngineReadout {
+impl EngineListing {
     pub(crate) fn sampling_need(&self) -> SamplingNeed {
-        match self {
-            EngineReadout::Containers(engine) if engine.running.containers.is_empty() => {
-                SamplingNeed::Settled
-            }
-            EngineReadout::Containers(_) | EngineReadout::Unreadable(_) => {
-                SamplingNeed::KeepSampling
-            }
+        if self.running.containers.is_empty() {
+            SamplingNeed::Settled
+        } else {
+            SamplingNeed::KeepSampling
         }
     }
 }
 
-impl SnapshotSource for EngineReadout {
-    type Error = JournalFollowError;
+impl SnapshotSource for EngineListing {
+    type Error = EngineReadError;
     type StreamInputs = PathBuf;
 
     const NAME: &'static str = "Podman containers";
@@ -547,14 +546,15 @@ impl SnapshotSource for EngineReadout {
         deliveries_on_running_set_changes(
             move || {
                 let sampler = sampler.clone();
-                async move { Ok(sampler.lock().await.sample_listing().await.into()) }
+                async move { sampler.lock().await.sample_listing().await }
             },
             |delivered| {
                 delivered
                     .as_ref()
-                    .map_or(SamplingNeed::KeepSampling, EngineReadout::sampling_need)
+                    .map_or(SamplingNeed::KeepSampling, EngineListing::sampling_need)
             },
         )
+        .map(unavailable_when_socket_missing)
     }
 }
 
@@ -826,8 +826,8 @@ mod tests {
     }
 
     #[test]
-    fn only_a_readable_empty_engine_stops_usage_sampling() {
-        let empty = EngineReadout::Containers(EngineListing {
+    fn an_empty_engine_stops_usage_sampling() {
+        let empty = EngineListing {
             running: EngineContainers {
                 containers: Vec::new(),
             },
@@ -838,12 +838,8 @@ mod tests {
                 image: "alpine".to_owned(),
                 stopped_at: UNIX_EPOCH,
             }],
-        });
+        };
         assert_eq!(empty.sampling_need(), SamplingNeed::Settled);
-        assert_eq!(
-            EngineReadout::Unreadable(EngineReadError::SocketMissing).sampling_need(),
-            SamplingNeed::KeepSampling
-        );
     }
 
     #[test]

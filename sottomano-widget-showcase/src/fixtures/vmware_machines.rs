@@ -3,8 +3,9 @@ use std::{path::PathBuf, time::Duration};
 use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    container_family_snapshots::FamilyDetails,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
-    vmware_machines::{VmwareMachine, VmwareMachines},
+    vmware_machines::{VmwareMachine, VmwareMachineListing},
 };
 use sottomano_widgets::{
     clock::Clock,
@@ -19,11 +20,13 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = VmwareMachinesGroup::default();
     let _ = group.update(
         VmwareMachinesMessage::Detail(SnapshotDelivery::fixture_delivered(
-            Ok(VmwareMachines {
-                machines: vec![VmwareMachine {
-                    pid: HOVERED_MACHINE_PID,
-                    machine_name: "Ubuntu 26.04".to_owned(),
-                    configuration_file: PathBuf::from("/home/user/vmware/Ubuntu/Ubuntu.vmx"),
+            Ok(FamilyDetails {
+                details: vec![VmwareMachine {
+                    listing: VmwareMachineListing {
+                        pid: HOVERED_MACHINE_PID,
+                        machine_name: "Ubuntu 26.04".to_owned(),
+                        configuration_file: PathBuf::from("/home/user/vmware/Ubuntu/Ubuntu.vmx"),
+                    },
                     guest_os: Some("ubuntu-64".to_owned()),
                     guest_memory: Some(ByteSize::gib(4)),
                     guest_cores: Some(2),

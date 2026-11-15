@@ -7,9 +7,9 @@ use serde_json::Value;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
-    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
+    network_connectivity::internet_connectivity_gate,
     secret_file_reads::read_secret,
-    system_protocol_clients::http_json_client,
+    system_protocol_clients::{dbus_desktop_buses::OnBus, http_json_client},
 };
 
 const POLICY_FILE_URL: &str = "https://api.tailscale.com/api/v2/tailnet/-/acl";
@@ -186,14 +186,14 @@ impl From<PolicyFileJson> for TailscalePolicyFile {
 
 impl SnapshotSource for TailscalePolicyFile {
     type Error = PolicyFileError;
-    type StreamInputs = OnlineSourceInputs<PathBuf>;
+    type StreamInputs = OnBus<PathBuf>;
 
     const NAME: &'static str = "Tailscale policy file";
 
     fn delivery_stream(
-        OnlineSourceInputs {
+        OnBus {
             buses,
-            source_inputs: token_path,
+            inputs: token_path,
         }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         internet_connectivity_gate::while_online(buses, move || {

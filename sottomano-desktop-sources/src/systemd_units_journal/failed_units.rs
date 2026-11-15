@@ -5,14 +5,15 @@ use tokio::task::spawn_blocking;
 use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{
-    ManagerProxy, ServiceProxy, SystemdOnBus, SystemdUnitScope, UNIT_INTERFACE, UnitRow,
-    manager_signal, state_changed_at, systemd_signal,
+    ManagerProxy, ServiceProxy, SystemdUnitScope, UNIT_INTERFACE, UnitRow, manager_signal,
+    state_changed_at, systemd_signal,
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::ChangeTriggerStreams,
     system_protocol_clients::{
-        dbus_change_signals::change_triggers, protocol_peer_reconnects::subscribed,
+        dbus_change_signals::change_triggers, dbus_desktop_buses::OnBus,
+        protocol_peer_reconnects::subscribed,
     },
     systemd_units_journal::{
         journal_coredumps::CoredumpEntry, journal_record_fields::JournalPriority,
@@ -65,12 +66,14 @@ pub struct FailedUnitRestart {
 
 impl SnapshotSource for FailedUnits {
     type Error = zbus::Error;
-    type StreamInputs = SystemdOnBus;
+    type StreamInputs = OnBus<SystemdUnitScope>;
 
     const NAME: &'static str = "Failed systemd units";
 
-    fn delivery_stream(systemd: SystemdOnBus) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let scope = systemd.scope;
+    fn delivery_stream(
+        systemd: OnBus<SystemdUnitScope>,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        let scope = systemd.inputs;
         subscribed(systemd.connection(), move |connection| {
             watch_failed(connection, scope)
         })

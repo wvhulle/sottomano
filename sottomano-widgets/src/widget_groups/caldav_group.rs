@@ -10,8 +10,7 @@ use sottomano_desktop_sources::{
         caldav_agenda::CaldavAccount, caldav_open_tasks::OpenTaskList,
         caldav_server_provider::CaldavProvider, caldav_upcoming_events::UpcomingEventList,
     },
-    network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
 use sottomano_toml_config::{SecretPaths, widget_groups::caldav_account::CaldavAccountConfig};
 
@@ -98,9 +97,9 @@ impl CaldavGroup {
         let Some(buses) = buses else {
             return Subscription::none();
         };
-        let online_account = OnlineSourceInputs {
+        let online_account = OnBus {
             buses: buses.clone(),
-            source_inputs: account,
+            inputs: account,
         };
         Subscription::batch([
             snapshot_subscription::<UpcomingEventList>(online_account.clone())

@@ -2,15 +2,15 @@ use std::{borrow::Cow, collections::BTreeMap};
 
 use chrono::Locale;
 use iced::{Subscription, Task};
-use sottomano_desktop_sinks::incus_instances::{InstanceStateChange, change_instance_state};
+use sottomano_desktop_sinks::incus_instances::change_instance_state;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     backing_service_availability::Availability,
+    container_family_snapshots::{FamilyDetails, FamilyListings},
+    container_run_state::{ContainerRunState, RunChange},
     incus_instances::{
-        DaemonInstance, DaemonInstanceListing, DaemonInstanceListings, DaemonInstancesReadout,
-        InstanceDaemon, InstanceKind,
+        DaemonInstance, DaemonInstanceListing, InstanceDaemon, InstanceDaemonProbe, InstanceKind,
     },
-    podman_container_engine::libpod_running_containers::EngineReadError,
 };
 
 use crate::{
@@ -26,6 +26,7 @@ use crate::{
         hover_card_body::{Section, dictionary_table},
     },
     widget_groups::{
+        engine_container_rows::engine_failure_label,
         process_usage_cells::approximate_memory_text,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -73,23 +74,20 @@ fn instance_icon(kind: InstanceKind) -> IconGlyph {
 fn instance_power_switch<'a>(
     row: GroupItem<'a, IncusInstancesInteraction>,
     instance_daemon: InstanceDaemon,
-    project_name: &str,
-    instance_name: &str,
-    running: bool,
+    listing: &DaemonInstanceListing,
 ) -> GroupItem<'a, IncusInstancesInteraction> {
-    let (switch_position, hint, state_change) = if running {
-        (SwitchPosition::On, STOP_HINT, InstanceStateChange::Stop)
-    } else {
-        (SwitchPosition::Off, START_HINT, InstanceStateChange::Start)
+    let (switch_position, hint, run_change) = match listing.run_state {
+        ContainerRunState::Running => (SwitchPosition::On, STOP_HINT, RunChange::Stop),
+        ContainerRunState::Stopped => (SwitchPosition::Off, START_HINT, RunChange::Start),
     };
     row.on_switch_press(
         switch_position,
         hint,
         IncusInstancesInteraction::ChangeState {
             instance_daemon,
-            project_name: project_name.to_owned(),
-            instance_name: instance_name.to_owned(),
-            state_change,
+            project_name: listing.project_name.clone(),
+            instance_name: listing.instance_name.clone(),
+            run_change,
         },
     )
 }
@@ -118,18 +116,18 @@ impl GroupItemReading for IncusInstanceRow<'_> {
     fn name(&self) -> Cow<'static, str> {
         daemon_instance_name(
             self.instance_daemon,
-            &self.instance.project_name,
-            &self.instance.instance_name,
+            &self.instance.listing.project_name,
+            &self.instance.listing.instance_name,
         )
     }
 
     fn icon(&self) -> IconGlyph {
-        instance_icon(self.instance.kind)
+        instance_icon(self.instance.listing.kind)
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        if !self.instance.running {
-            return Some(self.instance.status_text.to_lowercase());
+        if self.instance.listing.run_state == ContainerRunState::Stopped {
+            return Some(self.instance.listing.status_text.to_lowercase());
         }
         self.instance
             .global_addresses
@@ -139,20 +137,16 @@ impl GroupItemReading for IncusInstanceRow<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.instance.running {
-            ReadingDisplayState::On
-        } else {
-            ReadingDisplayState::Off
-        }
+        self.instance.listing.run_state.into()
     }
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         let instance = self.instance;
         let mut detail_entries = vec![
-            LabeledValue::new("Kind", kind_text(instance.kind)),
-            LabeledValue::new("Status", instance.status_text.clone()),
+            LabeledValue::new("Kind", kind_text(instance.listing.kind)),
+            LabeledValue::new("Status", instance.listing.status_text.clone()),
             LabeledValue::new("Daemon", self.instance_daemon.product_name()),
-            LabeledValue::new("Project", instance.project_name.clone()),
+            LabeledValue::new("Project", instance.listing.project_name.clone()),
         ];
         if let Some(memory_in_use) = instance.memory_in_use {
             detail_entries.push(LabeledValue::new(
@@ -196,11 +190,7 @@ impl GroupItemReading for IncusInstanceListingRow<'_> {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        if self.listing.running {
-            ReadingDisplayState::On
-        } else {
-            ReadingDisplayState::Off
-        }
+        self.listing.run_state.into()
     }
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
@@ -216,12 +206,12 @@ impl GroupItemReading for IncusInstanceListingRow<'_> {
     }
 }
 
-struct UnreadableDaemonRow {
+struct UnreadableDaemonRow<'a> {
     instance_daemon: InstanceDaemon,
-    failure: EngineReadError,
+    failure_message: &'a str,
 }
 
-impl GroupItemReading for UnreadableDaemonRow {
+impl GroupItemReading for UnreadableDaemonRow<'_> {
     fn name(&self) -> Cow<'static, str> {
         self.instance_daemon.product_name().into()
     }
@@ -231,10 +221,7 @@ impl GroupItemReading for UnreadableDaemonRow {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(match self.failure {
-            EngineReadError::SocketDenied => "no access: socket denied".to_owned(),
-            _ => "unreadable".to_owned(),
-        })
+        Some(engine_failure_label(self.failure_message).to_owned())
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
@@ -245,7 +232,7 @@ impl GroupItemReading for UnreadableDaemonRow {
         vec![Section::new(
             "Error",
             dictionary_table([
-                LabeledValue::new("Problem", self.failure.to_string()),
+                LabeledValue::new("Problem", self.failure_message),
                 LabeledValue::new(
                     "Socket",
                     self.instance_daemon.socket_path().display().to_string(),
@@ -257,17 +244,23 @@ impl GroupItemReading for UnreadableDaemonRow {
 
 #[derive(Default)]
 pub struct IncusInstancesGroup {
-    probes: BTreeMap<InstanceDaemon, SubscribedSnapshot<Availability>>,
-    listings: BTreeMap<InstanceDaemon, SubscribedSnapshot<DaemonInstanceListings>>,
-    details: BTreeMap<InstanceDaemon, SubscribedSnapshot<DaemonInstancesReadout>>,
+    probes: BTreeMap<InstanceDaemon, SubscribedSnapshot<InstanceDaemonProbe>>,
+    listings: BTreeMap<InstanceDaemon, SubscribedSnapshot<FamilyListings<DaemonInstanceListing>>>,
+    details: BTreeMap<InstanceDaemon, SubscribedSnapshot<FamilyDetails<DaemonInstance>>>,
     expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug)]
 pub enum IncusInstancesMessage {
-    Probe(InstanceDaemon, SnapshotDelivery<Availability>),
-    Listings(InstanceDaemon, SnapshotDelivery<DaemonInstanceListings>),
-    Instances(InstanceDaemon, SnapshotDelivery<DaemonInstancesReadout>),
+    Probe(InstanceDaemon, SnapshotDelivery<InstanceDaemonProbe>),
+    Listings(
+        InstanceDaemon,
+        SnapshotDelivery<FamilyListings<DaemonInstanceListing>>,
+    ),
+    Instances(
+        InstanceDaemon,
+        SnapshotDelivery<FamilyDetails<DaemonInstance>>,
+    ),
     StateChangeRefused(String),
     Interaction(IncusInstancesInteraction),
 }
@@ -278,7 +271,7 @@ pub enum IncusInstancesInteraction {
         instance_daemon: InstanceDaemon,
         project_name: String,
         instance_name: String,
-        state_change: InstanceStateChange,
+        run_change: RunChange,
     },
     Expansion(WidgetGroupExpansionMessage),
 }
@@ -292,20 +285,20 @@ impl IncusInstancesGroup {
         let demand = demand.expanded_when(self.expansion.state());
         Subscription::batch(WATCHED_DAEMONS.into_iter().flat_map(|instance_daemon| {
             [
-                snapshot_subscription::<Availability>(instance_daemon)
+                snapshot_subscription::<InstanceDaemonProbe>(instance_daemon)
                     .with(instance_daemon)
                     .map(|(instance_daemon, delivery)| {
                         IncusInstancesMessage::Probe(instance_daemon, delivery)
                     }),
                 demand.while_face_shown(
-                    snapshot_subscription::<DaemonInstanceListings>(instance_daemon)
+                    snapshot_subscription::<FamilyListings<DaemonInstanceListing>>(instance_daemon)
                         .with(instance_daemon)
                         .map(|(instance_daemon, delivery)| {
                             IncusInstancesMessage::Listings(instance_daemon, delivery)
                         }),
                 ),
                 demand.while_rows_shown(
-                    snapshot_subscription::<DaemonInstancesReadout>(instance_daemon)
+                    snapshot_subscription::<FamilyDetails<DaemonInstance>>(instance_daemon)
                         .with(instance_daemon)
                         .map(|(instance_daemon, delivery)| {
                             IncusInstancesMessage::Instances(instance_daemon, delivery)
@@ -350,9 +343,9 @@ impl IncusInstancesGroup {
                 instance_daemon,
                 project_name,
                 instance_name,
-                state_change,
+                run_change,
             }) => Task::future(async move {
-                change_instance_state(instance_daemon, &project_name, &instance_name, state_change)
+                change_instance_state(instance_daemon, &project_name, &instance_name, run_change)
                     .await
                     .err()
             })
@@ -367,72 +360,66 @@ impl IncusInstancesGroup {
     }
 
     fn probe_availability(&self, instance_daemon: InstanceDaemon) -> Option<Availability> {
-        self.probes.get(&instance_daemon)?.get().copied()
+        self.probes
+            .get(&instance_daemon)?
+            .get()
+            .map(|InstanceDaemonProbe(availability)| *availability)
     }
 
     #[must_use]
     pub fn hover_card_for(&self, target: &IncusInstanceTarget, clock: Clock) -> Vec<Section> {
-        if let Some(detail_reading) = self.details.get(&target.instance_daemon) {
-            let Some(detail_readout) = detail_reading.get() else {
-                return Vec::new();
-            };
-            match detail_readout {
-                DaemonInstancesReadout::Instances(instances) => {
-                    let Some(instance) = instances
-                        .iter()
-                        .find(|instance| instance.instance_name == target.instance_name)
-                    else {
-                        return Vec::new();
-                    };
-                    return detail_reading.hover_card_with(
-                        IncusInstanceRow {
-                            instance_daemon: target.instance_daemon,
-                            instance,
-                        }
-                        .hover_card(clock),
-                    );
-                }
-                DaemonInstancesReadout::Unreadable(failure) => {
-                    return detail_reading.hover_card_with(
-                        UnreadableDaemonRow {
-                            instance_daemon: target.instance_daemon,
-                            failure: failure.clone(),
-                        }
-                        .hover_card(clock),
-                    );
-                }
-            }
-        }
-        let Some(listing_reading) = self.listings.get(&target.instance_daemon) else {
-            return Vec::new();
-        };
-        let Some(listing_readout) = listing_reading.get() else {
-            return Vec::new();
-        };
-        match listing_readout {
-            DaemonInstanceListings::Instances(listings) => {
-                let Some(listing) = listings
+        let instance_daemon = target.instance_daemon;
+        if let Some(detail_reading) = self.details.get(&instance_daemon) {
+            if let Some(instances) = detail_reading.get() {
+                return instances
+                    .details
                     .iter()
-                    .find(|listing| listing.instance_name == target.instance_name)
-                else {
-                    return Vec::new();
-                };
-                listing_reading.hover_card_with(
-                    IncusInstanceListingRow {
-                        instance_daemon: target.instance_daemon,
-                        listing,
-                    }
-                    .hover_card(clock),
-                )
+                    .find(|instance| instance.listing.instance_name == target.instance_name)
+                    .map(|instance| {
+                        detail_reading.hover_card_with(
+                            IncusInstanceRow {
+                                instance_daemon,
+                                instance,
+                            }
+                            .hover_card(clock),
+                        )
+                    })
+                    .unwrap_or_default();
             }
-            DaemonInstanceListings::Unreadable(failure) => listing_reading.hover_card_with(
-                UnreadableDaemonRow {
-                    instance_daemon: target.instance_daemon,
-                    failure: failure.clone(),
+            if let Some(failure_message) = detail_reading.fetch_failure() {
+                return UnreadableDaemonRow {
+                    instance_daemon,
+                    failure_message,
                 }
-                .hover_card(clock),
-            ),
+                .hover_card(clock);
+            }
+            return Vec::new();
         }
+        let Some(listing_reading) = self.listings.get(&instance_daemon) else {
+            return Vec::new();
+        };
+        if let Some(failure_message) = listing_reading.fetch_failure() {
+            return UnreadableDaemonRow {
+                instance_daemon,
+                failure_message,
+            }
+            .hover_card(clock);
+        }
+        let Some(listing) = listing_reading.get().and_then(|listings| {
+            listings
+                .listings
+                .iter()
+                .find(|listing| listing.instance_name == target.instance_name)
+        }) else {
+            return Vec::new();
+        };
+        listing_reading.hover_card_with(
+            IncusInstanceListingRow {
+                instance_daemon,
+                listing,
+            }
+            .hover_card(clock),
+        )
     }
 
     fn probe_delivered_for_any_daemon(&self) -> bool {
@@ -461,12 +448,13 @@ impl IncusInstancesGroup {
         &self,
         instance_daemon: InstanceDaemon,
     ) -> Vec<GroupItem<'_, IncusInstancesInteraction>> {
-        if let Some(DaemonInstancesReadout::Instances(instances)) = self
+        if let Some(instances) = self
             .details
             .get(&instance_daemon)
-            .and_then(|reading| reading.get())
+            .and_then(SubscribedSnapshot::get)
         {
             return instances
+                .details
                 .iter()
                 .map(|instance| {
                     let row = GroupItem::reading(
@@ -476,61 +464,47 @@ impl IncusInstancesGroup {
                         },
                         IncusInstanceTarget {
                             instance_daemon,
-                            instance_name: Cow::Owned(instance.instance_name.clone()),
+                            instance_name: Cow::Owned(instance.listing.instance_name.clone()),
                         },
                     );
-                    instance_power_switch(
-                        row,
-                        instance_daemon,
-                        &instance.project_name,
-                        &instance.instance_name,
-                        instance.running,
-                    )
+                    instance_power_switch(row, instance_daemon, &instance.listing)
                 })
                 .collect();
         }
-        let Some(listings) = self
-            .listings
-            .get(&instance_daemon)
-            .and_then(|reading| reading.get())
-        else {
+        let Some(listing_reading) = self.listings.get(&instance_daemon) else {
             return Vec::new();
         };
-        match listings {
-            DaemonInstanceListings::Instances(listings) => listings
-                .iter()
-                .map(|listing| {
-                    let row = GroupItem::reading(
-                        IncusInstanceListingRow {
-                            instance_daemon,
-                            listing,
-                        },
-                        IncusInstanceTarget {
-                            instance_daemon,
-                            instance_name: Cow::Owned(listing.instance_name.clone()),
-                        },
-                    );
-                    instance_power_switch(
-                        row,
-                        instance_daemon,
-                        &listing.project_name,
-                        &listing.instance_name,
-                        listing.running,
-                    )
-                })
-                .collect(),
-            DaemonInstanceListings::Unreadable(EngineReadError::SocketMissing) => Vec::new(),
-            DaemonInstanceListings::Unreadable(failure) => vec![GroupItem::reading(
+        if let Some(failure_message) = listing_reading.fetch_failure() {
+            return vec![GroupItem::reading(
                 UnreadableDaemonRow {
                     instance_daemon,
-                    failure: failure.clone(),
+                    failure_message,
                 },
                 IncusInstanceTarget {
                     instance_daemon,
                     instance_name: Cow::Borrowed(instance_daemon.product_name()),
                 },
-            )],
+            )];
         }
+        listing_reading
+            .get()
+            .map(|listings| listings.listings.as_slice())
+            .unwrap_or_default()
+            .iter()
+            .map(|listing| {
+                let row = GroupItem::reading(
+                    IncusInstanceListingRow {
+                        instance_daemon,
+                        listing,
+                    },
+                    IncusInstanceTarget {
+                        instance_daemon,
+                        instance_name: Cow::Owned(listing.instance_name.clone()),
+                    },
+                );
+                instance_power_switch(row, instance_daemon, listing)
+            })
+            .collect()
     }
 }
 

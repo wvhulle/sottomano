@@ -17,8 +17,7 @@ use sottomano_desktop_sources::{
         },
         working_time_forecast::{SpendBudget, SpendPacing, WorkingTime},
     },
-    network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
 use sottomano_toml_config::Config;
 
@@ -113,9 +112,9 @@ impl ClaudeUsageGroup {
             return Task::none();
         };
         self.organization.start_hover_fetch(
-            OnlineSourceInputs {
+            OnBus {
                 buses: buses.clone(),
-                source_inputs: credentials,
+                inputs: credentials,
             },
             ClaudeUsageMessage::OrganizationFetched,
             config,
@@ -143,9 +142,9 @@ impl ClaudeUsageGroup {
         let account = self.oauth_credentials.clone().zip(buses);
         match target {
             ClaudeUsageTarget::UsageWindows => account.map_or_else(Task::none, |(key, buses)| {
-                first_delivery::<ClaudeUsageWindows>(OnlineSourceInputs {
+                first_delivery::<ClaudeUsageWindows>(OnBus {
                     buses: buses.clone(),
-                    source_inputs: key,
+                    inputs: key,
                 })
                 .map(|reading| ClaudeUsageMessage::UsageWindows(Box::new(reading)))
             }),
@@ -188,9 +187,9 @@ impl ClaudeUsageGroup {
             .into_iter()
             .flat_map(|(key, buses)| {
                 [
-                    snapshot_subscription::<ClaudeUsageWindows>(OnlineSourceInputs {
+                    snapshot_subscription::<ClaudeUsageWindows>(OnBus {
                         buses: buses.clone(),
-                        source_inputs: key.clone(),
+                        inputs: key.clone(),
                     })
                     .map(|reading| ClaudeUsageMessage::UsageWindows(Box::new(reading))),
                     snapshot_subscription::<ClaudeEnterpriseSpend>(enterprise_account(
@@ -341,10 +340,10 @@ fn enterprise_account(
     config: &Config,
     working_days: WeekdaySet,
     buses: &DesktopBuses,
-) -> OnlineSourceInputs<ClaudeEnterpriseAccount> {
-    OnlineSourceInputs {
+) -> OnBus<ClaudeEnterpriseAccount> {
+    OnBus {
         buses: buses.clone(),
-        source_inputs: ClaudeEnterpriseAccount {
+        inputs: ClaudeEnterpriseAccount {
             credentials,
             working_time: WorkingTime::new(config, working_days),
         },

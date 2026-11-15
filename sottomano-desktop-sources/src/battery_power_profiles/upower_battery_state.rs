@@ -375,6 +375,16 @@ mod tests {
     }
 
     #[test]
+    fn supply_status_strings_map_to_charge_statuses() {
+        assert_eq!(
+            ChargeStatus::from("Not charging"),
+            ChargeStatus::NotCharging
+        );
+        assert_eq!(ChargeStatus::from("Charging"), ChargeStatus::Charging);
+        assert_eq!(ChargeStatus::from("Unknown"), ChargeStatus::Unreported);
+    }
+
+    #[test]
     fn reported_full_is_full() {
         let battery = plugged_in(ChargeStatus::Full, 100, 1.0);
         assert_eq!(battery.idle_reason(), Some(IdleReason::Full));

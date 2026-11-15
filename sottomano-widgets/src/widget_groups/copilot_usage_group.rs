@@ -9,10 +9,10 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     ai_usage_spend::{
-        copilot_usage::{CopilotAccount, CopilotCcusage, CopilotFree, CopilotMetered},
+        copilot_usage::{CopilotCcusage, CopilotFree, CopilotMetered},
         working_time_forecast::{SpendBudget, SpendPacing, WorkingTime},
     },
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
 use sottomano_toml_config::Config;
 
@@ -81,10 +81,10 @@ impl CopilotUsageGroup {
         }
     }
 
-    fn account(&self, buses: &DesktopBuses) -> Option<CopilotAccount> {
-        Some(CopilotAccount {
-            gh_auth_token: self.gh_auth_token.clone()?,
+    fn account(&self, buses: &DesktopBuses) -> Option<OnBus<PathBuf>> {
+        Some(OnBus {
             buses: buses.clone(),
+            inputs: self.gh_auth_token.clone()?,
         })
     }
 

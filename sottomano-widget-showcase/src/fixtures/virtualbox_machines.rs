@@ -3,8 +3,9 @@ use std::{path::PathBuf, time::Duration};
 use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    container_family_snapshots::FamilyDetails,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
-    virtualbox_machines::{VirtualBoxFrontend, VirtualBoxMachine, VirtualBoxMachines},
+    virtualbox_machines::{VirtualBoxFrontend, VirtualBoxMachine, VirtualBoxMachineListing},
 };
 use sottomano_widgets::{
     clock::Clock,
@@ -20,12 +21,14 @@ pub const HOVERED_MACHINE_PID: i32 = 61_402;
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = VirtualBoxMachinesGroup::default();
     let _ = group.update(
-        VirtualBoxMachinesMessage::Machines(SnapshotDelivery::fixture_delivered(
-            Ok(VirtualBoxMachines {
-                machines: vec![VirtualBoxMachine {
-                    pid: HOVERED_MACHINE_PID,
-                    machine_name: "windows11".to_owned(),
-                    machine_reference: "6c1f1d2e-4b7a-4e8f-9a3b-0d5c2e7f8a91".to_owned(),
+        VirtualBoxMachinesMessage::Detail(SnapshotDelivery::fixture_delivered(
+            Ok(FamilyDetails {
+                details: vec![VirtualBoxMachine {
+                    listing: VirtualBoxMachineListing {
+                        pid: HOVERED_MACHINE_PID,
+                        machine_name: "windows11".to_owned(),
+                        machine_reference: "6c1f1d2e-4b7a-4e8f-9a3b-0d5c2e7f8a91".to_owned(),
+                    },
                     frontend: VirtualBoxFrontend::Headless,
                     guest_memory: Some(ByteSize::gib(8)),
                     guest_cores: Some(4),

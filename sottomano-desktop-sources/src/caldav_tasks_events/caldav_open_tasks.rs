@@ -13,7 +13,7 @@ use crate::{
         caldav_server_provider::CaldavProvider,
         caldav_task_query::{OpenTask, TaskDueStatus, query_open_tasks},
     },
-    network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
+    system_protocol_clients::dbus_desktop_buses::OnBus,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,7 +70,7 @@ impl AgendaSnapshotPolling for OpenTaskPoller {
 
 impl SnapshotSource for OpenTaskList {
     type Error = Error;
-    type StreamInputs = OnlineSourceInputs<CaldavAccount>;
+    type StreamInputs = OnBus<CaldavAccount>;
 
     const NAME: &'static str = "Open tasks";
 

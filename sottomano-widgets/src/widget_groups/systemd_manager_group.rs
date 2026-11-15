@@ -18,9 +18,9 @@ use running_job_reading::slow_jobs_item;
 use sottomano_desktop_sinks::systemd_units_journal::systemd_unit_restarts::restart_failed_unit;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
     systemd_units_journal::{
-        SystemdOnBus, SystemdUnitScope,
+        SystemdUnitScope,
         boot_timeline::{BootTimeline, BootTimelineWatch, StartupSlowdownThresholds},
         failed_units::{FailedUnitRestart, FailedUnits},
         journal_previous_shutdown::LastShutdown,
@@ -149,9 +149,9 @@ impl SystemdManagerGroup {
         config: &SystemdManagerConfig,
         buses: &DesktopBuses,
     ) -> Subscription<SystemdManagerMessage> {
-        let systemd = |scope| SystemdOnBus {
+        let systemd = |scope| OnBus {
             buses: buses.clone(),
-            scope,
+            inputs: scope,
         };
         Subscription::batch([
             snapshot_subscription::<BootTimeline>(BootTimelineWatch {

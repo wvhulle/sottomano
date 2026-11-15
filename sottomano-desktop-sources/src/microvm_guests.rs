@@ -11,6 +11,7 @@ use futures::Stream;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
+    container_family_snapshots::{FamilyDetails, FamilyListings},
     delivery_cadence_drivers::{ChangeWatchFailure, PeriodicPolling},
     microvm_guests::hypervisor_command_lines::{
         HypervisorLaunch, MicrovmHypervisor, launched_hypervisor, parsed_launch,
@@ -39,7 +40,7 @@ const HYPERVISOR_COMM_NAMES: [&str; 4] = ["firecracker", "crosvm", "lkvm", "kvmt
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MicrovmProbe {
-    pub running_guest_processes: usize,
+    pub running_count: usize,
 }
 
 impl SnapshotSource for MicrovmProbe {
@@ -53,7 +54,7 @@ impl SnapshotSource for MicrovmProbe {
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         PeriodicPolling::every(PRESENCE_POLL_PERIOD).blocking_poll_deliveries(|| {
             Ok(MicrovmProbe {
-                running_guest_processes: counted_hypervisor_processes(Path::new(PROC_ROOT)),
+                running_count: counted_hypervisor_processes(Path::new(PROC_ROOT)),
             })
         })
     }
@@ -113,12 +114,7 @@ pub struct MicrovmGuestListing {
     pub machine_name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MicrovmGuestListings {
-    pub listings: Vec<MicrovmGuestListing>,
-}
-
-impl SnapshotSource for MicrovmGuestListings {
+impl SnapshotSource for FamilyListings<MicrovmGuestListing> {
     type Error = Error;
     type StreamInputs = ();
 
@@ -131,7 +127,7 @@ impl SnapshotSource for MicrovmGuestListings {
     }
 }
 
-fn listed_machines() -> Result<MicrovmGuestListings, Error> {
+fn listed_machines() -> Result<FamilyListings<MicrovmGuestListing>, Error> {
     let process_scan =
         scan_processes(|scanned| launched_hypervisor(&scanned.command_line).is_some())
             .ok_or_else(|| Error::Unreadable(PROC_ROOT.to_owned()))?;
@@ -149,13 +145,12 @@ fn listed_machines() -> Result<MicrovmGuestListings, Error> {
         })
         .collect();
     listings.sort_by(|first, second| first.machine_name.cmp(&second.machine_name));
-    Ok(MicrovmGuestListings { listings })
+    Ok(FamilyListings { listings })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MicrovmGuest {
-    pub pid: i32,
-    pub machine_name: String,
+    pub listing: MicrovmGuestListing,
     pub hypervisor: MicrovmHypervisor,
     pub unit_name: Option<String>,
     pub launch: HypervisorLaunch,
@@ -163,12 +158,7 @@ pub struct MicrovmGuest {
     pub memory_in_use: ByteSize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MicrovmGuests {
-    pub machines: Vec<MicrovmGuest>,
-}
-
-impl SnapshotSource for MicrovmGuests {
+impl SnapshotSource for FamilyDetails<MicrovmGuest> {
     type Error = Error;
     type StreamInputs = ();
 
@@ -238,8 +228,10 @@ fn shown_machine(
             )
         });
     MicrovmGuest {
-        pid: hypervisor_process.pid,
-        machine_name,
+        listing: MicrovmGuestListing {
+            pid: hypervisor_process.pid,
+            machine_name,
+        },
         hypervisor: hypervisor_process.hypervisor,
         unit_name,
         launch: hypervisor_process.launch,
@@ -261,11 +253,11 @@ fn read_launch(hypervisor: MicrovmHypervisor, command_line: &[String]) -> Hyperv
     }
 }
 
-fn scanned_machines() -> Result<MicrovmGuests, Error> {
+fn scanned_machines() -> Result<FamilyDetails<MicrovmGuest>, Error> {
     let process_scan =
         scan_processes(|scanned| launched_hypervisor(&scanned.command_line).is_some())
             .ok_or_else(|| Error::Unreadable("/proc".to_owned()))?;
-    let mut machines: Vec<MicrovmGuest> = process_scan
+    let mut details: Vec<MicrovmGuest> = process_scan
         .matched_processes
         .iter()
         .filter_map(|scanned| {
@@ -279,8 +271,8 @@ fn scanned_machines() -> Result<MicrovmGuests, Error> {
         })
         .map(|hypervisor_process| shown_machine(hypervisor_process, &process_scan.process_table))
         .collect();
-    machines.sort_by(|first, second| first.machine_name.cmp(&second.machine_name));
-    Ok(MicrovmGuests { machines })
+    details.sort_by(|first, second| first.listing.machine_name.cmp(&second.listing.machine_name));
+    Ok(FamilyDetails { details })
 }
 
 #[must_use]

@@ -4,14 +4,16 @@ use futures::{Stream, StreamExt, stream};
 use tokio::select;
 
 use super::{
-    ManagerProxy, SystemdUnitOnBus, UNIT_INTERFACE, UnitProxy, connect_systemd_bus, systemd_signal,
+    ManagerProxy, ScopedSystemdUnit, UNIT_INTERFACE, UnitProxy, connect_systemd_bus, systemd_signal,
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
     backing_service_availability::Availability,
+    container_run_state::RunChange,
     delivery_cadence_drivers::ChangeTriggerStreams,
     system_protocol_clients::{
-        dbus_change_signals::change_triggers, protocol_peer_reconnects::subscribed,
+        dbus_change_signals::change_triggers, dbus_desktop_buses::OnBus,
+        protocol_peer_reconnects::subscribed,
     },
     systemd_units_journal::SystemdUnitScope,
 };
@@ -39,21 +41,15 @@ impl From<&str> for UnitActivity {
 
 impl UnitActivity {
     #[must_use]
-    pub fn press_change(self) -> UnitChange {
+    pub fn press_change(self) -> RunChange {
         match self {
-            Self::Running | Self::Starting => UnitChange::Stop,
-            Self::Stopping | Self::Stopped => UnitChange::Start,
+            Self::Running | Self::Starting => RunChange::Stop,
+            Self::Stopping | Self::Stopped => RunChange::Start,
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum UnitChange {
-    Start,
-    Stop,
-}
-
-impl UnitChange {
+impl RunChange {
     #[must_use]
     pub fn pending_activity(self) -> UnitActivity {
         match self {
@@ -78,12 +74,12 @@ pub struct UnitActiveState {
 
 impl SnapshotSource for UnitActiveState {
     type Error = zbus::Error;
-    type StreamInputs = SystemdUnitOnBus;
+    type StreamInputs = OnBus<ScopedSystemdUnit>;
 
     const NAME: &'static str = "Systemd unit activity";
 
     fn delivery_stream(
-        unit: SystemdUnitOnBus,
+        unit: OnBus<ScopedSystemdUnit>,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         unit_activity(unit).map(|activity| {
             SnapshotDelivery::live_push(activity.map(|activity| UnitActiveState { activity }))
@@ -91,7 +87,7 @@ impl SnapshotSource for UnitActiveState {
     }
 }
 
-pub fn unit_running(unit: SystemdUnitOnBus) -> impl Stream<Item = Availability> + Send {
+pub fn unit_running(unit: OnBus<ScopedSystemdUnit>) -> impl Stream<Item = Availability> + Send {
     unit_activity(unit).map(|activity| match activity {
         Ok(UnitActivity::Running) => Availability::Available,
         Ok(_) => Availability::Unavailable,
@@ -102,9 +98,11 @@ pub fn unit_running(unit: SystemdUnitOnBus) -> impl Stream<Item = Availability> 
     })
 }
 
-fn unit_activity(unit: SystemdUnitOnBus) -> impl Stream<Item = zbus::Result<UnitActivity>> + Send {
+fn unit_activity(
+    unit: OnBus<ScopedSystemdUnit>,
+) -> impl Stream<Item = zbus::Result<UnitActivity>> + Send {
     subscribed(unit, |unit| {
-        activity_changes(unit.connection(), unit.unit.unit_name)
+        activity_changes(unit.connection(), unit.inputs.unit_name)
     })
 }
 
@@ -154,7 +152,7 @@ pub enum UnitChangeFailure {
 }
 
 impl UnitControl {
-    pub async fn apply(self, change: UnitChange) -> Result<(), UnitChangeFailure> {
+    pub async fn apply(self, change: RunChange) -> Result<(), UnitChangeFailure> {
         let job_result = self
             .job_result(change)
             .await
@@ -166,7 +164,7 @@ impl UnitControl {
         }
     }
 
-    async fn job_result(&self, change: UnitChange) -> zbus::Result<String> {
+    async fn job_result(&self, change: RunChange) -> zbus::Result<String> {
         let connection = connect_systemd_bus(self.unit_scope).await?;
         let manager = ManagerProxy::new(&connection).await?;
         manager.ensure_subscribed().await?;
@@ -174,8 +172,8 @@ impl UnitControl {
         let mut removed_meanwhile = Vec::new();
         let mut requested = pin!(async {
             match change {
-                UnitChange::Start => manager.start_unit(&self.unit, "replace").await,
-                UnitChange::Stop => manager.stop_unit(&self.unit, "replace").await,
+                RunChange::Start => manager.start_unit(&self.unit, "replace").await,
+                RunChange::Stop => manager.stop_unit(&self.unit, "replace").await,
             }
         });
         let job = loop {

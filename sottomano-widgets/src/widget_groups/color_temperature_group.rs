@@ -7,9 +7,10 @@ use iced::{Subscription, Task};
 use sottomano_desktop_sinks::screen_brightness_color::gammarelay_color_writes;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    container_run_state::RunChange,
     screen_brightness_color::gammarelay_color_temperature::ColorTemperature,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
-    systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope, unit_active_state::UnitChange},
+    systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope},
 };
 use sottomano_toml_config::Config;
 use sun_follow_toggle::SUN_FOLLOW;
@@ -216,7 +217,7 @@ impl ColorTemperatureGroup {
                 }
                 Action::Commit(value) => self
                     .auto
-                    .request(UnitChange::Stop)
+                    .request(RunChange::Stop)
                     .map(ColorTemperatureMessage::Auto)
                     .chain(
                         ControlMessage::commit(

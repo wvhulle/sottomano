@@ -12,8 +12,7 @@ use sottomano_desktop_sources::{
         openrouter_model_rankings::{ModelRankingInputs, OpenRouterModelRankings},
         working_time_forecast::{SpendBudget, SpendPacing},
     },
-    network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OnBus},
 };
 use sottomano_toml_config::Config;
 
@@ -102,8 +101,11 @@ impl OpenRouterCreditGroup {
             }
             OpenRouterCreditTarget::StrictBudget => {
                 self.management_key.clone().map_or_else(Task::none, |key| {
-                    first_delivery::<OpenRouterStrictBudget>(online(key, buses))
-                        .map(OpenRouterCreditMessage::StrictBudget)
+                    first_delivery::<OpenRouterStrictBudget>(OnBus {
+                        buses: buses.clone(),
+                        inputs: key,
+                    })
+                    .map(OpenRouterCreditMessage::StrictBudget)
                 })
             }
             OpenRouterCreditTarget::BestModelsWithinCap => {
@@ -127,8 +129,11 @@ impl OpenRouterCreditGroup {
             [
                 snapshot_subscription::<OpenRouterSpend>(account(key.clone(), config, buses))
                     .map(OpenRouterCreditMessage::SoftBudget),
-                snapshot_subscription::<OpenRouterStrictBudget>(online(key.clone(), buses))
-                    .map(OpenRouterCreditMessage::StrictBudget),
+                snapshot_subscription::<OpenRouterStrictBudget>(OnBus {
+                    buses: buses.clone(),
+                    inputs: key.clone(),
+                })
+                .map(OpenRouterCreditMessage::StrictBudget),
                 snapshot_subscription::<OpenRouterModelRankings>(ranking_inputs(
                     key, config, buses,
                 ))
@@ -238,24 +243,15 @@ impl OpenRouterCreditGroup {
     }
 }
 
-fn online<SourceInputs>(
-    source_inputs: SourceInputs,
-    buses: &DesktopBuses,
-) -> OnlineSourceInputs<SourceInputs> {
-    OnlineSourceInputs {
-        buses: buses.clone(),
-        source_inputs,
-    }
-}
-
 fn account(
     management_key: PathBuf,
     config: &Config,
     buses: &DesktopBuses,
-) -> OnlineSourceInputs<OpenRouterAccount> {
+) -> OnBus<OpenRouterAccount> {
     let budget = &config.widget_groups.openrouter_credit;
-    online(
-        OpenRouterAccount {
+    OnBus {
+        buses: buses.clone(),
+        inputs: OpenRouterAccount {
             management_key,
             budget: SpendBudget {
                 pacing: SpendPacing::CalendarTime,
@@ -263,23 +259,22 @@ fn account(
             },
             daily_warning_usd: budget.daily_warning_usd,
         },
-        buses,
-    )
+    }
 }
 
 fn ranking_inputs(
     management_key: PathBuf,
     config: &Config,
     buses: &DesktopBuses,
-) -> OnlineSourceInputs<ModelRankingInputs> {
-    online(
-        ModelRankingInputs {
+) -> OnBus<ModelRankingInputs> {
+    OnBus {
+        buses: buses.clone(),
+        inputs: ModelRankingInputs {
             management_key,
             max_blended_per_million: config
                 .widget_groups
                 .openrouter_credit
                 .max_blended_usd_per_million,
         },
-        buses,
-    )
+    }
 }

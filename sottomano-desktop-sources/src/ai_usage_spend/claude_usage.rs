@@ -27,8 +27,10 @@ use crate::{
     ai_usage_spend::ccusage_cli_reports,
     backing_service_availability::{Availability, AvailabilityStreams},
     delivery_cadence_drivers::PeriodicPolling,
-    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
-    system_protocol_clients::{http_json_client, inotify_file_presence::path_present},
+    network_connectivity::internet_connectivity_gate,
+    system_protocol_clients::{
+        dbus_desktop_buses::OnBus, http_json_client, inotify_file_presence::path_present,
+    },
 };
 
 const SUBSCRIPTION_SCOPE: &str = "user:inference";
@@ -161,10 +163,10 @@ fn logins(credentials: PathBuf) -> impl Stream<Item = LoginKind> + Send {
 
 fn login_polls<S, F>(
     polling: PeriodicPolling,
-    OnlineSourceInputs {
+    OnBus {
         buses,
-        source_inputs: credentials,
-    }: OnlineSourceInputs<PathBuf>,
+        inputs: credentials,
+    }: OnBus<PathBuf>,
     wanted: LoginKind,
     poll: impl Fn(PathBuf) -> F + Send + Clone + 'static,
 ) -> impl Stream<Item = SnapshotDelivery<S>> + Send

@@ -3,8 +3,9 @@ use std::time::Duration;
 use bytesize::ByteSize;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
+    container_family_snapshots::FamilyDetails,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
-    flatpak_sandboxes::{FlatpakSandbox, FlatpakSandboxes},
+    flatpak_sandboxes::{FlatpakSandbox, FlatpakSandboxListing},
 };
 use sottomano_widgets::{
     clock::Clock,
@@ -24,8 +25,10 @@ fn flatpak_sandbox(
     clock: Clock,
 ) -> FlatpakSandbox {
     FlatpakSandbox {
-        instance_id: instance_id.to_owned(),
-        application_id: application_id.to_owned(),
+        listing: FlatpakSandboxListing {
+            application_id: application_id.to_owned(),
+            instance_id: instance_id.to_owned(),
+        },
         runtime_reference: Some("runtime/org.freedesktop.Platform/x86_64/24.08".to_owned()),
         branch: Some("stable".to_owned()),
         sandbox_pid,
@@ -38,8 +41,8 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = FlatpakSandboxesGroup::default();
     let _ = group.update(
         FlatpakSandboxesMessage::Detail(SnapshotDelivery::fixture_delivered(
-            Ok(FlatpakSandboxes {
-                sandboxes: vec![
+            Ok(FamilyDetails {
+                details: vec![
                     flatpak_sandbox(
                         HOVERED_INSTANCE_ID,
                         "com.spotify.Client",
