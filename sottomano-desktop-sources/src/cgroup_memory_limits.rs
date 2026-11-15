@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use futures::Stream;
+use futures::{Stream, StreamExt};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -41,6 +41,12 @@ impl SnapshotSource for LimitedCgroups {
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         PeriodicPolling::every(Duration::from_secs(2))
             .blocking_poll_deliveries(|| limited_cgroups_under(Path::new(CGROUP_ROOT)))
+            .map(|delivery| {
+                delivery.unavailable_when(|fetch_error| {
+                    matches!(fetch_error, Error::Unreadable(_))
+                        && !Path::new(CGROUP_ROOT).join("cgroup.controllers").exists()
+                })
+            })
     }
 }
 

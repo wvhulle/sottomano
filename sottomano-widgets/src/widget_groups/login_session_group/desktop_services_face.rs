@@ -52,6 +52,12 @@ impl ReadingSections for GraphicalSessionTarget {
         ]
         .into_iter()
         .flatten();
-        vec![Section::new("Target state", dictionary_table(entries))]
+        vec![Section::new(
+            SectionTitle::captioned(
+                "Target state",
+                "graphical-session.target is reached once the compositor is ready for services.",
+            ),
+            dictionary_table(entries),
+        )]
     }
 }

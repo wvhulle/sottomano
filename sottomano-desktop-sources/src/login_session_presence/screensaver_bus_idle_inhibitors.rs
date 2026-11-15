@@ -40,7 +40,11 @@ impl SnapshotSource for ScreenSaverInhibitors {
     const NAME: &'static str = "Idle inhibitors";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries(buses, inhibitor_changes)
+        SnapshotDelivery::live_push_deliveries(buses, inhibitor_changes).map(|delivery| {
+            delivery.unavailable_when(|fetch_error| {
+                matches!(fetch_error, dbus_desktop_buses::Error::Absent)
+            })
+        })
     }
 }
 

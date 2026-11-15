@@ -27,7 +27,7 @@ use crate::{
         reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{
-        Section, dictionary_table, hover_card_figure_payloads::ThreadCell,
+        Section, SectionTitle, dictionary_table, hover_card_figure_payloads::ThreadCell,
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -177,7 +177,12 @@ impl ChipletLiveState<'_> {
                 readings: &temperatures.cores,
             }
             .section(
-                "Cores",
+                SectionTitle::captioned(
+                    "Cores",
+                    "Each square is one physical core in core-number order, not die position, \
+                     split into its hardware threads; bar height shows the core's sensor against \
+                     the critical threshold.",
+                ),
                 |group| self.title(group),
                 |_, members| {
                     members

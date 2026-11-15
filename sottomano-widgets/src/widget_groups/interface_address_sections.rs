@@ -10,7 +10,7 @@ use uom::si::f64::InformationRate;
 use crate::{
     clock::Clock,
     group_items::group_item_reading::GroupItemReading,
-    hover_cards::hover_card_body::{Section, dictionary_table},
+    hover_cards::hover_card_body::{Section, SectionTitle, dictionary_table},
     widget_groups::echo_probe_window_rows::probe_window_section,
     widgets::{
         icon_glyph::IconGlyph,
@@ -194,6 +194,16 @@ pub fn family_router_sections(
             gateway_latency.interface == interface_name
                 && family == AddressFamily::from(gateway_latency.window.host)
         })
-        .map(|gateway_latency| probe_window_section("Router", &gateway_latency.window))
+        .map(|gateway_latency| {
+            probe_window_section(
+                SectionTitle::captioned(
+                    "Router",
+                    "Echo round trips every five seconds to each router this link sends traffic \
+                     through. Slow or lost replies here point at the local network rather than \
+                     the provider.",
+                ),
+                &gateway_latency.window,
+            )
+        })
         .collect()
 }

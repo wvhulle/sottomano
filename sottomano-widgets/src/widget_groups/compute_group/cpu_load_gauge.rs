@@ -20,7 +20,8 @@ use crate::{
         group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
     },
     hover_cards::hover_card_body::{
-        ReadingSections, Section, dictionary_table, hover_card_figure_payloads::ThreadCell,
+        ReadingSections, Section, SectionTitle, dictionary_table,
+        hover_card_figure_payloads::ThreadCell,
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -76,7 +77,12 @@ impl ChipletLiveState<'_> {
             readings: &readings,
         };
         vec![grid.section(
-            "Cores",
+            SectionTitle::captioned(
+                "Cores",
+                "Each square is one physical core in core-number order, not die position, split \
+                 into its hardware threads; bar height shows how busy each thread was over the \
+                 last sample.",
+            ),
             |group| self.title(group),
             |group, members| {
                 let mean = |share: fn(&CoreReading) -> Ratio| {
@@ -143,7 +149,10 @@ impl GroupItemReading for CpuUsage {
 impl ReadingSections for CpuBusyProcesses {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::new(
-            "Processes",
+            SectionTitle::captioned(
+                "Processes",
+                "Share of all CPU threads each process kept busy over the last half second.",
+            ),
             dictionary_table(self.processes.iter().map(|process| {
                 LabeledValue::new(process.name.clone(), Quantity::share(process.busy))
                     .level(busy_level(process.busy))

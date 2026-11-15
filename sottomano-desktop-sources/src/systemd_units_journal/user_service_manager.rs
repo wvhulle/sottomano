@@ -3,7 +3,7 @@ use futures::Stream;
 use zbus::proxy::CacheProperties;
 
 use crate::{
-    SnapshotDelivery, SnapshotSource, SourceCaption,
+    SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::ChangeTriggerStreams,
     host_machine_identity::hostname1_os_identity::at_micros,
     system_protocol_clients::{
@@ -25,9 +25,6 @@ impl SnapshotSource for UserServiceManager {
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Your systemd instance right now";
-    const CAPTION: SourceCaption = SourceCaption::Captioned(
-        "One instance per user; it outlives this login and stops at your last logout.",
-    );
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(buses, manager_state_changes)

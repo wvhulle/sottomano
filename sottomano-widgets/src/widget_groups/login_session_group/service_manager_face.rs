@@ -50,7 +50,10 @@ impl GroupItemReading for ServiceManagerFace {
 impl ReadingSections for UserServiceManager {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::new(
-            "Status",
+            SectionTitle::captioned(
+                "Status",
+                "One instance per user; it outlives this login and stops at your last logout.",
+            ),
             dictionary_table(
                 [
                     Some(LabeledValue::new("systemd version", self.version.clone())),

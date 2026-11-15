@@ -72,7 +72,10 @@ impl ReadingSections for GraphicalSession {
             .clone()
             .filter(|session| Some(session) != self.current_desktop.as_ref());
         vec![Section::new(
-            "Displays",
+            SectionTitle::captioned(
+                "Displays",
+                "Apps find the compositor through these sockets.",
+            ),
             dictionary_table(
                 [
                     Some(LabeledValue::new("Runs", self.compositor_version.clone())),

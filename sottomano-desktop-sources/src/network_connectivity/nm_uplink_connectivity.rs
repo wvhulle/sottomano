@@ -1,7 +1,7 @@
 use futures::{Stream, StreamExt};
 
 use crate::{
-    SnapshotDelivery, SnapshotSource, SourceCaption,
+    SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::SnapshotDeliveryStreams,
     network_connectivity::{
         network_manager_proxies::{self, Connectivity},
@@ -20,9 +20,6 @@ impl SnapshotSource for UplinkConnectivity {
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Connectivity";
-    const CAPTION: SourceCaption = SourceCaption::Captioned(
-        "NetworkManager's own check whether the internet answers or a login portal is in the way.",
-    );
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         nm_readings(

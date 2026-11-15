@@ -19,7 +19,9 @@ use crate::{
         group_item_reading::{GroupItemReading, PanelVisibility},
         reading_display_state::ReadingDisplayState,
     },
-    hover_cards::hover_card_body::{ReadingSections, Section, SectionTable, dictionary_table},
+    hover_cards::hover_card_body::{
+        ReadingSections, Section, SectionTable, SectionTitle, dictionary_table,
+    },
     widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
@@ -58,7 +60,14 @@ fn swapped_process_table(swapped: &SwappedProcesses) -> SectionTable {
 
 impl ReadingSections for SwappedProcesses {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![Section::new("Swap use", swapped_process_table(self))]
+        vec![Section::new(
+            SectionTitle::captioned(
+                "Swap use",
+                "Private memory of each process that sits in swap; swapped shared memory is not \
+                 counted.",
+            ),
+            swapped_process_table(self),
+        )]
     }
 }
 

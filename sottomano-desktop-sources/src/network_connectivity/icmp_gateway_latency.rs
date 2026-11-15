@@ -7,7 +7,7 @@ use futures::{
 };
 
 use crate::{
-    SnapshotDelivery, SnapshotSource, SourceCaption,
+    SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling, SnapshotDeliveryStreams},
     network_connectivity::{
         icmp_echo_probes::{
@@ -17,7 +17,7 @@ use crate::{
         network_manager_proxies::{self, DeviceGateway},
         nm_readings,
     },
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::{dbus_desktop_buses, dbus_desktop_buses::DesktopBuses},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,10 +47,6 @@ impl SnapshotSource for GatewayLatencies {
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Router latency";
-    const CAPTION: SourceCaption = SourceCaption::Captioned(
-        "Echo round trips every five seconds to each router this link sends traffic through. Slow \
-         or lost replies here point at the local network rather than the provider.",
-    );
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let gateway_changes = nm_readings(
@@ -73,11 +69,18 @@ impl SnapshotSource for GatewayLatencies {
                         ProbeEvent::GatewaysChanged(gateways) => prober.retarget(gateways),
                         ProbeEvent::GatewayListingFailed(listing_error) => {
                             prober.retarget(Vec::new());
-                            let delivery = SnapshotDelivery::SnapshotDelivered {
-                                snapshot_fetch: Err(LatencyProbeError::GatewayListing(
-                                    listing_error.to_string(),
-                                )),
-                                delivery_cadence: DeliveryCadence::PeriodicPolling(PROBE_POLLING),
+                            let delivery = match dbus_desktop_buses::Error::from(listing_error) {
+                                dbus_desktop_buses::Error::Absent => {
+                                    SnapshotDelivery::SourceUnavailable
+                                }
+                                listing_failure => SnapshotDelivery::SnapshotDelivered {
+                                    snapshot_fetch: Err(LatencyProbeError::GatewayListing(
+                                        listing_failure.to_string(),
+                                    )),
+                                    delivery_cadence: DeliveryCadence::PeriodicPolling(
+                                        PROBE_POLLING,
+                                    ),
+                                },
                             };
                             return Some((delivery, (probe_events, prober)));
                         }

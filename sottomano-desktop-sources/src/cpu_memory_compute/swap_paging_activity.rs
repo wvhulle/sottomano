@@ -9,7 +9,7 @@ use futures::Stream;
 use procfs::{Current, Meminfo, page_size, process::all_processes, vmstat};
 
 use crate::{
-    SnapshotDelivery, SnapshotSource, SourceCaption,
+    SnapshotDelivery, SnapshotSource,
     cpu_memory_compute::memory_usage::{MEMINFO, PROC},
     delivery_cadence_drivers::PeriodicPolling,
     desktop_windows_apps::process_tree_inspection::binary_name,
@@ -144,9 +144,6 @@ impl SnapshotSource for SwappedProcesses {
     type StreamInputs = ();
 
     const NAME: &'static str = "Swapped processes";
-    const CAPTION: SourceCaption = SourceCaption::Captioned(
-        "Private memory of each process that sits in swap; swapped shared memory is not counted.",
-    );
 
     fn delivery_stream(
         (): Self::StreamInputs,

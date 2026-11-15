@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use chrono::{DateTime, Local, NaiveDateTime};
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use serde::Deserialize;
 use situo_client::GeoCoordinates;
 use uom::si::f64::Velocity;
@@ -145,6 +145,11 @@ impl SnapshotSource for Rain {
         internet_connectivity_gate::while_online(buses, move || {
             PeriodicPolling::every(Duration::from_secs(60))
                 .poll_deliveries(move || Self::poll(inputs))
+                .map(|delivery| {
+                    delivery.unavailable_when(|fetch_error| {
+                        matches!(fetch_error, Error::OutsideRainRadar)
+                    })
+                })
         })
     }
 }

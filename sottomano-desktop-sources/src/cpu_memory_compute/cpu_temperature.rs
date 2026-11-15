@@ -23,7 +23,7 @@ use super::{
     hwmon_temperature_sensors::{ChosenSensors, HwmonChip, LimitKind, TemperatureSensor},
 };
 use crate::{
-    SnapshotDelivery, SnapshotSource, SourceCaption,
+    SnapshotDelivery, SnapshotSource,
     backing_service_availability::{Availability, AvailabilityStreams},
     blocking_background_work::blocking_poll,
     cpu_memory_compute::temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
@@ -76,10 +76,6 @@ impl SnapshotSource for CpuCoreTemperatures {
     type StreamInputs = ThresholdOverrides;
 
     const NAME: &'static str = "Chiplets";
-    const CAPTION: SourceCaption = SourceCaption::Captioned(
-        "Each square is one physical core in core-number order, not die position, split into its \
-         hardware threads; bar height shows the core's sensor against the critical threshold.",
-    );
 
     fn delivery_stream(
         overrides: ThresholdOverrides,

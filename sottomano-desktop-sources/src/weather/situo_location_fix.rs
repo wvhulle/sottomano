@@ -26,5 +26,13 @@ impl SnapshotSource for Location {
         location_fix_updates()
             .map(|update| update.map(|geo| Self { geo }).map_err(Error::from))
             .map(SnapshotDelivery::live_push)
+            .map(|delivery| {
+                delivery.unavailable_when(|fetch_error| {
+                    matches!(
+                        fetch_error,
+                        Error::Situo(situo_client::ClientError::NoDaemon)
+                    )
+                })
+            })
     }
 }

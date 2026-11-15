@@ -5,7 +5,7 @@ use procfs::process::all_processes;
 use uom::si::f64::Ratio;
 
 use crate::{
-    SnapshotDelivery, SnapshotSource, SourceCaption,
+    SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::PeriodicPolling,
     desktop_windows_apps::process_tree_inspection::{CpuCapacity, binary_name},
     system_protocol_clients::sysfs_attribute_reads::Error,
@@ -31,9 +31,6 @@ impl SnapshotSource for CpuBusyProcesses {
     type StreamInputs = ();
 
     const NAME: &'static str = "CPU load per process";
-    const CAPTION: SourceCaption = SourceCaption::Captioned(
-        "Share of all CPU threads each process kept busy over the last half second.",
-    );
 
     fn delivery_stream(
         (): Self::StreamInputs,

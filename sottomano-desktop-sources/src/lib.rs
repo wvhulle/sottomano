@@ -52,18 +52,11 @@ use crate::{
     network_connectivity::internet_connectivity_gate::InternetUnreachable,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SourceCaption {
-    Uncaptioned,
-    Captioned(&'static str),
-}
-
 pub trait SnapshotSource: Clone + Debug + Sized + Send + 'static {
     type Error: Debug + Display + Send + 'static;
     type StreamInputs: Clone + Hash + Send + Sync + 'static;
 
     const NAME: &'static str;
-    const CAPTION: SourceCaption = SourceCaption::Uncaptioned;
 
     fn delivery_stream(
         key: Self::StreamInputs,
@@ -79,6 +72,19 @@ pub enum SnapshotDelivery<S: SnapshotSource> {
         delivery_cadence: DeliveryCadence,
     },
     SnapshotUnchanged,
+}
+
+impl<S: SnapshotSource> SnapshotDelivery<S> {
+    #[must_use]
+    pub fn unavailable_when(self, source_absent: impl FnOnce(&S::Error) -> bool) -> Self {
+        match self {
+            SnapshotDelivery::SnapshotDelivered {
+                snapshot_fetch: Err(fetch_error),
+                ..
+            } if source_absent(&fetch_error) => SnapshotDelivery::SourceUnavailable,
+            other => other,
+        }
+    }
 }
 
 impl<S: SnapshotSource + PartialEq> PartialEq for SnapshotDelivery<S> {

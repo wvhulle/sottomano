@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt, stream};
 
 use crate::{
-    SnapshotDelivery, SnapshotSource, SourceCaption,
+    SnapshotDelivery, SnapshotSource,
     compositor_window_ipc::compositor_connection::compositor_version,
     delivery_cadence_drivers::ChangeTriggerStreams,
     host_machine_identity::hostname1_os_identity::at_micros,
@@ -38,8 +38,6 @@ impl SnapshotSource for GraphicalSession {
     type StreamInputs = ();
 
     const NAME: &'static str = "Where apps connect to it";
-    const CAPTION: SourceCaption =
-        SourceCaption::Captioned("Apps find the compositor through these sockets.");
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(Self::read()).map(SnapshotDelivery::single_read)
@@ -78,9 +76,6 @@ impl SnapshotSource for GraphicalSessionTarget {
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "Desktop startup progress";
-    const CAPTION: SourceCaption = SourceCaption::Captioned(
-        "graphical-session.target is reached once the compositor is ready for services.",
-    );
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(buses, target_changes)

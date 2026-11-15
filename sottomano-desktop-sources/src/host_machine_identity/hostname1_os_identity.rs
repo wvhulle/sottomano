@@ -1,7 +1,7 @@
 use std::{fs, str::FromStr};
 
 use chrono::{DateTime, Utc};
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use zbus::proxy;
 
 use crate::{
@@ -95,7 +95,11 @@ impl SnapshotSource for OperatingSystemIdentity {
     const NAME: &'static str = "Operating system";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries(buses, identity_changes)
+        SnapshotDelivery::live_push_deliveries(buses, identity_changes).map(|delivery| {
+            delivery.unavailable_when(|fetch_error| {
+                matches!(fetch_error, dbus_desktop_buses::Error::Absent)
+            })
+        })
     }
 }
 

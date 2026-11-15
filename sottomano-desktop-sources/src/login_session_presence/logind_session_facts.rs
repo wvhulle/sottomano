@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use chrono::{DateTime, Utc};
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use procfs::process::Process as Proc;
 use zbus::{proxy, zvariant::OwnedObjectPath};
 
@@ -79,7 +79,11 @@ impl SnapshotSource for SessionIdentity {
     const NAME: &'static str = "Session identity";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries(buses, identity_changes)
+        SnapshotDelivery::live_push_deliveries(buses, identity_changes).map(|delivery| {
+            delivery.unavailable_when(|fetch_error| {
+                matches!(fetch_error, dbus_desktop_buses::Error::Absent)
+            })
+        })
     }
 }
 

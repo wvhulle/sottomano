@@ -6,7 +6,7 @@ use std::{
 use futures::{Stream, StreamExt};
 
 use crate::{
-    SnapshotDelivery, SnapshotSource, SourceCaption,
+    SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::{DeliveryCadence, SnapshotDeliveryStreams},
     network_connectivity::icmp_echo_probes::{
         LatencyProbeError, PROBE_POLLING, ProbeWindow, echo_round_trip,
@@ -23,10 +23,6 @@ impl SnapshotSource for InternetLatency {
     type StreamInputs = IpAddr;
 
     const NAME: &'static str = "Internet latency";
-    const CAPTION: SourceCaption = SourceCaption::Captioned(
-        "Echo round trips every five seconds to a host on the internet, through whichever \
-         connection carries the traffic.",
-    );
 
     fn delivery_stream(internet_host: IpAddr) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         PROBE_POLLING
