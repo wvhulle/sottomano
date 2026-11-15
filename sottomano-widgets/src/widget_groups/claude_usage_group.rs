@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod claude_code_billing_block;
 mod claude_code_period_spend;
 mod claude_enterprise_credit_spend;
@@ -301,31 +302,42 @@ impl ClaudeUsageGroup {
         )
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::ClaudeUsage,
             &self.expansion,
             identity,
             [
                 self.usage_windows
-                    .group_item(ClaudeUsageTarget::UsageWindows)
+                    .group_item(ClaudeUsageTarget::UsageWindows, clock, locale)
                     .map(GroupItem::previewed_on_handle),
                 self.enterprise_spend
-                    .group_item(ClaudeUsageTarget::EnterpriseSpend),
+                    .group_item(ClaudeUsageTarget::EnterpriseSpend, clock, locale),
                 self.ccusage_periods
-                    .group_item(ClaudeUsageTarget::CcusagePeriods),
+                    .group_item(ClaudeUsageTarget::CcusagePeriods, clock, locale),
                 self.ccusage_block
-                    .group_item(ClaudeUsageTarget::CcusageBlock),
+                    .group_item(ClaudeUsageTarget::CcusageBlock, clock, locale),
             ]
             .into_iter()
             .flatten()
             .chain(self.model_ranking().map(|ranking| {
-                GroupItem::reading(MostUsedModel(ranking), ClaudeUsageTarget::MostUsedModel)
+                GroupItem::reading(
+                    MostUsedModel(ranking),
+                    ClaudeUsageTarget::MostUsedModel,
+                    clock,
+                    locale,
+                )
             }))
             .chain(self.billed_model_ranking().map(|ranking| {
                 GroupItem::reading(
                     MostUsedModelSpend(ranking),
                     ClaudeUsageTarget::MostUsedModelSpend,
+                    clock,
+                    locale,
                 )
             })),
         )

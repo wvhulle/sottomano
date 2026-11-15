@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod chiplet_clock_table;
 mod chiplet_live_state;
 mod core_grid_sections;
@@ -228,33 +229,45 @@ impl ComputeGroup {
         Task::none()
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, ComputeInteraction> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, ComputeInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Compute,
             &self.expansion,
             ComputeInteraction::Expansion,
             [
-                self.cpu_load.group_item(ComputeTarget::CpuLoad),
-                self.cpu_clock.group_item(ComputeTarget::CpuClock),
+                self.cpu_load
+                    .group_item(ComputeTarget::CpuLoad, clock, locale),
+                self.cpu_clock
+                    .group_item(ComputeTarget::CpuClock, clock, locale),
                 self.cpu_clock
                     .get()
                     .map(|clock| ClockLimitCauses { clock })
                     .filter(|reading| reading.panel_visibility() == PanelVisibility::Shown)
-                    .map(|limits| GroupItem::reading(limits, ComputeTarget::CpuClockLimits)),
+                    .map(|limits| {
+                        GroupItem::reading(limits, ComputeTarget::CpuClockLimits, clock, locale)
+                    }),
                 self.cpu_temperature
-                    .group_item(ComputeTarget::CpuTemperature),
+                    .group_item(ComputeTarget::CpuTemperature, clock, locale),
                 self.cpu_power_draw
                     .get()
                     .filter(|reading| reading.panel_visibility() == PanelVisibility::Shown)
-                    .map(|power| GroupItem::reading(power, ComputeTarget::CpuPowerDraw)),
+                    .map(|power| {
+                        GroupItem::reading(power, ComputeTarget::CpuPowerDraw, clock, locale)
+                    }),
                 self.host_hardware
                     .get()
                     .map(|hardware| &hardware.cpu)
                     .filter(|reading| reading.panel_visibility() == PanelVisibility::Shown)
-                    .map(|model| GroupItem::reading(model, ComputeTarget::CpuModel)),
+                    .map(|model| GroupItem::reading(model, ComputeTarget::CpuModel, clock, locale)),
                 self.x3d_cache_preference.group_item(
                     ComputeTarget::X3dCachePreference,
                     ComputeInteraction::X3dCachePreferencePressed,
+                    clock,
+                    locale,
                 ),
             ]
             .into_iter()

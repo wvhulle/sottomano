@@ -31,10 +31,9 @@ use crate::{
     clock::Clock,
     desktop_index::DesktopIndex,
     group_items::{
-        group_item::{
-            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
-        },
+        group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
         reading_display_state::ReadingDisplayState,
+        source_reading::GroupItemIcon,
     },
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
@@ -505,10 +504,8 @@ fn session_buttons_item<'a>(
         (media.capabilities.stop && media.status != Status::Stopped) || media.capabilities.quit;
     offers_session_buttons.then(|| {
         GroupItem::composed(
-            ComposedGroupItemFace {
-                name: "Session".into(),
-                icon: GroupItemIcon::Absent,
-            },
+            "Session",
+            GroupItemIcon::Absent,
             GroupItemHoverArea::ByChildren {
                 row_target: PlayerTarget {
                     bus: bus.to_owned().into(),
@@ -549,12 +546,10 @@ fn player_group<'a>(
         });
     let seek = (seek_availability == SeekAvailability::Seekable).then(|| {
         GroupItem::composed(
-            ComposedGroupItemFace {
-                name: "Position".into(),
-                icon: GroupItemIcon::IconGlyph {
-                    glyph: Phosphor::HourglassMedium(Weight::Regular).into(),
-                    state: ReadingDisplayState::Idle,
-                },
+            "Position",
+            GroupItemIcon::IconGlyph {
+                glyph: Phosphor::HourglassMedium(Weight::Regular).into(),
+                state: ReadingDisplayState::Idle,
             },
             GroupItemHoverArea::ByChildren {
                 row_target: player_target(MediaTarget::Seek),
@@ -584,10 +579,8 @@ fn player_group<'a>(
         )
     });
     let transport = GroupItem::composed(
-        ComposedGroupItemFace {
-            name: "Playback".into(),
-            icon: GroupItemIcon::Absent,
-        },
+        "Playback",
+        GroupItemIcon::Absent,
         GroupItemHoverArea::ByChildren {
             row_target: player_target(MediaTarget::Transport),
         },
@@ -619,7 +612,7 @@ fn player_group<'a>(
                 session.cover_art.as_ref().map(|art| &art.handle),
             )),
             lyrics_snapshot.and_then(|lyrics_snapshot| {
-                lyrics_item(config, media, lyrics_snapshot, clock.instant)
+                lyrics_item(config, media, lyrics_snapshot, clock.instant, clock)
             }),
             seek,
             Some(transport),

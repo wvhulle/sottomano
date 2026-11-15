@@ -14,10 +14,9 @@ use super::{
 use crate::{
     group_items::{
         gauge::Gauge,
-        group_item::{
-            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
-        },
+        group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
+        source_reading::GroupItemIcon,
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -50,10 +49,8 @@ pub(super) fn track_item<'a>(
         |art| GroupItemIcon::Image(art.clone()),
     );
     let track = GroupItem::composed(
-        ComposedGroupItemFace {
-            name: "Track".into(),
-            icon,
-        },
+        "Track",
+        icon,
         GroupItemHoverArea::WholeItem(
             PlayerTarget {
                 bus: media.bus.clone().into(),
@@ -103,10 +100,8 @@ pub(super) fn player_item<'a>(
         })
     });
     GroupItem::composed(
-        ComposedGroupItemFace {
-            name: "Player".into(),
-            icon: GroupItemIcon::IconGlyph { glyph, state },
-        },
+        "Player",
+        GroupItemIcon::IconGlyph { glyph, state },
         GroupItemHoverArea::WholeItem(
             PlayerTarget {
                 bus: media.bus.clone().into(),

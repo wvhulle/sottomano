@@ -34,12 +34,16 @@ impl DesktopShell {
             StandaloneWidgetGroup::Clock => self
                 .widget_groups
                 .clock_group
-                .group_content()
+                .group_content(self.clock, self.config.calendar.locale)
                 .map(ShellInteraction::Clock),
             StandaloneWidgetGroup::Notifications => self
                 .widget_groups
                 .notification_group
-                .group_content(self.notification_status())
+                .group_content(
+                    self.notification_status(),
+                    self.clock,
+                    self.config.calendar.locale,
+                )
                 .map(ShellInteraction::NotificationGroup),
             StandaloneWidgetGroup::Tray => self
                 .widget_groups

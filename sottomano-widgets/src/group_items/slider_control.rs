@@ -29,7 +29,7 @@ use crate::{
     group_items::{
         group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
-        source_reading::{labeled_reading, source_reading},
+        source_reading::{RowFace, RowReadout, labeled_reading, source_reading},
     },
     hover_cards::{
         HoverAnnouncement, HoverCardMessage, HoverOrigin, HoverTarget, PressHints,
@@ -45,6 +45,12 @@ use crate::{
         value_cells::{LabeledValue, SliderReadout, ValueCell},
     },
 };
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SliderShownReading {
+    pub face: RowFace,
+    pub readout: RowReadout,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SliderActivity {
@@ -432,17 +438,19 @@ impl SliderControl {
     pub fn view<'a>(
         &'a self,
         config: &'a Config,
+        shown_reading: SliderShownReading,
         reveal: f32,
         clock: Clock,
         hover_origin: &HoverOrigin,
     ) -> Element<'a, ControlMessage> {
         let hover_origin = hover_origin.clone();
         let right_click = self.right_click;
+        let SliderShownReading { face, readout } = shown_reading;
         self.expanding_slider.view(
             ExpandingSliderParts {
                 collapsed: Box::new(move || match self.label {
-                    Some(_) => labeled_reading(config, self, reveal, clock),
-                    None => source_reading(config, self, reveal, clock),
+                    Some(_) => labeled_reading(config, &face, &readout, reveal),
+                    None => source_reading(config, &face, &readout, reveal),
                 }),
                 face: Box::new(move || self.state_glyph(config, clock)),
                 readout: Box::new(move || self.readout_view(config)),

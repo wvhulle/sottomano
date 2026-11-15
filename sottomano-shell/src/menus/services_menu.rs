@@ -12,23 +12,23 @@ impl DesktopShell {
             [
                 self.widget_groups
                     .llama_server_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::LlamaServer),
                 self.widget_groups
                     .ci_runs_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::CiRuns),
                 self.widget_groups
                     .claude_usage_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::ClaudeUsage),
                 self.widget_groups
                     .copilot_usage_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::CopilotUsage),
                 self.widget_groups
                     .openrouter_credit_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::OpenRouterCredit),
                 self.widget_groups
                     .systemd_manager_group
@@ -36,15 +36,15 @@ impl DesktopShell {
                     .map(ShellInteraction::SystemdManager),
                 self.widget_groups
                     .journal_events_group
-                    .system_journal_content(config)
+                    .system_journal_content(config, self.clock)
                     .map(ShellInteraction::JournalEvents),
                 self.widget_groups
                     .journal_events_group
-                    .user_journal_content(config)
+                    .user_journal_content(config, self.clock)
                     .map(ShellInteraction::JournalEvents),
                 self.widget_groups
                     .pending_upgrades_group
-                    .group_content(config)
+                    .group_content(config, self.clock)
                     .map(ShellInteraction::PendingUpgrades),
             ],
         )

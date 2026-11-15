@@ -11,13 +11,13 @@ impl DesktopShell {
         let pause_groups = self
             .widget_groups
             .idle_pause_groups
-            .pause_groups(&self.config)
+            .pause_groups(&self.config, self.clock)
             .into_iter()
             .map(|group| group.map(ShellInteraction::IdleTimeouts));
         let login_session = self
             .widget_groups
             .login_session_group
-            .group_content()
+            .group_content(self.clock, self.config.calendar.locale)
             .map(ShellInteraction::LoginSession);
         self.group_menu(
             GroupMenuTopic::Session,

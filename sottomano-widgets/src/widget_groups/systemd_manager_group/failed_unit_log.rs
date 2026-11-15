@@ -48,6 +48,7 @@ pub(super) fn failed_units_item<'a>(
     config: &'a Config,
     clock: Clock,
 ) -> GroupItem<'a, SystemdManagerInteraction> {
+    let locale = config.calendar.locale;
     let open_log =
         |args| SystemdManagerInteraction::OpenLog(TerminalCommand::journal(config, args));
     let failed_unit_toasts = failed.units.iter().map(|unit| {
@@ -128,12 +129,17 @@ pub(super) fn failed_units_item<'a>(
             .collect(),
         }
     });
-    GroupItem::reading(failed, SystemdTarget::failed_units(failed.scope))
-        .on_press(
-            TerminalCommand::JOURNAL_PRESS_HINT,
-            open_log(failed.follow_log_args()),
-        )
-        .ongoing_toasts(failed_unit_toasts)
+    GroupItem::reading(
+        failed,
+        SystemdTarget::failed_units(failed.scope),
+        clock,
+        locale,
+    )
+    .on_press(
+        TerminalCommand::JOURNAL_PRESS_HINT,
+        open_log(failed.follow_log_args()),
+    )
+    .ongoing_toasts(failed_unit_toasts)
 }
 
 fn service_outcome_reason(outcome: &ServiceOutcome) -> String {

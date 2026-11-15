@@ -51,10 +51,18 @@ impl JournalScopeGroup {
     pub(super) fn coredump_log_item(
         &self,
         config: &Config,
+        clock: Clock,
     ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
+        let locale = config.calendar.locale;
         let coredumps = self.coredumps.display()?;
         Some(
-            GroupItem::reading(coredumps, JournalTarget::Coredumps(self.unit_scope)).on_press(
+            GroupItem::reading(
+                coredumps,
+                JournalTarget::Coredumps(self.unit_scope),
+                clock,
+                locale,
+            )
+            .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
                 JournalEventsInteraction::OpenLog(TerminalCommand::journal(
                     config,

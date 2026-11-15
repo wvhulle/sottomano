@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod bcachefs_member_row;
 mod disk_space_gauge;
 mod disk_transfer_gauge;
@@ -240,6 +241,8 @@ impl PhysicalDriveGroup {
         &'a self,
         disk: &'a KernelDevice,
         readings: &'a PhysicalDiskReadings,
+        clock: Clock,
+        locale: Locale,
     ) -> WidgetGroupContent<'a, DriveInteraction> {
         let space_target = DriveTarget::Space(disk.name.clone());
         let space_item = match readings.space.get() {
@@ -249,8 +252,10 @@ impl PhysicalDriveGroup {
                     marking: self.disk_marking(disk),
                 },
                 space_target,
+                clock,
+                locale,
             )),
-            None => readings.space.group_item(space_target),
+            None => readings.space.group_item(space_target, clock, locale),
         };
         let transfer_items = readings
             .activity
@@ -258,8 +263,18 @@ impl PhysicalDriveGroup {
             .into_iter()
             .flat_map(move |activity| {
                 [
-                    GroupItem::reading(&activity.read, DriveTarget::Read(disk.name.clone())),
-                    GroupItem::reading(&activity.write, DriveTarget::Write(disk.name.clone())),
+                    GroupItem::reading(
+                        &activity.read,
+                        DriveTarget::Read(disk.name.clone()),
+                        clock,
+                        locale,
+                    ),
+                    GroupItem::reading(
+                        &activity.write,
+                        DriveTarget::Write(disk.name.clone()),
+                        clock,
+                        locale,
+                    ),
                 ]
             });
         let member_items = readings
@@ -275,21 +290,23 @@ impl PhysicalDriveGroup {
                         disk: disk.name.clone(),
                         partition: device.partition.clone(),
                     },
+                    clock,
+                    locale,
                 )
             });
         let items = space_item
             .into_iter()
             .chain(member_items)
-            .chain(
-                readings
-                    .drive_health
-                    .group_item(DriveTarget::DriveHealth(disk.name.clone())),
-            )
-            .chain(
-                readings
-                    .activity
-                    .group_item(DriveTarget::Read(disk.name.clone())),
-            )
+            .chain(readings.drive_health.group_item(
+                DriveTarget::DriveHealth(disk.name.clone()),
+                clock,
+                locale,
+            ))
+            .chain(readings.activity.group_item(
+                DriveTarget::Read(disk.name.clone()),
+                clock,
+                locale,
+            ))
             .chain(transfer_items);
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::PhysicalDrive, disk.name.clone()),
@@ -304,19 +321,24 @@ impl PhysicalDriveGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, DriveInteraction>> {
+    pub fn group_contents(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<WidgetGroupContent<'_, DriveInteraction>> {
         let discovery_group = WidgetGroupContent::expandable(
             WidgetGroupFamily::PhysicalDrive,
             &self.discovery_expansion,
             DriveInteraction::DiscoveryExpansion,
-            self.discovery.group_item(DriveTarget::MountDiscovery),
+            self.discovery
+                .group_item(DriveTarget::MountDiscovery, clock, locale),
         );
         [discovery_group]
             .into_iter()
             .chain(
                 self.disks
                     .iter()
-                    .map(|(disk, readings)| self.disk_group(disk, readings)),
+                    .map(|(disk, readings)| self.disk_group(disk, readings, clock, locale)),
             )
             .collect()
     }

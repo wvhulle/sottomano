@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod local_date;
 mod local_time;
 mod zone_time;
@@ -137,21 +138,23 @@ impl ClockGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Clock,
             &self.expansion,
             identity,
             [
-                self.time.group_item(ClockTarget::LocalTime),
-                self.date.group_item(ClockTarget::LocalDate),
+                self.time.group_item(ClockTarget::LocalTime, clock, locale),
+                self.date.group_item(ClockTarget::LocalDate, clock, locale),
             ]
             .into_iter()
-            .chain(
-                self.zone_times
-                    .iter()
-                    .map(|(zone, zone_time)| zone_time.group_item(ClockTarget::ZoneTime(*zone))),
-            )
+            .chain(self.zone_times.iter().map(|(zone, zone_time)| {
+                zone_time.group_item(ClockTarget::ZoneTime(*zone), clock, locale)
+            }))
             .flatten(),
         )
     }

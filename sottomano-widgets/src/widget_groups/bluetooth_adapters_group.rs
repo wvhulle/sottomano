@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod adapter_radio_reading;
 mod connected_device_reading;
 mod reconnect_churn_counting;
@@ -267,6 +268,7 @@ impl BluetoothAdaptersGroup {
         adapter: &'a BluetoothAdapter,
         report_timing_for: &impl Fn(&str) -> Option<ReportTiming>,
         clock: Clock,
+        locale: Locale,
     ) -> Option<WidgetGroupContent<'a, BluetoothInteraction>> {
         let expansion = self.expansions.get(&adapter.controller_name)?;
         let summary_item = GroupItem::reading(
@@ -274,6 +276,8 @@ impl BluetoothAdaptersGroup {
             BluetoothTarget::Adapter {
                 controller_name: adapter.controller_name.clone(),
             },
+            clock,
+            locale,
         );
         let power_switch = AdapterPowerSwitch { adapter };
         let power_press_does = power_switch.press_does();
@@ -282,6 +286,8 @@ impl BluetoothAdaptersGroup {
             BluetoothTarget::PowerSwitch {
                 controller_name: adapter.controller_name.clone(),
             },
+            clock,
+            locale,
         )
         .on_switch_press(
             &adapter.power,
@@ -300,6 +306,8 @@ impl BluetoothAdaptersGroup {
                         controller_name: adapter.controller_name.clone(),
                         object_path: device.object_path.clone(),
                     },
+                    clock,
+                    locale,
                 )
                 .on_press(
                     ConnectedDeviceReading::PRESS_DOES,
@@ -332,13 +340,14 @@ impl BluetoothAdaptersGroup {
         &self,
         report_timing_for: &impl Fn(&str) -> Option<ReportTiming>,
         clock: Clock,
+        locale: Locale,
     ) -> Vec<WidgetGroupContent<'_, BluetoothInteraction>> {
         self.bluetooth
             .get()
             .map(|bluetooth| bluetooth.adapters.as_slice())
             .unwrap_or_default()
             .iter()
-            .filter_map(|adapter| self.adapter_group(adapter, report_timing_for, clock))
+            .filter_map(|adapter| self.adapter_group(adapter, report_timing_for, clock, locale))
             .collect()
     }
 }

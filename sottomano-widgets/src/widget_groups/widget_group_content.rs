@@ -27,13 +27,12 @@ use crate::{
     group_items::{
         aligned_quantity::ItemAlignment,
         group_item::{
-            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
-            ItemPinning, MenuParts, RowScroll,
+            GroupItem, GroupItemHoverArea, GroupItemValue, ItemPinning, MenuParts, RowScroll,
         },
         group_item_gestures::GroupItemGestures,
         group_item_reading::GroupItemReading,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
-        source_reading::reading_value,
+        source_reading::{GroupItemIcon, reading_value},
     },
     group_menus::{
         group_menu_state::{
@@ -225,10 +224,8 @@ impl<'a> WidgetGroupFace<'a> {
     ) -> GroupItem<'a, M> {
         let glyph_face = |glyph, state| {
             GroupItem::composed(
-                ComposedGroupItemFace {
-                    name: group_title.to_string().into(),
-                    icon: GroupItemIcon::IconGlyph { glyph, state },
-                },
+                group_title.to_string(),
+                GroupItemIcon::IconGlyph { glyph, state },
                 GroupItemHoverArea::ByChildren {
                     row_target: HoverTarget::GroupFace(Box::new(group_identity.clone())),
                 },
@@ -250,7 +247,7 @@ impl<'a> WidgetGroupFace<'a> {
         items: &[GroupItem<'a, M>],
         clock: Clock,
     ) -> MenuParts<'a, M> {
-        let preview = || collapsing_previewed_value(config, items, 0.0, clock);
+        let preview = || collapsing_previewed_value(config, items, 0.0);
         match self {
             WidgetGroupFace::Icon { glyph, .. } => MenuParts {
                 icon: icon_face_glyph(config, glyph, FaceGlyphTint::Text),
@@ -447,11 +444,10 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         &self,
         menu: GroupMenuTopic,
         promotion_severity: Severity,
-        clock: Clock,
     ) -> Vec<PanelRaise> {
         self.items
             .iter()
-            .filter(|item| item.shown_from(promotion_severity, clock))
+            .filter(|item| item.shown_from(promotion_severity))
             .filter(|item| item.pinning() == ItemPinning::Pinnable)
             .map(|item| PanelRaise {
                 menu,
@@ -539,15 +535,15 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             levels: self
                 .items
                 .iter()
-                .filter_map(|item| item.level_reading(reveal_message.clone(), locale, clock))
+                .filter_map(|item| item.level_reading(reveal_message.clone()))
                 .collect(),
         }
     }
 
-    pub(crate) fn highest_alert_severity(&self, clock: Clock) -> Severity {
+    pub(crate) fn highest_alert_severity(&self) -> Severity {
         self.items
             .iter()
-            .filter_map(|item| item.shown_alert_severity(clock))
+            .filter_map(GroupItem::shown_alert_severity)
             .max()
             .unwrap_or_default()
     }
@@ -604,7 +600,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 let pin_duration = match group_menus.pin_state(menu, entry.clone()) {
                     MenuPinState::Pinned => PanelPinDuration::Permanent,
                     MenuPinState::Unpinned
-                        if item.shown_from(promotion_severity, clock)
+                        if item.shown_from(promotion_severity)
                             && group_menus.alert_pin_state(menu, entry)
                                 == AlertPinState::Raised =>
                     {
@@ -628,7 +624,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 Some(
                     fixed_view(
                         slice::from_ref(&item),
-                        item.shown_alert_severity(clock).unwrap_or_default(),
+                        item.shown_alert_severity().unwrap_or_default(),
                         MenuHandleIndicator::default(),
                         config,
                         panel_position,
@@ -727,7 +723,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         if self.items.is_empty() {
             return None;
         }
-        let highest_alert_severity = self.highest_alert_severity(clock);
+        let highest_alert_severity = self.highest_alert_severity();
         let WidgetGroupContent {
             group_identity,
             group_title,
@@ -773,7 +769,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             let handle: Element<'a, GroupEvent<M>> = button(
                 Row::with_children([
                     draw_face(),
-                    collapsing_previewed_value(config, &items, reveal, clock),
+                    collapsing_previewed_value(config, &items, reveal),
                 ])
                 .align_y(Alignment::Center),
             )
@@ -910,23 +906,13 @@ fn collapsing_previewed_value<'a, M: 'a, Message: 'a>(
     config: &Config,
     items: &[GroupItem<'a, M>],
     reveal_fraction: f32,
-    clock: Clock,
 ) -> Element<'a, Message> {
     let hidden = 1.0 - reveal_fraction;
-    let previewed_widget = items
+    let Some(value) = items
         .iter()
         .find_map(GroupItem::handle_preview)
-        .map(|preview| preview.widget);
-    let Some(value) = previewed_widget
         .filter(|_| hidden > 0.0)
-        .and_then(|widget| {
-            reading_value(
-                config,
-                widget,
-                ReadingStateTint::opaque(widget.state(clock)),
-                clock,
-            )
-        })
+        .and_then(|preview| reading_value(config, preview.face, preview.readout, 1.0))
     else {
         return Row::new().into();
     };
@@ -956,6 +942,7 @@ fn revealed_content<'a, Message: 'a>(
 mod tests {
     use std::borrow::Cow;
 
+    use chrono::Locale;
     use sottomano_toml_config::severity::Severity;
 
     use super::{WidgetGroupContent, WidgetGroupExpansion};
@@ -998,6 +985,8 @@ mod tests {
         expansion: &WidgetGroupExpansion,
         shown_state: ReadingDisplayState,
     ) -> WidgetGroupContent<'_, ()> {
+        let clock = Clock::real();
+        let locale = Locale::default();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Weather,
             expansion,
@@ -1005,6 +994,8 @@ mod tests {
             [GroupItem::reading(
                 ShownStateReading(shown_state),
                 HoverTarget::Workspace(7),
+                clock,
+                locale,
             )],
         )
     }
@@ -1014,7 +1005,7 @@ mod tests {
         let expansion = WidgetGroupExpansion::default();
         let group = group_showing(&expansion, ReadingDisplayState::Critical);
         assert_eq!(
-            group.panel_raises(GroupMenuTopic::Media, Severity::Critical, Clock::real()),
+            group.panel_raises(GroupMenuTopic::Media, Severity::Critical),
             vec![PanelRaise {
                 menu: GroupMenuTopic::Media,
                 group: WidgetGroupIdentity::sole(WidgetGroupFamily::Weather),
@@ -1028,17 +1019,16 @@ mod tests {
         let expansion = WidgetGroupExpansion::default();
         let group = group_showing(&expansion, ReadingDisplayState::Warning);
         assert_eq!(
-            group.panel_raises(GroupMenuTopic::Media, Severity::Critical, Clock::real()),
+            group.panel_raises(GroupMenuTopic::Media, Severity::Critical),
             Vec::new()
         );
-        assert_eq!(
-            group.highest_alert_severity(Clock::real()),
-            Severity::Warning
-        );
+        assert_eq!(group.highest_alert_severity(), Severity::Warning);
     }
 
     #[test]
     fn an_item_announcement_follows_the_current_press() {
+        let clock = Clock::real();
+        let locale = Locale::default();
         let expansion = WidgetGroupExpansion::default();
         let group_pressing = |description| {
             WidgetGroupContent::expandable(
@@ -1048,6 +1038,8 @@ mod tests {
                 [GroupItem::reading(
                     ShownStateReading(ReadingDisplayState::Idle),
                     HoverTarget::Workspace(7),
+                    clock,
+                    locale,
                 )
                 .on_press(description, ())],
             )

@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod ci_run_readings;
 mod ci_runner_watches;
 
@@ -253,7 +254,11 @@ impl CiRunsGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, CiRunsInteraction> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, CiRunsInteraction> {
         let watched_runners = self.watched_runners();
         let total_runs = watched_runners
             .iter()
@@ -261,8 +266,9 @@ impl CiRunsGroup {
             .sum();
         let runner_rows = watched_runners.into_iter().flat_map(|watched| {
             let reference = CiRunnerReference::from(&watched);
-            let failure_row = CiRunnerFailureRow::failing_runner(watched)
-                .map(|row| GroupItem::reading(row, CiRunsTarget::Runner(reference.clone())));
+            let failure_row = CiRunnerFailureRow::failing_runner(watched).map(|row| {
+                GroupItem::reading(row, CiRunsTarget::Runner(reference.clone()), clock, locale)
+            });
             let run_rows = watched.runner.tasks.iter().map(move |task| {
                 let row = GroupItem::reading(
                     CiTaskRow {
@@ -273,6 +279,8 @@ impl CiRunsGroup {
                         runner: reference.clone(),
                         run_label: Cow::Owned(task.run_label.clone()),
                     },
+                    clock,
+                    locale,
                 );
                 match &task.stop_control {
                     TaskStopControl::NoContainerNow => row,

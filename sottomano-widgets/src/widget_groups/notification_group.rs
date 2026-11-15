@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use chrono::Locale;
 use iced::Task;
 
 use crate::{
@@ -170,6 +171,8 @@ impl NotificationGroup {
     pub fn group_content(
         &self,
         status: NotificationStatus,
+        clock: Clock,
+        locale: Locale,
     ) -> WidgetGroupContent<'_, NotificationGroupMessage> {
         let quiet_phase = status.quiet_phase;
         WidgetGroupContent::expandable(
@@ -177,10 +180,12 @@ impl NotificationGroup {
             &self.expansion,
             NotificationGroupMessage::Expansion,
             [
-                GroupItem::reading(status, NotificationTarget::Status),
+                GroupItem::reading(status, NotificationTarget::Status, clock, locale),
                 GroupItem::reading(
                     DoNotDisturbStatus { quiet_phase },
                     QuietScheduleTarget::DoNotDisturb,
+                    clock,
+                    locale,
                 )
                 .on_switch_press(
                     quiet_phase,
@@ -194,6 +199,8 @@ impl NotificationGroup {
                     sound_toggle(self.alert_sound),
                     NotificationTarget::Sound,
                     NotificationGroupMessage::ToggleSound,
+                    clock,
+                    locale,
                 ),
             ],
         )

@@ -13,11 +13,11 @@ use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
-    group_items::group_item_reading::{GroupItemReading, OngoingToastThreshold},
+    group_items::reading_display_state::ReadingDisplayState,
     hover_cards::HoverTarget,
     widgets::{
-        amount_text::percent_text, localized_durations::duration_text,
-        localized_time::LocalizedTimeFormat,
+        amount_text::percent_text, announced_level::AnnouncedLevel, icon_glyph::IconGlyph,
+        localized_durations::duration_text, localized_time::LocalizedTimeFormat,
     },
 };
 
@@ -124,18 +124,67 @@ pub struct OngoingToast<Message> {
     pub action_buttons: Vec<OngoingToastActionButton<Message>>,
 }
 
-pub fn reading_display_state_alert_severity(
-    widget: &dyn GroupItemReading,
-    clock: Clock,
+#[derive(Debug, Clone, PartialEq)]
+pub enum ToastBody {
+    Bodiless,
+    Text(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ToastProgress {
+    Unmeasured,
+    Measured(Ratio),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum StateToast {
+    NeverNotify,
+    NotifyFromSeverity {
+        minimum_severity: Severity,
+        summary_text: &'static str,
+        body: ToastBody,
+        progress: ToastProgress,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum LevelNotice {
+    Unannounced,
+    Announced {
+        level: AnnouncedLevel,
+        glyph: IconGlyph,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReadingAlerts {
+    pub state_toast: StateToast,
+    pub level: LevelNotice,
+    pub quota_windows: Vec<Quota>,
+}
+
+impl Default for ReadingAlerts {
+    fn default() -> Self {
+        Self {
+            state_toast: StateToast::NeverNotify,
+            level: LevelNotice::Unannounced,
+            quota_windows: Vec::new(),
+        }
+    }
+}
+
+pub(crate) fn state_alert_severity(
+    state: ReadingDisplayState,
+    state_toast: &StateToast,
 ) -> Option<Severity> {
-    let OngoingToastThreshold::NotifyFromSeverity {
+    let StateToast::NotifyFromSeverity {
         minimum_severity, ..
-    } = widget.ongoing_toast_threshold()
+    } = state_toast
     else {
         return None;
     };
-    let severity = widget.state(clock).severity();
-    (severity > Severity::Normal && severity >= minimum_severity).then_some(severity)
+    let severity = state.severity();
+    (severity > Severity::Normal && severity >= *minimum_severity).then_some(severity)
 }
 
 fn alerting_quota_severity(quota: &Quota) -> Option<Severity> {
@@ -143,35 +192,49 @@ fn alerting_quota_severity(quota: &Quota) -> Option<Severity> {
     (severity >= Severity::Warning).then_some(severity)
 }
 
-pub fn quota_pace_alert_severity(widget: &dyn GroupItemReading, clock: Clock) -> Option<Severity> {
-    widget
-        .quota_windows(clock.utc())
+pub fn quota_pace_alert_severity(quota_windows: &[Quota]) -> Option<Severity> {
+    quota_windows
         .iter()
         .filter_map(alerting_quota_severity)
         .max()
 }
 
+pub struct AlertedReading<'r> {
+    pub hover_target: HoverTarget,
+    pub widget_name: Cow<'static, str>,
+    pub state: ReadingDisplayState,
+    pub alerts: &'r ReadingAlerts,
+}
+
 impl<Message> OngoingToast<Message> {
     pub fn reading_state_alert(
-        hover_target: HoverTarget,
-        widget: &dyn GroupItemReading,
+        reading: &AlertedReading<'_>,
         on_body_clicked: Message,
-        locale: Locale,
         clock: Clock,
     ) -> Option<Self> {
-        let severity = reading_display_state_alert_severity(widget, clock)?;
-        let OngoingToastThreshold::NotifyFromSeverity { summary_text, .. } =
-            widget.ongoing_toast_threshold()
+        let severity = state_alert_severity(reading.state, &reading.alerts.state_toast)?;
+        let StateToast::NotifyFromSeverity {
+            summary_text,
+            body,
+            progress,
+            ..
+        } = &reading.alerts.state_toast
         else {
             return None;
         };
         Some(Self {
-            widget_name: widget.name(),
-            key: OngoingKey::Reading(hover_target),
+            widget_name: reading.widget_name.clone(),
+            key: OngoingKey::Reading(reading.hover_target.clone()),
             severity,
             summary_text: Cow::Borrowed(summary_text),
-            body: widget.ongoing_toast_body(clock, locale),
-            progress: widget.gauge(),
+            body: match body {
+                ToastBody::Bodiless => None,
+                ToastBody::Text(text) => Some(text.clone()),
+            },
+            progress: match progress {
+                ToastProgress::Unmeasured => None,
+                ToastProgress::Measured(fill) => Some(*fill),
+            },
             since: clock.wall,
             on_body_clicked,
             action_buttons: Vec::new(),
@@ -179,17 +242,18 @@ impl<Message> OngoingToast<Message> {
     }
 
     pub fn quota_pace_alert(
-        hover_target: impl Into<HoverTarget>,
-        widget: &dyn GroupItemReading,
+        reading: &AlertedReading<'_>,
         on_body_clicked: Message,
         locale: Locale,
         clock: Clock,
     ) -> Option<Self> {
         let now = clock.utc();
-        let alerting: Vec<Quota> = widget
-            .quota_windows(now)
-            .into_iter()
+        let alerting: Vec<Quota> = reading
+            .alerts
+            .quota_windows
+            .iter()
             .filter(|quota| alerting_quota_severity(quota).is_some())
+            .cloned()
             .collect();
         let worst = alerting.iter().max_by_key(|quota| quota.severity())?;
         let outlook = if worst.pace() == Some(Pace::Exceeded) {
@@ -198,8 +262,8 @@ impl<Message> OngoingToast<Message> {
             "runs out before reset"
         };
         Some(Self {
-            widget_name: widget.name(),
-            key: OngoingKey::Reading(hover_target.into()),
+            widget_name: reading.widget_name.clone(),
+            key: OngoingKey::Reading(reading.hover_target.clone()),
             severity: worst.severity(),
             summary_text: Cow::Owned(format!("{} {outlook}", worst.label)),
             progress: Some(worst.used),
@@ -262,83 +326,55 @@ mod tests {
     use uom::si::ratio::percent;
 
     use super::*;
-    use crate::{
-        group_items::reading_display_state::ReadingDisplayState,
-        hover_cards::hover_card_body::Section,
-        widget_groups::power_group::PowerTarget,
-        widgets::{
-            icon_glyph::IconGlyph,
-            phosphor::{Phosphor, Weight},
-        },
-    };
+    use crate::widget_groups::power_group::PowerTarget;
 
-    struct FixedReading {
-        state: ReadingDisplayState,
-        threshold: OngoingToastThreshold,
-    }
-
-    impl GroupItemReading for FixedReading {
-        fn name(&self) -> Cow<'static, str> {
-            "Fixed reading".into()
-        }
-
-        fn icon(&self) -> IconGlyph {
-            Phosphor::Question(Weight::Regular).into()
-        }
-
-        fn state(&self, _clock: Clock) -> ReadingDisplayState {
-            self.state
-        }
-
-        fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
-            self.threshold
-        }
-
-        fn hover_card(&self, _clock: Clock) -> Vec<Section> {
-            vec![]
+    fn notifying_from(minimum_severity: Severity) -> StateToast {
+        StateToast::NotifyFromSeverity {
+            minimum_severity,
+            summary_text: "summary",
+            body: ToastBody::Bodiless,
+            progress: ToastProgress::Unmeasured,
         }
     }
 
-    const FROM_WARNING: OngoingToastThreshold = OngoingToastThreshold::NotifyFromSeverity {
-        minimum_severity: Severity::Warning,
-        summary_text: "summary",
-    };
-
-    const FROM_CRITICAL: OngoingToastThreshold = OngoingToastThreshold::NotifyFromSeverity {
-        minimum_severity: Severity::Critical,
-        summary_text: "summary",
-    };
-
-    fn alert_for(
-        state: ReadingDisplayState,
-        threshold: OngoingToastThreshold,
-    ) -> Option<OngoingToast<u8>> {
+    fn alert_for(state: ReadingDisplayState, state_toast: StateToast) -> Option<OngoingToast<u8>> {
+        let alerts = ReadingAlerts {
+            state_toast,
+            ..ReadingAlerts::default()
+        };
         OngoingToast::reading_state_alert(
-            HoverTarget::Power(PowerTarget::BatteryTime),
-            &FixedReading { state, threshold },
+            &AlertedReading {
+                hover_target: HoverTarget::Power(PowerTarget::BatteryTime),
+                widget_name: "Fixed reading".into(),
+                state,
+                alerts: &alerts,
+            },
             0,
-            Locale::default(),
             Clock::real(),
         )
     }
 
     #[test]
     fn widgets_that_never_notify_have_no_alert() {
-        assert!(
-            alert_for(
-                ReadingDisplayState::Critical,
-                OngoingToastThreshold::NeverNotify
-            )
-            .is_none()
-        );
+        assert!(alert_for(ReadingDisplayState::Critical, StateToast::NeverNotify).is_none());
     }
 
     #[test]
     fn readings_below_the_minimum_level_have_no_alert() {
-        assert!(alert_for(ReadingDisplayState::Idle, FROM_WARNING).is_none());
-        assert!(alert_for(ReadingDisplayState::Warning, FROM_CRITICAL).is_none());
+        assert!(alert_for(ReadingDisplayState::Idle, notifying_from(Severity::Warning)).is_none());
+        assert!(
+            alert_for(
+                ReadingDisplayState::Warning,
+                notifying_from(Severity::Critical)
+            )
+            .is_none()
+        );
         assert_eq!(
-            alert_for(ReadingDisplayState::Critical, FROM_CRITICAL).map(|alert| alert.severity),
+            alert_for(
+                ReadingDisplayState::Critical,
+                notifying_from(Severity::Critical)
+            )
+            .map(|alert| alert.severity),
             Some(Severity::Critical)
         );
     }
@@ -346,7 +382,11 @@ mod tests {
     #[test]
     fn failed_readings_alert_as_critical() {
         assert_eq!(
-            alert_for(ReadingDisplayState::Failed, FROM_WARNING).map(|alert| alert.severity),
+            alert_for(
+                ReadingDisplayState::Failed,
+                notifying_from(Severity::Warning)
+            )
+            .map(|alert| alert.severity),
             Some(Severity::Critical)
         );
     }
@@ -433,11 +473,14 @@ mod tests {
 
     #[test]
     fn mapping_messages_keeps_the_body_message_and_the_action_buttons() {
-        let alert = alert_for(ReadingDisplayState::Warning, FROM_WARNING)
-            .expect("warning reading alerts")
-            .with_action_button(proceed_button("first", 1))
-            .with_action_button(proceed_button("second", 2))
-            .map_messages(|message| u16::from(message) * 10);
+        let alert = alert_for(
+            ReadingDisplayState::Warning,
+            notifying_from(Severity::Warning),
+        )
+        .expect("warning reading alerts")
+        .with_action_button(proceed_button("first", 1))
+        .with_action_button(proceed_button("second", 2))
+        .map_messages(|message| u16::from(message) * 10);
         assert_eq!(alert.on_body_clicked, 0);
         assert_eq!(alert.action_buttons[1].on_button_pressed, 20);
         assert_eq!(alert.toast_notification_data(7).actions[0].label, "first");

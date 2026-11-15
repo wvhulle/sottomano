@@ -19,23 +19,27 @@ use crate::{
     group_items::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         group_item_gestures::{GroupItemGesture, GroupItemGestures},
-        group_item_reading::{GroupItemReading, state_weighted_icon},
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
         item_toggle_switch::item_toggle_switch,
-        reading_display_state::{ReadingDisplayState, ReadingStateTint},
-        slider_control::{ControlMessage, SliderControl},
-        source_reading::{reading_icon, reading_value, source_reading},
+        slider_control::{ControlMessage, SliderControl, SliderShownReading},
+        source_reading::{
+            GroupItemIcon, IdentityOrdinal, ReadoutBadge, ReadoutGauge, ReadoutLabel, RowFace,
+            RowReadout, face_icon, reading_value, source_reading,
+        },
         toggle_control::{IconToggle, SwitchPosition},
     },
     hover_cards::{
         HoverAnnouncement, HoverOrigin, HoverTarget, PressHints, announcing_hoverable,
-        press_toggled_hoverable,
+        hover_card_body::Section, press_toggled_hoverable,
     },
     widget_groups::widget_group_content::GroupEvent,
     widgets::{
         announced_level::LevelReading,
         icon_glyph::IconGlyph,
-        icon_handle::IconHandle,
-        ongoing_toast::{OngoingToast, OngoingToastActionButton, quota_pace_alert_severity},
+        ongoing_toast::{
+            AlertedReading, LevelNotice, OngoingToast, OngoingToastActionButton, ReadingAlerts,
+            StateToast, ToastBody, ToastProgress, quota_pace_alert_severity,
+        },
         phosphor::{Phosphor, Weight},
     },
 };
@@ -45,6 +49,8 @@ type DrawControl<'a, M> =
     Box<dyn Fn(f32, Clock, ItemPlacement, &HoverOrigin) -> Element<'a, GroupEvent<M>> + 'a>;
 
 type AdjustByScroll<'a, M> = Rc<dyn Fn(ScrollDelta) -> M + 'a>;
+
+type DescribeCard<'a> = Box<dyn Fn(Clock) -> Vec<Section> + 'a>;
 
 pub(crate) enum RowScroll<'a, M> {
     Inert,
@@ -58,55 +64,9 @@ pub(crate) enum ItemPlacement {
     Menu,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DrawnItemPlacement {
-    Panel,
-    Table,
-}
-
-impl From<DrawnItemPlacement> for ItemPlacement {
-    fn from(placement: DrawnItemPlacement) -> Self {
-        match placement {
-            DrawnItemPlacement::Panel => ItemPlacement::Panel,
-            DrawnItemPlacement::Table => ItemPlacement::Table,
-        }
-    }
-}
-
 pub(crate) struct MenuParts<'a, M> {
     pub icon: Element<'a, GroupEvent<M>>,
     pub value: Element<'a, GroupEvent<M>>,
-}
-
-pub struct ComposedGroupItemFace {
-    pub name: Cow<'static, str>,
-    pub icon: GroupItemIcon,
-}
-
-pub enum GroupItemIcon {
-    IconGlyph {
-        glyph: IconGlyph,
-        state: ReadingDisplayState,
-    },
-    Image(IconHandle),
-    Absent,
-}
-
-impl GroupItemIcon {
-    fn view<'a, Message: 'a>(&self, config: &Config, opacity: f32) -> Option<Element<'a, Message>> {
-        let side = config.theme.font.icon_size_px;
-        match self {
-            GroupItemIcon::IconGlyph { glyph, state } => {
-                let tint = ReadingStateTint {
-                    state: *state,
-                    opacity,
-                };
-                Some(glyph.view(side, move |theme| tint.color(theme)))
-            }
-            GroupItemIcon::Image(handle) => Some(handle.view(side, opacity)),
-            GroupItemIcon::Absent => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,15 +83,18 @@ enum ItemHandlePreview {
     Absent,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ComposedItemPinning {
-    Unpinnable,
-    PinnableByTarget,
-}
-
 pub enum GroupItemHoverArea {
     WholeItem(HoverTarget),
     ByChildren { row_target: HoverTarget },
+}
+
+impl GroupItemHoverArea {
+    fn target(&self) -> &HoverTarget {
+        match self {
+            GroupItemHoverArea::WholeItem(target)
+            | GroupItemHoverArea::ByChildren { row_target: target } => target,
+        }
+    }
 }
 
 pub enum GroupItemValue<'a, M> {
@@ -150,93 +113,50 @@ impl<'a, M: 'a> GroupItemValue<'a, M> {
             GroupItemValue::Drawn(draw) => Some(draw(reveal)),
         }
     }
+
+    fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> GroupItemValue<'a, Outer> {
+        match self {
+            GroupItemValue::Nothing => GroupItemValue::Nothing,
+            GroupItemValue::Drawn(draw) => GroupItemValue::Drawn(Box::new(move |reveal| {
+                draw(reveal).map(move |event| event.map(lift))
+            })),
+        }
+    }
 }
 
-enum GroupItemContent<'a, M> {
-    Reading {
-        widget: Box<dyn GroupItemReading + 'a>,
-        target: HoverTarget,
-    },
+enum RowValueControl<'a, M> {
+    RowReadout(RowReadout),
     Slider {
-        widget: &'a dyn GroupItemReading,
-        target: HoverTarget,
+        readout: RowReadout,
         draw: DrawControl<'a, M>,
         adjust_by_scroll: AdjustByScroll<'a, M>,
     },
-    Composed {
-        identity: ComposedGroupItemFace,
-        hover: GroupItemHoverArea,
-        value: GroupItemValue<'a, M>,
-        pinning: ComposedItemPinning,
-    },
+    Drawn(GroupItemValue<'a, M>),
 }
 
-impl<'a, M: 'a> GroupItemContent<'a, M> {
-    fn announcing_widget(&self) -> Option<&dyn GroupItemReading> {
+impl<'a, M: 'a> RowValueControl<'a, M> {
+    fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> RowValueControl<'a, Outer> {
         match self {
-            GroupItemContent::Reading { widget, .. } => Some(widget.as_ref()),
-            GroupItemContent::Slider { widget, .. } => Some(*widget),
-            GroupItemContent::Composed { .. } => None,
-        }
-    }
-
-    fn hover_target(&self) -> &HoverTarget {
-        match self {
-            GroupItemContent::Reading { target, .. }
-            | GroupItemContent::Slider { target, .. }
-            | GroupItemContent::Composed {
-                hover:
-                    GroupItemHoverArea::WholeItem(target)
-                    | GroupItemHoverArea::ByChildren { row_target: target },
-                ..
-            } => target,
-        }
-    }
-
-    fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> GroupItemContent<'a, Outer> {
-        let lift_draw = |draw: DrawItem<'a, M>| -> DrawItem<'a, Outer> {
-            Box::new(move |reveal| draw(reveal).map(move |event| event.map(lift)))
-        };
-        let lift_control = |draw: DrawControl<'a, M>| -> DrawControl<'a, Outer> {
-            Box::new(move |reveal, clock, placement, hover_origin| {
-                draw(reveal, clock, placement, hover_origin).map(move |event| event.map(lift))
-            })
-        };
-        match self {
-            GroupItemContent::Reading { widget, target } => {
-                GroupItemContent::Reading { widget, target }
-            }
-            GroupItemContent::Slider {
-                widget,
-                target,
+            RowValueControl::RowReadout(readout) => RowValueControl::RowReadout(readout),
+            RowValueControl::Slider {
+                readout,
                 draw,
                 adjust_by_scroll,
-            } => GroupItemContent::Slider {
-                widget,
-                target,
-                draw: lift_control(draw),
+            } => RowValueControl::Slider {
+                readout,
+                draw: Box::new(move |reveal, clock, placement, hover_origin| {
+                    draw(reveal, clock, placement, hover_origin).map(move |event| event.map(lift))
+                }),
                 adjust_by_scroll: Rc::new(move |delta| lift(adjust_by_scroll(delta))),
             },
-            GroupItemContent::Composed {
-                identity,
-                hover,
-                value,
-                pinning,
-            } => GroupItemContent::Composed {
-                identity,
-                hover,
-                pinning,
-                value: match value {
-                    GroupItemValue::Nothing => GroupItemValue::Nothing,
-                    GroupItemValue::Drawn(draw) => GroupItemValue::Drawn(lift_draw(draw)),
-                },
-            },
+            RowValueControl::Drawn(value) => RowValueControl::Drawn(value.map(lift)),
         }
     }
 }
 
 pub(crate) struct HandlePreview<'p> {
-    pub widget: &'p dyn GroupItemReading,
+    pub face: &'p RowFace,
+    pub readout: &'p RowReadout,
     pub target: &'p HoverTarget,
 }
 
@@ -246,8 +166,101 @@ pub(crate) enum ItemPinning {
     Unpinnable,
 }
 
+struct EvaluatedReading {
+    face: RowFace,
+    readout: RowReadout,
+    alerts: ReadingAlerts,
+}
+
+fn evaluated_reading(
+    widget: &(impl GroupItemReading + ?Sized),
+    clock: Clock,
+    locale: Locale,
+) -> EvaluatedReading {
+    let state = widget.state(clock);
+    let glyph = widget.icon();
+    let gauge = widget.gauge();
+    let face = RowFace {
+        name: widget.name(),
+        icon: GroupItemIcon::IconGlyph { glyph, state },
+        ordinal: match widget.identity_ordinal() {
+            Some(ordinal) => IdentityOrdinal::Numbered(ordinal),
+            None => IdentityOrdinal::Unnumbered,
+        },
+    };
+    let readout = RowReadout {
+        label: match widget.label(clock, locale) {
+            Some(label) if !label.is_empty() => ReadoutLabel::Labeled(label),
+            Some(_) | None => ReadoutLabel::Unlabeled,
+        },
+        gauge: match gauge {
+            Some(fill) => ReadoutGauge::Gauged {
+                fill,
+                live: widget.live_gauge().unwrap_or(fill),
+            },
+            None => ReadoutGauge::Ungauged,
+        },
+        badge: match widget.badge() {
+            Some(count) if count > 0 => ReadoutBadge::Counted(count),
+            Some(_) | None => ReadoutBadge::Unbadged,
+        },
+    };
+    let alerts = ReadingAlerts {
+        state_toast: match widget.ongoing_toast_threshold() {
+            OngoingToastThreshold::NeverNotify => StateToast::NeverNotify,
+            OngoingToastThreshold::NotifyFromSeverity {
+                minimum_severity,
+                summary_text,
+            } => StateToast::NotifyFromSeverity {
+                minimum_severity,
+                summary_text,
+                body: match widget.ongoing_toast_body(clock, locale) {
+                    Some(body) => ToastBody::Text(body),
+                    None => ToastBody::Bodiless,
+                },
+                progress: match gauge {
+                    Some(fill) => ToastProgress::Measured(fill),
+                    None => ToastProgress::Unmeasured,
+                },
+            },
+        },
+        level: match widget.announced_level(locale) {
+            Some(level) => LevelNotice::Announced {
+                level,
+                glyph: glyph.with_weight(state.weight()),
+            },
+            None => LevelNotice::Unannounced,
+        },
+        quota_windows: widget.quota_windows(clock.utc()),
+    };
+    EvaluatedReading {
+        face,
+        readout,
+        alerts,
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn reading_toast_severity(
+    widget: &dyn GroupItemReading,
+    clock: Clock,
+) -> Option<Severity> {
+    use crate::widgets::ongoing_toast::state_alert_severity;
+
+    let evaluated = evaluated_reading(widget, clock, Locale::default());
+    state_alert_severity(
+        evaluated.face.icon.display_state(),
+        &evaluated.alerts.state_toast,
+    )
+}
+
 pub struct GroupItem<'a, M> {
-    kind: GroupItemContent<'a, M>,
+    face: RowFace,
+    value: RowValueControl<'a, M>,
+    hover: GroupItemHoverArea,
+    pinning: ItemPinning,
+    card: DescribeCard<'a>,
+    alerts: ReadingAlerts,
     gestures: GroupItemGestures<M>,
     power_control: ItemPowerControl,
     handle_announcement: HoverAnnouncement,
@@ -259,15 +272,37 @@ pub struct GroupItem<'a, M> {
 }
 
 impl<'a, M: 'a> GroupItem<'a, M> {
+    fn assembled_row(
+        face: RowFace,
+        value: RowValueControl<'a, M>,
+        hover: GroupItemHoverArea,
+        pinning: ItemPinning,
+        card: DescribeCard<'a>,
+        alerts: ReadingAlerts,
+    ) -> Self {
+        Self {
+            face,
+            value,
+            hover,
+            pinning,
+            card,
+            alerts,
+            gestures: GroupItemGestures::inert(),
+            power_control: ItemPowerControl::Absent,
+            handle_announcement: HoverAnnouncement::default(),
+            handle_preview: ItemHandlePreview::Absent,
+            ongoing_toast_action_buttons: Vec::new(),
+            ongoing_toasts: Vec::new(),
+            alignment: ItemAlignment::Unaligned,
+            card_opening_trigger: NestedMenuOpenTrigger::Hover,
+        }
+    }
+
     #[must_use]
     pub(crate) fn whole_item_target(&self) -> Option<&HoverTarget> {
-        match &self.kind {
-            GroupItemContent::Reading { target, .. }
-            | GroupItemContent::Composed {
-                hover: GroupItemHoverArea::WholeItem(target),
-                ..
-            } => Some(target),
-            GroupItemContent::Slider { .. } | GroupItemContent::Composed { .. } => None,
+        match &self.hover {
+            GroupItemHoverArea::WholeItem(target) => Some(target),
+            GroupItemHoverArea::ByChildren { .. } => None,
         }
     }
 
@@ -279,63 +314,110 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    pub fn reading(widget: impl GroupItemReading + 'a, target: impl Into<HoverTarget>) -> Self {
-        Self::from(GroupItemContent::Reading {
-            widget: Box::new(widget),
-            target: target.into(),
-        })
+    pub fn reading(
+        widget: impl GroupItemReading + 'a,
+        target: impl Into<HoverTarget>,
+        clock: Clock,
+        locale: Locale,
+    ) -> Self {
+        let EvaluatedReading {
+            face,
+            readout,
+            alerts,
+        } = evaluated_reading(&widget, clock, locale);
+        Self::assembled_row(
+            face,
+            RowValueControl::RowReadout(readout),
+            GroupItemHoverArea::WholeItem(target.into()),
+            ItemPinning::Pinnable,
+            Box::new(move |card_clock| widget.hover_card(card_clock)),
+            alerts,
+        )
     }
 
     pub fn slider(
         slider: &'a SliderControl,
         config: &'a Config,
+        clock: Clock,
         on_control: impl Fn(ControlMessage) -> M + 'a,
     ) -> Self {
+        let EvaluatedReading {
+            face,
+            readout,
+            alerts,
+        } = evaluated_reading(slider, clock, config.calendar.locale);
+        let shown_reading = SliderShownReading {
+            face: face.clone(),
+            readout: readout.clone(),
+        };
         let on_control = Rc::new(on_control);
         let scrolled_control = Rc::clone(&on_control);
-        Self::from(GroupItemContent::Slider {
-            widget: slider,
-            target: slider.target().clone(),
-            adjust_by_scroll: Rc::new(move |delta| scrolled_control(ControlMessage::Scroll(delta))),
-            draw: Box::new(move |reveal, clock, placement, hover_origin| {
-                let on_control = Rc::clone(&on_control);
-                let slider_view = match placement {
-                    ItemPlacement::Panel => slider.view(config, reveal, clock, hover_origin),
-                    ItemPlacement::Table => slider.always_open_view(config, clock),
-                    ItemPlacement::Menu => slider.menu_view(config),
-                };
-                slider_view.map(move |message| match message {
-                    ControlMessage::HoverCard(hover_card) => GroupEvent::HoverCard(hover_card),
-                    message => GroupEvent::Group(on_control(message)),
-                })
-            }),
-        })
+        Self::assembled_row(
+            face,
+            RowValueControl::Slider {
+                readout,
+                adjust_by_scroll: Rc::new(move |delta| {
+                    scrolled_control(ControlMessage::Scroll(delta))
+                }),
+                draw: Box::new(move |reveal, clock, placement, hover_origin| {
+                    let on_control = Rc::clone(&on_control);
+                    let slider_view = match placement {
+                        ItemPlacement::Panel => {
+                            slider.view(config, shown_reading.clone(), reveal, clock, hover_origin)
+                        }
+                        ItemPlacement::Table => slider.always_open_view(config, clock),
+                        ItemPlacement::Menu => slider.menu_view(config),
+                    };
+                    slider_view.map(move |message| match message {
+                        ControlMessage::HoverCard(hover_card) => GroupEvent::HoverCard(hover_card),
+                        message => GroupEvent::Group(on_control(message)),
+                    })
+                }),
+            },
+            GroupItemHoverArea::ByChildren {
+                row_target: slider.target().clone(),
+            },
+            ItemPinning::Pinnable,
+            Box::new(move |card_clock| slider.hover_card(card_clock)),
+            alerts,
+        )
     }
 
     pub fn composed(
-        identity: ComposedGroupItemFace,
+        name: impl Into<Cow<'static, str>>,
+        icon: GroupItemIcon,
         hover: GroupItemHoverArea,
         value: GroupItemValue<'a, M>,
     ) -> Self {
-        Self::from(GroupItemContent::Composed {
-            identity,
+        Self::assembled_row(
+            RowFace {
+                name: name.into(),
+                icon,
+                ordinal: IdentityOrdinal::Unnumbered,
+            },
+            RowValueControl::Drawn(value),
             hover,
-            value,
-            pinning: ComposedItemPinning::Unpinnable,
-        })
+            ItemPinning::Unpinnable,
+            Box::new(|_| Vec::new()),
+            ReadingAlerts::default(),
+        )
     }
 
     pub fn composed_pinnable(
-        identity: ComposedGroupItemFace,
+        name: impl Into<Cow<'static, str>>,
+        icon: GroupItemIcon,
         target: impl Into<HoverTarget>,
         value: GroupItemValue<'a, M>,
     ) -> Self {
-        Self::from(GroupItemContent::Composed {
-            identity,
-            hover: GroupItemHoverArea::WholeItem(target.into()),
-            value,
-            pinning: ComposedItemPinning::PinnableByTarget,
-        })
+        Self {
+            pinning: ItemPinning::Pinnable,
+            ..Self::composed(
+                name,
+                icon,
+                GroupItemHoverArea::WholeItem(target.into()),
+                value,
+            )
+        }
     }
 
     #[must_use]
@@ -346,8 +428,14 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    pub fn toggle(toggle: IconToggle, target: impl Into<HoverTarget>, message: M) -> Self {
-        Self::reading(toggle, target).on_switch_press(
+    pub fn toggle(
+        toggle: IconToggle,
+        target: impl Into<HoverTarget>,
+        message: M,
+        clock: Clock,
+        locale: Locale,
+    ) -> Self {
+        Self::reading(toggle, target, clock, locale).on_switch_press(
             toggle.switch_position,
             toggle.press_does(),
             message,
@@ -434,9 +522,19 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
+    #[must_use]
+    pub fn hover_card(&self, clock: Clock) -> Vec<Section> {
+        (self.card)(clock)
+    }
+
     pub(crate) fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> GroupItem<'a, Outer> {
         GroupItem {
-            kind: self.kind.map(lift),
+            face: self.face,
+            value: self.value.map(lift),
+            hover: self.hover,
+            pinning: self.pinning,
+            card: self.card,
+            alerts: self.alerts,
             gestures: self.gestures.map(lift),
             power_control: self.power_control,
             handle_announcement: self.handle_announcement,
@@ -472,23 +570,27 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         if self.handle_preview == ItemHandlePreview::Absent {
             return None;
         }
+        let readout = match &self.value {
+            RowValueControl::RowReadout(readout) | RowValueControl::Slider { readout, .. } => {
+                readout
+            }
+            RowValueControl::Drawn(_) => return None,
+        };
         Some(HandlePreview {
-            widget: self.kind.announcing_widget()?,
-            target: self.kind.hover_target(),
+            face: &self.face,
+            readout,
+            target: self.hover.target(),
         })
     }
 
-    pub(crate) fn level_reading(
-        &self,
-        on_body_clicked: M,
-        locale: Locale,
-        clock: Clock,
-    ) -> Option<LevelReading<M>> {
-        let widget = self.kind.announcing_widget()?;
-        widget.announced_level(locale).map(|level| LevelReading {
-            hover_target: self.kind.hover_target().clone(),
-            glyph: state_weighted_icon(widget, clock),
-            level,
+    pub(crate) fn level_reading(&self, on_body_clicked: M) -> Option<LevelReading<M>> {
+        let LevelNotice::Announced { level, glyph } = &self.alerts.level else {
+            return None;
+        };
+        Some(LevelReading {
+            hover_target: self.hover.target().clone(),
+            glyph: *glyph,
+            level: level.clone(),
             on_body_clicked,
         })
     }
@@ -502,24 +604,20 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     where
         M: Clone,
     {
-        let quota_toast = self.kind.announcing_widget().and_then(|widget| {
-            OngoingToast::quota_pace_alert(
-                self.kind.hover_target().clone(),
-                widget,
-                on_body_clicked.clone(),
-                locale,
-                clock,
-            )
-        });
-        let ongoing_toast = self.kind.announcing_widget().and_then(|widget| {
-            OngoingToast::reading_state_alert(
-                self.kind.hover_target().clone(),
-                widget,
-                on_body_clicked,
-                locale,
-                clock,
-            )
-        });
+        let alerted_reading = AlertedReading {
+            hover_target: self.hover.target().clone(),
+            widget_name: self.face.name.clone(),
+            state: self.face.icon.display_state(),
+            alerts: &self.alerts,
+        };
+        let quota_toast = OngoingToast::quota_pace_alert(
+            &alerted_reading,
+            on_body_clicked.clone(),
+            locale,
+            clock,
+        );
+        let ongoing_toast =
+            OngoingToast::reading_state_alert(&alerted_reading, on_body_clicked, clock);
         ongoing_toast
             .map(|alert| {
                 self.ongoing_toast_action_buttons
@@ -532,33 +630,16 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             .chain(self.ongoing_toasts.iter().cloned())
     }
 
-    pub(crate) fn shown_alert_severity(&self, clock: Clock) -> Option<Severity> {
-        let shown_state_severity = match &self.kind {
-            GroupItemContent::Reading { widget, .. } => widget.state(clock).severity(),
-            GroupItemContent::Slider { widget, .. } => widget.state(clock).severity(),
-            GroupItemContent::Composed {
-                identity:
-                    ComposedGroupItemFace {
-                        icon: GroupItemIcon::IconGlyph { state, .. },
-                        ..
-                    },
-                ..
-            } => state.severity(),
-            GroupItemContent::Composed { .. } => Severity::Normal,
-        };
-        let quota_severity = self
-            .kind
-            .announcing_widget()
-            .and_then(|widget| quota_pace_alert_severity(widget, clock));
-        once(shown_state_severity)
-            .chain(quota_severity)
+    pub(crate) fn shown_alert_severity(&self) -> Option<Severity> {
+        once(self.face.icon.display_state().severity())
+            .chain(quota_pace_alert_severity(&self.alerts.quota_windows))
             .chain(self.ongoing_toasts.iter().map(|toast| toast.severity))
             .max()
             .filter(|severity| *severity > Severity::Normal)
     }
 
-    pub(crate) fn shown_from(&self, promotion_severity: Severity, clock: Clock) -> bool {
-        self.shown_alert_severity(clock)
+    pub(crate) fn shown_from(&self, promotion_severity: Severity) -> bool {
+        self.shown_alert_severity()
             .is_some_and(|alert_severity| alert_severity >= promotion_severity)
     }
 
@@ -571,7 +652,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     where
         M: Clone,
     {
-        self.placed_view(config, reveal, clock, DrawnItemPlacement::Panel)
+        self.placed_view(config, reveal, clock, ItemPlacement::Panel)
     }
 
     pub(crate) fn table_cell_view(
@@ -582,11 +663,11 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     where
         M: Clone,
     {
-        self.placed_view(config, 1.0, clock, DrawnItemPlacement::Table)
+        self.placed_view(config, 1.0, clock, ItemPlacement::Table)
     }
 
     pub(crate) fn inspected_target(&self) -> &HoverTarget {
-        self.kind.hover_target()
+        self.hover.target()
     }
 
     pub(crate) fn gestures(&self) -> GroupItemGestures<M>
@@ -600,23 +681,17 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     where
         M: Clone,
     {
-        let tint_of = |widget: &dyn GroupItemReading| ReadingStateTint::opaque(widget.state(clock));
         let empty = || -> Element<'a, GroupEvent<M>> { Space::new().into() };
-        match &self.kind {
-            GroupItemContent::Reading { widget, .. } => MenuParts {
-                icon: reading_icon(config, widget.as_ref(), tint_of(widget.as_ref()), clock),
-                value: reading_value(config, widget.as_ref(), tint_of(widget.as_ref()), clock)
-                    .unwrap_or_else(empty),
-            },
-            GroupItemContent::Slider { widget, draw, .. } => MenuParts {
-                icon: reading_icon(config, *widget, tint_of(*widget), clock),
-                value: draw(1.0, clock, ItemPlacement::Menu, &HoverOrigin::Reading),
-            },
-            GroupItemContent::Composed {
-                identity, value, ..
-            } => MenuParts {
-                icon: identity.icon.view(config, 1.0).unwrap_or_else(empty),
-                value: value.view(1.0).unwrap_or_else(empty),
+        MenuParts {
+            icon: face_icon(config, &self.face, 1.0).unwrap_or_else(empty),
+            value: match &self.value {
+                RowValueControl::RowReadout(readout) => {
+                    reading_value(config, &self.face, readout, 1.0).unwrap_or_else(empty)
+                }
+                RowValueControl::Slider { draw, .. } => {
+                    draw(1.0, clock, ItemPlacement::Menu, &HoverOrigin::Reading)
+                }
+                RowValueControl::Drawn(value) => value.view(1.0).unwrap_or_else(empty),
             },
         }
     }
@@ -658,50 +733,30 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     pub(crate) fn row_scroll(&self) -> RowScroll<'a, M> {
-        match &self.kind {
-            GroupItemContent::Slider {
+        match &self.value {
+            RowValueControl::Slider {
                 adjust_by_scroll, ..
             } => RowScroll::AdjustsValue(Rc::clone(adjust_by_scroll)),
-            GroupItemContent::Reading { .. } | GroupItemContent::Composed { .. } => {
-                RowScroll::Inert
-            }
+            RowValueControl::RowReadout(_) | RowValueControl::Drawn(_) => RowScroll::Inert,
         }
     }
 
     pub(crate) fn pinning(&self) -> ItemPinning {
-        match &self.kind {
-            GroupItemContent::Reading { .. }
-            | GroupItemContent::Slider { .. }
-            | GroupItemContent::Composed {
-                hover: GroupItemHoverArea::WholeItem(_),
-                pinning: ComposedItemPinning::PinnableByTarget,
-                ..
-            } => ItemPinning::Pinnable,
-            GroupItemContent::Composed { .. } => ItemPinning::Unpinnable,
-        }
+        self.pinning
     }
 
     pub(crate) fn item_in_group_name(&self) -> Cow<'static, str> {
-        match &self.kind {
-            GroupItemContent::Reading { widget, .. } => widget.name(),
-            GroupItemContent::Slider { widget, .. } => widget.name(),
-            GroupItemContent::Composed { identity, .. } => identity.name.clone(),
-        }
+        self.face.name.clone()
     }
 
-    pub(crate) fn placed_view(
+    fn explained(
         &self,
-        config: &Config,
-        reveal: f32,
-        clock: Clock,
-        placement: DrawnItemPlacement,
-    ) -> Element<'a, GroupEvent<M>>
-    where
-        M: Clone,
-    {
-        let explained = |element: Element<'a, GroupEvent<M>>, target: &HoverTarget| match placement
-        {
-            DrawnItemPlacement::Panel => match self.card_opening_trigger {
+        element: Element<'a, GroupEvent<M>>,
+        target: &HoverTarget,
+        placement: ItemPlacement,
+    ) -> Element<'a, GroupEvent<M>> {
+        match placement {
+            ItemPlacement::Panel => match self.card_opening_trigger {
                 NestedMenuOpenTrigger::Hover => announcing_hoverable(
                     element,
                     target.clone(),
@@ -715,45 +770,44 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                     GroupEvent::HoverCard,
                 ),
             },
-            DrawnItemPlacement::Table => element,
-        };
-        let mut element = match &self.kind {
-            GroupItemContent::Reading { widget, target } => explained(
-                self.with_switch_indicator(
-                    config,
-                    source_reading(config, widget.as_ref(), reveal, clock),
-                    reveal,
-                ),
-                target,
-            ),
-            GroupItemContent::Slider { draw, .. } => draw(
+            ItemPlacement::Table | ItemPlacement::Menu => element,
+        }
+    }
+
+    pub(crate) fn placed_view(
+        &self,
+        config: &Config,
+        reveal: f32,
+        clock: Clock,
+        placement: ItemPlacement,
+    ) -> Element<'a, GroupEvent<M>>
+    where
+        M: Clone,
+    {
+        let content = match &self.value {
+            RowValueControl::RowReadout(readout) => self.with_switch_indicator(
+                config,
+                source_reading(config, &self.face, readout, reveal),
                 reveal,
-                clock,
-                placement.into(),
-                &self.handle_announcement.origin,
             ),
-            GroupItemContent::Composed {
-                identity,
-                hover,
-                value,
-                ..
-            } => {
+            RowValueControl::Slider { draw, .. } => {
+                draw(reveal, clock, placement, &self.handle_announcement.origin)
+            }
+            RowValueControl::Drawn(value) => {
                 let composed_row = Row::with_children(
-                    identity
-                        .icon
-                        .view(config, reveal)
+                    face_icon(config, &self.face, reveal)
                         .into_iter()
                         .chain(value.view(reveal)),
                 )
                 .spacing(config.theme.spacing.item_gap)
                 .align_y(Alignment::Center)
                 .into();
-                let composed_row = self.with_switch_indicator(config, composed_row, reveal);
-                match hover {
-                    GroupItemHoverArea::WholeItem(target) => explained(composed_row, target),
-                    GroupItemHoverArea::ByChildren { .. } => composed_row,
-                }
+                self.with_switch_indicator(config, composed_row, reveal)
             }
+        };
+        let mut element = match &self.hover {
+            GroupItemHoverArea::WholeItem(target) => self.explained(content, target, placement),
+            GroupItemHoverArea::ByChildren { .. } => content,
         };
         if let GroupItemGesture::Performs { message, .. } = self.gestures.left.clone() {
             element = button(element)
@@ -768,22 +822,6 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 .into();
         }
         element
-    }
-}
-
-impl<'a, M: 'a> From<GroupItemContent<'a, M>> for GroupItem<'a, M> {
-    fn from(kind: GroupItemContent<'a, M>) -> Self {
-        Self {
-            kind,
-            gestures: GroupItemGestures::inert(),
-            power_control: ItemPowerControl::Absent,
-            handle_announcement: HoverAnnouncement::default(),
-            handle_preview: ItemHandlePreview::Absent,
-            ongoing_toast_action_buttons: Vec::new(),
-            ongoing_toasts: Vec::new(),
-            alignment: ItemAlignment::Unaligned,
-            card_opening_trigger: NestedMenuOpenTrigger::Hover,
-        }
     }
 }
 
@@ -810,10 +848,8 @@ mod tests {
 
     fn composed_with(hover: GroupItemHoverArea) -> GroupItem<'static, ()> {
         GroupItem::composed(
-            ComposedGroupItemFace {
-                name: "Composed row".into(),
-                icon: GroupItemIcon::Absent,
-            },
+            "Composed row",
+            GroupItemIcon::Absent,
             hover,
             GroupItemValue::Nothing,
         )
@@ -855,13 +891,17 @@ mod tests {
 
     #[test]
     fn a_composed_item_shares_the_pin_of_the_reading_it_replaces_under_the_same_name() {
-        let reading: GroupItem<'static, ()> =
-            GroupItem::reading(NamedTestReading("Lyrics"), SessionTarget::Menu);
+        let clock = Clock::real();
+        let locale = Locale::default();
+        let reading: GroupItem<'static, ()> = GroupItem::reading(
+            NamedTestReading("Lyrics"),
+            SessionTarget::Menu,
+            clock,
+            locale,
+        );
         let composed: GroupItem<'static, ()> = GroupItem::composed_pinnable(
-            ComposedGroupItemFace {
-                name: "Lyrics".into(),
-                icon: GroupItemIcon::Absent,
-            },
+            "Lyrics",
+            GroupItemIcon::Absent,
             SessionTarget::Menu,
             GroupItemValue::Nothing,
         );
@@ -889,9 +929,16 @@ mod tests {
 
     #[test]
     fn a_toggle_shows_a_switch_in_its_current_position() {
+        let clock = Clock::real();
+        let locale = Locale::default();
         let indicator_of = |switch_position| {
-            let item: GroupItem<'static, ()> =
-                GroupItem::toggle(toggle_in_position(switch_position), SessionTarget::Menu, ());
+            let item: GroupItem<'static, ()> = GroupItem::toggle(
+                toggle_in_position(switch_position),
+                SessionTarget::Menu,
+                (),
+                clock,
+                locale,
+            );
             item.power_control
         };
         assert_eq!(
@@ -922,13 +969,19 @@ mod tests {
 
     #[test]
     fn readings_and_sliders_are_pinnable_but_plain_composed_rows_are_not() {
+        let clock = Clock::real();
+        let locale = Locale::default();
         let config = Config::default();
         let slider = offset_slider_for(DarkModeTarget::SunriseOffset);
-        let reading: GroupItem<'static, ()> =
-            GroupItem::reading(NamedTestReading("Named reading"), SessionTarget::Menu);
+        let reading: GroupItem<'static, ()> = GroupItem::reading(
+            NamedTestReading("Named reading"),
+            SessionTarget::Menu,
+            clock,
+            locale,
+        );
         assert_eq!(reading.pinning(), ItemPinning::Pinnable);
         assert_eq!(
-            GroupItem::slider(&slider, &config, |_| ()).pinning(),
+            GroupItem::slider(&slider, &config, clock, |_| ()).pinning(),
             ItemPinning::Pinnable
         );
         assert_eq!(
@@ -939,10 +992,11 @@ mod tests {
 
     #[test]
     fn a_slider_in_group_name_is_its_shown_name() {
+        let clock = Clock::real();
         let config = Config::default();
         let slider = offset_slider_for(DarkModeTarget::SunriseOffset);
         assert_eq!(
-            GroupItem::slider(&slider, &config, |_| ()).item_in_group_name(),
+            GroupItem::slider(&slider, &config, clock, |_| ()).item_in_group_name(),
             slider.name()
         );
     }
@@ -968,9 +1022,10 @@ mod tests {
     fn events_from_pointing_at_pinned_slider(
         slider_pointing: SliderPointing,
     ) -> Vec<GroupEvent<ControlMessage>> {
+        let clock = Clock::real();
         let config = Config::default();
         let slider = offset_slider_for(DarkModeTarget::SunriseOffset);
-        let item = GroupItem::slider(&slider, &config, |message| message).acting_as_handle(
+        let item = GroupItem::slider(&slider, &config, clock, |message| message).acting_as_handle(
             HoverAnnouncement {
                 press_hints: PressHints::default(),
                 origin: pinned_slider_origin(),

@@ -12,19 +12,19 @@ impl DesktopShell {
             [
                 self.widget_groups
                     .monitor_group
-                    .group_content(config)
+                    .group_content(config, self.clock)
                     .map(ShellInteraction::Monitor),
                 self.widget_groups
                     .dark_mode_group
-                    .group_content(config)
+                    .group_content(config, self.clock)
                     .map(ShellInteraction::DarkMode),
                 self.widget_groups
                     .color_temperature_group
-                    .group_content(config)
+                    .group_content(config, self.clock)
                     .map(ShellInteraction::ColorTemperature),
                 self.widget_groups
                     .wallpaper_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::Wallpaper),
             ],
         )

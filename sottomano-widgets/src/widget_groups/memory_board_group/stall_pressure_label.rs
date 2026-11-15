@@ -96,7 +96,7 @@ mod tests {
     use uom::si::f64::Ratio;
 
     use super::*;
-    use crate::widgets::ongoing_toast::reading_display_state_alert_severity;
+    use crate::group_items::group_item::reading_toast_severity;
 
     fn stalled_for(last_minute_percent: f64) -> MemoryStallPressure {
         let averages = StallAverages {
@@ -129,7 +129,7 @@ mod tests {
     #[test]
     fn pressure_never_raises_a_toast() {
         assert_eq!(
-            reading_display_state_alert_severity(&stalled_for(80.0), Clock::real()),
+            reading_toast_severity(&stalled_for(80.0), Clock::real()),
             None
         );
     }

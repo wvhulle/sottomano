@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod open_tasks_reading;
 mod upcoming_events_reading;
 
@@ -157,13 +158,18 @@ impl CaldavGroup {
     pub fn group_content(
         &self,
         config: &CaldavAccountConfig,
+        clock: Clock,
+        locale: Locale,
     ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let upcoming_events_item = if self.account(config).is_some() {
-            self.upcoming_events
-                .group_item_while_pending(CaldavTarget::UpcomingEvents)
+            self.upcoming_events.group_item_while_pending(
+                CaldavTarget::UpcomingEvents,
+                clock,
+                locale,
+            )
         } else {
             self.upcoming_events
-                .group_item(CaldavTarget::UpcomingEvents)
+                .group_item(CaldavTarget::UpcomingEvents, clock, locale)
         };
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Caldav,
@@ -171,7 +177,8 @@ impl CaldavGroup {
             identity,
             [
                 upcoming_events_item.map(GroupItem::previewed_on_handle),
-                self.open_tasks.group_item(CaldavTarget::OpenTasks),
+                self.open_tasks
+                    .group_item(CaldavTarget::OpenTasks, clock, locale),
             ]
             .into_iter()
             .flatten(),

@@ -29,10 +29,9 @@ use crate::{
     background_work::logged_failure_task,
     clock::Clock,
     group_items::{
-        group_item::{
-            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
-        },
+        group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
+        source_reading::GroupItemIcon,
     },
     hover_cards::{
         HoverTarget, PressHints,
@@ -290,10 +289,8 @@ impl TrayGroup {
                     window_matches,
                 );
                 GroupItem::composed(
-                    ComposedGroupItemFace {
-                        name: item.name().to_owned().into(),
-                        icon: GroupItemIcon::Absent,
-                    },
+                    item.name().to_owned(),
+                    GroupItemIcon::Absent,
                     GroupItemHoverArea::ByChildren {
                         row_target: HoverTarget::Tray(item.address.clone()),
                     },

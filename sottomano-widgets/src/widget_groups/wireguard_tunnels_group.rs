@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::network_manager_activations::switch_nm_connection;
 use sottomano_desktop_sources::{
@@ -159,7 +160,11 @@ impl WireguardTunnelsGroup {
         sections
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WireguardTunnelsInteraction> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, WireguardTunnelsInteraction> {
         let previewed_tunnel_interface = self.previewed_tunnel_interface();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::WireguardTunnels,
@@ -172,6 +177,8 @@ impl WireguardTunnelsGroup {
                         interface: Cow::Owned(tunnel.interface.clone()),
                     },
                     WireguardTunnelsInteraction::SwitchTunnel,
+                    clock,
+                    locale,
                 );
                 if previewed_tunnel_interface == Some(tunnel.interface.as_str()) {
                     tunnel_item.previewed_on_handle()

@@ -1,9 +1,8 @@
 use crate::{
     group_items::{
-        group_item::{
-            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
-        },
+        group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
         reading_display_state::ReadingDisplayState,
+        source_reading::GroupItemIcon,
     },
     hover_cards::{
         HoverTarget,
@@ -47,12 +46,10 @@ fn preset_group_item<'a>(
         LookComparison::Differing => ReadingDisplayState::Idle,
     };
     GroupItem::composed(
-        ComposedGroupItemFace {
-            name: preset.name().into(),
-            icon: GroupItemIcon::IconGlyph {
-                glyph: preset.icon().into(),
-                state: display_state,
-            },
+        preset.name(),
+        GroupItemIcon::IconGlyph {
+            glyph: preset.icon().into(),
+            state: display_state,
         },
         GroupItemHoverArea::WholeItem(AppearancePresetsTarget::Preset(preset).into()),
         GroupItemValue::Nothing,

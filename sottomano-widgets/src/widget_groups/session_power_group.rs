@@ -16,10 +16,9 @@ use tokio::time::sleep;
 use crate::{
     background_work::logged_failure_task,
     group_items::{
-        group_item::{
-            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
-        },
+        group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
         reading_display_state::ReadingDisplayState,
+        source_reading::GroupItemIcon,
     },
     hover_cards::{HoverTarget, hover_card_body::Section},
     widget_groups::{
@@ -188,12 +187,10 @@ impl SessionPowerGroup {
     pub fn group_content<'a>(&self) -> FixedPanelGroup<'a, SessionMessage> {
         FixedPanelGroup::new((!self.permissions.allowed.is_empty()).then(|| {
             GroupItem::composed(
-                ComposedGroupItemFace {
-                    name: "Session".into(),
-                    icon: GroupItemIcon::IconGlyph {
-                        glyph: Phosphor::Power(Weight::Regular).into(),
-                        state: ReadingDisplayState::Idle,
-                    },
+                "Session",
+                GroupItemIcon::IconGlyph {
+                    glyph: Phosphor::Power(Weight::Regular).into(),
+                    state: ReadingDisplayState::Idle,
                 },
                 GroupItemHoverArea::WholeItem(SessionTarget::Menu.into()),
                 GroupItemValue::Nothing,

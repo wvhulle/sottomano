@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use chrono::Locale;
 use iced::alignment::Horizontal;
 use sottomano_desktop_sources::{
     SnapshotSource,
@@ -37,8 +38,10 @@ pub(super) fn wireguard_tunnel_item<Message: Clone + 'static>(
     tunnel: &Tunnel,
     target: impl Into<HoverTarget>,
     on_switch: fn(NmConnectionSwitch) -> Message,
+    clock: Clock,
+    locale: Locale,
 ) -> GroupItem<'_, Message> {
-    let item = GroupItem::reading(tunnel, target);
+    let item = GroupItem::reading(tunnel, target, clock, locale);
     match tunnel.switch() {
         Some(wireguard_switch @ NmConnectionSwitch::Connect(_)) => item.on_switch_press(
             SwitchPosition::Off,

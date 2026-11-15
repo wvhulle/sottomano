@@ -18,9 +18,10 @@ use super::{MediaInteraction, MediaTarget, PlayerTarget};
 use crate::{
     clock::Clock,
     group_items::{
-        group_item::{ComposedGroupItemFace, GroupItem, GroupItemIcon, GroupItemValue},
+        group_item::{GroupItem, GroupItemValue},
         group_item_reading::GroupItemReading,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
+        source_reading::GroupItemIcon,
     },
     hover_cards::hover_card_body::{Section, SectionTable, SectionWidget, headed_grouped_table},
     widget_groups::media_group::karaoke_lyric_line::{
@@ -151,12 +152,18 @@ pub(super) fn lyrics_item<'a>(
     media: &'a Media,
     lyrics_snapshot: &'a SubscribedSnapshot<TrackLyrics>,
     sampled_at: Instant,
+    clock: Clock,
 ) -> Option<GroupItem<'a, MediaInteraction>> {
+    let locale = config.calendar.locale;
     let Some(timed_line) = singing_line(lyrics_snapshot, media, sampled_at) else {
-        return lyrics_snapshot.group_item(PlayerTarget {
-            bus: media.bus.clone().into(),
-            control: MediaTarget::Lyrics,
-        });
+        return lyrics_snapshot.group_item(
+            PlayerTarget {
+                bus: media.bus.clone().into(),
+                control: MediaTarget::Lyrics,
+            },
+            clock,
+            locale,
+        );
     };
     Some(current_lyric_line(config, media, timed_line, sampled_at))
 }
@@ -167,12 +174,9 @@ fn current_lyric_line<'a>(
     timed_line: &'a TimedLyricLine,
     sampled_at: Instant,
 ) -> GroupItem<'a, MediaInteraction> {
-    let identity = ComposedGroupItemFace {
-        name: "Lyrics".into(),
-        icon: GroupItemIcon::IconGlyph {
-            glyph: Phosphor::MicrophoneStage(Weight::Regular).into(),
-            state: ReadingDisplayState::Idle,
-        },
+    let icon = GroupItemIcon::IconGlyph {
+        glyph: Phosphor::MicrophoneStage(Weight::Regular).into(),
+        state: ReadingDisplayState::Idle,
     };
     let value = GroupItemValue::drawn(move |reveal| {
         let tinted = move |state| ReadingStateTint {
@@ -195,7 +199,8 @@ fn current_lyric_line<'a>(
         .into()
     });
     GroupItem::composed_pinnable(
-        identity,
+        "Lyrics",
+        icon,
         PlayerTarget {
             bus: media.bus.clone().into(),
             control: MediaTarget::Lyrics,

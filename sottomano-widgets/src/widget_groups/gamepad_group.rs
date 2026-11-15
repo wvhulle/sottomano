@@ -679,7 +679,11 @@ impl GamepadGroup {
         }
     }
 
-    fn controller_discovery_group(&self) -> Option<WidgetGroupContent<'_, GamepadInteraction>> {
+    fn controller_discovery_group(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> Option<WidgetGroupContent<'_, GamepadInteraction>> {
         let failure_reading = self.controller_discovery_failure_reading()?;
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::Gamepad, CONTROLLER_DISCOVERY_GROUP),
@@ -689,6 +693,8 @@ impl GamepadGroup {
             [GroupItem::reading(
                 failure_reading,
                 GamepadTarget::ControllerDiscovery,
+                clock,
+                locale,
             )],
         ))
     }
@@ -699,6 +705,8 @@ impl GamepadGroup {
         link: &'a PhysicalGamepadLink,
         group_title: WidgetGroupTitle,
         bindings: &'a GamepadBindingsConfig,
+        clock: Clock,
+        locale: Locale,
     ) -> Option<WidgetGroupContent<'a, GamepadInteraction>> {
         let slot = gamepad.slot;
         let expansion = self.expansions.get(&slot)?;
@@ -708,16 +716,27 @@ impl GamepadGroup {
         let face = GroupItem::reading(
             self.face_reading(gamepad, link, bindings),
             GamepadTarget::Controller { slot },
+            clock,
+            locale,
         );
         let shown_in_bluetooth_group = matches!(link.transport, GamepadTransport::Bluetooth { .. });
         let connection = (!shown_in_bluetooth_group).then(|| {
-            GroupItem::reading(self.link_reading(slot, link), GamepadTarget::Link { slot })
+            GroupItem::reading(
+                self.link_reading(slot, link),
+                GamepadTarget::Link { slot },
+                clock,
+                locale,
+            )
         });
         let battery =
             (!shown_in_bluetooth_group && gamepad.power != GamepadPower::NoBattery).then(|| {
                 let battery_running_low = battery_reading.battery_level() == BatteryLevel::Low;
-                let battery_item =
-                    GroupItem::reading(battery_reading, GamepadTarget::Battery { slot });
+                let battery_item = GroupItem::reading(
+                    battery_reading,
+                    GamepadTarget::Battery { slot },
+                    clock,
+                    locale,
+                );
                 if battery_running_low {
                     battery_item.previewed_on_handle()
                 } else {
@@ -728,10 +747,16 @@ impl GamepadGroup {
             compositor_driving_toggle(self.controller_custody(slot)),
             GamepadTarget::CompositorDriving { slot },
             GamepadInteraction::ToggleCompositorDriving { slot },
+            clock,
+            locale,
         );
         let usb_cable = usb_cable_role(link.transport).map(|role| {
-            let item =
-                GroupItem::reading(UsbCableReading { role }, GamepadTarget::UsbCable { slot });
+            let item = GroupItem::reading(
+                UsbCableReading { role },
+                GamepadTarget::UsbCable { slot },
+                clock,
+                locale,
+            );
             match role {
                 UsbCableRole::ChargingOnly => item.on_press(
                     "disconnect Bluetooth so the cable can take over",
@@ -764,6 +789,8 @@ impl GamepadGroup {
     pub fn group_contents<'a>(
         &'a self,
         bindings: &'a GamepadBindingsConfig,
+        clock: Clock,
+        locale: Locale,
     ) -> Vec<WidgetGroupContent<'a, GamepadInteraction>> {
         let controllers = self.controllers_in_player_order();
         let titles = WidgetGroupTitle::numbered_namesakes(
@@ -773,9 +800,9 @@ impl GamepadGroup {
             .iter()
             .zip(titles)
             .filter_map(|((gamepad, link), group_title)| {
-                self.controller_group(gamepad, link, group_title, bindings)
+                self.controller_group(gamepad, link, group_title, bindings, clock, locale)
             })
-            .chain(self.controller_discovery_group())
+            .chain(self.controller_discovery_group(clock, locale))
             .collect()
     }
 }
@@ -1149,10 +1176,12 @@ mod tests {
 
     #[test]
     fn each_physical_pad_gets_its_own_group() {
+        let clock = Clock::real();
+        let locale = Locale::default();
         let group = group_with_two_pads_and_a_virtual_one();
         assert_eq!(
             group
-                .group_contents(&GamepadBindingsConfig::default())
+                .group_contents(&GamepadBindingsConfig::default(), clock, locale)
                 .len(),
             2
         );

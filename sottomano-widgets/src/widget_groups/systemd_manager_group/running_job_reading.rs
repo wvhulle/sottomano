@@ -86,7 +86,7 @@ pub(super) fn slow_jobs_item<'a>(
             action_buttons: Vec::new(),
         }
     });
-    GroupItem::reading(jobs, SystemdTarget::slow_jobs(jobs.scope))
+    GroupItem::reading(jobs, SystemdTarget::slow_jobs(jobs.scope), clock, locale)
         .on_press(
             TerminalCommand::JOURNAL_PRESS_HINT,
             open_log(jobs.follow_log_args()),

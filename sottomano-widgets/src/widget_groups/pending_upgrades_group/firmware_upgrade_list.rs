@@ -37,14 +37,16 @@ impl PendingUpgradesGroup {
     pub(super) fn firmware_upgrade_item(
         &self,
         config: &Config,
+        clock: Clock,
     ) -> Option<GroupItem<'_, PendingUpgradesInteraction>> {
+        let locale = config.calendar.locale;
         let upgrades = self.firmware.visible_reading()?;
         let install = PendingUpgradesInteraction::OpenTerminal(TerminalCommand::running(
             config,
             ["fwupdmgr", "update"].map(String::from),
         ));
         Some(
-            GroupItem::reading(upgrades, PendingUpgradesTarget::Firmware)
+            GroupItem::reading(upgrades, PendingUpgradesTarget::Firmware, clock, locale)
                 .on_press("run fwupdmgr update in a terminal", install.clone())
                 .ongoing_toast_action_buttons([OngoingToastActionButton {
                     button_label: "Install".to_owned(),

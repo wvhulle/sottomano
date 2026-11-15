@@ -259,7 +259,9 @@ impl ColorTemperatureGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
+        clock: Clock,
     ) -> WidgetGroupContent<'a, ColorTemperatureInteraction> {
+        let locale = config.calendar.locale;
         let gamma_available = self.gamma.get().is_some();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::ColorTemperature,
@@ -267,16 +269,23 @@ impl ColorTemperatureGroup {
             ColorTemperatureInteraction::Expansion,
             [
                 gamma_available.then(|| {
-                    GroupItem::slider(&self.warmth, config, ColorTemperatureInteraction::Warmth)
-                        .previewed_on_handle()
+                    GroupItem::slider(
+                        &self.warmth,
+                        config,
+                        clock,
+                        ColorTemperatureInteraction::Warmth,
+                    )
+                    .previewed_on_handle()
                 }),
                 gamma_available.then(|| {
-                    GroupItem::slider(&self.dim, config, ColorTemperatureInteraction::Dim)
+                    GroupItem::slider(&self.dim, config, clock, ColorTemperatureInteraction::Dim)
                 }),
                 self.auto.group_item(
                     ServiceReadiness::Serving,
                     ColorTemperatureTarget::Automatic,
                     ColorTemperatureInteraction::AutoPressed,
+                    clock,
+                    locale,
                 ),
             ]
             .into_iter()

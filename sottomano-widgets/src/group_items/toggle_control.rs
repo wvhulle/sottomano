@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
@@ -227,8 +228,10 @@ impl<S: ToggleableSource> ToggleControl<S> {
         &self,
         target: impl Into<HoverTarget>,
         on_press: M,
+        clock: Clock,
+        locale: Locale,
     ) -> Option<GroupItem<'_, M>> {
-        let shown = self.reading.group_item(target)?;
+        let shown = self.reading.group_item(target, clock, locale)?;
         Some(match self.reading.get() {
             Some(current) => shown.on_switch_press(
                 current.switch_position(),
@@ -262,6 +265,8 @@ mod tests {
 
     #[test]
     fn a_refused_write_shows_the_refusal_instead_of_the_assumed_value() {
+        let clock = Clock::real();
+        let locale = Locale::default();
         let mut control = ToggleControl::<X3dCachePreference>::default();
         control.reading.receive(
             SnapshotDelivery::single_read(Ok(X3dCachePreference::Frequency)),
@@ -281,7 +286,12 @@ mod tests {
         assert_eq!(shown.state(Clock::real()), ReadingDisplayState::Failed);
         assert!(
             control
-                .group_item(HoverTarget::Compute(ComputeTarget::X3dCachePreference), ())
+                .group_item(
+                    HoverTarget::Compute(ComputeTarget::X3dCachePreference),
+                    (),
+                    clock,
+                    locale
+                )
                 .is_some()
         );
         let shown_sections: Vec<(String, SectionSource)> = control

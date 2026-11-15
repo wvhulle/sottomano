@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod dictation_phase_item;
 mod inference_hardware_item;
 mod interface_mismatch_item;
@@ -322,7 +323,11 @@ impl VoiceDictationGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, VoiceDictationInteraction> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, VoiceDictationInteraction> {
         let dictation = self.dictation.get();
         let engine = self.loaded_engine();
         let runtime_glyph =
@@ -332,10 +337,13 @@ impl VoiceDictationGroup {
             &self.expansion,
             VoiceDictationInteraction::Expansion,
             [
-                self.interface_mismatch
-                    .group_item(VoiceDictationTarget::InterfaceMismatch),
+                self.interface_mismatch.group_item(
+                    VoiceDictationTarget::InterfaceMismatch,
+                    clock,
+                    locale,
+                ),
                 self.dictation
-                    .group_item(VoiceDictationTarget::Dictation)
+                    .group_item(VoiceDictationTarget::Dictation, clock, locale)
                     .map(|item| {
                         item.on_switch_press(
                             dictation.map_or(SwitchPosition::Off, SwitchPosition::from),
@@ -345,7 +353,7 @@ impl VoiceDictationGroup {
                         .previewed_on_handle()
                     }),
                 self.pipeline
-                    .group_item(VoiceDictationTarget::Pipeline)
+                    .group_item(VoiceDictationTarget::Pipeline, clock, locale)
                     .filter(|_| {
                         self.dictation.get().is_some_and(|dictation| {
                             matches!(
@@ -361,22 +369,29 @@ impl VoiceDictationGroup {
                     }),
                     VoiceDictationTarget::Runtime,
                     VoiceDictationInteraction::RuntimePressed,
+                    clock,
+                    locale,
                 ),
-                self.engine.group_item(VoiceDictationTarget::SpeechModel),
+                self.engine
+                    .group_item(VoiceDictationTarget::SpeechModel, clock, locale),
                 engine.map(|loaded| {
                     GroupItem::reading(
                         RuntimeConfiguration(loaded),
                         VoiceDictationTarget::RuntimeConfiguration,
+                        clock,
+                        locale,
                     )
                 }),
                 engine.map(|loaded| {
                     GroupItem::reading(
                         InferenceHardware(loaded),
                         VoiceDictationTarget::InferenceHardware,
+                        clock,
+                        locale,
                     )
                 }),
                 self.output_problems
-                    .group_item(VoiceDictationTarget::TypingOutput),
+                    .group_item(VoiceDictationTarget::TypingOutput, clock, locale),
             ]
             .into_iter()
             .flatten(),

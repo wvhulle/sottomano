@@ -263,7 +263,11 @@ mod tests {
         assert!(!pending_events.hover_card(Clock::real()).is_empty());
         assert!(
             pending_events
-                .group_item_while_pending::<()>(CaldavTarget::UpcomingEvents)
+                .group_item_while_pending::<()>(
+                    CaldavTarget::UpcomingEvents,
+                    Clock::real(),
+                    Locale::default(),
+                )
                 .is_some()
         );
     }

@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod gpu_clock_label;
 mod gpu_load_gauge;
 mod gpu_memory_gauge;
@@ -294,7 +295,11 @@ impl GpuGroup {
         Task::none()
     }
 
-    pub fn group_contents(&self) -> impl Iterator<Item = WidgetGroupContent<'_, GpuInteraction>> {
+    pub fn group_contents(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> impl Iterator<Item = WidgetGroupContent<'_, GpuInteraction>> {
         self.devices
             .iter()
             .zip(WidgetGroupTitle::numbered_namesakes(
@@ -303,7 +308,7 @@ impl GpuGroup {
                     .map(|device| device.model.names.preferred_name().to_owned()),
             ))
             .filter(|((_, device), _)| device.runtime_power == GpuRuntimePower::Awake)
-            .map(|((bus, device), group_title)| {
+            .map(move |((bus, device), group_title)| {
                 let expanded_bus = bus.clone();
                 let target = |reading| GpuTarget {
                     bus: bus.clone(),
@@ -312,24 +317,27 @@ impl GpuGroup {
                 let items = [
                     match &device.access {
                         GpuDeviceAccess::Readable { snapshot, .. } => {
-                            snapshot.group_item(target(GpuReading::Load))
+                            snapshot.group_item(target(GpuReading::Load), clock, locale)
                         }
-                        GpuDeviceAccess::Unreadable { handle_failure } => {
-                            Some(GroupItem::reading(handle_failure, target(GpuReading::Load)))
-                        }
+                        GpuDeviceAccess::Unreadable { handle_failure } => Some(GroupItem::reading(
+                            handle_failure,
+                            target(GpuReading::Load),
+                            clock,
+                            locale,
+                        )),
                     },
-                    device
-                        .clock_label()
-                        .map(|label| GroupItem::reading(label, target(GpuReading::Clock))),
-                    device
-                        .memory()
-                        .map(|memory| GroupItem::reading(memory, target(GpuReading::Memory))),
-                    device
-                        .temperature_label()
-                        .map(|label| GroupItem::reading(label, target(GpuReading::Temperature))),
-                    device
-                        .power_label()
-                        .map(|label| GroupItem::reading(label, target(GpuReading::Power))),
+                    device.clock_label().map(|label| {
+                        GroupItem::reading(label, target(GpuReading::Clock), clock, locale)
+                    }),
+                    device.memory().map(|memory| {
+                        GroupItem::reading(memory, target(GpuReading::Memory), clock, locale)
+                    }),
+                    device.temperature_label().map(|label| {
+                        GroupItem::reading(label, target(GpuReading::Temperature), clock, locale)
+                    }),
+                    device.power_label().map(|label| {
+                        GroupItem::reading(label, target(GpuReading::Power), clock, locale)
+                    }),
                 ];
                 WidgetGroupContent::expandable_instance(
                     gpu_group_identity(bus),

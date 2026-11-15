@@ -75,7 +75,7 @@ impl DesktopShell {
         let promotion_severity = self.config.group_menus.alert_promotion_severity;
         let panel_raises = group_menus
             .iter()
-            .flat_map(|group_menu| group_menu.panel_raises(promotion_severity, self.clock))
+            .flat_map(|group_menu| group_menu.panel_raises(promotion_severity))
             .collect();
         GroupAlertScan {
             toast_requests,

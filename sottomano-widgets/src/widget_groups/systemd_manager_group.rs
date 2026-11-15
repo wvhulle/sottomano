@@ -261,6 +261,7 @@ impl SystemdManagerGroup {
         config: &'a Config,
         clock: Clock,
     ) -> WidgetGroupContent<'a, SystemdManagerInteraction> {
+        let locale = config.calendar.locale;
         let boot = self.boot.get();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::SystemdManager,
@@ -268,45 +269,67 @@ impl SystemdManagerGroup {
             SystemdManagerInteraction::Expansion,
             [
                 boot.map(|boot| {
-                    GroupItem::reading(boot, SystemdTarget::BootPhases).previewed_on_handle()
+                    GroupItem::reading(boot, SystemdTarget::BootPhases, clock, locale)
+                        .previewed_on_handle()
                 }),
                 boot.map(|timeline| {
-                    GroupItem::reading(StartupUnits { timeline }, SystemdTarget::StartupUnits)
+                    GroupItem::reading(
+                        StartupUnits { timeline },
+                        SystemdTarget::StartupUnits,
+                        clock,
+                        locale,
+                    )
                 }),
                 self.slow_system_jobs
                     .visible_reading()
                     .map(|jobs| slow_jobs_item(jobs, config, clock))
                     .or_else(|| {
-                        self.slow_system_jobs
-                            .group_item(SystemdTarget::SlowSystemJobs)
+                        self.slow_system_jobs.group_item(
+                            SystemdTarget::SlowSystemJobs,
+                            clock,
+                            locale,
+                        )
                     }),
                 self.slow_user_jobs
                     .visible_reading()
                     .map(|jobs| slow_jobs_item(jobs, config, clock))
-                    .or_else(|| self.slow_user_jobs.group_item(SystemdTarget::SlowUserJobs)),
+                    .or_else(|| {
+                        self.slow_user_jobs
+                            .group_item(SystemdTarget::SlowUserJobs, clock, locale)
+                    }),
                 self.failed_system
                     .visible_reading()
                     .map(|failed| failed_units_item(failed, config, clock))
                     .or_else(|| {
-                        self.failed_system
-                            .group_item(SystemdTarget::FailedSystemUnits)
+                        self.failed_system.group_item(
+                            SystemdTarget::FailedSystemUnits,
+                            clock,
+                            locale,
+                        )
                     }),
                 self.failed_user
                     .visible_reading()
                     .map(|failed| failed_units_item(failed, config, clock))
-                    .or_else(|| self.failed_user.group_item(SystemdTarget::FailedUserUnits)),
+                    .or_else(|| {
+                        self.failed_user
+                            .group_item(SystemdTarget::FailedUserUnits, clock, locale)
+                    }),
                 self.last_shutdown
                     .get()
                     .map(|last| {
-                        GroupItem::reading(last, SystemdTarget::LastShutdown).on_press(
-                            TerminalCommand::JOURNAL_PRESS_HINT,
-                            SystemdManagerInteraction::OpenLog(TerminalCommand::journal(
-                                config,
-                                last.follow_log_args(),
-                            )),
-                        )
+                        GroupItem::reading(last, SystemdTarget::LastShutdown, clock, locale)
+                            .on_press(
+                                TerminalCommand::JOURNAL_PRESS_HINT,
+                                SystemdManagerInteraction::OpenLog(TerminalCommand::journal(
+                                    config,
+                                    last.follow_log_args(),
+                                )),
+                            )
                     })
-                    .or_else(|| self.last_shutdown.group_item(SystemdTarget::LastShutdown)),
+                    .or_else(|| {
+                        self.last_shutdown
+                            .group_item(SystemdTarget::LastShutdown, clock, locale)
+                    }),
             ]
             .into_iter()
             .flatten(),

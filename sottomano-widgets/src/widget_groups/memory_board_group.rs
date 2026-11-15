@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod growth_trend_label;
 mod memory_slot_reading;
 mod memory_usage_gauge;
@@ -164,7 +165,11 @@ impl MemoryBoardGroup {
         Task::none()
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let slot_items = self.hardware.get().into_iter().flat_map(|hardware| {
             let machine = &hardware.machine;
             hardware
@@ -183,6 +188,8 @@ impl MemoryBoardGroup {
                             },
                         },
                         MemoryBoardTarget::Slot(slot_module.locator.clone()),
+                        clock,
+                        locale,
                     )
                 })
         });
@@ -198,6 +205,8 @@ impl MemoryBoardGroup {
                                 temperature: module.temperature,
                             },
                             MemoryBoardTarget::TemperatureSensor(module.bus_address.clone()),
+                            clock,
+                            locale,
                         )
                     })
                 });
@@ -206,10 +215,14 @@ impl MemoryBoardGroup {
             &self.expansion,
             identity,
             [
-                self.memory.group_item(MemoryBoardTarget::Memory),
-                self.memory_growth.group_item(MemoryBoardTarget::Growth),
-                self.stall_pressure.group_item(MemoryBoardTarget::Pressure),
-                self.swap_activity.group_item(MemoryBoardTarget::Swap),
+                self.memory
+                    .group_item(MemoryBoardTarget::Memory, clock, locale),
+                self.memory_growth
+                    .group_item(MemoryBoardTarget::Growth, clock, locale),
+                self.stall_pressure
+                    .group_item(MemoryBoardTarget::Pressure, clock, locale),
+                self.swap_activity
+                    .group_item(MemoryBoardTarget::Swap, clock, locale),
             ]
             .into_iter()
             .flatten()

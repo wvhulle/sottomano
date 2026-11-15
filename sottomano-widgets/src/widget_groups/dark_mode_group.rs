@@ -349,12 +349,15 @@ impl DarkModeGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
+        clock: Clock,
     ) -> WidgetGroupContent<'a, DarkModeInteraction> {
+        let locale = config.calendar.locale;
         let mode_known = self.mode_toggle.reading().is_some();
         let offset_slider = |edge| {
             GroupItem::slider(
                 self.offset_slider_for(edge),
                 config,
+                clock,
                 DarkModeInteraction::OffsetSlider.with(edge),
             )
         };
@@ -364,12 +367,19 @@ impl DarkModeGroup {
             DarkModeInteraction::Expansion,
             [
                 self.mode_toggle
-                    .group_item(DarkModeTarget::Mode, DarkModeInteraction::ModeTogglePressed)
+                    .group_item(
+                        DarkModeTarget::Mode,
+                        DarkModeInteraction::ModeTogglePressed,
+                        clock,
+                        locale,
+                    )
                     .map(GroupItem::previewed_on_handle),
                 mode_known.then(|| {
                     GroupItem::reading(
                         &self.auto_switch_toggle as &dyn GroupItemReading,
                         DarkModeTarget::Schedule,
+                        clock,
+                        locale,
                     )
                     .on_switch_press(
                         self.auto_switch_toggle.saved_schedule.auto_switch_arming,

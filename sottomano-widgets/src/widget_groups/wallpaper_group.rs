@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod article_label;
 mod photo_credit;
 mod place_label;
@@ -115,21 +116,30 @@ impl WallpaperGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let lookup = self.lookup.get();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Wallpaper,
             &self.expansion,
             identity,
             [
-                self.lookup.group_item(WallpaperTarget::Lookup),
+                self.lookup
+                    .group_item(WallpaperTarget::Lookup, clock, locale),
                 lookup
                     .and_then(|lookup| lookup.place.as_ref())
-                    .map(|place| GroupItem::reading(place, WallpaperTarget::Place)),
+                    .map(|place| GroupItem::reading(place, WallpaperTarget::Place, clock, locale)),
                 lookup
                     .and_then(|lookup| lookup.article.as_ref())
-                    .map(|article| GroupItem::reading(article, WallpaperTarget::Article)),
-                lookup.map(|lookup| GroupItem::reading(&lookup.photo, WallpaperTarget::Photo)),
+                    .map(|article| {
+                        GroupItem::reading(article, WallpaperTarget::Article, clock, locale)
+                    }),
+                lookup.map(|lookup| {
+                    GroupItem::reading(&lookup.photo, WallpaperTarget::Photo, clock, locale)
+                }),
             ]
             .into_iter()
             .flatten(),

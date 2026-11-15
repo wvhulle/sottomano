@@ -136,8 +136,8 @@ mod tests {
     use sottomano_desktop_sources::cpu_memory_compute::swap_paging_activity::SwappedProcess;
 
     use super::*;
-    use crate::widgets::{
-        keyed_record_table::KeyedTableRow, ongoing_toast::reading_display_state_alert_severity,
+    use crate::{
+        group_items::group_item::reading_toast_severity, widgets::keyed_record_table::KeyedTableRow,
     };
 
     fn swap_with(used_gibibytes: u64, paged_in_per_second: ByteSize) -> SwapActivity {
@@ -168,10 +168,7 @@ mod tests {
             nearly_full.state(Clock::real()),
             ReadingDisplayState::Warning
         );
-        assert_eq!(
-            reading_display_state_alert_severity(&nearly_full, Clock::real()),
-            None
-        );
+        assert_eq!(reading_toast_severity(&nearly_full, Clock::real()), None);
     }
 
     #[test]

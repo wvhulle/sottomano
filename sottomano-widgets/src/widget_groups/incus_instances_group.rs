@@ -431,10 +431,14 @@ impl IncusInstancesGroup {
             .any(|instance_daemon| self.probe_availability(instance_daemon).is_some())
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, IncusInstancesInteraction> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, IncusInstancesInteraction> {
         let rows = WATCHED_DAEMONS
             .into_iter()
-            .flat_map(|instance_daemon| self.daemon_rows(instance_daemon));
+            .flat_map(|instance_daemon| self.daemon_rows(instance_daemon, clock, locale));
         WidgetGroupContent::expandable(
             WidgetGroupFamily::IncusInstances,
             &self.expansion,
@@ -450,6 +454,8 @@ impl IncusInstancesGroup {
     fn daemon_rows(
         &self,
         instance_daemon: InstanceDaemon,
+        clock: Clock,
+        locale: Locale,
     ) -> Vec<GroupItem<'_, IncusInstancesInteraction>> {
         if let Some(instances) = self
             .details
@@ -469,6 +475,8 @@ impl IncusInstancesGroup {
                             instance_daemon,
                             instance_name: Cow::Owned(instance.listing.instance_name.clone()),
                         },
+                        clock,
+                        locale,
                     );
                     instance_power_switch(row, instance_daemon, &instance.listing)
                 })
@@ -487,6 +495,8 @@ impl IncusInstancesGroup {
                     instance_daemon,
                     instance_name: Cow::Borrowed(instance_daemon.product_name()),
                 },
+                clock,
+                locale,
             )];
         }
         listing_reading
@@ -504,6 +514,8 @@ impl IncusInstancesGroup {
                         instance_daemon,
                         instance_name: Cow::Owned(listing.instance_name.clone()),
                     },
+                    clock,
+                    locale,
                 );
                 instance_power_switch(row, instance_daemon, listing)
             })

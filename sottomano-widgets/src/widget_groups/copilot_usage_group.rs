@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod copilot_cli_monthly_spend;
 mod copilot_free_quota_count;
 mod copilot_quota_gauge;
@@ -180,26 +181,38 @@ impl CopilotUsageGroup {
         )
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::CopilotUsage,
             &self.expansion,
             identity,
             [
                 self.metered
-                    .group_item(CopilotUsageTarget::Metered)
+                    .group_item(CopilotUsageTarget::Metered, clock, locale)
                     .map(GroupItem::previewed_on_handle),
-                self.free.group_item(CopilotUsageTarget::Free),
-                self.cli.group_item(CopilotUsageTarget::Cli),
+                self.free
+                    .group_item(CopilotUsageTarget::Free, clock, locale),
+                self.cli.group_item(CopilotUsageTarget::Cli, clock, locale),
             ]
             .into_iter()
             .flatten()
             .chain(self.model_ranking().into_iter().flat_map(|ranking| {
                 [
-                    GroupItem::reading(MostUsedModel(ranking), CopilotUsageTarget::MostUsedModel),
+                    GroupItem::reading(
+                        MostUsedModel(ranking),
+                        CopilotUsageTarget::MostUsedModel,
+                        clock,
+                        locale,
+                    ),
                     GroupItem::reading(
                         MostUsedModelSpend(ranking),
                         CopilotUsageTarget::MostUsedModelSpend,
+                        clock,
+                        locale,
                     ),
                 ]
             })),

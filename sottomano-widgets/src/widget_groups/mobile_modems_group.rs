@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod modem_signal_reading;
 
 use iced::{Subscription, Task};
@@ -199,6 +200,8 @@ impl MobileModemsGroup {
         &'a self,
         modem: &'a Mobile,
         group_title: WidgetGroupTitle,
+        clock: Clock,
+        locale: Locale,
     ) -> Option<WidgetGroupContent<'a, MobileModemsInteraction>> {
         let expansion = self.expansions.get(&modem.modem_path)?;
         let modem_path = || modem.modem_path.clone();
@@ -207,6 +210,8 @@ impl MobileModemsGroup {
             MobileModemTarget::Signal {
                 modem_path: modem_path(),
             },
+            clock,
+            locale,
         );
         let connection_item = (modem.radio_power() == RadioPower::On).then(|| {
             let connection_switch = ModemConnectionSwitch { modem };
@@ -216,6 +221,8 @@ impl MobileModemsGroup {
                 MobileModemTarget::Connection {
                     modem_path: modem_path(),
                 },
+                clock,
+                locale,
             )
             .on_switch_press(
                 modem.link_state(),
@@ -236,6 +243,8 @@ impl MobileModemsGroup {
                         modem_path: modem_path(),
                         family,
                     },
+                    clock,
+                    locale,
                 )
             });
         let data_item = (modem.rx.is_some() || modem.tx.is_some()).then(|| {
@@ -244,6 +253,8 @@ impl MobileModemsGroup {
                 MobileModemTarget::Data {
                     modem_path: modem_path(),
                 },
+                clock,
+                locale,
             )
         });
         let any_radio_power = self.any_radio_power();
@@ -251,12 +262,13 @@ impl MobileModemsGroup {
             radio_power: any_radio_power,
         };
         let radios_press_does = radios_switch.press_does();
-        let radios_item = GroupItem::reading(radios_switch, MobileModemTarget::AllRadios)
-            .on_switch_press(
-                any_radio_power,
-                radios_press_does,
-                MobileModemsInteraction::ToggleAllRadios,
-            );
+        let radios_item =
+            GroupItem::reading(radios_switch, MobileModemTarget::AllRadios, clock, locale)
+                .on_switch_press(
+                    any_radio_power,
+                    radios_press_does,
+                    MobileModemsInteraction::ToggleAllRadios,
+                );
         let expanded_modem_path = modem_path();
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::MobileModems, modem_path()),
@@ -276,7 +288,11 @@ impl MobileModemsGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, MobileModemsInteraction>> {
+    pub fn group_contents(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<WidgetGroupContent<'_, MobileModemsInteraction>> {
         self.mobile_modems
             .get()
             .map(|mobile_modems| mobile_modems.modems.as_slice())
@@ -290,6 +306,8 @@ impl MobileModemsGroup {
                         WidgetGroupFamily::MobileModems.title(),
                         position,
                     ),
+                    clock,
+                    locale,
                 )
             })
             .collect()

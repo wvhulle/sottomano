@@ -25,10 +25,9 @@ use crate::{
     background_work::logged_failure_task,
     clock::Clock,
     group_items::{
-        group_item::{
-            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
-        },
+        group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
         slider_control::{Action, ControlMessage, SliderActivity, SliderControl},
+        source_reading::GroupItemIcon,
         toggle_control::{IconToggle, SwitchPresses},
     },
     hover_cards::{
@@ -524,11 +523,14 @@ impl QuietScheduleGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
+        clock: Clock,
     ) -> WidgetGroupContent<'a, QuietScheduleMessage> {
+        let locale = config.calendar.locale;
         let slider = |slider| {
             GroupItem::slider(
                 self.slider(slider),
                 config,
+                clock,
                 QuietScheduleMessage::Slider.with(slider),
             )
         };
@@ -541,15 +543,15 @@ impl QuietScheduleGroup {
                     self.follow_schedule_toggle(),
                     QuietScheduleTarget::FollowSchedule,
                     QuietScheduleMessage::ToggleFollowsSchedule,
+                    clock,
+                    locale,
                 ),
                 slider(QuietSlider::Start),
                 slider(QuietSlider::End),
                 slider(QuietSlider::ScreenOff),
                 GroupItem::composed(
-                    ComposedGroupItemFace {
-                        name: "Working days".into(),
-                        icon: GroupItemIcon::Absent,
-                    },
+                    "Working days",
+                    GroupItemIcon::Absent,
                     GroupItemHoverArea::ByChildren {
                         row_target: QuietScheduleTarget::WorkingDays.into(),
                     },

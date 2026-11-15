@@ -257,7 +257,11 @@ impl PodmanEnginesGroup {
         }
     }
 
-    fn container_rows(&self) -> Vec<GroupItem<'_, PodmanEnginesInteraction>> {
+    fn container_rows(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<GroupItem<'_, PodmanEnginesInteraction>> {
         let mut failure_rows = Vec::new();
         let mut running_rows = Vec::new();
         let mut stopped_rows = Vec::new();
@@ -274,10 +278,14 @@ impl PodmanEnginesGroup {
                 running_rows.extend(engine_containers.running_rows(
                     container_hover_target,
                     EngineContainerInteraction::SwitchContainer,
+                    clock,
+                    locale,
                 ));
                 stopped_rows.extend(engine_containers.stopped_rows(
                     container_hover_target,
                     EngineContainerInteraction::SwitchContainer,
+                    clock,
+                    locale,
                 ));
             } else if let Some(read_failure) = reading.fetch_failure() {
                 failure_rows.push(GroupItem::reading(
@@ -286,6 +294,8 @@ impl PodmanEnginesGroup {
                         read_failure,
                     },
                     PodmanEngineTarget::from(engine),
+                    clock,
+                    locale,
                 ));
             }
         }
@@ -293,16 +303,22 @@ impl PodmanEnginesGroup {
         failure_rows.extend(rows_ending_in_hidden_count(
             running_rows,
             PodmanEngineTarget::HiddenContainers.into(),
+            clock,
+            locale,
         ));
         failure_rows
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, PodmanEnginesInteraction> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, PodmanEnginesInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PodmanEngines,
             &self.expansion,
             EngineContainerInteraction::Expansion,
-            self.container_rows(),
+            self.container_rows(clock, locale),
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Cube(Weight::Regular).into(),
@@ -340,6 +356,8 @@ mod tests {
 
     #[test]
     fn a_long_container_list_ends_in_a_hidden_count() {
+        let clock = Clock::real();
+        let locale = Locale::default();
         let socket_path = PathBuf::from("/run/podman/podman.sock");
         let mut group = PodmanEnginesGroup {
             engines: vec![DiscoveredPodmanEngine {
@@ -369,7 +387,7 @@ mod tests {
             ),
             Clock::real(),
         );
-        let rows = group.container_rows();
+        let rows = group.container_rows(clock, locale);
         assert_eq!(rows.len(), 12);
         assert_eq!(
             rows.last()

@@ -33,9 +33,10 @@ use crate::{
     background_work::logged_failure_task,
     clock::Clock,
     group_items::{
-        group_item::{ComposedGroupItemFace, GroupItem, GroupItemIcon, GroupItemValue},
+        group_item::{GroupItem, GroupItemValue},
         group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
+        source_reading::GroupItemIcon,
         toggle_control::{IconToggle, SwitchPosition, SwitchPresses},
     },
     group_menus::group_source_demand::GroupSourceDemand,
@@ -525,11 +526,17 @@ impl GlobalMenuGroup {
         }
     }
 
-    pub fn switch_content(&self) -> WidgetGroupContent<'_, GlobalMenuInteraction> {
+    pub fn switch_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, GlobalMenuInteraction> {
         let lookup_failure_row = self.lookup_failure().map(|lookup_failure| {
             GroupItem::reading(
                 MenuLookupFailureReading { lookup_failure },
                 GlobalMenuTarget::LookupFailure,
+                clock,
+                locale,
             )
         });
         WidgetGroupContent::expandable(
@@ -540,6 +547,8 @@ impl GlobalMenuGroup {
                 global_menu_use_toggle(self.global_menu_use),
                 GlobalMenuTarget::Use,
                 GlobalMenuInteraction::ToggleUse,
+                clock,
+                locale,
             )]
             .into_iter()
             .chain(lookup_failure_row),
@@ -568,10 +577,8 @@ impl GlobalMenuGroup {
             },
         };
         let entry_item = GroupItem::composed_pinnable(
-            ComposedGroupItemFace {
-                name: entry.label_path.clone().into(),
-                icon,
-            },
+            entry.label_path.clone(),
+            icon,
             GlobalMenuTarget::Entry {
                 app_id: self.application_id().to_owned(),
                 label_path: entry.label_path,

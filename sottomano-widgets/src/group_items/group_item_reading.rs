@@ -91,11 +91,6 @@ pub trait GroupItemReading {
     fn hover_card(&self, clock: Clock) -> Vec<Section>;
 }
 
-#[must_use]
-pub fn state_weighted_icon(reading: &(impl GroupItemReading + ?Sized), clock: Clock) -> IconGlyph {
-    reading.icon().with_weight(reading.state(clock).weight())
-}
-
 impl<ForwardedReading: GroupItemReading + ?Sized> GroupItemReading for &ForwardedReading {
     fn name(&self) -> Cow<'static, str> {
         (**self).name()

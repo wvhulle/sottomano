@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -225,12 +226,16 @@ impl UnitSwitch {
         service_readiness: ServiceReadiness,
         target: impl Into<HoverTarget>,
         pressed: M,
+        clock: Clock,
+        locale: Locale,
     ) -> Option<GroupItem<'a, M>> {
         self.group_item_with_glyph(
             self.face.icon.with_weight(Weight::Regular).into(),
             service_readiness,
             target,
             pressed,
+            clock,
+            locale,
         )
     }
 
@@ -254,6 +259,8 @@ impl UnitSwitch {
         service_readiness: ServiceReadiness,
         target: impl Into<HoverTarget>,
         pressed: M,
+        clock: Clock,
+        locale: Locale,
     ) -> Option<GroupItem<'a, M>> {
         let reading = UnitSwitchReading {
             shown_glyph,
@@ -261,10 +268,12 @@ impl UnitSwitch {
         };
         let switch_position = reading.switch_position();
         let press_does = reading.press_does();
-        Some(GroupItem::reading(reading, target).on_switch_press(
-            switch_position,
-            press_does,
-            pressed,
-        ))
+        Some(
+            GroupItem::reading(reading, target, clock, locale).on_switch_press(
+                switch_position,
+                press_does,
+                pressed,
+            ),
+        )
     }
 }

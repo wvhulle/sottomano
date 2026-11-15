@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sinks::network_connectivity::network_manager_activations::switch_nm_connection;
 use sottomano_desktop_sources::{
@@ -129,6 +130,8 @@ impl NetworkManagerVpnGroup {
 
     fn vpn_connection_item(
         vpn_connection: &VpnConnection,
+        clock: Clock,
+        locale: Locale,
     ) -> GroupItem<'_, NetworkManagerVpnInteraction> {
         let vpn_switch = vpn_connection.switch();
         GroupItem::reading(
@@ -136,6 +139,8 @@ impl NetworkManagerVpnGroup {
             NetworkManagerVpnTarget {
                 connection_name: Cow::Owned(vpn_connection.name.clone()),
             },
+            clock,
+            locale,
         )
         .on_switch_press(
             match vpn_switch {
@@ -150,7 +155,11 @@ impl NetworkManagerVpnGroup {
         )
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, NetworkManagerVpnInteraction> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, NetworkManagerVpnInteraction> {
         let previewed_connection_name = self
             .vpn_connections()
             .iter()
@@ -161,7 +170,7 @@ impl NetworkManagerVpnGroup {
             &self.expansion,
             NetworkManagerVpnInteraction::Expansion,
             self.vpn_connections().iter().map(move |vpn_connection| {
-                let vpn_item = Self::vpn_connection_item(vpn_connection);
+                let vpn_item = Self::vpn_connection_item(vpn_connection, clock, locale);
                 if previewed_connection_name == Some(vpn_connection.name.as_str()) {
                     vpn_item.previewed_on_handle()
                 } else {

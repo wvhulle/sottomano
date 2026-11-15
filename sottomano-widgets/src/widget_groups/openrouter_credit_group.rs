@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod best_models_within_cap;
 mod openrouter_soft_budget;
 mod strict_budget_remaining;
@@ -208,19 +209,26 @@ impl OpenRouterCreditGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::OpenRouterCredit,
             &self.expansion,
             identity,
             [
                 self.spend
-                    .group_item(OpenRouterCreditTarget::SoftBudget)
+                    .group_item(OpenRouterCreditTarget::SoftBudget, clock, locale)
                     .map(GroupItem::previewed_on_handle),
                 self.strict_budget
-                    .group_item(OpenRouterCreditTarget::StrictBudget),
-                self.model_rankings
-                    .group_item(OpenRouterCreditTarget::BestModelsWithinCap),
+                    .group_item(OpenRouterCreditTarget::StrictBudget, clock, locale),
+                self.model_rankings.group_item(
+                    OpenRouterCreditTarget::BestModelsWithinCap,
+                    clock,
+                    locale,
+                ),
             ]
             .into_iter()
             .flatten()
@@ -229,10 +237,14 @@ impl OpenRouterCreditGroup {
                     GroupItem::reading(
                         MostUsedModel(ranking),
                         OpenRouterCreditTarget::MostUsedModel,
+                        clock,
+                        locale,
                     ),
                     GroupItem::reading(
                         MostUsedModelSpend(ranking),
                         OpenRouterCreditTarget::MostUsedModelSpend,
+                        clock,
+                        locale,
                     ),
                 ]
             })),

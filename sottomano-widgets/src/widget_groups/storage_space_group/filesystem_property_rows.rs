@@ -1,3 +1,4 @@
+use chrono::Locale;
 use sottomano_desktop_sources::disk_storage::mounted_filesystem_usage::{
     Filesystem, FilesystemUsage,
 };
@@ -103,15 +104,28 @@ pub(super) enum FilesystemPropertyRow<'a> {
 }
 
 impl<'a> FilesystemPropertyRow<'a> {
-    pub(super) fn group_item<M: 'a>(self, target: impl Into<HoverTarget>) -> GroupItem<'a, M> {
+    pub(super) fn group_item<M: 'a>(
+        self,
+        target: impl Into<HoverTarget>,
+        clock: Clock,
+        locale: Locale,
+    ) -> GroupItem<'a, M> {
         match self {
-            FilesystemPropertyRow::Mount(row) => GroupItem::reading(row, target),
-            FilesystemPropertyRow::Volume(row) => GroupItem::reading(row, target),
-            FilesystemPropertyRow::Inodes(row) => GroupItem::reading(row, target),
-            FilesystemPropertyRow::MetadataRoom(row) => GroupItem::reading(row, target),
-            FilesystemPropertyRow::Compression(row) => GroupItem::reading(row, target),
-            FilesystemPropertyRow::Ext4Errors(row) => GroupItem::reading(row, target),
-            FilesystemPropertyRow::Ext4Writes(row) => GroupItem::reading(row, target),
+            FilesystemPropertyRow::Mount(row) => GroupItem::reading(row, target, clock, locale),
+            FilesystemPropertyRow::Volume(row) => GroupItem::reading(row, target, clock, locale),
+            FilesystemPropertyRow::Inodes(row) => GroupItem::reading(row, target, clock, locale),
+            FilesystemPropertyRow::MetadataRoom(row) => {
+                GroupItem::reading(row, target, clock, locale)
+            }
+            FilesystemPropertyRow::Compression(row) => {
+                GroupItem::reading(row, target, clock, locale)
+            }
+            FilesystemPropertyRow::Ext4Errors(row) => {
+                GroupItem::reading(row, target, clock, locale)
+            }
+            FilesystemPropertyRow::Ext4Writes(row) => {
+                GroupItem::reading(row, target, clock, locale)
+            }
         }
     }
 

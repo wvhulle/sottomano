@@ -354,12 +354,16 @@ impl DockerEnginesGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, DockerEnginesInteraction> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, DockerEnginesInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::DockerEngines,
             &self.expansion,
             EngineContainerInteraction::Expansion,
-            self.container_rows(),
+            self.container_rows(clock, locale),
         )
         .face(WidgetGroupFace::IconColoredBy {
             glyph: IconGlyph::SimpleIcon(SimpleIcon::Docker),
@@ -370,6 +374,8 @@ impl DockerEnginesGroup {
     fn listed_rows<'a>(
         &'a self,
         engine: &'a DockerEngineSocket,
+        clock: Clock,
+        locale: Locale,
     ) -> Vec<GroupItem<'a, DockerEnginesInteraction>> {
         self.listing_of(engine)
             .map(|listing| listing.listings.as_slice())
@@ -384,6 +390,8 @@ impl DockerEnginesGroup {
                     GroupItem::reading(
                         ListedContainerRow { engine, listed },
                         container_hover_target(target.clone()),
+                        clock,
+                        locale,
                     ),
                     listed.run_state,
                     target,
@@ -393,7 +401,11 @@ impl DockerEnginesGroup {
             .collect()
     }
 
-    fn container_rows(&self) -> Vec<GroupItem<'_, DockerEnginesInteraction>> {
+    fn container_rows(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<GroupItem<'_, DockerEnginesInteraction>> {
         let mut failure_rows = Vec::new();
         let mut running_rows = Vec::new();
         let mut stopped_rows = Vec::new();
@@ -407,10 +419,14 @@ impl DockerEnginesGroup {
                 running_rows.extend(engine_containers.running_rows(
                     container_hover_target,
                     EngineContainerInteraction::SwitchContainer,
+                    clock,
+                    locale,
                 ));
                 stopped_rows.extend(engine_containers.stopped_rows(
                     container_hover_target,
                     EngineContainerInteraction::SwitchContainer,
+                    clock,
+                    locale,
                 ));
             } else if let Some(read_failure) = self.readout_failure(engine) {
                 failure_rows.push(GroupItem::reading(
@@ -419,15 +435,19 @@ impl DockerEnginesGroup {
                         read_failure,
                     },
                     DockerEngineTarget::from(engine),
+                    clock,
+                    locale,
                 ));
             } else {
-                running_rows.extend(self.listed_rows(engine));
+                running_rows.extend(self.listed_rows(engine, clock, locale));
             }
         }
         running_rows.extend(stopped_rows);
         failure_rows.extend(rows_ending_in_hidden_count(
             running_rows,
             DockerEngineTarget::HiddenContainers.into(),
+            clock,
+            locale,
         ));
         failure_rows
     }
@@ -512,6 +532,8 @@ mod tests {
 
     #[test]
     fn a_denied_docker_socket_shows_a_failure_row() {
+        let clock = Clock::real();
+        let locale = Locale::default();
         let rootful_socket = PathBuf::from(ROOTFUL_SOCKET_PATH);
         let mut group = rootful_engine_group();
         let _ = group.update(
@@ -521,7 +543,7 @@ mod tests {
             ),
             Clock::real(),
         );
-        assert_eq!(group.container_rows().len(), 1);
+        assert_eq!(group.container_rows(clock, locale).len(), 1);
         assert!(
             !group
                 .hover_card_for(&DockerEngineTarget::from(&group.engines[0]), Clock::real())
@@ -531,6 +553,8 @@ mod tests {
 
     #[test]
     fn a_missing_docker_socket_shows_no_row() {
+        let clock = Clock::real();
+        let locale = Locale::default();
         let rootful_socket = PathBuf::from(ROOTFUL_SOCKET_PATH);
         let mut group = rootful_engine_group();
         let _ = group.update(
@@ -540,7 +564,7 @@ mod tests {
             ),
             Clock::real(),
         );
-        assert!(group.group_content().is_empty());
+        assert!(group.group_content(clock, locale).is_empty());
         let _ = group.update(
             DockerEnginesMessage::Engine(
                 rootful_socket,
@@ -559,6 +583,6 @@ mod tests {
             ),
             Clock::real(),
         );
-        assert!(!group.group_content().is_empty());
+        assert!(!group.group_content(clock, locale).is_empty());
     }
 }

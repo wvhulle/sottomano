@@ -368,20 +368,25 @@ impl IdlePauseGroups {
     pub fn pause_groups<'a>(
         &'a self,
         config: &'a Config,
+        clock: Clock,
     ) -> [WidgetGroupContent<'a, IdlePauseInteraction>; 5] {
-        IdleAction::ALL.map(|pause| self.pause_group(pause, config))
+        IdleAction::ALL.map(|pause| self.pause_group(pause, config, clock))
     }
 
     fn pause_group<'a>(
         &'a self,
         pause: IdleAction,
         config: &'a Config,
+        clock: Clock,
     ) -> WidgetGroupContent<'a, IdlePauseInteraction> {
+        let locale = config.calendar.locale;
         let first_blocker = self.blockers_of(pause).next();
-        let timeout_slider =
-            GroupItem::slider(self.pause(pause).timer.slider(), config, move |message| {
-                IdlePauseInteraction::Timer(pause, message)
-            });
+        let timeout_slider = GroupItem::slider(
+            self.pause(pause).timer.slider(),
+            config,
+            clock,
+            move |message| IdlePauseInteraction::Timer(pause, message),
+        );
         let timeout_slider = match first_blocker {
             Some(_) => timeout_slider,
             None => timeout_slider.previewed_on_handle(),
@@ -396,6 +401,8 @@ impl IdlePauseGroups {
                         pause,
                         holder: blocker.holder.clone(),
                     }),
+                    clock,
+                    locale,
                 );
                 match position {
                     0 => blocker_item.previewed_on_handle(),
@@ -411,6 +418,8 @@ impl IdlePauseGroups {
                 GroupItem::reading(
                     NextSleepStateRow { state },
                     HoverTarget::IdleOutcome(IdleAction::Sleep),
+                    clock,
+                    locale,
                 )
             });
         let scheduled_shutdown = self
@@ -422,6 +431,8 @@ impl IdlePauseGroups {
                 GroupItem::reading(
                     ScheduledShutdownRow { shutdown },
                     HoverTarget::IdleOutcome(IdleAction::PowerOff),
+                    clock,
+                    locale,
                 )
             });
         let glyph = pause_glyph(pause).into();

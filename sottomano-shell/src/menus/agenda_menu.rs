@@ -12,19 +12,23 @@ impl DesktopShell {
             [
                 self.widget_groups
                     .caldav_group
-                    .group_content(&config.widget_groups.caldav)
+                    .group_content(
+                        &config.widget_groups.caldav,
+                        self.clock,
+                        self.config.calendar.locale,
+                    )
                     .map(ShellInteraction::Caldav),
                 self.widget_groups
                     .weather_group
-                    .group_content(config)
+                    .group_content(config, self.clock)
                     .map(ShellInteraction::Weather),
                 self.widget_groups
                     .quiet_schedule_group
-                    .group_content(config)
+                    .group_content(config, self.clock)
                     .map(ShellInteraction::QuietSchedule),
                 self.widget_groups
                     .session_focus_group
-                    .group_content(config)
+                    .group_content(config, self.clock)
                     .map(ShellInteraction::SessionFocus),
             ],
         )

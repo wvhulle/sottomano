@@ -389,7 +389,11 @@ impl VirtualMachinesGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, VirtualMachinesInteraction> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, VirtualMachinesInteraction> {
         let machines = self
             .readout
             .get()
@@ -399,6 +403,8 @@ impl VirtualMachinesGroup {
             let row = GroupItem::reading(
                 VirtualMachineRow { machine },
                 VirtualMachineTarget::RunningProcess { pid: machine.pid },
+                clock,
+                locale,
             );
             let row = match machine.launch.display {
                 GuestDisplay::Windowed => row.on_right_press(
@@ -431,6 +437,8 @@ impl VirtualMachinesGroup {
                 VirtualMachineTarget::InactiveDomain {
                     domain_name: Cow::Owned(domain_name.clone()),
                 },
+                clock,
+                locale,
             )
             .on_switch_press(
                 SwitchPosition::Off,

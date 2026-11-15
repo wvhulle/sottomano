@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod compression_setting_row;
 mod ext4_error_count_row;
 mod ext4_lifetime_writes_row;
@@ -264,7 +265,11 @@ impl StorageSpaceGroup {
         Task::none()
     }
 
-    fn mount_group(filesystem: &MountedFilesystem) -> WidgetGroupContent<'_, StorageInteraction> {
+    fn mount_group(
+        filesystem: &MountedFilesystem,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, StorageInteraction> {
         let primary_mount_point = filesystem.mount.primary_mount_point();
         let usage = filesystem.usage.get();
         let property_items = usage.into_iter().flat_map(move |usage| {
@@ -272,10 +277,14 @@ impl StorageSpaceGroup {
                 .into_iter()
                 .filter_map(move |property| {
                     let row = property.row(usage)?;
-                    Some(row.group_item(StorageTarget::Property {
-                        filesystem: primary_mount_point.to_path_buf(),
-                        property,
-                    }))
+                    Some(row.group_item(
+                        StorageTarget::Property {
+                            filesystem: primary_mount_point.to_path_buf(),
+                            property,
+                        },
+                        clock,
+                        locale,
+                    ))
                 })
         });
         let subvolume_items = usage
@@ -292,6 +301,8 @@ impl StorageSpaceGroup {
                             filesystem: primary_mount_point.to_path_buf(),
                             subvolume_path: subvolume.path.clone(),
                         },
+                        clock,
+                        locale,
                     )
                 })
             });
@@ -299,6 +310,8 @@ impl StorageSpaceGroup {
             GroupItem::reading(
                 failure,
                 StorageTarget::SubvolumeUsage(primary_mount_point.to_path_buf()),
+                clock,
+                locale,
             )
         });
         let snapshot_deletion_item =
@@ -310,10 +323,7 @@ impl StorageSpaceGroup {
                     )
                 })
                 .map(|_| {
-                    GroupItem::reading(
-                        SnapshotDeletionRow,
-                        StorageTarget::SnapshotDeletion(primary_mount_point.to_path_buf()),
-                    )
+                    GroupItem::reading(SnapshotDeletionRow, StorageTarget::SnapshotDeletion(primary_mount_point.to_path_buf()), clock, locale)
                 });
         let owned_mount_point = primary_mount_point.to_path_buf();
         WidgetGroupContent::expandable_instance(
@@ -329,7 +339,11 @@ impl StorageSpaceGroup {
             },
             filesystem
                 .usage
-                .group_item(StorageTarget::Usage(primary_mount_point.to_path_buf()))
+                .group_item(
+                    StorageTarget::Usage(primary_mount_point.to_path_buf()),
+                    clock,
+                    locale,
+                )
                 .into_iter()
                 .chain(property_items)
                 .chain(subvolume_items)
@@ -339,15 +353,24 @@ impl StorageSpaceGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, StorageInteraction>> {
+    pub fn group_contents(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<WidgetGroupContent<'_, StorageInteraction>> {
         if !self.filesystems.is_empty() {
-            return self.filesystems.values().map(Self::mount_group).collect();
+            return self
+                .filesystems
+                .values()
+                .map(|filesystem| Self::mount_group(filesystem, clock, locale))
+                .collect();
         }
         vec![WidgetGroupContent::expandable(
             WidgetGroupFamily::StorageSpace,
             &self.discovery_expansion,
             StorageInteraction::DiscoveryExpansion,
-            self.discovery.group_item(StorageTarget::MountDiscovery),
+            self.discovery
+                .group_item(StorageTarget::MountDiscovery, clock, locale),
         )]
     }
 

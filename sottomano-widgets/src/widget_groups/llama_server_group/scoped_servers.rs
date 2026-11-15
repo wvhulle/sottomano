@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, mem::take, path::PathBuf};
 
+use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -293,6 +294,8 @@ impl ScopedLlamaServers {
     pub fn items<'a, M: 'a>(
         &'a self,
         lift: fn(ScopedServersInteraction) -> M,
+        clock: Clock,
+        locale: Locale,
     ) -> impl Iterator<Item = GroupItem<'a, M>> + 'a {
         self.servers.values().flat_map(move |readings| {
             let unit = &readings.discovered.unit.unit_name;
@@ -315,6 +318,8 @@ impl ScopedLlamaServers {
                             server: server_label,
                         },
                         target(LlamaServerReading::Model),
+                        clock,
+                        locale,
                     );
                     match resident {
                         Some(_) => model_item.previewed_on_handle(),
@@ -328,6 +333,8 @@ impl ScopedLlamaServers {
                             server: server_label,
                         },
                         target(LlamaServerReading::GenerationRate),
+                        clock,
+                        locale,
                     )
                 }),
                 running
@@ -339,10 +346,19 @@ impl ScopedLlamaServers {
                                 server: server_label,
                             },
                             target(LlamaServerReading::Slots),
+                            clock,
+                            locale,
                         )
                     }),
                 busy.and_then(|server| ContextFill::fullest_busy_slot(&server.slots, server_label))
-                    .map(|fill| GroupItem::reading(fill, target(LlamaServerReading::ContextFill))),
+                    .map(|fill| {
+                        GroupItem::reading(
+                            fill,
+                            target(LlamaServerReading::ContextFill),
+                            clock,
+                            locale,
+                        )
+                    }),
                 readings.switch.group_item(
                     readings
                         .server
@@ -352,6 +368,8 @@ impl ScopedLlamaServers {
                         }),
                     target(LlamaServerReading::Switch),
                     lift(ScopedServersInteraction::SwitchPressed(unit.clone())),
+                    clock,
+                    locale,
                 ),
             ]
             .into_iter()

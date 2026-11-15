@@ -335,8 +335,12 @@ impl WaydroidContainerGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WaydroidContainerInteraction> {
-        let rows = self.waydroid_rows();
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, WaydroidContainerInteraction> {
+        let rows = self.waydroid_rows(clock, locale);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::WaydroidContainer,
             &self.expansion,
@@ -352,10 +356,14 @@ impl WaydroidContainerGroup {
     fn container_row<'a>(
         &'a self,
         shown: ShownWaydroid<'a>,
+        clock: Clock,
+        locale: Locale,
     ) -> GroupItem<'a, WaydroidContainerInteraction> {
         let row = GroupItem::reading(
             WaydroidContainerRow { shown },
             WaydroidContainerTarget::Container,
+            clock,
+            locale,
         );
         match self.container_switch.activity() {
             Some(_) => self
@@ -368,11 +376,15 @@ impl WaydroidContainerGroup {
         }
     }
 
-    fn waydroid_rows(&self) -> Vec<GroupItem<'_, WaydroidContainerInteraction>> {
+    fn waydroid_rows(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<GroupItem<'_, WaydroidContainerInteraction>> {
         let Some(shown) = self.shown_waydroid() else {
             return Vec::new();
         };
-        let container_row = self.container_row(shown);
+        let container_row = self.container_row(shown, clock, locale);
         if shown.container() == ContainerRunState::Stopped {
             return vec![container_row];
         }
@@ -381,6 +393,8 @@ impl WaydroidContainerGroup {
                 state: shown.state(),
             },
             WaydroidContainerTarget::Session,
+            clock,
+            locale,
         );
         let session_row = match shown.state() {
             WaydroidState::Session { .. } => session_row.on_switch_press(

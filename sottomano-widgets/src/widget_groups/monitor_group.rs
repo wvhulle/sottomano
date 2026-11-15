@@ -258,10 +258,12 @@ impl MonitorGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
+        clock: Clock,
     ) -> WidgetGroupContent<'a, MonitorInteraction> {
+        let locale = config.calendar.locale;
         let backlight_items = self.sliders.iter().map(|(serial, slider)| {
             let serial = serial.clone();
-            GroupItem::slider(slider, config, move |control_message| {
+            GroupItem::slider(slider, config, clock, move |control_message| {
                 MonitorInteraction::Backlight(serial.clone(), control_message)
             })
             .previewed_on_handle()
@@ -275,6 +277,8 @@ impl MonitorGroup {
                     .group_item(
                         MonitorTarget::ClightAuto,
                         MonitorInteraction::AutoBrightnessPressed,
+                        clock,
+                        locale,
                     )
                     .map(GroupItem::previewed_on_handle),
             ),

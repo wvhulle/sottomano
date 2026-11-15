@@ -686,10 +686,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        group_items::group_item_reading::PanelVisibility,
+        group_items::{group_item::GroupItem, group_item_reading::PanelVisibility},
         hover_cards::HoverTarget,
         widget_groups::weather_group::{WeatherTarget, rain_forecast_ranking::RADAR_FRAME_LENGTH},
-        widgets::{keyed_record_table::RecordCells, ongoing_toast::OngoingToast},
+        widgets::keyed_record_table::RecordCells,
     };
 
     #[test]
@@ -838,13 +838,15 @@ mod tests {
     fn rain_starting_soon_raises_a_toast() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 3.0]);
-        let toast = OngoingToast::reading_state_alert(
+        let rain_item: GroupItem<'_, u8> = GroupItem::reading(
+            RadarRainForecast::with_default_alerts(&rain),
             HoverTarget::Weather(WeatherTarget::Rain),
-            &RadarRainForecast::with_default_alerts(&rain),
-            0_u8,
-            Locale::default(),
             clock,
+            Locale::default(),
         );
+        let toast = rain_item
+            .ongoing_toasts_with_reading(0, Locale::default(), clock)
+            .next();
         assert_eq!(toast.map(|toast| toast.severity), Some(Severity::Warning));
     }
 

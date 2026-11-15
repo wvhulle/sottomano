@@ -414,8 +414,12 @@ impl MicrovmGuestsGroup {
             .hover_card_with(MicrovmGuestListingRow { listing }.hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, MicrovmGuestsInteraction> {
-        let rows = self.machine_rows();
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, MicrovmGuestsInteraction> {
+        let rows = self.machine_rows(clock, locale);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::MicrovmGuests,
             &self.expansion,
@@ -428,21 +432,34 @@ impl MicrovmGuestsGroup {
         })
     }
 
-    fn machine_rows(&self) -> Vec<GroupItem<'_, MicrovmGuestsInteraction>> {
+    fn machine_rows(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<GroupItem<'_, MicrovmGuestsInteraction>> {
         let units = self.unit_listing();
-        let mut rows: Vec<GroupItem<'_, MicrovmGuestsInteraction>> =
-            units.iter().map(|unit| self.unit_row(unit)).collect();
-        rows.extend(self.unmanaged_guest_rows(units));
+        let mut rows: Vec<GroupItem<'_, MicrovmGuestsInteraction>> = units
+            .iter()
+            .map(|unit| self.unit_row(unit, clock, locale))
+            .collect();
+        rows.extend(self.unmanaged_guest_rows(units, clock, locale));
         rows
     }
 
-    fn unit_row<'a>(&'a self, unit: &'a MicrovmUnit) -> GroupItem<'a, MicrovmGuestsInteraction> {
+    fn unit_row<'a>(
+        &'a self,
+        unit: &'a MicrovmUnit,
+        clock: Clock,
+        locale: Locale,
+    ) -> GroupItem<'a, MicrovmGuestsInteraction> {
         let row = match self.running_guest_of(unit) {
             Some(machine) => GroupItem::reading(
                 MicrovmGuestRow { machine },
                 MicrovmGuestTarget::RunningProcess {
                     pid: machine.listing.pid,
                 },
+                clock,
+                locale,
             ),
             None => GroupItem::reading(
                 MicrovmUnitRow {
@@ -452,6 +469,8 @@ impl MicrovmGuestsGroup {
                 MicrovmGuestTarget::Unit {
                     instance_name: Cow::Owned(unit.instance_name.clone()),
                 },
+                clock,
+                locale,
             ),
         };
         match self.unit_switches.get(&unit.instance_name) {
@@ -466,6 +485,8 @@ impl MicrovmGuestsGroup {
     fn unmanaged_guest_rows<'a>(
         &'a self,
         units: &'a [MicrovmUnit],
+        clock: Clock,
+        locale: Locale,
     ) -> Vec<GroupItem<'a, MicrovmGuestsInteraction>> {
         let managed_by_unit = |unit_name: Option<&str>| {
             units
@@ -483,6 +504,8 @@ impl MicrovmGuestsGroup {
                         MicrovmGuestTarget::RunningProcess {
                             pid: machine.listing.pid,
                         },
+                        clock,
+                        locale,
                     );
                     match api_socket_of(machine) {
                         Some(api_socket) => row.on_stop_press(
@@ -512,6 +535,8 @@ impl MicrovmGuestsGroup {
                         GroupItem::reading(
                             MicrovmGuestListingRow { listing },
                             MicrovmGuestTarget::RunningProcess { pid: listing.pid },
+                            clock,
+                            locale,
                         )
                     })
                     .collect()

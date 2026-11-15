@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod port_link_reading;
 
 use iced::{Subscription, Task};
@@ -290,6 +291,8 @@ impl EthernetPortsGroup {
         &'a self,
         port_state: &'a PortState,
         group_title: WidgetGroupTitle,
+        clock: Clock,
+        locale: Locale,
     ) -> Option<WidgetGroupContent<'a, EthernetPortsInteraction>> {
         let expansion = self.expansions.get(&port_state.name)?;
         let link_item = GroupItem::reading(
@@ -300,6 +303,8 @@ impl EthernetPortsGroup {
             EthernetPortTarget::Link {
                 port_name: port_state.name.clone(),
             },
+            clock,
+            locale,
         );
         let connection_switch = PortConnectionSwitch { port_state };
         let connection_press_does = connection_switch.press_does();
@@ -308,6 +313,8 @@ impl EthernetPortsGroup {
             EthernetPortTarget::Connection {
                 port_name: port_state.name.clone(),
             },
+            clock,
+            locale,
         )
         .on_switch_press(
             port_state.link_state,
@@ -324,6 +331,8 @@ impl EthernetPortsGroup {
                         port_name: port_state.name.clone(),
                         family,
                     },
+                    clock,
+                    locale,
                 )
             });
         let dns_item = (port_state.link_state == LinkPhase::Up).then(|| {
@@ -332,6 +341,8 @@ impl EthernetPortsGroup {
                 EthernetPortTarget::Dns {
                     port_name: port_state.name.clone(),
                 },
+                clock,
+                locale,
             )
         });
         let port_name = port_state.name.clone();
@@ -351,7 +362,11 @@ impl EthernetPortsGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, EthernetPortsInteraction>> {
+    pub fn group_contents(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<WidgetGroupContent<'_, EthernetPortsInteraction>> {
         let port_states = self
             .ethernet
             .get()
@@ -362,7 +377,9 @@ impl EthernetPortsGroup {
         port_states
             .iter()
             .zip(port_titles)
-            .filter_map(|(port_state, port_title)| self.port_group(port_state, port_title))
+            .filter_map(|(port_state, port_title)| {
+                self.port_group(port_state, port_title, clock, locale)
+            })
             .collect()
     }
 }
@@ -371,6 +388,7 @@ impl EthernetPortsGroup {
 mod tests {
     use std::time::Duration;
 
+    use chrono::Locale;
     use sottomano_desktop_sources::{
         SnapshotDelivery,
         delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
@@ -394,6 +412,7 @@ mod tests {
 
     #[test]
     fn every_port_gets_a_group_with_its_own_title() {
+        let locale = Locale::default();
         let clock = Clock::real();
         let mut ethernet_group = EthernetPortsGroup::default();
         let _ = ethernet_group.update(
@@ -410,7 +429,7 @@ mod tests {
             clock,
         );
         let group_titles: Vec<String> = ethernet_group
-            .group_contents()
+            .group_contents(clock, locale)
             .iter()
             .map(|group| group.group_title().to_string())
             .collect();

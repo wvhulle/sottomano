@@ -315,7 +315,12 @@ impl AudioGroup {
         )])
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a, AudioMessage> {
+    pub fn group_content<'a>(
+        &'a self,
+        config: &'a Config,
+        clock: Clock,
+    ) -> WidgetGroupContent<'a, AudioMessage> {
+        let locale = config.calendar.locale;
         let sink = self.state.get().and_then(|state| state.sink.as_ref());
         let source = self.state.get().and_then(|state| state.source.as_ref());
         WidgetGroupContent::expandable(
@@ -327,6 +332,7 @@ impl AudioGroup {
                     GroupItem::slider(
                         &self.sink_control,
                         config,
+                        clock,
                         AudioMessage::Control.with(ControlKind::Sink),
                     )
                     .previewed_on_handle()
@@ -335,12 +341,13 @@ impl AudioGroup {
                     GroupItem::slider(
                         &self.source_control,
                         config,
+                        clock,
                         AudioMessage::Control.with(ControlKind::Source),
                     )
                 }),
-                self.state
-                    .failure()
-                    .map(|failure| GroupItem::reading(failure, AudioTarget::Connection)),
+                self.state.failure().map(|failure| {
+                    GroupItem::reading(failure, AudioTarget::Connection, clock, locale)
+                }),
             ]
             .into_iter()
             .flatten(),

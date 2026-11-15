@@ -176,7 +176,9 @@ impl OverlaySettingsGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
+        clock: Clock,
     ) -> WidgetGroupContent<'a, OverlaySettingsMessage> {
+        let locale = config.calendar.locale;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::OverlaySettings,
             &self.expansion,
@@ -185,9 +187,15 @@ impl OverlaySettingsGroup {
                 toast_spatial_layout_toggle(self.toast_arrangement),
                 OverlaySettingsTarget::ToastSpatialLayout,
                 OverlaySettingsMessage::ToggleToastSpatialLayout,
+                clock,
+                locale,
             )]
             .into_iter()
-            .chain(self.layer.items(config, OverlaySettingsMessage::Appearance)),
+            .chain(self.layer.items(
+                config,
+                OverlaySettingsMessage::Appearance,
+                clock,
+            )),
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Stack(Weight::Regular).into(),

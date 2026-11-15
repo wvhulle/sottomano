@@ -266,16 +266,18 @@ impl JournalEventsGroup {
     pub fn system_journal_content<'a>(
         &'a self,
         config: &'a Config,
+        clock: Clock,
     ) -> WidgetGroupContent<'a, JournalEventsInteraction> {
-        self.system_journal.group_content(config)
+        self.system_journal.group_content(config, clock)
     }
 
     #[must_use]
     pub fn user_journal_content<'a>(
         &'a self,
         config: &'a Config,
+        clock: Clock,
     ) -> WidgetGroupContent<'a, JournalEventsInteraction> {
-        self.user_journal.group_content(config)
+        self.user_journal.group_content(config, clock)
     }
 }
 

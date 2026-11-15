@@ -34,15 +34,19 @@ impl JournalScopeGroup {
     pub(super) fn kernel_log_item(
         &self,
         config: &Config,
+        clock: Clock,
     ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
+        let locale = config.calendar.locale;
         let kernel = self.kernel.display()?;
-        Some(GroupItem::reading(kernel, JournalTarget::Kernel).on_press(
-            TerminalCommand::JOURNAL_PRESS_HINT,
-            JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                config,
-                KernelOccurrence::follow_log_args(),
-            )),
-        ))
+        Some(
+            GroupItem::reading(kernel, JournalTarget::Kernel, clock, locale).on_press(
+                TerminalCommand::JOURNAL_PRESS_HINT,
+                JournalEventsInteraction::OpenLog(TerminalCommand::journal(
+                    config,
+                    KernelOccurrence::follow_log_args(),
+                )),
+            ),
+        )
     }
 }
 

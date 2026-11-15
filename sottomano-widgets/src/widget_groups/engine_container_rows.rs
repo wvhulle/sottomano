@@ -233,6 +233,8 @@ impl<'a> EngineContainers<'a> {
         &self,
         target_of: fn(EngineContainerTarget) -> HoverTarget,
         switched: fn(ContainerSwitchRequest) -> Message,
+        clock: Clock,
+        locale: Locale,
     ) -> Vec<GroupItem<'a, Message>> {
         let owner = self.owner;
         self.listing
@@ -245,6 +247,8 @@ impl<'a> EngineContainers<'a> {
                     GroupItem::reading(
                         RunningContainerRow { container, owner },
                         target_of(target.clone()),
+                        clock,
+                        locale,
                     ),
                     ContainerRunState::Running,
                     target,
@@ -258,6 +262,8 @@ impl<'a> EngineContainers<'a> {
         &self,
         target_of: fn(EngineContainerTarget) -> HoverTarget,
         switched: fn(ContainerSwitchRequest) -> Message,
+        clock: Clock,
+        locale: Locale,
     ) -> Vec<GroupItem<'a, Message>> {
         let owner = self.owner;
         self.listing
@@ -269,6 +275,8 @@ impl<'a> EngineContainers<'a> {
                     GroupItem::reading(
                         StoppedContainerRow { container, owner },
                         target_of(target.clone()),
+                        clock,
+                        locale,
                     ),
                     ContainerRunState::Stopped,
                     target,
@@ -327,6 +335,8 @@ pub(crate) fn with_container_switch<'a, Message: 'a>(
 pub(crate) fn rows_ending_in_hidden_count<'a, Message: 'a>(
     mut rows: Vec<GroupItem<'a, Message>>,
     hidden_target: HoverTarget,
+    clock: Clock,
+    locale: Locale,
 ) -> Vec<GroupItem<'a, Message>> {
     if rows.len() <= SHOWN_CONTAINER_ROWS {
         return rows;
@@ -335,6 +345,8 @@ pub(crate) fn rows_ending_in_hidden_count<'a, Message: 'a>(
     rows.push(GroupItem::reading(
         HiddenContainersRow { hidden_count },
         hidden_target,
+        clock,
+        locale,
     ));
     rows
 }

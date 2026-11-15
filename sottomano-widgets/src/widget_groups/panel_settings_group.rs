@@ -421,7 +421,9 @@ impl PanelSettingsGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
+        clock: Clock,
     ) -> WidgetGroupContent<'a, PanelSettingsMessage> {
+        let locale = config.calendar.locale;
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PanelSettings,
             &self.expansion,
@@ -431,30 +433,42 @@ impl PanelSettingsGroup {
                     disconnected_toggle(self.group_framing),
                     PanelSettingsTarget::DisconnectedGroups,
                     PanelSettingsMessage::ToggleDisconnectedGroups,
+                    clock,
+                    locale,
                 ),
                 GroupItem::toggle(
                     pinned_groups_toggle(self.group_collapsing),
                     PanelSettingsTarget::AutoCollapseGroups,
                     PanelSettingsMessage::ToggleAutoCollapseGroups,
+                    clock,
+                    locale,
                 ),
                 GroupItem::toggle(
                     window_row_layout_toggle(self.window_row_layout),
                     PanelSettingsTarget::WindowRowLayout,
                     PanelSettingsMessage::ToggleWindowRowLayout,
+                    clock,
+                    locale,
                 ),
                 GroupItem::toggle(
                     window_title_length_toggle(self.window_title_length),
                     PanelSettingsTarget::WindowTitleLength,
                     PanelSettingsMessage::ToggleWindowTitleLength,
+                    clock,
+                    locale,
                 ),
                 GroupItem::slider(
                     &self.float_offset,
                     config,
+                    clock,
                     PanelSettingsMessage::FloatOffset,
                 ),
             ]
             .into_iter()
-            .chain(self.layer.items(config, PanelSettingsMessage::Appearance)),
+            .chain(
+                self.layer
+                    .items(config, PanelSettingsMessage::Appearance, clock),
+            ),
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Rows(Weight::Regular).into(),

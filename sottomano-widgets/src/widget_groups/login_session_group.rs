@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod account_face;
 mod compositor_face;
 mod desktop_services_face;
@@ -179,7 +180,11 @@ impl LoginSessionGroup {
         Task::none()
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let items = self.identity.get().into_iter().flat_map(|identity| {
             [
                 GroupItem::reading(
@@ -188,18 +193,49 @@ impl LoginSessionGroup {
                         virtual_terminal: identity.virtual_terminal,
                     },
                     LoginSessionTarget::Seat,
+                    clock,
+                    locale,
                 ),
-                GroupItem::reading(LoginFace { identity }, LoginSessionTarget::Login),
-                GroupItem::reading(AccountFace { identity }, LoginSessionTarget::Account),
-                GroupItem::reading(ServiceManagerFace, LoginSessionTarget::ServiceManager),
-                GroupItem::reading(CompositorFace { identity }, LoginSessionTarget::Compositor),
-                GroupItem::reading(DesktopServicesFace, LoginSessionTarget::DesktopServices),
+                GroupItem::reading(
+                    LoginFace { identity },
+                    LoginSessionTarget::Login,
+                    clock,
+                    locale,
+                ),
+                GroupItem::reading(
+                    AccountFace { identity },
+                    LoginSessionTarget::Account,
+                    clock,
+                    locale,
+                ),
+                GroupItem::reading(
+                    ServiceManagerFace,
+                    LoginSessionTarget::ServiceManager,
+                    clock,
+                    locale,
+                ),
+                GroupItem::reading(
+                    CompositorFace { identity },
+                    LoginSessionTarget::Compositor,
+                    clock,
+                    locale,
+                ),
+                GroupItem::reading(
+                    DesktopServicesFace,
+                    LoginSessionTarget::DesktopServices,
+                    clock,
+                    locale,
+                ),
             ]
         });
-        let kernel = self
-            .system
-            .get()
-            .map(|system| GroupItem::reading(KernelFace { system }, LoginSessionTarget::Kernel));
+        let kernel = self.system.get().map(|system| {
+            GroupItem::reading(
+                KernelFace { system },
+                LoginSessionTarget::Kernel,
+                clock,
+                locale,
+            )
+        });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::LoginSession,
             &self.expansion,

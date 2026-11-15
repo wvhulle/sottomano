@@ -11,55 +11,55 @@ impl DesktopShell {
             [
                 self.widget_groups
                     .virtual_machines_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::VirtualMachines),
                 self.widget_groups
                     .virtualbox_machines_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::VirtualBoxMachines),
                 self.widget_groups
                     .vmware_machines_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::VmwareMachines),
                 self.widget_groups
                     .microvm_guests_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::MicrovmGuests),
                 self.widget_groups
                     .incus_instances_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::IncusInstances),
                 self.widget_groups
                     .nspawn_containers_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::NspawnContainers),
                 self.widget_groups
                     .lxc_containers_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::LxcContainers),
                 self.widget_groups
                     .podman_engines_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::PodmanEngines),
                 self.widget_groups
                     .docker_engines_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::DockerEngines),
                 self.widget_groups
                     .apptainer_containers_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::ApptainerContainers),
                 self.widget_groups
                     .waydroid_container_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::WaydroidContainer),
                 self.widget_groups
                     .flatpak_sandboxes_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::FlatpakSandboxes),
                 self.widget_groups
                     .cgroup_memory_limits_group
-                    .group_content(&self.config)
+                    .group_content(&self.config, self.clock)
                     .map(ShellInteraction::CgroupMemoryLimits),
             ],
         )

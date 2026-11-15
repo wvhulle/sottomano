@@ -58,27 +58,27 @@ impl DesktopShell {
         [
             self.widget_groups
                 .panel_settings_group
-                .group_content(config)
+                .group_content(config, self.clock)
                 .map(ShellInteraction::PanelSettings),
             self.widget_groups
                 .sidebar_settings_group
-                .group_content(config)
+                .group_content(config, self.clock)
                 .map(ShellInteraction::SidebarSettings),
             self.widget_groups
                 .overlay_settings_group
-                .group_content(config)
+                .group_content(config, self.clock)
                 .map(ShellInteraction::OverlaySettings),
             self.widget_groups
                 .compositor_styling_group
-                .group_content(config)
+                .group_content(config, self.clock)
                 .map(ShellInteraction::CompositorStyling),
             self.widget_groups
                 .group_menus
-                .settings_content(config)
+                .settings_content(config, self.clock)
                 .map(ShellInteraction::GroupMenuState),
             self.widget_groups
                 .global_menu_group
-                .switch_content()
+                .switch_content(self.clock, self.config.calendar.locale)
                 .map(ShellInteraction::GlobalMenu),
         ]
     }

@@ -10,35 +10,35 @@ impl DesktopShell {
         let groups = [
             self.widget_groups
                 .power_group
-                .group_content(config)
+                .group_content(config, self.clock)
                 .map(ShellInteraction::Power),
             self.widget_groups
                 .compute_group
-                .group_content()
+                .group_content(self.clock, self.config.calendar.locale)
                 .map(ShellInteraction::Compute),
             self.widget_groups
                 .memory_board_group
-                .group_content()
+                .group_content(self.clock, self.config.calendar.locale)
                 .map(ShellInteraction::MemoryBoard),
         ]
         .into_iter()
         .chain(
             self.widget_groups
                 .gpu_group
-                .group_contents()
+                .group_contents(self.clock, self.config.calendar.locale)
                 .map(|group| group.map(ShellInteraction::Gpu)),
         )
         .chain(
             self.widget_groups
                 .storage_space_group
-                .group_contents()
+                .group_contents(self.clock, self.config.calendar.locale)
                 .into_iter()
                 .map(|group| group.map(ShellInteraction::Storage)),
         )
         .chain(
             self.widget_groups
                 .physical_drive_group
-                .group_contents()
+                .group_contents(self.clock, self.config.calendar.locale)
                 .into_iter()
                 .map(|group| group.map(ShellInteraction::Drive)),
         );

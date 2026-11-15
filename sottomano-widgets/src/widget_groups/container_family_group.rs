@@ -226,27 +226,42 @@ impl<Family: ContainerFamily> ContainerFamilyGroup<Family> {
             .unwrap_or_default()
     }
 
-    fn group_rows(&self) -> Vec<GroupItem<'_, ContainerFamilyInteraction<Family>>> {
+    fn group_rows(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<GroupItem<'_, ContainerFamilyInteraction<Family>>> {
         let detail_rows = self.detail_rows();
         let mut group_rows: Vec<GroupItem<'_, ContainerFamilyInteraction<Family>>> =
             if detail_rows.is_empty() {
                 self.listing_rows()
                     .into_iter()
-                    .map(switchable_item)
+                    .map(|row| switchable_item(row, clock, locale))
                     .collect()
             } else {
-                detail_rows.into_iter().map(switchable_item).collect()
+                detail_rows
+                    .into_iter()
+                    .map(|row| switchable_item(row, clock, locale))
+                    .collect()
             };
-        group_rows.extend(self.stopped_rows().into_iter().map(switchable_item));
+        group_rows.extend(
+            self.stopped_rows()
+                .into_iter()
+                .map(|row| switchable_item(row, clock, locale)),
+        );
         group_rows
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, ContainerFamilyInteraction<Family>> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, ContainerFamilyInteraction<Family>> {
         WidgetGroupContent::expandable(
             Family::FAMILY,
             &self.expansion,
             ContainerFamilyInteraction::Expansion,
-            self.group_rows(),
+            self.group_rows(clock, locale),
         )
         .face(WidgetGroupFace::IconColoredBy {
             glyph: Family::group_glyph(),
@@ -264,8 +279,10 @@ fn refused_power_change<Family: ContainerFamily>(
 
 fn switchable_item<'a, Family: ContainerFamily, Reading: GroupItemReading + 'a>(
     row: FamilyRow<Family, Reading>,
+    clock: Clock,
+    locale: Locale,
 ) -> GroupItem<'a, ContainerFamilyInteraction<Family>> {
-    let item = GroupItem::reading(row.reading, row.target);
+    let item = GroupItem::reading(row.reading, row.target, clock, locale);
     match row.power {
         RowPower::SwitchedOn(request) => item.on_switch_press(
             SwitchPosition::On,
@@ -321,6 +338,7 @@ mod tests {
     use std::{path::PathBuf, time::Duration};
 
     use bytesize::ByteSize;
+    use chrono::Locale;
     use sottomano_desktop_sources::{
         SnapshotDelivery, SnapshotSource,
         container_family_snapshots::{FamilyDetails, FamilyListings},
@@ -392,9 +410,10 @@ mod tests {
 
     #[test]
     fn listings_answer_until_detail_arrives() {
+        let locale = Locale::default();
         let clock = Clock::real();
         let group = group_with_listing(clock);
-        assert_eq!(group.group_rows().len(), 1);
+        assert_eq!(group.group_rows(clock, locale).len(), 1);
         assert!(
             !group
                 .hover_card_for(&VmwareMachineTarget { pid: LISTED_PID }, clock)
@@ -404,13 +423,14 @@ mod tests {
 
     #[test]
     fn detail_replaces_listings_once_it_has_rows() {
+        let locale = Locale::default();
         let clock = Clock::real();
         let mut group = group_with_listing(clock);
         let _ = group.update(
             VmwareMachinesMessage::Detail(polled(detailed_machines(clock))),
             clock,
         );
-        assert_eq!(group.group_rows().len(), 1);
+        assert_eq!(group.group_rows(clock, locale).len(), 1);
         assert!(
             !group
                 .hover_card_for(&VmwareMachineTarget { pid: DETAILED_PID }, clock)
@@ -450,6 +470,7 @@ mod tests {
 
     #[test]
     fn stopped_machines_follow_the_detailed_running_ones() {
+        let locale = Locale::default();
         let clock = Clock::real();
         let running_listing = VirtualBoxMachineListing {
             pid: DETAILED_PID,
@@ -481,7 +502,7 @@ mod tests {
             })),
             clock,
         );
-        assert_eq!(group.group_rows().len(), 2);
+        assert_eq!(group.group_rows(clock, locale).len(), 2);
         assert!(
             !group
                 .hover_card_for(

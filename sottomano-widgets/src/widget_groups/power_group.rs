@@ -238,7 +238,9 @@ impl PowerGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
+        clock: Clock,
     ) -> WidgetGroupContent<'a, PowerInteraction> {
+        let locale = config.calendar.locale;
         let switch_to_saving_profiles =
             self.power_profile
                 .profiles_saving_more_power()
@@ -255,16 +257,16 @@ impl PowerGroup {
             PowerInteraction::Expansion,
             [
                 self.battery
-                    .group_item(PowerTarget::Battery)
+                    .group_item(PowerTarget::Battery, clock, locale)
                     .map(GroupItem::previewed_on_handle),
                 self.draw()
-                    .map(|draw| GroupItem::reading(draw, PowerTarget::Draw)),
+                    .map(|draw| GroupItem::reading(draw, PowerTarget::Draw, clock, locale)),
                 self.time.as_ref().map(|time| {
-                    GroupItem::reading(time, PowerTarget::BatteryTime)
+                    GroupItem::reading(time, PowerTarget::BatteryTime, clock, locale)
                         .ongoing_toast_action_buttons(switch_to_saving_profiles)
                 }),
                 self.power_profile.slider().map(|slider| {
-                    GroupItem::slider(slider, config, |control_message| {
+                    GroupItem::slider(slider, config, clock, |control_message| {
                         PowerInteraction::PowerProfile(PowerProfileInteraction::Control(
                             control_message,
                         ))

@@ -1,5 +1,6 @@
 use std::mem::take;
 
+use chrono::Locale;
 use sottomano_desktop_sources::{SnapshotDelivery, SnapshotSource};
 
 use crate::{
@@ -282,14 +283,18 @@ impl<S: SnapshotSource + GroupItemReading> SubscribedSnapshot<S> {
     pub fn group_item<M: 'static>(
         &self,
         target: impl Into<HoverTarget>,
+        clock: Clock,
+        locale: Locale,
     ) -> Option<GroupItem<'_, M>> {
         self.display()
-            .map(|widget| GroupItem::reading(widget, target))
+            .map(|widget| GroupItem::reading(widget, target, clock, locale))
     }
 
     pub fn group_item_while_pending<M: 'static>(
         &self,
         target: impl Into<HoverTarget>,
+        clock: Clock,
+        locale: Locale,
     ) -> Option<GroupItem<'_, M>>
     where
         S: 'static,
@@ -298,9 +303,11 @@ impl<S: SnapshotSource + GroupItemReading> SubscribedSnapshot<S> {
             return Some(GroupItem::reading(
                 SnapshotPlaceholder::<S>::caused_by(PlaceholderCause::AwaitingFirstSnapshot),
                 target,
+                clock,
+                locale,
             ));
         }
-        self.group_item(target)
+        self.group_item(target, clock, locale)
     }
 
     pub fn hover_card(&self, clock: Clock) -> Vec<Section> {

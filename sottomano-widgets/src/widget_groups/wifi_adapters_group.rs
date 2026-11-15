@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod adapter_signal_reading;
 
 use iced::{Subscription, Task};
@@ -281,6 +282,8 @@ impl WifiAdaptersGroup {
         adapter: &'a WifiAdapter,
         radio_power: RadioPower,
         group_title: WidgetGroupTitle,
+        clock: Clock,
+        locale: Locale,
     ) -> Option<WidgetGroupContent<'a, WifiAdaptersInteraction>> {
         let expansion = self.expansions.get(&adapter.device)?;
         let signal_item = GroupItem::reading(
@@ -291,6 +294,8 @@ impl WifiAdaptersGroup {
             WifiAdapterTarget::Signal {
                 adapter_device: adapter.device.clone(),
             },
+            clock,
+            locale,
         );
         let connection_item = (radio_power == RadioPower::On).then(|| {
             let connection_switch = AdapterConnectionSwitch { adapter };
@@ -300,6 +305,8 @@ impl WifiAdaptersGroup {
                 WifiAdapterTarget::Connection {
                     adapter_device: adapter.device.clone(),
                 },
+                clock,
+                locale,
             )
             .on_switch_press(
                 adapter.link_state,
@@ -317,6 +324,8 @@ impl WifiAdaptersGroup {
                         adapter_device: adapter.device.clone(),
                         family,
                     },
+                    clock,
+                    locale,
                 )
             });
         let dns_item = (adapter.link_state == LinkPhase::Up).then(|| {
@@ -325,16 +334,19 @@ impl WifiAdaptersGroup {
                 WifiAdapterTarget::Dns {
                     adapter_device: adapter.device.clone(),
                 },
+                clock,
+                locale,
             )
         });
         let radios_switch = AllWifiRadiosSwitch { radio_power };
         let radios_press_does = radios_switch.press_does();
-        let radios_item = GroupItem::reading(radios_switch, WifiAdapterTarget::AllRadios)
-            .on_switch_press(
-                radio_power,
-                radios_press_does,
-                WifiAdaptersInteraction::ToggleAllRadios,
-            );
+        let radios_item =
+            GroupItem::reading(radios_switch, WifiAdapterTarget::AllRadios, clock, locale)
+                .on_switch_press(
+                    radio_power,
+                    radios_press_does,
+                    WifiAdaptersInteraction::ToggleAllRadios,
+                );
         let adapter_device = adapter.device.clone();
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::WifiAdapters, adapter.device.clone()),
@@ -354,7 +366,11 @@ impl WifiAdaptersGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, WifiAdaptersInteraction>> {
+    pub fn group_contents(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> Vec<WidgetGroupContent<'_, WifiAdaptersInteraction>> {
         let Some(wifi) = self.wifi.get() else {
             return Vec::new();
         };
@@ -364,7 +380,7 @@ impl WifiAdaptersGroup {
             .iter()
             .zip(adapter_titles)
             .filter_map(|(adapter, adapter_title)| {
-                self.adapter_group(adapter, wifi.radio_power, adapter_title)
+                self.adapter_group(adapter, wifi.radio_power, adapter_title, clock, locale)
             })
             .collect()
     }

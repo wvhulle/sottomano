@@ -15,18 +15,22 @@ impl DesktopShell {
         let gamepad_groups = self
             .widget_groups
             .gamepad_group
-            .group_contents(&config.widget_groups.gamepad)
+            .group_contents(
+                &config.widget_groups.gamepad,
+                self.clock,
+                self.config.calendar.locale,
+            )
             .into_iter()
             .map(|group| group.map(ShellInteraction::Gamepad));
         let groups = media_groups
             .chain([
                 self.widget_groups
                     .audio_group
-                    .group_content(config)
+                    .group_content(config, self.clock)
                     .map(ShellInteraction::Audio),
                 self.widget_groups
                     .voice_dictation_group
-                    .group_content()
+                    .group_content(self.clock, self.config.calendar.locale)
                     .map(ShellInteraction::VoiceDictation),
             ])
             .chain(gamepad_groups);

@@ -108,7 +108,9 @@ impl PendingUpgradesGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
+        clock: Clock,
     ) -> WidgetGroupContent<'a, PendingUpgradesInteraction> {
+        let locale = config.calendar.locale;
         let has_categories = self.categories().iter().any(Option::is_some);
         WidgetGroupContent::expandable(
             WidgetGroupFamily::PendingUpgrades,
@@ -119,12 +121,14 @@ impl PendingUpgradesGroup {
                     GroupItem::reading(
                         self as &dyn GroupItemReading,
                         PendingUpgradesTarget::Summary,
+                        clock,
+                        locale,
                     )
                 }),
-                self.firmware_upgrade_item(config),
-                self.firmware
-                    .failure()
-                    .map(|failure| GroupItem::reading(failure, PendingUpgradesTarget::Firmware)),
+                self.firmware_upgrade_item(config, clock),
+                self.firmware.failure().map(|failure| {
+                    GroupItem::reading(failure, PendingUpgradesTarget::Firmware, clock, locale)
+                }),
             ]
             .into_iter()
             .flatten(),

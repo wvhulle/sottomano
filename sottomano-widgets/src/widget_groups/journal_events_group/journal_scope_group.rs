@@ -46,6 +46,7 @@ impl JournalScopeGroup {
     pub(super) fn group_content<'a>(
         &'a self,
         config: &'a Config,
+        clock: Clock,
     ) -> WidgetGroupContent<'a, JournalEventsInteraction> {
         let unit_scope = self.unit_scope;
         WidgetGroupContent::expandable(
@@ -55,10 +56,10 @@ impl JournalScopeGroup {
                 JournalEventsInteraction::Expansion(unit_scope, expansion_message)
             },
             [
-                self.kernel_log_item(config),
-                self.service_errors_item(config),
-                self.coredump_log_item(config),
-                self.oom_kill_log_item(config),
+                self.kernel_log_item(config, clock),
+                self.service_errors_item(config, clock),
+                self.coredump_log_item(config, clock),
+                self.oom_kill_log_item(config, clock),
             ]
             .into_iter()
             .flatten(),

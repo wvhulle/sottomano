@@ -1,177 +1,243 @@
+use std::borrow::Cow;
+
 use corredo::changing_text::{LabelShape, steady_width_text};
 use iced::{
     Alignment, Element,
     widget::{Row, row, text},
 };
 use sottomano_toml_config::Config;
+use uom::si::f64::Ratio;
 
 use crate::{
-    clock::Clock,
     group_items::{
         gauge::Gauge,
-        group_item_reading::{GroupItemReading, state_weighted_icon},
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
     },
     widgets::{
         icon_glyph::IconGlyph,
+        icon_handle::IconHandle,
         phosphor::{Phosphor, Weight},
         text::{font_faces_of, panel_text},
     },
 };
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum GroupItemIcon {
+    IconGlyph {
+        glyph: IconGlyph,
+        state: ReadingDisplayState,
+    },
+    Image(IconHandle),
+    Absent,
+}
+
+impl GroupItemIcon {
+    #[must_use]
+    pub fn display_state(&self) -> ReadingDisplayState {
+        match self {
+            GroupItemIcon::IconGlyph { state, .. } => *state,
+            GroupItemIcon::Image(_) | GroupItemIcon::Absent => ReadingDisplayState::Idle,
+        }
+    }
+
+    fn view<'a, Message: 'a>(&self, config: &Config, opacity: f32) -> Option<Element<'a, Message>> {
+        let side = config.theme.font.icon_size_px;
+        match self {
+            GroupItemIcon::IconGlyph { glyph, state } => {
+                let tint = ReadingStateTint {
+                    state: *state,
+                    opacity,
+                };
+                Some(
+                    glyph
+                        .with_weight(state.weight())
+                        .view(side, move |theme| tint.color(theme)),
+                )
+            }
+            GroupItemIcon::Image(handle) => Some(handle.view(side, opacity)),
+            GroupItemIcon::Absent => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdentityOrdinal {
+    Unnumbered,
+    Numbered(u8),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RowFace {
+    pub name: Cow<'static, str>,
+    pub icon: GroupItemIcon,
+    pub ordinal: IdentityOrdinal,
+}
+
+impl RowFace {
+    fn tint(&self, opacity: f32) -> ReadingStateTint {
+        ReadingStateTint {
+            state: self.icon.display_state(),
+            opacity,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReadoutLabel {
+    Unlabeled,
+    Labeled(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ReadoutGauge {
+    Ungauged,
+    Gauged { fill: Ratio, live: Ratio },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadoutBadge {
+    Unbadged,
+    Counted(usize),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RowReadout {
+    pub label: ReadoutLabel,
+    pub gauge: ReadoutGauge,
+    pub badge: ReadoutBadge,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReadoutPreference {
+    GaugeFirst,
+    LabelOnly,
+}
+
 pub fn source_reading<'a, Message: 'a>(
     config: &Config,
-    widget: &dyn GroupItemReading,
+    face: &RowFace,
+    readout: &RowReadout,
     opacity: f32,
-    clock: Clock,
 ) -> Element<'a, Message> {
-    let tint = reading_tint(widget, opacity, clock);
     composed_reading(
         config,
-        widget,
-        reading_icon(config, widget, tint, clock),
-        tint,
-        clock,
-        reading_value,
+        face,
+        readout,
+        opacity,
+        ReadoutPreference::GaugeFirst,
     )
 }
 
 pub fn labeled_reading<'a, Message: 'a>(
     config: &Config,
-    widget: &dyn GroupItemReading,
+    face: &RowFace,
+    readout: &RowReadout,
     opacity: f32,
-    clock: Clock,
 ) -> Element<'a, Message> {
-    let tint = reading_tint(widget, opacity, clock);
-    composed_reading(
-        config,
-        widget,
-        reading_icon(config, widget, tint, clock),
-        tint,
-        clock,
-        label_value,
-    )
-}
-
-fn reading_tint(widget: &dyn GroupItemReading, opacity: f32, clock: Clock) -> ReadingStateTint {
-    ReadingStateTint {
-        state: widget.state(clock),
-        opacity,
-    }
+    composed_reading(config, face, readout, opacity, ReadoutPreference::LabelOnly)
 }
 
 fn composed_reading<'a, Message: 'a>(
     config: &Config,
-    widget: &dyn GroupItemReading,
-    icon: Element<'a, Message>,
-    tint: ReadingStateTint,
-    clock: Clock,
-    value: fn(
-        &Config,
-        &dyn GroupItemReading,
-        ReadingStateTint,
-        Clock,
-    ) -> Option<Element<'a, Message>>,
+    face: &RowFace,
+    readout: &RowReadout,
+    opacity: f32,
+    preference: ReadoutPreference,
 ) -> Element<'a, Message> {
-    let reading = match value(config, widget, tint, clock) {
+    let tint = face.tint(opacity);
+    let icon = face_icon(config, face, opacity).unwrap_or_else(|| Row::new().into());
+    let reading = match preferred_value(config, face, readout, tint, preference) {
         Some(value) => row![icon, value]
             .spacing(config.theme.spacing.item_gap)
             .align_y(Alignment::Center)
             .into(),
         None => icon,
     };
-
-    if widget.state(clock) == ReadingDisplayState::Failed {
+    if face.icon.display_state() == ReadingDisplayState::Failed {
         return reading;
     }
-    badged(config, reading, widget.badge(), tint)
+    badged(config, reading, readout.badge, tint)
 }
 
-pub fn reading_icon<'a, Message: 'a>(
+pub fn face_icon<'a, Message: 'a>(
     config: &Config,
-    widget: &dyn GroupItemReading,
-    tint: ReadingStateTint,
-    clock: Clock,
-) -> Element<'a, Message> {
-    let icon = state_weighted_icon(widget, clock)
-        .view(config.theme.font.icon_size_px, move |theme| {
-            tint.color(theme)
-        });
-    with_identity_ordinal(config, widget, icon, tint)
-}
-
-fn with_identity_ordinal<'a, Message: 'a>(
-    config: &Config,
-    widget: &dyn GroupItemReading,
-    icon: Element<'a, Message>,
-    tint: ReadingStateTint,
-) -> Element<'a, Message> {
-    match widget.identity_ordinal() {
-        Some(ordinal) => superscripted(
+    face: &RowFace,
+    opacity: f32,
+) -> Option<Element<'a, Message>> {
+    let icon = face.icon.view(config, opacity)?;
+    Some(match face.ordinal {
+        IdentityOrdinal::Numbered(ordinal) => superscripted(
             config,
             icon,
             ordinal.to_string(),
             ReadingStateTint {
                 state: ReadingDisplayState::Off,
-                opacity: tint.opacity,
+                opacity,
             },
         ),
-        None => icon,
-    }
+        IdentityOrdinal::Unnumbered => icon,
+    })
 }
 
 #[must_use]
 pub fn reading_value<'a, Message: 'a>(
     config: &Config,
-    widget: &dyn GroupItemReading,
-    tint: ReadingStateTint,
-    clock: Clock,
+    face: &RowFace,
+    readout: &RowReadout,
+    opacity: f32,
 ) -> Option<Element<'a, Message>> {
-    if widget.state(clock) == ReadingDisplayState::Failed {
-        return Some(failure_marker(config, tint));
-    }
-    match widget.gauge() {
-        Some(fill) => Some(
-            Gauge::new(fill, tint, config.theme.font.icon_size_px)
-                .live(widget.live_gauge().unwrap_or(fill))
-                .into(),
-        ),
-        None => label_text(config, widget, tint, clock),
-    }
+    preferred_value(
+        config,
+        face,
+        readout,
+        face.tint(opacity),
+        ReadoutPreference::GaugeFirst,
+    )
 }
 
-fn label_value<'a, Message: 'a>(
+fn preferred_value<'a, Message: 'a>(
     config: &Config,
-    widget: &dyn GroupItemReading,
+    face: &RowFace,
+    readout: &RowReadout,
     tint: ReadingStateTint,
-    clock: Clock,
+    preference: ReadoutPreference,
 ) -> Option<Element<'a, Message>> {
-    if widget.state(clock) == ReadingDisplayState::Failed {
+    if face.icon.display_state() == ReadingDisplayState::Failed {
         return Some(failure_marker(config, tint));
     }
-    label_text(config, widget, tint, clock)
+    match preference {
+        ReadoutPreference::GaugeFirst => match readout.gauge {
+            ReadoutGauge::Gauged { fill, live } => Some(
+                Gauge::new(fill, tint, config.theme.font.icon_size_px)
+                    .live(live)
+                    .into(),
+            ),
+            ReadoutGauge::Ungauged => label_text(config, face, &readout.label, tint),
+        },
+        ReadoutPreference::LabelOnly => label_text(config, face, &readout.label, tint),
+    }
 }
 
 fn label_text<'a, Message: 'a>(
     config: &Config,
-    widget: &dyn GroupItemReading,
+    face: &RowFace,
+    label: &ReadoutLabel,
     tint: ReadingStateTint,
-    clock: Clock,
 ) -> Option<Element<'a, Message>> {
-    widget
-        .label(clock, config.calendar.locale)
-        .filter(|label| !label.is_empty())
-        .map(|label| {
-            let shape = LabelShape {
-                widget_name: widget.name(),
-                character_count: label.chars().count(),
-            };
-            steady_width_text(
-                shape,
-                panel_text(&config.theme.font, label).style(tint.text_style()),
-            )
-            .into()
-        })
+    let ReadoutLabel::Labeled(label) = label else {
+        return None;
+    };
+    let shape = LabelShape {
+        widget_name: face.name.clone(),
+        character_count: label.chars().count(),
+    };
+    Some(
+        steady_width_text(
+            shape,
+            panel_text(&config.theme.font, label.clone()).style(tint.text_style()),
+        )
+        .into(),
+    )
 }
 
 fn failure_marker<'a, Message: 'a>(
@@ -187,12 +253,12 @@ fn failure_marker<'a, Message: 'a>(
 fn badged<'a, Message: 'a>(
     config: &Config,
     reading: Element<'a, Message>,
-    badge: Option<usize>,
+    badge: ReadoutBadge,
     tint: ReadingStateTint,
 ) -> Element<'a, Message> {
     match badge {
-        Some(count) if count > 0 => superscripted(config, reading, count.to_string(), tint),
-        _ => reading,
+        ReadoutBadge::Counted(count) => superscripted(config, reading, count.to_string(), tint),
+        ReadoutBadge::Unbadged => reading,
     }
 }
 

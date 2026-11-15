@@ -35,21 +35,25 @@ impl JournalScopeGroup {
     pub(super) fn service_errors_item(
         &self,
         config: &Config,
+        clock: Clock,
     ) -> Option<GroupItem<'_, JournalEventsInteraction>> {
+        let locale = config.calendar.locale;
         let target = JournalTarget::ServiceErrors(self.unit_scope);
         let Some(service_errors) = self.service_errors.visible_reading() else {
             return self
                 .service_errors
                 .failure()
-                .map(|failure| GroupItem::reading(failure, target));
+                .map(|failure| GroupItem::reading(failure, target, clock, locale));
         };
-        Some(GroupItem::reading(service_errors, target).on_press(
-            TerminalCommand::JOURNAL_PRESS_HINT,
-            JournalEventsInteraction::OpenLog(TerminalCommand::journal(
-                config,
-                service_errors.follow_log_args(),
-            )),
-        ))
+        Some(
+            GroupItem::reading(service_errors, target, clock, locale).on_press(
+                TerminalCommand::JOURNAL_PRESS_HINT,
+                JournalEventsInteraction::OpenLog(TerminalCommand::journal(
+                    config,
+                    service_errors.follow_log_args(),
+                )),
+            ),
+        )
     }
 }
 

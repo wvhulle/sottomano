@@ -210,15 +210,11 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             .collect()
     }
 
-    pub fn panel_raises(
-        &self,
-        promotion_severity: Severity,
-        clock: Clock,
-    ) -> impl Iterator<Item = PanelRaise> {
+    pub fn panel_raises(&self, promotion_severity: Severity) -> impl Iterator<Item = PanelRaise> {
         let menu = self.messenger.topic;
         self.groups
             .iter()
-            .flat_map(move |member| member.panel_raises(menu, promotion_severity, clock))
+            .flat_map(move |member| member.panel_raises(menu, promotion_severity))
     }
 
     fn handle_view(
@@ -226,7 +222,6 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         config: &'a Config,
         panel_position: Position,
         handle_indicator: MenuHandleIndicator,
-        clock: Clock,
     ) -> Element<'a, M>
     where
         M: From<GroupEvent<M>>,
@@ -234,7 +229,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         let highest_alert_severity = self
             .groups
             .iter()
-            .map(|member| member.highest_alert_severity(clock))
+            .map(WidgetGroupContent::highest_alert_severity)
             .max()
             .unwrap_or_default();
         let glyph = IconGlyph::from(self.messenger.topic.glyph())
@@ -271,7 +266,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
     where
         M: From<GroupEvent<M>>,
     {
-        let handle_slot = self.handle_view(config, panel_position, handle_indicator, clock);
+        let handle_slot = self.handle_view(config, panel_position, handle_indicator);
         let topic = self.messenger.topic;
         let group_menus = self.group_menus;
         once(handle_slot).chain(self.groups.into_iter().flat_map(move |member| {
@@ -455,6 +450,7 @@ fn nested_menu_groups<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 
 
 #[cfg(test)]
 mod tests {
+    use chrono::Locale;
     use corredo::popovers::{
         CascadeDirection, CascadeOrientation, NestedMenuLayout, NestedMenuOpenTrigger,
         NestedMenuPresentation, OpenGroupLimit, PopupGrowth, SubmenuConnector,
@@ -472,10 +468,9 @@ mod tests {
         clock::Clock,
         desktop_index::DesktopIndex,
         group_items::{
-            group_item::{
-                ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
-            },
+            group_item::{GroupItem, GroupItemHoverArea, GroupItemValue},
             group_item_reading::NamedTestReading,
+            source_reading::GroupItemIcon,
         },
         group_menus::{
             group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
@@ -610,6 +605,7 @@ mod tests {
         orientation: CascadeOrientation,
         clock: Clock,
     ) -> (f32, Option<f32>) {
+        let locale = Locale::default();
         let bench = MenuTestBench {
             clock,
             ..MenuTestBench::default()
@@ -622,6 +618,8 @@ mod tests {
             [GroupItem::reading(
                 NamedTestReading("Smoke item"),
                 HoverTarget::Workspace(7),
+                clock,
+                locale,
             )],
         );
         let surfaces = GroupMenuView::new(
@@ -697,10 +695,8 @@ mod tests {
         let expansion = WidgetGroupExpansion::default();
         let long_list = (0..40).map(|position| {
             GroupItem::composed(
-                ComposedGroupItemFace {
-                    name: format!("Row {position}").into(),
-                    icon: GroupItemIcon::Absent,
-                },
+                format!("Row {position}"),
+                GroupItemIcon::Absent,
                 GroupItemHoverArea::WholeItem(HoverTarget::Workspace(position)),
                 GroupItemValue::Nothing,
             )
@@ -839,6 +835,8 @@ mod tests {
         pointer_target: impl Fn(&mut Simulator<'_, RowPointerMessage>) -> Point,
         pressed: bool,
     ) -> Vec<RowPointerMessage> {
+        let clock = Clock::real();
+        let locale = Locale::default();
         let bench = MenuTestBench::default();
         let expansion = WidgetGroupExpansion::default();
         let group_menus = opened_menu_state(NestedMenuPresentation::default());
@@ -848,11 +846,11 @@ mod tests {
             |_| RowPointerMessage::Unrelated,
             [match row_press {
                 PointedRowPress::PerformsAction => {
-                    GroupItem::reading(NamedTestReading("Smoke item"), POINTED_ROW)
+                    GroupItem::reading(NamedTestReading("Smoke item"), POINTED_ROW, clock, locale)
                         .on_press("act", RowPointerMessage::RowAction)
                 }
                 PointedRowPress::ReadOnly => {
-                    GroupItem::reading(NamedTestReading("Smoke item"), POINTED_ROW)
+                    GroupItem::reading(NamedTestReading("Smoke item"), POINTED_ROW, clock, locale)
                 }
             }],
         );
@@ -905,6 +903,8 @@ mod tests {
     }
 
     fn compute_reveal_messages(approach: PointerApproach) -> Vec<RowPointerMessage> {
+        let clock = Clock::real();
+        let locale = Locale::default();
         let bench = MenuTestBench::default();
         let expansion = WidgetGroupExpansion::default();
         let group_menus = opened_menu_state(NestedMenuPresentation::default());
@@ -916,6 +916,8 @@ mod tests {
                 [GroupItem::reading(
                     NamedTestReading("Smoke item"),
                     POINTED_ROW,
+                    clock,
+                    locale,
                 )],
             )
         });
@@ -1067,10 +1069,8 @@ mod tests {
             &expansion,
             |_| SmokeMessage,
             [GroupItem::composed_pinnable(
-                ComposedGroupItemFace {
-                    name: "Lyrics".into(),
-                    icon: GroupItemIcon::Absent,
-                },
+                "Lyrics",
+                GroupItemIcon::Absent,
                 target,
                 GroupItemValue::drawn(|_| text("the sung line").into()),
             )],

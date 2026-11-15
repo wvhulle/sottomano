@@ -1,3 +1,4 @@
+use chrono::Locale;
 mod context_fill_gauge;
 mod generation_rate_label;
 mod gguf_model_card_sections;
@@ -237,14 +238,21 @@ impl LlamaServerGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, LlamaServerInteraction> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, LlamaServerInteraction> {
         WidgetGroupContent::expandable(
             WidgetGroupFamily::LlamaServer,
             &self.expansion,
             LlamaServerInteraction::Expansion,
             self.user
-                .items(LlamaServerInteraction::User)
-                .chain(self.system.items(LlamaServerInteraction::System)),
+                .items(LlamaServerInteraction::User, clock, locale)
+                .chain(
+                    self.system
+                        .items(LlamaServerInteraction::System, clock, locale),
+                ),
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Robot(Weight::Regular).into(),

@@ -1,5 +1,6 @@
 use std::convert::identity;
 
+use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_desktop_sources::network_connectivity::network_manager_proxies::Metering;
 
@@ -208,23 +209,30 @@ impl ReachabilityGroup {
         }
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, WidgetGroupExpansionMessage> {
         let throughput = self.throughput.get();
         WidgetGroupContent::expandable(
             WidgetGroupFamily::Reachability,
             &self.expansion,
             identity,
             self.throughput
-                .group_item(ReachabilityTarget::Throughput)
+                .group_item(ReachabilityTarget::Throughput, clock, locale)
                 .into_iter()
                 .chain(throughput.into_iter().flat_map(|readings| {
                     [
-                        GroupItem::reading(&readings.down, ReachabilityTarget::Down)
+                        GroupItem::reading(&readings.down, ReachabilityTarget::Down, clock, locale)
                             .previewed_on_handle(),
-                        GroupItem::reading(&readings.up, ReachabilityTarget::Up),
+                        GroupItem::reading(&readings.up, ReachabilityTarget::Up, clock, locale),
                     ]
                 }))
-                .chain(self.latency.group_item(ReachabilityTarget::Latency)),
+                .chain(
+                    self.latency
+                        .group_item(ReachabilityTarget::Latency, clock, locale),
+                ),
         )
         .face(self.handle_face())
     }

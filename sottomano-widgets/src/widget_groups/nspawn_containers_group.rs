@@ -310,7 +310,11 @@ impl NspawnContainersGroup {
             .hover_card_with(self.container_row(container).hover_card(clock))
     }
 
-    pub fn group_content(&self) -> WidgetGroupContent<'_, NspawnContainersInteraction> {
+    pub fn group_content(
+        &self,
+        clock: Clock,
+        locale: Locale,
+    ) -> WidgetGroupContent<'_, NspawnContainersInteraction> {
         let containers = self
             .listing
             .get()
@@ -322,6 +326,8 @@ impl NspawnContainersGroup {
                 NspawnContainerTarget {
                     machine_name: Cow::Owned(container.machine_name.clone()),
                 },
+                clock,
+                locale,
             );
             match self.service_switches.get(&container.machine_name) {
                 Some(service_switch) => service_switch.unit_switch.attach_switch_press(

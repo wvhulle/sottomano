@@ -229,25 +229,39 @@ impl WeatherGroup {
     fn rain_item<'a>(
         &'a self,
         config: &'a Config,
+        clock: Clock,
     ) -> Option<GroupItem<'a, WidgetGroupExpansionMessage>> {
+        let locale = config.calendar.locale;
         match self.rain_forecast(config) {
-            Some(forecast) => Some(GroupItem::reading(forecast, WeatherTarget::Rain)),
+            Some(forecast) => Some(GroupItem::reading(
+                forecast,
+                WeatherTarget::Rain,
+                clock,
+                locale,
+            )),
             None => self
                 .rain
-                .group_item(WeatherTarget::Rain)
-                .or_else(|| self.precipitation_model.group_item(WeatherTarget::Rain)),
+                .group_item(WeatherTarget::Rain, clock, locale)
+                .or_else(|| {
+                    self.precipitation_model
+                        .group_item(WeatherTarget::Rain, clock, locale)
+                }),
         }
     }
 
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
+        clock: Clock,
     ) -> WidgetGroupContent<'a, WidgetGroupExpansionMessage> {
+        let locale = config.calendar.locale;
         let airborne_items = self.pollen.get().into_iter().flat_map(|pollen| {
             pollen.airborne().map(|concentration| {
                 GroupItem::reading(
                     concentration as &dyn GroupItemReading,
                     WeatherTarget::Allergen(concentration.allergen),
+                    clock,
+                    locale,
                 )
             })
         });
@@ -256,19 +270,21 @@ impl WeatherGroup {
             &self.expansion,
             identity,
             [
-                self.temperature.group_item(WeatherTarget::Temperature),
-                self.rain_item(config),
-                self.wind.group_item(WeatherTarget::Wind),
+                self.temperature
+                    .group_item(WeatherTarget::Temperature, clock, locale),
+                self.rain_item(config, clock),
+                self.wind.group_item(WeatherTarget::Wind, clock, locale),
             ]
             .into_iter()
             .flatten()
             .chain(airborne_items)
             .chain(
                 [
-                    self.pollen
-                        .failure()
-                        .map(|widget| GroupItem::reading(widget, WeatherTarget::Pollen)),
-                    self.location.group_item(WeatherTarget::Location),
+                    self.pollen.failure().map(|widget| {
+                        GroupItem::reading(widget, WeatherTarget::Pollen, clock, locale)
+                    }),
+                    self.location
+                        .group_item(WeatherTarget::Location, clock, locale),
                 ]
                 .into_iter()
                 .flatten(),

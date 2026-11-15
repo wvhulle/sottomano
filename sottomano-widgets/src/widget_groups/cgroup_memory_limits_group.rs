@@ -241,13 +241,17 @@ impl CgroupMemoryLimitsGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
+        clock: Clock,
     ) -> WidgetGroupContent<'a, CgroupMemoryLimitsInteraction> {
+        let locale = config.calendar.locale;
         let rows = self.listed_cgroups().iter().map(|cgroup| {
             GroupItem::reading(
                 self.cgroup_row(cgroup),
                 CgroupMemoryLimitTarget {
                     cgroup_path: Cow::Owned(cgroup.cgroup_path.clone()),
                 },
+                clock,
+                locale,
             )
             .on_press(
                 CGTOP_PRESS_HINT,

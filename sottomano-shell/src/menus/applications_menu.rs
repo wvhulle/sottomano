@@ -13,7 +13,7 @@ impl DesktopShell {
             GroupMenuTopic::Applications,
             self.widget_groups
                 .app_launcher_group
-                .group_contents(&self.desktop_entries, &self.config, output)
+                .group_contents(&self.desktop_entries, &self.config, output, self.clock)
                 .into_iter()
                 .map(|group| group.map(ShellInteraction::AppLauncher)),
         )
