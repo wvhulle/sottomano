@@ -16,7 +16,7 @@ const HEADINGS: [ColumnHeading; 2] = [
 ];
 
 fn explained_setting(key: &str, value: String, meaning: &str) -> TableRecord<2> {
-    TableRecord::new(key, [value.into(), ValueCell::Hint(meaning.to_owned())])
+    TableRecord::with_cells(key, [value.into(), ValueCell::Hint(meaning.to_owned())])
 }
 
 impl ReadingSections for CpuTuning {

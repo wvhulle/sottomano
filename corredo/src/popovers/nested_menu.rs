@@ -12,9 +12,8 @@ use crate::{
     orientation::Axis,
     popovers::{
         CascadeOrientation, NestedMenuLayout, NestedMenuMetrics, NestedMenuRowContent,
-        NestedMenuRowEmphasis, NestedMenuRowLook, NestedMenuRowPress, NotchRowAnchor,
-        ResolvedPanelTop, RowHoverReaction, SubmenuConnector, anchor_marker, nested_menu_row,
-        notched_panel,
+        NestedMenuRowEmphasis, NestedMenuRowLook, NotchRowAnchor, ResolvedPanelTop,
+        RowHoverReaction, SubmenuConnector, anchor_marker, nested_menu_row, notched_panel,
     },
     selection_scroll::{ScrollEdgeFade, ScrollPacing, selection_following_scroll},
     theming::{
@@ -37,7 +36,7 @@ type ScrollAdjustment<'a, Message> = Box<dyn Fn(ScrollDelta) -> Message + 'a>;
 pub struct NestedMenuRow<'a, Message> {
     pub content: NestedMenuRowContent<'a, Message>,
     pub emphasis: NestedMenuRowEmphasis,
-    pub press: NestedMenuRowPress<Message>,
+    pub press: RowGesture<Message>,
     pub hover_reaction: RowHoverReaction<Message>,
     pub entered: RowGesture<Message>,
     pub right_pressed: RowGesture<Message>,

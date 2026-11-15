@@ -1,12 +1,11 @@
 use std::borrow::Cow;
 
-use corredo::popovers::{NestedMenuMetrics, NestedMenuRowContent, NestedMenuRowEmphasis};
+use corredo::popovers::{NestedMenuMetrics, NestedMenuRowContent};
 use iced::{Element, widget::text::Wrapping};
 use sottomano_toml_config::Config;
 
 use crate::{
-    group_items::group_item::MenuParts,
-    widget_groups::widget_group_content::{GroupEvent, RowInspection},
+    group_items::group_item::MenuParts, widget_groups::widget_group_content::GroupEvent,
     widgets::text::panel_text,
 };
 
@@ -15,15 +14,6 @@ pub(crate) struct MenuRowContent<'a, M> {
     pub parts: MenuParts<'a, M>,
     pub name: Cow<'static, str>,
     pub trailing: Vec<Element<'a, GroupEvent<M>>>,
-}
-
-impl From<RowInspection> for NestedMenuRowEmphasis {
-    fn from(row_inspection: RowInspection) -> Self {
-        match row_inspection {
-            RowInspection::Inspected => NestedMenuRowEmphasis::Selected,
-            RowInspection::Uninspected => NestedMenuRowEmphasis::Plain,
-        }
-    }
 }
 
 pub(crate) fn menu_metrics(config: &Config) -> NestedMenuMetrics {

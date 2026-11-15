@@ -35,7 +35,7 @@ impl IntoTableRecord<2> for &OomKillEntry {
             OomKiller::Kernel => "kernel",
             OomKiller::Oomd => "systemd-oomd",
         };
-        TableRecord::new(
+        TableRecord::with_cells(
             ValueCell::Time {
                 at: self.at.into(),
                 format: LocalizedTimeFormat::TimeOfDay,

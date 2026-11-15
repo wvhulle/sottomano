@@ -56,7 +56,7 @@ impl IntoTableRecord<4> for &EventRow<'_> {
             Some(url) => linked_title(&self.event.summary, url),
             None => self.event.summary.as_str().into(),
         };
-        TableRecord::new(
+        TableRecord::with_cells(
             title,
             [
                 event_date_cell(self.event.start),

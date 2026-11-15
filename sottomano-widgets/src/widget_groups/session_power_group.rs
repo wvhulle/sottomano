@@ -1,7 +1,7 @@
 use std::{iter::once, time::Duration};
 
 use corredo::{
-    popovers::{ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing},
+    popovers::{ContextMenuLine, ContextMenuRow, ContextMenuTrailing, RowGesture},
     theming::text_color,
 };
 use iced::{Element, Task, border::Radius};
@@ -63,7 +63,7 @@ impl SessionMenuEntry {
             label: Some(self.action.verb().to_owned()),
             trailing: note,
             depth: 0,
-            press: ContextMenuRowPress::Enabled(SessionMessage::Press(self.action)),
+            press: RowGesture::Publishes(SessionMessage::Press(self.action)),
         })
     }
 }

@@ -7,7 +7,7 @@ use std::{
 };
 
 use corredo::data_tables::GroupedTable;
-use iced::Element;
+use iced::{Element, alignment::Horizontal};
 use sottomano_desktop_sources::SnapshotSource;
 use sottomano_toml_config::severity::Severity;
 
@@ -17,8 +17,7 @@ use crate::{
     hover_cards::{PopupMessage, PressHints, hover_card_content::HoverCardContent},
     widgets::{
         keyed_record_table::{
-            ColumnHeading, IntoTableRecord, TableColumns, column_record_table,
-            grouped_record_table, labeled_value_record_table,
+            ColumnHeading, IntoTableRecord, TableColumns, column_record_table, grouped_record_table,
         },
         value_cells::{LabeledValue, ValueCell},
     },
@@ -213,7 +212,7 @@ impl Section {
 }
 
 pub fn dictionary_table(entries: impl IntoIterator<Item = LabeledValue>) -> SectionTable {
-    labeled_value_record_table(entries)
+    column_record_table(TableColumns::Unheaded(vec![Horizontal::Left]), entries)
 }
 
 pub fn headed_table<const COLUMNS: usize>(

@@ -595,6 +595,7 @@ impl DesktopShell {
                 .overlay_settings_group
                 .layer
                 .appearance()
+                .frame
                 .corner_radius_px,
         );
         match target {

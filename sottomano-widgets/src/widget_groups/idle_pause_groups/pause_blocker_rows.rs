@@ -163,7 +163,7 @@ impl GroupItemReading for PauseBlocker {
 
 impl IntoTableRecord<1> for &PauseBlocker {
     fn into_table_record(self) -> TableRecord<1> {
-        TableRecord::new(self.holder.clone(), [self.why.clone().into()])
+        TableRecord::with_cells(self.holder.clone(), [self.why.clone().into()])
     }
 }
 
@@ -185,7 +185,7 @@ impl IntoTableRecord<2> for SecretMemoryHolderRecord<'_> {
                 )
             },
         );
-        TableRecord::new(
+        TableRecord::with_cells(
             blocker.holder.clone(),
             [pid_text.into(), window_text.into()],
         )

@@ -81,7 +81,7 @@ fn transferred_bytes_cell(byte_count: u64) -> ValueCell {
 
 impl IntoTableRecord<7> for &Peer {
     fn into_table_record(self) -> TableRecord<7> {
-        TableRecord::new(
+        TableRecord::with_cells(
             self.name.as_str(),
             [
                 self.ip.as_str().into(),

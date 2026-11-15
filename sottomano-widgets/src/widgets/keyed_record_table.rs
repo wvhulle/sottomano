@@ -1,8 +1,7 @@
 use corredo::data_tables::{self as generic_table, GroupedTable, TableRow};
-use iced::alignment::Horizontal;
 use sottomano_toml_config::severity::Severity;
 
-use crate::widgets::value_cells::{LabeledValue, ValueCell};
+use crate::widgets::value_cells::ValueCell;
 
 pub type ColumnHeading = generic_table::ColumnHeading<'static>;
 pub type TableColumns = generic_table::TableColumns<'static>;
@@ -19,12 +18,6 @@ impl<const COLUMNS: usize> IntoTableRecord<COLUMNS> for TableRecord<COLUMNS> {
     }
 }
 
-impl IntoTableRecord<1> for LabeledValue {
-    fn into_table_record(self) -> TableRecord<1> {
-        TableRecord::new(self.key.clone(), [self.value]).level(self.severity)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableRecord<const COLUMNS: usize> {
     key: ValueCell,
@@ -33,7 +26,7 @@ pub struct TableRecord<const COLUMNS: usize> {
 }
 
 impl<const COLUMNS: usize> TableRecord<COLUMNS> {
-    pub fn new(key: impl Into<ValueCell>, cells: [ValueCell; COLUMNS]) -> Self {
+    pub fn with_cells(key: impl Into<ValueCell>, cells: [ValueCell; COLUMNS]) -> Self {
         Self {
             key: key.into(),
             cells,
@@ -44,6 +37,23 @@ impl<const COLUMNS: usize> TableRecord<COLUMNS> {
     #[must_use]
     pub fn level(self, level: Severity) -> Self {
         Self { level, ..self }
+    }
+
+    #[must_use]
+    pub fn key(&self) -> &ValueCell {
+        &self.key
+    }
+}
+
+impl TableRecord<1> {
+    pub fn new(key: impl Into<ValueCell>, value: impl Into<ValueCell>) -> Self {
+        Self::with_cells(key, [value.into()])
+    }
+
+    #[must_use]
+    pub fn value(&self) -> &ValueCell {
+        let [value] = &self.cells;
+        value
     }
 }
 
@@ -68,12 +78,6 @@ pub fn column_record_table<const COLUMNS: usize>(
     GroupedTable::new(columns, record_cells(records))
 }
 
-pub fn labeled_value_record_table(
-    entries: impl IntoIterator<Item = LabeledValue>,
-) -> GroupedTable<'static, ValueCell, Severity> {
-    column_record_table(TableColumns::Unheaded(vec![Horizontal::Left]), entries)
-}
-
 pub fn grouped_record_table<const COLUMNS: usize>(
     columns: TableColumns,
     groups: impl IntoIterator<Item: IntoIterator<Item: IntoTableRecord<COLUMNS>>>,
@@ -90,7 +94,10 @@ pub fn grouped_record_table<const COLUMNS: usize>(
 mod tests {
     use std::num::NonZeroUsize;
 
+    use iced::alignment::Horizontal;
+
     use super::*;
+    use crate::widgets::value_cells::LabeledValue;
 
     struct Planet {
         name: &'static str,
@@ -104,7 +111,7 @@ mod tests {
             } else {
                 Severity::Normal
             };
-            TableRecord::new(self.name, [self.moons.to_string().into(), ValueCell::Blank])
+            TableRecord::with_cells(self.name, [self.moons.to_string().into(), ValueCell::Blank])
                 .level(level)
         }
     }
@@ -145,8 +152,8 @@ mod tests {
         assert_eq!(
             table.rows(),
             [
-                KeyedTableRow::Record(TableRecord::new("Mars", ["1".into()]).into()),
-                KeyedTableRow::Record(TableRecord::new("Venus", ["1".into()]).into()),
+                KeyedTableRow::Record(TableRecord::with_cells("Mars", ["1".into()]).into()),
+                KeyedTableRow::Record(TableRecord::with_cells("Venus", ["1".into()]).into()),
             ]
         );
     }
@@ -168,10 +175,10 @@ mod tests {
             table.rows(),
             [
                 KeyedTableRow::Record(
-                    TableRecord::new("Mars", ["2".into(), ValueCell::Blank]).into()
+                    TableRecord::with_cells("Mars", ["2".into(), ValueCell::Blank]).into()
                 ),
                 KeyedTableRow::Record(
-                    TableRecord::new("Venus", ["0".into(), ValueCell::Blank])
+                    TableRecord::with_cells("Venus", ["0".into(), ValueCell::Blank])
                         .level(Severity::Warning)
                         .into()
                 ),
@@ -210,7 +217,10 @@ mod tests {
             ["record", "record", "continuation"]
         );
         let totalled = column_record_table(moon_columns(), &solar_system).with_total_record(
-            RecordCells::from(TableRecord::new("Total", ["2".into(), ValueCell::Blank])),
+            RecordCells::from(TableRecord::with_cells(
+                "Total",
+                ["2".into(), ValueCell::Blank],
+            )),
         );
         assert_eq!(row_shapes(&totalled), ["record", "record", "total"]);
         assert_eq!(totalled.records().count(), 2);

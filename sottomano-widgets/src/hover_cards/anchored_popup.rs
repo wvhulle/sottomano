@@ -1,8 +1,5 @@
-use corredo::{
-    orientation::Edge,
-    popovers::{
-        AnchoredPopup, OutsidePress, PopupArrival, PopupFraming, PopupRegions, PopupRendering,
-    },
+use corredo::popovers::{
+    AnchoredPopup, OutsidePress, PopupArrival, PopupFraming, PopupRegions, PopupRendering,
 };
 use iced::{
     Element, Point, Rectangle, Size, advanced::widget::Operation, border::Radius, time::Duration,
@@ -15,7 +12,10 @@ use crate::{
         region_translation::translated_regions,
     },
     hover_cards::hover_card_transition::ShownTarget,
-    widgets::{shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade},
+    widgets::{
+        screen_edge::screen_edge_of, shell_layer_appearance::LayerAppearance,
+        typing_under_cards::CardBackgroundFade,
+    },
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -44,14 +44,6 @@ impl<Message> PressCatcher<Message> {
 pub struct PopupMorph {
     pub duration: Duration,
     pub shown: ShownTarget,
-}
-
-fn popup_side_of(position: Position) -> Edge {
-    match position {
-        Position::Top => Edge::Bottom,
-        Position::Bottom => Edge::Top,
-        Position::Left => Edge::Right,
-    }
 }
 
 fn report_shell_regions(
@@ -118,13 +110,13 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
         target @ ShownTarget::Target(_) => Some(target),
     };
     let popup = AnchoredPopup::with_renderings(renderings, anchor)
-        .side(popup_side_of(position))
+        .side(screen_edge_of(position).opposite())
         .gap(config.theme.spacing.item_gap)
         .leading_alignment(
             config.theme.spacing.surface_inset + config.theme.font.icon_size_px / 2.0,
         )
         .morph_duration(morph.duration)
-        .frame_over(move |popup| appearance_over(popup).frame_style())
+        .frame_over(move |popup| appearance_over(popup).frame)
         .outside_press(outside_press)
         .identified_by(shown);
     translated_regions(popup, move |regions: &PopupRegions, operation| {
@@ -219,7 +211,7 @@ mod tests {
             ORIENTATION,
             NotchRowAnchor::FromPrimaryTop(0.0),
         )
-        .frame(appearance.frame_style())
+        .frame(appearance.frame)
         .row_height(config.desktop_panels.height)
         .gap_to_parent(config.theme.spacing.item_gap)
         .into();

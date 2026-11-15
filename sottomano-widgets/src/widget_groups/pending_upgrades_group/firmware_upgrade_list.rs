@@ -111,7 +111,7 @@ impl GroupItemReading for Vec<FirmwareUpgrade> {
 
 impl IntoTableRecord<6> for &FirmwareUpgrade {
     fn into_table_record(self) -> TableRecord<6> {
-        TableRecord::new(
+        TableRecord::with_cells(
             self.device.clone(),
             [
                 self.vendor

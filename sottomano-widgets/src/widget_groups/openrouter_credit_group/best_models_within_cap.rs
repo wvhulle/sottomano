@@ -118,7 +118,7 @@ impl GroupItemReading for OpenRouterModelRankings {
 
 impl From<&ScoredModel> for TableRecord<5> {
     fn from(scored: &ScoredModel) -> Self {
-        TableRecord::new(
+        TableRecord::with_cells(
             ValueCell::Text(scored.model.clone()),
             [
                 Quantity::measured(

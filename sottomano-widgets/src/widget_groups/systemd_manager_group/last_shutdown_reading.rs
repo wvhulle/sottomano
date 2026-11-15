@@ -41,7 +41,7 @@ impl IntoTableRecord<2> for &UnitStop {
                 },
             ],
         };
-        TableRecord::new(self.unit.name(), cells).level(self.outcome.severity())
+        TableRecord::with_cells(self.unit.name(), cells).level(self.outcome.severity())
     }
 }
 

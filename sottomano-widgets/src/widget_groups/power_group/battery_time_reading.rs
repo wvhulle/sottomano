@@ -159,7 +159,7 @@ impl Countdown {
 
 impl IntoTableRecord<3> for Countdown {
     fn into_table_record(self) -> TableRecord<3> {
-        TableRecord::new(self.key(), self.forecast().cells())
+        TableRecord::with_cells(self.key(), self.forecast().cells())
     }
 }
 

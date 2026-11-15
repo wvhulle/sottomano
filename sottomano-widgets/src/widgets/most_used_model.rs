@@ -69,7 +69,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
     fn hover_card(&self) -> Vec<Section> {
         let ranked = self.ranked_models();
         let listed = &ranked[..ranked.len().min(LISTED_MODELS)];
-        let other = TableRecord::new(
+        let other = TableRecord::with_cells(
             "other",
             self.narrowest_to_widest.map(|span| {
                 let unlisted = usd(span
@@ -89,7 +89,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
                 listed
                     .iter()
                     .map(|model| {
-                        TableRecord::new(
+                        TableRecord::with_cells(
                             *model,
                             self.narrowest_to_widest.map(|span| {
                                 Quantity::spend(

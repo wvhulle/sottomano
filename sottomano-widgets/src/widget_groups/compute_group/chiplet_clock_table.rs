@@ -84,7 +84,7 @@ impl PhysicalCoreClock {
 impl IntoTableRecord<4> for PhysicalCoreClock {
     fn into_table_record(self) -> TableRecord<4> {
         let level = self.level();
-        TableRecord::new(
+        TableRecord::with_cells(
             format!("Core {}", self.first_thread),
             [
                 Quantity::clock_gigahertz(self.clock).into(),

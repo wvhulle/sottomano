@@ -56,7 +56,7 @@ impl JournalScopeGroup {
 impl IntoTableRecord<3> for &UnitErrors {
     fn into_table_record(self) -> TableRecord<3> {
         let message: String = self.latest_message.chars().take(MESSAGE_CAP).collect();
-        TableRecord::new(
+        TableRecord::with_cells(
             self.unit.name(),
             [
                 ValueCell::Time {

@@ -1,4 +1,4 @@
-use corredo::theming::{OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle};
+use corredo::theming::{FrameStyle, OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle};
 use sottomano_desktop_sources::sqlite_state_store::{
     Columns, StoreError, flag, in_state_store, real, with_state_store,
 };
@@ -112,14 +112,14 @@ async fn insert_default_row(
              ON CONFLICT(layer) DO NOTHING",
             (
                 layer.key(),
-                real(defaults.opacity),
-                real(defaults.corner_radius_px),
+                real(defaults.frame.opacity),
+                real(defaults.frame.corner_radius_px),
                 turso::Value::from(AppearanceValue::Blur(defaults.backdrop_blur)),
-                turso::Value::from(AppearanceValue::Shadow(defaults.shadow.casting)),
-                real(defaults.shadow.softness_px),
-                real(defaults.shadow.opacity),
-                turso::Value::from(AppearanceValue::Outline(defaults.outline.tracing)),
-                real(defaults.outline.opacity),
+                turso::Value::from(AppearanceValue::Shadow(defaults.frame.shadow.casting)),
+                real(defaults.frame.shadow.softness_px),
+                real(defaults.frame.shadow.opacity),
+                turso::Value::from(AppearanceValue::Outline(defaults.frame.outline.tracing)),
+                real(defaults.frame.outline.opacity),
             ),
         )
         .await?;
@@ -158,14 +158,14 @@ async fn write_appearance(
                  outline_opacity = ?9",
             (
                 layer.key(),
-                real(appearance.opacity),
-                real(appearance.corner_radius_px),
+                real(appearance.frame.opacity),
+                real(appearance.frame.corner_radius_px),
                 turso::Value::from(AppearanceValue::Blur(appearance.backdrop_blur)),
-                turso::Value::from(AppearanceValue::Shadow(appearance.shadow.casting)),
-                real(appearance.shadow.softness_px),
-                real(appearance.shadow.opacity),
-                turso::Value::from(AppearanceValue::Outline(appearance.outline.tracing)),
-                real(appearance.outline.opacity),
+                turso::Value::from(AppearanceValue::Shadow(appearance.frame.shadow.casting)),
+                real(appearance.frame.shadow.softness_px),
+                real(appearance.frame.shadow.opacity),
+                turso::Value::from(AppearanceValue::Outline(appearance.frame.outline.tracing)),
+                real(appearance.frame.outline.opacity),
             ),
         )
         .await?;
@@ -196,34 +196,36 @@ async fn read_layer_appearance(
         columns.integer(&row, setting.column())
     };
     Ok(LayerAppearance {
-        background: defaults.background,
-        opacity: real(AppearanceSetting::Opacity)?,
-        corner_radius_px: real(AppearanceSetting::CornerRadius)?,
+        frame: FrameStyle {
+            opacity: real(AppearanceSetting::Opacity)?,
+            corner_radius_px: real(AppearanceSetting::CornerRadius)?,
+            shadow: ShadowStyle {
+                casting: match stored_integer(AppearanceSetting::DropShadow)? {
+                    0 => ShadowCasting::Omitted,
+                    _ => ShadowCasting::Cast,
+                },
+                softness_px: real(AppearanceSetting::ShadowSoftness)?,
+                opacity: real(AppearanceSetting::ShadowOpacity)?,
+            },
+            outline: OutlineStyle {
+                tracing: match stored_integer(AppearanceSetting::Outline)? {
+                    0 => OutlineTracing::Omitted,
+                    _ => OutlineTracing::Drawn,
+                },
+                opacity: real(AppearanceSetting::OutlineOpacity)?,
+            },
+            ..defaults.frame
+        },
         backdrop_blur: match stored_integer(AppearanceSetting::Blurred)? {
             0 => BackdropBlur::Clear,
             _ => BackdropBlur::Blurred,
-        },
-        shadow: ShadowStyle {
-            casting: match stored_integer(AppearanceSetting::DropShadow)? {
-                0 => ShadowCasting::Omitted,
-                _ => ShadowCasting::Cast,
-            },
-            softness_px: real(AppearanceSetting::ShadowSoftness)?,
-            opacity: real(AppearanceSetting::ShadowOpacity)?,
-        },
-        outline: OutlineStyle {
-            tracing: match stored_integer(AppearanceSetting::Outline)? {
-                0 => OutlineTracing::Omitted,
-                _ => OutlineTracing::Drawn,
-            },
-            opacity: real(AppearanceSetting::OutlineOpacity)?,
         },
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use corredo::theming::{OutlineTracing, ShadowCasting};
+    use corredo::theming::{FrameStyle, OutlineTracing, ShadowCasting};
     use sottomano_desktop_sources::sqlite_state_store::{flag, migrated_in_memory_store, real};
 
     use super::{AppearanceSetting, read_layer_appearance, write_appearance, write_setting};
@@ -254,14 +256,14 @@ mod tests {
         let sidebar = read_layer_appearance(&connection, ShellLayer::Sidebar, defaults)
             .await
             .unwrap();
-        assert!((sidebar.opacity - 0.4).abs() < f32::EPSILON);
-        assert!((sidebar.corner_radius_px - 9.0).abs() < f32::EPSILON);
+        assert!((sidebar.frame.opacity - 0.4).abs() < f32::EPSILON);
+        assert!((sidebar.frame.corner_radius_px - 9.0).abs() < f32::EPSILON);
         assert_eq!(sidebar.backdrop_blur, BackdropBlur::Blurred);
-        assert_eq!(sidebar.shadow.casting, ShadowCasting::Omitted);
-        assert!((sidebar.shadow.softness_px - 33.0).abs() < f32::EPSILON);
-        assert!((sidebar.shadow.opacity - 0.5).abs() < f32::EPSILON);
-        assert_eq!(sidebar.outline.tracing, OutlineTracing::Omitted);
-        assert!((sidebar.outline.opacity - 0.75).abs() < f32::EPSILON);
+        assert_eq!(sidebar.frame.shadow.casting, ShadowCasting::Omitted);
+        assert!((sidebar.frame.shadow.softness_px - 33.0).abs() < f32::EPSILON);
+        assert!((sidebar.frame.shadow.opacity - 0.5).abs() < f32::EPSILON);
+        assert_eq!(sidebar.frame.outline.tracing, OutlineTracing::Omitted);
+        assert!((sidebar.frame.outline.opacity - 0.75).abs() < f32::EPSILON);
 
         let panels = read_layer_appearance(&connection, ShellLayer::Panels, defaults)
             .await
@@ -272,10 +274,13 @@ mod tests {
     #[tokio::test]
     async fn a_whole_appearance_round_trips_in_one_write() {
         let connection = migrated_in_memory_store().await;
+        let sidebar = ShellLayer::Sidebar.default_appearance();
         let written = LayerAppearance {
-            opacity: 0.25,
+            frame: FrameStyle {
+                opacity: 0.25,
+                ..sidebar.frame
+            },
             backdrop_blur: BackdropBlur::Clear,
-            ..ShellLayer::Sidebar.default_appearance()
         };
         write_appearance(&connection, ShellLayer::Sidebar, written)
             .await

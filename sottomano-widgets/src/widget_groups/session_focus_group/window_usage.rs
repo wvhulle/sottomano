@@ -57,7 +57,7 @@ impl WindowUsage<'_> {
             .into_iter()
             .filter(|total| matches!(total.unit, FocusUnit::Project(_)))
             .map(|total| {
-                TableRecord::new(
+                TableRecord::with_cells(
                     total.unit.label().into_owned(),
                     [ValueCell::duration(total.spent)],
                 )

@@ -30,7 +30,7 @@ fn timeline_record(
     comparison: Option<&DurationComparison>,
     meaning: &str,
 ) -> TableRecord<4> {
-    TableRecord::new(
+    TableRecord::with_cells(
         stage.to_owned(),
         [
             ValueCell::duration(took),
@@ -47,7 +47,7 @@ fn timeline_record(
 }
 
 fn login_record(stage: &str, took: Duration, meaning: &str) -> TableRecord<2> {
-    TableRecord::new(
+    TableRecord::with_cells(
         stage.to_owned(),
         [
             ValueCell::duration(took),

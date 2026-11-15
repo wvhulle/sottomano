@@ -1,4 +1,4 @@
-use corredo::theming::{OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle};
+use corredo::theming::{FrameStyle, OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle};
 use sottomano_desktop_sources::screen_brightness_color::solar_switch_schedule::ColorMode;
 
 use crate::{
@@ -31,6 +31,16 @@ impl Default for ShellAppearance {
 }
 
 impl ShellAppearance {
+    #[must_use]
+    pub fn layer(&self, shell_layer: ShellLayer) -> LayerAppearance {
+        match shell_layer {
+            ShellLayer::Panels => self.panels,
+            ShellLayer::Sidebar => self.sidebar,
+            ShellLayer::Overlays => self.overlays,
+            ShellLayer::Menus => self.menus,
+        }
+    }
+
     #[must_use]
     pub fn look_comparison(&self, other: &Self) -> LookComparison {
         let layer_comparisons = [
@@ -107,12 +117,14 @@ impl AppearancePreset {
         let shaped = self.shaped_layers(current);
         ShellAppearance {
             sidebar: LayerAppearance {
-                backdrop_blur: BackdropBlur::Blurred,
-                shadow: ShadowStyle {
-                    casting: ShadowCasting::Cast,
-                    ..shaped.sidebar.shadow
+                frame: FrameStyle {
+                    shadow: ShadowStyle {
+                        casting: ShadowCasting::Cast,
+                        ..shaped.sidebar.frame.shadow
+                    },
+                    ..shaped.sidebar.frame
                 },
-                ..shaped.sidebar
+                backdrop_blur: BackdropBlur::Blurred,
             },
             overlays: LayerAppearance {
                 backdrop_blur: BackdropBlur::Blurred,
@@ -127,13 +139,23 @@ impl AppearancePreset {
     }
 
     fn shaped_layers(self, current: ShellAppearance) -> ShellAppearance {
+        let with_opacity = |layer: LayerAppearance, opacity: f32| LayerAppearance {
+            frame: FrameStyle {
+                opacity,
+                ..layer.frame
+            },
+            ..layer
+        };
         match self {
             Self::ClearDark => {
                 let cleared = |layer: LayerAppearance| LayerAppearance {
-                    opacity: 0.0,
-                    shadow: ShadowStyle {
-                        casting: ShadowCasting::Omitted,
-                        ..layer.shadow
+                    frame: FrameStyle {
+                        opacity: 0.0,
+                        shadow: ShadowStyle {
+                            casting: ShadowCasting::Omitted,
+                            ..layer.frame.shadow
+                        },
+                        ..layer.frame
                     },
                     ..layer
                 };
@@ -142,36 +164,34 @@ impl AppearancePreset {
                 ShellAppearance {
                     scheme: ColorMode::Dark,
                     panels: LayerAppearance {
-                        backdrop_blur: BackdropBlur::Clear,
-                        outline: OutlineStyle {
-                            tracing: OutlineTracing::Omitted,
-                            ..panels.outline
+                        frame: FrameStyle {
+                            outline: OutlineStyle {
+                                tracing: OutlineTracing::Omitted,
+                                ..panels.frame.outline
+                            },
+                            ..panels.frame
                         },
-                        ..panels
+                        backdrop_blur: BackdropBlur::Clear,
                     },
                     sidebar: LayerAppearance {
-                        opacity: 0.55,
-                        outline: OutlineStyle {
-                            tracing: OutlineTracing::Drawn,
-                            ..sidebar.outline
+                        frame: FrameStyle {
+                            opacity: 0.55,
+                            outline: OutlineStyle {
+                                tracing: OutlineTracing::Drawn,
+                                ..sidebar.frame.outline
+                            },
+                            ..sidebar.frame
                         },
                         ..sidebar
                     },
-                    overlays: LayerAppearance {
-                        opacity: 0.75,
-                        ..current.overlays
-                    },
-                    menus: LayerAppearance {
-                        opacity: 0.75,
-                        ..current.menus
-                    },
+                    overlays: with_opacity(current.overlays, 0.75),
+                    menus: with_opacity(current.menus, 0.75),
                 }
             }
             Self::BrightOffice => {
                 let solid = |layer: LayerAppearance| LayerAppearance {
-                    opacity: 0.95,
                     backdrop_blur: BackdropBlur::Clear,
-                    ..layer
+                    ..with_opacity(layer, 0.95)
                 };
                 ShellAppearance {
                     scheme: ColorMode::Light,
@@ -183,9 +203,8 @@ impl AppearancePreset {
             }
             Self::FrostedDark => {
                 let frosted = |layer: LayerAppearance, opacity: f32| LayerAppearance {
-                    opacity,
                     backdrop_blur: BackdropBlur::Blurred,
-                    ..layer
+                    ..with_opacity(layer, opacity)
                 };
                 ShellAppearance {
                     scheme: ColorMode::Dark,
@@ -201,7 +220,7 @@ impl AppearancePreset {
 
 #[cfg(test)]
 mod tests {
-    use corredo::theming::{ShadowCasting, ShadowStyle};
+    use corredo::theming::{FrameStyle, ShadowCasting, ShadowStyle};
 
     use super::{AppearancePreset, ShellAppearance};
     use crate::{
@@ -213,12 +232,14 @@ mod tests {
     fn every_preset_blurs_and_shadows_the_sidebar() {
         let plain_sidebar = ShellAppearance {
             sidebar: LayerAppearance {
-                backdrop_blur: BackdropBlur::Clear,
-                shadow: ShadowStyle {
-                    casting: ShadowCasting::Omitted,
-                    ..ShellAppearance::default().sidebar.shadow
+                frame: FrameStyle {
+                    shadow: ShadowStyle {
+                        casting: ShadowCasting::Omitted,
+                        ..ShellAppearance::default().sidebar.frame.shadow
+                    },
+                    ..ShellAppearance::default().sidebar.frame
                 },
-                ..ShellAppearance::default().sidebar
+                backdrop_blur: BackdropBlur::Clear,
             },
             ..ShellAppearance::default()
         };
@@ -230,7 +251,7 @@ mod tests {
                 "{preset:?}"
             );
             assert_eq!(
-                applied.sidebar.shadow.casting,
+                applied.sidebar.frame.shadow.casting,
                 ShadowCasting::Cast,
                 "{preset:?}"
             );

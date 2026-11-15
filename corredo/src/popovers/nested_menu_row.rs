@@ -15,7 +15,7 @@ use iced::{
 };
 
 use crate::{
-    popovers::CascadeDirection,
+    popovers::{CascadeDirection, RowGesture},
     press_actions::flat_button,
     theming::{background_strong_color, primary_weak_color, primary_weak_text_color, text_color},
 };
@@ -52,11 +52,6 @@ pub struct NestedMenuRowContent<'a, Message> {
     pub trailing: Vec<Element<'a, Message>>,
 }
 
-pub enum NestedMenuRowPress<Message> {
-    Inert,
-    Performs(Message),
-}
-
 #[must_use]
 pub fn nested_menu_row_text_color(emphasis: NestedMenuRowEmphasis) -> fn(&Theme) -> Color {
     match emphasis {
@@ -84,7 +79,7 @@ pub fn nested_menu_row<'a, Message: Clone + 'a>(
     metrics: NestedMenuMetrics,
     content: NestedMenuRowContent<'a, Message>,
     look: NestedMenuRowLook,
-    press: NestedMenuRowPress<Message>,
+    press: RowGesture<Message>,
     hover_reaction: RowHoverReaction<Message>,
 ) -> Element<'a, Message> {
     let NestedMenuRowContent {
@@ -105,12 +100,12 @@ pub fn nested_menu_row<'a, Message: Clone + 'a>(
         .align_y(Alignment::Center);
     let padding = Padding::ZERO.horizontal(metrics.side_inset_px);
     let body: Element<'a, Message> = match press {
-        NestedMenuRowPress::Inert => container(line)
+        RowGesture::Inert => container(line)
             .width(Length::Fill)
             .height(metrics.row_height_px)
             .padding(padding)
             .into(),
-        NestedMenuRowPress::Performs(press_message) => button(line)
+        RowGesture::Publishes(press_message) => button(line)
             .width(Length::Fill)
             .height(metrics.row_height_px)
             .padding(padding)

@@ -4,7 +4,7 @@ use corredo::{
     data_tables::text_grouped_table,
     gauges::FillGauge,
     popovers::{
-        ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing, PopupVisibility,
+        ContextMenuLine, ContextMenuRow, ContextMenuTrailing, PopupVisibility, RowGesture,
         context_menu, popup_trigger,
     },
     press_actions::flash_on_press_text,
@@ -92,7 +92,7 @@ impl WidgetGallery {
             label: Some(format!("Pressed {} times", self.menu_presses)),
             trailing: ContextMenuTrailing::Nothing,
             depth: 0,
-            press: ContextMenuRowPress::Enabled(GalleryMessage::MenuEntryPressed),
+            press: RowGesture::Publishes(GalleryMessage::MenuEntryPressed),
         })]);
         column![
             animated_text(format!("Slider at {:.0}", self.slider_value))

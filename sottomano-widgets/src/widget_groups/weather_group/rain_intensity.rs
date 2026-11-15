@@ -206,7 +206,7 @@ impl IntoTableRecord<3> for &RainTimelineRow<'_> {
             at: self.reading.starts_at(),
             format: LocalizedTimeFormat::HourAndMinute,
         };
-        TableRecord::new(
+        TableRecord::with_cells(
             time,
             [
                 rain_amount_cell(self.reading.intensity(), self.scale),

@@ -7,8 +7,8 @@ mod popup_trigger;
 pub use popup_trigger::{PopupTrigger, PopupVisibility, popup_trigger};
 mod context_menu;
 pub use context_menu::{
-    ContextMenu, ContextMenuLine, ContextMenuMetrics, ContextMenuRow, ContextMenuRowPress,
-    ContextMenuTrailing, context_menu,
+    ContextMenu, ContextMenuLine, ContextMenuMetrics, ContextMenuRow, ContextMenuTrailing,
+    context_menu,
 };
 mod popup_cascade;
 pub use popup_cascade::{CascadeDirection, CascadeOrientation, PopupGrowth};
@@ -24,8 +24,7 @@ pub use nested_menu_state::{
 mod nested_menu_row;
 pub use nested_menu_row::{
     NestedMenuMetrics, NestedMenuRowContent, NestedMenuRowEmphasis, NestedMenuRowLook,
-    NestedMenuRowPress, RowHoverReaction, SatelliteReach, nested_menu_row,
-    nested_menu_row_text_color,
+    RowHoverReaction, SatelliteReach, nested_menu_row, nested_menu_row_text_color,
 };
 mod cascade_row;
 pub use cascade_row::{CascadeRow, cascade_row};

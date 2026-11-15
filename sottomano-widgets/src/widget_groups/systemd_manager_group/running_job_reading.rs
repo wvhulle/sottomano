@@ -32,7 +32,7 @@ use crate::{
 
 impl IntoTableRecord<2> for &SlowJob {
     fn into_table_record(self) -> TableRecord<2> {
-        TableRecord::new(
+        TableRecord::with_cells(
             self.unit.clone(),
             [
                 self.job_type.clone().into(),

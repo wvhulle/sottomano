@@ -1,7 +1,7 @@
 use std::{collections::HashSet, iter::once};
 
 use corredo::{
-    popovers::{ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing},
+    popovers::{ContextMenuLine, ContextMenuRow, ContextMenuTrailing, RowGesture},
     theming::text_color,
 };
 use sottomano_desktop_sources::desktop_windows_apps::application_menu_nodes::{MenuKind, MenuNode};
@@ -99,9 +99,9 @@ impl<'c, M: Clone + 'c> ApplicationMenuLines<'c, M> {
             trailing,
             depth,
             press: if node.enabled {
-                ContextMenuRowPress::Enabled(on_press)
+                RowGesture::Publishes(on_press)
             } else {
-                ContextMenuRowPress::Disabled
+                RowGesture::Inert
             },
         })
     }

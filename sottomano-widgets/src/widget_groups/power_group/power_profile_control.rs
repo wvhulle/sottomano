@@ -342,6 +342,6 @@ impl ProfileLife {
 
 impl IntoTableRecord<3> for ProfileLife {
     fn into_table_record(self) -> TableRecord<3> {
-        TableRecord::new(self.title(), self.forecast.cells())
+        TableRecord::with_cells(self.title(), self.forecast.cells())
     }
 }

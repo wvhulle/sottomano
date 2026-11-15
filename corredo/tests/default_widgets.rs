@@ -4,7 +4,7 @@ use corredo::{
     gauges::FillGauge,
     orientation::Axis,
     popovers::{
-        ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing, PopupVisibility,
+        ContextMenuLine, ContextMenuRow, ContextMenuTrailing, PopupVisibility, RowGesture,
         context_menu, popup_trigger,
     },
     press_actions::flash_on_press_text,
@@ -34,7 +34,7 @@ fn plain_context_menu<'a>() -> Element<'a, GalleryMessage> {
         label: Some("menu entry".to_owned()),
         trailing: ContextMenuTrailing::Submenu { open: false },
         depth: 0,
-        press: ContextMenuRowPress::Enabled(GalleryMessage::Pressed),
+        press: RowGesture::Publishes(GalleryMessage::Pressed),
     })])
     .into()
 }

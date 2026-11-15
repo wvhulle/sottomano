@@ -27,15 +27,12 @@ use crate::{
         hover_card_content::HoverCardContent,
         hover_card_transition::{
             CardRetention, Departed, DepartedContent, HoverCardTransition, LeaveIntent, Occupant,
-            Placement, ShownTarget,
+            ShownTarget,
         },
         laid_out_anchors::{LaidOutAnchors, WidgetLiveness},
     },
     layer_surfaces::{PanelEdge, SurfaceRequest},
-    widgets::{
-        shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade,
-        window_icon::WindowAssets,
-    },
+    widgets::window_icon::WindowAssets,
 };
 
 pub const HIDE_GRACE: Duration = Duration::from_millis(250);
@@ -183,21 +180,22 @@ impl HoverCardHost {
         self.laid_out_anchors.set_pointing(output, target, pointing);
     }
 
-    fn output_placement(&self, output: &str) -> OutputPlacement {
+    #[must_use]
+    pub fn presence_on(&self, output: &str) -> HoverCardPresence {
         if self
             .placement()
             .is_some_and(|placement| placement.output == output)
         {
-            OutputPlacement::OnOutput
+            HoverCardPresence::OnThisOutput
         } else {
-            OutputPlacement::Elsewhere
+            HoverCardPresence::Elsewhere
         }
     }
 
     #[must_use]
     pub fn hover_effect(&self, target: &HoverTarget, output: &str) -> HoverEffect {
         if self.shown_retention() == CardRetention::UntilDismissed
-            && self.output_placement(output) == OutputPlacement::OnOutput
+            && self.presence_on(output) == HoverCardPresence::OnThisOutput
             && self.target() != Some(target)
         {
             HoverEffect::SwitchesMenu
@@ -211,7 +209,7 @@ impl HoverCardHost {
         MenuHandleIndicator {
             pointing: self.laid_out_anchors.handle_pointing(output, target),
             menu_expansion: if self.target() == Some(target)
-                && self.output_placement(output) == OutputPlacement::OnOutput
+                && self.presence_on(output) == HoverCardPresence::OnThisOutput
             {
                 ExpansionState::Expanded
             } else {
@@ -261,10 +259,7 @@ impl HoverCardHost {
         self.transition.show(Occupant {
             target,
             announcement,
-            placement: Placement {
-                position: parent.position,
-                output: parent.output.clone(),
-            },
+            placement: parent.clone(),
             retention,
         });
     }
@@ -317,7 +312,7 @@ impl HoverCardHost {
     }
 
     #[must_use]
-    pub fn placement(&self) -> Option<&Placement> {
+    pub fn placement(&self) -> Option<&PanelEdge> {
         self.transition.placement()
     }
 
@@ -477,11 +472,7 @@ impl HoverCardHost {
                 },
                 self.press_catcher_on(output),
                 config,
-                PopupAppearances {
-                    overlay: surface_style.overlay_appearance,
-                    menu: surface_style.menu_appearance,
-                    background_fade: surface_style.background_fade,
-                },
+                surface_style.popup,
             );
         };
 
@@ -520,11 +511,7 @@ impl HoverCardHost {
             },
             self.press_catcher_on(output),
             config,
-            PopupAppearances {
-                overlay: surface_style.overlay_appearance,
-                menu: surface_style.menu_appearance,
-                background_fade: surface_style.background_fade,
-            },
+            surface_style.popup,
         ))
         .padding(surface_style.float_offset_px);
         let Some(shown_presence) = shown_presence else {
@@ -571,9 +558,7 @@ impl<'a, Message> Rendered<'a, Message> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct HoverCardSurfaceStyle {
-    pub overlay_appearance: LayerAppearance,
-    pub menu_appearance: LayerAppearance,
-    pub background_fade: CardBackgroundFade,
+    pub popup: PopupAppearances,
     pub float_offset_px: f32,
 }
 
@@ -591,8 +576,8 @@ fn hoverable_content<'a, Message: From<PopupMessage> + Clone + 'a>(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum OutputPlacement {
-    OnOutput,
+pub enum HoverCardPresence {
+    OnThisOutput,
     Elsewhere,
 }
 

@@ -34,6 +34,7 @@ use sottomano_widgets::{
     hover_cards::{
         AnchorEvent, HoverAnnouncement, HoverCardHost, HoverCardMessage, HoverTarget,
         PointerPresence,
+        anchored_popup::PopupAppearances,
         hover_card_body::hover_card_source_delivery::HoverCard,
         hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent, HoverEffect},
         hover_card_transition::CardRetention,
@@ -52,6 +53,7 @@ use sottomano_widgets::{
         appearance_presets::ShellAppearance,
         configured_theme::configured_theme,
         favicon::Favicons,
+        shell_layer_appearance::ShellLayer,
         text::{font_faces_of, point_generic_font_families_at},
         typing_under_cards::CardBackgroundFade,
         window_icon::WindowAssets,
@@ -528,11 +530,8 @@ impl ShowcaseState {
     fn group_strip(&self) -> Element<'_, ShowcaseInteraction> {
         let panel = &self.config.desktop_panels;
         let position = self.group.position();
-        let layer = match position {
-            Position::Left => self.appearance.sidebar,
-            Position::Top | Position::Bottom => self.appearance.panels,
-        };
-        let frame_style = layer.frame_style();
+        let layer = self.appearance.layer(ShellLayer::from(position));
+        let frame_style = layer.frame;
         let outlined_sides =
             outlined_sides_inward_of(position).all_when_floating(SHOWCASE_FLOAT_OFFSET_PX);
         let framed = self.strip_groups().into_iter().map(|group| {
@@ -565,9 +564,11 @@ impl ShowcaseState {
             SHOWCASE_OUTPUT,
             &self.config,
             HoverCardSurfaceStyle {
-                overlay_appearance: self.appearance.overlays,
-                menu_appearance: self.appearance.menus,
-                background_fade: CardBackgroundFade::Resting,
+                popup: PopupAppearances {
+                    overlay: self.appearance.overlays,
+                    menu: self.appearance.menus,
+                    background_fade: CardBackgroundFade::Resting,
+                },
                 float_offset_px: SHOWCASE_FLOAT_OFFSET_PX,
             },
             self.window_assets(),

@@ -50,7 +50,7 @@ impl<'a> WindowAnchoredToasts<'a> {
                 card_roles: RegionRoles {
                     pointer_input: PointerInput::Accepted,
                     backdrop_blur: overlays.backdrop_blur,
-                    corner_radius: Radius::from(overlays.corner_radius_px),
+                    corner_radius: Radius::from(overlays.frame.corner_radius_px),
                 },
                 ids: Vec::new(),
                 anchors: Vec::new(),

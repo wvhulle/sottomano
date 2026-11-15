@@ -59,7 +59,7 @@ impl IntoTableRecord<5> for &TaskRow<'_> {
             Some(url) => linked_title(&self.task.summary, url),
             None => self.task.summary.as_str().into(),
         };
-        TableRecord::new(
+        TableRecord::with_cells(
             title,
             [
                 self.task

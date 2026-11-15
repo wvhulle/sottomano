@@ -43,7 +43,7 @@ impl<'a> ContextFill<'a> {
 }
 
 fn slot_record(slot: &LlamaSlot) -> TableRecord<3> {
-    TableRecord::new(
+    TableRecord::with_cells(
         slot.id.to_string(),
         [
             if slot.processing {

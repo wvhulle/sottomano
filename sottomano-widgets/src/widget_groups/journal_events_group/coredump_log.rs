@@ -29,7 +29,7 @@ use crate::{
 
 impl IntoTableRecord<4> for &CoredumpEntry {
     fn into_table_record(self) -> TableRecord<4> {
-        TableRecord::new(
+        TableRecord::with_cells(
             ValueCell::Time {
                 at: self.at.into(),
                 format: LocalizedTimeFormat::TimeOfDay,

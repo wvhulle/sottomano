@@ -9,6 +9,7 @@ use chrono::Locale;
 use corredo::{
     gauges::activity_line,
     orientation::Axis,
+    popovers::NestedMenuRowEmphasis,
     press_actions::flat_button,
     theming::{primary_color, secondary_text_color, text_color},
     transitions::{expand_transition, reveal},
@@ -24,7 +25,7 @@ use crate::{
     clock::Clock,
     desktop_panels::panel_slot::PanelSlot,
     group_items::{
-        aligned_quantity::{AlignedQuantity, ItemAlignment},
+        aligned_quantity::ItemAlignment,
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
             ItemPinning, MenuParts, RowScroll,
@@ -34,9 +35,15 @@ use crate::{
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         source_reading::reading_value,
     },
-    group_menus::group_menu_state::{
-        AlertPinState, GroupMenuPin, GroupMenuState, GroupMenuTopic, MenuPinState,
-        PanelPinDuration, PanelRaise,
+    group_menus::{
+        group_menu_state::{
+            AlertPinState, GroupMenuPin, GroupMenuState, GroupMenuTopic, MenuPinState,
+            PanelPinDuration, PanelRaise,
+        },
+        group_menu_view::MenuSections,
+        menu_rows::{
+            group_menu_group_rows::GroupMenuGroupRow, quantity_table::QuantityTableColumn,
+        },
     },
     hover_cards::{
         HoverAnnouncement, HoverCardMessage, HoverOrigin, HoverTarget, MenuHandleIndicator,
@@ -129,6 +136,14 @@ impl<Key: Ord> KeyedExpansions<Key> {
 }
 
 impl WidgetGroupExpansion {
+    #[must_use]
+    pub fn handle_indicator(&self) -> MenuHandleIndicator {
+        MenuHandleIndicator {
+            pointing: self.cursor_pointing,
+            menu_expansion: self.state,
+        }
+    }
+
     pub fn update(&mut self, msg: WidgetGroupExpansionMessage) -> ExpansionChange {
         let previous_state = self.state;
         match msg {
@@ -302,14 +317,6 @@ impl<M> FromIterator<GroupToastRequests<M>> for GroupToastRequests<M> {
     }
 }
 
-pub(crate) struct GroupMenuRowParts<'a, M> {
-    pub group_identity: WidgetGroupIdentity,
-    pub group_title: WidgetGroupTitle,
-    pub face: MenuParts<'a, M>,
-    pub aligned: BTreeMap<AlignedQuantity, Element<'a, GroupEvent<M>>>,
-    pub item_rows: Vec<GroupMenuItemRow<'a, M>>,
-}
-
 pub(crate) enum GroupItemPin {
     Unpinnable,
     Unpinned,
@@ -325,18 +332,15 @@ pub(crate) struct GroupMenuItemRow<'a, M> {
     pub parts: MenuParts<'a, M>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RowInspection {
-    Inspected,
-    Uninspected,
-}
-
 impl<M> GroupMenuItemRow<'_, M> {
-    pub(crate) fn inspection(&self, inspected_target: Option<&HoverTarget>) -> RowInspection {
+    pub(crate) fn row_emphasis(
+        &self,
+        inspected_target: Option<&HoverTarget>,
+    ) -> NestedMenuRowEmphasis {
         if inspected_target == Some(&self.inspected_target) {
-            RowInspection::Inspected
+            NestedMenuRowEmphasis::Selected
         } else {
-            RowInspection::Uninspected
+            NestedMenuRowEmphasis::Plain
         }
     }
 }
@@ -637,16 +641,14 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             .collect()
     }
 
-    pub(crate) fn menu_member(
+    pub(crate) fn extend_menu_sections(
         self,
         config: &'a Config,
         clock: Clock,
         group_menus: &GroupMenuState,
         menu: GroupMenuTopic,
-    ) -> Option<GroupMenuRowParts<'a, M>> {
-        if self.items.is_empty() {
-            return None;
-        }
+        mut sections: MenuSections<'a, M>,
+    ) -> MenuSections<'a, M> {
         let WidgetGroupContent {
             group_identity,
             group_title,
@@ -685,16 +687,21 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 parts: item.item_row_parts(config, clock),
             })
             .collect();
-        if aligned.is_empty() && item_rows.is_empty() {
-            return None;
+        if !aligned.is_empty() {
+            sections.table_columns.push(QuantityTableColumn {
+                group_title: group_title.clone(),
+                aligned,
+            });
         }
-        Some(GroupMenuRowParts {
-            group_identity,
-            group_title,
-            face,
-            aligned,
-            item_rows,
-        })
+        if !item_rows.is_empty() {
+            sections.group_rows.push(GroupMenuGroupRow {
+                group_identity,
+                group_title,
+                face,
+                items: item_rows,
+            });
+        }
+        sections
     }
 
     #[must_use]
@@ -760,8 +767,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         let on_exit = expansion_event(WidgetGroupExpansionMessage::CursorExited);
         let edge_indicator = EdgeIndicator {
             highest_alert_severity,
-            cursor_pointing: expansion.cursor_pointing,
-            expansion_state: expansion.state,
+            handle: expansion.handle_indicator(),
         };
         let expansion_duration = config.widget_group_layout.expansion_duration;
         let animated = expand_transition(expansion.state, expansion_duration, move |reveal| {
@@ -827,8 +833,7 @@ pub(crate) fn fixed_view<'a, M: Clone + 'a>(
 #[derive(Clone, Copy)]
 pub(crate) struct EdgeIndicator {
     pub highest_alert_severity: Severity,
-    pub cursor_pointing: PointerPresence,
-    pub expansion_state: ExpansionState,
+    pub handle: MenuHandleIndicator,
 }
 
 impl EdgeIndicator {
@@ -842,22 +847,21 @@ impl EdgeIndicator {
         };
         Self {
             highest_alert_severity,
-            cursor_pointing: handle_indicator.pointing,
-            expansion_state: handle_indicator.menu_expansion,
+            handle: handle_indicator,
         }
         .view(reveal)
     }
 
     pub(crate) fn view<'a, M: 'a>(self, reveal: f32) -> Element<'a, M> {
         let thickness = ACCENT_STROKE_PX;
-        let base = match self.cursor_pointing {
+        let base = match self.handle.pointing {
             PointerPresence::PointedAt => 0.5,
             PointerPresence::NotPointedAt => 0.2,
         };
         let revealing_opacity = base + (1.0 - base) * reveal;
         match self.highest_alert_severity {
             Severity::Low | Severity::Normal
-                if self.expansion_state == ExpansionState::Expanded =>
+                if self.handle.menu_expansion == ExpansionState::Expanded =>
             {
                 activity_line(
                     Axis::Horizontal,
@@ -867,7 +871,7 @@ impl EdgeIndicator {
                 )
             }
             Severity::Low | Severity::Normal
-                if self.cursor_pointing == PointerPresence::PointedAt =>
+                if self.handle.pointing == PointerPresence::PointedAt =>
             {
                 activity_line(Axis::Horizontal, secondary_text_color, 1.0, thickness)
             }

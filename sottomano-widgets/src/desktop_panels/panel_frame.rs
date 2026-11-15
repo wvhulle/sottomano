@@ -248,19 +248,12 @@ mod tests {
     use iced::{Rectangle, widget::space};
     use sottomano_toml_config::screen_edges::Position;
 
-    use super::{outlined_sides_inward_of, panel_frame};
-    use crate::{
-        desktop_panels::region_reporter::BackdropBlur,
-        widgets::shell_layer_appearance::LayerAppearance,
-    };
+    use super::{FrameStyle, outlined_sides_inward_of, panel_frame};
+    use crate::desktop_panels::region_reporter::BackdropBlur;
 
     #[test]
     fn a_top_panel_blurs_its_screen_edge_corners_square() {
-        let appearance = LayerAppearance {
-            corner_radius_px: 8.0,
-            ..LayerAppearance::default()
-        };
-        let frame = panel_frame::<()>(space(), appearance.frame_style())
+        let frame = panel_frame::<()>(space(), FrameStyle::default().with_corner_radius(8.0))
             .outlined_sides(outlined_sides_inward_of(Position::Top))
             .backdrop_blur(BackdropBlur::Blurred);
         let pill = Rectangle {

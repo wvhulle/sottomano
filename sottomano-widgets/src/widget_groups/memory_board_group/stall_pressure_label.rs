@@ -38,7 +38,7 @@ struct StalledTasksRow {
 
 impl IntoTableRecord<3> for StalledTasksRow {
     fn into_table_record(self) -> TableRecord<3> {
-        TableRecord::new(
+        TableRecord::with_cells(
             self.stalled_tasks,
             [
                 Quantity::share(self.averages.last_10_seconds).into(),

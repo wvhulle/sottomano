@@ -117,7 +117,7 @@ impl IntoTableRecord<4> for &Peer {
     fn into_table_record(self) -> TableRecord<4> {
         let [received, sent] =
             transfer_cells(self.traffic).unwrap_or([ValueCell::Blank, ValueCell::Blank]);
-        TableRecord::new(
+        TableRecord::with_cells(
             peer_label(self),
             [
                 endpoint_cell(&self.endpoint).unwrap_or(ValueCell::Blank),

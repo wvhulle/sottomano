@@ -40,10 +40,7 @@ use crate::{
         press_toggled_hoverable,
     },
     widget_groups::{
-        widget_group_content::{
-            EdgeIndicator, GroupEvent, GroupMenuRowParts, GroupToastRequests, RowInspection,
-            WidgetGroupContent,
-        },
+        widget_group_content::{EdgeIndicator, GroupEvent, GroupToastRequests, WidgetGroupContent},
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
@@ -150,42 +147,17 @@ impl<M> GroupMenuMessenger<M> {
     }
 }
 
-struct MenuSections<'a, M> {
-    table_columns: Vec<QuantityTableColumn<'a, M>>,
-    group_rows: Vec<GroupMenuGroupRow<'a, M>>,
+pub(crate) struct MenuSections<'a, M> {
+    pub table_columns: Vec<QuantityTableColumn<'a, M>>,
+    pub group_rows: Vec<GroupMenuGroupRow<'a, M>>,
 }
 
-impl<'a, M> MenuSections<'a, M> {
+impl<M> MenuSections<'_, M> {
     fn empty() -> Self {
         Self {
             table_columns: Vec::new(),
             group_rows: Vec::new(),
         }
-    }
-
-    fn with_member(mut self, member: GroupMenuRowParts<'a, M>) -> Self {
-        let GroupMenuRowParts {
-            group_identity,
-            group_title,
-            face,
-            aligned,
-            item_rows,
-        } = member;
-        if !aligned.is_empty() {
-            self.table_columns.push(QuantityTableColumn {
-                group_title: group_title.clone(),
-                aligned,
-            });
-        }
-        if !item_rows.is_empty() {
-            self.group_rows.push(GroupMenuGroupRow {
-                group_identity,
-                group_title,
-                face,
-                items: item_rows,
-            });
-        }
-        self
     }
 }
 
@@ -338,10 +310,15 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
                 let group_entry = GroupMenuPin::Group(member.group_identity().clone());
                 group_menus.pin_state(messenger.topic, group_entry) == MenuPinState::Unpinned
             })
-            .filter_map(|member| {
-                member.menu_member(config, card.clock, group_menus, messenger.topic)
-            })
-            .fold(MenuSections::empty(), MenuSections::with_member);
+            .fold(MenuSections::empty(), |sections, member| {
+                member.extend_menu_sections(
+                    config,
+                    card.clock,
+                    group_menus,
+                    messenger.topic,
+                    sections,
+                )
+            });
         let table = quantity_table(table_columns, config).map(|table| table.map(M::from));
         let topic = messenger.topic;
         let presentation = group_menus.presentation();
@@ -353,7 +330,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             group_menus,
         };
         let menu_groups = nested_menu_groups(&row_context, group_rows, card);
-        let list_frame = appearance.frame_style();
+        let list_frame = appearance.frame;
         let fade_extent_px = config.group_menus.scroll_fade_rows * menu_row_height(config);
         let scrolled_px = group_menus.scrolled_px(topic);
         let list_scroll_message = messenger.scroll_message();
@@ -372,7 +349,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         )
         .style(NestedMenuStyle {
             list_frame,
-            beside_frame: card.card_appearance.frame_style(),
+            beside_frame: card.card_appearance.frame,
             morph: config.overlay_surfaces.surface_morph_duration,
             gap_to_parent_px: config.theme.spacing.item_gap,
             submenu_connector: presentation.submenu_connector,
@@ -451,13 +428,15 @@ fn nested_menu_groups<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 
                 .items
                 .into_iter()
                 .map(|item| {
-                    let beside = match item.inspection(inspected_target) {
-                        RowInspection::Inspected => card
+                    let beside = match item.row_emphasis(inspected_target) {
+                        NestedMenuRowEmphasis::Selected => card
                             .view(row_context.config)
                             .map_or(BesideRow::Nothing, |card_view| {
                                 BesideRow::Card(card_view.map(M::from))
                             }),
-                        RowInspection::Uninspected => BesideRow::Nothing,
+                        NestedMenuRowEmphasis::Plain | NestedMenuRowEmphasis::Opened => {
+                            BesideRow::Nothing
+                        }
                     };
                     item_entry(row_context, &entry.group_identity, item, beside)
                 })

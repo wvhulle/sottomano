@@ -13,7 +13,7 @@ use sottomano_toml_config::{Config, SecretPaths};
 use sottomano_widgets::{
     clock::Clock,
     group_menus::group_menu_state::{GroupMenuMessage, GroupMenuState},
-    hover_cards::hover_card_surfaces::HoverCardSurfaceStyle,
+    hover_cards::{anchored_popup::PopupAppearances, hover_card_surfaces::HoverCardSurfaceStyle},
     notification_toasts::{NotificationSettings, ToastContext},
     widget_groups::{
         app_launcher_group::AppLauncherGroup,
@@ -499,9 +499,11 @@ impl ShellWidgetGroups {
         background_fade: CardBackgroundFade,
     ) -> HoverCardSurfaceStyle {
         HoverCardSurfaceStyle {
-            overlay_appearance: self.overlay_settings_group.layer.appearance(),
-            menu_appearance: self.group_menus.layer.appearance(),
-            background_fade,
+            popup: PopupAppearances {
+                overlay: self.overlay_settings_group.layer.appearance(),
+                menu: self.group_menus.layer.appearance(),
+                background_fade,
+            },
             float_offset_px: self.panel_settings_group.float_offset_px(),
         }
     }

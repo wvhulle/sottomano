@@ -21,7 +21,7 @@ const HOLD_HEADINGS: [ColumnHeading; 2] = [
 
 impl IntoTableRecord<2> for &ProfileHold {
     fn into_table_record(self) -> TableRecord<2> {
-        TableRecord::new(
+        TableRecord::with_cells(
             self.application_id.clone(),
             [self.profile.title().into(), self.reason.clone().into()],
         )

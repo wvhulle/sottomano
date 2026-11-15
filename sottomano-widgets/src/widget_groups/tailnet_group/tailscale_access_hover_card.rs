@@ -158,13 +158,13 @@ struct GrantedAccessRow<'access> {
 
 impl IntoTableRecord<1> for GrantedAccessRow<'_> {
     fn into_table_record(self) -> TableRecord<1> {
-        TableRecord::new(self.row_name, [self.access.ports_text().into()])
+        TableRecord::with_cells(self.row_name, [self.access.ports_text().into()])
     }
 }
 
 impl IntoTableRecord<2> for GrantedAccessRow<'_> {
     fn into_table_record(self) -> TableRecord<2> {
-        TableRecord::new(
+        TableRecord::with_cells(
             self.row_name,
             [
                 self.access.ports_text().into(),
@@ -282,7 +282,7 @@ impl ReadingSections for TailscaleInboundAccess {
 
 impl IntoTableRecord<3> for &PolicyRule {
     fn into_table_record(self) -> TableRecord<3> {
-        TableRecord::new(
+        TableRecord::with_cells(
             self.sources.join(", "),
             [
                 self.destinations.join(", ").into(),
@@ -295,7 +295,7 @@ impl IntoTableRecord<3> for &PolicyRule {
 
 impl IntoTableRecord<3> for &PolicySshRule {
     fn into_table_record(self) -> TableRecord<3> {
-        TableRecord::new(
+        TableRecord::with_cells(
             self.sources.join(", "),
             [
                 self.destinations.join(", ").into(),

@@ -7,7 +7,10 @@ use sottomano_desktop_sources::compositor_window_ipc::{
     compositor_connection, compositor_styling_model::StyledSurface,
 };
 use sottomano_toml_config::screen_edges::Position;
-use sottomano_widgets::layer_surfaces::{base_settings, input_regions};
+use sottomano_widgets::{
+    hover_cards::hover_card_surfaces::HoverCardPresence,
+    layer_surfaces::{base_settings, input_regions},
+};
 
 use crate::{
     desktop_shell::DesktopShell,
@@ -36,22 +39,6 @@ pub enum SurfaceRole {
     Reservation(Position),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum HoverCardPresence {
-    OnThisOutput,
-    Elsewhere,
-}
-
-impl HoverCardPresence {
-    fn on_output(hover_card_output: Option<&str>, output: &str) -> Self {
-        if hover_card_output == Some(output) {
-            HoverCardPresence::OnThisOutput
-        } else {
-            HoverCardPresence::Elsewhere
-        }
-    }
-}
-
 impl SurfaceRole {
     fn layer(self, hover_card_presence: HoverCardPresence) -> Layer {
         match (self, hover_card_presence) {
@@ -78,15 +65,12 @@ struct TrackedSurface {
 
 fn restack_around_hover_card(
     surfaces: &mut BTreeMap<Id, Surface>,
-    hover_card_output: Option<&str>,
+    presence_on: impl Fn(&str) -> HoverCardPresence,
 ) -> Vec<Message> {
     surfaces
         .iter_mut()
         .filter_map(|(&id, surface)| {
-            let layer = surface.role.layer(HoverCardPresence::on_output(
-                hover_card_output,
-                surface.output.as_str(),
-            ));
+            let layer = surface.role.layer(presence_on(surface.output.as_str()));
             (surface.layer != layer).then(|| {
                 surface.layer = layer;
                 Message::LayerChange { id, layer }
@@ -268,10 +252,7 @@ impl DesktopShell {
 
     fn track_new_surface(&mut self, output: &str, role: SurfaceRole) -> TrackedSurface {
         let id = Id::unique();
-        let layer = role.layer(HoverCardPresence::on_output(
-            self.hover_card_output(),
-            output,
-        ));
+        let layer = role.layer(self.hover_card.presence_on(output));
         self.surfaces.insert(
             id,
             Surface {
@@ -329,8 +310,9 @@ impl DesktopShell {
             )
             .map(Message::from);
         let toast_surfaces = self.reconcile_notification_toasts_surfaces();
-        let hover_card_output = self.hover_card_output().map(str::to_owned);
-        let restacked = restack_around_hover_card(&mut self.surfaces, hover_card_output.as_deref());
+        let hover_card = &self.hover_card;
+        let restacked =
+            restack_around_hover_card(&mut self.surfaces, |output| hover_card.presence_on(output));
         Task::batch(
             [hover_card_surfaces, toast_surfaces]
                 .into_iter()
@@ -433,9 +415,21 @@ mod tests {
     use iced::window::Id;
     use iced_exwlshell::reexport::Layer;
     use sottomano_toml_config::screen_edges::Position;
+    use sottomano_widgets::hover_cards::hover_card_surfaces::HoverCardPresence;
 
     use super::{Surface, SurfaceRole, restack_around_hover_card};
-    use crate::monitors::monitor_surfaces::HoverCardPresence;
+
+    fn hover_card_on_first_output(output: &str) -> HoverCardPresence {
+        if output == "DP-1" {
+            HoverCardPresence::OnThisOutput
+        } else {
+            HoverCardPresence::Elsewhere
+        }
+    }
+
+    fn hover_card_closed(_output: &str) -> HoverCardPresence {
+        HoverCardPresence::Elsewhere
+    }
 
     fn resting_surface(output: &str, role: SurfaceRole) -> Surface {
         Surface {
@@ -470,7 +464,7 @@ mod tests {
     #[test]
     fn a_hover_card_lifts_its_panel_above_the_toasts_of_its_output_only() {
         let mut surfaces = surfaces_on_two_outputs();
-        let changes = restack_around_hover_card(&mut surfaces, Some("DP-1"));
+        let changes = restack_around_hover_card(&mut surfaces, hover_card_on_first_output);
         assert_eq!(changes.len(), 2);
         assert_eq!(
             layer_of(&surfaces, "DP-1", SurfaceRole::Panel),
@@ -490,15 +484,15 @@ mod tests {
     #[test]
     fn an_unchanged_hover_card_requests_no_further_layer_changes() {
         let mut surfaces = surfaces_on_two_outputs();
-        let _lifted = restack_around_hover_card(&mut surfaces, Some("DP-1"));
-        assert!(restack_around_hover_card(&mut surfaces, Some("DP-1")).is_empty());
+        let _lifted = restack_around_hover_card(&mut surfaces, hover_card_on_first_output);
+        assert!(restack_around_hover_card(&mut surfaces, hover_card_on_first_output).is_empty());
     }
 
     #[test]
     fn closing_the_hover_card_restores_the_resting_layers() {
         let mut surfaces = surfaces_on_two_outputs();
-        let _lifted = restack_around_hover_card(&mut surfaces, Some("DP-1"));
-        let restored = restack_around_hover_card(&mut surfaces, None);
+        let _lifted = restack_around_hover_card(&mut surfaces, hover_card_on_first_output);
+        let restored = restack_around_hover_card(&mut surfaces, hover_card_closed);
         assert_eq!(restored.len(), 2);
         assert_eq!(layer_of(&surfaces, "DP-1", SurfaceRole::Panel), Layer::Top);
         assert_eq!(

@@ -20,10 +20,11 @@ use iced::{
         text::{Span, Style as TextStyle, Wrapping},
     },
 };
-use sottomano_toml_config::{severity::Severity, theme::font::ResolvedFont};
+use sottomano_toml_config::theme::font::ResolvedFont;
 
 use crate::widgets::{
     icon_glyph::IconGlyph,
+    keyed_record_table::TableRecord,
     localized_durations::{
         LengthOfTime, duration_text, relative_moment_text, signed_duration_text,
     },
@@ -130,27 +131,7 @@ impl From<&str> for ValueCell {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LabeledValue {
-    pub key: ValueCell,
-    pub value: ValueCell,
-    pub severity: Severity,
-}
-
-impl LabeledValue {
-    pub fn new(key: impl Into<ValueCell>, value: impl Into<ValueCell>) -> Self {
-        Self {
-            key: key.into(),
-            value: value.into(),
-            severity: Severity::Normal,
-        }
-    }
-
-    #[must_use]
-    pub fn level(self, severity: Severity) -> Self {
-        Self { severity, ..self }
-    }
-}
+pub type LabeledValue = TableRecord<1>;
 
 pub struct ValueCellPressMessages<Message> {
     pub copy_text: fn(String) -> Message,

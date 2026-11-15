@@ -53,7 +53,7 @@ impl IntoTableRecord<2> for &KernelOccurrence {
             at: self.latest.into(),
             format: LocalizedTimeFormat::TimeOfDay,
         };
-        TableRecord::new(
+        TableRecord::with_cells(
             at,
             [ValueCell::Hint(self.count.to_string()), message.into()],
         )
@@ -107,7 +107,7 @@ fn kernel_message_table(occurrences: &[KernelOccurrence]) -> SectionTable {
         .checked_sub(HOVER_CARD_ROWS)
         .filter(|hidden| *hidden > 0)
         .map(|hidden| {
-            TableRecord::new(
+            TableRecord::with_cells(
                 "",
                 [
                     ValueCell::Blank,

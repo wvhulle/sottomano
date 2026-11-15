@@ -1,8 +1,7 @@
 use corredo::{
     popovers::{
         BesideRow, CascadeDirection, NestedMenuItem, NestedMenuLayout, NestedMenuPresentation,
-        NestedMenuRow, NestedMenuRowEmphasis, NestedMenuRowPress, RowGesture, RowHoverReaction,
-        SatelliteReach,
+        NestedMenuRow, NestedMenuRowEmphasis, RowGesture, RowHoverReaction, SatelliteReach,
     },
     theming::{primary_weak_text_color, secondary_text_color, text_color},
 };
@@ -158,7 +157,7 @@ pub(crate) fn group_header<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     NestedMenuRow {
         content,
         emphasis,
-        press: NestedMenuRowPress::Performs(M::from(press)),
+        press: RowGesture::Publishes(M::from(press)),
         hover_reaction,
         entered: RowGesture::Inert,
         right_pressed: RowGesture::Inert,
@@ -172,9 +171,7 @@ pub(crate) fn item_entry<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     item: GroupMenuItemRow<'a, M>,
     beside: BesideRow<'a, M>,
 ) -> NestedMenuItem<'a, HoverTarget, M> {
-    let emphasis = NestedMenuRowEmphasis::from(
-        item.inspection(layout.group_menus.inspected_target(layout.menu.topic)),
-    );
+    let emphasis = item.row_emphasis(layout.group_menus.inspected_target(layout.menu.topic));
     let pin_button = |pin_weight, pin_color: fn(&iced::Theme) -> iced::Color| {
         glyph_button(
             Phosphor::PushPin(pin_weight),
@@ -202,9 +199,9 @@ pub(crate) fn item_entry<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     );
     let press = match item.gestures.left {
         GroupItemGesture::Performs { message, .. } => {
-            NestedMenuRowPress::Performs(M::from(GroupEvent::Group(message)))
+            RowGesture::Publishes(M::from(GroupEvent::Group(message)))
         }
-        GroupItemGesture::Inert => NestedMenuRowPress::Inert,
+        GroupItemGesture::Inert => RowGesture::Inert,
     };
     let right_pressed = match item.gestures.right {
         GroupItemGesture::Performs { message, .. } => {

@@ -74,7 +74,7 @@ pub(crate) fn dragging_from_start(dragged_item: DraggedPanelSlot) -> DragView {
             from: 0,
             target: DragTarget::OwnList(0),
         }),
-        ghost_frame: ShellLayer::Panels.default_appearance().frame_style(),
+        ghost_frame: ShellLayer::Panels.default_appearance().frame,
     }
 }
 

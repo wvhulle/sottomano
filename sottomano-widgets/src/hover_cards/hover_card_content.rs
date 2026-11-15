@@ -38,7 +38,7 @@ use crate::{
         HoverOrigin, MouseGesture, PanelPinOrigin, PopupMessage, PressHints,
         core_grid::CoreCellGrid,
         hover_card_body::{
-            Section, SectionTitle,
+            Section, SectionTitle, dictionary_table,
             hover_card_figure_payloads::{ChipletCells, ControllerCallouts, WorkspacePreview},
             hover_card_source_delivery::{DeliveryStamp, HoverCard, SectionSource, SourceDelivery},
         },
@@ -49,7 +49,6 @@ use crate::{
     },
     widgets::{
         icon_glyph::IconGlyph,
-        keyed_record_table::labeled_value_record_table,
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
         text::{column_heading, font_faces_of, panel_text, text_effects_of, text_face_of},
@@ -612,8 +611,7 @@ impl<'a> HoverCardContent<'a> {
                 .into(),
                 row![
                     cells,
-                    labeled_value_record_table(chiplet.facts.clone())
-                        .view(&self.record_table_style())
+                    dictionary_table(chiplet.facts.clone()).view(&self.record_table_style())
                 ]
                 .spacing(self.config.theme.spacing.group_gap)
                 .align_y(Vertical::Center)

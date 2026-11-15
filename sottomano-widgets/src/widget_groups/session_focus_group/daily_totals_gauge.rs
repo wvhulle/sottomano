@@ -134,7 +134,7 @@ impl UnitSpendRecord {
 
     fn plain_record(&self) -> TableRecord<1> {
         let level = self.severity();
-        TableRecord::new(
+        TableRecord::with_cells(
             self.total.unit.label().into_owned(),
             [ValueCell::duration(self.total.spent)],
         )
@@ -143,7 +143,7 @@ impl UnitSpendRecord {
 
     fn budgeted_record(&self) -> TableRecord<2> {
         let level = self.severity();
-        TableRecord::new(
+        TableRecord::with_cells(
             self.total.unit.label().into_owned(),
             [
                 ValueCell::duration(self.total.spent),

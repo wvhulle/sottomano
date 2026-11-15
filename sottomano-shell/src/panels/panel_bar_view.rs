@@ -138,7 +138,7 @@ impl DesktopShell {
             ..outlined_sides_inward_of(position)
         }
         .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
-        let strip = panel_frame(band, panels.frame_style())
+        let strip = panel_frame(band, panels.frame)
             .outlined_sides(outlined_sides)
             .backdrop_blur(panels.backdrop_blur);
         let roles = RegionRoles {
@@ -156,7 +156,7 @@ impl DesktopShell {
         let config = &self.config;
         let panels = self.widget_groups.panel_settings_group.layer.appearance();
         let group_framing = self.widget_groups.panel_settings_group.group_framing();
-        let frame_style = panels.frame_style();
+        let frame_style = panels.frame;
         let outlined_sides = outlined_sides_inward_of(position)
             .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
         let framed = groups.into_iter().map(|group| {

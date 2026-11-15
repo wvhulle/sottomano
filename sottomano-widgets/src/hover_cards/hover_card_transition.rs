@@ -1,15 +1,11 @@
 use iced::time::Instant;
-use sottomano_toml_config::screen_edges::Position;
 
-use crate::hover_cards::{
-    HoverAnnouncement, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
+use crate::{
+    hover_cards::{
+        HoverAnnouncement, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
+    },
+    layer_surfaces::PanelEdge,
 };
-
-#[derive(Debug, Clone)]
-pub struct Placement {
-    pub position: Position,
-    pub output: String,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CardRetention {
@@ -22,7 +18,7 @@ pub enum CardRetention {
 pub struct Occupant {
     pub target: HoverTarget,
     pub announcement: HoverAnnouncement,
-    pub placement: Placement,
+    pub placement: PanelEdge,
     pub retention: CardRetention,
 }
 
@@ -34,7 +30,7 @@ pub enum DepartedContent {
 pub struct Departed {
     pub target: HoverTarget,
     pub content: DepartedContent,
-    pub placement: Placement,
+    pub placement: PanelEdge,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -180,7 +176,7 @@ impl HoverCardTransition {
     }
 
     #[must_use]
-    pub fn placement(&self) -> Option<&Placement> {
+    pub fn placement(&self) -> Option<&PanelEdge> {
         match &self.stage {
             Stage::Showing { current, .. } => Some(&current.placement),
             Stage::Hiding { previous, .. } => Some(&previous.placement),

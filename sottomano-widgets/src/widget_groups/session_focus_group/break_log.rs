@@ -56,7 +56,7 @@ impl RecentBreaks {
         } else {
             self.moment_cell(taken.interval.until)
         };
-        TableRecord::new(
+        TableRecord::with_cells(
             self.moment_cell(taken.interval.from),
             [
                 ended,

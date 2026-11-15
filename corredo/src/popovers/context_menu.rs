@@ -9,6 +9,7 @@ use crate::{
     drag_reorder::ListEndCorners,
     gauges::activity_line,
     orientation::Axis,
+    popovers::RowGesture,
     theming::{
         TextFace, background_strong_color, background_weak_color, secondary_text_color,
         style_metrics::OUTLINE_WIDTH_PX, text_color,
@@ -22,17 +23,12 @@ pub enum ContextMenuTrailing {
     Submenu { open: bool },
 }
 
-pub enum ContextMenuRowPress<Message> {
-    Enabled(Message),
-    Disabled,
-}
-
 pub struct ContextMenuRow<'a, Message> {
     pub leading: Option<Element<'a, Message>>,
     pub label: Option<String>,
     pub trailing: ContextMenuTrailing,
     pub depth: usize,
-    pub press: ContextMenuRowPress<Message>,
+    pub press: RowGesture<Message>,
 }
 
 pub enum ContextMenuLine<'a, Message> {
@@ -150,8 +146,8 @@ fn entry<'a, Message: Clone + 'a>(
     let icon_size = style.icon_size_px;
     let row_spacing = style.item_gap_px;
     let color: fn(&Theme) -> Color = match row.press {
-        ContextMenuRowPress::Enabled(_) => text_color,
-        ContextMenuRowPress::Disabled => secondary_text_color,
+        RowGesture::Publishes(_) => text_color,
+        RowGesture::Inert => secondary_text_color,
     };
 
     let mut content = Row::new()
@@ -199,8 +195,8 @@ fn entry<'a, Message: Clone + 'a>(
         .padding(padding)
         .style(move |theme, status| button_style(theme, status, color, highlight_radius));
     match row.press {
-        ContextMenuRowPress::Enabled(message) => styled.on_press(message).into(),
-        ContextMenuRowPress::Disabled => styled.into(),
+        RowGesture::Publishes(message) => styled.on_press(message).into(),
+        RowGesture::Inert => styled.into(),
     }
 }
 
@@ -276,7 +272,7 @@ mod tests {
                 label: Some(SHORT_LABEL.to_owned()),
                 trailing: ContextMenuTrailing::Nothing,
                 depth: 0,
-                press: ContextMenuRowPress::Enabled(()),
+                press: RowGesture::Publishes(()),
             }),
             ContextMenuLine::Divider,
             ContextMenuLine::Row(ContextMenuRow {
@@ -284,7 +280,7 @@ mod tests {
                 label: Some("Store".to_owned()),
                 trailing: ContextMenuTrailing::Nothing,
                 depth: 0,
-                press: ContextMenuRowPress::Disabled,
+                press: RowGesture::Inert,
             }),
         ];
         let card: Element<'_, ()> = equal_width_column([

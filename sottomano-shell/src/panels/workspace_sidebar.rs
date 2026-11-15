@@ -23,7 +23,7 @@ impl DesktopShell {
         output: &str,
     ) -> Element<'a, ShellInteraction> {
         let sidebar = self.widget_groups.sidebar_settings_group.layer.appearance();
-        let frame_style = sidebar.frame_style();
+        let frame_style = sidebar.frame;
         let outlined_sides = outlined_sides_inward_of(Position::Left)
             .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
         let framed_workspaces = (self

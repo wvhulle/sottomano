@@ -1,6 +1,6 @@
 mod sqlite_layer_appearance;
 
-use corredo::theming::{OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle};
+use corredo::theming::{FrameStyle, OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle};
 use iced::Task;
 use sottomano_toml_config::Config;
 
@@ -131,8 +131,8 @@ impl LayerAppearanceControls {
             layer,
             hover,
             backdrop_blur: defaults.backdrop_blur,
-            shadow_casting: defaults.shadow.casting,
-            outline_tracing: defaults.outline.tracing,
+            shadow_casting: defaults.frame.shadow.casting,
+            outline_tracing: defaults.frame.outline.tracing,
             opacity: SliderControl::new(
                 "Opacity",
                 0.0..=100.0,
@@ -188,36 +188,40 @@ impl LayerAppearanceControls {
     #[must_use]
     pub fn appearance(&self) -> LayerAppearance {
         LayerAppearance {
-            background: self.layer.default_appearance().background,
-            opacity: self.opacity.expanding_slider.reported_value() / 100.0,
-            corner_radius_px: self.corner_radius.expanding_slider.reported_value(),
+            frame: FrameStyle {
+                opacity: self.opacity.expanding_slider.reported_value() / 100.0,
+                corner_radius_px: self.corner_radius.expanding_slider.reported_value(),
+                shadow: ShadowStyle {
+                    casting: self.shadow_casting,
+                    softness_px: self.shadow_softness.expanding_slider.reported_value(),
+                    opacity: self.shadow_opacity.expanding_slider.reported_value() / 100.0,
+                },
+                outline: OutlineStyle {
+                    tracing: self.outline_tracing,
+                    opacity: self.outline_opacity.expanding_slider.reported_value() / 100.0,
+                },
+                ..self.layer.default_appearance().frame
+            },
             backdrop_blur: self.backdrop_blur,
-            shadow: ShadowStyle {
-                casting: self.shadow_casting,
-                softness_px: self.shadow_softness.expanding_slider.reported_value(),
-                opacity: self.shadow_opacity.expanding_slider.reported_value() / 100.0,
-            },
-            outline: OutlineStyle {
-                tracing: self.outline_tracing,
-                opacity: self.outline_opacity.expanding_slider.reported_value() / 100.0,
-            },
         }
     }
 
     fn adopt_loaded(&mut self, appearance: LayerAppearance) {
         self.backdrop_blur = appearance.backdrop_blur;
-        self.shadow_casting = appearance.shadow.casting;
-        self.outline_tracing = appearance.outline.tracing;
+        self.shadow_casting = appearance.frame.shadow.casting;
+        self.outline_tracing = appearance.frame.outline.tracing;
         self.opacity
-            .update(ControlMessage::Reading(appearance.opacity * 100.0));
+            .update(ControlMessage::Reading(appearance.frame.opacity * 100.0));
         self.corner_radius
-            .update(ControlMessage::Reading(appearance.corner_radius_px));
+            .update(ControlMessage::Reading(appearance.frame.corner_radius_px));
         self.shadow_softness
-            .update(ControlMessage::Reading(appearance.shadow.softness_px));
-        self.shadow_opacity
-            .update(ControlMessage::Reading(appearance.shadow.opacity * 100.0));
-        self.outline_opacity
-            .update(ControlMessage::Reading(appearance.outline.opacity * 100.0));
+            .update(ControlMessage::Reading(appearance.frame.shadow.softness_px));
+        self.shadow_opacity.update(ControlMessage::Reading(
+            appearance.frame.shadow.opacity * 100.0,
+        ));
+        self.outline_opacity.update(ControlMessage::Reading(
+            appearance.frame.outline.opacity * 100.0,
+        ));
     }
 
     pub fn close(&mut self) {
@@ -424,7 +428,7 @@ impl LayerAppearanceControls {
 #[cfg(test)]
 mod tests {
     use corredo::theming::{
-        FrameBackground, OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle,
+        FrameBackground, FrameStyle, OutlineStyle, OutlineTracing, ShadowCasting, ShadowStyle,
     };
     use sottomano_desktop_sources::sqlite_state_store::StoreError;
 
@@ -462,25 +466,28 @@ mod tests {
         let _ = menus.update(AppearanceMessage::Loaded(
             ShellLayer::Overlays.default_appearance(),
         ));
-        assert_eq!(menus.appearance().background, FrameBackground::Weak);
+        assert_eq!(menus.appearance().frame.background, FrameBackground::Weak);
     }
 
     #[test]
     fn a_loaded_appearance_reads_back_unchanged() {
         let loaded = LayerAppearance {
-            background: FrameBackground::Base,
-            opacity: 0.5,
-            corner_radius_px: 3.0,
+            frame: FrameStyle {
+                background: FrameBackground::Base,
+                opacity: 0.5,
+                corner_radius_px: 3.0,
+                shadow: ShadowStyle {
+                    casting: ShadowCasting::Omitted,
+                    softness_px: 12.0,
+                    opacity: 0.25,
+                },
+                outline: OutlineStyle {
+                    tracing: OutlineTracing::Omitted,
+                    opacity: 0.75,
+                },
+                ..FrameStyle::default()
+            },
             backdrop_blur: BackdropBlur::Clear,
-            shadow: ShadowStyle {
-                casting: ShadowCasting::Omitted,
-                softness_px: 12.0,
-                opacity: 0.25,
-            },
-            outline: OutlineStyle {
-                tracing: OutlineTracing::Omitted,
-                opacity: 0.75,
-            },
         };
         let mut appearance_controls = panel_controls();
         let _ = appearance_controls.update(AppearanceMessage::Loaded(loaded));
@@ -490,19 +497,27 @@ mod tests {
     #[test]
     fn a_failed_save_keeps_the_settled_corner_radius() {
         let mut appearance_controls = panel_controls();
-        let settled = appearance_controls.appearance().corner_radius_px;
+        let settled = appearance_controls.appearance().frame.corner_radius_px;
         let _ =
             appearance_controls.update(AppearanceMessage::CornerRadius(ControlMessage::Set(2.0)));
         let _ =
             appearance_controls.update(AppearanceMessage::CornerRadius(ControlMessage::Release));
-        assert!((appearance_controls.appearance().corner_radius_px - settled).abs() < f32::EPSILON);
+        assert!(
+            (appearance_controls.appearance().frame.corner_radius_px - settled).abs()
+                < f32::EPSILON
+        );
         let _ = appearance_controls.update(AppearanceMessage::CornerRadius(
             ControlMessage::persisted(2.0, Err(StoreError::NoRow)),
         ));
-        assert!((appearance_controls.appearance().corner_radius_px - settled).abs() < f32::EPSILON);
+        assert!(
+            (appearance_controls.appearance().frame.corner_radius_px - settled).abs()
+                < f32::EPSILON
+        );
         let _ = appearance_controls.update(AppearanceMessage::CornerRadius(
             ControlMessage::persisted(2.0, Ok::<(), StoreError>(())),
         ));
-        assert!((appearance_controls.appearance().corner_radius_px - 2.0).abs() < f32::EPSILON);
+        assert!(
+            (appearance_controls.appearance().frame.corner_radius_px - 2.0).abs() < f32::EPSILON
+        );
     }
 }

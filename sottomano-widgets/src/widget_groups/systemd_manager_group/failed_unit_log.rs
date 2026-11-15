@@ -251,7 +251,7 @@ impl IntoTableRecord<2> for &FailedUnitInfo {
             at: at.into(),
             format: LocalizedTimeFormat::DateAndTime,
         });
-        TableRecord::new(self.name.clone(), [reason, failed])
+        TableRecord::with_cells(self.name.clone(), [reason, failed])
             .level(UNIT_FAILURE_PRIORITY.severity())
     }
 }

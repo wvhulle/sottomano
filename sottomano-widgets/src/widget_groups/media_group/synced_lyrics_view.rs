@@ -109,7 +109,7 @@ fn synced_lyrics_table(
         .unwrap_or_default()
         .saturating_sub(LINES_BEFORE_CURRENT);
     let lyric_record = |timed_line: &TimedLyricLine, lyric_cell: fn(String) -> ValueCell| {
-        TableRecord::new(
+        TableRecord::with_cells(
             ValueCell::duration(timed_line.starts_at),
             [lyric_cell(sung_text(timed_line).to_owned())],
         )

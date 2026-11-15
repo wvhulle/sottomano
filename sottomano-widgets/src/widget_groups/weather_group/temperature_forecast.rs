@@ -84,7 +84,7 @@ const HOURLY_HEADINGS: [ColumnHeading; 3] = [
 
 impl IntoTableRecord<3> for &HourlyTemperature {
     fn into_table_record(self) -> TableRecord<3> {
-        TableRecord::new(
+        TableRecord::with_cells(
             ValueCell::Time {
                 at: self.time,
                 format: LocalizedTimeFormat::HourOfDay,

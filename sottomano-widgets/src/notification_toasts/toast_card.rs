@@ -292,13 +292,13 @@ impl<Routed> ToastCard<'_, Routed> {
         let urgency = self.urgency_pair();
         let opacity = match self.pointer_presence {
             PointerPresence::PointedAt => 1.0,
-            PointerPresence::NotPointedAt => self.overlay_appearance.opacity,
+            PointerPresence::NotPointedAt => self.overlay_appearance.frame.opacity,
         };
-        let shadow = self.overlay_appearance.frame_style().lifted_drop_shadow();
+        let shadow = self.overlay_appearance.frame.lifted_drop_shadow();
         container::Style::default()
             .background(urgency.color.scale_alpha(opacity * self.reveal))
             .border(
-                border::rounded(self.overlay_appearance.corner_radius_px)
+                border::rounded(self.overlay_appearance.frame.corner_radius_px)
                     .color(urgency.color.scale_alpha(self.reveal))
                     .width(OUTLINE_WIDTH_PX),
             )
@@ -317,7 +317,7 @@ impl<Routed> ToastCard<'_, Routed> {
             .size(font.small_text_size_px)
             .block_spacing(self.config.theme.spacing.item_gap)
             .column_gap(self.config.theme.spacing.group_gap)
-            .corner_radius(self.overlay_appearance.corner_radius_px)
+            .corner_radius(self.overlay_appearance.frame.corner_radius_px)
             .into()
     }
 
@@ -464,7 +464,7 @@ impl<Routed> ToastCard<'_, Routed> {
     fn reply_row<'b>(&self, placeholder: &str, submit: String) -> Element<'b, NotificationMessage> {
         let id = self.notif.data.id;
         let font = &self.config.theme.font;
-        let radius = self.overlay_appearance.corner_radius_px;
+        let radius = self.overlay_appearance.frame.corner_radius_px;
         let reply = move |message| NotificationMessage::Reply { id, message };
         let family = self.urgency_family();
         let field = text_input(placeholder, &self.notif.reply_draft)
@@ -508,7 +508,7 @@ impl<Routed> ToastCard<'_, Routed> {
         tint: FamilyShades,
     ) -> Element<'b, NotificationMessage> {
         let font = &self.config.theme.font;
-        let radius = self.overlay_appearance.corner_radius_px;
+        let radius = self.overlay_appearance.frame.corner_radius_px;
         button(panel_text(font, label))
             .padding([
                 self.config.theme.spacing.item_gap,

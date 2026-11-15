@@ -114,12 +114,12 @@ fn undragged_slot_context(
         edge,
         drag: DragView {
             drag: None,
-            ghost_frame: panel_appearance.frame_style(),
+            ghost_frame: panel_appearance.frame,
         },
         clock,
-        panel_corner_radius_px: panel_appearance.corner_radius_px,
+        panel_corner_radius_px: panel_appearance.frame.corner_radius_px,
         panel_float_offset_px: 0.0,
-        panel_frame_style: panel_appearance.frame_style(),
+        panel_frame_style: panel_appearance.frame,
         window_row_layout,
         window_title_length: WindowTitleLength::default(),
     }
@@ -349,7 +349,7 @@ impl ShowcasedDesktopSession {
             SHOWCASE_OUTPUT,
             Some(&configured_in_fixture_order(&self.snapshot)),
             &EmptyWorkspaceFolding::new(EmptyWorkspaces::Shown),
-            recorded_look().sidebar.frame_style().drawn_corners(
+            recorded_look().sidebar.frame.drawn_corners(
                 outlined_sides_inward_of(Position::Left)
                     .all_when_floating(SHOWCASE_FLOAT_OFFSET_PX),
             ),
