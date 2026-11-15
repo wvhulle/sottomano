@@ -11,6 +11,7 @@ use sottomano_desktop_sources::{
     incus_instances::{
         DaemonInstance, DaemonInstanceListing, InstanceDaemon, InstanceDaemonProbe, InstanceKind,
     },
+    podman_container_engine::libpod_running_containers::EngineReadError,
 };
 
 use crate::{
@@ -208,7 +209,7 @@ impl GroupItemReading for IncusInstanceListingRow<'_> {
 
 struct UnreadableDaemonRow<'a> {
     instance_daemon: InstanceDaemon,
-    failure_message: &'a str,
+    read_failure: &'a EngineReadError,
 }
 
 impl GroupItemReading for UnreadableDaemonRow<'_> {
@@ -221,7 +222,7 @@ impl GroupItemReading for UnreadableDaemonRow<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(engine_failure_label(self.failure_message).to_owned())
+        Some(engine_failure_label(self.read_failure).to_owned())
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
@@ -232,7 +233,7 @@ impl GroupItemReading for UnreadableDaemonRow<'_> {
         vec![Section::new(
             "Error",
             dictionary_table([
-                LabeledValue::new("Problem", self.failure_message),
+                LabeledValue::new("Problem", self.read_failure.to_string()),
                 LabeledValue::new(
                     "Socket",
                     self.instance_daemon.socket_path().display().to_string(),
@@ -386,10 +387,10 @@ impl IncusInstancesGroup {
                     })
                     .unwrap_or_default();
             }
-            if let Some(failure_message) = detail_reading.fetch_failure() {
+            if let Some(read_failure) = detail_reading.fetch_failure() {
                 return UnreadableDaemonRow {
                     instance_daemon,
-                    failure_message,
+                    read_failure,
                 }
                 .hover_card(clock);
             }
@@ -398,10 +399,10 @@ impl IncusInstancesGroup {
         let Some(listing_reading) = self.listings.get(&instance_daemon) else {
             return Vec::new();
         };
-        if let Some(failure_message) = listing_reading.fetch_failure() {
+        if let Some(read_failure) = listing_reading.fetch_failure() {
             return UnreadableDaemonRow {
                 instance_daemon,
-                failure_message,
+                read_failure,
             }
             .hover_card(clock);
         }
@@ -474,11 +475,11 @@ impl IncusInstancesGroup {
         let Some(listing_reading) = self.listings.get(&instance_daemon) else {
             return Vec::new();
         };
-        if let Some(failure_message) = listing_reading.fetch_failure() {
+        if let Some(read_failure) = listing_reading.fetch_failure() {
             return vec![GroupItem::reading(
                 UnreadableDaemonRow {
                     instance_daemon,
-                    failure_message,
+                    read_failure,
                 },
                 IncusInstanceTarget {
                     instance_daemon,

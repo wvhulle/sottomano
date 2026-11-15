@@ -1,4 +1,4 @@
-use std::{borrow::Cow, marker::PhantomData};
+use std::{borrow::Cow, fmt::Display};
 
 use chrono::{DateTime, Locale, Utc};
 use sottomano_desktop_sources::{
@@ -20,12 +20,12 @@ use crate::{
     widgets::{announced_level::AnnouncedLevel, icon_glyph::IconGlyph},
 };
 
-pub enum SnapshotTrouble {
-    FetchFailed(String),
+pub enum SnapshotTrouble<FetchFailure> {
+    FetchFailed(FetchFailure),
     Offline(InternetUnreachable),
 }
 
-impl SnapshotTrouble {
+impl<FetchFailure: Display> SnapshotTrouble<FetchFailure> {
     fn source_delivery(&self) -> SourceDelivery {
         match self {
             SnapshotTrouble::FetchFailed(_) => SourceDelivery::Failed,
@@ -35,15 +35,15 @@ impl SnapshotTrouble {
 
     fn detail(&self) -> String {
         match self {
-            SnapshotTrouble::FetchFailed(message) => message.clone(),
+            SnapshotTrouble::FetchFailed(fetch_failure) => fetch_failure.to_string(),
             SnapshotTrouble::Offline(offline_reason) => offline_reason.to_string(),
         }
     }
 }
 
-pub struct TroubledSnapshot<S> {
+pub struct TroubledSnapshot<S: SnapshotSource> {
     pub held_snapshot: S,
-    pub trouble: SnapshotTrouble,
+    pub trouble: SnapshotTrouble<S::Error>,
     pub delivery_timing: DeliveryStamp,
 }
 
@@ -58,7 +58,7 @@ impl<S: SnapshotSource> TroubledSnapshot<S> {
     }
 }
 
-impl<S: GroupItemReading> GroupItemReading for TroubledSnapshot<S> {
+impl<S: SnapshotSource + GroupItemReading> GroupItemReading for TroubledSnapshot<S> {
     fn name(&self) -> Cow<'static, str> {
         self.held_snapshot.name()
     }
@@ -124,34 +124,26 @@ impl<S: GroupItemReading> GroupItemReading for TroubledSnapshot<S> {
     }
 }
 
-pub enum PlaceholderCause {
-    Offline(InternetUnreachable),
-    FetchFailed(String),
+pub enum PlaceholderCause<FetchFailure> {
+    Troubled(SnapshotTrouble<FetchFailure>),
     AwaitingFirstSnapshot,
 }
 
-pub struct SnapshotPlaceholder<S> {
-    pub placeholder_cause: PlaceholderCause,
-    pub placeholder_source: PhantomData<S>,
+pub struct SnapshotPlaceholder<S: SnapshotSource> {
+    pub placeholder_cause: PlaceholderCause<S::Error>,
 }
 
 impl<S: SnapshotSource> SnapshotPlaceholder<S> {
     #[must_use]
-    pub fn caused_by(placeholder_cause: PlaceholderCause) -> Self {
-        Self {
-            placeholder_cause,
-            placeholder_source: PhantomData,
-        }
+    pub fn caused_by(placeholder_cause: PlaceholderCause<S::Error>) -> Self {
+        Self { placeholder_cause }
     }
 
     #[must_use]
     pub fn source_state(&self) -> Section {
         match &self.placeholder_cause {
-            PlaceholderCause::Offline(offline_reason) => {
-                Section::source_state::<S>(SourceDelivery::Offline, offline_reason.to_string())
-            }
-            PlaceholderCause::FetchFailed(message) => {
-                Section::source_state::<S>(SourceDelivery::Failed, message.clone())
+            PlaceholderCause::Troubled(trouble) => {
+                Section::source_state::<S>(trouble.source_delivery(), trouble.detail())
             }
             PlaceholderCause::AwaitingFirstSnapshot => {
                 Section::source_state::<S>(SourceDelivery::Loading, "")
@@ -171,8 +163,10 @@ impl<S: SnapshotSource + GroupItemReading> GroupItemReading for SnapshotPlacehol
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self.placeholder_cause {
-            PlaceholderCause::Offline(_) => ReadingDisplayState::Offline,
-            PlaceholderCause::FetchFailed(_) => ReadingDisplayState::Failed,
+            PlaceholderCause::Troubled(SnapshotTrouble::Offline(_)) => ReadingDisplayState::Offline,
+            PlaceholderCause::Troubled(SnapshotTrouble::FetchFailed(_)) => {
+                ReadingDisplayState::Failed
+            }
             PlaceholderCause::AwaitingFirstSnapshot => ReadingDisplayState::Pending,
         }
     }

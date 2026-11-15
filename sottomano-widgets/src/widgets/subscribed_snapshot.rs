@@ -106,7 +106,7 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
                     Err(fetch_error) => {
                         tracing::warn!(source = S::NAME, error = %fetch_error, "snapshot fetch failed");
                         self.troubled(
-                            SnapshotTrouble::FetchFailed(fetch_error.to_string()),
+                            SnapshotTrouble::FetchFailed(fetch_error),
                             Some(delivery_timing),
                         )
                     }
@@ -115,7 +115,11 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
         }
     }
 
-    fn troubled(self, trouble: SnapshotTrouble, fresh_timing: Option<DeliveryStamp>) -> Self {
+    fn troubled(
+        self,
+        trouble: SnapshotTrouble<S::Error>,
+        fresh_timing: Option<DeliveryStamp>,
+    ) -> Self {
         let held = match self {
             SubscribedSnapshot::SnapshotHeld {
                 held_snapshot,
@@ -135,12 +139,7 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
         };
         let Some((held_snapshot, held_timing)) = held else {
             return SubscribedSnapshot::NoSnapshot {
-                placeholder: SnapshotPlaceholder::caused_by(match trouble {
-                    SnapshotTrouble::FetchFailed(message) => PlaceholderCause::FetchFailed(message),
-                    SnapshotTrouble::Offline(offline_reason) => {
-                        PlaceholderCause::Offline(offline_reason)
-                    }
-                }),
+                placeholder: SnapshotPlaceholder::caused_by(PlaceholderCause::Troubled(trouble)),
             };
         };
         SubscribedSnapshot::SnapshotTroubled {
@@ -162,8 +161,8 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
                 delivery_timing,
             },
             Err(refusal) => SubscribedSnapshot::NoSnapshot {
-                placeholder: SnapshotPlaceholder::caused_by(PlaceholderCause::FetchFailed(
-                    refusal.to_string(),
+                placeholder: SnapshotPlaceholder::caused_by(PlaceholderCause::Troubled(
+                    SnapshotTrouble::FetchFailed(refusal),
                 )),
             },
         }
@@ -221,15 +220,15 @@ impl<S: SnapshotSource> SubscribedSnapshot<S> {
         self.sections_described_by(|_| sections)
     }
 
-    pub fn fetch_failure(&self) -> Option<&str> {
+    pub fn fetch_failure(&self) -> Option<&S::Error> {
         match self {
             SubscribedSnapshot::NoSnapshot {
                 placeholder:
                     SnapshotPlaceholder {
-                        placeholder_cause: PlaceholderCause::FetchFailed(failure_message),
-                        ..
+                        placeholder_cause:
+                            PlaceholderCause::Troubled(SnapshotTrouble::FetchFailed(fetch_failure)),
                     },
-            } => Some(failure_message),
+            } => Some(fetch_failure),
             SubscribedSnapshot::AwaitingFirstSnapshot
             | SubscribedSnapshot::SourceUnavailable
             | SubscribedSnapshot::SnapshotHeld { .. }

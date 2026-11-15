@@ -24,7 +24,7 @@ use crate::{
     group_items::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
-        offline_internet_reading::{PlaceholderCause, SnapshotPlaceholder},
+        offline_internet_reading::{PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble},
     },
     hover_cards::{
         HoverTarget,
@@ -244,7 +244,9 @@ impl GpuGroup {
                             },
                             Err(failure) => GpuDeviceAccess::Unreadable {
                                 handle_failure: SnapshotPlaceholder::caused_by(
-                                    PlaceholderCause::FetchFailed(failure.to_string()),
+                                    PlaceholderCause::Troubled(SnapshotTrouble::FetchFailed(
+                                        failure.clone(),
+                                    )),
                                 ),
                             },
                         };

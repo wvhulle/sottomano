@@ -10,7 +10,7 @@ use sottomano_desktop_sinks::container_power::ContainerEngineApi;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     podman_container_engine::{
-        libpod_running_containers::EngineListing,
+        libpod_running_containers::{EngineListing, EngineReadError},
         systemd_service_engine_discovery::DiscoveredPodmanEngine,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -71,7 +71,7 @@ fn container_hover_target(target: EngineContainerTarget) -> HoverTarget {
 
 struct UnreadableEngineRow<'a> {
     engine: &'a DiscoveredPodmanEngine,
-    failure_message: &'a str,
+    read_failure: &'a EngineReadError,
 }
 
 impl GroupItemReading for UnreadableEngineRow<'_> {
@@ -84,7 +84,7 @@ impl GroupItemReading for UnreadableEngineRow<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(engine_failure_label(self.failure_message).to_owned())
+        Some(engine_failure_label(self.read_failure).to_owned())
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
@@ -93,7 +93,10 @@ impl GroupItemReading for UnreadableEngineRow<'_> {
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![
-            Section::new("Error", SectionWidget::paragraph(self.failure_message)),
+            Section::new(
+                "Error",
+                SectionWidget::paragraph(self.read_failure.to_string()),
+            ),
             Section::new(
                 "Engine",
                 dictionary_table([
@@ -218,12 +221,12 @@ impl PodmanEnginesGroup {
                 else {
                     return Vec::new();
                 };
-                let Some(failure_message) = reading.fetch_failure() else {
+                let Some(read_failure) = reading.fetch_failure() else {
                     return Vec::new();
                 };
                 UnreadableEngineRow {
                     engine,
-                    failure_message,
+                    read_failure,
                 }
                 .hover_card(clock)
             }
@@ -274,11 +277,11 @@ impl PodmanEnginesGroup {
                     container_hover_target,
                     EngineContainerInteraction::SwitchContainer,
                 ));
-            } else if let Some(failure_message) = reading.fetch_failure() {
+            } else if let Some(read_failure) = reading.fetch_failure() {
                 failure_rows.push(GroupItem::reading(
                     UnreadableEngineRow {
                         engine,
-                        failure_message,
+                        read_failure,
                     },
                     PodmanEngineTarget::from(engine),
                 ));

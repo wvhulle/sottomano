@@ -86,11 +86,10 @@ pub(crate) fn container_switch_task<Message: Send + 'static>(
     .and_then(move |refusal| Task::done(refused(refusal)))
 }
 
-pub(crate) fn engine_failure_label(failure_message: &str) -> &'static str {
-    if failure_message == EngineReadError::SocketDenied.to_string() {
-        "no access: socket denied"
-    } else {
-        "unreadable"
+pub(crate) fn engine_failure_label(read_failure: &EngineReadError) -> &'static str {
+    match read_failure {
+        EngineReadError::SocketDenied => "no access: socket denied",
+        _ => "unreadable",
     }
 }
 

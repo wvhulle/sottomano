@@ -14,7 +14,7 @@ use sottomano_desktop_sources::{
         DockerContainerListing, DockerEngineListing, DockerEngineProbe, DockerEngineReadout,
         DockerEngineSocket, candidate_docker_sockets,
     },
-    podman_container_engine::libpod_running_containers::EngineListing,
+    podman_container_engine::libpod_running_containers::{EngineListing, EngineReadError},
 };
 
 use crate::{
@@ -71,7 +71,7 @@ fn container_hover_target(target: EngineContainerTarget) -> HoverTarget {
 
 struct UnreadableEngineRow<'a> {
     engine: &'a DockerEngineSocket,
-    failure_message: &'a str,
+    read_failure: &'a EngineReadError,
 }
 
 impl GroupItemReading for UnreadableEngineRow<'_> {
@@ -84,7 +84,7 @@ impl GroupItemReading for UnreadableEngineRow<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(engine_failure_label(self.failure_message).to_owned())
+        Some(engine_failure_label(self.read_failure).to_owned())
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
@@ -93,7 +93,10 @@ impl GroupItemReading for UnreadableEngineRow<'_> {
 
     fn hover_card(&self, _clock: Clock) -> Vec<Section> {
         vec![
-            Section::new("Error", SectionWidget::paragraph(self.failure_message)),
+            Section::new(
+                "Error",
+                SectionWidget::paragraph(self.read_failure.to_string()),
+            ),
             Section::new(
                 "Connection",
                 dictionary_table([LabeledValue::new(
@@ -277,7 +280,7 @@ impl DockerEnginesGroup {
             .map(|DockerEngineReadout(listing)| listing)
     }
 
-    fn readout_failure(&self, engine: &DockerEngineSocket) -> Option<&str> {
+    fn readout_failure(&self, engine: &DockerEngineSocket) -> Option<&EngineReadError> {
         self.readouts.get(&engine.socket_path)?.fetch_failure()
     }
 
@@ -298,12 +301,12 @@ impl DockerEnginesGroup {
                 let Some(engine) = self.engine_named(Path::new(socket_path.as_ref())) else {
                     return Vec::new();
                 };
-                let Some(failure_message) = self.readout_failure(engine) else {
+                let Some(read_failure) = self.readout_failure(engine) else {
                     return Vec::new();
                 };
                 UnreadableEngineRow {
                     engine,
-                    failure_message,
+                    read_failure,
                 }
                 .hover_card(clock)
             }
@@ -407,11 +410,11 @@ impl DockerEnginesGroup {
                     container_hover_target,
                     EngineContainerInteraction::SwitchContainer,
                 ));
-            } else if let Some(failure_message) = self.readout_failure(engine) {
+            } else if let Some(read_failure) = self.readout_failure(engine) {
                 failure_rows.push(GroupItem::reading(
                     UnreadableEngineRow {
                         engine,
-                        failure_message,
+                        read_failure,
                     },
                     DockerEngineTarget::from(engine),
                 ));

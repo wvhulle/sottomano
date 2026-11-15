@@ -228,10 +228,9 @@ impl GroupItemReading for UpcomingEventList {
 
 #[cfg(test)]
 mod tests {
-    use std::marker::PhantomData;
-
     use chrono::Locale;
     use sottomano_desktop_sources::{
+        SnapshotSource,
         caldav_tasks_events::{
             caldav_server_provider::CaldavProvider, caldav_upcoming_events::UpcomingEventList,
         },
@@ -242,7 +241,7 @@ mod tests {
         clock::Clock,
         group_items::{
             group_item_reading::GroupItemReading,
-            offline_internet_reading::{PlaceholderCause, SnapshotPlaceholder},
+            offline_internet_reading::{PlaceholderCause, SnapshotPlaceholder, SnapshotTrouble},
             reading_display_state::ReadingDisplayState,
         },
         widget_groups::caldav_group::CaldavTarget,
@@ -270,12 +269,9 @@ mod tests {
     }
 
     fn event_placeholder(
-        placeholder_cause: PlaceholderCause,
+        placeholder_cause: PlaceholderCause<<UpcomingEventList as SnapshotSource>::Error>,
     ) -> SnapshotPlaceholder<UpcomingEventList> {
-        SnapshotPlaceholder {
-            placeholder_cause,
-            placeholder_source: PhantomData,
-        }
+        SnapshotPlaceholder { placeholder_cause }
     }
 
     #[test]
@@ -291,8 +287,9 @@ mod tests {
 
     #[test]
     fn an_offline_placeholder_is_not_reported_as_pending() {
-        let offline_events =
-            event_placeholder(PlaceholderCause::Offline(InternetUnreachable::NoConnection));
+        let offline_events = event_placeholder(PlaceholderCause::Troubled(
+            SnapshotTrouble::Offline(InternetUnreachable::NoConnection),
+        ));
         assert_eq!(offline_events.label(Clock::real(), Locale::en_US), None);
         assert_eq!(
             offline_events.state(Clock::real()),
